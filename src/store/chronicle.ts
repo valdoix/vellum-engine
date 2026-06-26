@@ -69,3 +69,24 @@ export function invalidate(chatId?: string): void {
   if (chatId) _cache.delete(chatId);
   else _cache.clear();
 }
+
+/** Wipe a chat's event log entirely (clear all data). */
+export async function clearLog(chatId: string): Promise<void> {
+  _cache.set(chatId, { log: freshLog(chatId), state: reduce([]), reduced: 0 });
+  await persist(chatId);
+}
+
+/** Export a chat's full event log (for backup / portability). */
+export async function exportLog(chatId: string): Promise<EventLog> {
+  return loadLog(chatId);
+}
+
+/** Replace a chat's log with imported events (validated envelope). */
+export async function importLog(chatId: string, log: EventLog): Promise<ChronicleState> {
+  const migrated = migrate(log);
+  const v = EventLogSchema.safeParse(migrated);
+  const next = v.success ? { ...v.data, chatId } : freshLog(chatId);
+  _cache.set(chatId, { log: next, state: reduce(next.events), reduced: next.events.length });
+  await persist(chatId);
+  return _cache.get(chatId)!.state;
+}
