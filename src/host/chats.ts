@@ -51,6 +51,28 @@ export async function latestAssistantContentRetry(chatId: string, tries = 5, del
   return last;
 }
 
+/** All assistant message contents in order (regex-proof). Powers self-healing
+ * reconcile-folding: fold any assistant turns not yet captured. */
+export async function allAssistantContents(chatId: string): Promise<string[]> {
+  try {
+    const msgs = await spindle.chat?.getMessages?.(chatId);
+    if (!Array.isArray(msgs)) return [];
+    const out: string[] = [];
+    for (const m of msgs) {
+      if (!m || m.role !== 'assistant') continue;
+      let content = typeof m.content === 'string' ? m.content : '';
+      if (!content && Array.isArray(m.swipes) && m.swipes.length) {
+        const slot = typeof m.swipe_id === 'number' ? m.swipes[m.swipe_id] : null;
+        content = String(slot ?? m.swipes[m.swipes.length - 1] ?? '');
+      }
+      out.push(content);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export function isPermDenied(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
   return /permission|denied|not granted/i.test(msg);

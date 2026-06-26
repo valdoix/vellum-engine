@@ -1,6 +1,6 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents } from './host/chats.js';
 import { loadState, append, invalidate, clearLog, exportLog, importLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -9,7 +9,7 @@ import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
 import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll } from './bus/summarize.js';
-import { EventLog as EventLogSchema } from './core/events.js';
+import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
@@ -79,29 +79,31 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
 async function foldChat(chatId: string, userId: string | null, hint?: string): Promise<void> {
-  // prefer content the event handed us; else read (with retry for new chats
-  // where the assistant message isn't committed yet when GENERATION_ENDED fires)
-  let content = (hint && hint.trim()) ? hint : '';
-  if (!content) { const r = await latestAssistantContentRetry(chatId); if (!r.ok) return; content = r.value; }
-  if (!content || !content.trim()) return;
-  const read = { value: content };
-  const prior = await loadState(chatId);
-  const turnNo = (prior.turns ?? 0) + 1;
-  const { events, sig, source } = foldTurn(read.value, prior, turnNo);
-  if (sig === lastSigByChat.get(chatId)) return; // already folded this turn (swipe/regen)
-  lastSigByChat.set(chatId, sig);
-  if (!events.length) return;
-  // record a compact per-turn memory (the prose, state-block stripped) so the
-  // summarizer has detail-dense material to later compress into chapters
-  const gist = read.value.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
-  if (gist) events.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as any);
-  await append(chatId, events);
-  invalidateIndex(chatId); // chronicle changed â†’ next interceptor rebuilds the index
+  // RECONCILE: fold every assistant turn the chronicle hasn't captured yet, so a
+  // missed GENERATION_ENDED is self-healed on the next trigger/get_state. A turn
+  // is COUNTED even when the model omits the <vellum> block.
+  let msgs = await allAssistantContents(chatId);
+  if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allAssistantContents(chatId); }
+  if (hint && hint.trim() && (!msgs.length || msgs[msgs.length - 1] !== hint)) msgs.push(hint);
+  if (!msgs.length) return;
+  let prior = await loadState(chatId);
+  let added = 0;
+  for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
+    const content = (msgs[turnNo - 1] ?? '').trim();
+    if (!content) continue;
+    const { events, source } = foldTurn(content, prior, turnNo);
+    const evs: VellumEvent[] = [...events];
+    if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: 'auto' } as VellumEvent);
+    const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
+    if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
+    prior = await append(chatId, evs);
+    added += evs.length;
+    spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);
+  }
+  if (!added) return;
+  invalidateIndex(chatId);
   await broadcastState(chatId, userId);
-  spindle.log?.info?.(`[vellum_engine] folded turn via ${source}: +${events.length} events`);
-  // auto-summarize once the backlog of raw turn-memories is large enough
   void maybeAutoSummarize(chatId, userId);
-  // Tier-B: refresh Vault entries whose chronicle source changed (per-category)
   void maybeVaultSync(chatId, userId);
 }
 
@@ -262,6 +264,8 @@ const dispatch: Record<string, Handler> = {
   vellum_get_state: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_state', chatId: null, state: null }, uid); return; }
+    // self-heal: catch up any turns that weren't folded, then broadcast
+    try { await foldChat(chatId, uid); } catch { /* best effort */ }
     await broadcastState(chatId, uid);
   },
   vellum_refold: async (p, uid) => {
