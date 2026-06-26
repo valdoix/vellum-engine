@@ -29,7 +29,7 @@ function tensionBar(s: ChronicleState): string {
   const t = Math.max(0, Math.min(10, s.scene.tension || 0));
   if (!t) return '';
   const hue = 120 - t * 12; // green→red
-  return `<div class="vld-sec"><div class="vld-h">Tension</div><div class="vld-tension"><span class="vld-tension-f" style="width:${t * 10}%;background:hsl(${hue},55%,50%)"></span></div><span class="vld-tension-n">${t}/10</span></div>`;
+  return `<div class="vld-sec"><div class="vld-h">Tension</div><div class="vld-tension-row"><div class="vld-tension"><span class="vld-tension-f" style="width:${t * 10}%;background:hsl(${hue},55%,50%)"></span></div><span class="vld-tension-n">${t}/10</span></div></div>`;
 }
 
 function presentBlock(s: ChronicleState): string {
