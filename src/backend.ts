@@ -1,5 +1,5 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
-import { invalidatePermissions, invalidateChatCaps } from './host/capability.js';
+import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent } from './host/chats.js';
 import { loadState, append, invalidate } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
@@ -45,6 +45,7 @@ async function foldChat(chatId: string, userId: string | null): Promise<void> {
 
 async function boot(): Promise<void> {
   await restoreUser();
+  await wireCapabilities(); // attach interceptor + generation fold if already granted
   spindle.log?.info?.('[vellum_engine] booted — event-log core online');
 }
 void boot();
@@ -64,38 +65,58 @@ function sceneQuery(ctx: any): string {
   return '';
 }
 
-// INTERCEPT: inject authoritative cast/bonds + scene-relevant recall.
-try {
-  spindle.registerInterceptor?.(async (ctx: any) => {
+// --- permission-gated wiring --------------------------------------------
+// The host rejects interceptor/generation registration when the permission
+// isn't granted, and won't re-wire on its own when the user grants it later.
+// So we attach each piece behind a capability check, idempotently, and re-run
+// the whole attach pass whenever permissions change — no reload required.
+let _interceptorWired = false;
+let _genWired = false;
+
+async function wireCapabilities(): Promise<void> {
+  // INTERCEPT: inject authoritative cast/bonds + scene-relevant recall.
+  if (!_interceptorWired && (await has('interceptor')) && spindle.registerInterceptor) {
     try {
-      const uid = ctx?.userId || currentUser();
-      rememberUser(uid);
-      const chatId = ctx?.chatId || (await activeChatId(uid));
-      if (!chatId) return undefined;
-      const state = await loadState(chatId);
-      if (!state.turns && !Object.keys(state.cast).length) return undefined;
-      const inj = await buildInjectionHybrid(chatId, state, sceneQuery(ctx), uid);
-      if (!inj.text) return undefined;
-      lastInjection.set(chatId, inj.recallIds);
-      // Return the injected context in the host's expected shape (string append).
-      return { context: inj.text };
-    } catch (e) {
-      spindle.log?.warn?.('[vellum_engine] interceptor: ' + ((e as Error)?.message ?? e));
-      return undefined;
-    }
-  }, 120);
-} catch { /* interceptor optional */ }
+      spindle.registerInterceptor(async (ctx: any) => {
+        try {
+          const uid = ctx?.userId || currentUser();
+          rememberUser(uid);
+          const chatId = ctx?.chatId || (await activeChatId(uid));
+          if (!chatId) return undefined;
+          const state = await loadState(chatId);
+          if (!state.turns && !Object.keys(state.cast).length) return undefined;
+          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(ctx), uid);
+          if (!inj.text) return undefined;
+          lastInjection.set(chatId, inj.recallIds);
+          return { context: inj.text };
+        } catch (e) {
+          spindle.log?.warn?.('[vellum_engine] interceptor: ' + ((e as Error)?.message ?? e));
+          return undefined;
+        }
+      }, 120);
+      _interceptorWired = true;
+      spindle.log?.info?.('[vellum_engine] interceptor wired');
+    } catch (e) { spindle.log?.warn?.('[vellum_engine] interceptor wiring deferred: ' + ((e as Error)?.message ?? e)); }
+  }
 
+  // FOLD on generation end (requires the generation permission to subscribe).
+  if (!_genWired && (await has('generation'))) {
+    try {
+      spindle.on?.('GENERATION_ENDED', async (p: any) => {
+        rememberUser(p?.userId);
+        const chatId = p?.chatId || (await activeChatId(currentUser()));
+        if (chatId) await foldChat(chatId, p?.userId ?? currentUser());
+      });
+      _genWired = true;
+      spindle.log?.info?.('[vellum_engine] generation fold wired');
+    } catch (e) { spindle.log?.warn?.('[vellum_engine] generation wiring deferred: ' + ((e as Error)?.message ?? e)); }
+  }
+}
 
-// --- host events ---------------------------------------------------------
+// Always-safe events (no special permission to subscribe).
 try {
-  spindle.on?.('PERMISSION_CHANGED', () => invalidatePermissions());
-  spindle.on?.('GENERATION_ENDED', async (p: any) => {
-    rememberUser(p?.userId);
-    const chatId = p?.chatId || (await activeChatId(currentUser()));
-    if (chatId) await foldChat(chatId, p?.userId ?? currentUser());
-  });
-  spindle.on?.('CHAT_SWITCHED', (p: any) => { rememberUser(p?.userId); invalidateChatCaps(); });
+  spindle.on?.('PERMISSION_CHANGED', () => { invalidatePermissions(); void wireCapabilities(); });
+  spindle.on?.('CHAT_SWITCHED', (p: any) => { rememberUser(p?.userId); invalidateChatCaps(); if (p?.chatId) invalidate(); });
 } catch { /* events optional */ }
 
 // --- frontend dispatch table ---------------------------------------------
@@ -138,6 +159,4 @@ try {
   });
 } catch { /* messaging optional */ }
 
-try { spindle.on?.('CHAT_SWITCHED', (p: any) => { if (p?.chatId) invalidate(); }); } catch { /* ignore */ }
-
-spindle.log?.info?.('[vellum_engine] backend loaded');
+try { spindle.log?.info?.('[vellum_engine] backend loaded'); } catch { /* ignore */ }
