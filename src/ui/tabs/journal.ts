@@ -1,7 +1,7 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, JournalEntry } from '../../domain/types.js';
 import { esc, nameOf } from '../format.js';
-import { cmd, paginate, pagerHtml, filterBar, applyFilter } from '../bridge.js';
+import { cmd, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal } from '../modal.js';
 
 /**
@@ -24,25 +24,36 @@ const KIND_GLYPH: Record<string, string> = {
 };
 const SENT_CLR: Record<string, string> = { positive: '#8fa67e', negative: '#c96a6a', neutral: '#8c8478', complex: '#b48ed0' };
 
+// "book" view: when set, show one character's full journal on its own page
+let _openBook: string | null = null;
+
 export const journalTab: Component<ChronicleState> = {
-  version: (s) => s.journal.length + ':' + Object.keys(s.cast).length,
+  version: (s) => s.journal.length + ':' + Object.keys(s.cast).length + ':' + (_openBook ?? ''),
   render(s) {
+    if (_openBook) return bookView(s, _openBook);
     const header = '<div class="vle-sec-top"><button class="vle-add" data-jr-add>+ Memory</button></div>';
     if (!s.journal.length) return header + '<div class="vle-empty sm">No journal entries yet. Characters remember moments as the story unfolds.</div>';
     const whos = Array.from(new Set(s.journal.map((j) => j.who))).map((id) => ({ id, name: nameOf(s, id) }));
+    // a "shelf" of per-character books to open
+    const shelf = '<div class="vle-shelf">' + whos.map((w) => {
+      const n = s.journal.filter((j) => j.who === w.id).length;
+      return `<button class="vle-book" data-jr-book="${esc(w.id)}">${esc(w.name)} <span class="vle-book-n">${n}</span></button>`;
+    }).join('') + '</div>';
     const bar = filterBar('journal', { cats: KIND_OPTS.map((k) => k.value), whos });
     const filtered = applyFilter('journal', s.journal, { cat: (j) => j.kind, who: (j) => j.who });
-    if (!filtered.length) return header + bar + '<div class="vle-empty sm">No entries match the filter.</div>';
+    if (!filtered.length) return header + shelf + bar + '<div class="vle-empty sm">No entries match the filter.</div>';
     const { slice, page, pages } = paginate('journal', filtered);
-    return header + bar + '<div class="vle-jr-grid">' + slice.map((j) => card(s, j)).join('') + '</div>' + pagerHtml('journal', page, pages);
+    return header + shelf + bar + '<div class="vle-jr-grid">' + slice.map((j) => card(s, j)).join('') + '</div>' + pagerHtml('journal', page, pages);
   },
   mount(host) {
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
+      const book = t.closest('[data-jr-book]');
+      if (book) { _openBook = book.getAttribute('data-jr-book'); refreshUI(); return; }
+      if (t.closest('[data-jr-close]')) { _openBook = null; refreshUI(); return; }
       if (t.closest('[data-jr-add]')) { jrForm('New Memory', {}); return; }
       const ed = t.closest('[data-jr-edit]');
       if (ed) {
-        // edit = delete + re-add (journal entries are immutable records)
         jrForm('Edit Memory', {
           id: ed.getAttribute('data-id') ?? '', who: ed.getAttribute('data-who') ?? '', about: ed.getAttribute('data-about') ?? '',
           memory: ed.getAttribute('data-mem') ?? '', kind: ed.getAttribute('data-kind') ?? 'interaction',
@@ -55,6 +66,18 @@ export const journalTab: Component<ChronicleState> = {
     });
   },
 };
+
+/** One character's full journal as its own page. */
+function bookView(s: ChronicleState, who: string): string {
+  const entries = s.journal.filter((j) => j.who === who);
+  const bar = filterBar('journal-book', { cats: KIND_OPTS.map((k) => k.value) });
+  const filtered = applyFilter('journal-book', entries, { cat: (j) => j.kind });
+  const head = `<div class="vle-book-head"><button class="vle-mini" data-jr-close title="Back">\u2039</button>`
+    + `<span class="vle-book-title">${esc(nameOf(s, who))}\u2019s Journal</span>`
+    + `<span class="vle-n">${entries.length}</span></div>`;
+  const body = filtered.length ? '<div class="vle-jr-grid">' + filtered.map((j) => card(s, j)).join('') + '</div>' : '<div class="vle-empty sm">No entries match.</div>';
+  return head + bar + body;
+}
 
 function jrForm(title: string, v: Record<string, string>): void {
   formModal(title, [

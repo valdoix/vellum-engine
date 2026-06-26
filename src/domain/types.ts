@@ -93,11 +93,30 @@ export interface Track {
   lastTurn: number;
 }
 
+export interface PresentChar {
+  id: string;
+  mood?: string;
+  doing?: string;
+  condition?: string;
+  thought?: string;
+}
+
 export interface Scene {
   location: string;
+  time: string;
   tension: number;
   weather: string;
   present: string[];
+  detail: PresentChar[];
+}
+
+export interface ParallelEvent {
+  who?: string;
+  where?: string;
+  activity: string;
+  note?: string;
+  turn: number;
+  day: number;
 }
 
 export interface JournalEntry {
@@ -121,6 +140,7 @@ export interface ChronicleState {
   journal: JournalEntry[];
   threads: Track[];
   arcs: Track[];
+  parallel: ParallelEvent[];
   scene: Scene;
   day: number;
   turns: number;
@@ -136,7 +156,8 @@ export function freshState(): ChronicleState {
     journal: [],
     threads: [],
     arcs: [],
-    scene: { location: '', tension: 0, weather: '', present: [] },
+    parallel: [],
+    scene: { location: '', time: '', tension: 0, weather: '', present: [], detail: [] },
     day: 0,
     turns: 0,
   };

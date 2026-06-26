@@ -86,6 +86,8 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     }
     case 'journal_delete':
       return e.id ? [{ ...base(ctx), kind: 'journal.drop', id: String(e.id) } as VellumEvent] : [];
+    case 'parallel_set':
+      return [{ ...base(ctx), kind: 'parallel.set', items: (Array.isArray(e.items) ? e.items : []).map((it: any) => ({ ...(it.who ? { who: canonId(it.who) } : {}), ...(it.where ? { where: String(it.where) } : {}), activity: String(it.activity || '').trim(), ...(it.note ? { note: String(it.note) } : {}) })).filter((it: any) => it.activity) } as VellumEvent];
     default:
       return [];
   }
@@ -94,5 +96,5 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
 export const CMD_TYPES = new Set([
   'cast_upsert', 'cast_delete', 'relation_upsert', 'relation_delete',
   'knowledge_add', 'secret_add', 'secret_reveal', 'memory_add', 'memory_delete',
-  'thread_op', 'arc_op', 'journal_add', 'journal_delete',
+  'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'parallel_set',
 ]);

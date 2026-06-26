@@ -29,6 +29,15 @@ export const ParsedPresent = z.object({
   name: z.string().optional(),
   mood: z.string().optional(),
   doing: z.string().optional(),
+  condition: z.string().optional(), // physical state e.g. "wounded", "exhausted"
+  thought: z.string().optional(), // first-person inner voice this turn
+});
+
+export const ParsedParallel = z.object({
+  who: z.string().optional(),
+  where: z.string().optional(),
+  activity: z.string(),
+  note: z.string().optional(),
 });
 
 export const ParsedThread = z.object({
@@ -50,13 +59,14 @@ export const ParsedState = z.object({
   v: z.number().optional(),
   turn: z.number().optional(),
   day: z.number().optional(),
-  scene: z.object({ loc: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional() }).optional(),
+  scene: z.object({ loc: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional() }).optional(),
   present: z.array(ParsedPresent).optional(),
   delta: z.object({
     bonds: z.array(ParsedBond).optional(),
     threads: z.array(ParsedThread).optional(),
     arcs: z.array(ParsedThread).optional(),
     journal: z.array(ParsedJournal).optional(),
+    parallel: z.array(ParsedParallel).optional(),
   }).optional(),
   // Open extension point: future blocks (e.g. inventory, factions) can land here
   // and be picked up by a registered extractor without schema churn elsewhere.

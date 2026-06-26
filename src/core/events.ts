@@ -27,7 +27,10 @@ const base = { seq: z.number().int().nonnegative(), turn: z.number().int().nonne
 
 // --- individual event variants -------------------------------------------
 export const EvTurnFold = z.object({ ...base, kind: z.literal('turn.fold'), sig: z.string() });
-export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]) });
+export const PresentDetail = z.object({ id: z.string(), name: z.string().optional(), mood: z.string().optional(), doing: z.string().optional(), condition: z.string().optional(), thought: z.string().optional() });
+export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional() });
+export const ParallelItem = z.object({ who: z.string().optional(), where: z.string().optional(), activity: z.string(), note: z.string().optional() });
+export const EvParallel = z.object({ ...base, kind: z.literal('parallel.set'), items: z.array(ParallelItem).default([]) });
 
 export const JournalKind = z.enum(['interaction', 'promise', 'betrayal', 'gift', 'shared', 'wound', 'observation']);
 export type JournalKind = z.infer<typeof JournalKind>;
@@ -73,6 +76,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvMemory, EvMemoryDrop,
   EvThread, EvArc,
   EvJournal, EvJournalDrop,
+  EvParallel,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;
 

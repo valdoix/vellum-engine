@@ -57,13 +57,14 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
   return chapterEvents(plan, text.slice(0, 2000), keys, state.turns || plan.covers[1], state.day || 0, nextSeq);
 }
 
-/** Compress as many full windows as exist (manual "summarize all"). */
-export async function summarizeAll(state: ChronicleState, userId: string | null, append: (evs: VellumEvent[]) => Promise<ChronicleState>): Promise<number> {
+/** Compress as many windows as exist (manual "summarize all"). A manual run uses
+ * a smaller minimum window so it works even on shorter chats, and keeps the most
+ * recent few turns verbatim. */
+export async function summarizeAll(state: ChronicleState, userId: string | null, append: (evs: VellumEvent[]) => Promise<ChronicleState>, windowSize = 4): Promise<number> {
   let rounds = 0;
   let cur = state;
-  // guard against runaway; each round removes >= windowSize turn-memories
   for (let i = 0; i < 50; i++) {
-    const evs = await summarizeOnce(cur, userId);
+    const evs = await summarizeOnce(cur, userId, windowSize);
     if (!evs.length) break;
     cur = await append(evs);
     rounds++;

@@ -8,6 +8,7 @@ import { graphTab, resetGraphCache } from './tabs/graph.js';
 import { journalTab } from './tabs/journal.js';
 import { injectionTab, setInjectionLog } from './tabs/injection.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
+import { dashboardHtml } from './dashboard.js';
 import { wireBridge, wirePagers, wireFilters } from './bridge.js';
 
 /**
@@ -142,15 +143,17 @@ export function setup(ctx: Ctx): () => void {
   tab.root.appendChild(drawer.root);
 
   // bridge: tab components issue CRUD via send(); refresh re-renders both shells
-  wireBridge((payload) => ctx.sendToBackend(payload), () => { drawer.update(); floatShell?.update(); });
+  wireBridge((payload) => ctx.sendToBackend(payload), () => { drawer.update(); float.refresh(); });
 
-  // beautiful floating window — same shell, opened from the input bar
+  // beautiful floating window â€” a live scene DASHBOARD with a refresh button
   const float: FloatWindow = createFloatWindow({
-    title: 'VELLUM', actions: [],
-    render: (host) => { host.innerHTML = ''; const shell = createFloatShell(); host.appendChild(shell.root); floatShell = shell; shell.update(); },
+    title: 'VELLUM',
+    actions: [{ id: 'refresh', label: '\u27F3', title: 'Refresh' }],
+    onAction: (id) => { if (id === 'refresh') ctx.sendToBackend({ type: 'vellum_get_state' }); },
+    render: (host) => { host.innerHTML = `<div class="vld">${dashboardHtml(getState())}</div>`; },
   });
   let floatShell: ReturnType<typeof createShell> | null = null;
-  function createFloatShell(): ReturnType<typeof createShell> { return createShell(ctx, getState); }
+  void floatShell; void createShell;
 
   let inputBtn: { destroy(): void } | null = null;
   try {
@@ -161,10 +164,10 @@ export function setup(ctx: Ctx): () => void {
     try {
       if (p?.type === 'vellum_state') {
         state = p.state ?? freshState();
-        drawer.update(); floatShell?.update(); float.refresh();
+        drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
-        drawer.update(); floatShell?.update();
+        drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_export' && p.log) {
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
         ctx.toast?.success?.('Chronicle exported.');
@@ -191,7 +194,6 @@ export function setup(ctx: Ctx): () => void {
     try { unsub(); } catch { /* ignore */ }
     try { offChat?.(); } catch { /* ignore */ }
     try { drawer.destroy(); } catch { /* ignore */ }
-    try { floatShell?.destroy(); } catch { /* ignore */ }
     try { float.destroy(); } catch { /* ignore */ }
     try { inputBtn?.destroy(); } catch { /* ignore */ }
     try { tab.destroy(); } catch { /* ignore */ }

@@ -32,7 +32,18 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'scene.set': {
-      s.scene = { location: e.location ?? s.scene.location, tension: e.tension ?? s.scene.tension, weather: e.weather ?? s.scene.weather, present: e.present };
+      s.scene = {
+        location: e.location ?? s.scene.location,
+        time: e.time ?? s.scene.time,
+        tension: e.tension ?? s.scene.tension,
+        weather: e.weather ?? s.scene.weather,
+        present: e.present,
+        detail: e.detail ? e.detail.map((d) => ({ id: d.id, ...(d.mood ? { mood: d.mood } : {}), ...(d.doing ? { doing: d.doing } : {}), ...(d.condition ? { condition: d.condition } : {}), ...(d.thought ? { thought: d.thought } : {}) })) : (e.present.length ? s.scene.detail.filter((d) => e.present.includes(d.id)) : s.scene.detail),
+      };
+      break;
+    }
+    case 'parallel.set': {
+      s.parallel = e.items.map((it) => ({ ...(it.who ? { who: it.who } : {}), ...(it.where ? { where: it.where } : {}), activity: it.activity, ...(it.note ? { note: it.note } : {}), turn: e.turn, day: e.day }));
       break;
     }
     case 'cast.seen': {

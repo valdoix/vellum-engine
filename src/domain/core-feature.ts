@@ -19,12 +19,18 @@ export const coreFeature: Feature = {
       .map((p) => (p.id ? canonId(p.id) : p.name ? canonId(p.name) : ''))
       .filter(Boolean);
     if (parsed.scene || present.length) {
+      const detail = (parsed.present ?? []).map((p) => {
+        const id = p.id ? canonId(p.id) : p.name ? canonId(p.name) : '';
+        return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(p.condition ? { condition: p.condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
+      }).filter(Boolean);
       out.push({
         ...base(), kind: 'scene.set',
         ...(parsed.scene?.loc ? { location: parsed.scene.loc } : {}),
+        ...(parsed.scene?.time ? { time: parsed.scene.time } : {}),
         ...(typeof parsed.scene?.tension === 'number' ? { tension: parsed.scene.tension } : {}),
         ...(parsed.scene?.weather ? { weather: parsed.scene.weather } : {}),
         present,
+        ...(detail.length ? { detail } : {}),
       } as VellumEvent);
     }
     // mark present characters as cast (present status); names seed cards
@@ -67,6 +73,15 @@ export const coreFeature: Feature = {
         ...base(), kind: 'journal.entry', id: 'mj_' + who + '_' + ctx.turn + '_' + (out.length),
         who, ...(j.about ? { about: canonId(j.about) } : {}), memory,
         jkind: (j.kind ?? 'interaction'), weight: (j.weight ?? 'minor'), sentiment: (j.sentiment ?? 'neutral'),
+      } as VellumEvent);
+    }
+
+    // off-screen parallel events
+    const par = parsed.delta?.parallel ?? [];
+    if (par.length) {
+      out.push({
+        ...base(), kind: 'parallel.set',
+        items: par.map((p) => ({ ...(p.who ? { who: canonId(p.who) } : {}), ...(p.where ? { where: p.where } : {}), activity: String(p.activity || '').trim(), ...(p.note ? { note: p.note } : {}) })).filter((p) => p.activity),
       } as VellumEvent);
     }
 

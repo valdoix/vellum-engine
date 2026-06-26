@@ -1,7 +1,7 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Memory } from '../../domain/types.js';
-import { esc, byRecent } from '../format.js';
-import { cmd, paginate, pagerHtml } from '../bridge.js';
+import { esc, byRecent, nameOf } from '../format.js';
+import { cmd, paginate, pagerHtml, filterBar, applyFilter } from '../bridge.js';
 import { formModal } from '../modal.js';
 
 /**
@@ -69,15 +69,21 @@ function memories(s: ChronicleState): string {
 function knowledge(s: ChronicleState): string {
   const head = '<div class="vle-sec-h">\u25C8 Knowledge <span class="vle-n">' + s.knowledge.length + '</span><button class="vle-add sm" data-know-add>+</button></div>';
   if (!s.knowledge.length) return head + '<div class="vle-empty sm">\u2014</div>';
-  const { slice, page, pages } = paginate('knowledge', s.knowledge.slice().reverse());
-  const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(k.who) + '</span><span class="vle-mem-t">' + esc(k.fact) + '</span></div>').join('');
-  return head + rows + pagerHtml('knowledge', page, pages);
+  const whos = Array.from(new Set(s.knowledge.map((k) => k.who))).map((id) => ({ id, name: nameOf(s, id) }));
+  const bar = filterBar('knowledge', { whos });
+  const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
+  const { slice, page, pages } = paginate('knowledge', filtered);
+  const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span><span class="vle-mem-t">' + esc(k.fact) + '</span></div>').join('');
+  return head + bar + rows + pagerHtml('knowledge', page, pages);
 }
 
 function secrets(s: ChronicleState): string {
   const head = '<div class="vle-sec-h">\u26C0 Secrets <span class="vle-n">' + s.secrets.length + '</span><button class="vle-add sm" data-sec-add>+</button></div>';
   if (!s.secrets.length) return head + '<div class="vle-empty sm">\u2014</div>';
-  const { slice, page, pages } = paginate('secrets', s.secrets.slice().reverse());
-  const rows = slice.map((sec) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(sec.keeper) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.join(', ')) + ')</em>' : '') + '</span></div>').join('');
-  return head + rows + pagerHtml('secrets', page, pages);
+  const whos = Array.from(new Set(s.secrets.map((x) => x.keeper))).map((id) => ({ id, name: nameOf(s, id) }));
+  const bar = filterBar('secrets', { whos });
+  const filtered = applyFilter('secrets', s.secrets.map((x) => ({ ...x, turn: x.formedTurn })), { who: (x) => x.keeper });
+  const { slice, page, pages } = paginate('secrets', filtered);
+  const rows = slice.map((sec) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span></div>').join('');
+  return head + bar + rows + pagerHtml('secrets', page, pages);
 }
