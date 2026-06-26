@@ -21,6 +21,7 @@ interface VSnap { ok: boolean; reason?: string; categories: VCat[]; books: VBook
 
 let _snap: VSnap | null = null;
 let _filter = 'all';
+let _scope: 'vault' | 'all' = 'vault';
 export function setVaultSnap(s: VSnap): void { _snap = s; }
 
 const POS_OPTS = [
@@ -36,9 +37,16 @@ export const vaultTab: Component<ChronicleState> = {
     if (!_snap) { send({ type: 'vellum_get_vault' }); return '<div class="vle-empty sm">Loading vault\u2026</div>'; }
     if (!_snap.ok && _snap.reason === 'no_permission') return '<div class="vlm-comp-error">The Vault needs the <b>world_books</b> permission. Grant it in the extension settings to author lorebooks here.<br><span>Activation stays native; the Vault just organizes + auto-configures.</span></div>';
     const cats = _snap.categories.filter((c) => !c.hidden);
-    const entries = allEntries();
+    const all = allEntries();
+    // scope: 'vault' shows only VELLUM-managed entries (default, clean); 'all'
+    // shows every native lorebook entry too (for adopting existing lore).
+    const entries = _scope === 'vault' ? all.filter((e) => e.vellum) : all;
     const counts: Record<string, number> = {};
     for (const e of entries) counts[e.category || 'uncat'] = (counts[e.category || 'uncat'] ?? 0) + 1;
+    const scopeBar = '<div class="vlv-scopebar">'
+      + `<button class="vlv-scope${_scope === 'vault' ? ' on' : ''}" data-vscope="vault">\u2756 Vault <span class="vlv-cn">${all.filter((e) => e.vellum).length}</span></button>`
+      + `<button class="vlv-scope${_scope === 'all' ? ' on' : ''}" data-vscope="all">All lorebooks <span class="vlv-cn">${all.length}</span></button>`
+      + '</div>';
     const bar = '<div class="vlv-catbar">'
       + `<button class="vlv-chip${_filter === 'all' ? ' on' : ''}" data-vcat="all">All <span class="vlv-cn">${entries.length}</span></button>`
       + cats.map((c) => `<button class="vlv-chip${_filter === c.id ? ' on' : ''}" data-vcat="${esc(c.id)}" style="--c:${c.color}"><span class="vlv-glyph">${esc(c.glyph)}</span>${esc(c.label)} <span class="vlv-cn">${counts[c.id] ?? 0}</span><span class="vlv-gear" data-vcat-settings="${esc(c.id)}">\u2699</span></button>`).join('')
@@ -51,12 +59,14 @@ export const vaultTab: Component<ChronicleState> = {
     const active = new Set(_snap.activated.map((a) => a.id));
     const grid = shown.length
       ? '<div class="vlv-grid">' + shown.map((e) => entryCard(e, active.has(e.id))).join('') + '</div>'
-      : '<div class="vle-empty sm">No entries here yet. <b>+ Entry</b> to add lore.</div>';
-    return top + suggestStrip() + bar + grid;
+      : '<div class="vle-empty sm">' + (_scope === 'vault' ? 'No Vault entries yet. <b>+ Entry</b> to author lore, or switch to <b>All lorebooks</b> to adopt existing entries.' : 'No entries here yet.') + '</div>';
+    return top + suggestStrip() + scopeBar + bar + grid;
   },
   mount(host) {
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
+      const sc = t.closest('[data-vscope]');
+      if (sc) { _scope = sc.getAttribute('data-vscope') as 'vault' | 'all'; _filter = 'all'; rerender(host); return; }
       const chip = t.closest('[data-vcat]');
       if (chip && !t.closest('[data-vcat-settings]')) { _filter = chip.getAttribute('data-vcat')!; rerender(host); return; }
       const gear = t.closest('[data-vcat-settings]'); if (gear) { categorySettings(gear.getAttribute('data-vcat-settings')!); return; }

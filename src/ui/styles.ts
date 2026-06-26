@@ -289,4 +289,7 @@ export const STYLES = [
   ".vlv-current-l{font:600 8px/1 'JetBrains Mono',monospace;letter-spacing:.6px;text-transform:uppercase;opacity:.5}",
   ".vlv-current-n{font-family:'Cormorant Garamond',Georgia,serif;font-size:14px;color:var(--vle-gold);cursor:pointer}",
   ".vlv-current-n:hover{text-decoration:underline}",
+  ".vlv-scopebar{display:flex;gap:5px;margin:0 0 8px}",
+  ".vlv-scope{flex:1;font:600 9.5px/1 'JetBrains Mono',monospace;letter-spacing:.4px;color:#cdbfa0;background:rgba(205,168,78,.06);border:1px solid var(--vle-gold-soft);border-radius:8px;padding:7px 10px;cursor:pointer;opacity:.7;display:inline-flex;align-items:center;justify-content:center;gap:6px}",
+  ".vlv-scope:hover{opacity:.95}.vlv-scope.on{opacity:1;color:var(--vle-gold);border-color:rgba(205,168,78,.5);background:rgba(205,168,78,.16)}",
 ].join('\n');
