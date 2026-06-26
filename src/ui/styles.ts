@@ -267,5 +267,7 @@ export const STYLES = [
   ".vlv-entry-ctl{margin-left:auto;display:inline-flex;gap:3px}",
   ".vlv-keys{font:600 10px/1.3 'JetBrains Mono',monospace;color:var(--vle-gold);margin-top:5px;opacity:.85}",
   ".vlv-content{font-size:12px;line-height:1.5;color:#cdc3ad;margin-top:4px;white-space:pre-wrap;word-break:break-word}",
-  ".vlv-badge{font:600 8px/1 'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.4px;color:#9bc0e6;margin-top:6px;opacity:.7}",
+  ".vlv-badge{font:600 8px/1 'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.4px;color:#9bc0e6;margin-top:6px;opacity:.7;display:flex;align-items:center;gap:6px}",
+  ".vlv-unlink{font:600 7.5px/1 'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.4px;color:#cdbfa0;background:rgba(205,168,78,.08);border:1px solid rgba(205,168,78,.2);border-radius:5px;padding:2px 6px;cursor:pointer}",
+  ".vlv-unlink:hover{color:var(--vle-gold);background:rgba(205,168,78,.2)}",
 ].join('\n');

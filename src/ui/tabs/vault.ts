@@ -63,6 +63,7 @@ export const vaultTab: Component<ChronicleState> = {
       if (t.closest('[data-vbook]')) { bookManager(); return; }
       const ed = t.closest('[data-ventry-edit]'); if (ed) { entryForm(findEntry(ed.getAttribute('data-id')!)); return; }
       const del = t.closest('[data-ventry-del]'); if (del && confirm('Delete this entry?')) send({ type: 'vellum_vault_op', op: 'entry_delete', entryId: del.getAttribute('data-id') });
+      const un = t.closest('[data-ventry-unlink]'); if (un) send({ type: 'vellum_vault_op', op: 'entry_unlink', entryId: un.getAttribute('data-id'), category: un.getAttribute('data-cat') });
     });
   },
 };
@@ -81,7 +82,7 @@ function entryCard(e: VEntry, firing: boolean): string {
     + `<span class="vlv-entry-ctl"><button class="vle-mini" data-ventry-edit data-id="${esc(e.id)}">\u270E</button><button class="vle-mini del" data-ventry-del data-id="${esc(e.id)}">\u2715</button></span></div>`
     + `<div class="vlv-keys">${keys ? esc(keys) : '<em>always on</em>'}</div>`
     + `<div class="vlv-content">${esc(e.content).slice(0, 280)}${e.content.length > 280 ? '\u2026' : ''}</div>`
-    + (e.source && e.source !== 'manual' ? `<div class="vlv-badge">auto \u00b7 ${esc(e.source)}</div>` : '')
+    + (e.source && e.source !== 'manual' ? `<div class="vlv-badge">\u21BB auto \u00b7 ${esc(e.source)}<button class="vlv-unlink" data-ventry-unlink data-id="${esc(e.id)}" data-cat="${esc(e.category)}" title="Stop auto-updating (convert to hand-owned)">unlink</button></div>` : '')
     + '</div>';
 }
 

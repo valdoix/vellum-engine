@@ -1,7 +1,7 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, CastCard } from '../../domain/types.js';
 import { esc, initials, byRecent } from '../format.js';
-import { cmd, paginate, pagerHtml } from '../bridge.js';
+import { cmd, paginate, pagerHtml, send } from '../bridge.js';
 import { formModal } from '../modal.js';
 
 /**
@@ -32,6 +32,8 @@ export const castTab: Component<ChronicleState> = {
   mount(host) {
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
+      const pr = t.closest('[data-cast-promote]');
+      if (pr) { send({ type: 'vellum_vault_promote', kind: 'cast', id: pr.getAttribute('data-id') }); const b = pr as HTMLElement; const o = b.textContent; b.textContent = '\u2713'; setTimeout(() => { b.textContent = o; }, 1800); return; }
       if (t.closest('[data-cast-add]')) { castForm('New Character', {}); return; }
       const ed = t.closest('[data-cast-edit]');
       if (ed) {
@@ -80,6 +82,7 @@ function card(c: CastCard, present: boolean): string {
     + (c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')
     + '</span>'
     + '<span class="vle-card-ctl">'
+    + `<button class="vle-mini" data-cast-promote data-id="${A(c.id)}" title="Promote to Vault lore">\u2756</button>`
     + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
     + '</span></div>';

@@ -20,7 +20,7 @@ export interface LiteEntry {
   content: string; comment: string;
   position: number; depth: number; order_value: number;
   constant: boolean; disabled: boolean;
-  vellum: boolean; category: string; source: string; link: string; pending: boolean;
+  vellum: boolean; category: string; source: string; link: string; pending: boolean; hash: string;
 }
 
 function liteEntry(e: any): LiteEntry | null {
@@ -36,7 +36,7 @@ function liteEntry(e: any): LiteEntry | null {
     order_value: typeof e.order_value === 'number' ? e.order_value : 100,
     constant: !!e.constant, disabled: !!e.disabled,
     vellum: !!ext.vellum, category: String(ext.vellumCategory || ''), source: String(ext.vellumSource || ''),
-    link: String(ext.vellumLink || ''), pending: !!ext.vellumPending,
+    link: String(ext.vellumLink || ''), pending: !!ext.vellumPending, hash: String(ext.vellumHash || ''),
   };
 }
 
@@ -98,7 +98,7 @@ export async function createBook(name: string, description: string, uid: string 
 
 export interface EntryInput {
   bookId: string; key: string[]; keysecondary?: string[]; content: string; comment?: string;
-  settings: EntrySettings; category: string; source?: string; link?: string; pending?: boolean;
+  settings: EntrySettings; category: string; source?: string; link?: string; pending?: boolean; hash?: string;
 }
 
 export async function createEntry(e: EntryInput, uid: string | null): Promise<Result<string, string>> {
@@ -108,9 +108,18 @@ export async function createEntry(e: EntryInput, uid: string | null): Promise<Re
     const created = await a.entries.create(e.bookId, {
       key: e.key, keysecondary: e.keysecondary ?? [], content: e.content, comment: e.comment ?? '',
       ...fields,
-      extensions: { vellum: true, vellumCategory: e.category, vellumSource: e.source ?? 'manual', ...(e.link ? { vellumLink: e.link } : {}), ...(e.pending ? { vellumPending: true } : {}) },
+      extensions: { vellum: true, vellumCategory: e.category, vellumSource: e.source ?? 'manual', ...(e.link ? { vellumLink: e.link } : {}), ...(e.pending ? { vellumPending: true } : {}), ...(e.hash ? { vellumHash: e.hash } : {}) },
     }, uid);
     return String(created?.id || '');
+  });
+}
+
+/** Refresh a synced entry's content + keywords + hash (Tier-B sync). */
+export async function syncEntry(entryId: string, content: string, key: string[], hash: string, link: string, category: string, uid: string | null): Promise<Result<true, string>> {
+  const a = api(); if (!a) return Err('no_permission');
+  return tryCatchAsync(async () => {
+    await a.entries.update(entryId, { content, key, extensions: { vellum: true, vellumCategory: category, vellumSource: 'sync', vellumLink: link, vellumHash: hash } }, uid);
+    return true as const;
   });
 }
 

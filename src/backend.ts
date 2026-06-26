@@ -13,9 +13,10 @@ import { EventLog as EventLogSchema } from './core/events.js';
 import { nextSeq as nextSeqLocal } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
-import { vaultSnapshot, setBookAttached, createBook, createEntry, updateEntry, deleteEntry, hasVault } from './host/worldbooks.js';
+import { vaultSnapshot, setBookAttached, createBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
+import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
 
 /** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
 function coveredTurn(state: ChronicleState): number {
@@ -76,6 +77,32 @@ async function foldChat(chatId: string, userId: string | null): Promise<void> {
   spindle.log?.info?.(`[vellum_engine] folded turn via ${source}: +${events.length} events`);
   // auto-summarize once the backlog of raw turn-memories is large enough
   void maybeAutoSummarize(chatId, userId);
+  // Tier-B: refresh Vault entries whose chronicle source changed (per-category)
+  void maybeVaultSync(chatId, userId);
+}
+
+const _vaultSyncing = new Set<string>();
+/** Tier-B sync: for each category set to 'sync', refresh linked entries whose source changed. */
+async function maybeVaultSync(chatId: string, userId: string | null): Promise<void> {
+  if (_vaultSyncing.has(chatId)) return;
+  if (!(await hasVault())) return;
+  const cats = (await loadCategories()).filter((c) => c.sync === 'sync' && c.source);
+  if (!cats.length) return;
+  _vaultSyncing.add(chatId);
+  try {
+    const state = await loadState(chatId);
+    const snap = await vaultSnapshot(chatId, userId);
+    const owned = snap.books.flatMap((b) => b.entries).filter((e) => e.vellum && e.link);
+    let changed = 0;
+    for (const cat of cats) {
+      const managed = owned.filter((e) => e.category === cat.id).map((e) => ({ id: e.id, link: e.link, hash: e.hash }));
+      if (!managed.length) continue;
+      const plan = reconcileCategory(state, cat.source!, managed);
+      for (const u of plan.update) { await syncEntry(u.entryId, u.promotion.content, u.promotion.key, u.promotion.hash, u.promotion.link, cat.id, userId); changed++; }
+    }
+    if (changed) { const s2 = await vaultSnapshot(chatId, userId); spindle.sendToFrontend?.({ type: 'vellum_vault', categories: await loadCategories(), ...s2 }, userId ?? currentUser()); spindle.log?.info?.('[vellum_engine] vault sync: refreshed ' + changed + ' entries'); }
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] vault sync: ' + ((e as Error)?.message ?? e)); }
+  finally { _vaultSyncing.delete(chatId); }
 }
 
 let _summarizing = new Set<string>();
@@ -292,10 +319,37 @@ const dispatch: Record<string, Handler> = {
         if (typeof p.disabled === 'boolean') patch.disabled = p.disabled;
         const r = await updateEntry(String(p.entryId), patch, uid); done(r.ok, r.ok ? {} : { reason: r.error });
       } else if (p.op === 'entry_delete') { const r = await deleteEntry(String(p.entryId), uid); done(r.ok, r.ok ? {} : { reason: r.error }); }
+      else if (p.op === 'entry_unlink') {
+        // convert an auto-managed entry to hand-owned: keep vellum tag + category,
+        // drop the source link so Tier-B sync never touches it again
+        const r = await updateEntry(String(p.entryId), { extensions: { vellum: true, vellumCategory: String(p.category || ''), vellumSource: 'manual' } }, uid);
+        done(r.ok, r.ok ? {} : { reason: r.error });
+      }
       else done(false, { reason: 'unknown_op' });
     } catch (e) { done(false, { reason: (e as Error)?.message ?? 'error' }); }
     // refresh the snapshot after any mutation
     if (chatId || true) { const snap = await vaultSnapshot(chatId ?? '', uid); spindle.sendToFrontend?.({ type: 'vellum_vault', categories: await loadCategories(), ...snap }, uid); }
+  },
+  vellum_vault_promote: async (p, uid) => {
+    // Tier A: promote a chronicle record into a Vault entry (or refresh if it exists).
+    const chatId = p?.chatId || (await activeChatId(uid));
+    const done = (ok: boolean, extra?: Record<string, unknown>) => spindle.sendToFrontend?.({ type: 'vellum_vault_done', op: 'promote', ok, ...(extra || {}) }, uid);
+    if (!chatId || !(await hasVault())) { done(false, { reason: 'no_permission' }); return; }
+    try {
+      const state = await loadState(chatId);
+      const promo = buildPromotion(state, p.kind as PromoteKind, String(p.id));
+      if (!promo) { done(false, { reason: 'not_found' }); return; }
+      const cats = await loadCategories();
+      const cat = resolveCategory(cats, promo.category);
+      const snap = await vaultSnapshot(chatId, uid);
+      // target a VELLUM-owned book (create one if none), reuse if entry already linked
+      let bookId = p.bookId || snap.books.find((b) => b.vellum)?.id;
+      if (!bookId) { const r = await createBook('VELLUM Vault', 'Lore promoted from the chronicle', uid); if (!r.ok) { done(false, { reason: r.error }); return; } bookId = r.value; await setBookAttached(chatId, bookId, true, uid); }
+      const existing = snap.books.flatMap((b) => b.entries).find((e) => e.vellum && e.link === promo.link);
+      if (existing) { await syncEntry(existing.id, promo.content, promo.key, promo.hash, promo.link, cat.id, uid); done(true, { updated: true }); }
+      else { const r = await createEntry({ bookId, key: promo.key, keysecondary: promo.keysecondary, content: promo.content, comment: promo.comment, settings: cat.defaults, category: cat.id, source: 'promote', link: promo.link, hash: promo.hash }, uid); done(r.ok, r.ok ? { entryId: r.value } : { reason: r.error }); }
+    } catch (e) { done(false, { reason: (e as Error)?.message ?? 'error' }); }
+    const snap2 = await vaultSnapshot(chatId, uid); spindle.sendToFrontend?.({ type: 'vellum_vault', categories: await loadCategories(), ...snap2 }, uid);
   },
   vellum_rescan: async (p, uid) => {
     // re-fold the latest turn from raw stored text (recover from a missed fold)
