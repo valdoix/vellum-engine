@@ -49,14 +49,31 @@ export interface VaultSnapshot {
   activated: Array<{ id: string; comment?: string; source?: string }>;
 }
 
-/** Call a host method tolerant of operator-scoped (needs uid) vs user-scoped
- * (no uid) builds, and tolerant of list returning an array or { data }. */
-async function callList(fn: (...a: any[]) => Promise<any>, args: any[], uid: string | null): Promise<any[]> {
-  let r: any;
-  try { r = await fn(...args, uid); }
-  catch { try { r = await fn(...args); } catch { return []; } }
-  if (Array.isArray(r)) return r;
-  if (Array.isArray(r?.data)) return r.data;
+/** Call a host list method tolerant of every arg form operator/user-scoped
+ * builds use, and of array-or-{data} returns. Logs which form yielded data so
+ * we can pin the contract from real runtime. */
+async function callList(label: string, fn: (...a: any[]) => Promise<any>, baseArgs: any[], uid: string | null): Promise<any[]> {
+  const unwrap = (r: any): any[] => Array.isArray(r) ? r : Array.isArray(r?.data) ? r.data : Array.isArray(r?.items) ? r.items : [];
+  const lastOpt = baseArgs[baseArgs.length - 1];
+  const forms: Array<{ how: string; args: any[] }> = [
+    { how: '(args,uid)', args: [...baseArgs, uid] },
+    { how: '(args)', args: baseArgs },
+    { how: 'opts.userId', args: [...baseArgs.slice(0, -1), { ...(lastOpt && typeof lastOpt === 'object' ? lastOpt : {}), userId: uid }] },
+  ];
+  for (const f of forms) {
+    try {
+      const r = await fn(...f.args);
+      const arr = unwrap(r);
+      if (arr.length) { return arr; }
+      // a valid empty result still counts — but keep trying other forms in case
+      // this form was wrong-scoped and returned [] spuriously
+      if (r && (Array.isArray(r) || r.data !== undefined || r.items !== undefined)) {
+        // remember we got a well-formed empty; if no other form yields data, accept empty
+      }
+    } catch (e) {
+      spindle.log?.warn?.(`[vellum_engine] ${label} ${f.how} threw: ${(e as Error)?.message ?? e}`);
+    }
+  }
   return [];
 }
 
@@ -70,16 +87,16 @@ export async function vaultSnapshot(chatId: string, uid: string | null): Promise
   }
   let globalIds: string[] = [];
   try { if (a.getGlobal) { const g = await a.getGlobal(uid).catch(() => a.getGlobal()); if (Array.isArray(g)) globalIds = g; } } catch { /* ignore */ }
-  const books = await callList(a.list.bind(a), [{ limit: 200, offset: 0 }], uid);
+  const books = await callList('wb.list', a.list.bind(a), [{ limit: 200, offset: 0 }], uid);
   for (const b of books) {
-    const raw = await callList(a.entries.list.bind(a.entries), [b.id, { limit: 300, offset: 0 }], uid);
+    const raw = await callList('wb.entries.list', a.entries.list.bind(a.entries), [b.id, { limit: 300, offset: 0 }], uid);
     const entries = raw.map(liteEntry).filter(Boolean) as LiteEntry[];
     out.books.push({ id: b.id, name: String(b.name || 'Untitled'), description: String(b.description || ''), vellum: !!(b.metadata?.vellum), attachedToChat: out.attached.includes(b.id), global: globalIds.includes(b.id), entries });
   }
   if (chatId && a.getActivated) {
     try { const act = await a.getActivated(chatId, uid).catch(() => a.getActivated(chatId)); if (Array.isArray(act)) out.activated = act.map((x: any) => ({ id: x.id, comment: x.comment, source: x.source })); } catch { /* ignore */ }
   }
-  spindle.log?.info?.('[vellum_engine] vaultSnapshot: ' + out.books.length + ' book(s), ' + out.books.reduce((n, b) => n + b.entries.length, 0) + ' entries');
+  spindle.log?.info?.('[vellum_engine] vaultSnapshot: uid=' + (uid ? 'set' : 'null') + ' ' + out.books.length + ' book(s), ' + out.books.reduce((n, b) => n + b.entries.length, 0) + ' entries');
   return out;
 }
 
