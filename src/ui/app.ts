@@ -176,7 +176,7 @@ export function setup(ctx: Ctx): () => void {
     title: 'VELLUM',
     actions: [{ id: 'refresh', label: '\u27F3', title: 'Refresh' }],
     onAction: (id) => { if (id === 'refresh') ctx.sendToBackend({ type: 'vellum_get_state' }); },
-    render: (host) => { host.innerHTML = `<div class="vld">${dashboardHtml(getState())}</div>`; },
+    render: (host) => { try { host.innerHTML = `<div class="vld">${dashboardHtml(getState())}</div>`; } catch (e) { try { console.warn('[vellum] dashboard render failed:', e); } catch { /* ignore */ } host.innerHTML = '<div class="vld"><div class="vle-empty sm">Dashboard hit an error. Hit refresh.</div></div>'; } },
   });
   let floatShell: ReturnType<typeof createShell> | null = null;
   void floatShell; void createShell;

@@ -35,11 +35,13 @@ const SECTION_LABEL: Record<SectionId, string> = {
  * collapsed into <details>. Skin/scale handle look/size independently.
  */
 export function dashboardHtml(s: ChronicleState): string {
-  const lay: LayoutDef = getLayout();
+  let lay: LayoutDef;
+  try { lay = getLayout(); } catch { lay = { id: 'dashboard', name: '', blurb: '', glyph: '', order: ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent'], hidden: [], collapsed: [], density: 'comfortable', columns: 1 }; }
   const parts = lay.order
     .filter((id) => !lay.hidden.includes(id))
     .map((id) => {
-      const html = SECTIONS[id](s);
+      let html = '';
+      try { html = SECTIONS[id](s); } catch (e) { try { console.warn('[vellum] dashboard section ' + id + ' failed:', e); } catch { /* ignore */ } }
       if (!html) return '';
       if (lay.collapsed.includes(id)) {
         return `<details class="vld-fold"><summary>${SECTION_LABEL[id]}</summary><div class="vld-fold-b">${html}</div></details>`;
@@ -48,7 +50,8 @@ export function dashboardHtml(s: ChronicleState): string {
     })
     .filter(Boolean)
     .join('');
-  return `<div class="vld-inner" data-layout="${lay.id}" data-density="${lay.density}" data-cols="${lay.columns}">${parts}</div>`;
+  const inner = parts || `<div class="vle-empty sm">Nothing recorded for this scene yet.<br><span>Play a turn — the chronicle fills as the model emits its &lt;vellum&gt; state block.</span></div>`;
+  return `<div class="vld-inner" data-layout="${lay.id}" data-density="${lay.density}" data-cols="${lay.columns}">${inner}</div>`;
 }
 
 function statusBar(s: ChronicleState): string {
