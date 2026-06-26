@@ -9,6 +9,7 @@ import { journalTab } from './tabs/journal.js';
 import { injectionTab, setInjectionLog } from './tabs/injection.js';
 import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
+import { applyTheme, customizePanel, wireCustomize } from './theme.js';
 import { dashboardHtml } from './dashboard.js';
 import { wireBridge, wirePagers, wireFilters } from './bridge.js';
 
@@ -32,7 +33,7 @@ interface Ctx {
   toast?: { info?(m: string): void; warning?(m: string): void; success?(m: string): void };
 }
 
-const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 3.5h9l3 3V16.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1Z" stroke="#cda84e" stroke-width="1.4"/><path d="M6 9h8M6 12h6" stroke="#cda84e" stroke-width="1.2" stroke-linecap="round"/></svg>';
+const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:var(--vg,#cda84e)"><path d="M4 3.5h9l3 3V16.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4"/><path d="M6 9h8M6 12h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
 const TABS = [
   { id: 'chronicle', label: 'Chronicle', comp: chronicleTab },
@@ -45,6 +46,7 @@ const TABS = [
 ] as const;
 
 const QOL = [
+  { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins' },
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories' },
   { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)' },
@@ -52,6 +54,21 @@ const QOL = [
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON' },
   { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat' },
 ];
+
+/** Open the Customize (theme) panel as a modal-style overlay. */
+function openCustomize(onChange: () => void): void {
+  const ov = document.createElement('div');
+  ov.className = 'vlfm-overlay';
+  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(420px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Customize</div>'
+    + '<div class="vlfm-body" data-cz-host>' + customizePanel() + '</div>'
+    + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-save" data-close>Done</button></div></div>';
+  document.body.appendChild(ov);
+  const host = ov.querySelector('[data-cz-host]') as HTMLElement;
+  applyTheme(ov.querySelector('.vlfm') as HTMLElement);
+  wireCustomize(host, () => { host.innerHTML = customizePanel(); applyTheme(ov.querySelector('.vlfm') as HTMLElement); onChange(); });
+  const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
+  ov.addEventListener('click', (e) => { if (e.target === ov || (e.target as HTMLElement).closest('[data-close]')) close(); });
+}
 
 /** A self-contained shell instance: renders the tab bar + toolbar + body. */
 function createShell(ctx: Ctx, getState: () => ChronicleState) {
@@ -99,8 +116,10 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
+let _retheme: () => void = () => { /* set in setup */ };
 function onQol(ctx: Ctx, id: string): void {
-  if (id === 'summarize') { ctx.sendToBackend({ type: 'vellum_summarize' }); ctx.toast?.info?.('Summarizing older turns\u2026'); }
+  if (id === 'customize') { openCustomize(() => _retheme()); }
+  else if (id === 'summarize') { ctx.sendToBackend({ type: 'vellum_summarize' }); ctx.toast?.info?.('Summarizing older turns\u2026'); }
   else if (id === 'rescan') { ctx.sendToBackend({ type: 'vellum_rescan' }); ctx.toast?.info?.('Rescanning the latest turn\u2026'); }
   else if (id === 'hide') { _hideOn = !_hideOn; ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'export') { ctx.sendToBackend({ type: 'vellum_export' }); }
@@ -143,6 +162,10 @@ export function setup(ctx: Ctx): () => void {
   });
   const drawer = createShell(ctx, getState);
   tab.root.appendChild(drawer.root);
+
+  // apply the saved theme to the drawer shell + document (launcher/toggle/icon)
+  applyTheme(drawer.root);
+  _retheme = () => { applyTheme(drawer.root); try { float.applyTheme(); } catch { /* ignore */ } };
 
   // bridge: tab components issue CRUD via send(); refresh re-renders both shells
   wireBridge((payload) => ctx.sendToBackend(payload), () => { drawer.update(); float.refresh(); });

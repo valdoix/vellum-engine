@@ -8,6 +8,7 @@
  * It's a presentation shell: the caller supplies render(host) to fill the body
  * and a toolbar of QOL actions. Geometry persists to localStorage.
  */
+import { applyTheme } from './theme.js';
 
 export interface FloatHooks {
   title?: string;
@@ -24,6 +25,7 @@ export interface FloatWindow {
   toggle(): void;
   isOpen(): boolean;
   refresh(): void;
+  applyTheme(): void;
   destroy(): void;
 }
 
@@ -125,6 +127,7 @@ export function createFloatWindow(hooks: FloatHooks): FloatWindow {
       if (open) return; open = true;
       geo = clampGeo(geo); applyGeo();
       if (!el.isConnected) document.body.appendChild(el);
+      applyTheme(el);
       requestAnimationFrame(() => el.classList.add('is-open'));
       launcher.classList.add('is-hidden');
       hooks.render(body);
@@ -133,6 +136,7 @@ export function createFloatWindow(hooks: FloatHooks): FloatWindow {
     toggle(): void { open ? api.close() : api.open(); },
     isOpen(): boolean { return open; },
     refresh(): void { if (open) hooks.render(body); },
+    applyTheme(): void { applyTheme(el); },
     destroy(): void {
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up); window.removeEventListener('resize', onResizeWin);
