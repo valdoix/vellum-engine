@@ -7,6 +7,7 @@ import { relationsTab } from './tabs/relations.js';
 import { graphTab, resetGraphCache } from './tabs/graph.js';
 import { journalTab } from './tabs/journal.js';
 import { injectionTab, setInjectionLog } from './tabs/injection.js';
+import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
 import { dashboardHtml } from './dashboard.js';
 import { wireBridge, wirePagers, wireFilters } from './bridge.js';
@@ -39,6 +40,7 @@ const TABS = [
   { id: 'relations', label: 'Relations', comp: relationsTab },
   { id: 'journal', label: 'Journal', comp: journalTab },
   { id: 'graph', label: 'Graph', comp: graphTab },
+  { id: 'vault', label: 'Vault', comp: vaultTab },
   { id: 'injection', label: 'Injection', comp: injectionTab },
 ] as const;
 
@@ -168,6 +170,14 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
         drawer.update(); float.refresh();
+      } else if (p?.type === 'vellum_vault') {
+        setVaultSnap(p);
+        drawer.update();
+      } else if (p?.type === 'vellum_vault_categories') {
+        // categories changed — re-request the full snapshot to reflect counts
+        ctx.sendToBackend({ type: 'vellum_get_vault' });
+      } else if (p?.type === 'vellum_vault_done') {
+        if (!p.ok) ctx.toast?.warning?.('Vault: ' + (p.reason ?? 'failed'));
       } else if (p?.type === 'vellum_export' && p.log) {
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
         ctx.toast?.success?.('Chronicle exported.');

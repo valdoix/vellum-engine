@@ -13,12 +13,21 @@ import { EventLog as EventLogSchema } from './core/events.js';
 import { nextSeq as nextSeqLocal } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
+import { vaultSnapshot, setBookAttached, createBook, createEntry, updateEntry, deleteEntry, hasVault } from './host/worldbooks.js';
+import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
+import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
 
 /** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
 function coveredTurn(state: ChronicleState): number {
   let c = 0;
   for (const m of state.memories) if ((m.tier === 'chapter' || m.tier === 'arc') && m.covers) c = Math.max(c, m.covers[1]);
   return c;
+}
+
+/** Parse a comma/array keyword list into a clean string[]. */
+function splitList(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+  return String(v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 declare const spindle: any;
@@ -238,6 +247,55 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     spindle.sendToFrontend?.({ type: 'vellum_injection', chatId, log: (injectionLog.get(chatId) ?? []).slice().reverse() }, uid);
+  },
+  vellum_get_vault: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    const categories = await loadCategories();
+    if (!(await hasVault())) { spindle.sendToFrontend?.({ type: 'vellum_vault', ok: false, reason: 'no_permission', categories, books: [], attached: [], activated: [] }, uid); return; }
+    const snap = await vaultSnapshot(chatId ?? '', uid);
+    spindle.sendToFrontend?.({ type: 'vellum_vault', categories, ...snap }, uid);
+  },
+  vellum_vault_category: async (p, uid) => {
+    // upsert/delete a category. payload.op = 'upsert'|'delete'
+    if (p?.op === 'delete' && p?.id) await deleteCategory(String(p.id));
+    else if (p?.cat) {
+      const c = p.cat as Partial<VaultCategory>;
+      const id = c.id || ('custom_' + Date.now().toString(36));
+      const base = c.builtin ? null : customCategory(id, String(c.label || 'Custom'), String(c.glyph || '\u2727'), String(c.color || '#cdbfa0'));
+      await upsertCategory({ ...(base ?? {}), ...(c as VaultCategory), id });
+    }
+    const categories = await loadCategories();
+    spindle.sendToFrontend?.({ type: 'vellum_vault_categories', categories }, uid);
+  },
+  vellum_vault_op: async (p, uid) => {
+    // book + entry CRUD. payload.op decides.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    const done = (ok: boolean, extra?: Record<string, unknown>) => spindle.sendToFrontend?.({ type: 'vellum_vault_done', op: p?.op, ok, ...(extra || {}) }, uid);
+    if (!(await hasVault())) { done(false, { reason: 'no_permission' }); return; }
+    try {
+      const cats = await loadCategories();
+      if (p.op === 'book_create') { const r = await createBook(String(p.name || 'New Lorebook'), String(p.description || ''), uid); if (r.ok && p.attach && chatId) await setBookAttached(chatId, r.value, true, uid); done(r.ok, r.ok ? { bookId: r.value } : { reason: r.error }); }
+      else if (p.op === 'book_attach') { if (!chatId) { done(false, { reason: 'no_active_chat' }); return; } const ok = await setBookAttached(chatId, String(p.bookId), !!p.attach, uid); done(ok); }
+      else if (p.op === 'entry_create') {
+        const cat = resolveCategory(cats, p.category);
+        const settings: EntrySettings = p.settings ?? cat.defaults;
+        const r = await createEntry({ bookId: String(p.bookId), key: splitList(p.key), keysecondary: splitList(p.keysecondary), content: String(p.content || ''), comment: String(p.comment || ''), settings, category: cat.id, source: 'manual' }, uid);
+        done(r.ok, r.ok ? { entryId: r.value } : { reason: r.error });
+      } else if (p.op === 'entry_update') {
+        const patch: Record<string, unknown> = {};
+        if (p.key !== undefined) patch.key = splitList(p.key);
+        if (p.keysecondary !== undefined) patch.keysecondary = splitList(p.keysecondary);
+        if (p.content !== undefined) patch.content = String(p.content);
+        if (p.comment !== undefined) patch.comment = String(p.comment);
+        if (p.settings) Object.assign(patch, settingsToEntryFields(p.settings));
+        if (p.category) patch.extensions = { vellum: true, vellumCategory: String(p.category) };
+        if (typeof p.disabled === 'boolean') patch.disabled = p.disabled;
+        const r = await updateEntry(String(p.entryId), patch, uid); done(r.ok, r.ok ? {} : { reason: r.error });
+      } else if (p.op === 'entry_delete') { const r = await deleteEntry(String(p.entryId), uid); done(r.ok, r.ok ? {} : { reason: r.error }); }
+      else done(false, { reason: 'unknown_op' });
+    } catch (e) { done(false, { reason: (e as Error)?.message ?? 'error' }); }
+    // refresh the snapshot after any mutation
+    if (chatId || true) { const snap = await vaultSnapshot(chatId ?? '', uid); spindle.sendToFrontend?.({ type: 'vellum_vault', categories: await loadCategories(), ...snap }, uid); }
   },
   vellum_rescan: async (p, uid) => {
     // re-fold the latest turn from raw stored text (recover from a missed fold)
