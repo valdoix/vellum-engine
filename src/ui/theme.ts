@@ -117,6 +117,8 @@ export { FONT_CHOICES };
  * font, size, and the skin gallery). The caller wires its inputs to patchTheme/
  * setSkin + applyTheme + a re-render.
  */
+import { layoutPanel, setLayout } from './layout-defs.js';
+
 export function customizePanel(): string {
   const t = _theme;
   const skins = SKINS.map((s) =>
@@ -126,6 +128,7 @@ export function customizePanel(): string {
   const fonts = FONT_CHOICES.map((f) => `<option value="${f.stack.replace(/"/g, '&quot;')}"${t.serif === f.stack ? ' selected' : ''}>${f.label}</option>`).join('');
   return '<div class="vle-cz">'
     + '<div class="vle-cz-h">Skins</div><div class="vle-skins">' + skins + '</div>'
+    + layoutPanel()
     + '<div class="vle-cz-h">Accent</div><div class="vle-cz-row">'
       + `<input type="color" class="vle-cz-color" data-cz-color value="${t.accent}">`
       + `<input type="text" class="vle-cz-hex" data-cz-hex value="${t.accent}" maxlength="7" spellcheck="false">`
@@ -150,5 +153,8 @@ export function wireCustomize(host: HTMLElement, onChange: () => void): void {
     else if (t.matches('[data-cz-scale]')) { const v = Number((t as HTMLInputElement).value); patchTheme({ scale: v }); const sv = host.querySelector('[data-cz-scaleval]'); if (sv) sv.textContent = Math.round(v * 100) + '%'; apply(); }
   });
   host.addEventListener('change', (e) => { const t = e.target as HTMLElement; if (t.matches('[data-cz-font]')) { patchTheme({ serif: (t as HTMLSelectElement).value }); apply(); } });
-  host.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-skin]'); if (b) { setSkin(b.getAttribute('data-skin')!); onChange(); /* full re-render swaps panel values */ } });
+  host.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('[data-skin]'); if (b) { setSkin(b.getAttribute('data-skin')!); onChange(); return; }
+    const l = (e.target as HTMLElement).closest('[data-layout-pick]'); if (l) { setLayout(l.getAttribute('data-layout-pick')!); onChange(); }
+  });
 }

@@ -165,7 +165,7 @@ export function setup(ctx: Ctx): () => void {
 
   // apply the saved theme to the drawer shell + document (launcher/toggle/icon)
   applyTheme(drawer.root);
-  _retheme = () => { applyTheme(drawer.root); try { float.applyTheme(); } catch { /* ignore */ } };
+  _retheme = () => { applyTheme(drawer.root); try { float.applyTheme(); float.refresh(); } catch { /* ignore */ } };
 
   // bridge: tab components issue CRUD via send(); refresh re-renders both shells
   wireBridge((payload) => ctx.sendToBackend(payload), () => { drawer.update(); float.refresh(); });

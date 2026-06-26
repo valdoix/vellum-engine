@@ -328,4 +328,31 @@ export const STYLES = [
   ".vle-skin.on{border-color:var(--sw);background:color-mix(in srgb,var(--sw) 16%,transparent);box-shadow:0 0 10px color-mix(in srgb,var(--sw) 35%,transparent)}",
   ".vle-skin-sw{width:100%;height:14px;border-radius:5px;background:linear-gradient(90deg,var(--sw),color-mix(in srgb,var(--sw) 35%,transparent));box-shadow:0 0 6px color-mix(in srgb,var(--sw) 50%,transparent)}",
   ".vle-skin-n{font:600 9.5px/1.2 var(--vmono);letter-spacing:.3px;text-align:center;color:var(--vi2)}",
+  // ---- layout picker + dashboard layout modes ----
+  ".vle-lays{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px}",
+  ".vle-lay{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border:1px solid rgba(var(--vg-rgb),.2);border-radius:11px;background:rgba(var(--vg-rgb),.05);cursor:pointer;color:var(--vi2);transition:border-color .15s,background .15s}",
+  ".vle-lay:hover{background:rgba(var(--vg-rgb),.12)}",
+  ".vle-lay.on{border-color:var(--vg);background:rgba(var(--vg-rgb),.16);box-shadow:0 0 10px rgba(var(--vg-rgb),.3)}",
+  ".vle-lay-g{font-size:20px;color:var(--vg);line-height:1}",
+  ".vle-lay-n{font:600 9px/1.2 var(--vmono);letter-spacing:.3px;text-align:center}",
+  // dashboard density (scales the section gap + inner padding)
+  ".vld-inner{display:flex;flex-direction:column;gap:calc(16px * var(--vscale))}",
+  ".vld-inner[data-density='compact']{gap:calc(9px * var(--vscale))}",
+  ".vld-inner[data-density='compact'] .vld-sec{padding:calc(8px * var(--vscale)) calc(10px * var(--vscale));gap:calc(5px * var(--vscale));border-radius:10px}",
+  ".vld-inner[data-density='roomy']{gap:calc(22px * var(--vscale))}",
+  ".vld-inner[data-density='roomy'] .vld-sec{padding:calc(16px * var(--vscale)) calc(17px * var(--vscale));gap:calc(11px * var(--vscale))}",
+  ".vld-inner[data-density='roomy'] .vld-thought,.vld-inner[data-density='roomy'] .vld-rec{font-size:calc(15px * var(--vscale));line-height:1.65}",
+  // 2-column (Director) — masonry-ish via CSS columns; collapses under 380px
+  ".vld-inner[data-cols='2']{display:block;column-count:2;column-gap:calc(14px * var(--vscale))}",
+  ".vld-inner[data-cols='2'] .vld-sec,.vld-inner[data-cols='2'] .vld-fold{break-inside:avoid;margin-bottom:calc(14px * var(--vscale));display:inline-block;width:100%}",
+  "@container (max-width:380px){.vld-inner[data-cols='2']{column-count:1}}",
+  ".vld-stage,.vlf-body{container-type:inline-size}",
+  // collapsed sections (accordion)
+  ".vld-fold{border:1px solid rgba(var(--vg-rgb),.14);border-radius:11px;background:linear-gradient(168deg,var(--vsurf-1),var(--vsurf-2));overflow:hidden}",
+  ".vld-fold>summary{cursor:pointer;list-style:none;padding:calc(9px * var(--vscale)) calc(13px * var(--vscale));font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vg);opacity:.85}",
+  ".vld-fold>summary::-webkit-details-marker{display:none}.vld-fold>summary::before{content:'\u25B8 '}",
+  ".vld-fold[open]>summary::before{content:'\u25BE '}",
+  ".vld-fold[open]>summary{border-bottom:1px solid rgba(var(--vg-rgb),.12)}",
+  ".vld-fold-b{padding:calc(10px * var(--vscale)) calc(13px * var(--vscale))}",
+  ".vld-fold-b .vld-sec{border:none;background:none;padding:0}",
 ].join('\n');

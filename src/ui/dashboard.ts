@@ -9,9 +9,45 @@ import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent } from './format.
  * knowledge / secret / relation changes. Pure render(state) → html.
  */
 
+import { getLayout, type LayoutDef, type SectionId } from './layout-defs.js';
+
+/** Section registry — each block is a pure (state) → html function. Layouts
+ * compose these by id; the functions never change, the layout owns structure. */
+const SECTIONS: Record<SectionId, (s: ChronicleState) => string> = {
+  status: statusBar,
+  present: presentBlock,
+  tension: tensionBar,
+  relations: relationsBlock,
+  threads: threadsBlock,
+  parallel: parallelBlock,
+  recent: recentBlock,
+};
+
+const SECTION_LABEL: Record<SectionId, string> = {
+  status: 'Status', present: 'Present', tension: 'Tension', relations: 'Relations',
+  threads: 'Threads', parallel: 'Parallel', recent: 'Latest',
+};
+
+/**
+ * Render the dashboard for the active LAYOUT (separate from skin). The layout
+ * decides which sections show, their order, density, columns, and which are
+ * collapsed into <details>. Skin/scale handle look/size independently.
+ */
 export function dashboardHtml(s: ChronicleState): string {
-  return statusBar(s) + presentBlock(s) + tensionBar(s) + relationsBlock(s)
-    + threadsBlock(s) + parallelBlock(s) + recentBlock(s);
+  const lay: LayoutDef = getLayout();
+  const parts = lay.order
+    .filter((id) => !lay.hidden.includes(id))
+    .map((id) => {
+      const html = SECTIONS[id](s);
+      if (!html) return '';
+      if (lay.collapsed.includes(id)) {
+        return `<details class="vld-fold"><summary>${SECTION_LABEL[id]}</summary><div class="vld-fold-b">${html}</div></details>`;
+      }
+      return html;
+    })
+    .filter(Boolean)
+    .join('');
+  return `<div class="vld-inner" data-layout="${lay.id}" data-density="${lay.density}" data-cols="${lay.columns}">${parts}</div>`;
 }
 
 function statusBar(s: ChronicleState): string {
