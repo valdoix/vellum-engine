@@ -49,10 +49,11 @@ export interface VaultSnapshot {
   activated: Array<{ id: string; comment?: string; source?: string }>;
 }
 
-/** Call a host list method. Contract (confirmed at runtime): (options, userId).
- * Falls back to (options) only for user-scoped builds, and accepts array or
- * {data}/{items}. A well-formed EMPTY result is accepted (no spurious retries
- * that throw "userId required" on books with zero entries). */
+/** Call a host list method tolerant of arg-form (operator vs user scoped) and
+ * of array/{data}/{items} returns. Tries every form and PREFERS a non-empty
+ * result — so a form that returns a spurious empty doesn't win over one that
+ * actually has data. Accepts a well-formed empty only if no form yields data.
+ * Silent (no log spam on the expected throws). */
 async function callList(_label: string, fn: (...a: any[]) => Promise<any>, baseArgs: any[], uid: string | null): Promise<any[]> {
   const unwrap = (r: any): { ok: boolean; arr: any[] } => {
     if (Array.isArray(r)) return { ok: true, arr: r };
@@ -60,11 +61,18 @@ async function callList(_label: string, fn: (...a: any[]) => Promise<any>, baseA
     if (r && Array.isArray(r.items)) return { ok: true, arr: r.items };
     return { ok: false, arr: [] };
   };
-  // primary: operator-scoped (options, uid)
-  try { const u = unwrap(await fn(...baseArgs, uid)); if (u.ok) return u.arr; } catch { /* try user-scoped */ }
-  // fallback: user-scoped (options) — only reached if the uid form errored
-  try { const u = unwrap(await fn(...baseArgs)); if (u.ok) return u.arr; } catch { /* give up quietly */ }
-  return [];
+  const lastOpt = baseArgs[baseArgs.length - 1];
+  const optsWithUid = { ...(lastOpt && typeof lastOpt === 'object' ? lastOpt : {}), userId: uid };
+  const forms: any[][] = [
+    [...baseArgs, uid],                                   // (options, uid)
+    [...baseArgs.slice(0, -1), optsWithUid],              // ({...options, userId})
+    baseArgs,                                             // (options)
+  ];
+  let emptyOk = false;
+  for (const args of forms) {
+    try { const u = unwrap(await fn(...args)); if (u.ok && u.arr.length) return u.arr; if (u.ok) emptyOk = true; } catch { /* try next form */ }
+  }
+  return emptyOk ? [] : [];
 }
 
 export async function vaultSnapshot(chatId: string, uid: string | null): Promise<VaultSnapshot> {
