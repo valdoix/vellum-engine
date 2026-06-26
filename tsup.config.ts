@@ -1,14 +1,16 @@
 import { defineConfig } from 'tsup';
 
 /**
- * Two IIFE bundles for Lumiverse: dist/backend.js (worker) and dist/frontend.js
- * (UI). No code splitting — the host loads each as a single file. The frontend
- * must export `setup`, so we keep it discoverable via a named global footer.
+ * Two ESM bundles for Lumiverse: dist/backend.js (worker) and dist/frontend.js
+ * (UI). The host imports each as an ES module — the frontend MUST expose a
+ * named `export function setup(ctx)` and the backend runs on import. So we emit
+ * `esm` (NOT iife): tsup then preserves the `export { setup }` the host needs.
+ * zod is bundled (no external deps at runtime).
  */
 export default defineConfig([
   {
     entry: { backend: 'src/backend.ts' },
-    format: ['iife'],
+    format: ['esm'],
     outDir: 'dist',
     minify: true,
     splitting: false,
@@ -18,14 +20,11 @@ export default defineConfig([
   },
   {
     entry: { frontend: 'src/ui/app.ts' },
-    format: ['iife'],
+    format: ['esm'],
     outDir: 'dist',
     minify: true,
     splitting: false,
     target: 'es2022',
     outExtension: () => ({ js: '.js' }),
-    // expose setup() on the global the host invokes
-    globalName: 'VellumFrontend',
-    footer: { js: 'if(typeof VellumFrontend!=="undefined"&&VellumFrontend.setup){globalThis.setup=VellumFrontend.setup;}' },
   },
 ]);
