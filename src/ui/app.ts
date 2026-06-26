@@ -6,6 +6,7 @@ import { castTab } from './tabs/cast.js';
 import { relationsTab } from './tabs/relations.js';
 import { graphTab, resetGraphCache } from './tabs/graph.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
+import { wireBridge, wirePagers } from './bridge.js';
 
 /**
  * Frontend entrypoint. One reusable shell (tab bar + QOL toolbar + body) is
@@ -38,6 +39,8 @@ const TABS = [
 
 const QOL = [
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories' },
+  { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message' },
+  { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON' },
   { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat' },
@@ -75,6 +78,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   };
   tabbar.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) onQol(ctx, b.getAttribute('data-qol')!); });
+  wirePagers(bodyEl); // delegated pager clicks for any paginated list
 
   showTab(active); stats();
   return {
@@ -85,8 +89,11 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 }
 
 let _ctxRef: Ctx | null = null;
+let _hideOn = false;
 function onQol(ctx: Ctx, id: string): void {
   if (id === 'summarize') { ctx.sendToBackend({ type: 'vellum_summarize' }); ctx.toast?.info?.('Summarizing older turns\u2026'); }
+  else if (id === 'rescan') { ctx.sendToBackend({ type: 'vellum_rescan' }); ctx.toast?.info?.('Rescanning the latest turn\u2026'); }
+  else if (id === 'hide') { _hideOn = !_hideOn; ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'export') { ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'clear') { if (confirm('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.')) ctx.sendToBackend({ type: 'vellum_clear' }); }
@@ -128,6 +135,9 @@ export function setup(ctx: Ctx): () => void {
   const drawer = createShell(ctx, getState);
   tab.root.appendChild(drawer.root);
 
+  // bridge: tab components issue CRUD via send(); refresh re-renders both shells
+  wireBridge((payload) => ctx.sendToBackend(payload), () => { drawer.update(); floatShell?.update(); });
+
   // beautiful floating window — same shell, opened from the input bar
   const float: FloatWindow = createFloatWindow({
     title: 'VELLUM', actions: [],
@@ -155,6 +165,12 @@ export function setup(ctx: Ctx): () => void {
         ctx.toast?.success?.('Chronicle cleared.');
       } else if (p?.type === 'vellum_import_done') {
         ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Imported ${p.events ?? ''} events.` : `Import failed: ${p.reason ?? 'error'}`);
+      } else if (p?.type === 'vellum_rescan_done') {
+        ctx.toast?.success?.('Rescanned.');
+      } else if (p?.type === 'vellum_hide_done') {
+        _hideOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn));
+        ctx.toast?.success?.(p.enabled ? `Hiding ${p.hid ?? 0} filed turn(s) from the prompt.` : `Restored ${p.shown ?? 0} turn(s).`);
       }
     } catch (e) { try { console.warn('[vellum] message handler:', e); } catch { /* ignore */ } }
   });

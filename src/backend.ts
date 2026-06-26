@@ -11,6 +11,15 @@ import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll } from './bus/summarize.js';
 import { EventLog as EventLogSchema } from './core/events.js';
 import { nextSeq as nextSeqLocal } from './core/ids.js';
+import { syncHideOnFile } from './host/hide.js';
+import type { ChronicleState } from './domain/types.js';
+
+/** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
+function coveredTurn(state: ChronicleState): number {
+  let c = 0;
+  for (const m of state.memories) if ((m.tier === 'chapter' || m.tier === 'arc') && m.covers) c = Math.max(c, m.covers[1]);
+  return c;
+}
 
 declare const spindle: any;
 
@@ -62,7 +71,15 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
   _summarizing.add(chatId);
   try {
     const evs = await summarizeOnce(state, userId);
-    if (evs.length) { await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, userId); spindle.log?.info?.('[vellum_engine] auto-summarized a chapter'); }
+    if (evs.length) {
+      await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, userId);
+      spindle.log?.info?.('[vellum_engine] auto-summarized a chapter');
+      // if the user enabled hide-summarized, fold the freshly-covered turns away
+      try {
+        const enabled = !!(await spindle.chats?.getVar?.(chatId, 'vellum_hide_summarized', userId));
+        if (enabled) { const ns = await loadState(chatId); await syncHideOnFile(chatId, true, coveredTurn(ns)); }
+      } catch { /* best effort */ }
+    }
   } catch (e) { spindle.log?.warn?.('[vellum_engine] auto-summary: ' + ((e as Error)?.message ?? e)); }
   finally { _summarizing.delete(chatId); }
 }
@@ -205,6 +222,22 @@ const dispatch: Record<string, Handler> = {
     if (!chatId) return;
     const log = await exportLog(chatId);
     spindle.sendToFrontend?.({ type: 'vellum_export', chatId, log }, uid);
+  },
+  vellum_rescan: async (p, uid) => {
+    // re-fold the latest turn from raw stored text (recover from a missed fold)
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (chatId) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); spindle.sendToFrontend?.({ type: 'vellum_rescan_done', ok: true }, uid); }
+  },
+  vellum_set_hide: async (p, uid) => {
+    // toggle hide-summarized-turns; persist the preference in a chat var
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const enabled = !!p?.enabled;
+    try { await spindle.chats?.setVar?.(chatId, 'vellum_hide_summarized', enabled ? '1' : '', uid); } catch { /* best effort */ }
+    const state = await loadState(chatId);
+    const covered = coveredTurn(state);
+    const res = await syncHideOnFile(chatId, enabled, covered);
+    spindle.sendToFrontend?.({ type: 'vellum_hide_done', ok: true, enabled, ...res }, uid);
   },
   vellum_import: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
