@@ -35,6 +35,22 @@ export async function latestAssistantContent(chatId: string): Promise<Result<str
   });
 }
 
+/**
+ * Read the latest assistant content, RETRYING briefly. On a new chat's first
+ * turn, GENERATION_ENDED can fire before the message is committed to
+ * getMessages — so a single read returns nothing and the fold is skipped (the
+ * "doesn't update until I switch chats" bug). Retry with backoff to catch it.
+ */
+export async function latestAssistantContentRetry(chatId: string, tries = 5, delayMs = 180): Promise<Result<string, string>> {
+  let last: Result<string, string> = Err('no assistant message');
+  for (let i = 0; i < tries; i++) {
+    last = await latestAssistantContent(chatId);
+    if (last.ok && last.value && last.value.trim()) return last;
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return last;
+}
+
 export function isPermDenied(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
   return /permission|denied|not granted/i.test(msg);

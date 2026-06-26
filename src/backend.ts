@@ -1,6 +1,6 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry } from './host/chats.js';
 import { loadState, append, invalidate, clearLog, exportLog, importLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -78,9 +78,13 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
-async function foldChat(chatId: string, userId: string | null): Promise<void> {
-  const read = await latestAssistantContent(chatId);
-  if (!read.ok) return;
+async function foldChat(chatId: string, userId: string | null, hint?: string): Promise<void> {
+  // prefer content the event handed us; else read (with retry for new chats
+  // where the assistant message isn't committed yet when GENERATION_ENDED fires)
+  let content = (hint && hint.trim()) ? hint : '';
+  if (!content) { const r = await latestAssistantContentRetry(chatId); if (!r.ok) return; content = r.value; }
+  if (!content || !content.trim()) return;
+  const read = { value: content };
   const prior = await loadState(chatId);
   const turnNo = (prior.turns ?? 0) + 1;
   const { events, sig, source } = foldTurn(read.value, prior, turnNo);
@@ -232,8 +236,11 @@ async function wireCapabilities(): Promise<void> {
     try {
       spindle.on?.('GENERATION_ENDED', async (p: any) => {
         rememberUser(p?.userId);
-        const chatId = p?.chatId || (await activeChatId(currentUser()));
-        if (chatId) await foldChat(chatId, p?.userId ?? currentUser());
+        const chatId = p?.chatId || p?.chat_id || (await activeChatId(p?.userId ?? currentUser()));
+        if (!chatId) return;
+        // some hosts include the finished text on the event; use it if present
+        const hint = typeof p?.message === 'string' ? p.message : (typeof p?.content === 'string' ? p.content : (typeof p?.text === 'string' ? p.text : ''));
+        await foldChat(chatId, p?.userId ?? currentUser(), hint);
       });
       _genWired = true;
       spindle.log?.info?.('[vellum_engine] generation fold wired');

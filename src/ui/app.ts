@@ -222,11 +222,18 @@ export function setup(ctx: Ctx): () => void {
   });
 
   const offChat = ctx.events?.on('CHAT_SWITCHED', () => { resetGraphCache(); ctx.sendToBackend({ type: 'vellum_get_state' }); });
+  // belt-and-suspenders: after a turn finishes, pull fresh state a couple times
+  // (the backend folds asynchronously + may retry reading a just-committed msg)
+  const offGen = ctx.events?.on('GENERATION_ENDED', () => {
+    setTimeout(() => ctx.sendToBackend({ type: 'vellum_get_state' }), 600);
+    setTimeout(() => ctx.sendToBackend({ type: 'vellum_get_state' }), 1800);
+  });
   ctx.sendToBackend({ type: 'vellum_get_state' });
 
   return () => {
     try { unsub(); } catch { /* ignore */ }
     try { offChat?.(); } catch { /* ignore */ }
+    try { offGen?.(); } catch { /* ignore */ }
     try { drawer.destroy(); } catch { /* ignore */ }
     try { float.destroy(); } catch { /* ignore */ }
     try { inputBtn?.destroy(); } catch { /* ignore */ }
