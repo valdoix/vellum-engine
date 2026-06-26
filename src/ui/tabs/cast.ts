@@ -16,7 +16,7 @@ const STATUS_OPTS = [
 ];
 
 export const castTab: Component<ChronicleState> = {
-  version: (s) => Object.keys(s.cast).length + ':' + s.turns + ':' + Object.values(s.cast).map((c) => c.lastTurn).join(','),
+  version: (s) => Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${(c.aka ?? []).join(',')}|${c.lastTurn}`).join(';') + ':' + s.turns,
   render(s) {
     const all = Object.values(s.cast);
     const groups: Array<[string, string, CastCard[], boolean]> = [

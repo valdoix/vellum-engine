@@ -49,31 +49,21 @@ export interface VaultSnapshot {
   activated: Array<{ id: string; comment?: string; source?: string }>;
 }
 
-/** Call a host list method tolerant of every arg form operator/user-scoped
- * builds use, and of array-or-{data} returns. Logs which form yielded data so
- * we can pin the contract from real runtime. */
-async function callList(label: string, fn: (...a: any[]) => Promise<any>, baseArgs: any[], uid: string | null): Promise<any[]> {
-  const unwrap = (r: any): any[] => Array.isArray(r) ? r : Array.isArray(r?.data) ? r.data : Array.isArray(r?.items) ? r.items : [];
-  const lastOpt = baseArgs[baseArgs.length - 1];
-  const forms: Array<{ how: string; args: any[] }> = [
-    { how: '(args,uid)', args: [...baseArgs, uid] },
-    { how: '(args)', args: baseArgs },
-    { how: 'opts.userId', args: [...baseArgs.slice(0, -1), { ...(lastOpt && typeof lastOpt === 'object' ? lastOpt : {}), userId: uid }] },
-  ];
-  for (const f of forms) {
-    try {
-      const r = await fn(...f.args);
-      const arr = unwrap(r);
-      if (arr.length) { return arr; }
-      // a valid empty result still counts — but keep trying other forms in case
-      // this form was wrong-scoped and returned [] spuriously
-      if (r && (Array.isArray(r) || r.data !== undefined || r.items !== undefined)) {
-        // remember we got a well-formed empty; if no other form yields data, accept empty
-      }
-    } catch (e) {
-      spindle.log?.warn?.(`[vellum_engine] ${label} ${f.how} threw: ${(e as Error)?.message ?? e}`);
-    }
-  }
+/** Call a host list method. Contract (confirmed at runtime): (options, userId).
+ * Falls back to (options) only for user-scoped builds, and accepts array or
+ * {data}/{items}. A well-formed EMPTY result is accepted (no spurious retries
+ * that throw "userId required" on books with zero entries). */
+async function callList(_label: string, fn: (...a: any[]) => Promise<any>, baseArgs: any[], uid: string | null): Promise<any[]> {
+  const unwrap = (r: any): { ok: boolean; arr: any[] } => {
+    if (Array.isArray(r)) return { ok: true, arr: r };
+    if (r && Array.isArray(r.data)) return { ok: true, arr: r.data };
+    if (r && Array.isArray(r.items)) return { ok: true, arr: r.items };
+    return { ok: false, arr: [] };
+  };
+  // primary: operator-scoped (options, uid)
+  try { const u = unwrap(await fn(...baseArgs, uid)); if (u.ok) return u.arr; } catch { /* try user-scoped */ }
+  // fallback: user-scoped (options) — only reached if the uid form errored
+  try { const u = unwrap(await fn(...baseArgs)); if (u.ok) return u.arr; } catch { /* give up quietly */ }
   return [];
 }
 
