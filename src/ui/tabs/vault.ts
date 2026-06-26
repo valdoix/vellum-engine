@@ -44,7 +44,9 @@ export const vaultTab: Component<ChronicleState> = {
       + cats.map((c) => `<button class="vlv-chip${_filter === c.id ? ' on' : ''}" data-vcat="${esc(c.id)}" style="--c:${c.color}"><span class="vlv-glyph">${esc(c.glyph)}</span>${esc(c.label)} <span class="vlv-cn">${counts[c.id] ?? 0}</span><span class="vlv-gear" data-vcat-settings="${esc(c.id)}">\u2699</span></button>`).join('')
       + '<button class="vlv-chip add" data-vcat-add>+ Category</button>'
       + '</div>';
-    const top = '<div class="vle-sec-top"><button class="vle-add" data-ventry-add>+ Entry</button><button class="vle-qol" data-vbook>\u2913 Books</button></div>';
+    const activeBook = _snap.books.find((b) => b.attachedToChat && b.vellum) || _snap.books.find((b) => b.attachedToChat) || _snap.books.find((b) => b.vellum) || _snap.books[0];
+    const cur = `<div class="vlv-current"><span class="vlv-current-l">Current lorebook</span><span class="vlv-current-n" data-vbook>${activeBook ? esc(activeBook.name) + (activeBook.attachedToChat ? ' \u2713' : '') : '\u2014 none (one will be created)'}</span></div>`;
+    const top = '<div class="vle-sec-top"><button class="vle-add" data-ventry-add>+ Entry</button><button class="vle-qol" data-vbook>\u2913 Books</button></div>' + cur;
     const shown = _filter === 'all' ? entries : entries.filter((e) => e.category === _filter);
     const active = new Set(_snap.activated.map((a) => a.id));
     const grid = shown.length

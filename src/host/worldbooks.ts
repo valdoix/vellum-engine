@@ -49,30 +49,37 @@ export interface VaultSnapshot {
   activated: Array<{ id: string; comment?: string; source?: string }>;
 }
 
+/** Call a host method tolerant of operator-scoped (needs uid) vs user-scoped
+ * (no uid) builds, and tolerant of list returning an array or { data }. */
+async function callList(fn: (...a: any[]) => Promise<any>, args: any[], uid: string | null): Promise<any[]> {
+  let r: any;
+  try { r = await fn(...args, uid); }
+  catch { try { r = await fn(...args); } catch { return []; } }
+  if (Array.isArray(r)) return r;
+  if (Array.isArray(r?.data)) return r.data;
+  return [];
+}
+
 export async function vaultSnapshot(chatId: string, uid: string | null): Promise<VaultSnapshot> {
   const a = api();
   if (!a) return { ok: false, reason: 'no_permission', books: [], attached: [], activated: [] };
   const out: VaultSnapshot = { ok: true, books: [], attached: [], activated: [] };
-  try {
-    if (chatId && spindle.chats?.get) {
-      try { const chat = await spindle.chats.get(chatId, uid); out.attached = Array.isArray(chat?.metadata?.chat_world_book_ids) ? chat.metadata.chat_world_book_ids.slice() : []; } catch { /* ignore */ }
-    }
-    let globalIds: string[] = [];
-    try { if (a.getGlobal) globalIds = await a.getGlobal(uid); } catch { globalIds = []; }
-    const listed = await a.list({ limit: 200, offset: 0 }, uid);
-    const books = Array.isArray(listed?.data) ? listed.data : [];
-    for (const b of books) {
-      let entries: LiteEntry[] = [];
-      try { const le = await a.entries.list(b.id, { limit: 300, offset: 0 }, uid); entries = (Array.isArray(le?.data) ? le.data : []).map(liteEntry).filter(Boolean) as LiteEntry[]; } catch { /* ignore */ }
-      out.books.push({ id: b.id, name: String(b.name || 'Untitled'), description: String(b.description || ''), vellum: !!(b.metadata?.vellum), attachedToChat: out.attached.includes(b.id), global: globalIds.includes(b.id), entries });
-    }
-    if (chatId && a.getActivated) {
-      try { const act = await a.getActivated(chatId, uid); if (Array.isArray(act)) out.activated = act.map((x: any) => ({ id: x.id, comment: x.comment, source: x.source })); } catch { /* ignore */ }
-    }
-  } catch (err) {
-    spindle.log?.warn?.('[vellum_engine] vaultSnapshot: ' + ((err as Error)?.message ?? err));
-    return { ok: false, reason: 'error', books: [], attached: [], activated: [] };
+  if (chatId && spindle.chats?.get) {
+    try { const chat = await spindle.chats.get(chatId, uid); out.attached = Array.isArray(chat?.metadata?.chat_world_book_ids) ? chat.metadata.chat_world_book_ids.slice() : []; }
+    catch { try { const chat2 = await spindle.chats.get(chatId); out.attached = Array.isArray(chat2?.metadata?.chat_world_book_ids) ? chat2.metadata.chat_world_book_ids.slice() : []; } catch { /* ignore */ } }
   }
+  let globalIds: string[] = [];
+  try { if (a.getGlobal) { const g = await a.getGlobal(uid).catch(() => a.getGlobal()); if (Array.isArray(g)) globalIds = g; } } catch { /* ignore */ }
+  const books = await callList(a.list.bind(a), [{ limit: 200, offset: 0 }], uid);
+  for (const b of books) {
+    const raw = await callList(a.entries.list.bind(a.entries), [b.id, { limit: 300, offset: 0 }], uid);
+    const entries = raw.map(liteEntry).filter(Boolean) as LiteEntry[];
+    out.books.push({ id: b.id, name: String(b.name || 'Untitled'), description: String(b.description || ''), vellum: !!(b.metadata?.vellum), attachedToChat: out.attached.includes(b.id), global: globalIds.includes(b.id), entries });
+  }
+  if (chatId && a.getActivated) {
+    try { const act = await a.getActivated(chatId, uid).catch(() => a.getActivated(chatId)); if (Array.isArray(act)) out.activated = act.map((x: any) => ({ id: x.id, comment: x.comment, source: x.source })); } catch { /* ignore */ }
+  }
+  spindle.log?.info?.('[vellum_engine] vaultSnapshot: ' + out.books.length + ' book(s), ' + out.books.reduce((n, b) => n + b.entries.length, 0) + ' entries');
   return out;
 }
 

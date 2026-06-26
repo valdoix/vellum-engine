@@ -285,4 +285,8 @@ export const STYLES = [
   ".vlv-bk-ctl{display:inline-flex;align-items:center;gap:5px}",
   ".vlv-bk-att{font:600 8.5px/1 'JetBrains Mono',monospace;letter-spacing:.4px;color:#cdbfa0;background:rgba(205,168,78,.08);border:1px solid rgba(205,168,78,.22);border-radius:6px;padding:4px 8px;cursor:pointer}",
   ".vlv-bk-att.on{color:#a9c089;border-color:rgba(143,166,126,.4);background:rgba(143,166,126,.16)}",
+  ".vlv-current{display:flex;align-items:center;gap:8px;margin:0 0 9px;padding:6px 10px;border:1px solid var(--vle-gold-soft);border-radius:8px;background:rgba(205,168,78,.05)}",
+  ".vlv-current-l{font:600 8px/1 'JetBrains Mono',monospace;letter-spacing:.6px;text-transform:uppercase;opacity:.5}",
+  ".vlv-current-n{font-family:'Cormorant Garamond',Georgia,serif;font-size:14px;color:var(--vle-gold);cursor:pointer}",
+  ".vlv-current-n:hover{text-decoration:underline}",
 ].join('\n');
