@@ -83,6 +83,7 @@ export interface Memory {
   text: string;
   keys: string[];
   covers?: [number, number];
+  subsumed?: Array<{ id: string; turn: number; text: string; keys: string[] }>;
   turn: number;
 }
 

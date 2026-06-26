@@ -115,12 +115,20 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'memory.record': {
       if (!s.memories.find((m) => m.id === e.id)) {
-        s.memories.push({ id: e.id, tier: e.tier, text: e.text, keys: e.keys, ...(e.covers ? { covers: e.covers } : {}), turn: e.turn });
+        s.memories.push({ id: e.id, tier: e.tier, text: e.text, keys: e.keys, ...(e.covers ? { covers: e.covers } : {}), ...(e.subsumed ? { subsumed: e.subsumed } : {}), turn: e.turn });
       }
       break;
     }
     case 'memory.drop': {
+      // deleting a CHAPTER restores the turn-memories it subsumed (so a user can
+      // undo a compression and get the per-turn detail back); other drops just remove.
+      const target = s.memories.find((m) => m.id === e.id);
       s.memories = s.memories.filter((m) => m.id !== e.id);
+      if (target?.tier === 'chapter' && target.subsumed?.length) {
+        for (const sm of target.subsumed) {
+          if (!s.memories.find((m) => m.id === sm.id)) s.memories.push({ id: sm.id, tier: 'turn', text: sm.text, keys: sm.keys ?? [], turn: sm.turn });
+        }
+      }
       break;
     }
     case 'thread.op': {

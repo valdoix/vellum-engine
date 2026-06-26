@@ -18,6 +18,8 @@ import { hashStr } from '../core/ids.js';
 export interface CompressPlan {
   /** turn-tier memory ids to fold into one chapter */
   sourceIds: string[];
+  /** the full source memories, kept so deletion can restore them */
+  source: Array<{ id: string; turn: number; text: string; keys: string[] }>;
   /** inclusive turn range covered */
   covers: [number, number];
 }
@@ -32,7 +34,7 @@ export function planChapter(state: ChronicleState, windowSize = 8): CompressPlan
   if (turnMems.length < windowSize) return null;
   const window = turnMems.slice(0, windowSize);
   const covers: [number, number] = [window[0]!.turn, window[window.length - 1]!.turn];
-  return { sourceIds: window.map((m) => m.id), covers };
+  return { sourceIds: window.map((m) => m.id), source: window.map((m) => ({ id: m.id, turn: m.turn, text: m.text, keys: m.keys ?? [] })), covers };
 }
 
 /**
@@ -50,7 +52,7 @@ export function chapterEvents(
 ): VellumEvent[] {
   const id = 'chap_' + hashStr(plan.sourceIds.join(',')).slice(0, 8);
   const events: VellumEvent[] = [
-    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary, keys, covers: plan.covers },
+    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary, keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
   ];
   for (const sid of plan.sourceIds) {
     events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid });

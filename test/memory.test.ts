@@ -39,4 +39,21 @@ describe('hierarchical memory', () => {
     expect(chapters[0]!.covers).toEqual([1, 8]);
     expect(turns).toHaveLength(2); // 8 of 10 compressed away, 2 recent remain
   });
+
+  it('deleting a chapter restores the turn-memories it subsumed', () => {
+    const state = withTurnMemories(10);
+    const plan = planChapter(state, 8)!;
+    let seq = 1000;
+    const base: VellumEvent[] = state.memories.map((m, i) => ({ seq: i, turn: m.turn, day: 1, src: 'system', kind: 'memory.record', id: m.id, tier: m.tier, text: m.text, keys: m.keys } as VellumEvent));
+    const compress = chapterEvents(plan, 'Chapter summary', ['opening'], 11, 1, () => ++seq);
+    const chapId = compress.find((e) => e.kind === 'memory.record')!.id!;
+    // after compression: 1 chapter + 2 recent turns
+    let s = reduce([...base, ...compress]);
+    expect(s.memories.filter((m) => m.tier === 'turn')).toHaveLength(2);
+    // now delete the chapter → its 8 subsumed turns come back
+    const del: VellumEvent = { seq: ++seq, turn: 12, day: 1, src: 'user', kind: 'memory.drop', id: chapId } as VellumEvent;
+    s = reduce([...base, ...compress, del]);
+    expect(s.memories.filter((m) => m.tier === 'chapter')).toHaveLength(0);
+    expect(s.memories.filter((m) => m.tier === 'turn')).toHaveLength(10); // all restored
+  });
 });

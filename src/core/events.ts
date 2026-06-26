@@ -62,7 +62,8 @@ export const EvKnowledge = z.object({ ...base, kind: z.literal('knowledge.learn'
 export const EvSecretForm = z.object({ ...base, kind: z.literal('secret.form'), id: z.string(), keeper: z.string(), from: z.array(z.string()).default([]), text: z.string() });
 export const EvSecretReveal = z.object({ ...base, kind: z.literal('secret.reveal'), id: z.string(), to: z.array(z.string()).default([]) });
 
-export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional() });
+const SubsumedMem = z.object({ id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]) });
+export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional() });
 export const EvMemoryDrop = z.object({ ...base, kind: z.literal('memory.drop'), id: z.string() });
 
 export const EvThread = z.object({ ...base, kind: z.literal('thread.op'), op: z.enum(['new', 'advance', 'stall', 'resolve']), name: z.string(), note: z.string().optional() });
