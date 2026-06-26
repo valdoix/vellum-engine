@@ -6,6 +6,7 @@ import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
 import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
+import { importLegacy } from './store/import-legacy.js';
 
 declare const spindle: any;
 
@@ -110,6 +111,19 @@ const dispatch: Record<string, Handler> = {
   vellum_refold: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (chatId) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); }
+  },
+  vellum_import_legacy: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_import_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    try {
+      const events = importLegacy(p?.chronicle);
+      await append(chatId, events);
+      invalidateIndex(chatId);
+      await broadcastState(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_import_done', ok: true, events: events.length }, uid);
+    } catch (e) {
+      spindle.sendToFrontend?.({ type: 'vellum_import_done', ok: false, reason: (e as Error)?.message ?? 'error' }, uid);
+    }
   },
 };
 
