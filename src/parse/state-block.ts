@@ -45,18 +45,31 @@ function balancedObject(s: string): string | null {
   return null;
 }
 
-/** Tolerant JSON: strip an inner ```code fence, // and /* *​/ comments, trailing
- * commas, then parse the outermost balanced object. Handles common model drift. */
+/** Tolerant JSON: normalize smart quotes, strip an inner ```fence, // and
+ * block comments, trailing commas; then parse the outermost balanced object.
+ * Handles the common ways models mangle the block. */
 function lenientParse(raw: string): unknown | null {
-  let s = raw.trim();
+  let s = raw
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')   // curly/smart double quotes → "
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")          // curly single quotes → '
+    .replace(/\u00A0/g, ' ')                               // nbsp → space
+    .trim();
   // drop an inner markdown code fence (```json ... ```)
   s = s.replace(/^```[a-z]*\s*/i, '').replace(/```$/i, '').trim();
-  const obj = balancedObject(s) ?? s;
-  const cleaned = obj
+  const obj0 = balancedObject(s) ?? s;
+  let cleaned = obj0
     .replace(/\/\/[^\n\r]*/g, '')              // line comments
     .replace(/\/\*[\s\S]*?\*\//g, '')          // block comments
-    .replace(/,(\s*[}\]])/g, '$1');            // trailing commas
-  try { return JSON.parse(cleaned); } catch { return null; }
+    .replace(/"[A-Za-z_][\w]*"\s*:\s*<[^>{}\[\]]*>\s*,?/g, '') // drop "key": <placeholder>
+    .replace(/,(\s*[}\]])/g, '$1');            // trailing commas (after the drop)
+  try { return JSON.parse(cleaned); } catch { /* try harder */ }
+  // last resort: single-quoted strings + unquoted keys → JSON-ish
+  try {
+    const fixed = cleaned
+      .replace(/'([^'\\]*)'/g, '"$1"')                                   // 'str' → "str"
+      .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":');     // key: → "key":
+    return JSON.parse(fixed);
+  } catch { return null; }
 }
 
 export function parseState(content: string): ParseResult {
