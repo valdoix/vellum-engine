@@ -96,13 +96,11 @@ void boot();
  * Build a scene query from the tail of the prompt the interceptor is assembling.
  * We pull the last few message contents so recall keys off what's happening NOW.
  */
-function sceneQuery(ctx: any): string {
+function sceneQuery(messages: any[]): string {
   try {
-    const msgs = ctx?.messages;
-    if (Array.isArray(msgs) && msgs.length) {
-      return msgs.slice(-4).map((m: any) => (typeof m?.content === 'string' ? m.content : '')).join(' ').slice(0, 2000);
+    if (Array.isArray(messages) && messages.length) {
+      return messages.slice(-4).map((m: any) => (typeof m?.content === 'string' ? m.content : '')).join(' ').slice(0, 2000);
     }
-    if (typeof ctx?.prompt === 'string') return ctx.prompt.slice(-2000);
   } catch { /* ignore */ }
   return '';
 }
@@ -119,21 +117,27 @@ async function wireCapabilities(): Promise<void> {
   // INTERCEPT: inject authoritative cast/bonds + scene-relevant recall.
   if (!_interceptorWired && (await has('interceptor')) && spindle.registerInterceptor) {
     try {
-      spindle.registerInterceptor(async (ctx: any) => {
+      // The host calls (messages, context) and expects the messages array back
+      // (or { messages, breakdown }). We PREPEND our injection as a system
+      // message rather than returning a custom shape — returning anything
+      // without `.messages` breaks the host's `normalized.messages`.
+      spindle.registerInterceptor(async (messages: any[], context: any) => {
+        const out = Array.isArray(messages) ? messages : [];
         try {
-          const uid = ctx?.userId || currentUser();
+          const uid = context?.userId || currentUser();
           rememberUser(uid);
-          const chatId = ctx?.chatId || (await activeChatId(uid));
-          if (!chatId) return undefined;
+          const chatId = context?.chatId || context?.chat_id || (await activeChatId(uid));
+          if (!chatId) return out;
           const state = await loadState(chatId);
-          if (!state.turns && !Object.keys(state.cast).length) return undefined;
-          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(ctx), uid);
-          if (!inj.text) return undefined;
+          if (!state.turns && !Object.keys(state.cast).length) return out;
+          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid);
+          if (!inj.text) return out;
           lastInjection.set(chatId, inj.recallIds);
-          return { context: inj.text };
+          const head = { role: 'system', content: inj.text };
+          return { messages: [head, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Recall' }] };
         } catch (e) {
           spindle.log?.warn?.('[vellum_engine] interceptor: ' + ((e as Error)?.message ?? e));
-          return undefined;
+          return out;
         }
       }, 120);
       _interceptorWired = true;

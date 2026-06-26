@@ -110,15 +110,26 @@ export function createFloatWindow(hooks: FloatHooks): FloatWindow {
 
   el.querySelector('[data-vlf-close]')!.addEventListener('click', () => api.close());
 
+  // Persistent launcher tab on the right edge — a guaranteed entry point that
+  // doesn't depend on the host's input-bar API being present. Hidden while open.
+  const launcher = document.createElement('button');
+  launcher.className = 'vlf-launch';
+  launcher.title = 'Open VELLUM';
+  launcher.setAttribute('aria-label', 'Open VELLUM');
+  launcher.innerHTML = `<span class="vlf-launch-mark">${MARK}</span><span class="vlf-launch-t">VELLUM</span>`;
+  launcher.addEventListener('click', () => api.open());
+  document.body.appendChild(launcher);
+
   const api: FloatWindow = {
     open(): void {
       if (open) return; open = true;
       geo = clampGeo(geo); applyGeo();
       if (!el.isConnected) document.body.appendChild(el);
       requestAnimationFrame(() => el.classList.add('is-open'));
+      launcher.classList.add('is-hidden');
       hooks.render(body);
     },
-    close(): void { if (!open) return; open = false; el.classList.remove('is-open'); },
+    close(): void { if (!open) return; open = false; el.classList.remove('is-open'); launcher.classList.remove('is-hidden'); },
     toggle(): void { open ? api.close() : api.open(); },
     isOpen(): boolean { return open; },
     refresh(): void { if (open) hooks.render(body); },
@@ -126,6 +137,7 @@ export function createFloatWindow(hooks: FloatHooks): FloatWindow {
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up); window.removeEventListener('resize', onResizeWin);
       try { el.remove(); } catch { /* ignore */ }
+      try { launcher.remove(); } catch { /* ignore */ }
     },
   };
   return api;

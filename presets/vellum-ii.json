@@ -72,8 +72,8 @@
     },
     { "id": "v2-cat-engine", "name": "VELLUM II — Engine Contract", "role": "system", "marker": "category", "content": "", "enabled": true, "position": "pre_history", "color": "#7ea6b0", "categoryMode": null, "injectionTrigger": [], "group": null },
     {
-      "id": "v2-reverie", "name": "Reverie (planning)", "role": "system", "position": "pre_history", "enabled": true, "group": "v2-cat-engine",
-      "content": "{{if::{{var::reverie}}}}[REVERIE] Before prose, think in <reverie>...</reverie> (hidden). {{var::reverie_depth}} ANTI-DRAFT: reverie is NOTES, never prose - no drafted dialogue, no 'Option A/B', no writing the scene twice. Plan once, write once.{{/if}}",
+      "id": "v2-reverie", "name": "Reverie (planning)", "role": "system", "position": "post_history", "enabled": true, "group": "v2-cat-engine",
+      "content": "{{if::{{var::reverie}}}}[REVERIE \u2014 DO THIS FIRST] Begin your reply with a <reverie>...</reverie> block, then the prose. The reverie is hidden from the reader. {{var::reverie_depth}} ANTI-DRAFT: reverie is NOTES, never prose - no drafted dialogue, no 'Option A/B', no writing the scene twice. Plan once inside <reverie>, close the tag, then write the scene once. Your reply MUST open with the literal characters '<reverie>'.{{/if}}",
       "variables": [
         { "id": "var_reverie", "name": "reverie", "type": "switch", "label": "Reverie (chain-of-thought)", "description": "Plan in a hidden <reverie> block before prose", "defaultValue": 1 },
         { "id": "var_reverie_depth", "name": "reverie_depth", "type": "select", "label": "Reasoning Depth", "description": "How much the model plans before writing (token cost scales with depth)", "defaultValue": "standard", "options": [
