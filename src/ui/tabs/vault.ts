@@ -64,6 +64,11 @@ export const vaultTab: Component<ChronicleState> = {
     return top + pendingTray(pending) + suggestStrip() + scopeBar + bar + grid;
   },
   mount(host) {
+    // guard: the shell mounts once, but rerender() must NOT re-bind — stacked
+    // listeners double-fire and clicks land on replaced nodes (buttons "don't
+    // work"). Bind exactly one delegated handler per host element.
+    if ((host as any)._vaultBound) return;
+    (host as any)._vaultBound = true;
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       const sc = t.closest('[data-vscope]');
@@ -110,7 +115,9 @@ function pendingTray(pending: VEntry[]): string {
   return `<div class="vlv-pending"><div class="vlv-pending-h">\u270D Drafts to review <span class="vlv-cn">${pending.length}</span></div>${rows}</div>`;
 }
 function findEntry(id: string): VEntry | null { return allEntries().find((e) => e.id === id) ?? null; }
-function rerender(host: HTMLElement): void { host.innerHTML = vaultTab.render(null as any); vaultTab.mount?.(host); }
+// rerender only swaps the body; the delegated click handler stays bound on the
+// host (mount() is idempotent), so listeners never stack and clicks keep working.
+function rerender(host: HTMLElement): void { host.innerHTML = vaultTab.render(null as any); }
 
 function entryCard(e: VEntry, firing: boolean): string {
   const cat = _snap?.categories.find((c) => c.id === e.category);
