@@ -17,7 +17,7 @@ import { formModal } from '../modal.js';
 interface VCat { id: string; label: string; glyph: string; color: string; hidden: boolean; sync: string; defaults: any }
 interface VEntry { id: string; bookId: string; key: string[]; content: string; comment: string; disabled: boolean; vellum: boolean; category: string; source: string; pending: boolean }
 interface VBook { id: string; name: string; attachedToChat: boolean; global: boolean; vellum: boolean; entries: VEntry[] }
-interface VSnap { ok: boolean; reason?: string; categories: VCat[]; books: VBook[]; activated: Array<{ id: string }> }
+interface VSnap { ok: boolean; reason?: string; categories: VCat[]; books: VBook[]; activated: Array<{ id: string }>; suggestions?: Array<{ kind: string; id: string; label: string; reason: string }> }
 
 let _snap: VSnap | null = null;
 let _filter = 'all';
@@ -50,7 +50,7 @@ export const vaultTab: Component<ChronicleState> = {
     const grid = shown.length
       ? '<div class="vlv-grid">' + shown.map((e) => entryCard(e, active.has(e.id))).join('') + '</div>'
       : '<div class="vle-empty sm">No entries here yet. <b>+ Entry</b> to add lore.</div>';
-    return top + bar + grid;
+    return top + suggestStrip() + bar + grid;
   },
   mount(host) {
     host.addEventListener('click', (e) => {
@@ -64,11 +64,24 @@ export const vaultTab: Component<ChronicleState> = {
       const ed = t.closest('[data-ventry-edit]'); if (ed) { entryForm(findEntry(ed.getAttribute('data-id')!)); return; }
       const del = t.closest('[data-ventry-del]'); if (del && confirm('Delete this entry?')) send({ type: 'vellum_vault_op', op: 'entry_delete', entryId: del.getAttribute('data-id') });
       const un = t.closest('[data-ventry-unlink]'); if (un) send({ type: 'vellum_vault_op', op: 'entry_unlink', entryId: un.getAttribute('data-id'), category: un.getAttribute('data-cat') });
+      const sy = t.closest('[data-vsug-accept]'); if (sy) send({ type: 'vellum_vault_suggest', action: 'accept', kind: sy.getAttribute('data-kind'), id: sy.getAttribute('data-id') });
+      const sn = t.closest('[data-vsug-dismiss]'); if (sn) send({ type: 'vellum_vault_suggest', action: 'dismiss', kind: sn.getAttribute('data-kind'), id: sn.getAttribute('data-id') });
     });
   },
 };
 
 function allEntries(): VEntry[] { return (_snap?.books ?? []).flatMap((b) => b.entries.map((e) => ({ ...e, bookId: b.id }))); }
+
+function suggestStrip(): string {
+  const sg = _snap?.suggestions ?? [];
+  if (!sg.length) return '';
+  const chips = sg.map((s) =>
+    `<span class="vlv-sug"><span class="vlv-sug-l">${esc(s.label)}</span><span class="vlv-sug-r">${esc(s.reason)}</span>`
+    + `<button class="vlv-sug-y" data-vsug-accept data-kind="${esc(s.kind)}" data-id="${esc(s.id)}" title="Create entry">+</button>`
+    + `<button class="vlv-sug-n" data-vsug-dismiss data-kind="${esc(s.kind)}" data-id="${esc(s.id)}" title="Dismiss">\u2715</button></span>`
+  ).join('');
+  return `<div class="vlv-suggest"><span class="vlv-suggest-h">\u2727 Suggested</span>${chips}</div>`;
+}
 function findEntry(id: string): VEntry | null { return allEntries().find((e) => e.id === id) ?? null; }
 function rerender(host: HTMLElement): void { host.innerHTML = vaultTab.render(null as any); vaultTab.mount?.(host); }
 
@@ -80,6 +93,7 @@ function entryCard(e: VEntry, firing: boolean): string {
     + `<div class="vlv-entry-top"><span class="vlv-entry-cat">${esc(cat?.glyph ?? '\u2727')} ${esc(cat?.label ?? 'Uncategorized')}</span>`
     + (firing ? '<span class="vlv-firing">\u25C9 firing</span>' : '')
     + `<span class="vlv-entry-ctl"><button class="vle-mini" data-ventry-edit data-id="${esc(e.id)}">\u270E</button><button class="vle-mini del" data-ventry-del data-id="${esc(e.id)}">\u2715</button></span></div>`
+    + (e.comment ? `<div class="vlv-title">${esc(e.comment)}</div>` : '')
     + `<div class="vlv-keys">${keys ? esc(keys) : '<em>always on</em>'}</div>`
     + `<div class="vlv-content">${esc(e.content).slice(0, 280)}${e.content.length > 280 ? '\u2026' : ''}</div>`
     + (e.source && e.source !== 'manual' ? `<div class="vlv-badge">\u21BB auto \u00b7 ${esc(e.source)}<button class="vlv-unlink" data-ventry-unlink data-id="${esc(e.id)}" data-cat="${esc(e.category)}" title="Stop auto-updating (convert to hand-owned)">unlink</button></div>` : '')
@@ -89,16 +103,18 @@ function entryCard(e: VEntry, firing: boolean): string {
 function entryForm(e: VEntry | null): void {
   const cats = (_snap?.categories ?? []).filter((c) => !c.hidden);
   const books = _snap?.books ?? [];
+  const bookOpts = [{ value: '', label: books.length ? '(auto: VELLUM Vault)' : '(create VELLUM Vault)' }, ...books.map((b) => ({ value: b.id, label: b.name }))];
   formModal(e ? 'Edit Entry' : 'New Entry', [
+    { key: 'title', label: 'Title / Name', type: 'text', value: e?.comment ?? '', placeholder: 'Thornfield Castle' },
     { key: 'category', label: 'Category', type: 'select', value: e?.category ?? cats[0]?.id ?? 'characters', options: cats.map((c) => ({ value: c.id, label: c.label })) },
-    ...(e ? [] : [{ key: 'bookId', label: 'Lorebook', type: 'select' as const, value: books[0]?.id ?? '', options: books.map((b) => ({ value: b.id, label: b.name })) }]),
-    { key: 'key', label: 'Keywords (comma-separated)', type: 'text', value: e?.key.join(', ') ?? '' },
+    ...(e ? [] : [{ key: 'bookId', label: 'Lorebook', type: 'select' as const, value: '', options: bookOpts }]),
+    { key: 'key', label: 'Keywords (comma-separated)', type: 'text', value: e?.key.join(', ') ?? '', placeholder: 'Thornfield, the castle' },
     { key: 'content', label: 'Content', type: 'textarea', value: e?.content ?? '' },
-    { key: 'comment', label: 'Label (optional)', type: 'text', value: e?.comment ?? '' },
   ], (v) => {
     if (!v.content?.trim()) return;
-    if (e) send({ type: 'vellum_vault_op', op: 'entry_update', entryId: e.id, ...v });
-    else { if (!v.bookId) { send({ type: 'vellum_vault_op', op: 'book_create', name: 'VELLUM Vault', attach: true }); return; } send({ type: 'vellum_vault_op', op: 'entry_create', ...v }); }
+    const payload = { category: v.category, key: v.key, content: v.content, comment: v.title };
+    if (e) send({ type: 'vellum_vault_op', op: 'entry_update', entryId: e.id, ...payload });
+    else send({ type: 'vellum_vault_op', op: 'entry_create', bookId: v.bookId || '', ...payload });
   });
 }
 
@@ -130,9 +146,27 @@ function categoryCreate(): void {
 
 function bookManager(): void {
   const books = _snap?.books ?? [];
-  const rows = books.map((b) => `${b.name}${b.attachedToChat ? ' \u2713attached' : ''}${b.global ? ' \u00b7global' : ''}`).join('\n') || '(none)';
-  formModal('Lorebooks', [
-    { key: 'name', label: 'New lorebook name', type: 'text', placeholder: 'My World' },
-    { key: 'existing', label: 'Existing', type: 'textarea', value: rows },
-  ], (v) => { if (v.name?.trim()) send({ type: 'vellum_vault_op', op: 'book_create', name: v.name, attach: true }); });
+  // a lightweight books overlay: each book has rename + attach toggle + new
+  const ov = document.createElement('div');
+  ov.className = 'vlfm-overlay';
+  const rows = books.map((b) =>
+    `<div class="vlv-bk" data-bk="${esc(b.id)}"><span class="vlv-bk-n">${esc(b.name)}</span>`
+    + `${b.global ? '<span class="vlv-bk-tag">global</span>' : ''}`
+    + `<span class="vlv-bk-ctl"><button class="vle-mini" data-bk-rename data-id="${esc(b.id)}" data-name="${esc(b.name)}" title="Rename">\u270E</button>`
+    + `<button class="vlv-bk-att${b.attachedToChat ? ' on' : ''}" data-bk-attach data-id="${esc(b.id)}" data-attach="${b.attachedToChat ? '' : '1'}">${b.attachedToChat ? '\u2713 attached' : '+ attach'}</button></span></div>`
+  ).join('') || '<div class="vle-empty sm">No lorebooks yet.</div>';
+  ov.innerHTML = '<div class="vlfm"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Lorebooks</div>'
+    + `<div class="vlfm-body"><div class="vlv-bklist">${rows}</div>`
+    + '<label class="vlfm-l">New lorebook<input class="vlfm-in" data-bk-new placeholder="My World"></label></div>'
+    + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-close>Close</button><button class="vlfm-btn vlfm-save" data-bk-create>+ Create</button></div></div>';
+  document.body.appendChild(ov);
+  const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
+  ov.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    if (t === ov || t.closest('[data-close]')) { close(); return; }
+    const rn = t.closest('[data-bk-rename]');
+    if (rn) { close(); formModal('Rename Lorebook', [{ key: 'name', label: 'Name', type: 'text', value: rn.getAttribute('data-name') ?? '' }], (v) => { if (v.name?.trim()) send({ type: 'vellum_vault_op', op: 'book_update', bookId: rn.getAttribute('data-id'), name: v.name }); }); return; }
+    const at = t.closest('[data-bk-attach]'); if (at) { send({ type: 'vellum_vault_op', op: 'book_attach', bookId: at.getAttribute('data-id'), attach: !!at.getAttribute('data-attach') }); close(); return; }
+    if (t.closest('[data-bk-create]')) { const inp = ov.querySelector('[data-bk-new]') as HTMLInputElement | null; const name = inp?.value?.trim(); if (name) send({ type: 'vellum_vault_op', op: 'book_create', name, attach: true }); close(); }
+  });
 }

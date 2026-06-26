@@ -21,6 +21,7 @@ export interface LiteEntry {
   position: number; depth: number; order_value: number;
   constant: boolean; disabled: boolean;
   vellum: boolean; category: string; source: string; link: string; pending: boolean; hash: string;
+  reveal?: { day?: number; afterThread?: string };
 }
 
 function liteEntry(e: any): LiteEntry | null {
@@ -37,6 +38,7 @@ function liteEntry(e: any): LiteEntry | null {
     constant: !!e.constant, disabled: !!e.disabled,
     vellum: !!ext.vellum, category: String(ext.vellumCategory || ''), source: String(ext.vellumSource || ''),
     link: String(ext.vellumLink || ''), pending: !!ext.vellumPending, hash: String(ext.vellumHash || ''),
+    reveal: (ext.vellumRevealDay != null || ext.vellumRevealThread) ? { ...(ext.vellumRevealDay != null ? { day: Number(ext.vellumRevealDay) } : {}), ...(ext.vellumRevealThread ? { afterThread: String(ext.vellumRevealThread) } : {}) } : undefined,
   };
 }
 
@@ -94,6 +96,11 @@ export async function setBookAttached(chatId: string, bookId: string, attach: bo
 export async function createBook(name: string, description: string, uid: string | null): Promise<Result<string, string>> {
   const a = api(); if (!a) return Err('no_permission');
   return tryCatchAsync(async () => { const b = await a.create({ name: name.slice(0, 120), description: description.slice(0, 400), metadata: { vellum: true } }, uid); return String(b?.id || ''); });
+}
+
+export async function updateBook(bookId: string, name: string, description: string | undefined, uid: string | null): Promise<Result<true, string>> {
+  const a = api(); if (!a) return Err('no_permission');
+  return tryCatchAsync(async () => { await a.update(bookId, { name: name.slice(0, 120), ...(description !== undefined ? { description: description.slice(0, 400) } : {}) }, uid); return true as const; });
 }
 
 export interface EntryInput {

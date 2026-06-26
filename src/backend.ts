@@ -13,10 +13,11 @@ import { EventLog as EventLogSchema } from './core/events.js';
 import { nextSeq as nextSeqLocal } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
-import { vaultSnapshot, setBookAttached, createBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
+import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
+import { sceneSuggestions, recursionSeeds, evaluateSchedules, type VaultEntryLite } from './domain/vault-intel.js';
 
 /** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
 function coveredTurn(state: ChronicleState): number {
@@ -31,11 +32,30 @@ function splitList(v: unknown): string[] {
   return String(v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+// dismissed scene-suggestions, per chat (in-memory; cheap + resets on reload)
+const _dismissed = new Map<string, Set<string>>();
+function dismissedFor(chatId: string): Set<string> { let s = _dismissed.get(chatId); if (!s) { s = new Set(); _dismissed.set(chatId, s); } return s; }
+
+/** Snapshot + scene-coverage suggestions â†’ broadcast the full vault view. */
+async function vaultBroadcast(chatId: string, uid: string | null): Promise<void> {
+  const categories = await loadCategories();
+  const snap = await vaultSnapshot(chatId, uid);
+  let suggestions: unknown[] = [];
+  try {
+    if (chatId && snap.ok) {
+      const state = await loadState(chatId);
+      const lites: VaultEntryLite[] = snap.books.flatMap((b) => b.entries).map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled, ...(e.reveal ? { reveal: e.reveal } : {}) }));
+      suggestions = sceneSuggestions(state, lites, dismissedFor(chatId));
+    }
+  } catch { /* suggestions best-effort */ }
+  spindle.sendToFrontend?.({ type: 'vellum_vault', categories, ...snap, suggestions }, uid ?? currentUser());
+}
+
 declare const spindle: any;
 
 /**
  * Backend entrypoint. Registers features, folds each turn into the event log,
- * and serves the frontend via a dispatch table. Everything is guarded — the
+ * and serves the frontend via a dispatch table. Everything is guarded â€” the
  * worker must never crash the host. New features call registerFeature() and
  * (if they need UI) add a message handler in the dispatch table below.
  */
@@ -57,7 +77,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state }, userId ?? currentUser());
 }
 
-/** FOLD: read the raw turn, parse → events → append → broadcast. */
+/** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
 async function foldChat(chatId: string, userId: string | null): Promise<void> {
   const read = await latestAssistantContent(chatId);
   if (!read.ok) return;
@@ -72,7 +92,7 @@ async function foldChat(chatId: string, userId: string | null): Promise<void> {
   const gist = read.value.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
   if (gist) events.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as any);
   await append(chatId, events);
-  invalidateIndex(chatId); // chronicle changed → next interceptor rebuilds the index
+  invalidateIndex(chatId); // chronicle changed â†’ next interceptor rebuilds the index
   await broadcastState(chatId, userId);
   spindle.log?.info?.(`[vellum_engine] folded turn via ${source}: +${events.length} events`);
   // auto-summarize once the backlog of raw turn-memories is large enough
@@ -87,7 +107,6 @@ async function maybeVaultSync(chatId: string, userId: string | null): Promise<vo
   if (_vaultSyncing.has(chatId)) return;
   if (!(await hasVault())) return;
   const cats = (await loadCategories()).filter((c) => c.sync === 'sync' && c.source);
-  if (!cats.length) return;
   _vaultSyncing.add(chatId);
   try {
     const state = await loadState(chatId);
@@ -100,7 +119,10 @@ async function maybeVaultSync(chatId: string, userId: string | null): Promise<vo
       const plan = reconcileCategory(state, cat.source!, managed);
       for (const u of plan.update) { await syncEntry(u.entryId, u.promotion.content, u.promotion.key, u.promotion.hash, u.promotion.link, cat.id, userId); changed++; }
     }
-    if (changed) { const s2 = await vaultSnapshot(chatId, userId); spindle.sendToFrontend?.({ type: 'vellum_vault', categories: await loadCategories(), ...s2 }, userId ?? currentUser()); spindle.log?.info?.('[vellum_engine] vault sync: refreshed ' + changed + ' entries'); }
+    // scheduled Events: enable/disable entries whose reveal condition flipped
+    const lites = snap.books.flatMap((b) => b.entries).filter((e) => e.vellum && e.reveal).map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled, reveal: e.reveal! }));
+    if (lites.length) { for (const ch of evaluateSchedules(state, lites)) { await updateEntry(ch.entryId, { disabled: !ch.enable }, userId); changed++; } }
+    if (changed) { await vaultBroadcast(chatId, userId); spindle.log?.info?.('[vellum_engine] vault sync: ' + changed + ' change(s)'); }
   } catch (e) { spindle.log?.warn?.('[vellum_engine] vault sync: ' + ((e as Error)?.message ?? e)); }
   finally { _vaultSyncing.delete(chatId); }
 }
@@ -131,7 +153,7 @@ const AUTO_SUMMARY_AT = 16; // compress the oldest 8 once 16 turn-memories accru
 async function boot(): Promise<void> {
   await restoreUser();
   await wireCapabilities(); // attach interceptor + generation fold if already granted
-  spindle.log?.info?.('[vellum_engine] booted — event-log core online');
+  spindle.log?.info?.('[vellum_engine] booted â€” event-log core online');
 }
 void boot();
 
@@ -152,7 +174,7 @@ function sceneQuery(messages: any[]): string {
 // The host rejects interceptor/generation registration when the permission
 // isn't granted, and won't re-wire on its own when the user grants it later.
 // So we attach each piece behind a capability check, idempotently, and re-run
-// the whole attach pass whenever permissions change — no reload required.
+// the whole attach pass whenever permissions change â€” no reload required.
 let _interceptorWired = false;
 let _genWired = false;
 
@@ -162,7 +184,7 @@ async function wireCapabilities(): Promise<void> {
     try {
       // The host calls (messages, context) and expects the messages array back
       // (or { messages, breakdown }). We PREPEND our injection as a system
-      // message rather than returning a custom shape — returning anything
+      // message rather than returning a custom shape â€” returning anything
       // without `.messages` breaks the host's `normalized.messages`.
       spindle.registerInterceptor(async (messages: any[], context: any) => {
         const out = Array.isArray(messages) ? messages : [];
@@ -247,7 +269,7 @@ const dispatch: Record<string, Handler> = {
     await broadcastState(chatId, uid);
   },
   vellum_summarize: async (p, uid) => {
-    // manual "summarize past turns" — compress as many full windows as exist
+    // manual "summarize past turns" â€” compress as many full windows as exist
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const state = await loadState(chatId);
@@ -278,9 +300,8 @@ const dispatch: Record<string, Handler> = {
   vellum_get_vault: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     const categories = await loadCategories();
-    if (!(await hasVault())) { spindle.sendToFrontend?.({ type: 'vellum_vault', ok: false, reason: 'no_permission', categories, books: [], attached: [], activated: [] }, uid); return; }
-    const snap = await vaultSnapshot(chatId ?? '', uid);
-    spindle.sendToFrontend?.({ type: 'vellum_vault', categories, ...snap }, uid);
+    if (!(await hasVault())) { spindle.sendToFrontend?.({ type: 'vellum_vault', ok: false, reason: 'no_permission', categories, books: [], attached: [], activated: [], suggestions: [] }, uid); return; }
+    await vaultBroadcast(chatId ?? '', uid);
   },
   vellum_vault_category: async (p, uid) => {
     // upsert/delete a category. payload.op = 'upsert'|'delete'
@@ -302,11 +323,19 @@ const dispatch: Record<string, Handler> = {
     try {
       const cats = await loadCategories();
       if (p.op === 'book_create') { const r = await createBook(String(p.name || 'New Lorebook'), String(p.description || ''), uid); if (r.ok && p.attach && chatId) await setBookAttached(chatId, r.value, true, uid); done(r.ok, r.ok ? { bookId: r.value } : { reason: r.error }); }
+      else if (p.op === 'book_update') { const r = await updateBook(String(p.bookId), String(p.name || ''), p.description, uid); done(r.ok, r.ok ? {} : { reason: r.error }); }
       else if (p.op === 'book_attach') { if (!chatId) { done(false, { reason: 'no_active_chat' }); return; } const ok = await setBookAttached(chatId, String(p.bookId), !!p.attach, uid); done(ok); }
       else if (p.op === 'entry_create') {
         const cat = resolveCategory(cats, p.category);
         const settings: EntrySettings = p.settings ?? cat.defaults;
-        const r = await createEntry({ bookId: String(p.bookId), key: splitList(p.key), keysecondary: splitList(p.keysecondary), content: String(p.content || ''), comment: String(p.comment || ''), settings, category: cat.id, source: 'manual' }, uid);
+        // auto-resolve a target book: explicit → a VELLUM book → create+attach one
+        let bookId = String(p.bookId || '');
+        if (!bookId) {
+          const snap = await vaultSnapshot(chatId ?? '', uid);
+          bookId = snap.books.find((b) => b.vellum)?.id || snap.books[0]?.id || '';
+          if (!bookId) { const cr = await createBook('VELLUM Vault', 'Lore authored in the Vault', uid); if (!cr.ok) { done(false, { reason: cr.error }); return; } bookId = cr.value; if (chatId) await setBookAttached(chatId, bookId, true, uid); }
+        }
+        const r = await createEntry({ bookId, key: splitList(p.key), keysecondary: splitList(p.keysecondary), content: String(p.content || ''), comment: String(p.comment || ''), settings, category: cat.id, source: 'manual' }, uid);
         done(r.ok, r.ok ? { entryId: r.value } : { reason: r.error });
       } else if (p.op === 'entry_update') {
         const patch: Record<string, unknown> = {};
@@ -328,7 +357,7 @@ const dispatch: Record<string, Handler> = {
       else done(false, { reason: 'unknown_op' });
     } catch (e) { done(false, { reason: (e as Error)?.message ?? 'error' }); }
     // refresh the snapshot after any mutation
-    if (chatId || true) { const snap = await vaultSnapshot(chatId ?? '', uid); spindle.sendToFrontend?.({ type: 'vellum_vault', categories: await loadCategories(), ...snap }, uid); }
+    await vaultBroadcast(chatId ?? '', uid);
   },
   vellum_vault_promote: async (p, uid) => {
     // Tier A: promote a chronicle record into a Vault entry (or refresh if it exists).
@@ -349,7 +378,14 @@ const dispatch: Record<string, Handler> = {
       if (existing) { await syncEntry(existing.id, promo.content, promo.key, promo.hash, promo.link, cat.id, uid); done(true, { updated: true }); }
       else { const r = await createEntry({ bookId, key: promo.key, keysecondary: promo.keysecondary, content: promo.content, comment: promo.comment, settings: cat.defaults, category: cat.id, source: 'promote', link: promo.link, hash: promo.hash }, uid); done(r.ok, r.ok ? { entryId: r.value } : { reason: r.error }); }
     } catch (e) { done(false, { reason: (e as Error)?.message ?? 'error' }); }
-    const snap2 = await vaultSnapshot(chatId, uid); spindle.sendToFrontend?.({ type: 'vellum_vault', categories: await loadCategories(), ...snap2 }, uid);
+    await vaultBroadcast(chatId, uid);
+  },
+  vellum_vault_suggest: async (p, uid) => {
+    // accept (promote) or dismiss a scene-coverage suggestion
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    if (p?.action === 'dismiss') { dismissedFor(chatId).add(String(p.kind === 'relation' ? 'rel:' + p.id : 'cast:' + p.id)); await vaultBroadcast(chatId, uid); return; }
+    if (p?.action === 'accept') { await (dispatch.vellum_vault_promote as Handler)({ chatId, kind: p.kind, id: p.id }, uid); return; }
   },
   vellum_rescan: async (p, uid) => {
     // re-fold the latest turn from raw stored text (recover from a missed fold)
