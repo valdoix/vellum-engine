@@ -5,6 +5,7 @@ import { loadState, append, invalidate } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
+import { buildInjection, invalidateIndex } from './retrieval/recall.js';
 
 declare const spindle: any;
 
@@ -18,6 +19,7 @@ declare const spindle: any;
 registerFeature(coreFeature);
 
 const lastSigByChat = new Map<string, string>();
+const lastInjection = new Map<string, string[]>();
 
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
   const state = await loadState(chatId);
@@ -35,6 +37,7 @@ async function foldChat(chatId: string, userId: string | null): Promise<void> {
   lastSigByChat.set(chatId, sig);
   if (!events.length) return;
   await append(chatId, events);
+  invalidateIndex(chatId); // chronicle changed → next interceptor rebuilds the index
   await broadcastState(chatId, userId);
   spindle.log?.info?.(`[vellum_engine] folded turn via ${source}: +${events.length} events`);
 }
@@ -44,6 +47,44 @@ async function boot(): Promise<void> {
   spindle.log?.info?.('[vellum_engine] booted — event-log core online');
 }
 void boot();
+
+/**
+ * Build a scene query from the tail of the prompt the interceptor is assembling.
+ * We pull the last few message contents so recall keys off what's happening NOW.
+ */
+function sceneQuery(ctx: any): string {
+  try {
+    const msgs = ctx?.messages;
+    if (Array.isArray(msgs) && msgs.length) {
+      return msgs.slice(-4).map((m: any) => (typeof m?.content === 'string' ? m.content : '')).join(' ').slice(0, 2000);
+    }
+    if (typeof ctx?.prompt === 'string') return ctx.prompt.slice(-2000);
+  } catch { /* ignore */ }
+  return '';
+}
+
+// INTERCEPT: inject authoritative cast/bonds + scene-relevant recall.
+try {
+  spindle.registerInterceptor?.(async (ctx: any) => {
+    try {
+      const uid = ctx?.userId || currentUser();
+      rememberUser(uid);
+      const chatId = ctx?.chatId || (await activeChatId(uid));
+      if (!chatId) return undefined;
+      const state = await loadState(chatId);
+      if (!state.turns && !Object.keys(state.cast).length) return undefined;
+      const inj = buildInjection(chatId, state, sceneQuery(ctx));
+      if (!inj.text) return undefined;
+      lastInjection.set(chatId, inj.recallIds);
+      // Return the injected context in the host's expected shape (string append).
+      return { context: inj.text };
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] interceptor: ' + ((e as Error)?.message ?? e));
+      return undefined;
+    }
+  }, 120);
+} catch { /* interceptor optional */ }
+
 
 // --- host events ---------------------------------------------------------
 try {
