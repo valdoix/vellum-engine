@@ -152,6 +152,27 @@
       "categoryMode": null,
       "injectionTrigger": [],
       "group": null
-    }
+    },
+    {
+      "id": "v2-cat-context",
+      "name": "VELLUM II — Context",
+      "role": "system",
+      "marker": "category",
+      "content": "",
+      "enabled": true,
+      "position": "pre_history",
+      "color": "#7ea6b0",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "group": null
+    },
+    { "id": "v2-persona", "name": "Persona", "role": "system", "marker": "persona", "content": "", "enabled": true, "position": "pre_history", "categoryMode": null, "injectionTrigger": [], "group": null },
+    { "id": "v2-char-desc", "name": "Character Description", "role": "system", "marker": "char_description", "content": "", "enabled": true, "position": "pre_history", "categoryMode": null, "injectionTrigger": [], "group": null },
+    { "id": "v2-char-pers", "name": "Character Personality", "role": "system", "marker": "char_personality", "content": "", "enabled": true, "position": "pre_history", "categoryMode": null, "injectionTrigger": [], "group": null },
+    { "id": "v2-scenario", "name": "Scenario", "role": "system", "marker": "scenario", "content": "", "enabled": true, "position": "pre_history", "categoryMode": null, "injectionTrigger": [], "group": null },
+    { "id": "v2-wi-before", "name": "World Info (before)", "role": "system", "marker": "world_info_before", "content": "", "enabled": true, "position": "pre_history", "categoryMode": null, "injectionTrigger": [], "group": null },
+    { "id": "v2-examples", "name": "Example Messages", "role": "system", "marker": "mes_examples", "content": "", "enabled": true, "position": "pre_history", "categoryMode": null, "injectionTrigger": [], "group": null },
+    { "id": "v2-history", "name": "Chat History", "role": "system", "marker": "chat_history", "content": "", "enabled": true, "position": "pre_history", "categoryMode": null, "injectionTrigger": [], "group": null },
+    { "id": "v2-wi-after", "name": "World Info (after)", "role": "system", "marker": "world_info_after", "content": "", "enabled": true, "position": "pre_history", "categoryMode": null, "injectionTrigger": [], "group": null }
   ]
 }
