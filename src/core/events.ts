@@ -27,7 +27,16 @@ const base = { seq: z.number().int().nonnegative(), turn: z.number().int().nonne
 
 // --- individual event variants -------------------------------------------
 export const EvTurnFold = z.object({ ...base, kind: z.literal('turn.fold'), sig: z.string() });
-export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), tension: z.number().min(0).max(10).optional(), present: z.array(z.string()).default([]) });
+export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]) });
+
+export const JournalKind = z.enum(['interaction', 'promise', 'betrayal', 'gift', 'shared', 'wound', 'observation']);
+export type JournalKind = z.infer<typeof JournalKind>;
+export const JournalWeight = z.enum(['trivial', 'minor', 'significant', 'defining']);
+export type JournalWeight = z.infer<typeof JournalWeight>;
+export const JournalSentiment = z.enum(['positive', 'negative', 'neutral', 'complex']);
+export type JournalSentiment = z.infer<typeof JournalSentiment>;
+export const EvJournal = z.object({ ...base, kind: z.literal('journal.entry'), id: z.string(), who: z.string(), about: z.string().optional(), memory: z.string(), jkind: JournalKind.default('interaction'), weight: JournalWeight.default('minor'), sentiment: JournalSentiment.default('neutral') });
+export const EvJournalDrop = z.object({ ...base, kind: z.literal('journal.drop'), id: z.string() });
 
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
 export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: z.record(z.unknown()) });
@@ -63,6 +72,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvKnowledge, EvSecretForm, EvSecretReveal,
   EvMemory, EvMemoryDrop,
   EvThread, EvArc,
+  EvJournal, EvJournalDrop,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;
 

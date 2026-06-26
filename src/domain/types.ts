@@ -96,7 +96,20 @@ export interface Track {
 export interface Scene {
   location: string;
   tension: number;
+  weather: string;
   present: string[];
+}
+
+export interface JournalEntry {
+  id: string;
+  who: string; // canonical id of the character who holds the memory
+  about?: string;
+  memory: string;
+  kind: 'interaction' | 'promise' | 'betrayal' | 'gift' | 'shared' | 'wound' | 'observation';
+  weight: 'trivial' | 'minor' | 'significant' | 'defining';
+  sentiment: 'positive' | 'negative' | 'neutral' | 'complex';
+  turn: number;
+  day: number;
 }
 
 export interface ChronicleState {
@@ -105,6 +118,7 @@ export interface ChronicleState {
   knowledge: KnowledgeFact[];
   secrets: Secret[];
   memories: Memory[];
+  journal: JournalEntry[];
   threads: Track[];
   arcs: Track[];
   scene: Scene;
@@ -119,9 +133,10 @@ export function freshState(): ChronicleState {
     knowledge: [],
     secrets: [],
     memories: [],
+    journal: [],
     threads: [],
     arcs: [],
-    scene: { location: '', tension: 0, present: [] },
+    scene: { location: '', tension: 0, weather: '', present: [] },
     day: 0,
     turns: 0,
   };

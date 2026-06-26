@@ -32,7 +32,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'scene.set': {
-      s.scene = { location: e.location ?? s.scene.location, tension: e.tension ?? s.scene.tension, present: e.present };
+      s.scene = { location: e.location ?? s.scene.location, tension: e.tension ?? s.scene.tension, weather: e.weather ?? s.scene.weather, present: e.present };
       break;
     }
     case 'cast.seen': {
@@ -118,6 +118,19 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'arc.op': {
       upsertTrack(s.arcs, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn);
+      break;
+    }
+    case 'journal.entry': {
+      if (!s.journal.find((j) => j.id === e.id)) {
+        // dedupe identical memory text for the same holder
+        if (!s.journal.find((j) => j.who === e.who && j.memory === e.memory)) {
+          s.journal.push({ id: e.id, who: e.who, ...(e.about ? { about: e.about } : {}), memory: e.memory, kind: e.jkind, weight: e.weight, sentiment: e.sentiment, turn: e.turn, day: e.day });
+        }
+      }
+      break;
+    }
+    case 'journal.drop': {
+      s.journal = s.journal.filter((j) => j.id !== e.id);
       break;
     }
     default: {

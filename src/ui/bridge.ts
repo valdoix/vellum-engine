@@ -50,3 +50,49 @@ export function wirePagers(host: HTMLElement): void {
 }
 
 export type { ChronicleState };
+
+// --- filter state (per list id) -----------------------------------------
+export interface FilterState { sort: 'desc' | 'asc'; cat: string; who: string }
+const _filter = new Map<string, FilterState>();
+export function filterOf(listId: string): FilterState { return _filter.get(listId) ?? { sort: 'desc', cat: 'all', who: 'all' }; }
+export function setFilter(listId: string, patch: Partial<FilterState>): void { _filter.set(listId, { ...filterOf(listId), ...patch }); setPage(listId, 0); }
+
+/** Render a filter bar: sort toggle + optional category + per-character selects. */
+export function filterBar(listId: string, opts: { cats?: string[]; whos?: Array<{ id: string; name: string }> }): string {
+  const f = filterOf(listId);
+  const sort = `<button class="vle-fb-btn" data-filter-sort="${listId}" title="Sort by date">${f.sort === 'desc' ? '\u2193 newest' : '\u2191 oldest'}</button>`;
+  const cat = opts.cats?.length
+    ? `<select class="vle-fb-sel" data-filter-cat="${listId}"><option value="all">all kinds</option>${opts.cats.map((c) => `<option value="${esc(c)}"${f.cat === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>`
+    : '';
+  const who = opts.whos?.length
+    ? `<select class="vle-fb-sel" data-filter-who="${listId}"><option value="all">everyone</option>${opts.whos.map((w) => `<option value="${esc(w.id)}"${f.who === w.id ? ' selected' : ''}>${esc(w.name)}</option>`).join('')}</select>`
+    : '';
+  return `<div class="vle-fbar" data-fbar="${listId}">${sort}${cat}${who}</div>`;
+}
+
+/** Apply sort + category + who filters to a dated list. */
+export function applyFilter<T extends { turn?: number; day?: number }>(
+  listId: string, items: T[], get?: { cat?: (x: T) => string; who?: (x: T) => string },
+): T[] {
+  const f = filterOf(listId);
+  let out = items.slice();
+  if (f.cat !== 'all' && get?.cat) out = out.filter((x) => get.cat!(x) === f.cat);
+  if (f.who !== 'all' && get?.who) out = out.filter((x) => get.who!(x) === f.who);
+  out.sort((a, b) => { const av = (a.turn ?? a.day ?? 0), bv = (b.turn ?? b.day ?? 0); return f.sort === 'desc' ? bv - av : av - bv; });
+  return out;
+}
+
+/** Wire filter-bar controls (delegated). Call once per mounted shell. */
+export function wireFilters(host: HTMLElement): void {
+  host.addEventListener('click', (e) => {
+    const s = (e.target as HTMLElement).closest('[data-filter-sort]');
+    if (s) { const id = s.getAttribute('data-filter-sort')!; setFilter(id, { sort: filterOf(id).sort === 'desc' ? 'asc' : 'desc' }); }
+  });
+  host.addEventListener('change', (e) => {
+    const t = e.target as HTMLElement;
+    const c = t.closest('[data-filter-cat]'); if (c) setFilter(c.getAttribute('data-filter-cat')!, { cat: (c as HTMLSelectElement).value });
+    const w = t.closest('[data-filter-who]'); if (w) setFilter(w.getAttribute('data-filter-who')!, { who: (w as HTMLSelectElement).value });
+  });
+}
+
+function esc(s: unknown): string { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)); }

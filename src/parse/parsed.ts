@@ -37,16 +37,26 @@ export const ParsedThread = z.object({
   note: z.string().optional(),
 });
 
+export const ParsedJournal = z.object({
+  who: z.string(),
+  about: z.string().optional(),
+  memory: z.string(),
+  kind: z.enum(['interaction', 'promise', 'betrayal', 'gift', 'shared', 'wound', 'observation']).optional(),
+  weight: z.enum(['trivial', 'minor', 'significant', 'defining']).optional(),
+  sentiment: z.enum(['positive', 'negative', 'neutral', 'complex']).optional(),
+});
+
 export const ParsedState = z.object({
   v: z.number().optional(),
   turn: z.number().optional(),
   day: z.number().optional(),
-  scene: z.object({ loc: z.string().optional(), tension: z.number().min(0).max(10).optional() }).optional(),
+  scene: z.object({ loc: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional() }).optional(),
   present: z.array(ParsedPresent).optional(),
   delta: z.object({
     bonds: z.array(ParsedBond).optional(),
     threads: z.array(ParsedThread).optional(),
     arcs: z.array(ParsedThread).optional(),
+    journal: z.array(ParsedJournal).optional(),
   }).optional(),
   // Open extension point: future blocks (e.g. inventory, factions) can land here
   // and be picked up by a registered extractor without schema churn elsewhere.

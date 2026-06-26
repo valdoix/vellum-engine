@@ -78,5 +78,26 @@ function card(s: ChronicleState, r: Relation): string {
     + (r.label ? '<div class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</div>' : '')
     + '<div class="vle-cats">' + chips + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '') + '</div>'
     + '<div class="vle-bars">' + bar('Aff', r.affection) + bar('Trust', r.trust) + '</div>'
+    + historyHtml(r)
     + '</div>';
+}
+
+/** Collapsible change-history: category transitions + score samples over time. */
+function historyHtml(r: Relation): string {
+  const cat = (r.categoryHistory ?? []).filter((h) => h.op === 'add' || h.op === 'remove');
+  const scores = (r.history ?? []);
+  if (cat.length < 1 && scores.length < 2) return '';
+  const catRows = cat.slice(-8).map((h) => {
+    const sign = h.op === 'remove' ? '\u2212' : '+';
+    const cls = h.op === 'remove' ? 'rm' : 'add';
+    return `<div class="vle-hist-row"><span class="vle-hist-t">d${h.day || '?'}</span><span class="vle-hist-ev ${cls}">${sign}${esc(h.category)}</span>${h.reason ? `<span class="vle-hist-why">${esc(h.reason)}</span>` : ''}</div>`;
+  }).join('');
+  const scoreRows = scores.slice(-6).map((s) => {
+    const aff = (s.affection > 0 ? '+' : '') + s.affection, tr = (s.trust > 0 ? '+' : '') + s.trust;
+    return `<div class="vle-hist-row"><span class="vle-hist-t">t${s.turn}</span><span class="vle-hist-sc">aff ${aff} \u00b7 trust ${tr}</span>${s.reason ? `<span class="vle-hist-why">${esc(s.reason)}</span>` : ''}</div>`;
+  }).join('');
+  return '<details class="vle-hist"><summary>change history</summary>'
+    + (catRows ? '<div class="vle-hist-sec">bond shifts</div>' + catRows : '')
+    + (scoreRows ? '<div class="vle-hist-sec">score trail</div>' + scoreRows : '')
+    + '</details>';
 }

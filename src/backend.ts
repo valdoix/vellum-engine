@@ -33,7 +33,14 @@ declare const spindle: any;
 registerFeature(coreFeature);
 
 const lastSigByChat = new Map<string, string>();
-const lastInjection = new Map<string, string[]>();
+interface InjRecord { turn: number; at: number; chars: number; recallIds: string[]; text: string }
+const injectionLog = new Map<string, InjRecord[]>(); // per-chat ring of recent injections
+function recordInjection(chatId: string, turn: number, text: string, recallIds: string[]): void {
+  const ring = injectionLog.get(chatId) ?? [];
+  ring.push({ turn, at: Date.now(), chars: text.length, recallIds, text: text.slice(0, 4000) });
+  while (ring.length > 20) ring.shift(); // keep last 20 turns of injection history
+  injectionLog.set(chatId, ring);
+}
 
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
   const state = await loadState(chatId);
@@ -132,7 +139,7 @@ async function wireCapabilities(): Promise<void> {
           if (!state.turns && !Object.keys(state.cast).length) return out;
           const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid);
           if (!inj.text) return out;
-          lastInjection.set(chatId, inj.recallIds);
+          recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds);
           const head = { role: 'system', content: inj.text };
           return { messages: [head, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Recall' }] };
         } catch (e) {
@@ -226,6 +233,11 @@ const dispatch: Record<string, Handler> = {
     if (!chatId) return;
     const log = await exportLog(chatId);
     spindle.sendToFrontend?.({ type: 'vellum_export', chatId, log }, uid);
+  },
+  vellum_get_injection: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    spindle.sendToFrontend?.({ type: 'vellum_injection', chatId, log: (injectionLog.get(chatId) ?? []).slice().reverse() }, uid);
   },
   vellum_rescan: async (p, uid) => {
     // re-fold the latest turn from raw stored text (recover from a missed fold)

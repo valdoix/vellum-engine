@@ -56,4 +56,16 @@ describe('command layer (CRUD → events)', () => {
     expect(cmdEvents('relation_upsert', { entry: { a: 'X', b: 'X' } }, freshState(), ctx)).toHaveLength(0);
     expect(cmdEvents('bogus', {}, freshState(), ctx)).toHaveLength(0);
   });
+
+  it('adds & deletes journal entries with categories', () => {
+    let s = freshState();
+    s = reduce(cmdEvents('journal_add', { entry: { who: 'Cersei', about: 'Jaime', memory: 'the look across the hall', kind: 'shared', weight: 'defining', sentiment: 'complex' } }, s, ctx), s, 0);
+    expect(s.journal).toHaveLength(1);
+    expect(s.journal[0]!.kind).toBe('shared');
+    expect(s.journal[0]!.weight).toBe('defining');
+    expect(s.journal[0]!.who).toBe('cersei');
+    const id = s.journal[0]!.id;
+    s = reduce(cmdEvents('journal_delete', { entry: { id } }, s, ctx), s, 0);
+    expect(s.journal).toHaveLength(0);
+  });
 });

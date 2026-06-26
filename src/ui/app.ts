@@ -5,8 +5,10 @@ import { chronicleTab } from './tabs/chronicle.js';
 import { castTab } from './tabs/cast.js';
 import { relationsTab } from './tabs/relations.js';
 import { graphTab, resetGraphCache } from './tabs/graph.js';
+import { journalTab } from './tabs/journal.js';
+import { injectionTab, setInjectionLog } from './tabs/injection.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
-import { wireBridge, wirePagers } from './bridge.js';
+import { wireBridge, wirePagers, wireFilters } from './bridge.js';
 
 /**
  * Frontend entrypoint. One reusable shell (tab bar + QOL toolbar + body) is
@@ -34,7 +36,9 @@ const TABS = [
   { id: 'chronicle', label: 'Chronicle', comp: chronicleTab },
   { id: 'cast', label: 'Cast', comp: castTab },
   { id: 'relations', label: 'Relations', comp: relationsTab },
+  { id: 'journal', label: 'Journal', comp: journalTab },
   { id: 'graph', label: 'Graph', comp: graphTab },
+  { id: 'injection', label: 'Injection', comp: injectionTab },
 ] as const;
 
 const QOL = [
@@ -74,11 +78,13 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   };
   const stats = (): void => {
     const s = getState();
-    statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 D${s.day ?? 0} \u00b7 ${Object.keys(s.cast).length} cast \u00b7 ${s.relations.length} bonds`;
+    const w = s.scene.weather ? ` \u00b7 \u2601 ${s.scene.weather}` : '';
+    statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 D${s.day ?? 0} \u00b7 ${Object.keys(s.cast).length} cast \u00b7 ${s.relations.length} bonds${w}`;
   };
   tabbar.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) onQol(ctx, b.getAttribute('data-qol')!); });
   wirePagers(bodyEl); // delegated pager clicks for any paginated list
+  wireFilters(bodyEl); // delegated filter-bar controls
 
   showTab(active); stats();
   return {
@@ -156,6 +162,9 @@ export function setup(ctx: Ctx): () => void {
       if (p?.type === 'vellum_state') {
         state = p.state ?? freshState();
         drawer.update(); floatShell?.update(); float.refresh();
+      } else if (p?.type === 'vellum_injection') {
+        setInjectionLog(p.log ?? []);
+        drawer.update(); floatShell?.update();
       } else if (p?.type === 'vellum_export' && p.log) {
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
         ctx.toast?.success?.('Chronicle exported.');

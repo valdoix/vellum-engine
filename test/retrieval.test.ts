@@ -64,7 +64,7 @@ describe('buildInjection — continuity guardrail', () => {
   it('injects authoritative cast/bonds verbatim and scene-relevant recall', () => {
     const s = stateWith();
     s.cast = { ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false } };
-    s.scene = { location: 'Winterfell', tension: 4, present: ['ned'] };
+    s.scene = { location: 'Winterfell', tension: 4, weather: 'rain', present: ['ned'] };
     const inj = buildInjection('chat1', s, 'Ned thinks about the Lannister incest');
     expect(inj.text).toContain('CAST & BONDS');
     expect(inj.text).toContain('Ned Stark'); // structured = verbatim

@@ -79,6 +79,13 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       return e.name ? [{ ...base(ctx), kind: 'thread.op', op: (e.op ?? 'advance'), name: String(e.name), ...(e.note ? { note: String(e.note) } : {}) } as VellumEvent] : [];
     case 'arc_op':
       return e.name ? [{ ...base(ctx), kind: 'arc.op', op: (e.op ?? 'advance'), name: String(e.name), ...(e.note ? { note: String(e.note) } : {}) } as VellumEvent] : [];
+    case 'journal_add': {
+      const who = canonId(e.who ?? ''); const memory = String(e.memory ?? '').trim();
+      if (!who || !memory) return [];
+      return [{ ...base(ctx), kind: 'journal.entry', id: 'mj_' + nextSeq(), who, ...(e.about ? { about: canonId(e.about) } : {}), memory, jkind: (e.kind ?? 'interaction'), weight: (e.weight ?? 'minor'), sentiment: (e.sentiment ?? 'neutral') } as VellumEvent];
+    }
+    case 'journal_delete':
+      return e.id ? [{ ...base(ctx), kind: 'journal.drop', id: String(e.id) } as VellumEvent] : [];
     default:
       return [];
   }
@@ -87,5 +94,5 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
 export const CMD_TYPES = new Set([
   'cast_upsert', 'cast_delete', 'relation_upsert', 'relation_delete',
   'knowledge_add', 'secret_add', 'secret_reveal', 'memory_add', 'memory_delete',
-  'thread_op', 'arc_op',
+  'thread_op', 'arc_op', 'journal_add', 'journal_delete',
 ]);

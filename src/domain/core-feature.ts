@@ -23,6 +23,7 @@ export const coreFeature: Feature = {
         ...base(), kind: 'scene.set',
         ...(parsed.scene?.loc ? { location: parsed.scene.loc } : {}),
         ...(typeof parsed.scene?.tension === 'number' ? { tension: parsed.scene.tension } : {}),
+        ...(parsed.scene?.weather ? { weather: parsed.scene.weather } : {}),
         present,
       } as VellumEvent);
     }
@@ -56,6 +57,17 @@ export const coreFeature: Feature = {
     for (const a of parsed.delta?.arcs ?? []) {
       const op = a.op === 'stall' ? 'advance' : a.op; // arcs have no stall
       out.push({ ...base(), kind: 'arc.op', op, name: a.name, ...(a.note ? { note: a.note } : {}) } as VellumEvent);
+    }
+
+    // per-character memory journal entries
+    for (const j of parsed.delta?.journal ?? []) {
+      const who = canonId(j.who); const memory = String(j.memory || '').trim();
+      if (!who || !memory) continue;
+      out.push({
+        ...base(), kind: 'journal.entry', id: 'mj_' + who + '_' + ctx.turn + '_' + (out.length),
+        who, ...(j.about ? { about: canonId(j.about) } : {}), memory,
+        jkind: (j.kind ?? 'interaction'), weight: (j.weight ?? 'minor'), sentiment: (j.sentiment ?? 'neutral'),
+      } as VellumEvent);
     }
 
     return out;
