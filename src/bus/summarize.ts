@@ -15,12 +15,18 @@ declare const spindle: any;
  */
 
 const SUMMARY_SYS =
-  'You are a story archivist. Compress the given turn-by-turn notes into ONE dense chapter memory. '
-  + 'PRESERVE EVERY CONCRETE DETAIL: names, places, objects, decisions, revealed facts, secrets, '
-  + 'promises, betrayals, injuries, deaths, who-learned-what, and shifts in relationships. '
-  + 'Omit only filler and repetition. Past tense, third person, factual - not prose, not commentary. '
-  + 'Aim for one tight paragraph (or a few) that loses nothing a future scene would need. '
-  + 'Then on a final line: KEYS: <6-12 comma-separated proper nouns / topics for retrieval>.';
+  'You are a story archivist compressing a roleplay excerpt into ONE dense, factual chapter-memory for long-term recall. '
+  + 'Write 3-6 tight PAST-TENSE sentences in plain third person. Capture only what MATTERS: who was involved, where, key '
+  + 'actions, decisions, revelations, promises, and what CHANGED by the end (relationships, stakes, knowledge). '
+  + 'Pack facts; DROP atmosphere, sensory description, interiority, and metaphor - this is a record, not prose. '
+  + 'No run-on sentences and no em-dash pile-ups: one clear idea per sentence, each able to stand alone. '
+  + 'Use the real character names; never write {{user}}/{{char}}/"you". End with a strong factual close on what the chapter '
+  + 'leaves changed - not a lyrical flourish. Then a final line: KEYS: <6-12 comma-separated names/places/topics>.\n'
+  + 'BAD (wordy, atmospheric, run-on): "She descended from the wheelhouse unaided, refusing a servant\u2019s hand, and took in '
+  + 'the courtyard\u2014soldiers, servants, the oppressive weight of a castle she was told would soon be her home." '
+  + 'GOOD (tight, factual): "Cersei arrived at Harrenhal and was received in the courtyard. Daeron presented her a golden rose '
+  + 'and bluntly called the castle hard to look at, surprising her into a near-laugh. Jaime embraced her warmly. By the end '
+  + 'her guarded contempt had softened toward both brothers."';
 
 /** Build the source text for the LLM from the memories being folded. */
 function sourceText(state: ChronicleState, ids: string[]): string {
@@ -41,7 +47,7 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
 
   const gen = await internalGenerate(
     [{ role: 'system', content: SUMMARY_SYS }, { role: 'user', content: src }],
-    { temperature: 0.3, max_tokens: 700 },
+    { temperature: 0.2, max_tokens: 320 },
     userId,
   );
   if (gen.ok && gen.value.trim()) {
@@ -49,12 +55,13 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
     const km = body.match(/KEYS:\s*(.+)\s*$/i);
     if (km) { keys = km[1]!.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 12); text = body.slice(0, km.index).trim(); }
     else text = body;
+    text = text.replace(/```[a-z]*\n?|```/gi, '').trim();
   } else {
     // fallback: structural concatenation (loses nothing, just not prose)
     text = 'Chapter (turns ' + plan.covers[0] + '-' + plan.covers[1] + '): '
       + plan.sourceIds.map((id) => state.memories.find((m) => m.id === id)?.text).filter(Boolean).join(' ');
   }
-  return chapterEvents(plan, text.slice(0, 2000), keys, state.turns || plan.covers[1], state.day || 0, nextSeq);
+  return chapterEvents(plan, text.slice(0, 1200), keys, state.turns || plan.covers[1], state.day || 0, nextSeq);
 }
 
 /** Compress as many windows as exist (manual "summarize all"). A manual run uses
