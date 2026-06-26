@@ -78,7 +78,8 @@ export function parseState(content: string): ParseResult {
   const raw = extractFenced(content);
   if (raw) {
     const obj = lenientParse(raw);
-    if (obj) {
+    if (obj && typeof obj === 'object') {
+      hoistDeltaFields(obj as Record<string, unknown>); // tolerate misplaced delta fields
       const validated = ParsedState.safeParse(obj);
       if (validated.success) return { state: validated.data, source: 'json' };
     }
@@ -88,6 +89,18 @@ export function parseState(content: string): ParseResult {
   if (fb) return { state: fb, source: 'regex' };
 
   return { state: null, source: 'none' };
+}
+
+/** Models sometimes put bonds/threads/arcs/journal/parallel at the TOP level
+ * instead of inside `delta`. Hoist them in so nothing is silently dropped. */
+function hoistDeltaFields(obj: Record<string, unknown>): void {
+  const keys = ['bonds', 'threads', 'arcs', 'journal', 'parallel'];
+  const delta = (obj.delta && typeof obj.delta === 'object') ? obj.delta as Record<string, unknown> : {};
+  let moved = false;
+  for (const k of keys) {
+    if (Array.isArray(obj[k]) && delta[k] === undefined) { delta[k] = obj[k]; delete obj[k]; moved = true; }
+  }
+  if (moved || obj.delta === undefined) obj.delta = delta;
 }
 
 /** True if a message carries any VELLUM state (used to gate folding). */
