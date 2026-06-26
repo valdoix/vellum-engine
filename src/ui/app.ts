@@ -65,17 +65,38 @@ function esc(s: unknown): string {
 
 function renderState(body: HTMLElement, state: any): void {
   if (!state) { body.innerHTML = '<div class="vle-empty">No chronicle yet for this chat.<br><span>Play a turn to begin the record.</span></div>'; return; }
-  const castN = state.cast ? Object.keys(state.cast).length : 0;
-  const relN = (state.relations || []).length;
+  const cast = state.cast ? Object.values(state.cast) as any[] : [];
+  const rels = (state.relations || []) as any[];
   body.innerHTML = '<div class="vle-stat-row">'
     + statCard('Turn', state.turns ?? 0)
     + statCard('Day', state.day ?? 0)
-    + statCard('Cast', castN)
-    + statCard('Bonds', relN)
+    + statCard('Cast', cast.length)
+    + statCard('Bonds', rels.length)
     + '</div>'
     + '<div class="vle-scene">' + (state.scene?.location ? esc(state.scene.location) : '\u2014')
     + (state.scene?.tension ? ' <span class="vle-tension">tension ' + esc(state.scene.tension) + '/10</span>' : '') + '</div>'
-    + '<div class="vle-note">Phase 0 shell. Chronicle, Cast, Relations, Graph &amp; Vault tabs arrive in later phases.</div>';
+    + castPreview(cast)
+    + relPreview(rels, state.cast || {})
+    + '<div class="vle-note">Phase 1 \u2014 event-log fold live. Full Chronicle, Cast, Graph &amp; Vault tabs arrive in later phases.</div>';
+}
+
+function castPreview(cast: any[]): string {
+  if (!cast.length) return '';
+  const present = cast.filter((c) => c.status === 'present');
+  const shown = (present.length ? present : cast).slice(0, 8);
+  const chips = shown.map((c) => '<span class="vle-chip' + (c.status === 'present' ? ' on' : '') + '">' + esc(c.name) + '</span>').join('');
+  return '<div class="vle-sec-h">Cast</div><div class="vle-chips">' + chips + (cast.length > shown.length ? '<span class="vle-chip more">+' + (cast.length - shown.length) + '</span>' : '') + '</div>';
+}
+
+function relPreview(rels: any[], cast: Record<string, any>): string {
+  if (!rels.length) return '';
+  const nameOf = (id: string): string => (cast[id]?.name ?? id);
+  const rows = rels.slice().sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 6).map((r) => {
+    const cats = (Array.isArray(r.categories) && r.categories.length ? r.categories : [r.category || 'neutral']).join(' + ');
+    return '<div class="vle-rel"><span>' + esc(nameOf(r.a)) + ' \u2192 ' + esc(nameOf(r.b)) + '</span>'
+      + '<span class="vle-rel-cat">' + esc(cats) + '</span></div>';
+  }).join('');
+  return '<div class="vle-sec-h">Relations</div><div class="vle-rels">' + rows + '</div>';
 }
 
 function statCard(label: string, value: unknown): string {
