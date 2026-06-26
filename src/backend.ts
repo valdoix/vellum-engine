@@ -99,6 +99,10 @@ async function foldChat(chatId: string, userId: string | null, hint?: string): P
     prior = await append(chatId, evs);
     added += evs.length;
     spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);
+    if (source === 'none' && /\u2039\/?vellum\u203a|<\/?vellum>/i.test(content)) {
+      const m = content.match(/(?:\u2039vellum\u203a|<vellum>)([\s\S]*?)(?:\u2039\/vellum\u203a|<\/vellum>)/i);
+      spindle.log?.warn?.('[vellum_engine] <vellum> present but UNPARSED. Inner head: ' + ((m?.[1] ?? '').trim().slice(0, 200)));
+    }
   }
   if (!added) return;
   invalidateIndex(chatId);

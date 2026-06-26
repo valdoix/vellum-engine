@@ -24,9 +24,39 @@ function extractFenced(content: string): string | null {
     if (j < 0) continue;
     return content.slice(i + open.length, j).trim();
   }
-  // last resort: a bare {...} block that looks like our schema (has "delta"/"scene")
-  const m = content.match(/\{[\s\S]*?"(?:delta|scene|present)"[\s\S]*\}/);
+  // last resort: a bare {...} block that looks like our schema
+  const m = content.match(/\{[\s\S]*?"(?:delta|scene|present|turn)"[\s\S]*\}/);
   return m ? m[0] : null;
+}
+
+/** Pull the outermost balanced {...} object out of a string (ignores prose/
+ * fences around it). Returns null if none. */
+function balancedObject(s: string): string | null {
+  const start = s.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i]!;
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return s.slice(start, i + 1); }
+  }
+  return null;
+}
+
+/** Tolerant JSON: strip an inner ```code fence, // and /* *​/ comments, trailing
+ * commas, then parse the outermost balanced object. Handles common model drift. */
+function lenientParse(raw: string): unknown | null {
+  let s = raw.trim();
+  // drop an inner markdown code fence (```json ... ```)
+  s = s.replace(/^```[a-z]*\s*/i, '').replace(/```$/i, '').trim();
+  const obj = balancedObject(s) ?? s;
+  const cleaned = obj
+    .replace(/\/\/[^\n\r]*/g, '')              // line comments
+    .replace(/\/\*[\s\S]*?\*\//g, '')          // block comments
+    .replace(/,(\s*[}\]])/g, '$1');            // trailing commas
+  try { return JSON.parse(cleaned); } catch { return null; }
 }
 
 export function parseState(content: string): ParseResult {
@@ -34,12 +64,10 @@ export function parseState(content: string): ParseResult {
 
   const raw = extractFenced(content);
   if (raw) {
-    try {
-      const obj = JSON.parse(raw);
+    const obj = lenientParse(raw);
+    if (obj) {
       const validated = ParsedState.safeParse(obj);
       if (validated.success) return { state: validated.data, source: 'json' };
-    } catch {
-      // fall through to regex
     }
   }
 
