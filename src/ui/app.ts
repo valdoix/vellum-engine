@@ -4,6 +4,7 @@ import { freshState, type ChronicleState } from '../domain/types.js';
 import { chronicleTab } from './tabs/chronicle.js';
 import { castTab } from './tabs/cast.js';
 import { relationsTab } from './tabs/relations.js';
+import { graphTab, resetGraphCache } from './tabs/graph.js';
 
 /**
  * Frontend entrypoint. Mounts a themed shell with an in-tab tab bar; each panel
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'chronicle', label: 'Chronicle', comp: chronicleTab },
   { id: 'cast', label: 'Cast', comp: castTab },
   { id: 'relations', label: 'Relations', comp: relationsTab },
+  { id: 'graph', label: 'Graph', comp: graphTab },
 ] as const;
 
 export function setup(ctx: Ctx): () => void {
@@ -83,7 +85,7 @@ export function setup(ctx: Ctx): () => void {
     } catch (e) { try { console.warn('[vellum] message handler:', e); } catch { /* ignore */ } }
   });
 
-  const offChat = ctx.events?.on('CHAT_SWITCHED', () => ctx.sendToBackend({ type: 'vellum_get_state' }));
+  const offChat = ctx.events?.on('CHAT_SWITCHED', () => { resetGraphCache(); ctx.sendToBackend({ type: 'vellum_get_state' }); });
 
   showTab(activeTab);
   renderStats();
