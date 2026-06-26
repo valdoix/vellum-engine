@@ -110,7 +110,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   showTab(active); stats();
   return {
     root,
-    update(): void { stats(); if (mounted) mounted.update(getState()); else showTab(active); },
+    update(force = false): void { stats(); if (mounted) mounted.update(getState(), force); else showTab(active); },
     destroy(): void { try { mounted?.destroy(); } catch { /* ignore */ } try { root.remove(); } catch { /* ignore */ } },
   };
 }
@@ -169,7 +169,7 @@ export function setup(ctx: Ctx): () => void {
   _retheme = () => { applyTheme(drawer.root); try { float.applyTheme(); float.refresh(); } catch { /* ignore */ } };
 
   // bridge: tab components issue CRUD via send(); refresh re-renders both shells
-  wireBridge((payload) => ctx.sendToBackend(payload), () => { drawer.update(); float.refresh(); });
+  wireBridge((payload) => ctx.sendToBackend(payload), (force?: boolean) => { drawer.update(force); float.refresh(); });
 
   // beautiful floating window â€” a live scene DASHBOARD with a refresh button
   const float: FloatWindow = createFloatWindow({

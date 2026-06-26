@@ -20,7 +20,7 @@ export interface Component<S> {
 
 export interface Mounted<S> {
   el: HTMLElement;
-  update(state: S): void;
+  update(state: S, force?: boolean): void;
   destroy(): void;
 }
 
@@ -55,9 +55,9 @@ export function mount<S>(host: HTMLElement, comp: Component<S>, initial: S, name
     try { comp.mount(el); mounted = true; } catch (e) { try { console.warn(`[vellum] component "${name}" mount failed:`, e); } catch { /* ignore */ } }
   };
 
-  const update = (state: S): void => {
+  const update = (state: S, force = false): void => {
     const v = comp.version ? comp.version(state) : undefined;
-    if (v !== undefined && v === lastVersion) return; // slice unchanged → skip
+    if (!force && v !== undefined && v === lastVersion) return; // slice unchanged → skip
     lastVersion = v;
     el.innerHTML = safeRender(state);
     doMount();
