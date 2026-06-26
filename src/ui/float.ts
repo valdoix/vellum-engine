@@ -58,6 +58,7 @@ export function createFloatWindow(hooks: FloatHooks): FloatWindow {
   el.setAttribute('aria-label', hooks.title || 'VELLUM');
   el.innerHTML =
     '<div class="vlf-frame">'
+    + '<div class="vlf-tex"></div><div class="vlf-scrim"></div>'
     + '<div class="vlf-bar" data-vlf-drag>'
     + `<span class="vlf-mark">${MARK}</span><span class="vlf-title">${(hooks.title || 'VELLUM')}</span>`
     + '<span class="vlf-actions" data-vlf-actions></span>'

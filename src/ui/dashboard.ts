@@ -10,6 +10,7 @@ import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent } from './format.
  */
 
 import { getLayout, type LayoutDef, type SectionId } from './layout-defs.js';
+import { getTheme } from './theme.js';
 
 /** Section registry — each block is a pure (state) → html function. Layouts
  * compose these by id; the functions never change, the layout owns structure. */
@@ -65,7 +66,11 @@ function tensionBar(s: ChronicleState): string {
   const t = Math.max(0, Math.min(10, s.scene.tension || 0));
   if (!t) return '';
   const hue = 120 - t * 12; // green→red
-  return `<div class="vld-sec"><div class="vld-h">Tension</div><div class="vld-tension-row"><div class="vld-tension"><span class="vld-tension-f" style="width:${t * 10}%;background:hsl(${hue},55%,50%)"></span></div><span class="vld-tension-n">${t}/10</span></div></div>`;
+  const style = getTheme().tensionStyle;
+  const bar = `<div class="vld-tension"><span class="vld-tension-f" style="width:${t * 10}%;background:hsl(${hue},55%,50%)"></span></div>`;
+  const num = `<span class="vld-tension-n">${t}/10</span>`;
+  const inner = style === 'bar' ? bar : style === 'num' ? `<span class="vld-tension-n" style="min-width:auto">${t}/10</span>` : bar + num;
+  return `<div class="vld-sec"><div class="vld-h">Tension</div><div class="vld-tension-row">${inner}</div></div>`;
 }
 
 function presentBlock(s: ChronicleState): string {

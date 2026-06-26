@@ -59,13 +59,14 @@ const QOL = [
 function openCustomize(onChange: () => void): void {
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
-  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(420px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Customize</div>'
-    + '<div class="vlfm-body" data-cz-host>' + customizePanel() + '</div>'
+  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(440px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Customize</div>'
+    + '<div class="vlfm-body" data-cz-host>' + customizePanel('skin') + '</div>'
     + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-save" data-close>Done</button></div></div>';
   document.body.appendChild(ov);
   const host = ov.querySelector('[data-cz-host]') as HTMLElement;
-  applyTheme(ov.querySelector('.vlfm') as HTMLElement);
-  wireCustomize(host, () => { host.innerHTML = customizePanel(); applyTheme(ov.querySelector('.vlfm') as HTMLElement); onChange(); });
+  const reskin = () => applyTheme(ov.querySelector('.vlfm') as HTMLElement);
+  reskin();
+  wireCustomize(host, onChange, (tab) => { host.innerHTML = customizePanel(tab); reskin(); });
   const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
   ov.addEventListener('click', (e) => { if (e.target === ov || (e.target as HTMLElement).closest('[data-close]')) close(); });
 }
