@@ -2,6 +2,8 @@ import type { ChronicleState } from '../domain/types.js';
 import { collectItems, buildIndex, type InvertedIndex } from './invindex.js';
 import { lexicalSearch } from './lexical.js';
 import { allocate, fitLines } from './budget.js';
+import { rrf } from './fuse.js';
+import { vectorSearch } from './embed.js';
 
 /**
  * Recall assembler. Produces the text VELLUM injects into the prompt, in two
@@ -20,7 +22,7 @@ import { allocate, fitLines } from './budget.js';
 export interface InjectionResult {
   text: string;
   recallIds: string[];
-  source: 'lexical';
+  source: 'lexical' | 'hybrid';
 }
 
 const CAPS = { structured: 1400, knowledge: 900, recall: 1400 };
@@ -67,28 +69,81 @@ function structuredBlock(state: ChronicleState, budget: number): string {
   return '[CAST & BONDS \u2014 established, authoritative. Keep consistent; do not contradict.]\n' + lines.join('\n');
 }
 
-export function buildInjection(chatId: string, state: ChronicleState, query: string, phaseMult = 1): InjectionResult {
-  const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
-  const index = indexFor(chatId, state);
-
+/** Render the final injection text from a ranked, deduped recall id list. */
+function assemble(
+  state: ChronicleState,
+  index: InvertedIndex,
+  rankedIds: string[],
+  budgets: Record<string, number>,
+  source: 'lexical' | 'hybrid',
+): InjectionResult {
   const structured = structuredBlock(state, budgets.structured ?? 1200);
-
-  // recall: lexical hits, recency-boosted, fit to budget
-  const hits = lexicalSearch(index, query, 20);
-  const maxTurn = state.turns || 1;
-  const ranked = hits
-    .map((h) => {
-      const it = index.byId.get(h.id)!;
-      const recency = 1 + 0.4 * (it.turn / maxTurn); // gentle recency lift
-      return { id: h.id, text: it.text, score: h.score * recency };
-    })
-    .sort((a, b) => b.score - a.score);
-  const recallLines = fitLines(ranked.map((r) => '- ' + r.text), budgets.recall ?? 1200);
-  const recallIds = ranked.slice(0, recallLines.length).map((r) => r.id);
+  const lines: string[] = [];
+  for (const id of rankedIds) {
+    const it = index.byId.get(id);
+    if (it) lines.push('- ' + it.text);
+  }
+  const recallLines = fitLines(lines, budgets.recall ?? 1200);
+  const recallIds = rankedIds.slice(0, recallLines.length);
   const recall = recallLines.length
     ? '[CHRONICLE RECALL \u2014 relevant established history. Honor it; do not recite.]\n' + recallLines.join('\n')
     : '';
-
   const text = [structured, recall].filter(Boolean).join('\n\n');
-  return { text, recallIds, source: 'lexical' };
+  return { text, recallIds, source };
+}
+
+/** Lexical-only ranking with a gentle recency lift. Pure + synchronous. */
+function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: string): string[] {
+  const hits = lexicalSearch(index, query, 20);
+  const maxTurn = state.turns || 1;
+  return hits
+    .map((h) => {
+      const it = index.byId.get(h.id)!;
+      const recency = 1 + 0.4 * (it.turn / maxTurn);
+      return { id: h.id, score: h.score * recency };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((r) => r.id);
+}
+
+/** Synchronous, lexical-only injection. Used in tests and as the always-on base. */
+export function buildInjection(chatId: string, state: ChronicleState, query: string, phaseMult = 1): InjectionResult {
+  const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
+  const index = indexFor(chatId, state);
+  return assemble(state, index, lexicalRanked(index, state, query), budgets, 'lexical');
+}
+
+/**
+ * Hybrid injection: fuse lexical + host-embedding rankings via RRF. Falls back
+ * to pure lexical when vectorization is unavailable (vectorSearch → null), so
+ * continuity precision is never lost and the path is fully model-agnostic.
+ */
+export async function buildInjectionHybrid(
+  chatId: string,
+  state: ChronicleState,
+  query: string,
+  userId: string | null,
+  phaseMult = 1,
+): Promise<InjectionResult> {
+  const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
+  const index = indexFor(chatId, state);
+  const lexIds = lexicalRanked(index, state, query);
+
+  const contentToId = (text: string): string | null => {
+    const t = text.trim().toLowerCase();
+    for (const it of index.byId.values()) {
+      if (it.text.trim().toLowerCase() === t || it.text.toLowerCase().includes(t.slice(0, 40))) return it.id;
+    }
+    return null;
+  };
+  const vec = await vectorSearch(chatId, query, userId, contentToId, 20);
+  if (!vec || !vec.length) {
+    return assemble(state, index, lexIds, budgets, 'lexical');
+  }
+  // fuse: lexical weighted slightly higher to keep exact-name precision dominant
+  const fused = rrf([
+    { ids: lexIds, weight: 1.1 },
+    { ids: vec.map((v) => v.id), weight: 1.0 },
+  ]).map((r) => r.id);
+  return assemble(state, index, fused, budgets, 'hybrid');
 }

@@ -5,7 +5,7 @@ import { loadState, append, invalidate } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
-import { buildInjection, invalidateIndex } from './retrieval/recall.js';
+import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
 
 declare const spindle: any;
 
@@ -73,7 +73,7 @@ try {
       if (!chatId) return undefined;
       const state = await loadState(chatId);
       if (!state.turns && !Object.keys(state.cast).length) return undefined;
-      const inj = buildInjection(chatId, state, sceneQuery(ctx));
+      const inj = await buildInjectionHybrid(chatId, state, sceneQuery(ctx), uid);
       if (!inj.text) return undefined;
       lastInjection.set(chatId, inj.recallIds);
       // Return the injected context in the host's expected shape (string append).
