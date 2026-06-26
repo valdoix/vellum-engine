@@ -17,7 +17,7 @@ import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, up
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
-import { sceneSuggestions, recursionSeeds, evaluateSchedules, type VaultEntryLite } from './domain/vault-intel.js';
+import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
 /** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
 function coveredTurn(state: ChronicleState): number {
@@ -122,6 +122,23 @@ async function maybeVaultSync(chatId: string, userId: string | null): Promise<vo
     // scheduled Events: enable/disable entries whose reveal condition flipped
     const lites = snap.books.flatMap((b) => b.entries).filter((e) => e.vellum && e.reveal).map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled, reveal: e.reveal! }));
     if (lites.length) { for (const ch of evaluateSchedules(state, lites)) { await updateEntry(ch.entryId, { disabled: !ch.enable }, userId); changed++; } }
+    // Tier-C auto-author: draft pending entries for salient uncovered cast when
+    // a category is set to 'auto'. Dedupe against existing entries first.
+    const autoOn = (await loadCategories()).some((c) => c.sync === 'auto');
+    if (autoOn) {
+      const allEntries = snap.books.flatMap((b) => b.entries);
+      const covered = new Set(allEntries.filter((e) => e.vellum && e.link).map((e) => e.link));
+      const bookId = snap.books.find((b) => b.vellum)?.id;
+      if (bookId) {
+        const cats = await loadCategories();
+        const charCat = cats.find((c) => c.id === 'characters');
+        for (const d of autoAuthorDrafts(state, covered)) {
+          if (findDupe(d.content, allEntries)) continue; // skip near-duplicates
+          await createEntry({ bookId, key: d.key, content: d.content, comment: d.name, settings: charCat?.defaults ?? cats[0]!.defaults, category: d.category, source: 'auto', link: 'cast:' + d.id, pending: true }, userId);
+          changed++;
+        }
+      }
+    }
     if (changed) { await vaultBroadcast(chatId, userId); spindle.log?.info?.('[vellum_engine] vault sync: ' + changed + ' change(s)'); }
   } catch (e) { spindle.log?.warn?.('[vellum_engine] vault sync: ' + ((e as Error)?.message ?? e)); }
   finally { _vaultSyncing.delete(chatId); }
@@ -386,6 +403,16 @@ const dispatch: Record<string, Handler> = {
     if (!chatId) return;
     if (p?.action === 'dismiss') { dismissedFor(chatId).add(String(p.kind === 'relation' ? 'rel:' + p.id : 'cast:' + p.id)); await vaultBroadcast(chatId, uid); return; }
     if (p?.action === 'accept') { await (dispatch.vellum_vault_promote as Handler)({ chatId, kind: p.kind, id: p.id }, uid); return; }
+  },
+  vellum_vault_pending: async (p, uid) => {
+    // resolve a Tier-C draft: accept (clear pending flag) or reject (delete)
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!(await hasVault())) return;
+    try {
+      if (p?.action === 'accept') await updateEntry(String(p.entryId), { extensions: { vellum: true, vellumCategory: String(p.category || 'characters'), vellumSource: 'auto', vellumLink: String(p.link || ''), vellumPending: false } }, uid);
+      else if (p?.action === 'reject') await deleteEntry(String(p.entryId), uid);
+    } catch (e) { spindle.log?.warn?.('[vellum_engine] pending resolve: ' + ((e as Error)?.message ?? e)); }
+    await vaultBroadcast(chatId ?? '', uid);
   },
   vellum_rescan: async (p, uid) => {
     // re-fold the latest turn from raw stored text (recover from a missed fold)

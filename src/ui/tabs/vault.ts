@@ -15,7 +15,7 @@ import { formModal } from '../modal.js';
  */
 
 interface VCat { id: string; label: string; glyph: string; color: string; hidden: boolean; sync: string; defaults: any }
-interface VEntry { id: string; bookId: string; key: string[]; content: string; comment: string; disabled: boolean; vellum: boolean; category: string; source: string; pending: boolean }
+interface VEntry { id: string; bookId: string; key: string[]; content: string; comment: string; disabled: boolean; vellum: boolean; category: string; source: string; link: string; pending: boolean }
 interface VBook { id: string; name: string; attachedToChat: boolean; global: boolean; vellum: boolean; entries: VEntry[] }
 interface VSnap { ok: boolean; reason?: string; categories: VCat[]; books: VBook[]; activated: Array<{ id: string }>; suggestions?: Array<{ kind: string; id: string; label: string; reason: string }> }
 
@@ -57,10 +57,11 @@ export const vaultTab: Component<ChronicleState> = {
     const top = '<div class="vle-sec-top"><button class="vle-add" data-ventry-add>+ Entry</button><button class="vle-qol" data-vbook>\u2913 Books</button></div>' + cur;
     const shown = _filter === 'all' ? entries : entries.filter((e) => e.category === _filter);
     const active = new Set(_snap.activated.map((a) => a.id));
-    const grid = shown.length
-      ? '<div class="vlv-grid">' + shown.map((e) => entryCard(e, active.has(e.id))).join('') + '</div>'
+    const pending = all.filter((e) => e.pending);
+    const grid = shown.filter((e) => !e.pending).length
+      ? '<div class="vlv-grid">' + shown.filter((e) => !e.pending).map((e) => entryCard(e, active.has(e.id))).join('') + '</div>'
       : '<div class="vle-empty sm">' + (_scope === 'vault' ? 'No Vault entries yet. <b>+ Entry</b> to author lore, or switch to <b>All lorebooks</b> to adopt existing entries.' : 'No entries here yet.') + '</div>';
-    return top + suggestStrip() + scopeBar + bar + grid;
+    return top + pendingTray(pending) + suggestStrip() + scopeBar + bar + grid;
   },
   mount(host) {
     host.addEventListener('click', (e) => {
@@ -78,6 +79,8 @@ export const vaultTab: Component<ChronicleState> = {
       const un = t.closest('[data-ventry-unlink]'); if (un) send({ type: 'vellum_vault_op', op: 'entry_unlink', entryId: un.getAttribute('data-id'), category: un.getAttribute('data-cat') });
       const sy = t.closest('[data-vsug-accept]'); if (sy) send({ type: 'vellum_vault_suggest', action: 'accept', kind: sy.getAttribute('data-kind'), id: sy.getAttribute('data-id') });
       const sn = t.closest('[data-vsug-dismiss]'); if (sn) send({ type: 'vellum_vault_suggest', action: 'dismiss', kind: sn.getAttribute('data-kind'), id: sn.getAttribute('data-id') });
+      const py = t.closest('[data-vpend-accept]'); if (py) send({ type: 'vellum_vault_pending', action: 'accept', entryId: py.getAttribute('data-id'), category: py.getAttribute('data-cat'), link: py.getAttribute('data-link') });
+      const pn = t.closest('[data-vpend-reject]'); if (pn) send({ type: 'vellum_vault_pending', action: 'reject', entryId: pn.getAttribute('data-id') });
     });
   },
 };
@@ -93,6 +96,18 @@ function suggestStrip(): string {
     + `<button class="vlv-sug-n" data-vsug-dismiss data-kind="${esc(s.kind)}" data-id="${esc(s.id)}" title="Dismiss">\u2715</button></span>`
   ).join('');
   return `<div class="vlv-suggest"><span class="vlv-suggest-h">\u2727 Suggested</span>${chips}</div>`;
+}
+
+function pendingTray(pending: VEntry[]): string {
+  if (!pending.length) return '';
+  const rows = pending.map((e) =>
+    `<div class="vlv-pend" data-id="${esc(e.id)}"><div class="vlv-pend-top"><span class="vlv-pend-n">${esc(e.comment || e.key[0] || 'Draft')}</span>`
+    + `<span class="vlv-pend-ctl"><button class="vlv-pend-y" data-vpend-accept data-id="${esc(e.id)}" data-cat="${esc(e.category)}" data-link="${esc(e.link ?? '')}" title="Keep">\u2713</button>`
+    + `<button class="vlv-pend-e" data-ventry-edit data-id="${esc(e.id)}" title="Edit then keep">\u270E</button>`
+    + `<button class="vlv-pend-n2" data-vpend-reject data-id="${esc(e.id)}" title="Reject">\u2715</button></span></div>`
+    + `<div class="vlv-pend-c">${esc(e.content).slice(0, 160)}${e.content.length > 160 ? '\u2026' : ''}</div></div>`
+  ).join('');
+  return `<div class="vlv-pending"><div class="vlv-pending-h">\u270D Drafts to review <span class="vlv-cn">${pending.length}</span></div>${rows}</div>`;
 }
 function findEntry(id: string): VEntry | null { return allEntries().find((e) => e.id === id) ?? null; }
 function rerender(host: HTMLElement): void { host.innerHTML = vaultTab.render(null as any); vaultTab.mount?.(host); }
@@ -139,7 +154,7 @@ function categorySettings(id: string): void {
     { key: 'role', label: 'Role', type: 'select', value: d.role ?? 'system', options: ROLE_OPTS },
     { key: 'order', label: 'Order', type: 'text', value: String(d.order ?? 100) },
     { key: 'sticky', label: 'Sticky (turns)', type: 'text', value: String(d.sticky ?? 0) },
-    { key: 'sync', label: 'Auto-update', type: 'select', value: c.sync ?? 'off', options: [{ value: 'off', label: 'off' }, { value: 'promote', label: 'promote (manual)' }, { value: 'sync', label: 'sync (auto-update)' }] },
+    { key: 'sync', label: 'Auto-update', type: 'select', value: c.sync ?? 'off', options: [{ value: 'off', label: 'off' }, { value: 'promote', label: 'promote (manual)' }, { value: 'sync', label: 'sync (auto-update)' }, { value: 'auto', label: 'auto-author (drafts)' }] },
   ], (v) => {
     const defaults = { position: v.position, depth: Number(v.depth) || 4, role: v.role, order: Number(v.order) || 100, sticky: Number(v.sticky) || 0 };
     send({ type: 'vellum_vault_category', cat: { ...c, defaults, sync: v.sync } });

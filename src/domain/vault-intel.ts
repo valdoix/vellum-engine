@@ -1,5 +1,6 @@
 import type { ChronicleState } from './types.js';
 import { catsOf } from './category-util.js';
+import { tokenSet } from '../retrieval/tokenize.js';
 
 /**
  * Vault intelligence (Phase 3) — PURE, tested. The backend supplies the current
@@ -89,4 +90,54 @@ export function evaluateSchedules(s: ChronicleState, entries: VaultEntryLite[]):
     if (shouldBeOn === e.disabled) out.push({ entryId: e.id, enable: shouldBeOn }); // state mismatch → flip
   }
   return out;
+}
+
+// --- 4. Tier-C auto-author (salience-gated drafts) ----------------------
+export interface DraftProposal { kind: 'cast'; id: string; name: string; category: string; key: string[]; content: string }
+
+/**
+ * Propose draft entries for SALIENT cast members not yet covered by the Vault.
+ * Salience = present, or active and seen across >= minTurns (a recurring face),
+ * so we don't draft one-off mentions. Caller dedupes (dupeGuard) and lands them
+ * as `pending` for accept/reject. Pure.
+ */
+export function autoAuthorDrafts(s: ChronicleState, covered: Set<string>, minTurns = 3): DraftProposal[] {
+  const out: DraftProposal[] = [];
+  for (const c of Object.values(s.cast)) {
+    const link = 'cast:' + c.id;
+    if (covered.has(link)) continue;
+    const span = (c.lastTurn || 0) - (c.firstTurn || 0);
+    const salient = c.status === 'present' || (c.status === 'active' && span >= minTurns);
+    if (!salient) continue;
+    const bits = [c.role, c.age, c.appearance].filter(Boolean).join('; ');
+    const content = `${c.name}${bits ? ' � ' + bits + '.' : '.'}${c.note ? ' ' + c.note : ''}`.trim();
+    out.push({ kind: 'cast', id: c.id, name: c.name, category: 'characters', key: [c.name, ...(c.aka ?? [])].filter(Boolean), content });
+  }
+  return out.slice(0, 6);
+}
+
+// --- 5. dupe / contradiction guard --------------------------------------
+/**
+ * Lexical Jaccard similarity between two texts (0..1). A cheap, embedding-free
+ * guard that catches near-duplicate lore before creating a second entry. The
+ * backend can swap/augment this with cosine over host embeddings when available;
+ * the decision shape stays the same.
+ */
+export function textSimilarity(a: string, b: string): number {
+  const sa = tokenSet(a), sb = tokenSet(b);
+  if (!sa.size || !sb.size) return 0;
+  let inter = 0;
+  for (const t of sa) if (sb.has(t)) inter++;
+  return inter / (sa.size + sb.size - inter);
+}
+
+export interface DupeMatch { entryId: string; score: number }
+/** Find an existing entry too similar to `content` (>= threshold). null = unique. */
+export function findDupe(content: string, entries: VaultEntryLite[], threshold = 0.55): DupeMatch | null {
+  let best: DupeMatch | null = null;
+  for (const e of entries) {
+    const score = textSimilarity(content, e.content);
+    if (score >= threshold && (!best || score > best.score)) best = { entryId: e.id, score };
+  }
+  return best;
 }
