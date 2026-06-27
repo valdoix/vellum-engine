@@ -37,10 +37,9 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
     + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-cancel>Cancel</button><button class="vlfm-btn vlfm-save" data-save>Save</button></div></div>';
   document.body.appendChild(overlay);
 
-  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } };
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  overlay.querySelector('[data-cancel]')!.addEventListener('click', close);
-  overlay.querySelector('[data-save]')!.addEventListener('click', () => {
+  let onKey: ((e: KeyboardEvent) => void) | null = null;
+  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); };
+  const save = (): void => {
     const values: Record<string, string> = {};
     overlay.querySelectorAll('[data-f]').forEach((el) => { values[el.getAttribute('data-f')!] = (el as HTMLInputElement).value; });
     overlay.querySelectorAll('[data-fchecks]').forEach((grp) => {
@@ -48,10 +47,42 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
       values[key] = Array.from(grp.querySelectorAll('[data-fc]')).filter((c) => (c as HTMLInputElement).checked).map((c) => (c as HTMLInputElement).value).join(',');
     });
     close(); onSave(values);
-  });
+  };
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-cancel]')!.addEventListener('click', close);
+  overlay.querySelector('[data-save]')!.addEventListener('click', save);
+  // Esc closes; Enter saves (unless focus is in a textarea, where Enter = newline)
+  onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) { e.preventDefault(); save(); }
+  };
+  document.addEventListener('keydown', onKey);
   const first = overlay.querySelector('.vlfm-in') as HTMLElement | null; first?.focus();
 }
 
-export function confirmModal(message: string): boolean {
-  return confirm(message);
+/**
+ * Themed confirm dialog (replaces window.confirm). Callback-based to match
+ * formModal: `onConfirm` runs only on confirm. Overlay-click + Esc cancel,
+ * Enter confirms, the Confirm button is focused.
+ */
+export function confirmModal(message: string, onConfirm: () => void): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'vlfm-overlay';
+  overlay.innerHTML = `<div class="vlfm vlfm-confirm"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Confirm</div>`
+    + `<div class="vlfm-body"><p class="vlfm-msg">${esc(message)}</p></div>`
+    + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-cancel>Cancel</button><button class="vlfm-btn vlfm-save" data-confirm>Confirm</button></div></div>';
+  document.body.appendChild(overlay);
+
+  let onKey: ((e: KeyboardEvent) => void) | null = null;
+  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); };
+  const confirmIt = (): void => { close(); onConfirm(); };
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-cancel]')!.addEventListener('click', close);
+  overlay.querySelector('[data-confirm]')!.addEventListener('click', confirmIt);
+  onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'Enter') { e.preventDefault(); confirmIt(); }
+  };
+  document.addEventListener('keydown', onKey);
+  (overlay.querySelector('[data-confirm]') as HTMLElement | null)?.focus();
 }

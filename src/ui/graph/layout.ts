@@ -1,6 +1,6 @@
 import type { ChronicleState, Relation } from '../../domain/types.js';
 import type { Category } from '../../core/events.js';
-import { hash01, pairKey } from '../../core/ids.js';
+import { hash01 } from '../../core/ids.js';
 import { catRank } from '../../domain/category.js';
 
 /**
@@ -70,14 +70,19 @@ export function buildModel(state: ChronicleState): GraphModel {
       deg[r.b] = (deg[r.b] ?? 0) + 1;
       const cats = r.categories.length ? r.categories : [r.category];
       return {
-        id: pairKey(r.a, r.b), a: r.a, b: r.b,
+        id: r.a + '>' + r.b, a: r.a, b: r.b,
         cat: primaryCat(cats), categories: cats, sentiment: r.sentiment,
         intensity: Math.max(Math.abs(r.affection), Math.abs(r.trust)),
         affection: r.affection, trust: r.trust, label: r.label, status: r.status,
       };
     });
   const present = new Set(state.scene.present);
-  const ids = Object.keys(state.cast).filter((id) => deg[id] || present.has(id));
+  // Fix 9: include manual / on-stage / active cast even with no bonds, so they
+  // aren't invisible. Layout already centers + repels isolated nodes.
+  const ids = Object.keys(state.cast).filter((id) => {
+    const c = state.cast[id]!;
+    return deg[id] || present.has(id) || c.status === 'present' || c.status === 'active' || c.source === 'user';
+  });
   const factions = detectFactions(ids, edges, state);
   const facOf: Record<string, number> = {};
   factions.forEach((f, i) => f.members.forEach((m) => { facOf[m] = i; }));

@@ -48,4 +48,13 @@ describe('graph layout', () => {
     s.cast.hermit = { id: 'hermit', name: 'The Hermit', aka: [], status: 'mentioned', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false };
     expect(buildModel(s).nodes.find((n) => n.id === 'hermit')).toBeUndefined();
   });
+
+  it('Fix 9: a present, bond-less cast member yields one node, zero edges', () => {
+    const s = freshState();
+    s.cast.lone = { id: 'lone', name: 'Lone Wanderer', aka: [], status: 'present', source: 'user', firstTurn: 1, lastTurn: 1, userEdited: true };
+    s.scene = { location: 'road', tension: 0, time: '', weather: '', present: ['lone'], detail: [] };
+    const m = buildModel(s);
+    expect(m.nodes.map((n) => n.id)).toContain('lone');
+    expect(m.edges.length).toBe(0);
+  });
 });

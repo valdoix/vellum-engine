@@ -4,6 +4,7 @@ import { lexicalSearch } from './lexical.js';
 import { allocate, fitLines } from './budget.js';
 import { rrf } from './fuse.js';
 import { vectorSearch } from './embed.js';
+import { hashStr } from '../core/ids.js';
 
 /**
  * Recall assembler. Produces the text VELLUM injects into the prompt, in two
@@ -25,18 +26,38 @@ export interface InjectionResult {
   source: 'lexical' | 'hybrid';
 }
 
-const CAPS = { structured: 1400, knowledge: 900, recall: 1400 };
+// knowledge items flow through collectItems→ranked recall (kind:'knowledge'); the
+// old separate `knowledge:900` cap was never rendered and only forced TOTAL down-
+// scaling. structured 1400 + recall 1800 = 3200 ≤ 3600 → no spurious scaling.
+const CAPS = { structured: 1400, recall: 1800 };
 const TOTAL = 3600;
 
 // cache the index per chat so we don't rebuild every interceptor call
-interface IndexCache { sig: number; index: InvertedIndex }
+interface IndexCache { sig: string; index: InvertedIndex }
 const _idx = new Map<string, IndexCache>();
 
-function indexFor(chatId: string, state: ChronicleState): InvertedIndex {
-  const sig = state.knowledge.length + state.secrets.length * 1e3 + state.memories.length * 1e6;
+/**
+ * Index cache key. A count-based sig misses in-place CONTENT edits (Fix 20):
+ * editing a knowledge fact without adding/removing rows kept the stale index.
+ * When the caller knows the log length it passes `version` (monotonic, bumps on
+ * any append/edit); otherwise we fall back to a cheap content signature over the
+ * items' ids + text lengths.
+ */
+function indexFor(chatId: string, state: ChronicleState, version?: number): InvertedIndex {
   const cached = _idx.get(chatId);
+  // hot path: a known log version → O(1) sig, skip re-tokenizing on a cache hit.
+  if (version !== undefined) {
+    const sig = 'v' + version;
+    if (cached && cached.sig === sig) return cached.index;
+    const index = buildIndex(collectItems(state));
+    _idx.set(chatId, { sig, index });
+    return index;
+  }
+  // fallback (no version, e.g. tests): cheap content signature over id+length.
+  const items = collectItems(state);
+  const sig = hashStr(items.map((i) => i.id + ':' + i.text.length).join('|'));
   if (cached && cached.sig === sig) return cached.index;
-  const index = buildIndex(collectItems(state));
+  const index = buildIndex(items);
   _idx.set(chatId, { sig, index });
   return index;
 }
@@ -107,9 +128,9 @@ function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: strin
 }
 
 /** Synchronous, lexical-only injection. Used in tests and as the always-on base. */
-export function buildInjection(chatId: string, state: ChronicleState, query: string, phaseMult = 1): InjectionResult {
+export function buildInjection(chatId: string, state: ChronicleState, query: string, phaseMult = 1, version?: number): InjectionResult {
   const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
-  const index = indexFor(chatId, state);
+  const index = indexFor(chatId, state, version);
   return assemble(state, index, lexicalRanked(index, state, query), budgets, 'lexical');
 }
 
@@ -124,9 +145,10 @@ export async function buildInjectionHybrid(
   query: string,
   userId: string | null,
   phaseMult = 1,
+  version?: number,
 ): Promise<InjectionResult> {
   const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
-  const index = indexFor(chatId, state);
+  const index = indexFor(chatId, state, version);
   const lexIds = lexicalRanked(index, state, query);
 
   const contentToId = (text: string): string | null => {

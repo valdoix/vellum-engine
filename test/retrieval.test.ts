@@ -58,6 +58,28 @@ describe('budget allocator', () => {
   it('fitLines keeps whole lines under budget', () => {
     expect(fitLines(['aaaa', 'bbbb', 'cccc'], 10)).toEqual(['aaaa', 'bbbb']);
   });
+  it('Fix 8: recall CAPS sum ≤ TOTAL → returned unscaled', () => {
+    const caps = { structured: 1400, recall: 1800 };
+    const a = allocate({ total: 3600, caps, phaseMult: 1 });
+    expect(a.structured).toBe(1400);
+    expect(a.recall).toBe(1800); // not down-scaled
+  });
+});
+
+describe('Fix 20 — index staleness', () => {
+  it('reflects an in-place content edit when version bumps (counts unchanged)', () => {
+    const s = stateWith();
+    s.cast = { ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false } };
+    s.scene = { location: 'Winterfell', tension: 4, time: 'dusk', weather: 'rain', present: ['ned'], detail: [] };
+    const first = buildInjection('chatV', s, 'dragons circling Winterfell', 1, 1);
+    expect(first.text).not.toContain('dragons circling');
+    // edit k1 text in place — same row count, same version → cached (stale)
+    s.knowledge[0]!.fact = 'Ned saw dragons circling above Winterfell';
+    const stale = buildInjection('chatV', s, 'dragons circling Winterfell', 1, 1);
+    expect(stale.text).not.toContain('dragons circling');
+    const fresh = buildInjection('chatV', s, 'dragons circling Winterfell', 1, 2); // bumped → rebuilt
+    expect(fresh.text).toContain('dragons circling');
+  });
 });
 
 describe('buildInjection — continuity guardrail', () => {

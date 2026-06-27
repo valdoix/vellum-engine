@@ -68,4 +68,29 @@ describe('command layer (CRUD → events)', () => {
     s = reduce(cmdEvents('journal_delete', { entry: { id } }, s, ctx), s, 0);
     expect(s.journal).toHaveLength(0);
   });
+
+  it('Fix 4: deletes knowledge and secrets by id', () => {
+    let s = freshState();
+    s = reduce(cmdEvents('knowledge_add', { entry: { who: 'Ned', fact: 'the truth' } }, s, ctx), s, 0);
+    s = reduce(cmdEvents('secret_add', { entry: { keeper: 'Cersei', text: 'incest' } }, s, ctx), s, 0);
+    const kId = s.knowledge[0]!.id, sId = s.secrets[0]!.id;
+    s = reduce(cmdEvents('knowledge_delete', { entry: { id: kId } }, s, ctx), s, 0);
+    s = reduce(cmdEvents('secret_delete', { entry: { id: sId } }, s, ctx), s, 0);
+    expect(s.knowledge).toHaveLength(0);
+    expect(s.secrets).toHaveLength(0);
+  });
+
+  it('Fix 14: journal_edit preserves identity, updates memory', () => {
+    let s = freshState();
+    s = reduce(cmdEvents('journal_add', { entry: { who: 'Cersei', memory: 'first draft' } }, s, ctx), s, 0);
+    const { id, turn, day, who } = s.journal[0]!;
+    s = reduce(cmdEvents('journal_edit', { entry: { id, memory: 'revised', weight: 'defining' } }, s, ctx), s, 0);
+    expect(s.journal).toHaveLength(1);
+    expect(s.journal[0]!.id).toBe(id);
+    expect(s.journal[0]!.turn).toBe(turn);
+    expect(s.journal[0]!.day).toBe(day);
+    expect(s.journal[0]!.who).toBe(who);
+    expect(s.journal[0]!.memory).toBe('revised');
+    expect(s.journal[0]!.weight).toBe('defining');
+  });
 });

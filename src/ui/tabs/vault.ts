@@ -2,7 +2,7 @@ import type { Component } from '../component.js';
 import type { ChronicleState } from '../../domain/types.js';
 import { esc } from '../format.js';
 import { send } from '../bridge.js';
-import { formModal } from '../modal.js';
+import { formModal, confirmModal } from '../modal.js';
 
 /**
  * Vault tab — story-aware authoring layer over the host's world books. Groups
@@ -80,7 +80,7 @@ export const vaultTab: Component<ChronicleState> = {
       if (t.closest('[data-ventry-add]')) { entryForm(null); return; }
       if (t.closest('[data-vbook]')) { bookManager(); return; }
       const ed = t.closest('[data-ventry-edit]'); if (ed) { entryForm(findEntry(ed.getAttribute('data-id')!)); return; }
-      const del = t.closest('[data-ventry-del]'); if (del && confirm('Delete this entry?')) send({ type: 'vellum_vault_op', op: 'entry_delete', entryId: del.getAttribute('data-id') });
+      const del = t.closest('[data-ventry-del]'); if (del) confirmModal('Delete this entry?', () => send({ type: 'vellum_vault_op', op: 'entry_delete', entryId: del.getAttribute('data-id') }));
       const un = t.closest('[data-ventry-unlink]'); if (un) send({ type: 'vellum_vault_op', op: 'entry_unlink', entryId: un.getAttribute('data-id'), category: un.getAttribute('data-cat') });
       const sy = t.closest('[data-vsug-accept]'); if (sy) send({ type: 'vellum_vault_suggest', action: 'accept', kind: sy.getAttribute('data-kind'), id: sy.getAttribute('data-id') });
       const sn = t.closest('[data-vsug-dismiss]'); if (sn) send({ type: 'vellum_vault_suggest', action: 'dismiss', kind: sn.getAttribute('data-kind'), id: sn.getAttribute('data-id') });

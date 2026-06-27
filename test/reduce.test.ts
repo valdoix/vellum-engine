@@ -9,18 +9,42 @@ function ev(e: Partial<VellumEvent> & { kind: VellumEvent['kind'] }): VellumEven
 }
 
 describe('reduce — relations', () => {
-  it('forms a bond and evolves its category set in place (one edge per pair)', () => {
+  it('relationships are directional: a→b and b→a are independent edges', () => {
     const events: VellumEvent[] = [
       ev({ kind: 'bond.delta', a: 'cersei', b: 'jaime', aff: 20, trust: 10, addCats: ['social'] }),
-      ev({ kind: 'bond.delta', a: 'jaime', b: 'cersei', aff: 30, addCats: ['romantic'] }), // reverse order, same pair
+      ev({ kind: 'bond.delta', a: 'jaime', b: 'cersei', aff: -30, addCats: ['rivalry'] }), // reverse order = distinct edge
     ];
     const s = reduce(events);
-    expect(s.relations).toHaveLength(1); // identity is the pair, not pair+category
-    const r = s.relations[0]!;
-    expect(r.categories).toContain('romantic');
-    expect(r.categories).toContain('social');
-    expect(r.category).toBe('romantic'); // primary = highest rank
-    expect(r.affection).toBe(50); // 20 + 30 accumulated
+    expect(s.relations).toHaveLength(2); // directional identity
+    const cj = s.relations.find((r) => r.a === 'cersei' && r.b === 'jaime')!;
+    const jc = s.relations.find((r) => r.a === 'jaime' && r.b === 'cersei')!;
+    expect(cj.affection).toBe(20);
+    expect(jc.affection).toBe(-30);
+    expect(cj.categories).toContain('social');
+    expect(jc.categories).toContain('rivalry');
+  });
+
+  it('accumulates same-direction deltas in place', () => {
+    const s = reduce([
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 20, addCats: ['social'] }),
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 30, addCats: ['romantic'] }),
+    ]);
+    expect(s.relations).toHaveLength(1);
+    expect(s.relations[0]!.affection).toBe(50);
+    expect(s.relations[0]!.category).toBe('romantic');
+  });
+
+  it('bond.drop is directed; both:true clears the reciprocal too', () => {
+    const base: VellumEvent[] = [
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 10 }),
+      ev({ kind: 'bond.delta', a: 'b', b: 'a', aff: -10 }),
+    ];
+    const directed = reduce([...base, ev({ kind: 'bond.drop', a: 'a', b: 'b' })]);
+    expect(directed.relations).toHaveLength(1);
+    expect(directed.relations[0]!.a).toBe('b');
+
+    const both = reduce([...base, ev({ kind: 'bond.drop', a: 'a', b: 'b', both: true })]);
+    expect(both.relations).toHaveLength(0);
   });
 
   it('auto source cannot silently strip an established facet; user can', () => {
@@ -65,6 +89,17 @@ describe('reduce — cast, knowledge, secrets, memory', () => {
     ]);
     expect(s.cast.ned).toBeUndefined();
     expect(s.relations).toHaveLength(0); // edge removed with the node
+  });
+
+  it('Fix 22: cast.edit changes only allowed fields, protects identity keys', () => {
+    const s = reduce([
+      ev({ kind: 'cast.seen', id: 'ned', name: 'Ned Stark', status: 'present' }),
+      ev({ kind: 'cast.edit', id: 'ned', patch: { id: 'x', source: 'user', firstTurn: 99, role: 'King' } as any, src: 'user' }),
+    ]);
+    expect(s.cast.ned!.role).toBe('King');
+    expect(s.cast.ned!.id).toBe('ned'); // identity untouched
+    expect(s.cast.ned!.source).toBe('auto'); // protected
+    expect(s.cast.ned!.firstTurn).toBe(1); // protected
   });
 
   it('dedupes knowledge and reveals secrets', () => {

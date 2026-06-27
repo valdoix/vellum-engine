@@ -40,11 +40,6 @@ export function canonId(name: string): string {
     .slice(0, 48);
 }
 
-/** Unordered-pair key for a relation edge (identity = the pair, not pair+category). */
-export function pairKey(a: string, b: string): string {
-  return [String(a ?? ''), String(b ?? '')].sort().join('|').toLowerCase().slice(0, 160);
-}
-
 let _seq = 0;
 /**
  * Monotonic local sequence for event ordering within a single worker session.

@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 2 as const;
+export const SCHEMA_VERSION = 3 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -40,9 +40,12 @@ export const JournalSentiment = z.enum(['positive', 'negative', 'neutral', 'comp
 export type JournalSentiment = z.infer<typeof JournalSentiment>;
 export const EvJournal = z.object({ ...base, kind: z.literal('journal.entry'), id: z.string(), who: z.string(), about: z.string().optional(), memory: z.string(), jkind: JournalKind.default('interaction'), weight: JournalWeight.default('minor'), sentiment: JournalSentiment.default('neutral') });
 export const EvJournalDrop = z.object({ ...base, kind: z.literal('journal.drop'), id: z.string() });
+export const JournalPatch = z.object({ memory: z.string().optional(), about: z.string().optional(), jkind: JournalKind.optional(), weight: JournalWeight.optional(), sentiment: JournalSentiment.optional() });
+export const EvJournalEdit = z.object({ ...base, kind: z.literal('journal.edit'), id: z.string(), patch: JournalPatch });
 
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
-export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: z.record(z.unknown()) });
+export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional() });
+export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: CastPatch });
 export const EvCastDrop = z.object({ ...base, kind: z.literal('cast.drop'), id: z.string() });
 
 export const EvBondDelta = z.object({
@@ -56,11 +59,13 @@ export const EvBondDelta = z.object({
   label: z.string().optional(),
   why: z.string().optional(),
 });
-export const EvBondDrop = z.object({ ...base, kind: z.literal('bond.drop'), a: z.string(), b: z.string() });
+export const EvBondDrop = z.object({ ...base, kind: z.literal('bond.drop'), a: z.string(), b: z.string(), both: z.boolean().optional() });
 
 export const EvKnowledge = z.object({ ...base, kind: z.literal('knowledge.learn'), who: z.string(), fact: z.string(), about: z.string().optional() });
+export const EvKnowledgeDrop = z.object({ ...base, kind: z.literal('knowledge.drop'), id: z.string() });
 export const EvSecretForm = z.object({ ...base, kind: z.literal('secret.form'), id: z.string(), keeper: z.string(), from: z.array(z.string()).default([]), text: z.string() });
 export const EvSecretReveal = z.object({ ...base, kind: z.literal('secret.reveal'), id: z.string(), to: z.array(z.string()).default([]) });
+export const EvSecretDrop = z.object({ ...base, kind: z.literal('secret.drop'), id: z.string() });
 
 const SubsumedMem = z.object({ id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]) });
 export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional() });
@@ -73,10 +78,10 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvTurnFold, EvSceneSet,
   EvCastSeen, EvCastEdit, EvCastDrop,
   EvBondDelta, EvBondDrop,
-  EvKnowledge, EvSecretForm, EvSecretReveal,
+  EvKnowledge, EvKnowledgeDrop, EvSecretForm, EvSecretReveal, EvSecretDrop,
   EvMemory, EvMemoryDrop,
   EvThread, EvArc,
-  EvJournal, EvJournalDrop,
+  EvJournal, EvJournalDrop, EvJournalEdit,
   EvParallel,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;

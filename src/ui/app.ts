@@ -6,12 +6,13 @@ import { castTab } from './tabs/cast.js';
 import { relationsTab } from './tabs/relations.js';
 import { graphTab, resetGraphCache } from './tabs/graph.js';
 import { journalTab } from './tabs/journal.js';
-import { injectionTab, setInjectionLog } from './tabs/injection.js';
+import { injectionTab, setInjectionLog, pushInjectionRecord } from './tabs/injection.js';
 import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize } from './theme.js';
 import { dashboardHtml } from './dashboard.js';
 import { wireBridge, wirePagers, wireFilters } from './bridge.js';
+import { confirmModal } from './modal.js';
 
 /**
  * Frontend entrypoint. One reusable shell (tab bar + QOL toolbar + body) is
@@ -49,6 +50,7 @@ const QOL = [
   { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins' },
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories' },
   { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message' },
+  { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)' },
   { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON' },
@@ -123,11 +125,12 @@ function onQol(ctx: Ctx, id: string): void {
   if (id === 'customize') { openCustomize(() => _retheme()); }
   else if (id === 'summarize') { ctx.sendToBackend({ type: 'vellum_summarize' }); ctx.toast?.info?.('Summarizing older turns\u2026'); }
   else if (id === 'rescan') { ctx.sendToBackend({ type: 'vellum_rescan' }); ctx.toast?.info?.('Rescanning the latest turn\u2026'); }
-  else if (id === 'rebuild') { if (confirm('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.')) { ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); } }
+  else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => ctx.sendToBackend({ type: 'vellum_undo' })); }
+  else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
   else if (id === 'hide') { _hideOn = !_hideOn; ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'export') { ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
-  else if (id === 'clear') { if (confirm('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.')) ctx.sendToBackend({ type: 'vellum_clear' }); }
+  else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => ctx.sendToBackend({ type: 'vellum_clear' })); }
 }
 
 function triggerImport(ctx: Ctx): void {
@@ -196,6 +199,9 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
         drawer.update(); float.refresh();
+      } else if (p?.type === 'vellum_injection_push') {
+        // Fix 11 — live retrieval feed: stream the new record in as it happens
+        if (p.record) { pushInjectionRecord(p.record); drawer.update(); float.refresh(); }
       } else if (p?.type === 'vellum_vault') {
         setVaultSnap(p);
         drawer.update();
@@ -215,6 +221,8 @@ export function setup(ctx: Ctx): () => void {
         ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Imported ${p.events ?? ''} events.` : `Import failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_rescan_done') {
         ctx.toast?.success?.('Rescanned.');
+      } else if (p?.type === 'vellum_undo_done') {
+        ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
       } else if (p?.type === 'vellum_rebuild_done') {
         ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Chronicle rebuilt from ${p.turns ?? 0} turn(s).` : `Rebuild failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_hide_done') {

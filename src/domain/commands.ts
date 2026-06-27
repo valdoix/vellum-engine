@@ -1,6 +1,6 @@
 import type { VellumEvent, Category } from '../core/events.js';
 import type { ChronicleState } from './types.js';
-import { canonId, nextSeq, pairKey } from '../core/ids.js';
+import { canonId, nextSeq } from '../core/ids.js';
 import { isCategory, normalizeCategorySet } from './category.js';
 
 /**
@@ -37,7 +37,7 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
         (Array.isArray(e.categories) ? e.categories : typeof e.categories === 'string' ? e.categories.split(',') : [])
           .map((c: string) => String(c).trim().toLowerCase()).filter(isCategory),
       ) as Category[];
-      const existing = state.relations.find((r) => pairKey(r.a, r.b) === pairKey(a, b));
+      const existing = state.relations.find((r) => r.a === a && r.b === b);
       const ev: any = { ...base(ctx), kind: 'bond.delta', a, b, absolute: true };
       if (e.aff !== undefined || e.affection !== undefined) ev.aff = Number(e.aff ?? e.affection) || 0;
       if (e.trust !== undefined) ev.trust = Number(e.trust) || 0;
@@ -51,14 +51,17 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     }
     case 'relation_delete': {
       const a = canonId(e.a ?? ''), b = canonId(e.b ?? '');
-      if (e.id) { const r = state.relations.find((x) => pairKey(x.a, x.b) === e.id || `${x.a}|${x.b}` === e.id); if (r) return [{ ...base(ctx), kind: 'bond.drop', a: r.a, b: r.b } as VellumEvent]; }
-      return (a && b) ? [{ ...base(ctx), kind: 'bond.drop', a, b } as VellumEvent] : [];
+      // deleting a card removes both directions by default
+      if (e.id) { const r = state.relations.find((x) => `${x.a}|${x.b}` === e.id); if (r) return [{ ...base(ctx), kind: 'bond.drop', a: r.a, b: r.b, both: true } as VellumEvent]; }
+      return (a && b) ? [{ ...base(ctx), kind: 'bond.drop', a, b, both: true } as VellumEvent] : [];
     }
     case 'knowledge_add': {
       const who = canonId(e.who ?? ''); const fact = String(e.fact ?? '').trim();
       if (!who || !fact) return [];
       return [{ ...base(ctx), kind: 'knowledge.learn', who, fact, ...(e.about ? { about: canonId(e.about) } : {}) } as VellumEvent];
     }
+    case 'knowledge_delete':
+      return e.id ? [{ ...base(ctx), kind: 'knowledge.drop', id: String(e.id) } as VellumEvent] : [];
     case 'secret_add': {
       const keeper = canonId(e.keeper ?? ''); const text = String(e.text ?? e.secret ?? '').trim();
       if (!keeper || !text) return [];
@@ -68,6 +71,8 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     }
     case 'secret_reveal':
       return e.id ? [{ ...base(ctx), kind: 'secret.reveal', id: String(e.id), to: (Array.isArray(e.to) ? e.to : []).map((s: string) => canonId(s)) } as VellumEvent] : [];
+    case 'secret_delete':
+      return e.id ? [{ ...base(ctx), kind: 'secret.drop', id: String(e.id) } as VellumEvent] : [];
     case 'memory_add': {
       const text = String(e.text ?? '').trim(); if (!text) return [];
       const keys = Array.isArray(e.keys) ? e.keys : String(e.keys ?? '').split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -86,6 +91,17 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     }
     case 'journal_delete':
       return e.id ? [{ ...base(ctx), kind: 'journal.drop', id: String(e.id) } as VellumEvent] : [];
+    case 'journal_edit': {
+      if (!e.id) return [];
+      const patch: Record<string, unknown> = {};
+      if (e.memory !== undefined) { const m = String(e.memory).trim(); if (m) patch.memory = m; }
+      if (e.about !== undefined) patch.about = canonId(e.about);
+      if (e.kind !== undefined) patch.jkind = e.kind;
+      if (e.weight !== undefined) patch.weight = e.weight;
+      if (e.sentiment !== undefined) patch.sentiment = e.sentiment;
+      if (!Object.keys(patch).length) return [];
+      return [{ ...base(ctx), kind: 'journal.edit', id: String(e.id), patch } as VellumEvent];
+    }
     case 'parallel_set':
       return [{ ...base(ctx), kind: 'parallel.set', items: (Array.isArray(e.items) ? e.items : []).map((it: any) => ({ ...(it.who ? { who: canonId(it.who) } : {}), ...(it.where ? { where: String(it.where) } : {}), activity: String(it.activity || '').trim(), ...(it.note ? { note: String(it.note) } : {}) })).filter((it: any) => it.activity) } as VellumEvent];
     default:
@@ -95,6 +111,7 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
 
 export const CMD_TYPES = new Set([
   'cast_upsert', 'cast_delete', 'relation_upsert', 'relation_delete',
-  'knowledge_add', 'secret_add', 'secret_reveal', 'memory_add', 'memory_delete',
-  'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'parallel_set',
+  'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
+  'memory_add', 'memory_delete',
+  'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set',
 ]);

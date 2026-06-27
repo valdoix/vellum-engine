@@ -2,7 +2,7 @@ import type { Component } from '../component.js';
 import type { ChronicleState, Memory } from '../../domain/types.js';
 import { esc, byRecent, nameOf } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, applyFilter } from '../bridge.js';
-import { formModal } from '../modal.js';
+import { formModal, confirmModal } from '../modal.js';
 
 /**
  * Chronicle tab. Scene, arcs, threads, memory (turn/chapter/arc tiers),
@@ -33,7 +33,13 @@ export const chronicleTab: Component<ChronicleState> = {
         { key: 'from', label: 'Hidden from (comma-separated)', type: 'text' },
       ], (o) => { if (o.keeper?.trim() && o.text?.trim()) cmd('secret_add', o); }); return; }
       const md = t.closest('[data-mem-del]');
-      if (md && confirm('Delete this memory?')) cmd('memory_delete', { id: md.getAttribute('data-id') });
+      if (md) { confirmModal('Delete this memory?', () => cmd('memory_delete', { id: md.getAttribute('data-id') })); return; }
+      const kd = t.closest('[data-know-del]');
+      if (kd) { confirmModal('Delete this knowledge?', () => cmd('knowledge_delete', { id: kd.getAttribute('data-id') })); return; }
+      const sd = t.closest('[data-sec-del]');
+      if (sd) { confirmModal('Delete this secret?', () => cmd('secret_delete', { id: sd.getAttribute('data-id') })); return; }
+      const sr = t.closest('[data-sec-reveal]');
+      if (sr) { cmd('secret_reveal', { id: sr.getAttribute('data-id'), to: [] }); return; }
     });
   },
 };
@@ -73,7 +79,8 @@ function knowledge(s: ChronicleState): string {
   const bar = filterBar('knowledge', { whos });
   const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
   const { slice, page, pages } = paginate('knowledge', filtered);
-  const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span><span class="vle-mem-t">' + esc(k.fact) + '</span></div>').join('');
+  const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span><span class="vle-mem-t">' + esc(k.fact) + '</span>'
+    + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button></div>`).join('');
   return head + bar + rows + pagerHtml('knowledge', page, pages);
 }
 
@@ -84,6 +91,8 @@ function secrets(s: ChronicleState): string {
   const bar = filterBar('secrets', { whos });
   const filtered = applyFilter('secrets', s.secrets.map((x) => ({ ...x, turn: x.formedTurn })), { who: (x) => x.keeper });
   const { slice, page, pages } = paginate('secrets', filtered);
-  const rows = slice.map((sec) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span></div>').join('');
+  const rows = slice.map((sec) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
+    + (sec.revealed ? '' : `<button class="vle-mini" data-sec-reveal data-id="${esc(sec.id)}" title="Reveal">\u25D0</button>`)
+    + `<button class="vle-mini del" data-sec-del data-id="${esc(sec.id)}" title="Delete">\u2715</button></div>`).join('');
   return head + bar + rows + pagerHtml('secrets', page, pages);
 }

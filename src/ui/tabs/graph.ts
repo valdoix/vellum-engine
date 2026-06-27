@@ -25,10 +25,14 @@ export const graphTab: Component<ChronicleState> = {
   version: (s) => buildModel(s).sig,
   render(s) {
     const { model } = modelFor(s);
-    if (!model.nodes.length || !model.edges.length) {
+    if (!model.nodes.length) {
       return '<div class="vle-empty">No relationship graph yet.<br><span>Bonds appear here once characters relate. Play a few turns.</span></div>';
     }
-    return renderGraph(model, _cache!.lay);
+    const graph = renderGraph(model, _cache!.lay);
+    // Fix 9: nodes can exist with no bonds (manual / on-stage cast) — show them
+    // with a gentle hint instead of an empty state.
+    if (!model.edges.length) return '<div class="vlg-hint">No bonds yet \u2014 characters appear here; relationships draw in as they form.</div>' + graph;
+    return graph;
   },
   mount(host) {
     const A = (el: Element | null, n: string): string => el?.getAttribute(n) ?? '';

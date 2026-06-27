@@ -41,4 +41,20 @@ describe('durability: lenient log loading', () => {
     expect(dropped).toBe(2);
     expect(log.events).toHaveLength(0);
   });
+
+  it('a log from a NEWER schema is unusable (read-only), never parsed-and-pruned', () => {
+    // forward-compat guard: version > code SCHEMA_VERSION must not drop unknown
+    // events then let a later persist clobber the good file.
+    const { usable, log } = lenientLog({ version: 9999, events: GOOD }, 'c1');
+    expect(usable).toBe(false);
+    expect(log.events).toHaveLength(0);
+  });
+
+  it('v2 → v3 migration rewrites historical bond.drop to both:true', () => {
+    const drop = { seq: 5, turn: 3, day: 1, src: 'model', kind: 'bond.drop', a: 'cersei', b: 'jaime' };
+    const { log, usable } = lenientLog({ version: 2, events: [...GOOD, drop] }, 'c1');
+    expect(usable).toBe(true);
+    const migrated = log.events.find((e) => e.kind === 'bond.drop') as any;
+    expect(migrated?.both).toBe(true); // ended bonds stay fully severed under directional reduce
+  });
 });

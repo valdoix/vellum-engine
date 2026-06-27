@@ -1,5 +1,4 @@
 import type { VellumEvent } from '../core/events.js';
-import { pairKey } from '../core/ids.js';
 import { type ChronicleState, type Relation, freshState } from '../domain/types.js';
 import { freshRelation, applyScore, addCategories, removeCategories, sentimentToScores, deriveSentiment } from '../domain/relations.js';
 import { normalizeCategorySet, primaryCategory, isCategory } from '../domain/category.js';
@@ -20,8 +19,8 @@ export function reduce(events: readonly VellumEvent[], from?: ChronicleState, st
 }
 
 function findRel(s: ChronicleState, a: string, b: string): Relation | undefined {
-  const key = pairKey(a, b);
-  return s.relations.find((r) => pairKey(r.a, r.b) === key);
+  // directional identity: a→b is distinct from b→a (asymmetric relationships)
+  return s.relations.find((r) => r.a === a && r.b === b);
 }
 
 function apply(s: ChronicleState, e: VellumEvent): void {
@@ -63,7 +62,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'cast.edit': {
       const c = s.cast[e.id];
       if (c) {
-        Object.assign(c, e.patch);
+        // defensively strip protected identity keys even if schema let them through
+        const { id: _id, source: _src, firstTurn: _ft, ...safe } = e.patch as Record<string, unknown>;
+        void _id; void _src; void _ft;
+        Object.assign(c, safe);
         if (e.src === 'user') c.userEdited = true;
       }
       break;
@@ -93,13 +95,18 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'bond.drop': {
-      const key = pairKey(e.a, e.b);
-      s.relations = s.relations.filter((r) => pairKey(r.a, r.b) !== key);
+      // directed by default; `both` clears the reciprocal edge too
+      if (e.both) s.relations = s.relations.filter((r) => !((r.a === e.a && r.b === e.b) || (r.a === e.b && r.b === e.a)));
+      else s.relations = s.relations.filter((r) => !(r.a === e.a && r.b === e.b));
       break;
     }
     case 'knowledge.learn': {
       const dup = s.knowledge.find((k) => k.who === e.who && k.fact === e.fact);
       if (!dup) s.knowledge.push({ id: `k_${s.knowledge.length}_${e.seq}`, who: e.who, fact: e.fact, ...(e.about ? { about: e.about } : {}), turn: e.turn });
+      break;
+    }
+    case 'knowledge.drop': {
+      s.knowledge = s.knowledge.filter((k) => k.id !== e.id);
       break;
     }
     case 'secret.form': {
@@ -111,6 +118,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'secret.reveal': {
       const sec = s.secrets.find((x) => x.id === e.id);
       if (sec) { sec.revealed = true; sec.revealedTo = Array.from(new Set([...sec.revealedTo, ...e.to])); }
+      break;
+    }
+    case 'secret.drop': {
+      s.secrets = s.secrets.filter((x) => x.id !== e.id);
       break;
     }
     case 'memory.record': {
@@ -150,6 +161,18 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'journal.drop': {
       s.journal = s.journal.filter((j) => j.id !== e.id);
+      break;
+    }
+    case 'journal.edit': {
+      const j = s.journal.find((x) => x.id === e.id);
+      if (j) {
+        const p = e.patch;
+        if (p.memory !== undefined) j.memory = p.memory;
+        if (p.about !== undefined) j.about = p.about;
+        if (p.jkind !== undefined) j.kind = p.jkind;
+        if (p.weight !== undefined) j.weight = p.weight;
+        if (p.sentiment !== undefined) j.sentiment = p.sentiment;
+      }
       break;
     }
     default: {

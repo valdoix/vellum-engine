@@ -22,7 +22,20 @@ export function migrate(raw: unknown): unknown {
     version = 2;
   }
 
-  // future: if (version < 3) { ... }
+  // v2 → v3: relationships became DIRECTIONAL (ordered a→b). Logs written under
+  // the old undirected semantics expected a single `bond.drop` to fully sever a
+  // pair; under directional reduce that now only severs one direction. Rewrite
+  // historical drops to `both:true` so ended bonds stay ended on reload.
+  if (version < 3) {
+    if (Array.isArray(obj.events)) {
+      for (const e of obj.events) {
+        if (e && typeof e === 'object' && (e as Record<string, unknown>).kind === 'bond.drop' && (e as Record<string, unknown>).both === undefined) {
+          (e as Record<string, unknown>).both = true;
+        }
+      }
+    }
+    version = 3;
+  }
 
   obj.version = SCHEMA_VERSION;
   return obj;

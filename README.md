@@ -43,6 +43,22 @@ The **event log** is the single source of truth. Every change is an immutable ev
 
 ---
 
+## Recent changes
+
+**Palimpsest fix pass** (schema v3):
+
+- **Directional relationships** — bonds now have ordered `a→b` identity, so "A adores B while B loathes A" is representable. Reciprocal edges bow apart in the graph; deleting a card severs both directions. A v2→v3 migration rewrites historical `bond.drop` events to clear both directions so previously-ended bonds stay ended.
+- **Edit & delete everywhere** — knowledge, secrets, and journal entries can be deleted; journal edits keep their identity (id/turn/day) instead of replacing. `cast.edit` is now a typed patch that can't touch protected identity fields.
+- **Undo last turn** — drops the most recent turn's events from the log (chat messages untouched), honoring the read-only durability guard.
+- **Prose extraction fixed** — a one-char bug that silently dropped every prose-mined bond is fixed; the name filter no longer rejects valid epithets like "The Stranger".
+- **Recall** — removed a phantom budget slice that throttled context every turn; the retrieval index now invalidates on in-place content edits and skips re-tokenizing on cache hits.
+- **Broader fallback parser** — the regex fallback now reads scene/present/thread/arc/journal lines; bare numbers are deltas, explicit `=`/`set`/`@` mark absolutes.
+- **Live retrieval feed** — the Injection tab streams what was injected each turn in real time.
+- **Themed confirm dialogs** — destructive actions use an in-app modal (Esc/Enter/focus) instead of the browser `confirm()`.
+- **Durability** — a log written by a newer schema is treated as read-only rather than parsed-and-pruned, so a rollback can't clobber a forward-version chronicle.
+
+---
+
 ## Develop
 
 ```sh

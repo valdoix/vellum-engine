@@ -2,7 +2,7 @@ import type { Component } from '../component.js';
 import type { ChronicleState, CastCard } from '../../domain/types.js';
 import { esc, initials, byRecent } from '../format.js';
 import { cmd, paginate, pagerHtml, send } from '../bridge.js';
-import { formModal } from '../modal.js';
+import { formModal, confirmModal } from '../modal.js';
 
 /**
  * Cast tab. Groups the cast by presence; each card has edit/delete; an add
@@ -46,7 +46,7 @@ export const castTab: Component<ChronicleState> = {
         return;
       }
       const del = t.closest('[data-cast-del]');
-      if (del && confirm(`Remove ${del.getAttribute('data-name')} and their relations?`)) cmd('cast_delete', { id: del.getAttribute('data-id') });
+      if (del) confirmModal(`Remove ${del.getAttribute('data-name')} and their relations?`, () => cmd('cast_delete', { id: del.getAttribute('data-id') }));
     });
   },
 };

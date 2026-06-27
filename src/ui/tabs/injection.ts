@@ -15,6 +15,8 @@ export interface InjRecord { turn: number; at: number; chars: number; recallIds:
 // module-held latest injection log (filled by app.ts on vellum_injection)
 let _log: InjRecord[] = [];
 export function setInjectionLog(log: InjRecord[]): void { _log = Array.isArray(log) ? log : []; }
+/** Fix 11 — live feed: prepend a streamed record (newest first), keep last 20. */
+export function pushInjectionRecord(r: InjRecord): void { if (r) { _log = [r, ..._log].slice(0, 20); } }
 
 export const injectionTab: Component<ChronicleState> = {
   version: () => _log.length + ':' + (_log[0]?.at ?? 0),

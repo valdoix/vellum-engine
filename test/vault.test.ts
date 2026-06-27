@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_CATEGORIES, settingsToEntryFields, resolveCategory, customCategory, POSITION_CODE } from '../src/domain/vault.js';
+import { recursionSeeds, type VaultEntryLite } from '../src/domain/vault-intel.js';
+import { freshState, type ChronicleState } from '../src/domain/types.js';
 
 describe('vault categories + settings mapping', () => {
   it('ships sensible built-in categories', () => {
@@ -44,5 +46,27 @@ describe('vault categories + settings mapping', () => {
     expect(c.builtin).toBe(false);
     expect(resolveCategory([...DEFAULT_CATEGORIES, c], 'custom_1').label).toBe('Vehicles');
     expect(resolveCategory(DEFAULT_CATEGORIES, 'nonexistent').id).toBe('characters'); // falls back
+  });
+});
+
+describe('Fix 7 — recursionSeeds', () => {
+  function st(): ChronicleState {
+    const s = freshState();
+    const mk = (id: string, name: string) => { s.cast[id] = { id, name, aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 5, userEdited: false }; };
+    mk('cersei', 'Cersei'); mk('jaime', 'Jaime');
+    s.relations.push({ a: 'cersei', b: 'jaime', label: '', categories: ['familial'], category: 'familial', affection: 80, trust: 60, sentiment: 'warm', status: 'active', source: 'auto', userEdited: false, firstTurn: 1, lastTurn: 5, firstDay: 1, history: [], categoryHistory: [] });
+    return s;
+  }
+  const entry = (id: string, link: string, content: string): VaultEntryLite => ({ id, key: [], content, link, category: 'characters', disabled: false });
+
+  it('weaves each bonded partner name into the other entry', () => {
+    const seeds = recursionSeeds(st(), [entry('e1', 'cast:cersei', 'Cersei is queen.'), entry('e2', 'cast:jaime', 'Jaime is a knight.')]);
+    expect(seeds.get('e1')).toContain('Jaime');
+    expect(seeds.get('e2')).toContain('Cersei');
+  });
+
+  it('no seed when the name is already present in content', () => {
+    const seeds = recursionSeeds(st(), [entry('e1', 'cast:cersei', 'Cersei loves Jaime.'), entry('e2', 'cast:jaime', 'Jaime loves Cersei.')]);
+    expect(seeds.size).toBe(0);
   });
 });

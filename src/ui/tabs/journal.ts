@@ -2,7 +2,7 @@ import type { Component } from '../component.js';
 import type { ChronicleState, JournalEntry } from '../../domain/types.js';
 import { esc, nameOf } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
-import { formModal } from '../modal.js';
+import { formModal, confirmModal } from '../modal.js';
 
 /**
  * Journal tab — each character's MEMORY JOURNAL: the moments they personally
@@ -62,7 +62,7 @@ export const journalTab: Component<ChronicleState> = {
         return;
       }
       const del = t.closest('[data-jr-del]');
-      if (del && confirm('Delete this memory?')) cmd('journal_delete', { id: del.getAttribute('data-id') });
+      if (del) confirmModal('Delete this memory?', () => cmd('journal_delete', { id: del.getAttribute('data-id') }));
     });
   },
 };
@@ -89,8 +89,8 @@ function jrForm(title: string, v: Record<string, string>): void {
     { key: 'sentiment', label: 'Sentiment', type: 'select', value: v.sentiment ?? 'neutral', options: SENT_OPTS },
   ], (out) => {
     if (!out.who?.trim() || !out.memory?.trim()) return;
-    if (v.id) cmd('journal_delete', { id: v.id }); // replace
-    cmd('journal_add', out);
+    if (v.id) cmd('journal_edit', { id: v.id, ...out }); // Fix 14: edit in place, keep identity
+    else cmd('journal_add', out);
   });
 }
 

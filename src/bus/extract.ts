@@ -50,26 +50,28 @@ function realName(raw: string, names: { user: string; char: string }): string {
   return s;
 }
 function bad(name: string): boolean {
-  return !name || /\{\{|placeholder|^(a|the|an)\s|^(guard|servant|soldier|stranger|man|woman|figure|someone)$/i.test(name.trim());
+  const s = String(name || '').trim();
+  if (!s) return true;
+  if (/\{\{/.test(s) || /placeholder/i.test(s)) return true;
+  // reject only a bare lowercase generic noun ("a guard", "someone") — a capitalized
+  // epithet ("The Stranger") is a proper name and passes; "Anne" passes.
+  const GENERIC = new Set(['guard', 'servant', 'soldier', 'stranger', 'man', 'woman', 'figure', 'someone', 'somebody', 'person']);
+  const rest = s.replace(/^(a|an|the)\s+/i, '');
+  const words = rest.split(/\s+/);
+  if (words.length === 1 && GENERIC.has(words[0]!.toLowerCase()) && words[0]![0] === words[0]![0]!.toLowerCase()) return true;
+  return false;
 }
 
 /**
- * Run the extractor on a turn's prose. Returns events (src:'living'). The caller
- * supplies turn/day and the resolved persona/char names. No-op without the
- * generation permission or on empty prose.
+ * PURE mapping: extractor JSON → events (src:'living'). Split out from the host
+ * call so it is unit-testable without `generation`/`internalGenerate` — which is
+ * exactly why bugs here (the `bad(b)` typo, the over-eager name filter) shipped
+ * uncaught. `seqFn` defaults to the global monotonic seq; tests can inject one.
  */
-export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null): Promise<VellumEvent[]> {
-  if (!prose || !prose.trim() || !(await has('generation'))) return [];
-  const gen = await internalGenerate(
-    [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: prose.slice(0, 8000) }],
-    { temperature: 0.2, max_tokens: 700 },
-    userId,
-  );
-  if (!gen.ok) return [];
-  const obj = parseJson(gen.value);
+export function mapExtracted(obj: any, turn: number, day: number, names: { user: string; char: string }, seqFn: () => number = nextSeq): VellumEvent[] {
   if (!obj || typeof obj !== 'object') return [];
   const out: VellumEvent[] = [];
-  const base = () => ({ seq: nextSeq(), turn, day, src: 'living' as const });
+  const base = () => ({ seq: seqFn(), turn, day, src: 'living' as const });
 
   for (const k of Array.isArray(obj.knowledge) ? obj.knowledge : []) {
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
@@ -93,7 +95,7 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   }
   for (const b of Array.isArray(obj.bonds) ? obj.bonds : []) {
     const a = realName(b?.a, names), bb = realName(b?.b, names);
-    if (bad(a) || bad(b) || canonId(a) === canonId(bb)) continue;
+    if (bad(a) || bad(bb) || canonId(a) === canonId(bb)) continue;
     const cats = (Array.isArray(b?.cat) ? b.cat : []).map((c: string) => String(c).toLowerCase()).filter(isCategory) as Category[];
     const aff = clamp(b?.aff), trust = clamp(b?.trust);
     if (!aff && !trust && !cats.length) continue;
@@ -102,9 +104,24 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   return out;
 }
 
+/**
+ * Run the extractor on a turn's prose. Returns events (src:'living'). The caller
+ * supplies turn/day and the resolved persona/char names. No-op without the
+ * generation permission or on empty prose.
+ */
+export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null): Promise<VellumEvent[]> {
+  if (!prose || !prose.trim() || !(await has('generation'))) return [];
+  const gen = await internalGenerate(
+    [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: prose.slice(0, 8000) }],
+    { temperature: 0.2, max_tokens: 700 },
+    userId,
+  );
+  if (!gen.ok) return [];
+  const obj = parseJson(gen.value);
+  return mapExtracted(obj, turn, day, names);
+}
+
 const clamp = (v: unknown): number => Math.max(-40, Math.min(40, Math.round(Number(v) || 0)));
 const jk = (v: unknown): any => (['interaction', 'promise', 'betrayal', 'gift', 'shared', 'wound', 'observation'].includes(String(v)) ? v : 'interaction');
 const jw = (v: unknown): any => (['trivial', 'minor', 'significant', 'defining'].includes(String(v)) ? v : 'minor');
 const js = (v: unknown): any => (['positive', 'negative', 'neutral', 'complex'].includes(String(v)) ? v : 'neutral');
-
-void spindle;

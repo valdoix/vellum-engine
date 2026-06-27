@@ -47,6 +47,39 @@ describe('parseState', () => {
     expect(r.source).toBe('regex');
     expect(r.state?.delta?.bonds?.[0]?.a).toBe('A');
   });
+
+  it('Fix 18: bare number is a delta, =/set/@ marks absolute', () => {
+    const delta = parseState('relA -> B: aff 55');
+    expect(delta.state?.delta?.bonds?.[0]?.aff).toBe(55);
+    expect(delta.state?.delta?.bonds?.[0]?.absolute).toBeUndefined();
+
+    const abs = parseState('relA -> B: aff =55');
+    expect(abs.state?.delta?.bonds?.[0]?.aff).toBe(55);
+    expect(abs.state?.delta?.bonds?.[0]?.absolute).toBe(true);
+
+    const signed = parseState('relA -> B: aff +12');
+    expect(signed.state?.delta?.bonds?.[0]?.aff).toBe(12);
+    expect(signed.state?.delta?.bonds?.[0]?.absolute).toBeUndefined();
+  });
+
+  it('Fix 12: parses scene + present + thread + journal lines', () => {
+    const blob = [
+      'scene the godswood | time dusk | tension 7',
+      'present Cersei(wary), Jaime Lannister',
+      'thread advance the letter: sent at last',
+      'relCersei -> Jaime: aff +8 cat:romantic',
+      'journal Cersei: I felt his eyes across the hall',
+    ].join('\n');
+    const r = parseState(blob);
+    expect(r.source).toBe('regex');
+    expect(r.state?.scene?.loc).toBe('the godswood');
+    expect(r.state?.scene?.tension).toBe(7);
+    expect(r.state?.scene?.time).toBe('dusk');
+    expect(r.state?.present?.length).toBe(2);
+    expect(r.state?.delta?.threads?.[0]?.name).toBe('the letter');
+    expect(r.state?.delta?.bonds?.[0]?.addCats).toContain('romantic');
+    expect(r.state?.delta?.journal?.[0]?.who).toBe('Cersei');
+  });
 });
 
 describe('foldTurn → events → reduce', () => {

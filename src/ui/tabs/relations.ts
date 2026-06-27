@@ -2,7 +2,7 @@ import type { Component } from '../component.js';
 import type { ChronicleState, Relation } from '../../domain/types.js';
 import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent } from '../format.js';
 import { cmd, paginate, pagerHtml } from '../bridge.js';
-import { formModal } from '../modal.js';
+import { formModal, confirmModal } from '../modal.js';
 
 /**
  * Relations tab. One card per bond (pair-identity) with its coexisting category
@@ -38,7 +38,7 @@ export const relationsTab: Component<ChronicleState> = {
         return;
       }
       const del = t.closest('[data-rel-del]');
-      if (del && confirm(`Delete the bond ${del.getAttribute('data-a')} \u2192 ${del.getAttribute('data-b')}?`)) cmd('relation_delete', { a: del.getAttribute('data-a'), b: del.getAttribute('data-b') });
+      if (del) confirmModal(`Delete the bond ${del.getAttribute('data-a')} \u2192 ${del.getAttribute('data-b')}?`, () => cmd('relation_delete', { a: del.getAttribute('data-a'), b: del.getAttribute('data-b') }));
     });
   },
 };

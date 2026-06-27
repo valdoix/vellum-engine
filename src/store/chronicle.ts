@@ -32,6 +32,12 @@ export function lenientLog(raw: unknown, chatId: string): { log: EventLog; dropp
   const pre = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : null;
   const recognized = !!pre && (Array.isArray(pre.events) || typeof pre.version === 'number');
   if (!recognized) return { log: freshLog(chatId), dropped: 0, usable: false };
+  // a log written by a NEWER schema than this code understands must not be
+  // parsed-and-pruned (that would drop unknown-kind events, then a later persist
+  // would clobber the good file). Treat as unusable → caller goes read-only.
+  if (typeof pre.version === 'number' && pre.version > SCHEMA_VERSION) {
+    return { log: freshLog(chatId), dropped: 0, usable: false };
+  }
   const obj = (migrate(raw) ?? {}) as Record<string, unknown>;
   const rawEvents = Array.isArray(obj.events) ? obj.events : [];
   const events: VellumEvent[] = [];
@@ -126,6 +132,28 @@ export function invalidate(chatId?: string): void {
 
 /** Is this chat in the protective read-only state (load failed)? */
 export function isReadonly(chatId: string): boolean { return _cache.get(chatId)?.readonly ?? false; }
+
+/** Monotonic log version = event count. Bumps on every append/edit; used to
+ * key the recall index so in-place content edits invalidate it (Fix 20). */
+export function logVersion(chatId: string): number { return _cache.get(chatId)?.log.events.length ?? 0; }
+
+/**
+ * Fix 10 — UNDO: drop every event whose turn is greater than `turn` (so
+ * `truncateAfterTurn(c, n)` keeps turns 1..n). Honors the read-only durability
+ * guard: a recovered/unreadable log is never rewritten. Returns the new state.
+ */
+export async function truncateAfterTurn(chatId: string, turn: number): Promise<ChronicleState> {
+  await loadLog(chatId);
+  const c = _cache.get(chatId)!;
+  if (c.readonly) { spindle.log?.warn?.('[vellum_engine] refusing to truncate read-only ' + chatId); return loadState(chatId); }
+  const kept = c.log.events.filter((e) => e.turn <= turn);
+  if (kept.length === c.log.events.length) return loadState(chatId); // nothing to drop
+  c.log.events = kept;
+  c.state = reduce(kept); // full re-reduce: truncation isn't a forward fold
+  c.reduced = kept.length;
+  await persist(chatId);
+  return c.state;
+}
 
 /** Wipe a chat's event log entirely (clear all data). Explicit user action, so
  * it clears the read-only guard and persists the empty log intentionally. */

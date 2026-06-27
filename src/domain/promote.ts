@@ -42,7 +42,7 @@ export function buildPromotion(s: ChronicleState, kind: PromoteKind, id: string)
     return { category: 'characters', key: [c.name, ...(c.aka ?? [])].filter(Boolean), keysecondary: [], content, comment: 'VELLUM cast: ' + c.name, link: 'cast:' + c.id, hash: sig(content) };
   }
   if (kind === 'relation') {
-    const r = s.relations.find((x) => `${x.a}|${x.b}` === id || x.a + '|' + x.b === id) ?? s.relations[Number(id)] ?? null;
+    const r = s.relations.find((x) => `${x.a}|${x.b}` === id) ?? s.relations[Number(id)] ?? null;
     const rel = (r as Relation | null); if (!rel) return null;
     const an = nameOf(s, rel.a), bn = nameOf(s, rel.b);
     const cats = catsOf(rel).join(', ');

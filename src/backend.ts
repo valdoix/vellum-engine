@@ -1,7 +1,7 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, chatNames } from './host/chats.js';
-import { loadState, append, invalidate, clearLog, exportLog, importLog } from './store/chronicle.js';
+import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
@@ -66,11 +66,13 @@ registerFeature(coreFeature);
 const lastSigByChat = new Map<string, string>();
 interface InjRecord { turn: number; at: number; chars: number; recallIds: string[]; text: string }
 const injectionLog = new Map<string, InjRecord[]>(); // per-chat ring of recent injections
-function recordInjection(chatId: string, turn: number, text: string, recallIds: string[]): void {
+function recordInjection(chatId: string, turn: number, text: string, recallIds: string[]): InjRecord {
   const ring = injectionLog.get(chatId) ?? [];
-  ring.push({ turn, at: Date.now(), chars: text.length, recallIds, text: text.slice(0, 4000) });
+  const rec: InjRecord = { turn, at: Date.now(), chars: text.length, recallIds, text: text.slice(0, 4000) };
+  ring.push(rec);
   while (ring.length > 20) ring.shift(); // keep last 20 turns of injection history
   injectionLog.set(chatId, ring);
+  return rec;
 }
 
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
@@ -150,6 +152,19 @@ async function maybeVaultSync(chatId: string, userId: string | null): Promise<vo
     // scheduled Events: enable/disable entries whose reveal condition flipped
     const lites = snap.books.flatMap((b) => b.entries).filter((e) => e.vellum && e.reveal).map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled, reveal: e.reveal! }));
     if (lites.length) { for (const ch of evaluateSchedules(state, lites)) { await updateEntry(ch.entryId, { disabled: !ch.enable }, userId); changed++; } }
+    // recursion seeds: weave each bonded partner's name into the other's keysecondary
+    // so the host recursion can pull bonded characters in. Dedupe vs existing.
+    const castEntries = owned.filter((e) => e.link.startsWith('cast:'));
+    if (castEntries.length) {
+      const ksById = new Map(castEntries.map((e) => [e.id, e.keysecondary ?? []] as const));
+      const castLites: VaultEntryLite[] = castEntries.map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled }));
+      for (const [entryId, names] of recursionSeeds(state, castLites)) {
+        const existing = ksById.get(entryId) ?? [];
+        const merged = existing.slice();
+        for (const n of names) if (!merged.some((x) => x.toLowerCase() === n.toLowerCase())) merged.push(n);
+        if (merged.length > existing.length) { await updateEntry(entryId, { keysecondary: merged }, userId); changed++; }
+      }
+    }
     // Tier-C auto-author: draft pending entries for salient uncovered cast when
     // a category is set to 'auto'. Dedupe against existing entries first.
     const autoOn = (await loadCategories()).some((c) => c.sync === 'auto');
@@ -240,9 +255,12 @@ async function wireCapabilities(): Promise<void> {
           if (!chatId) return out;
           const state = await loadState(chatId);
           if (!state.turns && !Object.keys(state.cast).length) return out;
-          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid);
+          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId));
           if (!inj.text) return out;
-          recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds);
+          const rec = recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds);
+          // Fix 11 — live retrieval feed: push the record so the Injection tab
+          // streams in real time instead of only on manual Refresh.
+          try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
           const head = { role: 'system', content: inj.text };
           return { messages: [head, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Recall' }] };
         } catch (e) {
@@ -506,6 +524,19 @@ const dispatch: Record<string, Handler> = {
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_import_done', ok: true, events: v.data.events.length }, uid);
+  },
+  vellum_undo: async (p, uid) => {
+    // Fix 10 — UNDO LAST TURN: drop every event at the max turn in the log, then
+    // re-reduce. Honors the read-only durability guard (truncate bails on it).
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_undo_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    const state = await loadState(chatId);
+    const maxTurn = state.turns || 0;
+    if (maxTurn <= 0) { spindle.sendToFrontend?.({ type: 'vellum_undo_done', ok: false, reason: 'nothing_to_undo' }, uid); return; }
+    await truncateAfterTurn(chatId, maxTurn - 1);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_undo_done', ok: true, undoneTurn: maxTurn }, uid);
   },
 };
 

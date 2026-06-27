@@ -122,14 +122,22 @@ function recentBlock(s: ChronicleState): string {
   const parts: string[] = [];
   const j = s.journal.slice().sort((a, b) => b.turn - a.turn)[0];
   if (j) parts.push(`<div class="vld-rec"><span class="vld-rec-k">journal</span>${esc(nameOf(s, j.who))}: \u201C${esc(j.memory)}\u201D</div>`);
-  const k = s.knowledge[s.knowledge.length - 1];
+  const k = latestKnowledge(s);
   if (k) parts.push(`<div class="vld-rec"><span class="vld-rec-k">knew</span>${esc(nameOf(s, k.who))}: ${esc(k.fact)}</div>`);
-  const sec = s.secrets[s.secrets.length - 1];
+  const sec = latestSecret(s);
   if (sec) parts.push(`<div class="vld-rec"><span class="vld-rec-k">secret</span>${esc(nameOf(s, sec.keeper))}: ${esc(sec.text)}</div>`);
   const ch = latestRelChange(s);
   if (ch) parts.push(`<div class="vld-rec"><span class="vld-rec-k">shift</span>${ch}</div>`);
   if (!parts.length) return '';
   return `<div class="vld-sec"><div class="vld-h">Latest</div>${parts.join('')}</div>`;
+}
+
+/** Fix 23: newest by turn, not array tail (folds can append out of turn order). */
+export function latestKnowledge(s: ChronicleState): ChronicleState['knowledge'][number] | undefined {
+  return s.knowledge.reduce<ChronicleState['knowledge'][number] | undefined>((best, k) => (!best || k.turn > best.turn ? k : best), undefined);
+}
+export function latestSecret(s: ChronicleState): ChronicleState['secrets'][number] | undefined {
+  return s.secrets.reduce<ChronicleState['secrets'][number] | undefined>((best, x) => (!best || x.formedTurn > best.formedTurn ? x : best), undefined);
 }
 
 function latestRelChange(s: ChronicleState): string {
