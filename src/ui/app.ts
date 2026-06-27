@@ -123,17 +123,32 @@ let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _traverseOn = false;
 let _retheme: () => void = () => { /* set in setup */ };
+
+// Transient "running" indication for one-shot QOL actions. Set busy when the
+// action is dispatched; cleared when the matching backend reply arrives. A
+// safety timeout auto-clears so a dropped reply can't strand a button.
+const _busyTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function setQolBusy(id: string, busy: boolean, timeoutMs = 30000): void {
+  document.querySelectorAll(`[data-qol='${id}']`).forEach((b) => {
+    b.classList.toggle('busy', busy);
+    (b as HTMLButtonElement).disabled = busy;
+  });
+  const prev = _busyTimers.get(id);
+  if (prev) { clearTimeout(prev); _busyTimers.delete(id); }
+  if (busy) _busyTimers.set(id, setTimeout(() => setQolBusy(id, false), timeoutMs));
+}
+
 function onQol(ctx: Ctx, id: string): void {
   if (id === 'customize') { openCustomize(() => _retheme()); }
-  else if (id === 'summarize') { ctx.sendToBackend({ type: 'vellum_summarize' }); ctx.toast?.info?.('Summarizing older turns\u2026'); }
-  else if (id === 'rescan') { ctx.sendToBackend({ type: 'vellum_rescan' }); ctx.toast?.info?.('Rescanning the latest turn\u2026'); }
-  else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => ctx.sendToBackend({ type: 'vellum_undo' })); }
-  else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
-  else if (id === 'hide') { _hideOn = !_hideOn; ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
-  else if (id === 'traverse') { _traverseOn = !_traverseOn; ctx.sendToBackend({ type: 'vellum_set_traversal', enabled: _traverseOn }); }
-  else if (id === 'export') { ctx.sendToBackend({ type: 'vellum_export' }); }
+  else if (id === 'summarize') { setQolBusy('summarize', true); ctx.sendToBackend({ type: 'vellum_summarize' }); ctx.toast?.info?.('Summarizing older turns\u2026'); }
+  else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); ctx.toast?.info?.('Rescanning the latest turn\u2026'); }
+  else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
+  else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { setQolBusy('rebuild', true); ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
+  else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
+  else if (id === 'traverse') { _traverseOn = !_traverseOn; setQolBusy('traverse', true); ctx.sendToBackend({ type: 'vellum_set_traversal', enabled: _traverseOn }); }
+  else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
-  else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => ctx.sendToBackend({ type: 'vellum_clear' })); }
+  else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => { setQolBusy('clear', true); ctx.sendToBackend({ type: 'vellum_clear' }); }); }
 }
 
 function triggerImport(ctx: Ctx): void {
@@ -142,7 +157,7 @@ function triggerImport(ctx: Ctx): void {
   inp.addEventListener('change', () => {
     const f = inp.files?.[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = () => { try { const log = JSON.parse(String(r.result)); ctx.sendToBackend({ type: 'vellum_import', log }); ctx.toast?.info?.('Importing chronicle\u2026'); } catch { ctx.toast?.warning?.('That file is not valid JSON.'); } };
+    r.onload = () => { try { const log = JSON.parse(String(r.result)); setQolBusy('import', true); ctx.sendToBackend({ type: 'vellum_import', log }); ctx.toast?.info?.('Importing chronicle\u2026'); } catch { ctx.toast?.warning?.('That file is not valid JSON.'); } };
     r.readAsText(f);
   });
   inp.click();
@@ -214,25 +229,34 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_vault_done') {
         if (!p.ok) ctx.toast?.warning?.('Vault: ' + (p.reason ?? 'failed'));
       } else if (p?.type === 'vellum_export' && p.log) {
+        setQolBusy('export', false);
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
         ctx.toast?.success?.('Chronicle exported.');
       } else if (p?.type === 'vellum_summarize_done') {
+        setQolBusy('summarize', false);
         ctx.toast?.success?.(p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'Nothing old enough to summarize yet.');
       } else if (p?.type === 'vellum_cleared') {
+        setQolBusy('clear', false);
         ctx.toast?.success?.('Chronicle cleared.');
       } else if (p?.type === 'vellum_import_done') {
+        setQolBusy('import', false);
         ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Imported ${p.events ?? ''} events.` : `Import failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_rescan_done') {
+        setQolBusy('rescan', false);
         ctx.toast?.success?.('Rescanned.');
       } else if (p?.type === 'vellum_undo_done') {
+        setQolBusy('undo', false);
         ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
       } else if (p?.type === 'vellum_rebuild_done') {
+        setQolBusy('rebuild', false);
         ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Chronicle rebuilt from ${p.turns ?? 0} turn(s).` : `Rebuild failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_hide_done') {
+        setQolBusy('hide', false);
         _hideOn = !!p.enabled;
         document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn));
         ctx.toast?.success?.(p.enabled ? `Hiding ${p.hid ?? 0} filed turn(s) from the prompt.` : `Restored ${p.shown ?? 0} turn(s).`);
       } else if (p?.type === 'vellum_traversal_done') {
+        setQolBusy('traverse', false);
         _traverseOn = !!p.enabled;
         document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseOn));
         if (p.enabled && !p.available) ctx.toast?.warning?.('Traversal needs the generation permission \u2014 falling back to standard recall.');
