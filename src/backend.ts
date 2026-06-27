@@ -294,6 +294,40 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (chatId) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); }
   },
+  vellum_rebuild: async (p, uid) => {
+    // RECOVER: rebuild the whole chronicle from the chat transcript (the true
+    // source). Clears the derived log, then re-folds every assistant turn — so a
+    // wiped/corrupt chronicle can be reconstructed (cast/relations/knowledge/
+    // journal) from the messages, which were never lost.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    try {
+      const msgs = await allAssistantContents(chatId);
+      await clearLog(chatId);
+      lastSigByChat.delete(chatId);
+      let prior = await loadState(chatId);
+      let turns = 0;
+      for (let turnNo = 1; turnNo <= msgs.length; turnNo++) {
+        const content = (msgs[turnNo - 1] ?? '').trim();
+        if (!content) continue;
+        const { events } = foldTurn(content, prior, turnNo);
+        const evs: VellumEvent[] = [...events];
+        if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: 'rebuild' } as VellumEvent);
+        const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
+        if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
+        prior = await append(chatId, evs);
+        turns++;
+        // optional deep extraction per turn (knowledge/secrets/journal) when asked
+        if (p?.deep && gist) { try { const xe = await extractFromProse(gist, turnNo, prior.day || 0, await chatNames(chatId, uid), uid); if (xe.length) prior = await append(chatId, xe); } catch { /* best effort */ } }
+      }
+      invalidateIndex(chatId);
+      await broadcastState(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: true, turns }, uid);
+      spindle.log?.info?.('[vellum_engine] rebuilt chronicle from transcript: ' + turns + ' turns');
+    } catch (e) {
+      spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: (e as Error)?.message ?? 'error' }, uid);
+    }
+  },
   vellum_import_legacy: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_import_done', ok: false, reason: 'no_active_chat' }, uid); return; }

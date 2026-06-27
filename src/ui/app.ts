@@ -49,6 +49,7 @@ const QOL = [
   { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins' },
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories' },
   { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message' },
+  { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON' },
@@ -122,6 +123,7 @@ function onQol(ctx: Ctx, id: string): void {
   if (id === 'customize') { openCustomize(() => _retheme()); }
   else if (id === 'summarize') { ctx.sendToBackend({ type: 'vellum_summarize' }); ctx.toast?.info?.('Summarizing older turns\u2026'); }
   else if (id === 'rescan') { ctx.sendToBackend({ type: 'vellum_rescan' }); ctx.toast?.info?.('Rescanning the latest turn\u2026'); }
+  else if (id === 'rebuild') { if (confirm('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.')) { ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); } }
   else if (id === 'hide') { _hideOn = !_hideOn; ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'export') { ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
@@ -213,6 +215,8 @@ export function setup(ctx: Ctx): () => void {
         ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Imported ${p.events ?? ''} events.` : `Import failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_rescan_done') {
         ctx.toast?.success?.('Rescanned.');
+      } else if (p?.type === 'vellum_rebuild_done') {
+        ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Chronicle rebuilt from ${p.turns ?? 0} turn(s).` : `Rebuild failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_hide_done') {
         _hideOn = !!p.enabled;
         document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn));
