@@ -126,14 +126,17 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         r = freshRelation(e.a, e.b, e.turn, e.day, e.src === 'user' ? 'user' : 'auto');
         s.relations.push(r);
       }
-      const userLocked = r.userEdited && e.src !== 'user';
+      // A user's manual edit sets the BASELINE; it must not freeze the bond from
+      // evolving with the story. So narrative DELTAS (relative aff/trust) always
+      // accumulate. The lock only guards a user-edited bond against non-user
+      // ABSOLUTE overwrites (which would clobber the chosen value outright).
+      const blockAbsolute = r.userEdited && e.src !== 'user';
       if (e.label && (e.src === 'user' || !r.label)) r.label = e.label.slice(0, 120);
-      if (!userLocked) {
-        if (e.addCats?.length) addCategories(r, e.addCats, e.turn, e.day, e.why ?? '');
-        if (e.removeCats?.length) removeCategories(r, e.removeCats, e.turn, e.day, e.why ?? '', e.src === 'user');
-        if (typeof e.aff === 'number' || typeof e.trust === 'number') {
-          applyScore(r, e.aff ?? 0, e.trust ?? 0, !!e.absolute, e.turn, e.day, e.why);
-        }
+      if (e.addCats?.length) addCategories(r, e.addCats, e.turn, e.day, e.why ?? '');
+      if (e.removeCats?.length) removeCategories(r, e.removeCats, e.turn, e.day, e.why ?? '', e.src === 'user');
+      if (typeof e.aff === 'number' || typeof e.trust === 'number') {
+        if (e.absolute && blockAbsolute) { /* protect user's set value from auto overwrite */ }
+        else applyScore(r, e.aff ?? 0, e.trust ?? 0, !!e.absolute, e.turn, e.day, e.why);
       }
       if (e.src === 'user') r.userEdited = true;
       r.lastTurn = Math.max(r.lastTurn, e.turn);

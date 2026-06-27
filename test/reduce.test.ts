@@ -61,12 +61,27 @@ describe('reduce — relations', () => {
     expect(user.relations[0]!.categories).not.toContain('romantic'); // user allowed
   });
 
-  it('user-edited bond is protected from later auto deltas', () => {
+  it('user-edited bond still evolves with narrative deltas, but resists auto absolute overwrites', () => {
+    // a manual edit sets the baseline; the story must still move it (the "stays at
+    // 0 after I made the relation" bug). Only a non-user ABSOLUTE set is blocked.
     const s = reduce([
-      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 50, src: 'user' }),
-      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: -90, src: 'living' }),
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 50, src: 'user' }), // manual baseline
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 12, src: 'model' }), // narrative delta → accumulates
     ]);
-    expect(s.relations[0]!.affection).toBe(50); // auto delta ignored on user-locked edge
+    expect(s.relations[0]!.affection).toBe(62);
+
+    const locked = reduce([
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 50, src: 'user' }),
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 5, absolute: true, src: 'model' }), // auto absolute → ignored
+    ]);
+    expect(locked.relations[0]!.affection).toBe(50);
+
+    // but a USER absolute set still applies
+    const userAbs = reduce([
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 50, src: 'user' }),
+      ev({ kind: 'bond.delta', a: 'a', b: 'b', aff: 5, absolute: true, src: 'user' }),
+    ]);
+    expect(userAbs.relations[0]!.affection).toBe(5);
   });
 
   it('records a score history sample per change (powers the scrubber)', () => {

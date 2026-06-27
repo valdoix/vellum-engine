@@ -31,6 +31,20 @@ describe('parseState', () => {
     expect(r.state?.delta?.bonds?.[0]?.addCats).toContain('romantic');
   });
 
+  it('normalizes preset bond grammar `cat` → `addCats` (would otherwise be dropped)', () => {
+    // the <vellum> block teaches the model "cat":[...], but ParsedBond wants addCats
+    const block = '\u2039vellum\u203a\n' + JSON.stringify({
+      turn: 2, day: 1, delta: { bonds: [{ a: 'Cersei', b: 'Daeron', aff: 12, trust: 5, cat: ['romantic'] }] },
+    }) + '\n\u2039/vellum\u203a';
+    const r = parseState(block);
+    expect(r.source).toBe('json');
+    expect(r.state?.delta?.bonds?.[0]?.addCats).toContain('romantic');
+    // and it survives the full fold into the relation's categories
+    let seq = 0;
+    const s = reduce(coreFeature.extract!(r.state as any, { turn: 2, day: 1, state: freshState(), seq: () => ++seq } as any));
+    expect(s.relations[0]?.categories).toContain('romantic');
+  });
+
   it('falls back to regex for terse [BTS]-style rel lines', () => {
     const r = parseState('Some prose.\nrelCersei \u2192 Jaime: aff +8, trust -2 cat:romantic (the look)');
     expect(r.source).toBe('regex');

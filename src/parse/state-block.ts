@@ -80,6 +80,7 @@ export function parseState(content: string): ParseResult {
     const obj = lenientParse(raw);
     if (obj && typeof obj === 'object') {
       hoistDeltaFields(obj as Record<string, unknown>); // tolerate misplaced delta fields
+      normalizeBlock(obj as Record<string, unknown>); // map preset grammar (cat) → schema (addCats)
       const validated = ParsedState.safeParse(obj);
       if (validated.success) return { state: validated.data, source: 'json' };
     }
@@ -101,6 +102,25 @@ function hoistDeltaFields(obj: Record<string, unknown>): void {
     if (Array.isArray(obj[k]) && delta[k] === undefined) { delta[k] = obj[k]; delete obj[k]; moved = true; }
   }
   if (moved || obj.delta === undefined) obj.delta = delta;
+}
+
+/**
+ * Map the preset's `<vellum>` block grammar onto the ParsedBond schema before
+ * validation. The block teaches the model to emit bond `"cat": [...]`, but the
+ * schema field is `addCats` — zod would silently strip `cat`, dropping the
+ * relationship category entirely on the JSON path (the prose extractor reads
+ * `cat` directly, so only this path was affected). Also tolerate `removeCat`.
+ */
+function normalizeBlock(obj: Record<string, unknown>): void {
+  const delta = obj.delta as Record<string, unknown> | undefined;
+  const bonds = delta && Array.isArray(delta.bonds) ? delta.bonds : null;
+  if (!bonds) return;
+  for (const b of bonds) {
+    if (!b || typeof b !== 'object') continue;
+    const bond = b as Record<string, unknown>;
+    if (bond.addCats === undefined && bond.cat !== undefined) { bond.addCats = bond.cat; delete bond.cat; }
+    if (bond.removeCats === undefined && bond.removeCat !== undefined) { bond.removeCats = bond.removeCat; delete bond.removeCat; }
+  }
 }
 
 /** True if a message carries any VELLUM state (used to gate folding). */
