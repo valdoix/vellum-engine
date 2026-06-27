@@ -87,9 +87,26 @@ function structuredBlock(state: ChronicleState, budget: number): string {
       const cats = (r.categories.length ? r.categories : [r.category]).join('+');
       return '- ' + nameOf(r.a) + ' \u2192 ' + nameOf(r.b) + ': ' + cats + ' (' + r.sentiment + ', aff ' + r.affection + '/trust ' + r.trust + ')';
     });
-  const lines = fitLines([...castLines, ...relLines], budget);
-  if (!lines.length) return '';
-  return '[CAST & BONDS \u2014 established, authoritative. Keep consistent; do not contradict.]\n' + lines.join('\n');
+  // OPEN THREADS / ARCS (Layer 1): surface the model's own unresolved threads so
+  // it ADVANCES them under their existing title instead of coining a new label
+  // each turn ("Jaime's Arrival" → "Jaime at Harrenhal"). Non-resolved, newest
+  // first, capped. This is the highest-leverage anti-fragmentation fix.
+  const isOpen = (t: { status: string }): boolean => !/resolv/i.test(t.status || '');
+  const trackLine = (t: { name: string; status: string }): string =>
+    '- ' + t.name + (t.status && !/^(advance|new)$/i.test(t.status) ? ': ' + t.status : '');
+  const openThreads = state.threads.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 6).map(trackLine);
+  const openArcs = state.arcs.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 2).map(trackLine);
+
+  // share ONE budget: reserve up to 40% for open threads/arcs, give the rest to
+  // cast/bonds — so the structured block never overshoots its allocation.
+  const trackBudget = (openThreads.length || openArcs.length) ? Math.floor(budget * 0.4) : 0;
+  const trackLines = fitLines([...openThreads, ...openArcs], trackBudget);
+  const usedByTracks = trackLines.reduce((n, l) => n + l.length + 1, 0);
+  const castRel = fitLines([...castLines, ...relLines], Math.max(0, budget - usedByTracks));
+  const blocks: string[] = [];
+  if (castRel.length) blocks.push('[CAST & BONDS \u2014 established, authoritative. Keep consistent; do not contradict.]\n' + castRel.join('\n'));
+  if (trackLines.length) blocks.push('[OPEN THREADS & ARCS \u2014 advance or resolve these; reuse the EXACT title, do not restate as a new thread.]\n' + trackLines.join('\n'));
+  return blocks.join('\n\n');
 }
 
 /** Render the final injection text from a ranked, deduped recall id list. */

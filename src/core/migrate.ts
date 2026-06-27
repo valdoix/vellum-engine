@@ -44,6 +44,12 @@ export function migrate(raw: unknown): unknown {
     version = 4;
   }
 
+  // v4 → v5: thread.merge / arc.merge event kinds added (Layer 3 reconcile).
+  // Additive — no historical rewrite.
+  if (version < 5) {
+    version = 5;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

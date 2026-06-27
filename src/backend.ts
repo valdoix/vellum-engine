@@ -21,6 +21,7 @@ import { loadCategories, upsertCategory, deleteCategory } from './store/vault-ca
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
 import { parseTone, type Tone } from './domain/tone.js';
+import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
 /** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
@@ -81,7 +82,9 @@ function recordInjection(chatId: string, turn: number, text: string, recallIds: 
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
   const state = await loadState(chatId);
   const tone = await readTone(chatId, userId);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone }, userId ?? currentUser());
+  let tidy = false;
+  try { tidy = !!(await spindle.chats?.getVar?.(chatId, 'vellum_tidy_threads', userId)); } catch { /* best effort */ }
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
@@ -184,6 +187,59 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   await broadcastState(chatId, userId);
   void maybeAutoSummarize(chatId, userId);
   void maybeVaultSync(chatId, userId);
+  void maybeTidyThreads(chatId, userId);
+}
+
+const _tidying = new Set<string>();
+const TIDY_THRESHOLD = 8; // auto-tidy only once open-thread count exceeds this
+
+/**
+ * Layer 3 — reconcile near-duplicate threads/arcs via a cheap controller LLM.
+ * Returns the number of tracks merged away. Honors the generation permission;
+ * any failure (no perm, timeout, unparseable, nothing valid) → 0, no events.
+ * Serialized per chat. Both threads and arcs are swept.
+ */
+async function tidyThreads(chatId: string, userId: string | null): Promise<number> {
+  if (_tidying.has(chatId)) return 0;
+  if (!(await has('generation'))) return 0;
+  _tidying.add(chatId);
+  try {
+    const state = await loadState(chatId);
+    const evs: VellumEvent[] = [];
+    for (const kind of ['threads', 'arcs'] as const) {
+      const open = openTracks(state, kind);
+      if (open.length < 2) continue;
+      const res = await controllerGenerate(
+        [{ role: 'system', content: THREAD_MERGE_SYS }, { role: 'user', content: buildMergePrompt(open) }],
+        userId, 2500,
+      );
+      if (!res.ok) continue;
+      const groups = validateMerges(parseMergeReply(res.value), open.map((t) => t.name));
+      const evKind = kind === 'threads' ? 'thread.merge' : 'arc.merge';
+      for (const g of groups) evs.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: evKind, from: g.from, into: g.into } as VellumEvent);
+    }
+    if (!evs.length) return 0;
+    const merged = evs.reduce((n, e) => n + ((e as { from: string[] }).from.length), 0);
+    await append(chatId, evs);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, userId);
+    spindle.log?.info?.(`[vellum_engine] tidy-threads: merged ${merged} duplicate track(s) across ${evs.length} group(s)`);
+    return merged;
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] tidyThreads: ' + ((e as Error)?.message ?? e)); return 0; }
+  finally { _tidying.delete(chatId); }
+}
+
+/** Auto-tidy: opt-in chat var, only when open threads exceed the threshold, and
+ * throttled to roughly every 4th turn so it isn't a per-turn controller cost. */
+async function maybeTidyThreads(chatId: string, userId: string | null): Promise<void> {
+  let on = false;
+  try { on = !!(await spindle.chats?.getVar?.(chatId, 'vellum_tidy_threads', userId)); } catch { /* best effort */ }
+  if (!on) return;
+  const state = await loadState(chatId);
+  const open = state.threads.filter((t) => !/resolv/i.test(t.status || '')).length;
+  if (open <= TIDY_THRESHOLD) return;
+  if ((state.turns || 0) % 4 !== 0) return; // cadence guard
+  await tidyThreads(chatId, userId);
 }
 
 const _vaultSyncing = new Set<string>();
@@ -613,6 +669,22 @@ const dispatch: Record<string, Handler> = {
     try { await spindle.chats?.setVar?.(chatId, 'vellum_romance', tone.romance, uid); } catch { /* best effort */ }
     try { await spindle.chats?.setVar?.(chatId, 'vellum_disposition', tone.disposition, uid); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition }, uid);
+  },
+  vellum_set_tidy: async (p, uid) => {
+    // toggle auto thread/arc reconcile (Layer 3); persist in a chat var
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const enabled = !!p?.enabled;
+    try { await spindle.chats?.setVar?.(chatId, 'vellum_tidy_threads', enabled ? '1' : '', uid); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_tidy_set_done', ok: true, enabled, available: await has('generation') }, uid);
+  },
+  vellum_tidy_now: async (p, uid) => {
+    // manual "Tidy threads" — merge near-duplicate threads/arcs right now
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_tidy_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_tidy_done', ok: false, reason: 'no_generation' }, uid); return; }
+    const merged = await tidyThreads(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_tidy_done', ok: true, merged }, uid);
   },
   vellum_import: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

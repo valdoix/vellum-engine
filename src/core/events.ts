@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 4 as const;
+export const SCHEMA_VERSION = 5 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -81,6 +81,11 @@ export const EvMemoryDrop = z.object({ ...base, kind: z.literal('memory.drop'), 
 
 export const EvThread = z.object({ ...base, kind: z.literal('thread.op'), op: z.enum(['new', 'advance', 'stall', 'resolve']), name: z.string(), note: z.string().optional() });
 export const EvArc = z.object({ ...base, kind: z.literal('arc.op'), op: z.enum(['new', 'advance', 'resolve']), name: z.string(), note: z.string().optional() });
+// Layer 3 — semantic reconcile: fold near-duplicate tracks (different words,
+// same ongoing thread, e.g. "Jaime's Arrival" + "Jaime at Harrenhal") into one.
+// Append-only → auditable + undoable. `from`/`into` are track names.
+export const EvThreadMerge = z.object({ ...base, kind: z.literal('thread.merge'), from: z.array(z.string()), into: z.string() });
+export const EvArcMerge = z.object({ ...base, kind: z.literal('arc.merge'), from: z.array(z.string()), into: z.string() });
 
 export const VellumEvent = z.discriminatedUnion('kind', [
   EvTurnFold, EvSceneSet,
@@ -88,7 +93,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvBondDelta, EvBondDrop,
   EvKnowledge, EvKnowledgeDrop, EvSecretForm, EvSecretReveal, EvSecretDrop,
   EvMemory, EvMemoryDrop,
-  EvThread, EvArc,
+  EvThread, EvArc, EvThreadMerge, EvArcMerge,
   EvJournal, EvJournalDrop, EvJournalEdit,
   EvParallel,
 ]);

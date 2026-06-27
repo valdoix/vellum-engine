@@ -210,6 +210,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       upsertTrack(s.arcs, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn);
       break;
     }
+    case 'thread.merge': { mergeTracks(s.threads, e.from, e.into); break; }
+    case 'arc.merge': { mergeTracks(s.arcs, e.from, e.into); break; }
     case 'journal.entry': {
       if (!s.journal.find((j) => j.id === e.id)) {
         // dedupe identical memory text for the same holder
@@ -244,10 +246,64 @@ function apply(s: ChronicleState, e: VellumEvent): void {
   }
 }
 
+// Track-title normalization for conservative dedup (Layer 2). Lowercase, drop
+// punctuation + leading articles + possessive 's, split into significant tokens
+// (stopwords removed). "Jaime's Arrival" / "the arrival of Jaime" → {arrival,jaime}.
+const TRACK_STOP = new Set(['the', 'a', 'an', 'of', 'and', 'to', 'in', 'on', 'at', 'with', 'for', 'is', 'as', 'by', 's']);
+function trackTokens(name: string): Set<string> {
+  return new Set(
+    String(name || '').toLowerCase()
+      .replace(/['\u2019]s\b/g, '') // possessive
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w && !TRACK_STOP.has(w)),
+  );
+}
+function subset(a: Set<string>, b: Set<string>): boolean {
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+}
+/** Conservative same-thread match: exact, or token-set equality, or whole-title
+ * containment where the shorter has >=2 significant tokens. Deliberately does
+ * NOT merge on a single shared token ("Jaime" vs "Jaime at Harrenhal") — that
+ * semantic case is the LLM reconcile sweep's (Layer 3) job, not a blind merge. */
+function sameTrack(existing: string, incoming: string): boolean {
+  if (existing.toLowerCase() === incoming.toLowerCase()) return true;
+  const a = trackTokens(existing), b = trackTokens(incoming);
+  if (!a.size || !b.size) return false;
+  if (a.size === b.size && subset(a, b)) return true; // token-set equality
+  const [small, big] = a.size <= b.size ? [a, b] : [b, a];
+  if (small.size >= 2 && subset(small, big)) return true; // containment, >=2 tokens
+  return false;
+}
+
 function upsertTrack(list: { name: string; status: string; firstTurn: number; lastTurn: number }[], name: string, status: string, turn: number): void {
-  const t = list.find((x) => x.name.toLowerCase() === name.toLowerCase());
-  if (t) { t.status = status; t.lastTurn = turn; }
+  const t = list.find((x) => sameTrack(x.name, name));
+  if (t) { t.status = status; t.lastTurn = Math.max(t.lastTurn, turn); } // keep existing (canonical) name
   else list.push({ name, status, firstTurn: turn, lastTurn: turn });
+}
+
+/** Layer 3 reduce: fold `from` tracks into `into` (by name), reconciling turns
+ * and status to the latest, then drop the merged-away tracks. The `into` track
+ * is created if absent. Tolerant of names that don't exist (skip). */
+function mergeTracks(list: { name: string; status: string; firstTurn: number; lastTurn: number }[], from: string[], into: string): void {
+  const target = list.find((x) => x.name.toLowerCase() === into.toLowerCase());
+  const sources = from.filter((f) => f.toLowerCase() !== into.toLowerCase())
+    .map((f) => list.find((x) => x.name.toLowerCase() === f.toLowerCase()))
+    .filter((x): x is NonNullable<typeof x> => !!x);
+  if (!sources.length && target) return;
+  const keep = target ?? { name: into, status: 'advance', firstTurn: Infinity, lastTurn: 0 };
+  for (const src of sources) {
+    keep.firstTurn = Math.min(keep.firstTurn, src.firstTurn);
+    if (src.lastTurn >= keep.lastTurn) { keep.lastTurn = src.lastTurn; keep.status = src.status; }
+  }
+  if (!isFinite(keep.firstTurn)) keep.firstTurn = keep.lastTurn;
+  const dropNames = new Set(sources.map((s) => s.name.toLowerCase()));
+  // rebuild: remove sources (and the old target slot), then push the merged keep
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (dropNames.has(list[i]!.name.toLowerCase()) || list[i] === target) list.splice(i, 1);
+  }
+  list.push(keep);
 }
 
 // re-exports used by callers building events from parsed state
