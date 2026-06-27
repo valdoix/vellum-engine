@@ -1,6 +1,6 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, chatNames } from './host/chats.js';
 import { loadState, append, invalidate, clearLog, exportLog, importLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -9,6 +9,7 @@ import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
 import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll } from './bus/summarize.js';
+import { extractFromProse } from './bus/extract.js';
 import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
@@ -107,6 +108,14 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
     prior = await append(chatId, evs);
     added += evs.length;
+    // prose-driven extraction: knowledge / secrets / journal (incl. the player)
+    // that the model didn't hand-write in the <vellum> block. Best-effort.
+    if (gist) {
+      try {
+        const xevs = await extractFromProse(gist, turnNo, prior.day || 0, await chatNames(chatId, userId), userId);
+        if (xevs.length) { prior = await append(chatId, xevs); added += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal) from turn ${turnNo}`); }
+      } catch (e) { spindle.log?.warn?.('[vellum_engine] extract: ' + ((e as Error)?.message ?? e)); }
+    }
     spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);
     if (source === 'none' && /\u2039\/?vellum\u203a|<\/?vellum>/i.test(content)) {
       const m = content.match(/(?:\u2039vellum\u203a|<vellum>)([\s\S]*?)(?:\u2039\/vellum\u203a|<\/vellum>)/i);
@@ -171,7 +180,7 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
   if (turnMems < AUTO_SUMMARY_AT) return; // threshold; keeps recent turns verbatim
   _summarizing.add(chatId);
   try {
-    const evs = await summarizeOnce(state, userId);
+    const evs = await summarizeOnce(state, userId, 8, await chatNames(chatId, userId));
     if (evs.length) {
       await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, userId);
       spindle.log?.info?.('[vellum_engine] auto-summarized a chapter');
@@ -314,7 +323,7 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const state = await loadState(chatId);
-    const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs));
+    const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs), 4, await chatNames(chatId, uid));
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds }, uid);

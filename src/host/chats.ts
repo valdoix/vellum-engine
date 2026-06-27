@@ -78,4 +78,25 @@ export function isPermDenied(e: unknown): boolean {
   return /permission|denied|not granted/i.test(msg);
 }
 
+/** Resolve the persona ({{user}}) + character ({{char}}) display names for the
+ * active chat, so the prose extractor can replace placeholders with real names
+ * and attribute knowledge/secrets/journal to the player too. Best-effort. */
+export async function chatNames(chatId: string, userId: string | null): Promise<{ user: string; char: string }> {
+  const out = { user: '', char: '' };
+  try {
+    const chat = await (spindle.chats?.get?.(chatId, userId) ?? spindle.chats?.get?.(chatId));
+    out.user = String(chat?.persona?.name || chat?.personaName || chat?.user_name || chat?.metadata?.persona_name || '').trim();
+    out.char = String(chat?.character?.name || chat?.characterName || chat?.char_name || chat?.metadata?.character_name || chat?.name || '').trim();
+    // fallback: last USER message author / first ASSISTANT author
+    if (!out.user || !out.char) {
+      const msgs = await spindle.chat?.getMessages?.(chatId);
+      if (Array.isArray(msgs)) {
+        if (!out.user) { const um = [...msgs].reverse().find((m) => m?.role === 'user' && m?.name); out.user = String(um?.name || '').trim(); }
+        if (!out.char) { const am = msgs.find((m) => m?.role === 'assistant' && m?.name); out.char = String(am?.name || '').trim(); }
+      }
+    }
+  } catch { /* best effort */ }
+  return out;
+}
+
 export { Ok, Err };

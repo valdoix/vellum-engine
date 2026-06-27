@@ -28,25 +28,36 @@ const SUMMARY_SYS =
   + 'and bluntly called the castle hard to look at, surprising her into a near-laugh. Jaime embraced her warmly. By the end '
   + 'her guarded contempt had softened toward both brothers."';
 
-/** Build the source text for the LLM from the memories being folded. */
-function sourceText(state: ChronicleState, ids: string[]): string {
+/** Build the source text for the LLM from the memories being folded. With the
+ * resolved persona/char names, replace {{user}}/{{char}}/you so the summary uses
+ * real names (more exact, and consistent with the prose extractor). */
+function sourceText(state: ChronicleState, ids: string[], names?: { user: string; char: string }): string {
   const byId = new Map(state.memories.map((m) => [m.id, m]));
-  return ids.map((id) => byId.get(id)).filter(Boolean).map((m) => `- (turn ${m!.turn}) ${m!.text}`).join('\n');
+  const fix = (t: string): string => {
+    let s = t;
+    if (names?.user) s = s.replace(/\{\{\s*user\s*\}\}/gi, names.user);
+    if (names?.char) s = s.replace(/\{\{\s*char\s*\}\}/gi, names.char);
+    return s;
+  };
+  return ids.map((id) => byId.get(id)).filter(Boolean).map((m) => `- (turn ${m!.turn}) ${fix(m!.text)}`).join('\n');
 }
 
 /**
  * Run one compression pass if a full window exists. Returns the events to
  * append (chapter record + source drops), or [] when nothing to compress.
  */
-export async function summarizeOnce(state: ChronicleState, userId: string | null, windowSize = 8): Promise<VellumEvent[]> {
+export async function summarizeOnce(state: ChronicleState, userId: string | null, windowSize = 8, names?: { user: string; char: string }): Promise<VellumEvent[]> {
   const plan = planChapter(state, windowSize);
   if (!plan) return [];
-  const src = sourceText(state, plan.sourceIds);
+  const src = sourceText(state, plan.sourceIds, names);
   let text = '';
   let keys: string[] = [];
 
+  const nameHint = (names && (names.user || names.char))
+    ? `\nThe player is "${names.user || '(unnamed)'}"; the focal character is "${names.char || '(unnamed)'}". Use these real names; never write {{user}}/{{char}}/"you".`
+    : '';
   const gen = await internalGenerate(
-    [{ role: 'system', content: SUMMARY_SYS }, { role: 'user', content: src }],
+    [{ role: 'system', content: SUMMARY_SYS + nameHint }, { role: 'user', content: src }],
     { temperature: 0.2, max_tokens: 320 },
     userId,
   );
@@ -67,11 +78,11 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
 /** Compress as many windows as exist (manual "summarize all"). A manual run uses
  * a smaller minimum window so it works even on shorter chats, and keeps the most
  * recent few turns verbatim. */
-export async function summarizeAll(state: ChronicleState, userId: string | null, append: (evs: VellumEvent[]) => Promise<ChronicleState>, windowSize = 4): Promise<number> {
+export async function summarizeAll(state: ChronicleState, userId: string | null, append: (evs: VellumEvent[]) => Promise<ChronicleState>, windowSize = 4, names?: { user: string; char: string }): Promise<number> {
   let rounds = 0;
   let cur = state;
   for (let i = 0; i < 50; i++) {
-    const evs = await summarizeOnce(cur, userId, windowSize);
+    const evs = await summarizeOnce(cur, userId, windowSize, names);
     if (!evs.length) break;
     cur = await append(evs);
     rounds++;
