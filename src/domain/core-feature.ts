@@ -1,7 +1,7 @@
 import type { Feature, ExtractCtx } from '../bus/registry.js';
 import type { ParsedState } from '../parse/parsed.js';
 import type { VellumEvent } from '../core/events.js';
-import { canonId } from '../core/ids.js';
+import { resolveCastId } from './identity.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -13,14 +13,17 @@ export const coreFeature: Feature = {
   extract(parsed: ParsedState, ctx: ExtractCtx): VellumEvent[] {
     const out: VellumEvent[] = [];
     const base = (src: 'model' = 'model') => ({ seq: ctx.seq(), turn: ctx.turn, day: ctx.day, src });
+    // resolve a raw name onto an existing cast id (merges "Cersei" with an
+    // already-known "Cersei Lannister") so we don't spawn duplicate cards/edges.
+    const rid = (name: string): string => resolveCastId(ctx.state, name);
 
     // scene + presence
     const present = (parsed.present ?? [])
-      .map((p) => (p.id ? canonId(p.id) : p.name ? canonId(p.name) : ''))
+      .map((p) => (p.id ? rid(p.id) : p.name ? rid(p.name) : ''))
       .filter(Boolean);
     if (parsed.scene || present.length) {
       const detail = (parsed.present ?? []).map((p) => {
-        const id = p.id ? canonId(p.id) : p.name ? canonId(p.name) : '';
+        const id = p.id ? rid(p.id) : p.name ? rid(p.name) : '';
         return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(p.condition ? { condition: p.condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
       }).filter(Boolean);
       out.push({
@@ -37,12 +40,12 @@ export const coreFeature: Feature = {
     for (const p of parsed.present ?? []) {
       const name = p.name ?? p.id;
       if (!name) continue;
-      out.push({ ...base(), kind: 'cast.seen', id: canonId(name), name, status: 'present' } as VellumEvent);
+      out.push({ ...base(), kind: 'cast.seen', id: rid(name), name, status: 'present' } as VellumEvent);
     }
 
     // bonds
     for (const b of parsed.delta?.bonds ?? []) {
-      const a = canonId(b.a), bb = canonId(b.b);
+      const a = rid(b.a), bb = rid(b.b);
       if (!a || !bb || a === bb) continue;
       out.push({
         ...base(), kind: 'bond.delta', a, b: bb,
@@ -67,11 +70,11 @@ export const coreFeature: Feature = {
 
     // per-character memory journal entries
     for (const j of parsed.delta?.journal ?? []) {
-      const who = canonId(j.who); const memory = String(j.memory || '').trim();
+      const who = rid(j.who); const memory = String(j.memory || '').trim();
       if (!who || !memory) continue;
       out.push({
         ...base(), kind: 'journal.entry', id: 'mj_' + who + '_' + ctx.turn + '_' + (out.length),
-        who, ...(j.about ? { about: canonId(j.about) } : {}), memory,
+        who, ...(j.about ? { about: rid(j.about) } : {}), memory,
         jkind: (j.kind ?? 'interaction'), weight: (j.weight ?? 'minor'), sentiment: (j.sentiment ?? 'neutral'),
       } as VellumEvent);
     }
@@ -81,7 +84,7 @@ export const coreFeature: Feature = {
     if (par.length) {
       out.push({
         ...base(), kind: 'parallel.set',
-        items: par.map((p) => ({ ...(p.who ? { who: canonId(p.who) } : {}), ...(p.where ? { where: p.where } : {}), activity: String(p.activity || '').trim(), ...(p.note ? { note: p.note } : {}) })).filter((p) => p.activity),
+        items: par.map((p) => ({ ...(p.who ? { who: rid(p.who) } : {}), ...(p.where ? { where: p.where } : {}), activity: String(p.activity || '').trim(), ...(p.note ? { note: p.note } : {}) })).filter((p) => p.activity),
       } as VellumEvent);
     }
 
