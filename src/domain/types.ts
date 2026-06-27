@@ -65,6 +65,9 @@ export interface KnowledgeFact {
   fact: string;
   about?: string;
   turn: number;
+  reliability: 'knows' | 'believes' | 'suspects' | 'wrong' | 'unaware'; // the knower's stance
+  truth: 'true' | 'false' | 'unknown'; // actual state, regardless of belief
+  source?: string; // how they learned it
 }
 
 export interface Secret {

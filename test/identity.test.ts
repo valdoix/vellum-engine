@@ -128,8 +128,8 @@ describe('mergeCastDuplicates — self-heal split nodes across EVERY section', (
 
     s.relations = [rel('cersei', 'daeron', 5, 1), rel('cersei_lannister', 'daeron', 9, -2)];
     s.knowledge = [
-      { id: 'k1', who: 'cersei', fact: 'a', turn: 1 },
-      { id: 'k2', who: 'daeron', about: 'cersei', fact: 'b', turn: 1 },
+      { id: 'k1', who: 'cersei', fact: 'a', turn: 1, reliability: 'knows', truth: 'unknown' },
+      { id: 'k2', who: 'daeron', about: 'cersei', fact: 'b', turn: 1, reliability: 'knows', truth: 'unknown' },
     ];
     s.secrets = [{ id: 's1', keeper: 'cersei', from: ['cersei_lannister', 'daeron'], text: 't', revealed: false, revealedTo: ['cersei'], formedTurn: 1 }];
     s.journal = [{ id: 'j1', who: 'cersei', about: 'daeron', memory: 'm', kind: 'interaction', weight: 'minor', sentiment: 'neutral', turn: 1, day: 1 }];

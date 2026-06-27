@@ -37,6 +37,13 @@ export function migrate(raw: unknown): unknown {
     version = 3;
   }
 
+  // v3 → v4: knowledge gained reliability/truth/source. Purely additive +
+  // optional; old knowledge.learn events default (knows/unknown/—) on reduce.
+  // Nothing to rewrite — just advance the version.
+  if (version < 4) {
+    version = 4;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

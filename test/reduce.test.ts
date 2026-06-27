@@ -167,6 +167,31 @@ describe('reduce — cast, knowledge, secrets, memory', () => {
     expect(s.cast.hodor!.status).toBe('present');
   });
 
+  it('knowledge carries reliability/truth/source, defaulting when omitted', () => {
+    const s = reduce([
+      ev({ kind: 'knowledge.learn', who: 'cersei', fact: 'the heirs are not the king\u2019s', reliability: 'wrong', truth: 'false', source: 'denial' }),
+      ev({ kind: 'knowledge.learn', who: 'ned', fact: 'a bare fact' }), // no epistemic fields
+    ]);
+    const k1 = s.knowledge.find((k) => k.who === 'cersei')!;
+    const k2 = s.knowledge.find((k) => k.who === 'ned')!;
+    expect(k1.reliability).toBe('wrong');
+    expect(k1.truth).toBe('false');
+    expect(k1.source).toBe('denial');
+    expect(k2.reliability).toBe('knows'); // default
+    expect(k2.truth).toBe('unknown'); // default
+  });
+
+  it('re-folding the same who|fact firms the epistemic frame in place (no dup)', () => {
+    const s = reduce([
+      ev({ kind: 'knowledge.learn', who: 'ned', fact: 'the truth', reliability: 'suspects', truth: 'unknown' }),
+      ev({ kind: 'knowledge.learn', who: 'ned', fact: 'the truth', reliability: 'knows', truth: 'true', source: 'saw the ledger' }),
+    ]);
+    expect(s.knowledge).toHaveLength(1);
+    expect(s.knowledge[0]!.reliability).toBe('knows');
+    expect(s.knowledge[0]!.truth).toBe('true');
+    expect(s.knowledge[0]!.source).toBe('saw the ledger');
+  });
+
   it('dedupes knowledge and reveals secrets', () => {
     const s = reduce([
       ev({ kind: 'knowledge.learn', who: 'cersei', fact: 'the children are not the king\u2019s' }),

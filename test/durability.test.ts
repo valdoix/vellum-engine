@@ -57,4 +57,13 @@ describe('durability: lenient log loading', () => {
     const migrated = log.events.find((e) => e.kind === 'bond.drop') as any;
     expect(migrated?.both).toBe(true); // ended bonds stay fully severed under directional reduce
   });
+
+  it('v3 → v4: a bare knowledge.learn (no epistemic fields) loads and defaults', () => {
+    const know = { seq: 6, turn: 2, day: 1, src: 'living', kind: 'knowledge.learn', who: 'ned', fact: 'a thing' };
+    const { log, usable } = lenientLog({ version: 3, events: [...GOOD, know] }, 'c1');
+    expect(usable).toBe(true);
+    const k = log.events.find((e) => e.kind === 'knowledge.learn') as any;
+    expect(k).toBeTruthy();
+    expect(k.reliability).toBeUndefined(); // optional on the event; reduce applies 'knows'/'unknown'
+  });
 });

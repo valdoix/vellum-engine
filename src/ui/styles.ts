@@ -61,6 +61,13 @@ export const STYLES = [
   ".vle-mem-tier.t-turn{color:#8c8478;border:1px solid rgba(140,132,120,.4)}",
   ".vle-mem-tier.t-chapter{color:#7ea6b0;border:1px solid rgba(126,166,176,.4)}",
   ".vle-mem-tier.t-arc{color:var(--vle-gold);border:1px solid rgba(var(--vg-rgb),.4)}",
+  // knowledge epistemic chips (reliability + truth)
+  ".vle-krel{display:inline-block;font:600 8px/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px;padding:2px 4px;border-radius:3px;margin-right:5px;vertical-align:middle;opacity:.9}",
+  ".vle-krel-believes{color:#c8a24e;border:1px solid rgba(200,162,78,.4)}",
+  ".vle-krel-suspects{color:#b08fc9;border:1px solid rgba(176,143,201,.4)}",
+  ".vle-krel-wrong{color:#c97a7a;border:1px solid rgba(201,122,122,.5);background:rgba(201,122,122,.08)}",
+  ".vle-krel-unaware{color:#8c8478;border:1px solid rgba(140,132,120,.4)}",
+  ".vle-kfalse{display:inline-block;font:600 8px/1 var(--vmono);color:#c97a7a;margin-right:5px;opacity:.85}",
   // relations
   ".vle-rel-grid{display:flex;flex-direction:column;gap:7px}",
   ".vle-rel-card{border:1px solid var(--vle-gold-soft);border-radius:9px;padding:8px 10px;background:rgba(22,20,16,.4)}",

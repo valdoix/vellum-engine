@@ -25,17 +25,19 @@ declare const spindle: any;
 const EXTRACT_SYS =
   'You are the LIVING-STATE EXTRACTOR for a roleplay. Read the RECENT NARRATIVE PROSE and surface what it newly '
   + 'establishes. Output STRICT JSON only, no prose outside it: '
-  + '{"knowledge":[{"who":"Name","fact":"one clause","reliability":"knows|believes|suspects|wrong|unaware","about":"Name or omit"}],'
+  + '{"knowledge":[{"who":"Name","fact":"one clause","reliability":"knows|believes|suspects|wrong|unaware","truth":"true|false|unknown","source":"how they learned it, brief or omit","about":"Name or omit"}],'
   + '"secrets":[{"secret":"one clause","keeper":"Name","from":"Name(s) comma-sep or omit","danger":"minor|major|explosive"}],'
   + '"journal":[{"who":"Name","about":"Name or omit","memory":"one vivid sentence from WHO\'S point of view","kind":"interaction|promise|betrayal|gift|shared|wound|observation","weight":"trivial|minor|significant|defining","sentiment":"positive|negative|neutral|complex"}],'
   + '"bonds":[{"a":"Name","b":"Name","aff":<int -40..40>,"trust":<int -40..40>,"cat":["familial|romantic|alliance|rivalry|social"],"why":"one clause"}]}. '
   + 'RULES: use ONLY real character names that appear in the prose (the persona/player and the characters), never placeholders or unnamed figures (a guard, a servant). '
   + 'EVERY NAMED CHARACTER COUNTS — not just the lead or the player. Attribute knowledge, secrets, and journal entries to side characters, rivals, family, and minor figures too whenever the prose gives them a real name; the chronicle tracks them all equally. '
-  + 'KNOWLEDGE: extract whenever ANY character (including the player) learns, realizes, infers, overhears, confesses, or comes to wrongly believe something — e.g. "Cersei revealed her father beat her" => {who:"<listener>",fact:"<speaker>\'s father beat <speaker>"} AND a secret if it was hidden. '
+  + 'KNOWLEDGE is the engine of dramatic irony — track the INFORMATION STATE. Extract when ANY character (including the player) learns, realizes, infers, overhears, confesses, or comes to wrongly believe something — e.g. "Cersei revealed her father beat her" => {who:"<listener>",fact:"<speaker>\'s father beat <speaker>"} AND a secret if it was hidden. '
+  + 'reliability = the knower\'s stance (wrong = they believe something untrue); truth = the ACTUAL state regardless of belief (a mistaken belief is reliability:"wrong",truth:"false"); source = how they came to it. '
+  + 'PREFER facts that create tension, irony, or asymmetric knowledge (someone believes a falsehood, someone hides something, one party knows what another does not). OMIT routine perceptions everyone present already shares ("the door was open", "it was cold") — those are not knowledge. '
   + 'SECRETS: extract when someone conceals something OR a hidden thing is revealed this excerpt (a confessed abuse, a hidden parentage, a lie). '
   + 'JOURNAL: extract genuine TURNING POINTS a character would personally carry — a confession, promise, betrayal, gift, wound, first kiss, a moment of being truly seen — written from that character\'s POV; the PLAYER can and should hold journal entries too. '
   + 'BONDS: aff/trust are the CHANGE this excerpt caused to how A feels toward B; omit pairs that did not move; cat only when the bond\'s nature changed. '
-  + 'Be GENEROUS but TRUE: capture every real reveal/turning-point (do not under-report), invent nothing the prose does not support. Empty arrays are fine.';
+  + 'Capture every real reveal/turning-point that carries dramatic weight, invent nothing the prose does not support. Empty arrays are fine.';
 
 function parseJson(text: string): any | null {
   let t = String(text || '').replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
@@ -78,7 +80,10 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
     if (bad(who) || !fact) continue;
     const about = realName(k?.about, names);
-    out.push({ ...base(), kind: 'knowledge.learn', who: rid(who), fact, ...(about && !bad(about) ? { about: rid(about) } : {}) } as VellumEvent);
+    const reliability = REL.has(String(k?.reliability)) ? k.reliability : undefined;
+    const truth = TRU.has(String(k?.truth)) ? k.truth : undefined;
+    const source = String(k?.source || '').trim().slice(0, 120) || undefined;
+    out.push({ ...base(), kind: 'knowledge.learn', who: rid(who), fact, ...(about && !bad(about) ? { about: rid(about) } : {}), ...(reliability ? { reliability } : {}), ...(truth ? { truth } : {}), ...(source ? { source } : {}) } as VellumEvent);
   }
   let si = 0;
   for (const s of Array.isArray(obj.secrets) ? obj.secrets : []) {
@@ -132,6 +137,8 @@ export async function extractFromProse(prose: string, turn: number, day: number,
 }
 
 const clamp = (v: unknown): number => Math.max(-40, Math.min(40, Math.round(Number(v) || 0)));
+const REL = new Set(['knows', 'believes', 'suspects', 'wrong', 'unaware']);
+const TRU = new Set(['true', 'false', 'unknown']);
 const jk = (v: unknown): any => (['interaction', 'promise', 'betrayal', 'gift', 'shared', 'wound', 'observation'].includes(String(v)) ? v : 'interaction');
 const jw = (v: unknown): any => (['trivial', 'minor', 'significant', 'defining'].includes(String(v)) ? v : 'minor');
 const js = (v: unknown): any => (['positive', 'negative', 'neutral', 'complex'].includes(String(v)) ? v : 'neutral');

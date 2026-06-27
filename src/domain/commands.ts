@@ -58,7 +58,10 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     case 'knowledge_add': {
       const who = canonId(e.who ?? ''); const fact = String(e.fact ?? '').trim();
       if (!who || !fact) return [];
-      return [{ ...base(ctx), kind: 'knowledge.learn', who, fact, ...(e.about ? { about: canonId(e.about) } : {}) } as VellumEvent];
+      const reliability = ['knows', 'believes', 'suspects', 'wrong', 'unaware'].includes(String(e.reliability)) ? e.reliability : undefined;
+      const truth = ['true', 'false', 'unknown'].includes(String(e.truth)) ? e.truth : undefined;
+      const source = String(e.source ?? '').trim().slice(0, 120) || undefined;
+      return [{ ...base(ctx), kind: 'knowledge.learn', who, fact, ...(e.about ? { about: canonId(e.about) } : {}), ...(reliability ? { reliability } : {}), ...(truth ? { truth } : {}), ...(source ? { source } : {}) } as VellumEvent];
     }
     case 'knowledge_delete':
       return e.id ? [{ ...base(ctx), kind: 'knowledge.drop', id: String(e.id) } as VellumEvent] : [];

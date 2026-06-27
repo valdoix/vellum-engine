@@ -148,7 +148,20 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'knowledge.learn': {
       ensureCast(s, e.who, e.turn); if (e.about) ensureCast(s, e.about, e.turn); // knower + subject become tracked cast
       const dup = s.knowledge.find((k) => k.who === e.who && k.fact === e.fact);
-      if (!dup) s.knowledge.push({ id: `k_${s.knowledge.length}_${e.seq}`, who: e.who, fact: e.fact, ...(e.about ? { about: e.about } : {}), turn: e.turn });
+      if (dup) {
+        // re-fold of the same who|fact: firm up the epistemic frame in place
+        // (legacy applyKnowResult behavior) rather than duplicating.
+        if (e.reliability) dup.reliability = e.reliability;
+        if (e.truth) dup.truth = e.truth;
+        if (e.source) dup.source = e.source;
+      } else {
+        s.knowledge.push({
+          id: `k_${s.knowledge.length}_${e.seq}`, who: e.who, fact: e.fact,
+          ...(e.about ? { about: e.about } : {}), turn: e.turn,
+          reliability: e.reliability ?? 'knows', truth: e.truth ?? 'unknown',
+          ...(e.source ? { source: e.source } : {}),
+        });
+      }
       break;
     }
     case 'knowledge.drop': {

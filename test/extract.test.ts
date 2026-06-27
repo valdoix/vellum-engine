@@ -44,6 +44,22 @@ describe('mapExtracted — pure JSON → events', () => {
     expect(mapExtracted({}, 1, 1, names, sf)).toEqual([]);
   });
 
+  it('parses knowledge reliability/truth/source; clamps junk to undefined', () => {
+    const evs = mapExtracted({
+      knowledge: [
+        { who: 'Cersei', fact: 'the children are not the king\u2019s', reliability: 'wrong', truth: 'false', source: 'her own denial' },
+        { who: 'Ned', fact: 'the parentage', reliability: 'bogus', truth: 'nope' },
+      ],
+    }, 4, 1, names, sf);
+    const k1 = evs.find((e: any) => e.who === 'cersei') as any;
+    const k2 = evs.find((e: any) => e.who === 'ned') as any;
+    expect(k1.reliability).toBe('wrong');
+    expect(k1.truth).toBe('false');
+    expect(k1.source).toBe('her own denial');
+    expect(k2.reliability).toBeUndefined(); // junk dropped → reduce defaults to 'knows'
+    expect(k2.truth).toBeUndefined();
+  });
+
   it('resolves knowledge/secret who onto an existing cast id (no Cersei vs Cersei Lannister split)', () => {
     const state = freshState();
     state.cast.cersei_lannister = { id: 'cersei_lannister', name: 'Cersei Lannister', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false };

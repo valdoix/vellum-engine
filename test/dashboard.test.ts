@@ -6,9 +6,9 @@ describe('Fix 23 — dashboard latest by turn (not array tail)', () => {
   it('latestKnowledge picks max turn regardless of insertion order', () => {
     const s = freshState();
     s.knowledge = [
-      { id: 'k1', who: 'a', fact: 'old', turn: 2 },
-      { id: 'k2', who: 'b', fact: 'newest', turn: 9 },
-      { id: 'k3', who: 'c', fact: 'mid', turn: 5 }, // tail, but not newest by turn
+      { id: 'k1', who: 'a', fact: 'old', turn: 2, reliability: 'knows', truth: 'unknown' },
+      { id: 'k2', who: 'b', fact: 'newest', turn: 9, reliability: 'knows', truth: 'unknown' },
+      { id: 'k3', who: 'c', fact: 'mid', turn: 5, reliability: 'knows', truth: 'unknown' }, // tail, but not newest by turn
     ];
     expect(latestKnowledge(s)?.id).toBe('k2');
   });

@@ -10,7 +10,7 @@ import { formModal, confirmModal } from '../modal.js';
  * and secrets can be added. CRUD flows through the bridge → vellum_cmd.
  */
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}`,
+  version: (s) => `${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     return scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) + memories(s) + knowledge(s) + secrets(s);
   },
@@ -26,6 +26,15 @@ export const chronicleTab: Component<ChronicleState> = {
         { key: 'who', label: 'Who knows it', type: 'text', placeholder: 'Cersei' },
         { key: 'fact', label: 'Fact', type: 'textarea' },
         { key: 'about', label: 'About (optional)', type: 'text' },
+        { key: 'reliability', label: 'Reliability', type: 'select', value: 'knows', options: [
+          { value: 'knows', label: 'knows' }, { value: 'believes', label: 'believes' },
+          { value: 'suspects', label: 'suspects' }, { value: 'wrong', label: 'wrong (false belief)' },
+          { value: 'unaware', label: 'unaware' },
+        ] },
+        { key: 'truth', label: 'Actually true?', type: 'select', value: 'unknown', options: [
+          { value: 'unknown', label: 'unknown' }, { value: 'true', label: 'true' }, { value: 'false', label: 'false' },
+        ] },
+        { key: 'source', label: 'Source (optional)', type: 'text', placeholder: 'overheard at court' },
       ], (o) => { if (o.who?.trim() && o.fact?.trim()) cmd('knowledge_add', o); }); return; }
       if (t.closest('[data-sec-add]')) { formModal('New Secret', [
         { key: 'keeper', label: 'Keeper', type: 'text', placeholder: 'Cersei' },
@@ -72,6 +81,13 @@ function memories(s: ChronicleState): string {
   return head + rows + pagerHtml('memories', page, pages);
 }
 
+/** Small certainty chip before a fact. 'knows' is the neutral default and shows
+ * nothing; the others read at a glance (the dramatic-irony tells). */
+function relChip(r: string): string {
+  if (!r || r === 'knows') return '';
+  return `<span class="vle-krel vle-krel-${esc(r)}">${esc(r)}</span>`;
+}
+
 function knowledge(s: ChronicleState): string {
   const head = '<div class="vle-sec-h">\u25C8 Knowledge <span class="vle-n">' + s.knowledge.length + '</span><button class="vle-add sm" data-know-add>+</button></div>';
   if (!s.knowledge.length) return head + '<div class="vle-empty sm">\u2014</div>';
@@ -79,7 +95,8 @@ function knowledge(s: ChronicleState): string {
   const bar = filterBar('knowledge', { whos });
   const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
   const { slice, page, pages } = paginate('knowledge', filtered);
-  const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span><span class="vle-mem-t">' + esc(k.fact) + '</span>'
+  const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
+    + `<span class="vle-mem-t"${k.source ? ` title="source: ${esc(k.source)}"` : ''}>` + relChip(k.reliability) + (k.truth === 'false' ? '<span class="vle-kfalse" title="actually false — dramatic irony">\u2717 false</span>' : '') + esc(k.fact) + '</span>'
     + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button></div>`).join('');
   return head + bar + rows + pagerHtml('knowledge', page, pages);
 }

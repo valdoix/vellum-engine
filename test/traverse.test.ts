@@ -9,9 +9,9 @@ function stateWith(): ChronicleState {
   const s = freshState();
   s.turns = 20;
   s.knowledge = [
-    { id: 'k1', who: 'cersei', fact: 'Cersei knows the children are not Robert\u2019s heirs', turn: 5 },
-    { id: 'k2', who: 'ned', fact: 'Ned discovered the truth of the Lannister incest', turn: 12 },
-    { id: 'k3', who: 'jon', fact: 'Jon trains daily at the Wall with the Night\u2019s Watch', turn: 8 },
+    { id: 'k1', who: 'cersei', fact: 'Cersei knows the children are not Robert\u2019s heirs', turn: 5, reliability: 'knows', truth: 'true' },
+    { id: 'k2', who: 'ned', fact: 'Ned discovered the truth of the Lannister incest', turn: 12, reliability: 'knows', truth: 'true' },
+    { id: 'k3', who: 'jon', fact: 'Jon trains daily at the Wall with the Night\u2019s Watch', turn: 8, reliability: 'knows', truth: 'true' },
   ];
   s.cast = {
     ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false },

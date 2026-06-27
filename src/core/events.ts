@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 3 as const;
+export const SCHEMA_VERSION = 4 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -22,6 +22,14 @@ export type CastStatus = z.infer<typeof CastStatus>;
 
 export const MemoryTier = z.enum(['turn', 'chapter', 'arc']);
 export type MemoryTier = z.infer<typeof MemoryTier>;
+
+// Knowledge epistemic frame (legacy-faithful): how sure the knower is, the
+// ACTUAL state regardless of belief, and how they learned it. Together they are
+// the dramatic-irony signal (a flat observation can't be framed this way).
+export const Reliability = z.enum(['knows', 'believes', 'suspects', 'wrong', 'unaware']);
+export type Reliability = z.infer<typeof Reliability>;
+export const Truth = z.enum(['true', 'false', 'unknown']);
+export type Truth = z.infer<typeof Truth>;
 
 const base = { seq: z.number().int().nonnegative(), turn: z.number().int().nonnegative(), day: z.number().int().nonnegative(), src: Src };
 
@@ -61,7 +69,7 @@ export const EvBondDelta = z.object({
 });
 export const EvBondDrop = z.object({ ...base, kind: z.literal('bond.drop'), a: z.string(), b: z.string(), both: z.boolean().optional() });
 
-export const EvKnowledge = z.object({ ...base, kind: z.literal('knowledge.learn'), who: z.string(), fact: z.string(), about: z.string().optional() });
+export const EvKnowledge = z.object({ ...base, kind: z.literal('knowledge.learn'), who: z.string(), fact: z.string(), about: z.string().optional(), reliability: Reliability.optional(), truth: Truth.optional(), source: z.string().optional() });
 export const EvKnowledgeDrop = z.object({ ...base, kind: z.literal('knowledge.drop'), id: z.string() });
 export const EvSecretForm = z.object({ ...base, kind: z.literal('secret.form'), id: z.string(), keeper: z.string(), from: z.array(z.string()).default([]), text: z.string() });
 export const EvSecretReveal = z.object({ ...base, kind: z.literal('secret.reveal'), id: z.string(), to: z.array(z.string()).default([]) });

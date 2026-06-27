@@ -20,7 +20,11 @@ export interface RetrievableItem {
 export function collectItems(state: ChronicleState): RetrievableItem[] {
   const items: RetrievableItem[] = [];
   for (const k of state.knowledge) {
-    items.push({ id: k.id, kind: 'knowledge', text: k.fact, turn: k.turn, tokens: tokenize(k.fact) });
+    // surface the epistemic frame so recall reads the STANCE, not a bare fact:
+    // "Cersei believes: the children are Robert's" + a false-belief marker.
+    const stance = k.reliability && k.reliability !== 'knows' ? `${k.reliability}${k.truth === 'false' ? ' (false)' : ''}: ` : '';
+    const text = stance + k.fact;
+    items.push({ id: k.id, kind: 'knowledge', text, turn: k.turn, tokens: tokenize(text) });
   }
   for (const s of state.secrets) {
     items.push({ id: s.id, kind: 'secret', text: s.text, turn: s.formedTurn, tokens: tokenize(s.text) });
