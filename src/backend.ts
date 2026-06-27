@@ -78,10 +78,19 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
-async function foldChat(chatId: string, userId: string | null, hint?: string): Promise<void> {
-  // RECONCILE: fold every assistant turn the chronicle hasn't captured yet, so a
-  // missed GENERATION_ENDED is self-healed on the next trigger/get_state. A turn
-  // is COUNTED even when the model omits the <vellum> block.
+const _foldChain = new Map<string, Promise<void>>();
+function foldChat(chatId: string, userId: string | null, hint?: string): Promise<void> {
+  // serialize folds per chat: concurrent triggers (GENERATION_ENDED +
+  // get_state retries) would each read the same prior.turns and re-fold the
+  // SAME turn, accumulating duplicate deltas (aff -30/-60/-90). Chaining makes
+  // the 2nd call wait, then see turns already advanced -> nothing new to fold.
+  const prev = _foldChain.get(chatId) ?? Promise.resolve();
+  const next = prev.catch(() => {}).then(() => foldChatInner(chatId, userId, hint));
+  _foldChain.set(chatId, next.catch(() => {}));
+  return next;
+}
+
+async function foldChatInner(chatId: string, userId: string | null, hint?: string): Promise<void> {
   let msgs = await allAssistantContents(chatId);
   if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allAssistantContents(chatId); }
   if (hint && hint.trim() && (!msgs.length || msgs[msgs.length - 1] !== hint)) msgs.push(hint);
