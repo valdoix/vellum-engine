@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mapExtracted } from '../src/bus/extract.js';
+import { freshState } from '../src/domain/types.js';
 
 let seq = 0;
 const sf = () => ++seq;
@@ -41,5 +42,18 @@ describe('mapExtracted — pure JSON → events', () => {
   it('returns [] for junk input', () => {
     expect(mapExtracted(null, 1, 1, names, sf)).toEqual([]);
     expect(mapExtracted({}, 1, 1, names, sf)).toEqual([]);
+  });
+
+  it('resolves knowledge/secret who onto an existing cast id (no Cersei vs Cersei Lannister split)', () => {
+    const state = freshState();
+    state.cast.cersei_lannister = { id: 'cersei_lannister', name: 'Cersei Lannister', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false };
+    const evs = mapExtracted({
+      knowledge: [{ who: 'Cersei', fact: 'the truth' }],
+      secrets: [{ keeper: 'Cersei', secret: 'incest', from: 'Robert' }],
+    }, 4, 1, names, sf, state);
+    const k = evs.find((e) => e.kind === 'knowledge.learn') as any;
+    const s = evs.find((e) => e.kind === 'secret.form') as any;
+    expect(k.who).toBe('cersei_lannister'); // merged, not a fresh `cersei`
+    expect(s.keeper).toBe('cersei_lannister');
   });
 });

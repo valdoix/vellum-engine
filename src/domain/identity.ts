@@ -19,7 +19,7 @@ import { canonId } from '../core/ids.js';
  *     e.g. `cersei` ⊂ `cersei_lannister`            → that id
  *   - otherwise                                     → the fresh canonId
  */
-export function resolveCastId(state: ChronicleState, rawName: string): string {
+export function resolveCastId(state: ChronicleState, rawName: string, extraIds?: Iterable<string>): string {
   const id = canonId(rawName);
   if (!id) return id;
   const cast = state.cast;
@@ -30,9 +30,19 @@ export function resolveCastId(state: ChronicleState, rawName: string): string {
     if ((c.aka ?? []).some((a) => canonId(a) === id)) return c.id;
   }
 
+  // candidate id universe = existing cast ∪ ids introduced THIS turn (extraIds).
+  // The latter fixes the same-turn split: `present:["Cersei Lannister"]` emits
+  // cast.seen for `cersei_lannister`, but that event isn't reduced into `state`
+  // yet — so a bond using "cersei" in the same turn would otherwise mint a
+  // separate `cersei`. Including the turn's present ids lets it merge.
+  const known = new Set<string>(Object.keys(cast));
+  if (extraIds) for (const e of extraIds) if (e) known.add(e);
+  if (known.has(id)) return id; // exact hit among this-turn ids
+
   // token-prefix containment, must be UNIQUE to merge
   const matches: string[] = [];
-  for (const existingId of Object.keys(cast)) {
+  for (const existingId of known) {
+    if (existingId === id) continue;
     if (tokenPrefix(id, existingId) || tokenPrefix(existingId, id)) matches.push(existingId);
   }
   if (matches.length === 1) return matches[0]!;

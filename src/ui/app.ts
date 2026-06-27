@@ -12,7 +12,7 @@ import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize } from './theme.js';
 import { dashboardHtml } from './dashboard.js';
 import { wireBridge, wirePagers, wireFilters } from './bridge.js';
-import { confirmModal } from './modal.js';
+import { confirmModal, formModal } from './modal.js';
 
 /**
  * Frontend entrypoint. One reusable shell (tab bar + QOL toolbar + body) is
@@ -54,6 +54,7 @@ const QOL = [
   { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval: a cheap LLM picks what to recall (needs generation permission; toggle)' },
+  { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON' },
   { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat' },
@@ -122,6 +123,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _traverseOn = false;
+let _tone = { romance: 'medium', disposition: 'fair' };
 let _retheme: () => void = () => { /* set in setup */ };
 
 // Transient "running" indication for one-shot QOL actions. Set busy when the
@@ -146,9 +148,31 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { setQolBusy('rebuild', true); ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'traverse') { _traverseOn = !_traverseOn; setQolBusy('traverse', true); ctx.sendToBackend({ type: 'vellum_set_traversal', enabled: _traverseOn }); }
+  else if (id === 'tone') { openToneModal(ctx); }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => { setQolBusy('clear', true); ctx.sendToBackend({ type: 'vellum_clear' }); }); }
+}
+
+function openToneModal(ctx: Ctx): void {
+  formModal('Tone & Relationship', [
+    { key: 'romance', label: 'Romance Pace', type: 'select', value: _tone.romance, options: [
+      { value: 'off', label: 'Off (no romance)' },
+      { value: 'slow_burn', label: 'Slow Burn' },
+      { value: 'medium', label: 'Measured' },
+      { value: 'fast', label: 'Fast-Paced' },
+      { value: 'erotic', label: 'Erotic' },
+    ] },
+    { key: 'disposition', label: 'World Disposition', type: 'select', value: _tone.disposition, options: [
+      { value: 'kind', label: 'Kind (everybody warms to you)' },
+      { value: 'warm', label: 'Warm' },
+      { value: 'fair', label: 'Fair (neutral)' },
+      { value: 'harsh', label: 'Harsh' },
+      { value: 'brutal', label: 'Brutal (the world is against you)' },
+    ] },
+  ], (out) => {
+    ctx.sendToBackend({ type: 'vellum_set_tone', romance: out.romance, disposition: out.disposition });
+  });
 }
 
 function triggerImport(ctx: Ctx): void {
@@ -213,6 +237,11 @@ export function setup(ctx: Ctx): () => void {
     try {
       if (p?.type === 'vellum_state') {
         state = p.state ?? freshState();
+        if (p.tone) {
+          _tone = { romance: p.tone.romance ?? 'medium', disposition: p.tone.disposition ?? 'fair' };
+          const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair';
+          document.querySelectorAll('[data-qol=\'tone\']').forEach((b) => b.classList.toggle('on', !isDefault));
+        }
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
@@ -261,6 +290,11 @@ export function setup(ctx: Ctx): () => void {
         document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseOn));
         if (p.enabled && !p.available) ctx.toast?.warning?.('Traversal needs the generation permission \u2014 falling back to standard recall.');
         else ctx.toast?.success?.(p.enabled ? 'Controller-guided retrieval on.' : 'Controller-guided retrieval off.');
+      } else if (p?.type === 'vellum_tone_done') {
+        _tone = { romance: p.romance ?? 'medium', disposition: p.disposition ?? 'fair' };
+        const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair';
+        document.querySelectorAll('[data-qol=\'tone\']').forEach((b) => b.classList.toggle('on', !isDefault));
+        ctx.toast?.success?.(`Tone set \u2014 romance: ${_tone.romance.replace('_', ' ')}, world: ${_tone.disposition}.`);
       }
     } catch (e) { try { console.warn('[vellum] message handler:', e); } catch { /* ignore */ } }
   });

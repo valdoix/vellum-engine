@@ -68,4 +68,17 @@ describe('fold dedup — bonds do not split a character across two ids', () => {
     expect(s.relations[0]!.affection).toBe(15);
     expect(Object.keys(s.cast).sort()).toEqual(['cersei_lannister', 'daeron']);
   });
+
+  it('same-turn: present uses full names, bond uses short names → no split within the turn', () => {
+    // both characters first seen THIS turn by full name, bond references them short.
+    // prior state is empty, so without turn-id awareness this would mint cersei + daeron.
+    const s = reduce(coreFeature.extract!({
+      present: [{ name: 'Cersei Lannister' }, { name: 'Daeron Targaryen' }],
+      delta: { bonds: [{ a: 'Cersei', b: 'Daeron', aff: 6, cat: ['romantic'] }] },
+    } as any, ctx(freshState(), 1)));
+    expect(s.relations).toHaveLength(1);
+    expect(s.relations[0]!.a).toBe('cersei_lannister');
+    expect(s.relations[0]!.b).toBe('daeron_targaryen');
+    expect(Object.keys(s.cast).sort()).toEqual(['cersei_lannister', 'daeron_targaryen']);
+  });
 });

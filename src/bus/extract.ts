@@ -1,6 +1,9 @@
 import type { VellumEvent, Category } from '../core/events.js';
 import { canonId, nextSeq } from '../core/ids.js';
 import { isCategory } from '../domain/category.js';
+import { resolveCastId } from '../domain/identity.js';
+import { adjustBond, DEFAULT_TONE, type Tone } from '../domain/tone.js';
+import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate } from '../host/generation.js';
 import { has } from '../host/capability.js';
 
@@ -68,48 +71,61 @@ function bad(name: string): boolean {
  * exactly why bugs here (the `bad(b)` typo, the over-eager name filter) shipped
  * uncaught. `seqFn` defaults to the global monotonic seq; tests can inject one.
  */
-export function mapExtracted(obj: any, turn: number, day: number, names: { user: string; char: string }, seqFn: () => number = nextSeq): VellumEvent[] {
+export function mapExtracted(obj: any, turn: number, day: number, names: { user: string; char: string }, seqFn: () => number = nextSeq, state?: ChronicleState, tone: Tone = DEFAULT_TONE): VellumEvent[] {
   if (!obj || typeof obj !== 'object') return [];
   const out: VellumEvent[] = [];
   const base = () => ({ seq: seqFn(), turn, day, src: 'living' as const });
+  // resolve a raw name onto an existing cast id (merges "Cersei" with a known
+  // "Cersei Lannister") so knowledge/secrets/journal don't split a character.
+  const rid = (name: string): string => (state ? resolveCastId(state, name) : canonId(name));
+  const userCanon = names.user ? canonId(names.user) : '';
 
   for (const k of Array.isArray(obj.knowledge) ? obj.knowledge : []) {
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
     if (bad(who) || !fact) continue;
     const about = realName(k?.about, names);
-    out.push({ ...base(), kind: 'knowledge.learn', who: canonId(who), fact, ...(about && !bad(about) ? { about: canonId(about) } : {}) } as VellumEvent);
+    out.push({ ...base(), kind: 'knowledge.learn', who: rid(who), fact, ...(about && !bad(about) ? { about: rid(about) } : {}) } as VellumEvent);
   }
   let si = 0;
   for (const s of Array.isArray(obj.secrets) ? obj.secrets : []) {
     const keeper = realName(s?.keeper, names); const text = String(s?.secret || s?.text || '').trim();
     if (bad(keeper) || !text) continue;
-    const from = String(s?.from || '').split(',').map((x: string) => realName(x, names)).filter((x: string) => x && !bad(x)).map(canonId);
-    out.push({ ...base(), kind: 'secret.form', id: 'sec_' + turn + '_' + (si++), keeper: canonId(keeper), from, text } as VellumEvent);
+    const from = String(s?.from || '').split(',').map((x: string) => realName(x, names)).filter((x: string) => x && !bad(x)).map(rid);
+    out.push({ ...base(), kind: 'secret.form', id: 'sec_' + turn + '_' + (si++), keeper: rid(keeper), from, text } as VellumEvent);
   }
   let ji = 0;
   for (const j of Array.isArray(obj.journal) ? obj.journal : []) {
     const who = realName(j?.who, names); const memory = String(j?.memory || '').trim();
     if (bad(who) || !memory) continue;
     const about = realName(j?.about, names);
-    out.push({ ...base(), kind: 'journal.entry', id: 'mj_' + canonId(who) + '_' + turn + '_' + (ji++), who: canonId(who), ...(about && !bad(about) ? { about: canonId(about) } : {}), memory, jkind: jk(j?.kind), weight: jw(j?.weight), sentiment: js(j?.sentiment) } as VellumEvent);
+    out.push({ ...base(), kind: 'journal.entry', id: 'mj_' + rid(who) + '_' + turn + '_' + (ji++), who: rid(who), ...(about && !bad(about) ? { about: rid(about) } : {}), memory, jkind: jk(j?.kind), weight: jw(j?.weight), sentiment: js(j?.sentiment) } as VellumEvent);
   }
   for (const b of Array.isArray(obj.bonds) ? obj.bonds : []) {
     const a = realName(b?.a, names), bb = realName(b?.b, names);
-    if (bad(a) || bad(bb) || canonId(a) === canonId(bb)) continue;
+    if (bad(a) || bad(bb) || rid(a) === rid(bb)) continue;
     const cats = (Array.isArray(b?.cat) ? b.cat : []).map((c: string) => String(c).toLowerCase()).filter(isCategory) as Category[];
     const aff = clamp(b?.aff), trust = clamp(b?.trust);
     if (!aff && !trust && !cats.length) continue;
-    out.push({ ...base(), kind: 'bond.delta', a: canonId(a), b: canonId(bb), ...(aff ? { aff } : {}), ...(trust ? { trust } : {}), ...(cats.length ? { addCats: cats } : {}), ...(b?.why ? { why: String(b.why) } : {}) } as VellumEvent);
+    const ra = rid(a), rb = rid(bb);
+    const existing = state?.relations.find((r) => r.a === ra && r.b === rb);
+    const romantic = cats.includes('romantic' as Category) || !!(existing?.categories?.includes('romantic'));
+    const adj = adjustBond(
+      { a: ra, b: rb, ...(aff ? { aff } : {}), ...(trust ? { trust } : {}), ...(cats.length ? { addCats: cats } : {}) },
+      tone,
+      { userId: userCanon, relExists: !!existing, romantic },
+    );
+    if (!adj) continue;
+    out.push({ ...base(), kind: 'bond.delta', a: ra, b: rb, ...(typeof adj.aff === 'number' ? { aff: adj.aff } : {}), ...(typeof adj.trust === 'number' ? { trust: adj.trust } : {}), ...(adj.addCats?.length ? { addCats: adj.addCats as Category[] } : {}), ...(b?.why ? { why: String(b.why) } : {}) } as VellumEvent);
   }
   return out;
 }
 
 /**
  * Run the extractor on a turn's prose. Returns events (src:'living'). The caller
- * supplies turn/day and the resolved persona/char names. No-op without the
- * generation permission or on empty prose.
+ * supplies turn/day, the resolved persona/char names, and the prior chronicle
+ * state (for cast-id resolution). No-op without generation permission/empty prose.
  */
-export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null): Promise<VellumEvent[]> {
+export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null, state?: ChronicleState, tone: Tone = DEFAULT_TONE): Promise<VellumEvent[]> {
   if (!prose || !prose.trim() || !(await has('generation'))) return [];
   const gen = await internalGenerate(
     [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: prose.slice(0, 8000) }],
@@ -118,7 +134,7 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   );
   if (!gen.ok) return [];
   const obj = parseJson(gen.value);
-  return mapExtracted(obj, turn, day, names);
+  return mapExtracted(obj, turn, day, names, nextSeq, state, tone);
 }
 
 const clamp = (v: unknown): number => Math.max(-40, Math.min(40, Math.round(Number(v) || 0)));

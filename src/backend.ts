@@ -13,13 +13,14 @@ import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
 import type { CallModel } from './retrieval/traverse.js';
 import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
-import { nextSeq as nextSeqLocal, hashStr } from './core/ids.js';
+import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
 import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
+import { parseTone, type Tone } from './domain/tone.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
 /** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
@@ -79,7 +80,8 @@ function recordInjection(chatId: string, turn: number, text: string, recallIds: 
 
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
   const state = await loadState(chatId);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state }, userId ?? currentUser());
+  const tone = await readTone(chatId, userId);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
@@ -121,12 +123,25 @@ async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number)
   return null;
 }
 
+/** Read the per-chat tone dials (romance pace + world disposition) the user set
+ * via the Tone control. Defaults to neutral (medium/fair) → today's behavior. */
+async function readTone(chatId: string, userId: string | null): Promise<Tone> {
+  let r: string | null = null, d: string | null = null;
+  try { r = await spindle.chats?.getVar?.(chatId, 'vellum_romance', userId); } catch { /* best effort */ }
+  try { d = await spindle.chats?.getVar?.(chatId, 'vellum_disposition', userId); } catch { /* best effort */ }
+  return parseTone(r, d);
+}
+
 async function foldChatInner(chatId: string, userId: string | null, hint?: string): Promise<void> {
   let msgs = await allAssistantContents(chatId);
   if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allAssistantContents(chatId); }
   if (hint && hint.trim() && (!msgs.length || msgs[msgs.length - 1] !== hint)) msgs.push(hint);
   if (!msgs.length) return;
   let prior = await loadState(chatId);
+  // tone dials + canonical {{user}} id, resolved once per fold pass
+  const tone = await readTone(chatId, userId);
+  const names = await chatNames(chatId, userId);
+  const userCanon = names.user ? canonId(names.user) : '';
   // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
   // message count, so the forward-only fold below would never revisit it and the
   // chronicle would keep the STALE turn's deltas. Compare each already-folded
@@ -143,7 +158,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
-    const { events, source } = foldTurn(content, prior, turnNo);
+    const { events, source } = foldTurn(content, prior, turnNo, { tone, userCanon });
     const evs: VellumEvent[] = [...events];
     if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
     const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
@@ -154,7 +169,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     // that the model didn't hand-write in the <vellum> block. Best-effort.
     if (gist) {
       try {
-        const xevs = await extractFromProse(gist, turnNo, prior.day || 0, await chatNames(chatId, userId), userId);
+        const xevs = await extractFromProse(gist, turnNo, prior.day || 0, names, userId, prior, tone);
         if (xevs.length) { prior = await append(chatId, xevs); added += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal) from turn ${turnNo}`); }
       } catch (e) { spindle.log?.warn?.('[vellum_engine] extract: ' + ((e as Error)?.message ?? e)); }
     }
@@ -385,11 +400,14 @@ const dispatch: Record<string, Handler> = {
       await clearLog(chatId);
       lastSigByChat.delete(chatId);
       let prior = await loadState(chatId);
+      const tone = await readTone(chatId, uid);
+      const names = await chatNames(chatId, uid);
+      const userCanon = names.user ? canonId(names.user) : '';
       let turns = 0;
       for (let turnNo = 1; turnNo <= msgs.length; turnNo++) {
         const content = (msgs[turnNo - 1] ?? '').trim();
         if (!content) continue;
-        const { events } = foldTurn(content, prior, turnNo);
+        const { events } = foldTurn(content, prior, turnNo, { tone, userCanon });
         const evs: VellumEvent[] = [...events];
         if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
         const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
@@ -397,7 +415,7 @@ const dispatch: Record<string, Handler> = {
         prior = await append(chatId, evs);
         turns++;
         // optional deep extraction per turn (knowledge/secrets/journal) when asked
-        if (p?.deep && gist) { try { const xe = await extractFromProse(gist, turnNo, prior.day || 0, await chatNames(chatId, uid), uid); if (xe.length) prior = await append(chatId, xe); } catch { /* best effort */ } }
+        if (p?.deep && gist) { try { const xe = await extractFromProse(gist, turnNo, prior.day || 0, names, uid, prior, tone); if (xe.length) prior = await append(chatId, xe); } catch { /* best effort */ } }
       }
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
@@ -585,6 +603,16 @@ const dispatch: Record<string, Handler> = {
     try { await spindle.chats?.setVar?.(chatId, 'vellum_traversal', enabled ? '1' : '', uid); } catch { /* best effort */ }
     const available = await has('generation');
     spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, available }, uid);
+  },
+  vellum_set_tone: async (p, uid) => {
+    // persist romance pace + world disposition; they steer the fold (bond seed/
+    // clamp/strip) and the preset prose. Validated via parseTone (neutral default).
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const tone = parseTone(p?.romance, p?.disposition);
+    try { await spindle.chats?.setVar?.(chatId, 'vellum_romance', tone.romance, uid); } catch { /* best effort */ }
+    try { await spindle.chats?.setVar?.(chatId, 'vellum_disposition', tone.disposition, uid); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition }, uid);
   },
   vellum_import: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

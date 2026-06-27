@@ -23,6 +23,10 @@ export interface ExtractCtx {
   state: ChronicleState;
   /** monotonic seq allocator so emitted events order correctly */
   seq: () => number;
+  /** tone dials (romance pace + world disposition); optional, defaults neutral */
+  tone?: import('../domain/tone.js').Tone;
+  /** canonical {{user}} id, for the disposition first-impression seed */
+  userCanon?: string;
 }
 
 export interface InjectCtx {
