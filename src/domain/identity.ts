@@ -1,6 +1,5 @@
 import type { ChronicleState } from './types.js';
 import { canonId } from '../core/ids.js';
-
 /**
  * Cast identity resolution. The model refers to the same character by varying
  * names across turns — "Cersei" one turn, "Cersei Lannister" the next — and
@@ -55,4 +54,128 @@ export function resolveCastId(state: ChronicleState, rawName: string, extraIds?:
 function tokenPrefix(short: string, full: string): boolean {
   if (short === full || !short || !full) return false;
   return full.startsWith(short + '_');
+}
+
+// pronouns / deixis — NEVER a character name, regardless of capitalization
+// ("She" at a sentence start is still a pronoun). A bond keyed to one spawns a
+// junk node ("she → Daeron"); resolving it to a referent needs coref we lack.
+const PRONOUN = new Set([
+  'she', 'he', 'her', 'him', 'his', 'hers', 'they', 'them', 'their', 'theirs',
+  'it', 'its', 'i', 'me', 'my', 'mine', 'you', 'your', 'yours', 'we', 'us', 'our', 'ours',
+  'this', 'that', 'these', 'those', 'someone', 'somebody', 'anyone', 'everyone',
+  'no one', 'nobody', 'everybody', 'who', 'whom', 'one', 'self', 'himself', 'herself', 'themselves',
+]);
+// generic role nouns — junk ONLY when lowercase/uncapitalized. A capitalized
+// proper epithet ("The Stranger", "The Hound") is a real name and passes.
+const GENERIC = new Set([
+  'guard', 'servant', 'soldier', 'stranger', 'man', 'woman', 'figure', 'person',
+  'people', 'child', 'boy', 'girl', 'men', 'women', 'others', 'crowd', 'group',
+]);
+
+/**
+ * True when a raw name is NOT a usable character identity. Rejects: empty,
+ * placeholders, pronouns/deixis (any case), and bare LOWERCASE generic nouns.
+ * Passes: proper names ("Anne", "Daeron"), capitalized epithets ("The Stranger").
+ */
+export function notAName(rawName: string): boolean {
+  const s = String(rawName ?? '').trim();
+  if (!s) return true;
+  if (/\{\{/.test(s) || /placeholder/i.test(s)) return true;
+  const rest = s.replace(/^(a|an|the)\s+/i, '');
+  if (!rest) return true;
+  const lower = rest.toLowerCase();
+  if (PRONOUN.has(lower)) return true; // pronoun/deixis, any case
+  // a single bare LOWERCASE generic word ("guard", "stranger") — capitalized
+  // first letter means a proper epithet, which passes.
+  const words = rest.split(/\s+/);
+  if (words.length === 1 && words[0]![0] === words[0]![0]!.toLowerCase() && GENERIC.has(lower)) return true;
+  return false;
+}
+
+/**
+ * SELF-HEALING merge pass over a reduced state. resolveCastId only merges at
+ * CREATION time; once `cersei` and `cersei_lannister` both exist as separate
+ * stored cards (from an older log, or a fold before the resolver landed),
+ * nothing collapses them. This pass folds any cast node whose id is a UNIQUE
+ * token-prefix of another (`cersei` ⊂ `cersei_lannister`) into the longer, more
+ * specific id, then remaps every id-bearing reference across the whole state.
+ *
+ * PURE: returns a new-ish state (mutates a shallow-built copy of collections).
+ * Idempotent and conservative — ambiguous prefixes (two candidates) are left
+ * untouched so distinct characters are never collapsed. Apply AFTER reduce().
+ */
+export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
+  const ids = Object.keys(s.cast);
+  if (ids.length < 2) return s;
+
+  // build id → canonical-id remap from unique token-prefix containment
+  const remap = new Map<string, string>();
+  for (const shortId of ids) {
+    const supersets = ids.filter((other) => other !== shortId && tokenPrefix(shortId, other));
+    if (supersets.length === 1) remap.set(shortId, supersets[0]!); // unique → merge into the longer
+  }
+  if (!remap.size) return s;
+
+  // collapse transitive chains (a→b, b→c ⇒ a→c) so every id lands on its final target
+  const resolve = (id: string): string => {
+    let cur = id, guard = 0;
+    while (remap.has(cur) && guard++ < 16) cur = remap.get(cur)!;
+    return cur;
+  };
+  const map = (id: string): string => resolve(id);
+
+  // 1) cast: merge cards, preferring the kept card's fields; fold the short
+  //    name into the kept card's aka so it stays recognizable + searchable.
+  const cast: Record<string, typeof s.cast[string]> = {};
+  for (const id of ids) {
+    const target = map(id);
+    const src = s.cast[id]!;
+    if (!cast[target]) {
+      cast[target] = { ...(s.cast[target] ?? src), id: target };
+    }
+    const keep = cast[target]!;
+    if (id !== target) {
+      const akas = new Set([...(keep.aka ?? []), src.name, ...(src.aka ?? [])].filter(Boolean));
+      keep.aka = Array.from(akas).filter((a) => canonId(a) !== target);
+      keep.firstTurn = Math.min(keep.firstTurn, src.firstTurn);
+      keep.lastTurn = Math.max(keep.lastTurn, src.lastTurn);
+      keep.userEdited = keep.userEdited || src.userEdited;
+    }
+  }
+
+  // 2) relations: remap endpoints, then merge edges that collapse to the same pair
+  const relByKey = new Map<string, typeof s.relations[number]>();
+  for (const r of s.relations) {
+    const a = map(r.a), b = map(r.b);
+    if (a === b) continue; // self-edge after merge → drop
+    const key = a + '|' + b;
+    const existing = relByKey.get(key);
+    if (!existing) { relByKey.set(key, { ...r, a, b }); continue; }
+    // accumulate the weaker edge into the kept one (sum scores, union cats)
+    existing.affection = Math.max(-100, Math.min(100, existing.affection + r.affection));
+    existing.trust = Math.max(-100, Math.min(100, existing.trust + r.trust));
+    existing.categories = Array.from(new Set([...existing.categories, ...r.categories]));
+    existing.firstTurn = Math.min(existing.firstTurn, r.firstTurn);
+    existing.lastTurn = Math.max(existing.lastTurn, r.lastTurn);
+    existing.userEdited = existing.userEdited || r.userEdited;
+  }
+
+  // 3) every other id-bearing field
+  const knowledge = s.knowledge.map((k) => ({ ...k, who: map(k.who), ...(k.about ? { about: map(k.about) } : {}) }));
+  const secrets = s.secrets.map((x) => ({ ...x, keeper: map(x.keeper), from: x.from.map(map), revealedTo: x.revealedTo.map(map) }));
+  const journal = s.journal.map((j) => ({ ...j, who: map(j.who), ...(j.about ? { about: map(j.about) } : {}) }));
+  const parallel = s.parallel.map((p) => ({ ...p, ...(p.who ? { who: map(p.who) } : {}) }));
+  const present = Array.from(new Set(s.scene.present.map(map)));
+  const detail = s.scene.detail.map((d) => ({ ...d, id: map(d.id) })).filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
+
+  return {
+    ...s,
+    cast,
+    relations: Array.from(relByKey.values()),
+    knowledge,
+    secrets,
+    journal,
+    parallel,
+    scene: { ...s.scene, present, detail },
+  };
 }

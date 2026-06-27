@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCastId } from '../src/domain/identity.js';
+import { resolveCastId, notAName, mergeCastDuplicates } from '../src/domain/identity.js';
 import { coreFeature } from '../src/domain/core-feature.js';
 import { reduce } from '../src/core/reduce.js';
-import { freshState, type ChronicleState } from '../src/domain/types.js';
+import { freshState, type ChronicleState, type CastCard, type Relation } from '../src/domain/types.js';
 
 function withCast(...names: Array<[string, string[]?]>): ChronicleState {
   const s = freshState();
@@ -80,5 +80,113 @@ describe('fold dedup — bonds do not split a character across two ids', () => {
     expect(s.relations[0]!.a).toBe('cersei_lannister');
     expect(s.relations[0]!.b).toBe('daeron_targaryen');
     expect(Object.keys(s.cast).sort()).toEqual(['cersei_lannister', 'daeron_targaryen']);
+  });
+});
+
+describe('notAName — reject pronouns / deixis / bare generics', () => {
+  it('rejects pronouns regardless of case', () => {
+    for (const p of ['she', 'She', 'her', 'Her', 'he', 'they', 'it', 'someone', 'you']) expect(notAName(p)).toBe(true);
+  });
+  it('rejects bare lowercase generics, passes capitalized epithets + proper names', () => {
+    expect(notAName('a guard')).toBe(true);
+    expect(notAName('stranger')).toBe(true);
+    expect(notAName('The Stranger')).toBe(false);
+    expect(notAName('Anne')).toBe(false);
+    expect(notAName('Cersei Lannister')).toBe(false);
+  });
+  it('rejects empty / placeholder', () => {
+    expect(notAName('')).toBe(true);
+    expect(notAName('{{user}}')).toBe(true);
+  });
+});
+
+describe('fold — pronoun bond endpoints are dropped (no "she → Daeron")', () => {
+  let seq = 0;
+  const ctx = (state: ChronicleState) => ({ turn: 1, day: 1, state, seq: () => ++seq });
+  it('a bond using "she" as an endpoint mints no node', () => {
+    const s = reduce(coreFeature.extract!({
+      present: [{ name: 'Daeron Targaryen' }],
+      delta: { bonds: [{ a: 'she', b: 'Daeron', aff: 5, cat: ['romantic'] }] },
+    } as any, ctx(freshState())));
+    expect(s.relations).toHaveLength(0);
+    expect(Object.keys(s.cast)).not.toContain('she');
+  });
+});
+
+describe('mergeCastDuplicates — self-heal split nodes across EVERY section', () => {
+  const card = (id: string, name: string): CastCard => ({ id, name, aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 5, userEdited: false });
+  const rel = (a: string, b: string, aff = 0, trust = 0): Relation =>
+    ({ a, b, label: '', categories: ['neutral'], category: 'neutral', affection: aff, trust, sentiment: 'neutral', status: 'active', source: 'auto', userEdited: false, firstTurn: 1, lastTurn: 5, firstDay: 1, history: [], categoryHistory: [] });
+
+  it('"cersei", "cersei_lannister" (and "Cersei Lannister" → same id) merge everywhere', () => {
+    // canonId('Cersei Lannister') === canonId('cersei_lannister') === 'cersei_lannister',
+    // so the genuine split is the short `cersei` vs the full `cersei_lannister`.
+    const s = freshState();
+    s.cast.cersei = card('cersei', 'Cersei');
+    s.cast.cersei_lannister = card('cersei_lannister', 'Cersei Lannister');
+    s.cast.daeron = card('daeron', 'Daeron');
+
+    s.relations = [rel('cersei', 'daeron', 5, 1), rel('cersei_lannister', 'daeron', 9, -2)];
+    s.knowledge = [
+      { id: 'k1', who: 'cersei', fact: 'a', turn: 1 },
+      { id: 'k2', who: 'daeron', about: 'cersei', fact: 'b', turn: 1 },
+    ];
+    s.secrets = [{ id: 's1', keeper: 'cersei', from: ['cersei_lannister', 'daeron'], text: 't', revealed: false, revealedTo: ['cersei'], formedTurn: 1 }];
+    s.journal = [{ id: 'j1', who: 'cersei', about: 'daeron', memory: 'm', kind: 'interaction', weight: 'minor', sentiment: 'neutral', turn: 1, day: 1 }];
+    s.parallel = [{ who: 'cersei', activity: 'plotting', turn: 1, day: 1 }];
+    s.scene = { location: 'x', time: '', tension: 0, weather: '', present: ['cersei', 'cersei_lannister', 'daeron'], detail: [{ id: 'cersei' }, { id: 'cersei_lannister' }] };
+
+    const m = mergeCastDuplicates(s);
+    const KEEP = 'cersei_lannister';
+
+    // cast: one Cersei, short name folded into aka
+    expect(Object.keys(m.cast).sort()).toEqual(['cersei_lannister', 'daeron']);
+    expect(m.cast[KEEP]!.aka).toContain('Cersei');
+
+    // relations: the two cersei→daeron edges collapse into one, scores summed
+    expect(m.relations).toHaveLength(1);
+    expect(m.relations[0]!.a).toBe(KEEP);
+    expect(m.relations[0]!.affection).toBe(14); // 5 + 9
+    expect(m.relations[0]!.trust).toBe(-1); // 1 + (-2)
+
+    // knowledge
+    expect(m.knowledge.find((k) => k.id === 'k1')!.who).toBe(KEEP);
+    expect(m.knowledge.find((k) => k.id === 'k2')!.about).toBe(KEEP);
+
+    // secrets (keeper / from / revealedTo); from de-dupes after remap
+    expect(m.secrets[0]!.keeper).toBe(KEEP);
+    expect(m.secrets[0]!.from).toContain(KEEP);
+    expect(m.secrets[0]!.revealedTo).toEqual([KEEP]);
+
+    // journal (who + about)
+    expect(m.journal[0]!.who).toBe(KEEP);
+    expect(m.journal[0]!.about).toBe('daeron');
+
+    // parallel
+    expect(m.parallel[0]!.who).toBe(KEEP);
+
+    // scene present + detail de-duped
+    expect(m.scene.present.sort()).toEqual(['cersei_lannister', 'daeron']);
+    expect(m.scene.detail.map((d) => d.id)).toEqual([KEEP]);
+  });
+
+  it('is idempotent and leaves distinct characters alone', () => {
+    const s = freshState();
+    s.cast.cersei = card('cersei', 'Cersei');
+    s.cast.cersei_lannister = card('cersei_lannister', 'Cersei Lannister');
+    s.cast.jon = card('jon', 'Jon');
+    const once = mergeCastDuplicates(s);
+    const twice = mergeCastDuplicates(once);
+    expect(Object.keys(twice.cast).sort()).toEqual(['cersei_lannister', 'jon']);
+    expect(twice.cast.jon).toBeDefined(); // untouched
+  });
+
+  it('does NOT merge an ambiguous prefix (two candidates)', () => {
+    const s = freshState();
+    s.cast.cersei = card('cersei', 'Cersei');
+    s.cast.cersei_lannister = card('cersei_lannister', 'Cersei Lannister');
+    s.cast.cersei_baratheon = card('cersei_baratheon', 'Cersei Baratheon');
+    const m = mergeCastDuplicates(s);
+    expect(Object.keys(m.cast).sort()).toEqual(['cersei', 'cersei_baratheon', 'cersei_lannister']);
   });
 });

@@ -1,6 +1,7 @@
 import { type EventLog, type VellumEvent, VellumEvent as VellumEventSchema, freshLog, SCHEMA_VERSION } from '../core/events.js';
 import { type ChronicleState } from '../domain/types.js';
 import { reduce } from '../core/reduce.js';
+import { mergeCastDuplicates } from '../domain/identity.js';
 import { migrate } from '../core/migrate.js';
 import { tryCatchAsync } from '../core/result.js';
 
@@ -85,7 +86,7 @@ export async function loadLog(chatId: string): Promise<EventLog> {
     readonly = true;
     spindle.log?.warn?.('[vellum_engine] log read failed for ' + chatId + ' — READ-ONLY this session.');
   }
-  _cache.set(chatId, { log, state: reduce(log.events), reduced: log.events.length, readonly });
+  _cache.set(chatId, { log, state: mergeCastDuplicates(reduce(log.events)), reduced: log.events.length, readonly });
   return log;
 }
 
@@ -96,6 +97,9 @@ export async function loadState(chatId: string): Promise<ChronicleState> {
   if (c.reduced < c.log.events.length) {
     c.state = reduce(c.log.events, c.state, c.reduced); // fold only new events
     c.reduced = c.log.events.length;
+    // self-heal split cast nodes (cersei + cersei_lannister) into the canonical
+    // id and remap all references. Idempotent; runs only when new events folded.
+    c.state = mergeCastDuplicates(c.state);
   }
   return c.state;
 }
@@ -166,7 +170,7 @@ export async function truncateAfterTurn(chatId: string, turn: number): Promise<C
   const kept = c.log.events.filter((e) => e.turn <= turn);
   if (kept.length === c.log.events.length) return loadState(chatId); // nothing to drop
   c.log.events = kept;
-  c.state = reduce(kept); // full re-reduce: truncation isn't a forward fold
+  c.state = mergeCastDuplicates(reduce(kept)); // full re-reduce: truncation isn't a forward fold
   c.reduced = kept.length;
   await persist(chatId);
   return c.state;
@@ -188,7 +192,7 @@ export async function exportLog(chatId: string): Promise<EventLog> {
  * Explicit user action → clears the read-only guard. */
 export async function importLog(chatId: string, log: EventLog): Promise<ChronicleState> {
   const { log: next } = lenientLog(log, chatId);
-  _cache.set(chatId, { log: next, state: reduce(next.events), reduced: next.events.length, readonly: false });
+  _cache.set(chatId, { log: next, state: mergeCastDuplicates(reduce(next.events)), reduced: next.events.length, readonly: false });
   await persist(chatId);
   return _cache.get(chatId)!.state;
 }

@@ -23,6 +23,40 @@ function findRel(s: ChronicleState, a: string, b: string): Relation | undefined 
   return s.relations.find((r) => r.a === a && r.b === b);
 }
 
+/**
+ * Auto-register / promote a cast card for ANY character the chronicle refers to
+ * — not just those in the scene's `present` list. Knowledge/secrets/journal/
+ * bonds attribute to canonical ids; without a card those characters are ghost
+ * ids (no name, absent from the cast UI), which made it look like only the
+ * {{char}} accrued data.
+ *
+ *  - missing      → create a 'mentioned' card (readable de-canonicalized name)
+ *  - 'added'      → promote to 'mentioned': a user-pre-seeded character the story
+ *                   has now actually referenced enters the live lifecycle (a
+ *                   later cast.seen lifts them to present/active)
+ *  - present/active/mentioned → only bump lastTurn (never downgrade)
+ */
+function ensureCast(s: ChronicleState, id: string, turn: number, name?: string): void {
+  if (!id) return;
+  const c = s.cast[id];
+  if (!c) {
+    s.cast[id] = {
+      id,
+      name: name || deCanon(id),
+      aka: [], status: 'mentioned', source: 'auto',
+      firstTurn: turn, lastTurn: turn, userEdited: false,
+    };
+    return;
+  }
+  c.lastTurn = Math.max(c.lastTurn, turn);
+  if (c.status === 'added') c.status = 'mentioned'; // pre-seed → live once referenced
+}
+
+/** Readable name from a canonical id: `cersei_lannister` → `Cersei Lannister`. */
+function deCanon(id: string): string {
+  return String(id).split('_').filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || id;
+}
+
 function apply(s: ChronicleState, e: VellumEvent): void {
   switch (e.kind) {
     case 'turn.fold': {
@@ -86,6 +120,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'bond.delta': {
+      ensureCast(s, e.a, e.turn); ensureCast(s, e.b, e.turn); // every bonded character gets a card
       let r = findRel(s, e.a, e.b);
       if (!r) {
         r = freshRelation(e.a, e.b, e.turn, e.day, e.src === 'user' ? 'user' : 'auto');
@@ -111,6 +146,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'knowledge.learn': {
+      ensureCast(s, e.who, e.turn); if (e.about) ensureCast(s, e.about, e.turn); // knower + subject become tracked cast
       const dup = s.knowledge.find((k) => k.who === e.who && k.fact === e.fact);
       if (!dup) s.knowledge.push({ id: `k_${s.knowledge.length}_${e.seq}`, who: e.who, fact: e.fact, ...(e.about ? { about: e.about } : {}), turn: e.turn });
       break;
@@ -121,6 +157,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'secret.form': {
       if (!s.secrets.find((x) => x.id === e.id)) {
+        ensureCast(s, e.keeper, e.turn); for (const f of e.from) ensureCast(s, f, e.turn); // keeper + those kept in the dark
         s.secrets.push({ id: e.id, keeper: e.keeper, from: e.from, text: e.text, revealed: false, revealedTo: [], formedTurn: e.turn });
       }
       break;
@@ -164,6 +201,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (!s.journal.find((j) => j.id === e.id)) {
         // dedupe identical memory text for the same holder
         if (!s.journal.find((j) => j.who === e.who && j.memory === e.memory)) {
+          ensureCast(s, e.who, e.turn); if (e.about) ensureCast(s, e.about, e.turn); // holder + subject become tracked cast
           s.journal.push({ id: e.id, who: e.who, ...(e.about ? { about: e.about } : {}), memory: e.memory, kind: e.jkind, weight: e.weight, sentiment: e.sentiment, turn: e.turn, day: e.day });
         }
       }

@@ -116,6 +116,57 @@ describe('reduce — cast, knowledge, secrets, memory', () => {
     expect(s.cast.ned!.firstTurn).toBe(1); // protected
   });
 
+  it('auto-registers a cast card for ANY referenced character, not just present ones', () => {
+    // a side character who only appears in knowledge/secret/journal — never in a
+    // scene.set present list — must still become tracked cast (with their data).
+    const s = reduce([
+      ev({ kind: 'knowledge.learn', who: 'tyrion', fact: 'knows of the tunnels' }),
+      ev({ kind: 'secret.form', id: 'x1', keeper: 'varys', from: ['robert'], text: 'a hidden heir' }),
+      ev({ kind: 'journal.entry', id: 'j1', who: 'sansa', about: 'joffrey', memory: 'he humiliated me', jkind: 'wound', weight: 'defining', sentiment: 'negative' }),
+    ]);
+    expect(s.cast.tyrion).toBeDefined();
+    expect(s.cast.varys).toBeDefined();
+    expect(s.cast.robert).toBeDefined();
+    expect(s.cast.sansa).toBeDefined();
+    expect(s.cast.joffrey).toBeDefined();
+    expect(s.cast.tyrion!.status).toBe('mentioned');
+    expect(s.cast.sansa!.name).toBe('Sansa'); // readable de-canonicalized name
+    // their data is attributed to them, not lost
+    expect(s.knowledge.find((k) => k.who === 'tyrion')).toBeTruthy();
+    expect(s.journal.find((j) => j.who === 'sansa')).toBeTruthy();
+  });
+
+  it('a later cast.seen upgrades a mentioned character to present', () => {
+    const s = reduce([
+      ev({ kind: 'knowledge.learn', who: 'tyrion', fact: 'knows a thing' }),
+      ev({ kind: 'cast.seen', id: 'tyrion', name: 'Tyrion Lannister', status: 'present' }),
+    ]);
+    expect(s.cast.tyrion!.status).toBe('present');
+  });
+
+  it('added (user pre-seed) flows added → mentioned → present/active', () => {
+    // user pre-seeds a character before they appear
+    let s = reduce([ev({ kind: 'cast.seen', id: 'gendry', name: 'Gendry', status: 'added' })]);
+    expect(s.cast.gendry!.status).toBe('added');
+
+    // the story references them (a bond) → promoted into the live lifecycle
+    s = reduce([ev({ kind: 'bond.delta', a: 'gendry', b: 'arya', aff: 5 })], s, 0);
+    expect(s.cast.gendry!.status).toBe('mentioned');
+
+    // they walk on-stage → present
+    s = reduce([ev({ kind: 'cast.seen', id: 'gendry', name: 'Gendry', status: 'present' })], s, 0);
+    expect(s.cast.gendry!.status).toBe('present');
+  });
+
+  it('added is promoted to present directly when the scene introduces them', () => {
+    let s = reduce([ev({ kind: 'cast.seen', id: 'hodor', name: 'Hodor', status: 'added' })]);
+    s = reduce([
+      ev({ kind: 'scene.set', present: ['hodor'] }),
+      ev({ kind: 'cast.seen', id: 'hodor', name: 'Hodor', status: 'present' }),
+    ], s, 0);
+    expect(s.cast.hodor!.status).toBe('present');
+  });
+
   it('dedupes knowledge and reveals secrets', () => {
     const s = reduce([
       ev({ kind: 'knowledge.learn', who: 'cersei', fact: 'the children are not the king\u2019s' }),

@@ -2,7 +2,7 @@ import type { Feature, ExtractCtx } from '../bus/registry.js';
 import type { ParsedState } from '../parse/parsed.js';
 import type { VellumEvent } from '../core/events.js';
 import { canonId } from '../core/ids.js';
-import { resolveCastId } from './identity.js';
+import { resolveCastId, notAName } from './identity.js';
 import { adjustBond, DEFAULT_TONE } from './tone.js';
 
 /**
@@ -23,18 +23,23 @@ export const coreFeature: Feature = {
     const turnIds = new Set<string>();
     for (const p of parsed.present ?? []) {
       const n = p.id ?? p.name;
-      if (n) { const c = canonId(n); if (c) turnIds.add(c); }
+      if (n && !notAName(n)) { const c = canonId(n); if (c) turnIds.add(c); }
     }
     // resolve a raw name onto an existing-or-this-turn cast id (merges variants).
     const rid = (name: string): string => resolveCastId(ctx.state, name, turnIds);
 
-    // scene + presence
+    // scene + presence — a pronoun/generic in `present` ("she") must not seed a card
+    const presentName = (p: { id?: string; name?: string }): string => p.id ?? p.name ?? '';
+    const presentId = (p: { id?: string; name?: string }): string => {
+      const n = presentName(p);
+      return n && !notAName(n) ? rid(n) : '';
+    };
     const present = (parsed.present ?? [])
-      .map((p) => (p.id ? rid(p.id) : p.name ? rid(p.name) : ''))
+      .map(presentId)
       .filter(Boolean);
     if (parsed.scene || present.length) {
       const detail = (parsed.present ?? []).map((p) => {
-        const id = p.id ? rid(p.id) : p.name ? rid(p.name) : '';
+        const id = presentId(p);
         return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(p.condition ? { condition: p.condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
       }).filter(Boolean);
       out.push({
@@ -50,7 +55,7 @@ export const coreFeature: Feature = {
     // mark present characters as cast (present status); names seed cards
     for (const p of parsed.present ?? []) {
       const name = p.name ?? p.id;
-      if (!name) continue;
+      if (!name || notAName(name)) continue; // never seed a card from a pronoun/generic
       out.push({ ...base(), kind: 'cast.seen', id: rid(name), name, status: 'present' } as VellumEvent);
     }
 
@@ -59,6 +64,7 @@ export const coreFeature: Feature = {
     const tone = ctx.tone ?? DEFAULT_TONE;
     const userCanon = ctx.userCanon ?? '';
     for (const b of parsed.delta?.bonds ?? []) {
+      if (notAName(b.a) || notAName(b.b)) continue; // reject pronoun/generic endpoints ("she → Daeron")
       const a = rid(b.a), bb = rid(b.b);
       if (!a || !bb || a === bb) continue;
       const existing = ctx.state.relations.find((r) => r.a === a && r.b === bb);

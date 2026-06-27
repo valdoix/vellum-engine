@@ -1,7 +1,7 @@
 import type { VellumEvent, Category } from '../core/events.js';
 import { canonId, nextSeq } from '../core/ids.js';
 import { isCategory } from '../domain/category.js';
-import { resolveCastId } from '../domain/identity.js';
+import { resolveCastId, notAName } from '../domain/identity.js';
 import { adjustBond, DEFAULT_TONE, type Tone } from '../domain/tone.js';
 import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate } from '../host/generation.js';
@@ -30,6 +30,7 @@ const EXTRACT_SYS =
   + '"journal":[{"who":"Name","about":"Name or omit","memory":"one vivid sentence from WHO\'S point of view","kind":"interaction|promise|betrayal|gift|shared|wound|observation","weight":"trivial|minor|significant|defining","sentiment":"positive|negative|neutral|complex"}],'
   + '"bonds":[{"a":"Name","b":"Name","aff":<int -40..40>,"trust":<int -40..40>,"cat":["familial|romantic|alliance|rivalry|social"],"why":"one clause"}]}. '
   + 'RULES: use ONLY real character names that appear in the prose (the persona/player and the characters), never placeholders or unnamed figures (a guard, a servant). '
+  + 'EVERY NAMED CHARACTER COUNTS — not just the lead or the player. Attribute knowledge, secrets, and journal entries to side characters, rivals, family, and minor figures too whenever the prose gives them a real name; the chronicle tracks them all equally. '
   + 'KNOWLEDGE: extract whenever ANY character (including the player) learns, realizes, infers, overhears, confesses, or comes to wrongly believe something — e.g. "Cersei revealed her father beat her" => {who:"<listener>",fact:"<speaker>\'s father beat <speaker>"} AND a secret if it was hidden. '
   + 'SECRETS: extract when someone conceals something OR a hidden thing is revealed this excerpt (a confessed abuse, a hidden parentage, a lie). '
   + 'JOURNAL: extract genuine TURNING POINTS a character would personally carry — a confession, promise, betrayal, gift, wound, first kiss, a moment of being truly seen — written from that character\'s POV; the PLAYER can and should hold journal entries too. '
@@ -53,16 +54,9 @@ function realName(raw: string, names: { user: string; char: string }): string {
   return s;
 }
 function bad(name: string): boolean {
-  const s = String(name || '').trim();
-  if (!s) return true;
-  if (/\{\{/.test(s) || /placeholder/i.test(s)) return true;
-  // reject only a bare lowercase generic noun ("a guard", "someone") — a capitalized
-  // epithet ("The Stranger") is a proper name and passes; "Anne" passes.
-  const GENERIC = new Set(['guard', 'servant', 'soldier', 'stranger', 'man', 'woman', 'figure', 'someone', 'somebody', 'person']);
-  const rest = s.replace(/^(a|an|the)\s+/i, '');
-  const words = rest.split(/\s+/);
-  if (words.length === 1 && GENERIC.has(words[0]!.toLowerCase()) && words[0]![0] === words[0]![0]!.toLowerCase()) return true;
-  return false;
+  // shared name-quality guard: rejects empty, placeholders, pronouns/deixis,
+  // and bare lowercase generics. "The Stranger"/"Anne" pass; "she"/"a guard" fail.
+  return notAName(name);
 }
 
 /**
