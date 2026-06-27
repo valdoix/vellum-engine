@@ -78,6 +78,19 @@ export function isPermDenied(e: unknown): boolean {
   return /permission|denied|not granted/i.test(msg);
 }
 
+/**
+ * Persisted per-chat variables (toggles like tone/traversal/hide/tidy). The host
+ * exposes these via `spindle.variables.chat` (the @-prefixed macro family),
+ * which survives regens/swipes/edits — NOT `spindle.chats.getVar` (which does
+ * not exist; calling it silently no-ops, which is why toggles reset each turn).
+ */
+export async function getChatVar(chatId: string, key: string): Promise<string> {
+  try { return String((await spindle.variables?.chat?.get?.(chatId, key)) ?? ''); } catch { return ''; }
+}
+export async function setChatVar(chatId: string, key: string, value: string): Promise<void> {
+  try { await spindle.variables?.chat?.set?.(chatId, key, value); } catch { /* best effort */ }
+}
+
 /** Resolve the persona ({{user}}) + character ({{char}}) display names for the
  * active chat, so the prose extractor can replace placeholders with real names
  * and attribute knowledge/secrets/journal to the player too. Best-effort. */

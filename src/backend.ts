@@ -1,6 +1,6 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, chatNames } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, chatNames, getChatVar, setChatVar } from './host/chats.js';
 import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -83,7 +83,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const state = await loadState(chatId);
   const tone = await readTone(chatId, userId);
   let tidy = false;
-  try { tidy = !!(await spindle.chats?.getVar?.(chatId, 'vellum_tidy_threads', userId)); } catch { /* best effort */ }
+  try { tidy = !!(await getChatVar(chatId, 'vellum_tidy_threads')); } catch { /* best effort */ }
   spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy }, userId ?? currentUser());
 }
 
@@ -129,9 +129,9 @@ async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number)
 /** Read the per-chat tone dials (romance pace + world disposition) the user set
  * via the Tone control. Defaults to neutral (medium/fair) → today's behavior. */
 async function readTone(chatId: string, userId: string | null): Promise<Tone> {
-  let r: string | null = null, d: string | null = null;
-  try { r = await spindle.chats?.getVar?.(chatId, 'vellum_romance', userId); } catch { /* best effort */ }
-  try { d = await spindle.chats?.getVar?.(chatId, 'vellum_disposition', userId); } catch { /* best effort */ }
+  void userId;
+  const r = await getChatVar(chatId, 'vellum_romance');
+  const d = await getChatVar(chatId, 'vellum_disposition');
   return parseTone(r, d);
 }
 
@@ -233,7 +233,7 @@ async function tidyThreads(chatId: string, userId: string | null): Promise<numbe
  * throttled to roughly every 4th turn so it isn't a per-turn controller cost. */
 async function maybeTidyThreads(chatId: string, userId: string | null): Promise<void> {
   let on = false;
-  try { on = !!(await spindle.chats?.getVar?.(chatId, 'vellum_tidy_threads', userId)); } catch { /* best effort */ }
+  try { on = !!(await getChatVar(chatId, 'vellum_tidy_threads')); } catch { /* best effort */ }
   if (!on) return;
   const state = await loadState(chatId);
   const open = state.threads.filter((t) => !/resolv/i.test(t.status || '')).length;
@@ -312,7 +312,7 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
       spindle.log?.info?.('[vellum_engine] auto-summarized a chapter');
       // if the user enabled hide-summarized, fold the freshly-covered turns away
       try {
-        const enabled = !!(await spindle.chats?.getVar?.(chatId, 'vellum_hide_summarized', userId));
+        const enabled = !!(await getChatVar(chatId, 'vellum_hide_summarized'));
         if (enabled) { const ns = await loadState(chatId); await syncHideOnFile(chatId, true, coveredTurn(ns)); }
       } catch { /* best effort */ }
     }
@@ -349,7 +349,7 @@ function sceneQuery(messages: any[]): string {
  */
 async function traversalController(chatId: string, uid: string | null): Promise<CallModel | undefined> {
   let enabled = false;
-  try { enabled = !!(await spindle.chats?.getVar?.(chatId, 'vellum_traversal', uid)); } catch { /* best effort */ }
+  try { enabled = !!(await getChatVar(chatId, 'vellum_traversal')); } catch { /* best effort */ }
   if (!enabled || !(await has('generation'))) return undefined;
   return async (prompt) => controllerGenerate(
     [{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }],
@@ -644,7 +644,7 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const enabled = !!p?.enabled;
-    try { await spindle.chats?.setVar?.(chatId, 'vellum_hide_summarized', enabled ? '1' : '', uid); } catch { /* best effort */ }
+    try { await setChatVar(chatId, 'vellum_hide_summarized', enabled ? '1' : ''); } catch { /* best effort */ }
     const state = await loadState(chatId);
     const covered = coveredTurn(state);
     const res = await syncHideOnFile(chatId, enabled, covered);
@@ -656,7 +656,7 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const enabled = !!p?.enabled;
-    try { await spindle.chats?.setVar?.(chatId, 'vellum_traversal', enabled ? '1' : '', uid); } catch { /* best effort */ }
+    try { await setChatVar(chatId, 'vellum_traversal', enabled ? '1' : ''); } catch { /* best effort */ }
     const available = await has('generation');
     spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, available }, uid);
   },
@@ -666,8 +666,8 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const tone = parseTone(p?.romance, p?.disposition);
-    try { await spindle.chats?.setVar?.(chatId, 'vellum_romance', tone.romance, uid); } catch { /* best effort */ }
-    try { await spindle.chats?.setVar?.(chatId, 'vellum_disposition', tone.disposition, uid); } catch { /* best effort */ }
+    try { await setChatVar(chatId, 'vellum_romance', tone.romance); } catch { /* best effort */ }
+    try { await setChatVar(chatId, 'vellum_disposition', tone.disposition); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition }, uid);
   },
   vellum_set_tidy: async (p, uid) => {
@@ -675,7 +675,7 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const enabled = !!p?.enabled;
-    try { await spindle.chats?.setVar?.(chatId, 'vellum_tidy_threads', enabled ? '1' : '', uid); } catch { /* best effort */ }
+    try { await setChatVar(chatId, 'vellum_tidy_threads', enabled ? '1' : ''); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_tidy_set_done', ok: true, enabled, available: await has('generation') }, uid);
   },
   vellum_tidy_now: async (p, uid) => {
