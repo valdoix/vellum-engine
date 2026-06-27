@@ -53,6 +53,7 @@ const QOL = [
   { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)' },
   { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)' },
+  { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval: a cheap LLM picks what to recall (needs generation permission; toggle)' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON' },
   { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat' },
@@ -120,6 +121,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
+let _traverseOn = false;
 let _retheme: () => void = () => { /* set in setup */ };
 function onQol(ctx: Ctx, id: string): void {
   if (id === 'customize') { openCustomize(() => _retheme()); }
@@ -128,6 +130,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => ctx.sendToBackend({ type: 'vellum_undo' })); }
   else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
   else if (id === 'hide') { _hideOn = !_hideOn; ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
+  else if (id === 'traverse') { _traverseOn = !_traverseOn; ctx.sendToBackend({ type: 'vellum_set_traversal', enabled: _traverseOn }); }
   else if (id === 'export') { ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => ctx.sendToBackend({ type: 'vellum_clear' })); }
@@ -229,6 +232,11 @@ export function setup(ctx: Ctx): () => void {
         _hideOn = !!p.enabled;
         document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn));
         ctx.toast?.success?.(p.enabled ? `Hiding ${p.hid ?? 0} filed turn(s) from the prompt.` : `Restored ${p.shown ?? 0} turn(s).`);
+      } else if (p?.type === 'vellum_traversal_done') {
+        _traverseOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseOn));
+        if (p.enabled && !p.available) ctx.toast?.warning?.('Traversal needs the generation permission \u2014 falling back to standard recall.');
+        else ctx.toast?.success?.(p.enabled ? 'Controller-guided retrieval on.' : 'Controller-guided retrieval off.');
       }
     } catch (e) { try { console.warn('[vellum] message handler:', e); } catch { /* ignore */ } }
   });

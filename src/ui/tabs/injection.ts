@@ -10,7 +10,8 @@ import { send } from '../bridge.js';
  * tuning recall — you can see exactly what context the model received.
  */
 
-export interface InjRecord { turn: number; at: number; chars: number; recallIds: string[]; text: string }
+export interface InjTrace { scene: string; candidateIds: string[]; selectedIds: string[] }
+export interface InjRecord { turn: number; at: number; chars: number; recallIds: string[]; text: string; source?: string; trace?: InjTrace }
 
 // module-held latest injection log (filled by app.ts on vellum_injection)
 let _log: InjRecord[] = [];
@@ -44,10 +45,24 @@ function record(r: InjRecord): string {
     const lines = b.replace(/^\[[^\]]*\]\s*/, '').split('\n').filter(Boolean).length;
     return `<span class="vle-inj-reason">${esc(label)} \u00b7 ${lines} line${lines === 1 ? '' : 's'}</span>`;
   }).join('');
+  // source badge: traversal (controller-picked) vs hybrid/lexical (deterministic)
+  const src = r.source ? `<span class="vle-inj-src vle-inj-src-${esc(r.source)}">${esc(r.source === 'traversal' ? '\u2748 traversal' : r.source)}</span>` : '';
   return '<div class="vle-inj">'
     + `<div class="vle-inj-top" data-inj-toggle><span class="vle-inj-turn">turn ${r.turn}</span>`
-    + `<span class="vle-inj-reasons">${reasons}</span>`
+    + `<span class="vle-inj-reasons">${src}${reasons}</span>`
     + `<span class="vle-inj-chars">${r.chars} ch</span></div>`
+    + traceHtml(r.trace)
     + `<pre class="vle-inj-body">${esc(r.text)}</pre>`
+    + '</div>';
+}
+
+/** Render the controller-traversal trace: scene seen + candidates → selected. */
+function traceHtml(t?: InjTrace): string {
+  if (!t) return '';
+  const sel = new Set(t.selectedIds);
+  const chips = t.candidateIds.map((id) => `<span class="vle-inj-cand${sel.has(id) ? ' on' : ''}">${esc(id)}</span>`).join('');
+  return '<div class="vle-inj-trace">'
+    + `<div class="vle-inj-scene">scene: ${esc(t.scene)}</div>`
+    + `<div class="vle-inj-cands">${t.selectedIds.length}/${t.candidateIds.length} selected ${chips}</div>`
     + '</div>';
 }

@@ -5,6 +5,7 @@ import { allocate, fitLines } from './budget.js';
 import { rrf } from './fuse.js';
 import { vectorSearch } from './embed.js';
 import { hashStr } from '../core/ids.js';
+import { traverseRanked, type CallModel, type TraversalTrace } from './traverse.js';
 
 /**
  * Recall assembler. Produces the text VELLUM injects into the prompt, in two
@@ -23,7 +24,8 @@ import { hashStr } from '../core/ids.js';
 export interface InjectionResult {
   text: string;
   recallIds: string[];
-  source: 'lexical' | 'hybrid';
+  source: 'lexical' | 'hybrid' | 'traversal';
+  trace?: TraversalTrace;
 }
 
 // knowledge items flow through collectItems→ranked recall (kind:'knowledge'); the
@@ -96,7 +98,8 @@ function assemble(
   index: InvertedIndex,
   rankedIds: string[],
   budgets: Record<string, number>,
-  source: 'lexical' | 'hybrid',
+  source: 'lexical' | 'hybrid' | 'traversal',
+  trace?: TraversalTrace,
 ): InjectionResult {
   const structured = structuredBlock(state, budgets.structured ?? 1200);
   const lines: string[] = [];
@@ -110,7 +113,7 @@ function assemble(
     ? '[CHRONICLE RECALL \u2014 relevant established history. Honor it; do not recite.]\n' + recallLines.join('\n')
     : '';
   const text = [structured, recall].filter(Boolean).join('\n\n');
-  return { text, recallIds, source };
+  return { text, recallIds, source, ...(trace ? { trace } : {}) };
 }
 
 /** Lexical-only ranking with a gentle recency lift. Pure + synchronous. */
@@ -146,10 +149,20 @@ export async function buildInjectionHybrid(
   userId: string | null,
   phaseMult = 1,
   version?: number,
+  controller?: CallModel,
 ): Promise<InjectionResult> {
   const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
   const index = indexFor(chatId, state, version);
   const lexIds = lexicalRanked(index, state, query);
+
+  // Controller-guided traversal (variant A), opt-in. A cheap LLM selects which
+  // candidates THIS scene needs. Any failure (error/timeout/empty/invalid) →
+  // null → fall through to the deterministic hybrid path. The structured
+  // authoritative block is never traversed (guardrail preserved).
+  if (controller) {
+    const t = await traverseRanked(index, state, lexIds, controller);
+    if (t) return assemble(state, index, t.ids, budgets, 'traversal', t.trace);
+  }
 
   const contentToId = (text: string): string | null => {
     const t = text.trim().toLowerCase();

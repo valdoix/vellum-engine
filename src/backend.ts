@@ -10,6 +10,8 @@ import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll } from './bus/summarize.js';
 import { extractFromProse } from './bus/extract.js';
+import { controllerGenerate } from './host/generation.js';
+import type { CallModel } from './retrieval/traverse.js';
 import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
@@ -64,11 +66,11 @@ declare const spindle: any;
 registerFeature(coreFeature);
 
 const lastSigByChat = new Map<string, string>();
-interface InjRecord { turn: number; at: number; chars: number; recallIds: string[]; text: string }
+interface InjRecord { turn: number; at: number; chars: number; recallIds: string[]; text: string; source?: string; trace?: unknown }
 const injectionLog = new Map<string, InjRecord[]>(); // per-chat ring of recent injections
-function recordInjection(chatId: string, turn: number, text: string, recallIds: string[]): InjRecord {
+function recordInjection(chatId: string, turn: number, text: string, recallIds: string[], meta?: { source?: string; trace?: unknown }): InjRecord {
   const ring = injectionLog.get(chatId) ?? [];
-  const rec: InjRecord = { turn, at: Date.now(), chars: text.length, recallIds, text: text.slice(0, 4000) };
+  const rec: InjRecord = { turn, at: Date.now(), chars: text.length, recallIds, text: text.slice(0, 4000), ...(meta?.source ? { source: meta.source } : {}), ...(meta?.trace ? { trace: meta.trace } : {}) };
   ring.push(rec);
   while (ring.length > 20) ring.shift(); // keep last 20 turns of injection history
   injectionLog.set(chatId, ring);
@@ -230,6 +232,23 @@ function sceneQuery(messages: any[]): string {
   return '';
 }
 
+/**
+ * Build the controller CallModel for traversal IF the user enabled it for this
+ * chat (chat var `vellum_traversal`). Returns undefined when off or when the
+ * generation permission is missing, so recall stays on the deterministic path.
+ * The model call is cheap (reasoning off) and hard-timeout bounded.
+ */
+async function traversalController(chatId: string, uid: string | null): Promise<CallModel | undefined> {
+  let enabled = false;
+  try { enabled = !!(await spindle.chats?.getVar?.(chatId, 'vellum_traversal', uid)); } catch { /* best effort */ }
+  if (!enabled || !(await has('generation'))) return undefined;
+  return async (prompt) => controllerGenerate(
+    [{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }],
+    uid,
+    1500,
+  );
+}
+
 // --- permission-gated wiring --------------------------------------------
 // The host rejects interceptor/generation registration when the permission
 // isn't granted, and won't re-wire on its own when the user grants it later.
@@ -255,9 +274,13 @@ async function wireCapabilities(): Promise<void> {
           if (!chatId) return out;
           const state = await loadState(chatId);
           if (!state.turns && !Object.keys(state.cast).length) return out;
-          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId));
+          // Controller-guided traversal (variant A), opt-in per chat. Builds a
+          // CallModel backed by a cheap, timeout-bounded controller generation;
+          // buildInjectionHybrid falls back to the deterministic path on any miss.
+          const controller = await traversalController(chatId, uid);
+          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller);
           if (!inj.text) return out;
-          const rec = recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds);
+          const rec = recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds, { source: inj.source, trace: inj.trace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
           // streams in real time instead of only on manual Refresh.
           try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
@@ -514,6 +537,16 @@ const dispatch: Record<string, Handler> = {
     const covered = coveredTurn(state);
     const res = await syncHideOnFile(chatId, enabled, covered);
     spindle.sendToFrontend?.({ type: 'vellum_hide_done', ok: true, enabled, ...res }, uid);
+  },
+  vellum_set_traversal: async (p, uid) => {
+    // toggle controller-guided traversal (variant A); persist in a chat var.
+    // Requires the generation permission to actually engage.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const enabled = !!p?.enabled;
+    try { await spindle.chats?.setVar?.(chatId, 'vellum_traversal', enabled ? '1' : '', uid); } catch { /* best effort */ }
+    const available = await has('generation');
+    spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, available }, uid);
   },
   vellum_import: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
