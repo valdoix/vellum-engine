@@ -80,6 +80,20 @@ describe('reduce — relations', () => {
 });
 
 describe('reduce — cast, knowledge, secrets, memory', () => {
+  it('demotes cast who left the scene from present \u2192 active', () => {
+    const s = reduce([
+      ev({ kind: 'cast.seen', id: 'ned', name: 'Ned', status: 'present' }),
+      ev({ kind: 'cast.seen', id: 'jon', name: 'Jon', status: 'present' }),
+      ev({ kind: 'scene.set', present: ['ned', 'jon'] }),
+      // next turn: only Ned remains on stage
+      ev({ kind: 'scene.set', present: ['ned'] }),
+      ev({ kind: 'cast.seen', id: 'ned', name: 'Ned', status: 'present' }),
+    ]);
+    expect(s.cast.ned!.status).toBe('present'); // still on stage
+    expect(s.cast.jon!.status).toBe('active'); // left \u2192 demoted, not stuck present
+    expect(s.scene.present).toEqual(['ned']);
+  });
+
   it('tracks cast and drops cascade to relations', () => {
     const s = reduce([
       ev({ kind: 'cast.seen', id: 'ned', name: 'Ned Stark', status: 'present' }),

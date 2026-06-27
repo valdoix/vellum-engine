@@ -133,6 +133,23 @@ export function invalidate(chatId?: string): void {
 /** Is this chat in the protective read-only state (load failed)? */
 export function isReadonly(chatId: string): boolean { return _cache.get(chatId)?.readonly ?? false; }
 
+/**
+ * Per-turn content signature map from the log's `turn.fold` events: turn → sig.
+ * Lets the fold reconcile detect a REGENERATED or EDITED earlier turn (same
+ * message count, changed content) so it can roll that turn back and re-fold.
+ * Last write wins, so a re-folded turn's newer sig overwrites the old.
+ */
+export async function turnSigs(chatId: string): Promise<Map<number, string>> {
+  await loadLog(chatId);
+  const c = _cache.get(chatId);
+  const out = new Map<number, string>();
+  if (!c) return out;
+  for (const e of c.log.events) {
+    if (e.kind === 'turn.fold') out.set(e.turn, e.sig);
+  }
+  return out;
+}
+
 /** Monotonic log version = event count. Bumps on every append/edit; used to
  * key the recall index so in-place content edits invalidate it (Fix 20). */
 export function logVersion(chatId: string): number { return _cache.get(chatId)?.log.events.length ?? 0; }

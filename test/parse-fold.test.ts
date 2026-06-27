@@ -104,6 +104,19 @@ describe('foldTurn → events → reduce', () => {
     expect(a.sig).toBe(b.sig);
   });
 
+  it('turn is POSITIONAL: ignores the model-supplied turn (prevents the t1 freeze + duplicate-delta bug)', () => {
+    // a block that lies with "turn": 1 must still be stamped with the loop position
+    const block = [
+      '\u2039vellum\u203a',
+      JSON.stringify({ v: 2, turn: 1, day: 2, delta: { bonds: [{ a: 'a', b: 'b', aff: 5 }] } }),
+      '\u2039/vellum\u203a',
+    ].join('\n');
+    const { events } = foldTurn(block, freshState(), 7);
+    expect(events.every((e) => e.turn === 7)).toBe(true); // not 1
+    const fold = events.find((e) => e.kind === 'turn.fold');
+    expect(fold?.turn).toBe(7);
+  });
+
   it('empty content yields no events', () => {
     expect(foldTurn('', freshState(), 1).events).toHaveLength(0);
   });

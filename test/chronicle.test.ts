@@ -35,3 +35,37 @@ describe('Fix 10 — truncateAfterTurn (undo)', () => {
     expect(s.relations[0]!.affection).toBe(10);
   });
 });
+
+describe('regeneration reconcile — turnSigs + rollback/re-fold', () => {
+  const fold = (turn: number, seq0: number, sig: string, aff: number) => [
+    ev(turn, seq0, { kind: 'turn.fold', sig }) as any,
+    ev(turn, seq0 + 1, { kind: 'bond.delta', a: 'a', b: 'b', aff }) as any,
+  ];
+
+  it('turnSigs maps each turn to its latest fold signature', async () => {
+    const { append, turnSigs } = await import('../src/store/chronicle.js');
+    const chatId = 'sig_' + Math.random().toString(36).slice(2);
+    await append(chatId, [...fold(1, 1, 'sigT1', 10), ...fold(2, 3, 'sigT2', 20)]);
+    const sigs = await turnSigs(chatId);
+    expect(sigs.get(1)).toBe('sigT1');
+    expect(sigs.get(2)).toBe('sigT2');
+  });
+
+  it('regenerating turn 2: roll back to turn 1, re-fold → old turn-2 delta is gone', async () => {
+    const { append, truncateAfterTurn, turnSigs, loadState } = await import('../src/store/chronicle.js');
+    const chatId = 'regen_' + Math.random().toString(36).slice(2);
+    await append(chatId, [...fold(1, 1, 'sigT1', 10), ...fold(2, 3, 'OLD', 20)]);
+    expect((await loadState(chatId)).relations[0]!.affection).toBe(30); // 10 + 20
+
+    // turn 2 regenerated: current sig 'NEW' != stored 'OLD' → divergence at turn 2,
+    // keep up to turn 1, then re-fold the new turn-2 content (aff -5 instead of 20).
+    const sigs = await turnSigs(chatId);
+    let rollback: number | null = null;
+    for (const t of [1, 2]) { if (sigs.get(t) !== (t === 2 ? 'NEW' : 'sigT1')) { rollback = t - 1; break; } }
+    expect(rollback).toBe(1);
+
+    await truncateAfterTurn(chatId, rollback!);
+    await append(chatId, [...fold(2, 5, 'NEW', -5)]);
+    expect((await loadState(chatId)).relations[0]!.affection).toBe(5); // 10 + (-5), old +20 dropped
+  });
+});

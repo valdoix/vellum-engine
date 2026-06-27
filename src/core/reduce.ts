@@ -39,6 +39,16 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         present: e.present,
         detail: e.detail ? e.detail.map((d) => ({ id: d.id, ...(d.mood ? { mood: d.mood } : {}), ...(d.doing ? { doing: d.doing } : {}), ...(d.condition ? { condition: d.condition } : {}), ...(d.thought ? { thought: d.thought } : {}) })) : (e.present.length ? s.scene.detail.filter((d) => e.present.includes(d.id)) : s.scene.detail),
       };
+      // demote cast who LEFT: an authoritative present list means anyone still
+      // flagged 'present' but no longer on stage steps back to 'active' (in play,
+      // offscreen). Without this, 'present' accrues everyone ever seen. The
+      // matching cast.seen events (emitted after) re-promote those who remain.
+      if (e.present.length) {
+        const here = new Set(e.present);
+        for (const c of Object.values(s.cast)) {
+          if (c.status === 'present' && !here.has(c.id)) c.status = 'active';
+        }
+      }
       break;
     }
     case 'parallel.set': {

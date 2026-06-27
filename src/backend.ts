@@ -1,7 +1,7 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, chatNames } from './host/chats.js';
-import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn } from './store/chronicle.js';
+import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
@@ -13,7 +13,7 @@ import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
 import type { CallModel } from './retrieval/traverse.js';
 import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
-import { nextSeq as nextSeqLocal } from './core/ids.js';
+import { nextSeq as nextSeqLocal, hashStr } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
 import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
@@ -95,19 +95,57 @@ function foldChat(chatId: string, userId: string | null, hint?: string): Promise
   return next;
 }
 
+/** Content signature for a turn — MUST match foldTurn's sig (hashStr of the
+ * first 4000 chars of the trimmed content) so stored and current sigs compare. */
+function sigOf(content: string): string { return hashStr(content.slice(0, 4000)); }
+
+/**
+ * Find the lowest already-folded turn whose content changed (regenerate/edit),
+ * or the new turn count if messages were deleted — i.e. the turn to roll BACK
+ * to (return = keep turns ≤ N). Returns null when nothing earlier diverged.
+ */
+async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number): Promise<number | null> {
+  if (foldedTurns <= 0) return null;
+  // messages deleted: fewer assistant turns than we folded → roll back to the new count
+  if (msgs.length < foldedTurns) return msgs.length;
+  const sigs = await turnSigs(chatId);
+  for (let turnNo = 1; turnNo <= foldedTurns; turnNo++) {
+    const stored = sigs.get(turnNo);
+    if (stored === undefined) continue; // turn had no fold marker — skip
+    // legacy constant sigs (pre-reconcile builds) can't be compared — skip them
+    // so we never roll back a chronicle folded by an older version.
+    if (stored === 'auto' || stored === 'rebuild') continue;
+    const cur = sigOf((msgs[turnNo - 1] ?? '').trim());
+    if (cur !== stored) return turnNo - 1; // keep up to the turn before the change
+  }
+  return null;
+}
+
 async function foldChatInner(chatId: string, userId: string | null, hint?: string): Promise<void> {
   let msgs = await allAssistantContents(chatId);
   if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allAssistantContents(chatId); }
   if (hint && hint.trim() && (!msgs.length || msgs[msgs.length - 1] !== hint)) msgs.push(hint);
   if (!msgs.length) return;
   let prior = await loadState(chatId);
+  // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
+  // message count, so the forward-only fold below would never revisit it and the
+  // chronicle would keep the STALE turn's deltas. Compare each already-folded
+  // turn's stored content signature to the message's current signature; at the
+  // first divergence (or if messages were deleted), roll the log back to just
+  // before it so the loop re-folds the new content. (Swipes are out of scope.)
+  const rollbackTo = await divergedTurn(chatId, msgs, prior.turns ?? 0);
+  if (rollbackTo !== null && rollbackTo < (prior.turns ?? 0)) {
+    prior = await truncateAfterTurn(chatId, rollbackTo);
+    invalidateIndex(chatId);
+    spindle.log?.info?.(`[vellum_engine] reconcile: turn ${rollbackTo + 1} changed (regenerate/edit) \u2014 rolled back to turn ${rollbackTo}, re-folding.`);
+  }
   let added = 0;
   for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
     const { events, source } = foldTurn(content, prior, turnNo);
     const evs: VellumEvent[] = [...events];
-    if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: 'auto' } as VellumEvent);
+    if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
     const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
     if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
     prior = await append(chatId, evs);
@@ -353,7 +391,7 @@ const dispatch: Record<string, Handler> = {
         if (!content) continue;
         const { events } = foldTurn(content, prior, turnNo);
         const evs: VellumEvent[] = [...events];
-        if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: 'rebuild' } as VellumEvent);
+        if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
         const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
         if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
         prior = await append(chatId, evs);

@@ -27,7 +27,13 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number)
   const { state: parsed, source } = parseState(content);
   if (!parsed) return { events: [], source, sig };
 
-  const turn = parsed.turn ?? turnNo;
+  // TURN IS POSITIONAL (authoritative): the fold loop's index = the assistant
+  // message position, and reduce's turn high-water drives that loop. The model's
+  // self-reported `parsed.turn` is unreliable (some emit a fixed "turn":1 every
+  // block) — honoring it freezes the high-water at 1, which both (a) shows every
+  // event as t1 and (b) makes the loop re-fold turns 2..N each GENERATION_ENDED,
+  // duplicating bond deltas. Day stays narrative (model-supplied).
+  const turn = turnNo;
   const day = parsed.day ?? prior.day ?? 1;
   const ctx: ExtractCtx = { turn, day, state: prior, seq: nextSeq };
 
