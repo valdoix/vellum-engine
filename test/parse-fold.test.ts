@@ -74,6 +74,27 @@ describe('parseState', () => {
     expect(r.state?.delta?.bonds?.[0]?.addCats).toBeUndefined();
   });
 
+  it('folds knowledge & secrets written INLINE in the block (not just via the prose extractor)', () => {
+    const block = '<vellum>\n' + JSON.stringify({
+      turn: 5, scene: { loc: 'Hall' }, present: [{ id: 'Cersei' }],
+      delta: {
+        knowledge: [{ who: 'Cersei', fact: 'the heirs are not the king\u2019s', reliability: 'wrong', truth: 'false', about: 'Robert' }],
+        secrets: [{ keeper: 'Cersei', secret: 'the incest', from: 'Robert, Ned' }],
+      },
+    }) + '\n</vellum>';
+    const r = parseState(block);
+    expect(r.source).toBe('json');
+    let seq = 0;
+    const s = reduce(coreFeature.extract!(r.state as any, { turn: 5, day: 1, state: freshState(), seq: () => ++seq } as any));
+    const k = s.knowledge.find((x) => x.who === 'cersei');
+    expect(k?.fact).toContain('heirs');
+    expect(k?.reliability).toBe('wrong');
+    expect(k?.truth).toBe('false');
+    const sec = s.secrets.find((x) => x.keeper === 'cersei');
+    expect(sec?.text).toContain('incest');
+    expect(sec?.from).toContain('robert');
+  });
+
   it('invented enum values anywhere never drop the turn (op/kind/weight/sentiment/tension)', () => {
     const block = '<vellum>\n' + JSON.stringify({
       turn: 4, scene: { loc: 'Crypt', tension: 99 }, present: [{ id: 'A' }],

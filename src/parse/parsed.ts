@@ -58,6 +58,22 @@ export const ParsedJournal = z.object({
   sentiment: z.enum(['positive', 'negative', 'neutral', 'complex']).optional().catch(undefined),
 });
 
+export const ParsedKnowledge = z.object({
+  who: z.string(),
+  fact: z.string(),
+  about: z.string().optional(),
+  reliability: z.enum(['knows', 'believes', 'suspects', 'wrong', 'unaware']).optional().catch(undefined),
+  truth: z.enum(['true', 'false', 'unknown']).optional().catch(undefined),
+  source: z.string().optional(),
+});
+
+export const ParsedSecret = z.object({
+  keeper: z.string(),
+  secret: z.string().optional(),
+  text: z.string().optional(),
+  from: z.union([z.string(), z.array(z.string())]).optional(),
+});
+
 export const ParsedState = z.object({
   v: z.number().optional(),
   turn: z.number().optional(),
@@ -69,6 +85,8 @@ export const ParsedState = z.object({
     threads: z.array(ParsedThread).optional(),
     arcs: z.array(ParsedThread).optional(),
     journal: z.array(ParsedJournal).optional(),
+    knowledge: z.array(ParsedKnowledge).optional(),
+    secrets: z.array(ParsedSecret).optional(),
     parallel: z.array(ParsedParallel).optional(),
   }).optional(),
   // Open extension point: future blocks (e.g. inventory, factions) can land here

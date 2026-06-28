@@ -113,6 +113,30 @@ export const coreFeature: Feature = {
       } as VellumEvent);
     }
 
+    // knowledge written inline in the block (deterministic; the prose extractor
+    // is a separate best-effort backup). Reject pronoun/generic holders.
+    for (const k of parsed.delta?.knowledge ?? []) {
+      const fact = String(k.fact || '').trim();
+      if (!fact || notAName(k.who)) continue;
+      const who = rid(k.who);
+      out.push({
+        ...base(), kind: 'knowledge.learn', who, fact,
+        ...(k.about && !notAName(k.about) ? { about: rid(k.about) } : {}),
+        ...(k.reliability ? { reliability: k.reliability } : {}),
+        ...(k.truth ? { truth: k.truth } : {}),
+        ...(k.source ? { source: String(k.source).slice(0, 120) } : {}),
+      } as VellumEvent);
+    }
+    // secrets written inline in the block
+    let si = 0;
+    for (const s of parsed.delta?.secrets ?? []) {
+      const text = String(s.secret || s.text || '').trim();
+      if (!text || notAName(s.keeper)) continue;
+      const fromRaw = Array.isArray(s.from) ? s.from : String(s.from || '').split(',');
+      const from = fromRaw.map((x) => String(x).trim()).filter((x) => x && !notAName(x)).map(rid);
+      out.push({ ...base(), kind: 'secret.form', id: 'sec_' + ctx.turn + '_' + (si++), keeper: rid(s.keeper), from, text } as VellumEvent);
+    }
+
     // off-screen parallel events
     const par = parsed.delta?.parallel ?? [];
     if (par.length) {
