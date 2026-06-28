@@ -17,9 +17,12 @@ const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'knowledge', label: 'Knowledge' }, { id: 'secrets', label: 'Secrets' },
 ];
 let _view: CView = 'world';
+// Timeline filters: by kind (all/memory/knew/secret/journal) and by day (all/<n>).
+let _tlKind = 'all';
+let _tlDay = 'all';
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length, timeline: s.memories.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length };
     const nav = '<div class="vle-subnav">' + VIEWS.map((v) =>
@@ -38,6 +41,10 @@ export const chronicleTab: Component<ChronicleState> = {
       const t = e.target as HTMLElement;
       const nv = t.closest('[data-cview]');
       if (nv) { _view = nv.getAttribute('data-cview') as CView; refreshUI(); return; }
+      const tk = t.closest('[data-tl-kind]');
+      if (tk) { _tlKind = tk.getAttribute('data-tl-kind')!; refreshUI(); return; }
+      const td = t.closest('[data-tl-day]');
+      if (td) { _tlDay = td.getAttribute('data-tl-day')!; refreshUI(); return; }
       if (t.closest('[data-mem-add]')) { formModal('New Memory', [
         { key: 'text', label: 'Memory', type: 'textarea', placeholder: 'What happened, in detail.' },
         { key: 'keys', label: 'Keywords (comma-separated)', type: 'text' },
@@ -97,23 +104,36 @@ function tracks(title: string, list: ChronicleState['arcs']): string {
 function timeline(s: ChronicleState): string {
   const head = sectionHeader('\u2637 Timeline', { sub: true, count: s.memories.length });
   // collect dated entries: arcs+chapters (by covers end), knowledge/secrets/journal (by turn)
-  type Row = { turn: number; day?: number; kind: string; text: string; span?: [number, number] };
+  type Row = { turn: number; day?: number; kind: string; group: string; text: string; span?: [number, number] };
   const rows: Row[] = [];
   for (const m of s.memories) {
     if (m.tier === 'turn') continue; // turn-notes are noise on the timeline
-    rows.push({ turn: m.covers?.[1] ?? m.turn, kind: m.tier, text: m.text, ...(m.covers ? { span: m.covers } : {}) });
+    rows.push({ turn: m.covers?.[1] ?? m.turn, kind: m.tier, group: 'memory', text: m.text, ...(m.covers ? { span: m.covers } : {}) });
   }
-  for (const k of s.knowledge) rows.push({ turn: k.turn, kind: 'knew', text: nameOf(s, k.who) + ': ' + k.fact });
-  for (const sec of s.secrets) rows.push({ turn: sec.formedTurn, kind: 'secret', text: nameOf(s, sec.keeper) + ': ' + sec.text });
-  for (const j of s.journal) rows.push({ turn: j.turn, day: j.day, kind: 'journal', text: nameOf(s, j.who) + ': ' + j.memory });
+  for (const k of s.knowledge) rows.push({ turn: k.turn, kind: 'knew', group: 'knew', text: nameOf(s, k.who) + ': ' + k.fact });
+  for (const sec of s.secrets) rows.push({ turn: sec.formedTurn, kind: 'secret', group: 'secret', text: nameOf(s, sec.keeper) + ': ' + sec.text });
+  for (const j of s.journal) rows.push({ turn: j.turn, day: j.day, kind: 'journal', group: 'journal', text: nameOf(s, j.who) + ': ' + j.memory });
   if (!rows.length) return head + emptyState('Nothing on the timeline yet.', 'Arcs, chapters, knowledge and secrets appear here as the story advances.');
-  rows.sort((a, b) => b.turn - a.turn); // newest first
-  const items = rows.slice(0, 60).map((r) => {
+
+  // filter bars: kind (group) + day. Days are sparse, so only offer ones present.
+  const KINDS: Array<[string, string]> = [['all', 'all'], ['memory', '\u25C9 memory'], ['knew', '\u25C8 knowledge'], ['secret', '\u26C0 secrets'], ['journal', '\u270E journal']];
+  const days = Array.from(new Set(rows.map((r) => r.day).filter((d): d is number => typeof d === 'number'))).sort((a, b) => a - b);
+  const kindBar = '<div class="vle-fbar">' + KINDS.map(([v, l]) =>
+    `<button class="vle-fb-btn${_tlKind === v ? ' on' : ''}" data-tl-kind="${v}">${l}</button>`).join('') + '</div>';
+  const dayBar = days.length ? '<div class="vle-fbar"><button class="vle-fb-btn' + (_tlDay === 'all' ? ' on' : '') + '" data-tl-day="all">all days</button>'
+    + days.map((d) => `<button class="vle-fb-btn${_tlDay === String(d) ? ' on' : ''}" data-tl-day="${d}">d${d}</button>`).join('') + '</div>' : '';
+
+  let shown = rows;
+  if (_tlKind !== 'all') shown = shown.filter((r) => r.group === _tlKind);
+  if (_tlDay !== 'all') shown = shown.filter((r) => String(r.day ?? '') === _tlDay);
+  shown = shown.slice().sort((a, b) => b.turn - a.turn); // newest first
+  if (!shown.length) return head + kindBar + dayBar + emptyState('Nothing matches this filter.');
+  const items = shown.slice(0, 80).map((r) => {
     const label = r.span ? `t${r.span[0]}\u2013${r.span[1]}` : `t${r.turn}`;
     const day = r.day ? `<span class="vle-tl-day">d${r.day}</span>` : '';
     return `<div class="vle-tl-row"><span class="vle-tl-t">${esc(label)}</span><span class="vle-tl-dot vle-tl-${esc(r.kind)}"></span><div class="vle-tl-body"><span class="vle-tl-k">${esc(r.kind)}</span>${day}<span class="vle-tl-x">${esc(r.text)}</span></div></div>`;
   }).join('');
-  return head + `<div class="vle-tl">${items}</div>`;
+  return head + kindBar + dayBar + `<div class="vle-tl">${items}</div>`;
 }
 
 function memories(s: ChronicleState): string {
