@@ -11,9 +11,9 @@ import { formModal, confirmModal } from '../modal.js';
  * through the bridge → vellum_cmd.
  */
 
-type CView = 'world' | 'memory' | 'knowledge' | 'secrets';
+type CView = 'world' | 'timeline' | 'memory' | 'knowledge' | 'secrets';
 const VIEWS: Array<{ id: CView; label: string }> = [
-  { id: 'world', label: 'World' }, { id: 'memory', label: 'Memory' },
+  { id: 'world', label: 'World' }, { id: 'timeline', label: 'Timeline' }, { id: 'memory', label: 'Memory' },
   { id: 'knowledge', label: 'Knowledge' }, { id: 'secrets', label: 'Secrets' },
 ];
 let _view: CView = 'world';
@@ -21,11 +21,12 @@ let _view: CView = 'world';
 export const chronicleTab: Component<ChronicleState> = {
   version: (s) => `${_view}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
-    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length };
+    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length, timeline: s.memories.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length };
     const nav = '<div class="vle-subnav">' + VIEWS.map((v) =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`).join('') + '</div>';
     let body = '';
     if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) || '';
+    else if (_view === 'timeline') body = timeline(s);
     else if (_view === 'memory') body = memories(s);
     else if (_view === 'knowledge') body = knowledge(s);
     else body = secrets(s);
@@ -85,6 +86,34 @@ function tracks(title: string, list: ChronicleState['arcs']): string {
     '<div class="vle-track"><span class="vle-track-n">' + esc(t.name) + '</span><span class="vle-track-s">' + esc(t.status) + '</span></div>'
   ).join('');
   return sectionHeader(title, { sub: true, count: list.length }) + rows;
+}
+
+/**
+ * Timeline — a vertical rail keyed on the reliable TURN axis, with model-emitted
+ * `day` labels overlaid where present (day is sparse, so it's a label, never the
+ * spine). Arc/chapter summaries render as covers-spans; their turn ranges place
+ * them on the rail. Pure view over existing state — no schema change.
+ */
+function timeline(s: ChronicleState): string {
+  const head = sectionHeader('\u2637 Timeline', { sub: true, count: s.memories.length });
+  // collect dated entries: arcs+chapters (by covers end), knowledge/secrets/journal (by turn)
+  type Row = { turn: number; day?: number; kind: string; text: string; span?: [number, number] };
+  const rows: Row[] = [];
+  for (const m of s.memories) {
+    if (m.tier === 'turn') continue; // turn-notes are noise on the timeline
+    rows.push({ turn: m.covers?.[1] ?? m.turn, kind: m.tier, text: m.text, ...(m.covers ? { span: m.covers } : {}) });
+  }
+  for (const k of s.knowledge) rows.push({ turn: k.turn, kind: 'knew', text: nameOf(s, k.who) + ': ' + k.fact });
+  for (const sec of s.secrets) rows.push({ turn: sec.formedTurn, kind: 'secret', text: nameOf(s, sec.keeper) + ': ' + sec.text });
+  for (const j of s.journal) rows.push({ turn: j.turn, day: j.day, kind: 'journal', text: nameOf(s, j.who) + ': ' + j.memory });
+  if (!rows.length) return head + emptyState('Nothing on the timeline yet.', 'Arcs, chapters, knowledge and secrets appear here as the story advances.');
+  rows.sort((a, b) => b.turn - a.turn); // newest first
+  const items = rows.slice(0, 60).map((r) => {
+    const label = r.span ? `t${r.span[0]}\u2013${r.span[1]}` : `t${r.turn}`;
+    const day = r.day ? `<span class="vle-tl-day">d${r.day}</span>` : '';
+    return `<div class="vle-tl-row"><span class="vle-tl-t">${esc(label)}</span><span class="vle-tl-dot vle-tl-${esc(r.kind)}"></span><div class="vle-tl-body"><span class="vle-tl-k">${esc(r.kind)}</span>${day}<span class="vle-tl-x">${esc(r.text)}</span></div></div>`;
+  }).join('');
+  return head + `<div class="vle-tl">${items}</div>`;
 }
 
 function memories(s: ChronicleState): string {
