@@ -74,6 +74,24 @@ describe('parseState', () => {
     expect(r.state?.delta?.bonds?.[0]?.addCats).toBeUndefined();
   });
 
+  it('invented enum values anywhere never drop the turn (op/kind/weight/sentiment/tension)', () => {
+    const block = '<vellum>\n' + JSON.stringify({
+      turn: 4, scene: { loc: 'Crypt', tension: 99 }, present: [{ id: 'A' }],
+      delta: {
+        threads: [{ op: 'explode', name: 'The Vow', note: 'n' }], // bad op → advance
+        journal: [{ who: 'A', memory: 'm', kind: 'epiphany', weight: 'cosmic', sentiment: 'ecstatic' }], // all bad
+      },
+    }) + '\n</vellum>';
+    const r = parseState(block);
+    expect(r.source).toBe('json'); // not dropped
+    expect(r.state?.scene?.loc).toBe('Crypt');
+    expect(r.state?.scene?.tension).toBeUndefined(); // out-of-range coerced off
+    expect(r.state?.delta?.threads?.[0]?.op).toBe('advance'); // invented op → safe default
+    expect(r.state?.delta?.threads?.[0]?.name).toBe('The Vow');
+    expect(r.state?.delta?.journal?.[0]?.memory).toBe('m'); // entry survives
+    expect(r.state?.delta?.journal?.[0]?.kind).toBeUndefined(); // invented enums dropped
+  });
+
   it('falls back to regex for terse [BTS]-style rel lines', () => {
     const r = parseState('Some prose.\nrelCersei \u2192 Jaime: aff +8, trust -2 cat:romantic (the look)');
     expect(r.source).toBe('regex');

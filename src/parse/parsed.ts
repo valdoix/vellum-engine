@@ -14,9 +14,9 @@ import { Category } from '../core/events.js';
 export const ParsedBond = z.object({
   a: z.string(),
   b: z.string(),
-  aff: z.number().optional(),
-  trust: z.number().optional(),
-  absolute: z.boolean().optional(),
+  aff: z.number().optional().catch(undefined),
+  trust: z.number().optional().catch(undefined),
+  absolute: z.boolean().optional().catch(undefined),
   addCats: z.array(Category).optional(),
   removeCats: z.array(Category).optional(),
   label: z.string().optional(),
@@ -41,7 +41,9 @@ export const ParsedParallel = z.object({
 });
 
 export const ParsedThread = z.object({
-  op: z.enum(['new', 'advance', 'stall', 'resolve']),
+  // `.catch` keeps one invented op from failing the whole block — default to the
+  // benign 'advance' (upsertTrack treats it as "exists/active").
+  op: z.enum(['new', 'advance', 'stall', 'resolve']).catch('advance'),
   name: z.string(),
   note: z.string().optional(),
 });
@@ -50,16 +52,17 @@ export const ParsedJournal = z.object({
   who: z.string(),
   about: z.string().optional(),
   memory: z.string(),
-  kind: z.enum(['interaction', 'promise', 'betrayal', 'gift', 'shared', 'wound', 'observation']).optional(),
-  weight: z.enum(['trivial', 'minor', 'significant', 'defining']).optional(),
-  sentiment: z.enum(['positive', 'negative', 'neutral', 'complex']).optional(),
+  // invalid enum values coerce to a safe default instead of dropping the turn
+  kind: z.enum(['interaction', 'promise', 'betrayal', 'gift', 'shared', 'wound', 'observation']).optional().catch(undefined),
+  weight: z.enum(['trivial', 'minor', 'significant', 'defining']).optional().catch(undefined),
+  sentiment: z.enum(['positive', 'negative', 'neutral', 'complex']).optional().catch(undefined),
 });
 
 export const ParsedState = z.object({
   v: z.number().optional(),
   turn: z.number().optional(),
   day: z.number().optional(),
-  scene: z.object({ loc: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional() }).optional(),
+  scene: z.object({ loc: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional().catch(undefined), weather: z.string().optional() }).optional(),
   present: z.array(ParsedPresent).optional(),
   delta: z.object({
     bonds: z.array(ParsedBond).optional(),
