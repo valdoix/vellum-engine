@@ -99,16 +99,30 @@ function structuredBlock(state: ChronicleState, budget: number): string {
   const openThreads = state.threads.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 6).map(trackLine);
   const openArcs = state.arcs.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 2).map(trackLine);
 
+  // present/active factions + their standing toward the player (authoritative,
+  // like cast). Reuses the shared structured budget.
+  const facLines = Object.values(state.factions)
+    .filter((f) => f.status === 'present' || f.status === 'active')
+    .sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0))
+    .slice(0, 8)
+    .map((f) => '- ' + f.name + (f.kind ? ' (' + f.kind + ')' : '') + ': ' + standingWord(f.standing) + ' toward you (standing ' + f.standing + (f.trust ? '/trust ' + f.trust : '') + ')');
+
   // share ONE budget: reserve up to 40% for open threads/arcs, give the rest to
-  // cast/bonds — so the structured block never overshoots its allocation.
+  // cast/bonds/factions — so the structured block never overshoots its allocation.
   const trackBudget = (openThreads.length || openArcs.length) ? Math.floor(budget * 0.4) : 0;
   const trackLines = fitLines([...openThreads, ...openArcs], trackBudget);
   const usedByTracks = trackLines.reduce((n, l) => n + l.length + 1, 0);
-  const castRel = fitLines([...castLines, ...relLines], Math.max(0, budget - usedByTracks));
+  const castRel = fitLines([...castLines, ...relLines, ...facLines], Math.max(0, budget - usedByTracks));
   const blocks: string[] = [];
   if (castRel.length) blocks.push('[CAST & BONDS \u2014 established, authoritative. Keep consistent; do not contradict.]\n' + castRel.join('\n'));
   if (trackLines.length) blocks.push('[OPEN THREADS & ARCS \u2014 advance or resolve these; reuse the EXACT title, do not restate as a new thread.]\n' + trackLines.join('\n'));
   return blocks.join('\n\n');
+}
+
+/** Short word for a faction standing value (for the injected structured line). */
+function standingWord(n: number): string {
+  if (n >= 40) return 'devoted'; if (n >= 15) return 'friendly';
+  if (n > -15) return 'neutral'; if (n > -40) return 'wary'; return 'hostile';
 }
 
 /** Render the final injection text from a ranked, deduped recall id list. */

@@ -21,6 +21,7 @@ import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, up
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
+import { reconcileFactionEntries } from './domain/faction-vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
 import { parseTone, type Tone } from './domain/tone.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
@@ -328,6 +329,16 @@ async function readChapterVaultMode(chatId: string): Promise<ChapterVaultMode> {
  * round-trips user-edited keys back into the chronicle (memory.link). Pure diff
  * lives in domain/chapter-vault.ts. Best-effort, serialized per chat.
  */
+async function resolveVellumBook(snap: { books: Array<{ id: string; name: string; vellum: boolean }> }, chatId: string, userId: string | null, name: string, desc: string): Promise<string> {
+  const byName = snap.books.find((b) => b.name === name);
+  if (byName) return byName.id;
+  const r = await createBook(name, desc, userId);
+  if (!r.ok) return '';
+  if (chatId) { try { await setBookAttached(chatId, r.value, true, userId); } catch { /* best effort */ } }
+  snap.books.push({ id: r.value, name, vellum: true } as any); // reuse within this pass
+  return r.value;
+}
+
 async function maybeChapterVault(chatId: string, userId: string | null): Promise<{ ok: boolean; reason?: string; created: number; updated: number; removed: number }> {
   if (_chapterVaulting.has(chatId)) return { ok: false, reason: 'busy', created: 0, updated: 0, removed: 0 };
   if (!(await hasVault())) return { ok: false, reason: 'no_world_books', created: 0, updated: 0, removed: 0 };
@@ -341,11 +352,15 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
     if (mode === 'off') {
       // tear down our chapter/arc entries when disabled
       let removed = 0;
-      for (const e of entries.filter((x) => x.vellum && /^(chapter|arc):/.test(x.link))) { await deleteEntry(e.id, userId); removed++; }
+      for (const e of entries.filter((x) => x.vellum && /^(chapter|arc|faction):/.test(x.link))) { await deleteEntry(e.id, userId); removed++; }
       return { ok: true, reason: 'mode_off', created: 0, updated: 0, removed };
     }
-    const bookId = snap.books.find((b) => b.vellum)?.id
-      ?? (await (async () => { const r = await createBook('VELLUM Chronicle', 'Auto-authored chapters, arcs, and lore.', userId); if (r.ok && chatId) await setBookAttached(chatId, r.value, true, userId); return r.ok ? r.value : ''; })());
+    const names = await chatNames(chatId, userId);
+    const card = (names.char || 'Chronicle').slice(0, 40);
+    // two named books: summaries (chapters/arcs) and lore (factions + promotions)
+    const summaryBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Summaries`, 'Auto-authored chapter & arc summaries.');
+    const loreBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Lore`, 'Auto-authored factions, characters, and lore.');
+    const bookId = summaryBook;
     if (!bookId) return { ok: false, reason: 'no_book', created: 0, updated: 0, removed: 0 };
     const linkEvents: VellumEvent[] = [];
     for (const c of plan.create) {
@@ -363,6 +378,13 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
     }
     for (const entryId of plan.remove) await deleteEntry(entryId, userId);
     if (linkEvents.length) { await append(chatId, linkEvents.filter((e) => (e as any).vaultEntryId)); invalidateIndex(chatId); }
+    // factions: project group lore-sheets to the vault (keyed entries, same mode)
+    const fplan = reconcileFactionEntries(state, entries, mode);
+    if (loreBook) {
+      for (const c of fplan.create) await createEntry({ bookId: loreBook, key: c.input.key, content: c.input.content, comment: c.input.comment, settings: c.input.settings, category: c.input.category, source: 'faction', link: c.input.link }, userId);
+      for (const u of fplan.update) await updateEntry(u.entryId, { content: u.input.content, constant: u.input.settings.constant ?? false, extensions: { vellum: true, vellumCategory: 'factions', vellumSource: 'faction', vellumLink: u.input.link } }, userId);
+      for (const entryId of fplan.remove) await deleteEntry(entryId, userId);
+    }
     if (plan.create.length || plan.update.length || plan.remove.length) spindle.log?.info?.(`[vellum_engine] chapter-vault: +${plan.create.length} ~${plan.update.length} -${plan.remove.length} (mode ${mode})`);
     return { ok: true, created: plan.create.length, updated: plan.update.length, removed: plan.remove.length };
   } catch (e) { spindle.log?.warn?.('[vellum_engine] chapter-vault: ' + ((e as Error)?.message ?? e)); return { ok: false, reason: 'error', created: 0, updated: 0, removed: 0 }; }
