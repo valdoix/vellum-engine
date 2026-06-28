@@ -14,6 +14,9 @@ export interface RetrievableItem {
   text: string;
   turn: number;
   tokens: string[];
+  /** memory tier, when kind==='memory' — lets recall prioritize compressed
+   * chapter/arc summaries (the long-term backbone) over raw turn-memories. */
+  tier?: 'turn' | 'chapter' | 'arc';
 }
 
 /** Collect retrievable prose items from derived state. */
@@ -31,7 +34,7 @@ export function collectItems(state: ChronicleState): RetrievableItem[] {
   }
   for (const m of state.memories) {
     const t = m.text + ' ' + (m.keys || []).join(' ');
-    items.push({ id: m.id, kind: 'memory', text: m.text, turn: m.turn, tokens: tokenize(t) });
+    items.push({ id: m.id, kind: 'memory', text: m.text, turn: m.turn, tokens: tokenize(t), tier: m.tier });
   }
   return items;
 }

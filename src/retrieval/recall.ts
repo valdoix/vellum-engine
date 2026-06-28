@@ -133,15 +133,18 @@ function assemble(
   return { text, recallIds, source, ...(trace ? { trace } : {}) };
 }
 
-/** Lexical-only ranking with a gentle recency lift. Pure + synchronous. */
+/** Lexical-only ranking with a gentle recency lift + a chapter/arc boost so the
+ * compressed long-term summaries (the memory backbone) reliably surface and
+ * aren't crowded out by raw turn-memories or facts at equal lexical score. */
 function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: string): string[] {
-  const hits = lexicalSearch(index, query, 20);
+  const hits = lexicalSearch(index, query, 24);
   const maxTurn = state.turns || 1;
   return hits
     .map((h) => {
       const it = index.byId.get(h.id)!;
       const recency = 1 + 0.4 * (it.turn / maxTurn);
-      return { id: h.id, score: h.score * recency };
+      const tierBoost = it.tier === 'arc' ? 1.5 : it.tier === 'chapter' ? 1.3 : 1;
+      return { id: h.id, score: h.score * recency * tierBoost };
     })
     .sort((a, b) => b.score - a.score)
     .map((r) => r.id);

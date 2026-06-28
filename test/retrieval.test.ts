@@ -66,6 +66,30 @@ describe('budget allocator', () => {
   });
 });
 
+describe('chapter summaries in recall', () => {
+  function withChapterAndTurn(): ChronicleState {
+    const s = freshState();
+    s.turns = 30;
+    s.memories = [
+      { id: 'chap_1', tier: 'chapter', text: 'Cersei arrived at Harrenhal and Daeron offered marriage on equal terms.', keys: ['harrenhal', 'marriage'], turn: 8, covers: [1, 8] },
+      { id: 'turn_30', tier: 'turn', text: 'Cersei walked the Harrenhal corridor at dusk.', keys: [], turn: 30 },
+    ] as any;
+    return s;
+  }
+  it('injects a chapter summary into the recall block', () => {
+    const inj = buildInjection('cChap', withChapterAndTurn(), 'Harrenhal marriage Daeron');
+    expect(inj.text).toContain('Daeron offered marriage on equal terms');
+    expect(inj.recallIds).toContain('chap_1');
+  });
+  it('prioritizes the chapter over an equally-matching turn-memory (tier boost)', () => {
+    const inj = buildInjection('cChap2', withChapterAndTurn(), 'Harrenhal');
+    const ci = inj.recallIds.indexOf('chap_1');
+    const ti = inj.recallIds.indexOf('turn_30');
+    expect(ci).toBeGreaterThanOrEqual(0);
+    if (ti !== -1) expect(ci).toBeLessThan(ti);
+  });
+});
+
 describe('Fix 20 — index staleness', () => {
   it('reflects an in-place content edit when version bumps (counts unchanged)', () => {
     const s = stateWith();
