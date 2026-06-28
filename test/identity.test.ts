@@ -98,6 +98,44 @@ describe('notAName — reject pronouns / deixis / bare generics', () => {
     expect(notAName('')).toBe(true);
     expect(notAName('{{user}}')).toBe(true);
   });
+  it('rejects free-text phrases / pronoun-bearing clauses (secret `from` junk)', () => {
+    expect(notAName('everyone, including herself until now')).toBe(true); // clause, not a name
+    expect(notAName('everyone')).toBe(true);
+    expect(notAName('the lady and her maid')).toBe(true); // contains a pronoun token
+    expect(notAName("Cersei's father")).toBe(false); // a real (distinct) name still passes
+  });
+  it('rejects narration/meta role labels (Narrator POV Character)', () => {
+    expect(notAName('Narrator POV Character')).toBe(true);
+    expect(notAName('the protagonist')).toBe(true);
+    expect(notAName('Main Character')).toBe(true);
+    expect(notAName('Cersei Lannister')).toBe(false); // real name unaffected
+    expect(notAName('Daeron')).toBe(false);
+  });
+});
+
+describe('mergeCastDuplicates — possessive/kinship is NOT the same person', () => {
+  const card = (id: string, name: string): CastCard => ({ id, name, aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false });
+  it('cersei does NOT merge into cersei_s_father (the catastrophic mis-merge)', () => {
+    const s = freshState();
+    s.cast.cersei = card('cersei', 'Cersei');
+    s.cast.cersei_s_father = card('cersei_s_father', "Cersei's father");
+    const m = mergeCastDuplicates(s);
+    expect(Object.keys(m.cast).sort()).toEqual(['cersei', 'cersei_s_father']);
+  });
+  it('cersei does NOT merge into cersei_mother (kinship token)', () => {
+    const s = freshState();
+    s.cast.cersei = card('cersei', 'Cersei');
+    s.cast.cersei_mother = card('cersei_mother', 'Cersei Mother');
+    const m = mergeCastDuplicates(s);
+    expect(Object.keys(m.cast).sort()).toEqual(['cersei', 'cersei_mother']);
+  });
+  it('still merges a genuine fuller spelling (cersei → cersei_lannister)', () => {
+    const s = freshState();
+    s.cast.cersei = card('cersei', 'Cersei');
+    s.cast.cersei_lannister = card('cersei_lannister', 'Cersei Lannister');
+    const m = mergeCastDuplicates(s);
+    expect(Object.keys(m.cast)).toEqual(['cersei_lannister']);
+  });
 });
 
 describe('fold — pronoun bond endpoints are dropped (no "she → Daeron")', () => {

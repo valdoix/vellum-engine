@@ -50,11 +50,28 @@ export function resolveCastId(state: ChronicleState, rawName: string, extraIds?:
 }
 
 /** True if `short` is a leading whole-token prefix of `full` (underscore-joined
- * tokens): `cersei` ⊂ `cersei_lannister`, but `jon` ⊄ `jonas`. */
+ * tokens): `cersei` ⊂ `cersei_lannister`, but `jon` ⊄ `jonas`. NEVER across a
+ * possessive boundary — `cersei` ⊄ `cersei_s_father` ("Cersei's father" is a
+ * DIFFERENT entity, not a fuller spelling of Cersei). This guard prevents the
+ * catastrophic merge of a character into a relative of theirs. */
 function tokenPrefix(short: string, full: string): boolean {
   if (short === full || !short || !full) return false;
-  return full.startsWith(short + '_');
+  if (!full.startsWith(short + '_')) return false;
+  const rest = full.slice(short.length + 1); // tokens after the prefix
+  // possessive 's ("X's Y" → x_s_y) or a kinship/relation word → different person
+  if (rest === 's' || rest.startsWith('s_')) return false;
+  const firstTok = rest.split('_')[0]!;
+  if (RELATION_TOKENS.has(firstTok)) return false;
+  return true;
 }
+
+// kinship/relational nouns: "Cersei Mother", "Daeron Hand" etc. name a DIFFERENT
+// entity than the bare name, so a prefix match across one is not the same person.
+const RELATION_TOKENS = new Set([
+  'father', 'mother', 'son', 'daughter', 'sister', 'brother', 'wife', 'husband',
+  'mom', 'dad', 'aunt', 'uncle', 'cousin', 'grandfather', 'grandmother', 'nephew',
+  'niece', 'hand', 'guard', 'maid', 'servant', 'squire', 'steward',
+]);
 
 // pronouns / deixis — NEVER a character name, regardless of capitalization
 // ("She" at a sentence start is still a pronoun). A bond keyed to one spawns a
@@ -71,6 +88,14 @@ const GENERIC = new Set([
   'guard', 'servant', 'soldier', 'stranger', 'man', 'woman', 'figure', 'person',
   'people', 'child', 'boy', 'girl', 'men', 'women', 'others', 'crowd', 'group',
 ]);
+// narration / meta-fiction tokens — the model sometimes emits a ROLE LABEL
+// instead of a name ("Narrator POV Character", "the protagonist", "main char").
+// These are never a character identity; any name containing one is rejected.
+const META = new Set([
+  'narrator', 'pov', 'protagonist', 'antagonist', 'character', 'char', 'player',
+  'user', 'persona', 'speaker', 'narration', 'viewpoint', 'perspective', 'self',
+  'unnamed', 'unknown', 'nobody', 'everyone', 'someone', 'anybody', 'main',
+]);
 
 /**
  * True when a raw name is NOT a usable character identity. Rejects: empty,
@@ -85,10 +110,18 @@ export function notAName(rawName: string): boolean {
   if (!rest) return true;
   const lower = rest.toLowerCase();
   if (PRONOUN.has(lower)) return true; // pronoun/deixis, any case
+  const words = rest.split(/\s+/);
   // a single bare LOWERCASE generic word ("guard", "stranger") — capitalized
   // first letter means a proper epithet, which passes.
-  const words = rest.split(/\s+/);
   if (words.length === 1 && words[0]![0] === words[0]![0]!.toLowerCase() && GENERIC.has(lower)) return true;
+  // a NAME is short. A long phrase ("everyone, including herself until now") or
+  // one containing a pronoun token is free text, not a character — reject so it
+  // can't mint a junk cast node from a secret's `from`/a bond endpoint.
+  if (words.length > 4) return true;
+  if (/[,;.]/.test(rest)) return true; // punctuation → a clause, not a name
+  if (words.some((w) => PRONOUN.has(w.toLowerCase()))) return true;
+  // role/meta labels ("Narrator POV Character", "the protagonist") are not names
+  if (words.some((w) => META.has(w.toLowerCase()))) return true;
   return false;
 }
 
