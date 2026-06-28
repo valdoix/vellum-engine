@@ -50,11 +50,11 @@ export type Chrome = 'illuminated' | 'modern' | 'futuristic';
  * sensible window-knob defaults. It is orthogonal to skin: any mode composes with any
  * palette. After picking, every knob is still individually overridable.
  */
-export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme> }
+export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme>; form: string }
 export const MODES: Mode[] = [
-  { id: 'illuminated', name: 'Illuminated', blurb: 'Gilt double-rule frame, soft glow, serif caps — the manuscript.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: '', serif: F_SERIF } },
-  { id: 'modern', name: 'Modern', blurb: 'Flat, quiet, sans title, tighter corners — clean app chrome.', patch: { chrome: 'modern', radius: 12, border: 1, texture: '', serif: F_SANS } },
-  { id: 'futuristic', name: 'Futuristic', blurb: 'Sharp edges, accent edge-glow, mono HUD title — sci-fi console.', patch: { chrome: 'futuristic', radius: 3, border: 1, texture: 'grid', serif: F_MONO } },
+  { id: 'illuminated', name: 'Illuminated', blurb: 'An open codex \u2014 gilt double-rule, center gutter, two facing pages.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: '', serif: F_SERIF }, form: 'codex' },
+  { id: 'modern', name: 'Modern', blurb: 'A device \u2014 flat, sans, a bottom dock that swaps panels like an app.', patch: { chrome: 'modern', radius: 12, border: 1, texture: '', serif: F_SANS }, form: 'phone' },
+  { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 sharp brackets, telemetry rows, a live system readout.', patch: { chrome: 'futuristic', radius: 3, border: 1, texture: 'grid', serif: F_MONO }, form: 'hud' },
 ];
 
 // base semantic palette, reused by every skin (skins override clash-prone ones)
@@ -163,7 +163,7 @@ export function applyTheme(scope: HTMLElement | null): void {
 }
 
 export function setSkin(id: string): void { const s = SKINS.find((x) => x.id === id); if (s) { _theme = sanitize({ ..._theme, skin: id, ...s.theme }); save(); } }
-export function setMode(id: string): void { const m = MODES.find((x) => x.id === id); if (m) { _theme = sanitize({ ..._theme, ...m.patch }); save(); } }
+export function setMode(id: string): void { const m = MODES.find((x) => x.id === id); if (m) { _theme = sanitize({ ..._theme, ...m.patch }); save(); setLayout(m.form); } }
 export function patchTheme(patch: Partial<Theme>): void { _theme = sanitize({ ..._theme, ...patch }); save(); }
 export function resetTheme(): void { _theme = { ...DEFAULT }; save(); }
 export function exportTheme(): string { return JSON.stringify(_theme, null, 2); }

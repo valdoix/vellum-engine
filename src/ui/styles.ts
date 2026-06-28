@@ -428,6 +428,46 @@ export const STYLES = [
   ".vld-fold[open]>summary{border-bottom:1px solid rgba(var(--vg-rgb),.12)}",
   ".vld-fold-b{padding:calc(10px * var(--vscale)) calc(13px * var(--vscale))}",
   ".vld-fold-b .vld-sec{border:none;background:none;padding:0}",
+
+  // ============ FLOAT FORM FACTORS (chrome-scoped; .vlf only, drawer untouched) ============
+  // ---- FANTASY · Codex (illuminated + 2-col): an open book with a center gutter ----
+  "html[data-vle-chrome='illuminated'] .vlf .vld-inner[data-cols='2']{position:relative;column-gap:calc(26px * var(--vscale));padding:0 calc(4px * var(--vscale))}",
+  "html[data-vle-chrome='illuminated'] .vlf .vld-inner[data-cols='2']::before{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%);background:linear-gradient(180deg,transparent,rgba(var(--vg-rgb),.4) 12%,rgba(var(--vg-rgb),.4) 88%,transparent);box-shadow:0 0 10px rgba(var(--vg-rgb),.25);pointer-events:none}",
+  "html[data-vle-chrome='illuminated'] .vlf .vld-inner[data-cols='2']::after{content:'';position:absolute;bottom:0;left:0;right:0;height:18px;background:radial-gradient(60% 100% at 0% 100%,rgba(0,0,0,.22),transparent 70%),radial-gradient(60% 100% at 100% 100%,rgba(0,0,0,.22),transparent 70%);pointer-events:none}",
+  // illuminated tension → gilded vine fill
+  "html[data-vle-chrome='illuminated'] .vlf .vld-tension{background:rgba(var(--vg-rgb),.1)}",
+  "html[data-vle-chrome='illuminated'] .vlf .vld-tension-f{background:repeating-linear-gradient(90deg,var(--vg) 0 5px,rgba(var(--vg-rgb),.5) 5px 10px)!important;box-shadow:0 0 8px rgba(var(--vg-rgb),.45)}",
+  // ---- FANTASY · Scroll (illuminated + 1-col 'scroll' layout): unfurled parchment ----
+  "html[data-vle-chrome='illuminated'] .vlf .vld-inner[data-layout='scroll']{-webkit-mask-image:linear-gradient(180deg,transparent,#000 14px,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(180deg,transparent,#000 14px,#000 calc(100% - 14px),transparent)}",
+  "html[data-vle-chrome='illuminated'] .vlf .vld-inner[data-layout='scroll'] .vld-sec{border:none;background:none;padding-left:calc(6px * var(--vscale));padding-right:calc(6px * var(--vscale))}",
+  "html[data-vle-chrome='illuminated'] .vlf .vld-inner[data-layout='scroll'] .vld-sec+.vld-sec{border-top:1px dotted rgba(var(--vg-rgb),.4);margin-top:calc(10px * var(--vscale));padding-top:calc(12px * var(--vscale))}",
+
+  // ---- MODERN · Phone (modern chrome + 'switch' layout): a device ----
+  "html[data-vle-chrome='modern'] .vlf .vld-phone{display:flex;flex-direction:column;min-height:100%;max-width:440px;margin:0 auto}",
+  ".vld-phone-body{flex:1;display:flex;flex-direction:column;gap:calc(8px * var(--vscale));padding-bottom:calc(8px * var(--vscale))}",
+  // bottom dock — app-style section switcher
+  ".vld-dock{position:sticky;bottom:0;display:flex;gap:2px;justify-content:space-around;padding:6px 4px;margin-top:auto;background:linear-gradient(180deg,transparent,var(--vsurf-2));backdrop-filter:blur(6px);border-top:1px solid rgba(var(--vg-rgb),.16)}",
+  ".vld-dock-b{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;border-radius:10px;padding:6px 2px;cursor:pointer;color:var(--vi2);opacity:.6;transition:opacity .15s,background .15s}",
+  ".vld-dock-b:hover{opacity:.9}",
+  ".vld-dock-b.on{opacity:1;color:var(--vg);background:rgba(var(--vg-rgb),.14)}",
+  ".vld-dock-g{font-size:calc(15px * var(--vscale));line-height:1}",
+  ".vld-dock-l{font:600 7.5px/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase}",
+  // modern present-cast → notification cards
+  "html[data-vle-chrome='modern'] .vlf .vld-pc{border:none;border-radius:14px;background:rgba(255,255,255,.05);box-shadow:0 1px 3px rgba(0,0,0,.25)}",
+  // phone status strip (status section as the 'lock screen' header)
+  "html[data-vle-chrome='modern'] .vlf .vld-phone .vld-statbar{justify-content:center;gap:14px}",
+
+  // ---- FUTURISTIC · Oracle HUD (futuristic chrome): tactical telemetry ----
+  "html[data-vle-chrome='futuristic'] .vlf .vld-sec{border:none;background:none;border-left:2px solid rgba(var(--vg-rgb),.5);border-radius:0;padding-left:calc(10px * var(--vscale))}",
+  "html[data-vle-chrome='futuristic'] .vlf .vld-h{position:relative;padding-left:14px}",
+  "html[data-vle-chrome='futuristic'] .vlf .vld-h::before{content:'\u25B7';position:absolute;left:0;color:var(--vg);font-size:9px;top:1px}",
+  "html[data-vle-chrome='futuristic'] .vlf .vld-pc{border:none;border-radius:0;border-left:2px solid rgba(var(--vg-rgb),.45);background:linear-gradient(90deg,rgba(var(--vg-rgb),.06),transparent)}",
+  "html[data-vle-chrome='futuristic'] .vlf .vld-loc{font-family:var(--vmono);letter-spacing:1px;text-transform:uppercase}",
+  "html[data-vle-chrome='futuristic'] .vlf .vld-thread-s,html[data-vle-chrome='futuristic'] .vlf .vld-rel-s{font-family:var(--vmono);text-transform:uppercase;letter-spacing:.5px}",
+  // HUD system footer (recall mode + injection chars), rendered by dashboard
+  ".vld-sysfoot{margin-top:calc(10px * var(--vscale));padding-top:8px;border-top:1px solid rgba(var(--vg-rgb),.25);font:600 8.5px/1.4 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vg);opacity:.7;display:flex;gap:14px;flex-wrap:wrap}",
+  "html:not([data-vle-chrome='futuristic']) .vlf .vld-sysfoot{display:none}",
+
   // ---- Customize panel: tabs, sliders, reset, custom-layout editor ----
   ".vle-czt-bar{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:10px;border-bottom:1px solid rgba(var(--vg-rgb),.18);padding-bottom:8px}",
   ".vle-czt{font:600 9.5px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:7px;padding:6px 10px;cursor:pointer;opacity:.7}",

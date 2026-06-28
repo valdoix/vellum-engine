@@ -10,10 +10,10 @@ import { injectionTab, setInjectionLog, pushInjectionRecord } from './tabs/injec
 import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize } from './theme.js';
-import { dashboardHtml } from './dashboard.js';
+import { dashboardHtml, setPhoneSection, setSysInfo } from './dashboard.js';
 import { esc } from './format.js';
 import type { Component } from './component.js';
-import { wireBridge, wirePagers, wireFilters } from './bridge.js';
+import { wireBridge, wirePagers, wireFilters, refreshUI } from './bridge.js';
 import { confirmModal, formModal } from './modal.js';
 
 /**
@@ -44,6 +44,7 @@ const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000
 const nowTab: Component<ChronicleState> = {
   version: (s) => `${s.turns}:${s.day}:${s.scene.location ?? ''}:${s.scene.tension ?? 0}:${s.scene.present.join(',')}:${s.relations.length}`,
   render: (s) => `<div class="vld">${dashboardHtml(s)}</div>`,
+  mount: (host) => host.addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-phone-sec]'); if (d) { setPhoneSection(d.getAttribute('data-phone-sec')!); refreshUI(); } }),
 };
 
 const TABS = [
@@ -362,7 +363,10 @@ export function setup(ctx: Ctx): () => void {
     title: 'VELLUM',
     actions: [{ id: 'refresh', label: '\u27F3', title: 'Refresh' }],
     onAction: (id) => { if (id === 'refresh') ctx.sendToBackend({ type: 'vellum_get_state' }); },
-    render: (host) => { try { host.innerHTML = `<div class="vld">${dashboardHtml(getState())}</div>`; } catch (e) { try { console.warn('[vellum] dashboard render failed:', e); } catch { /* ignore */ } host.innerHTML = '<div class="vld"><div class="vle-empty sm">Dashboard hit an error. Hit refresh.</div></div>'; } },
+    render: (host) => {
+      try { host.innerHTML = `<div class="vld">${dashboardHtml(getState())}</div>`; } catch (e) { try { console.warn('[vellum] dashboard render failed:', e); } catch { /* ignore */ } host.innerHTML = '<div class="vld"><div class="vle-empty sm">Dashboard hit an error. Hit refresh.</div></div>'; }
+      if (!host.hasAttribute('data-phone-wired')) { host.setAttribute('data-phone-wired', '1'); host.addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-phone-sec]'); if (d) { setPhoneSection(d.getAttribute('data-phone-sec')!); refreshUI(); } }); }
+    },
   });
   let floatShell: ReturnType<typeof createShell> | null = null;
   void floatShell; void createShell;
@@ -388,13 +392,15 @@ export function setup(ctx: Ctx): () => void {
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;
           document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseMode !== 'off'));
         }
+        setSysInfo({ recall: _traverseMode === 'off' ? 'off' : _traverseMode === 'tree' ? `tree\u00b7${axisLabel(_traverseAxis)}` : 'flat' });
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
+        if (p.log?.[0]?.chars) setSysInfo({ injChars: p.log[0].chars });
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection_push') {
         // Fix 11 — live retrieval feed: stream the new record in as it happens
-        if (p.record) { pushInjectionRecord(p.record); drawer.update(); float.refresh(); }
+        if (p.record) { pushInjectionRecord(p.record); if (p.record.chars) setSysInfo({ injChars: p.record.chars }); drawer.update(); float.refresh(); }
       } else if (p?.type === 'vellum_vault') {
         setVaultSnap(p);
         drawer.update();

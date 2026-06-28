@@ -18,6 +18,7 @@ export interface LayoutDef {
   collapsed: SectionId[];
   density: Density;
   columns: 1 | 2;
+  mode?: 'stack' | 'switch'; // 'stack' (default) = vertical sections; 'switch' = one section + a dock (phone)
 }
 
 const ALL: SectionId[] = ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent'];
@@ -52,6 +53,22 @@ export const LAYOUTS: LayoutDef[] = [
     id: 'minimal', name: 'Minimal', blurb: 'Just the live scene pulse.', glyph: '\u25CB',
     order: ['status', 'present', 'tension'],
     hidden: ['relations', 'threads', 'parallel', 'recent'], collapsed: [], density: 'comfortable', columns: 1,
+  },
+  // --- form layouts: pair with a chrome to make the float an OBJECT ---
+  {
+    id: 'codex', name: 'Codex', blurb: 'An open book \u2014 two facing pages (illuminated chrome).', glyph: '\uD83D\uDCD6',
+    order: ['present', 'tension', 'status', 'threads', 'parallel', 'relations', 'recent'],
+    hidden: [], collapsed: [], density: 'comfortable', columns: 2,
+  },
+  {
+    id: 'scroll', name: 'Scroll', blurb: 'A single unfurled parchment \u2014 one tall column.', glyph: '\u07F7',
+    order: ['status', 'present', 'tension', 'threads', 'relations', 'parallel', 'recent'],
+    hidden: [], collapsed: [], density: 'roomy', columns: 1,
+  },
+  {
+    id: 'phone', name: 'Phone', blurb: 'A device \u2014 one panel at a time with a bottom dock (modern chrome).', glyph: '\u25AF',
+    order: ['present', 'status', 'tension', 'relations', 'threads', 'parallel', 'recent'],
+    hidden: [], collapsed: [], density: 'comfortable', columns: 1, mode: 'switch',
   },
 ];
 

@@ -29,6 +29,43 @@ const SECTION_LABEL: Record<SectionId, string> = {
   threads: 'Threads', parallel: 'Parallel', recent: 'Latest',
 };
 
+// dock glyphs for the phone 'switch' layout (one section at a time)
+const SECTION_GLYPH: Record<SectionId, string> = {
+  status: '\u2630', present: '\u25C9', tension: '\u25D0', relations: '\u269C',
+  threads: '\u22C8', parallel: '\u2748', recent: '\u2606',
+};
+// HUD telemetry footer text (recall mode + last injection size), set by app.ts.
+// Rendered always but CSS-hidden unless futuristic chrome — keeps dashboard pure.
+let _sysInfo = { recall: 'off', injChars: 0 };
+export function setSysInfo(info: Partial<{ recall: string; injChars: number }>): void { _sysInfo = { ..._sysInfo, ...info }; }
+function sysFooter(): string {
+  const inj = _sysInfo.injChars ? ` &middot; inj=${_sysInfo.injChars}ch` : '';
+  return `<div class="vld-sysfoot">SYS: recall=${esc(_sysInfo.recall)}${inj}</div>`;
+}
+// which section the phone form is showing; persists across re-renders within a session
+let _phoneSection: SectionId | null = null;
+/** Set the active phone-form section (delegated dock click). */
+export function setPhoneSection(id: string): void {
+  if ((['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent'] as string[]).includes(id)) _phoneSection = id as SectionId;
+}
+
+/** Phone 'switch' render: one section + a bottom dock of the visible sections.
+ * Reuses the section registry verbatim — only the compose differs from stack. */
+function switchHtml(s: ChronicleState, lay: LayoutDef): string {
+  const visible = lay.order.filter((id) => !lay.hidden.includes(id));
+  if (!visible.length) return '<div class="vle-empty sm">Nothing recorded yet.</div>';
+  // active = remembered section if still visible, else first; sections with no
+  // content this turn are skippable but still dock-reachable.
+  const active = (_phoneSection && visible.includes(_phoneSection)) ? _phoneSection : visible[0]!;
+  let body = '';
+  try { body = SECTIONS[active](s); } catch { /* boundary */ }
+  if (!body) body = `<div class="vle-empty sm">Nothing for ${SECTION_LABEL[active]} this scene yet.</div>`;
+  const dock = visible.map((id) =>
+    `<button class="vld-dock-b${id === active ? ' on' : ''}" data-phone-sec="${id}" title="${SECTION_LABEL[id]}"><span class="vld-dock-g">${SECTION_GLYPH[id]}</span><span class="vld-dock-l">${SECTION_LABEL[id]}</span></button>`
+  ).join('');
+  return `<div class="vld-phone"><div class="vld-phone-body">${body}</div><div class="vld-dock">${dock}</div></div>`;
+}
+
 /**
  * Render the dashboard for the active LAYOUT (separate from skin). The layout
  * decides which sections show, their order, density, columns, and which are
@@ -37,6 +74,9 @@ const SECTION_LABEL: Record<SectionId, string> = {
 export function dashboardHtml(s: ChronicleState): string {
   let lay: LayoutDef;
   try { lay = getLayout(); } catch { lay = { id: 'dashboard', name: '', blurb: '', glyph: '', order: ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent'], hidden: [], collapsed: [], density: 'comfortable', columns: 1 }; }
+  if (lay.mode === 'switch') {
+    return `<div class="vld-inner" data-layout="${lay.id}" data-density="${lay.density}" data-cols="1" data-mode="switch">${switchHtml(s, lay)}${sysFooter()}</div>`;
+  }
   const parts = lay.order
     .filter((id) => !lay.hidden.includes(id))
     .map((id) => {
@@ -51,7 +91,7 @@ export function dashboardHtml(s: ChronicleState): string {
     .filter(Boolean)
     .join('');
   const inner = parts || `<div class="vle-empty sm">Nothing recorded for this scene yet.<br><span>Play a turn — the chronicle fills as the model emits its &lt;vellum&gt; state block.</span></div>`;
-  return `<div class="vld-inner" data-layout="${lay.id}" data-density="${lay.density}" data-cols="${lay.columns}">${inner}</div>`;
+  return `<div class="vld-inner" data-layout="${lay.id}" data-density="${lay.density}" data-cols="${lay.columns}">${inner}${sysFooter()}</div>`;
 }
 
 function statusBar(s: ChronicleState): string {
