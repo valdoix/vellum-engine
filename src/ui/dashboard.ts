@@ -1,5 +1,5 @@
 import type { ChronicleState, PresentChar, Relation } from '../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent } from './format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml } from './format.js';
 
 /**
  * The floating-window DASHBOARD — a single at-a-glance scene panel (distinct
@@ -123,7 +123,7 @@ function presentBlock(s: ChronicleState): string {
     const tags = [d.mood ? `<span class="vld-mood">${esc(d.mood)}</span>` : '', d.condition ? `<span class="vld-cond">${esc(d.condition)}</span>` : ''].filter(Boolean).join('');
     const doing = d.doing ? `<div class="vld-doing">${esc(d.doing)}</div>` : '';
     const thought = d.thought ? `<div class="vld-thought">\u300C${esc(d.thought)}\u300D</div>` : '';
-    return `<div class="vld-pc"><div class="vld-pc-top"><span class="vld-pc-n">${esc(nameOf(s, d.id))}</span>${tags}</div>${doing}${thought}</div>`;
+    return `<div class="vld-pc"><div class="vld-pc-top"><span class="vld-pc-n">${nameHtml(s, d.id)}</span>${tags}</div>${doing}${thought}</div>`;
   }).join('');
   return `<div class="vld-sec"><div class="vld-h">Present <span class="vld-n">${detail.length}</span></div>${rows}</div>`;
 }
@@ -135,7 +135,7 @@ function relationsBlock(s: ChronicleState): string {
   if (!rels.length) return '';
   const rows = rels.map((r) => {
     const cats = catsOf(r).map((c) => `<span class="vld-cat" style="--c:${CAT_COLORS[c] || '#888'}">${esc(c)}</span>`).join('');
-    return `<div class="vld-rel"><span class="vld-rel-p">${esc(nameOf(s, r.a))} \u2192 ${esc(nameOf(s, r.b))}</span>${cats}<span class="vld-rel-s">${esc(SENT_LABEL[r.sentiment] || r.sentiment)}</span></div>`;
+    return `<div class="vld-rel"><span class="vld-rel-p">${nameHtml(s, r.a)} \u2192 ${nameHtml(s, r.b)}</span>${cats}<span class="vld-rel-s">${esc(SENT_LABEL[r.sentiment] || r.sentiment)}</span></div>`;
   }).join('');
   return `<div class="vld-sec"><div class="vld-h">Relations</div>${rows}</div>`;
 }
@@ -150,7 +150,7 @@ function threadsBlock(s: ChronicleState): string {
 function parallelBlock(s: ChronicleState): string {
   if (!s.parallel?.length) return '';
   const rows = s.parallel.slice(0, 6).map((p) => {
-    const who = p.who ? esc(nameOf(s, p.who)) : '';
+    const who = p.who ? nameHtml(s, p.who) : '';
     const where = p.where ? ` <span class="vld-par-w">@${esc(p.where)}</span>` : '';
     const sim = p.src === 'sim' ? ' <span class="vld-par-sim" title="Off-screen simulation">auto</span>' : '';
     return `<div class="vld-par"><span class="vld-par-who">${who}</span>${where}${sim}<div class="vld-par-act">${esc(p.activity)}${p.note ? ` <em>${esc(p.note)}</em>` : ''}</div></div>`;
@@ -162,11 +162,11 @@ function recentBlock(s: ChronicleState): string {
   // newest journal / knowledge / secret + the latest relation change
   const parts: string[] = [];
   const j = s.journal.slice().sort((a, b) => b.turn - a.turn)[0];
-  if (j) parts.push(`<div class="vld-rec"><span class="vld-rec-k">journal</span>${esc(nameOf(s, j.who))}: \u201C${esc(j.memory)}\u201D</div>`);
+  if (j) parts.push(`<div class="vld-rec"><span class="vld-rec-k">journal</span>${nameHtml(s, j.who)}: \u201C${esc(j.memory)}\u201D</div>`);
   const k = latestKnowledge(s);
-  if (k) parts.push(`<div class="vld-rec"><span class="vld-rec-k">knew</span>${esc(nameOf(s, k.who))}: ${esc(k.fact)}</div>`);
+  if (k) parts.push(`<div class="vld-rec"><span class="vld-rec-k">knew</span>${nameHtml(s, k.who)}: ${esc(k.fact)}</div>`);
   const sec = latestSecret(s);
-  if (sec) parts.push(`<div class="vld-rec"><span class="vld-rec-k">secret</span>${esc(nameOf(s, sec.keeper))}: ${esc(sec.text)}</div>`);
+  if (sec) parts.push(`<div class="vld-rec"><span class="vld-rec-k">secret</span>${nameHtml(s, sec.keeper)}: ${esc(sec.text)}</div>`);
   const ch = latestRelChange(s);
   if (ch) parts.push(`<div class="vld-rec"><span class="vld-rec-k">shift</span>${ch}</div>`);
   if (!parts.length) return '';
@@ -188,7 +188,7 @@ function latestRelChange(s: ChronicleState): string {
     const last = cat[cat.length - 1];
     if (last && (!best || last.turn > best.turn)) {
       const sign = last.op === 'remove' ? '\u2212' : '+';
-      best = { turn: last.turn, html: `${esc(nameOf(s, r.a))} \u2192 ${esc(nameOf(s, r.b))}: ${sign}${esc(last.category)}` };
+      best = { turn: last.turn, html: `${nameHtml(s, r.a)} \u2192 ${nameHtml(s, r.b)}: ${sign}${esc(last.category)}` };
     }
   }
   return best ? best.html : '';

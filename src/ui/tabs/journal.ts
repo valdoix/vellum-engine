@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, JournalEntry } from '../../domain/types.js';
-import { esc, nameOf, emptyState, sectionHeader } from '../format.js';
+import { esc, nameOf, emptyState, sectionHeader, nameHtml } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -81,7 +81,7 @@ function bookView(s: ChronicleState, who: string): string {
   const bar = filterBar('journal-book', { cats: KIND_OPTS.map((k) => k.value) });
   const filtered = applyFilter('journal-book', entries, { cat: (j) => j.kind });
   const head = `<div class="vle-book-head"><button class="vle-mini" data-jr-close title="Back">\u2039</button>`
-    + `<span class="vle-book-title">${esc(nameOf(s, who))}\u2019s Journal</span>`
+    + `<span class="vle-book-title">${nameHtml(s, who)}\u2019s Journal</span>`
     + `<span class="vle-n">${entries.length}</span></div>`;
   const body = filtered.length ? '<div class="vle-jr-grid">' + filtered.map((j) => card(s, j)).join('') + '</div>' : emptyState('No entries match.');
   return head + bar + body;
@@ -105,10 +105,10 @@ function jrForm(title: string, v: Record<string, string>): void {
 function card(s: ChronicleState, j: JournalEntry): string {
   const A = (x: unknown): string => esc(x);
   const sc = SENT_CLS[j.sentiment] ?? 'neu';
-  const about = j.about ? ' \u2192 ' + esc(nameOf(s, j.about)) : '';
+  const about = j.about ? ' \u2192 ' + nameHtml(s, j.about) : '';
   return `<div class="vle-jr vle-jr--${sc}">`
     + `<div class="vle-jr-top"><span class="vle-jr-glyph">${KIND_GLYPH[j.kind] ?? '\u25C9'}</span>`
-    + `<span class="vle-jr-who">${esc(nameOf(s, j.who))}${about}</span>`
+    + `<span class="vle-jr-who">${nameHtml(s, j.who)}${about}</span>`
     + `<span class="vle-jr-ctl"><button class="vle-mini" data-jr-edit data-id="${A(j.id)}" data-who="${A(nameOf(s, j.who))}" data-about="${A(j.about ? nameOf(s, j.about) : '')}" data-mem="${A(j.memory)}" data-kind="${A(j.kind)}" data-weight="${A(j.weight)}" data-sent="${A(j.sentiment)}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-jr-del data-id="${A(j.id)}" title="Delete">\u2715</button></span></div>`
     + `<div class="vle-jr-mem">${esc(j.memory)}</div>`

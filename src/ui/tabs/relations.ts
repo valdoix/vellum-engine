@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Relation } from '../../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bar, emptyState, sectionHeader } from '../format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bar, emptyState, sectionHeader, nameHtml } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -105,7 +105,7 @@ function card(s: ChronicleState, r: Relation): string {
   const lock = lockFor(r.a, r.b);
   const lockBadge = lock ? `<span class="vle-rel-lockbadge" title="${A('forbidden: ' + (lock.forbid.join(', ') || '\u2014') + (lock.pin.length ? ' \u00b7 pinned: ' + lock.pin.join(', ') : ''))}">\uD83D\uDD12 ${esc(lock.forbid.join(', ') || 'pinned')}</span>` : '';
   return '<div class="vle-rel-card">'
-    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + esc(an) + ' \u2192 ' + esc(bn) + '</span>'
+    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, r.a) + ' \u2192 ' + nameHtml(s, r.b) + '</span>'
     + '<span class="vle-rel-ctl">'
     + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(r.a)}" data-b="${A(r.b)}" data-an="${A(an)}" data-bn="${A(bn)}" title="Plot Director lock">\uD83D\uDD12</button>`
     + `<button class="vle-mini" data-rel-edit data-a="${A(an)}" data-b="${A(bn)}" data-label="${A(r.label)}" data-cats="${A(cats.join(','))}" data-aff="${r.affection}" data-trust="${r.trust}" title="Edit">\u270E</button>`

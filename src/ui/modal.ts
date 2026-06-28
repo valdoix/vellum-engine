@@ -8,7 +8,7 @@
 export interface Field {
   key: string;
   label: string;
-  type: 'text' | 'textarea' | 'select' | 'checks';
+  type: 'text' | 'textarea' | 'select' | 'checks' | 'color';
   value?: string | string[];
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
@@ -33,6 +33,14 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
       const boxes = (f.options ?? []).map((o) => `<label class="vlfm-chk"><input type="checkbox" data-fc="${f.key}" value="${esc(o.value)}"${sel.includes(String(o.value)) ? ' checked' : ''}> ${esc(o.label)}</label>`).join('');
       return `<div class="vlfm-l" data-fchecks="${f.key}">${esc(f.label)}<div class="vlfm-chkrow">${boxes}</div></div>`;
     }
+    if (f.type === 'color') {
+      // a color input + a "none" checkbox so the user can clear back to default ink.
+      // Empty value (none checked) is collected as '' → upsert clears the color.
+      const v = String(f.value ?? '');
+      return `<div class="vlfm-l" data-fcolor="${f.key}">${esc(f.label)}<div class="vlfm-colrow">`
+        + `<input type="color" class="vlfm-col" data-fcol="${f.key}" value="${esc(v || '#cda84e')}">`
+        + `<label class="vlfm-chk"><input type="checkbox" data-fcolnone="${f.key}"${v ? '' : ' checked'}> none</label></div></div>`;
+    }
     return `<label class="vlfm-l">${esc(f.label)}<input class="vlfm-in" data-f="${f.key}" value="${esc(f.value ?? '')}" placeholder="${esc(f.placeholder ?? '')}"></label>`;
   }).join('');
   overlay.innerHTML = `<div class="vlfm${opts?.large ? ' vlfm-large' : ''}"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>${esc(title)}</div>`
@@ -48,6 +56,11 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
     overlay.querySelectorAll('[data-fchecks]').forEach((grp) => {
       const key = grp.getAttribute('data-fchecks')!;
       values[key] = Array.from(grp.querySelectorAll('[data-fc]')).filter((c) => (c as HTMLInputElement).checked).map((c) => (c as HTMLInputElement).value).join(',');
+    });
+    overlay.querySelectorAll('[data-fcolor]').forEach((grp) => {
+      const key = grp.getAttribute('data-fcolor')!;
+      const none = (grp.querySelector('[data-fcolnone]') as HTMLInputElement)?.checked;
+      values[key] = none ? '' : ((grp.querySelector('[data-fcol]') as HTMLInputElement)?.value ?? '');
     });
     close(); onSave(values);
   };

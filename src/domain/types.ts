@@ -19,6 +19,8 @@ export interface CastCard {
   firstTurn: number;
   lastTurn: number;
   userEdited: boolean;
+  color?: string;   // optional name color (#hex); absent = inherited skin ink
+  colorTo?: string; // optional gradient end (#hex); absent = solid `color`
 }
 
 /** A group/organization — "cast for groups". Standing is the group's regard

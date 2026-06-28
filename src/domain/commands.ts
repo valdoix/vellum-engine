@@ -22,6 +22,10 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       const id = e.id ? String(e.id) : canonId(name);
       const patch: Record<string, unknown> = {};
       for (const k of ['name', 'role', 'age', 'appearance', 'note']) if (e[k] !== undefined) patch[k] = e[k];
+      // name color: accept #hex; '' clears; anything else is dropped (no junk stored)
+      const hex = (v: unknown): string | undefined => { const s = String(v ?? '').trim(); return s === '' ? '' : (/^#[0-9a-fA-F]{6}$/.test(s) ? s : undefined); };
+      if (e.color !== undefined) { const c = hex(e.color); if (c !== undefined) patch.color = c; }
+      if (e.colorTo !== undefined) { const c = hex(e.colorTo); if (c !== undefined) patch.colorTo = c; }
       if (Array.isArray(e.aka)) patch.aka = e.aka;
       else if (typeof e.aka === 'string') patch.aka = e.aka.split(',').map((s: string) => s.trim()).filter(Boolean);
       const out: VellumEvent[] = [];

@@ -92,6 +92,11 @@ export const STYLES = [
   ".vle-av{flex:none;width:calc(34px * var(--vscale));height:calc(34px * var(--vscale));display:grid;place-items:center;border-radius:50%;background:rgba(var(--vg-rgb),.18);color:var(--vle-gold);font-weight:600;font-size:calc(13px * var(--vscale))}",
   ".vle-card-main{display:flex;flex-direction:column;gap:2px;min-width:0}",
   ".vle-card-n{font-size:calc(16px * var(--vscale))}",
+  // character name color / gradient (nameHtml). Solid uses inline color; gradient
+  // clips a background to the text. Inherits weight/size from the surrounding name.
+  ".vle-name{font:inherit}",
+  ".vle-name--grad{background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-background-clip:text;background-clip:text;color:transparent}",
+  ".vle-name--lift{text-shadow:0 0 6px rgba(255,255,255,.35)}",
   ".vle-star{color:var(--vle-gold);font-size:calc(10px * var(--vscale))}",
   ".vle-card-meta{font:600 calc(10px * var(--vscale))/1.2 var(--vmono);opacity:.6}",
   ".vle-card-app{font-size:13px;opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",

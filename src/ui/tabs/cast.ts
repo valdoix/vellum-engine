@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, CastCard, Faction } from '../../domain/types.js';
-import { esc, initials, byRecent, bar, emptyState, sectionHeader } from '../format.js';
+import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml } from '../format.js';
 import { cmd, paginate, pagerHtml, send, setPage } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -54,7 +54,7 @@ function sortItems<T extends CastCard | Faction>(items: T[], sort: Sort): T[] {
 
 export const castTab: Component<ChronicleState> = {
   version: (s) => {
-    const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${(c.aka ?? []).join(',')}|${c.lastTurn}`).join(';');
+    const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${(c.aka ?? []).join(',')}|${c.lastTurn}|${c.color ?? ''}|${c.colorTo ?? ''}`).join(';');
     const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}`).join(';');
     const mv = s.memberships.map((m) => `${m.char}>${m.faction}:${m.role ?? ''}`).join(',');
     return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac;
@@ -80,6 +80,7 @@ export const castTab: Component<ChronicleState> = {
           role: ed.getAttribute('data-role') ?? '', age: ed.getAttribute('data-age') ?? '',
           appearance: ed.getAttribute('data-app') ?? '', note: ed.getAttribute('data-note') ?? '',
           status: ed.getAttribute('data-status') ?? 'active', aka: ed.getAttribute('data-aka') ?? '',
+          color: ed.getAttribute('data-color') ?? '', colorTo: ed.getAttribute('data-colorto') ?? '',
         });
         return;
       }
@@ -132,7 +133,12 @@ function castForm(title: string, v: Record<string, string>): void {
     { key: 'aka', label: 'Also known as (comma-separated)', type: 'text', value: v.aka },
     { key: 'status', label: 'Status', type: 'select', value: v.status ?? 'active', options: STATUS_OPTS },
     { key: 'note', label: 'Note', type: 'textarea', value: v.note },
-  ], (out) => { if (out.name?.trim()) cmd('cast_upsert', { ...(v.id ? { id: v.id } : {}), ...out }); });
+    { key: 'color', label: 'Name color', type: 'color', value: v.color },
+    { key: 'colorTo', label: 'Gradient end (optional)', type: 'color', value: v.colorTo },
+  ], (out) => {
+    if (!out.name?.trim()) return;
+    cmd('cast_upsert', { ...(v.id ? { id: v.id } : {}), ...out });
+  });
 }
 
 function card(c: CastCard): string {
@@ -140,13 +146,13 @@ function card(c: CastCard): string {
   const A = (x: unknown): string => esc(x);
   return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + '">'
     + '<span class="vle-av" title="' + esc(c.status) + '">' + esc(initials(c.name)) + '</span>'
-    + '<span class="vle-card-main"><span class="vle-card-n">' + esc(c.name) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
+    + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (meta ? '<span class="vle-card-meta">' + meta + '</span>' : '')
     + (c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')
     + '</span>'
     + '<span class="vle-card-ctl">'
     + `<button class="vle-mini" data-cast-promote data-id="${A(c.id)}" title="Promote to Vault lore">\u2934</button>`
-    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" title="Edit">\u270E</button>`
+    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
     + '</span></div>';
 }
@@ -169,8 +175,7 @@ function factionSection(s: ChronicleState): string {
 function factionCard(s: ChronicleState, f: Faction): string {
   const A = (x: unknown): string => esc(x);
   const members = s.memberships.filter((m) => m.faction === f.id);
-  const nameOf = (id: string): string => s.cast[id]?.name ?? id;
-  const chips = members.slice(0, 8).map((m) => `<span class="vle-fac-mem" title="${A(m.role ?? '')}">${esc(nameOf(m.char))}${m.role ? ' \u00b7 ' + esc(m.role) : ''}<button class="vle-fac-x" data-fac-memdel data-id="${A(f.id)}" data-char="${A(m.char)}" title="Remove">\u00d7</button></span>`).join('');
+  const chips = members.slice(0, 8).map((m) => `<span class="vle-fac-mem" title="${A(m.role ?? '')}">${nameHtml(s, m.char)}${m.role ? ' \u00b7 ' + esc(m.role) : ''}<button class="vle-fac-x" data-fac-memdel data-id="${A(f.id)}" data-char="${A(m.char)}" title="Remove">\u00d7</button></span>`).join('');
   const stand = standingLabel(f.standing);
   return '<div class="vle-card vle-fac vle-card--' + esc(f.status) + (f.status === 'present' ? ' on' : '') + '">'
     + '<span class="vle-av vle-fac-av" title="' + esc(f.status) + '">' + esc(initials(f.name)) + '</span>'

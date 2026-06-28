@@ -48,6 +48,54 @@ export function nameOf(state: ChronicleState, id: string): string {
   return state.cast[id]?.name ?? id;
 }
 
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * Render a character's name with their optional color/gradient, applied
+ * everywhere names show. No color → plain escaped text (today's output). Solid →
+ * `color`. Gradient (color + colorTo) → background-clip:text. Hex is re-validated
+ * here (defense in depth) so a bad value can't inject style. */
+export function nameHtml(state: ChronicleState, id: string): string {
+  const c = state.cast[id];
+  const label = esc(c?.name ?? id);
+  const col = c?.color && HEX6.test(c.color) ? c.color : '';
+  if (!col) return label;
+  const to = c?.colorTo && HEX6.test(c.colorTo) ? c.colorTo : '';
+  if (to) return `<span class="vle-name vle-name--grad" style="--c1:${col};--c2:${to}">${label}</span>`;
+  // contrast guardrail: a very dark solid color gets a subtle light lift so it
+  // stays legible on dark surfaces (automatic, non-blocking — better than a warning).
+  const lift = lowContrast(col) ? ' vle-name--lift' : '';
+  return `<span class="vle-name${lift}" style="color:${col}">${label}</span>`;
+}
+
+/** Like nameHtml but from a CastCard directly (call sites that already hold the
+ * card, e.g. the cast grid). */
+export function nameHtmlCard(c: CastCard): string {
+  const label = esc(c.name);
+  const col = c.color && HEX6.test(c.color) ? c.color : '';
+  if (!col) return label;
+  const to = c.colorTo && HEX6.test(c.colorTo) ? c.colorTo : '';
+  if (to) return `<span class="vle-name vle-name--grad" style="--c1:${col};--c2:${to}">${label}</span>`;
+  const lift = lowContrast(col) ? ' vle-name--lift' : '';
+  return `<span class="vle-name${lift}" style="color:${col}">${label}</span>`;
+}
+
+/** Relative luminance (0..1) of a #rrggbb, per WCAG. For the contrast guardrail. */
+export function luminance(hex: string): number {
+  if (!HEX6.test(hex)) return 0.5;
+  const ch = [1, 3, 5].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * ch[0]! + 0.7152 * ch[1]! + 0.0722 * ch[2]!;
+}
+
+/** True if a color is likely too low-contrast to read as a name on the dark-ish
+ * VELLUM surfaces (advisory — used to warn, not block). */
+export function lowContrast(hex: string): boolean {
+  return luminance(hex) < 0.12; // very dark text on a dark surface
+}
+
 export function catsOf(r: Relation): string[] {
   return r.categories.length ? r.categories : [r.category || 'neutral'];
 }
