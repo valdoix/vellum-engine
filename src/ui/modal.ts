@@ -51,7 +51,7 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
     });
     close(); onSave(values);
   };
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  // intentionally no backdrop-close: only the Cancel/Done button (or Esc) dismisses
   overlay.querySelector('[data-cancel]')!.addEventListener('click', close);
   overlay.querySelector('[data-save]')!.addEventListener('click', save);
   // Esc closes; Enter saves (unless focus is in a textarea, where Enter = newline)
@@ -79,7 +79,7 @@ export function confirmModal(message: string, onConfirm: () => void): void {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); };
   const confirmIt = (): void => { close(); onConfirm(); };
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  // intentionally no backdrop-close: only the Cancel/Done button (or Esc) dismisses
   overlay.querySelector('[data-cancel]')!.addEventListener('click', close);
   overlay.querySelector('[data-confirm]')!.addEventListener('click', confirmIt);
   onKey = (e: KeyboardEvent): void => {

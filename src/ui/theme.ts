@@ -10,7 +10,7 @@
  * + intensity · serif/mono fonts + sizes · window (opacity/blur/radius/border/
  * density/texture) · motion · display flags · launcher position.
  */
-import { layoutPanel, setLayout, customLayoutEditor } from './layout-defs.js';
+import { layoutPanel, setLayout, customLayoutEditor, setDensityOverride } from './layout-defs.js';
 import { confirmModal } from './modal.js';
 
 export interface Theme {
@@ -265,6 +265,7 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
     const sk = t.closest('[data-skin]'); if (sk) { setSkin(sk.getAttribute('data-skin')!); rerender('skin'); reapply(); return; }
     const md = t.closest('[data-mode]'); if (md) { setMode(md.getAttribute('data-mode')!); rerender('mode'); reapply(); return; }
     const lp = t.closest('[data-layout-pick]'); if (lp) { setLayout(lp.getAttribute('data-layout-pick')!); rerender('layout'); onChange(); return; }
+    const dp = t.closest('[data-density-pick]'); if (dp) { setDensityOverride(dp.getAttribute('data-density-pick') as 'compact' | 'comfortable' | 'roomy'); rerender('layout'); onChange(); return; }
     // custom-layout editor clicks are handled by layout-defs via delegation below
     if (t.closest('[data-clay]')) { import('./layout-defs.js').then((m) => { m.handleCustomLayoutClick(t); rerender('layout'); onChange(); }); }
   });

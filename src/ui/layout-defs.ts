@@ -95,16 +95,34 @@ const KEY = 'vellum2.layout';
 let _id: string = load();
 function load(): string { try { return localStorage.getItem(KEY) || 'dashboard'; } catch { return 'dashboard'; } }
 export function setLayout(id: string): void { if (id === 'custom' || LAYOUTS.some((l) => l.id === id)) { _id = id; try { localStorage.setItem(KEY, id); } catch { /* ignore */ } } }
-export function getLayout(): LayoutDef { return _id === 'custom' ? _custom : (LAYOUTS.find((l) => l.id === _id) ?? LAYOUTS[0]!); }
+
+// Density OVERRIDE — a quick compact/comfortable/roomy preset applied over ANY
+// active layout (separate from the per-layout default + the numeric --vdensity
+// slider). null = use the layout's own density.
+const DKEY = 'vellum2.density';
+let _density: Density | null = loadDensity();
+function loadDensity(): Density | null { try { const v = localStorage.getItem(DKEY); return v === 'compact' || v === 'comfortable' || v === 'roomy' ? v : null; } catch { return null; } }
+export function setDensityOverride(d: Density | null): void { _density = d; try { if (d) localStorage.setItem(DKEY, d); else localStorage.removeItem(DKEY); } catch { /* ignore */ } }
+export function densityOverride(): Density | null { return _density; }
+
+export function getLayout(): LayoutDef {
+  const base = _id === 'custom' ? _custom : (LAYOUTS.find((l) => l.id === _id) ?? LAYOUTS[0]!);
+  return _density ? { ...base, density: _density } : base;
+}
 export function currentLayoutId(): string { return _id; }
 
-/** Picker tiles (presets + Custom), separate from the skin gallery. */
+/** Picker tiles (presets + Custom) + a quick density preset row. */
 export function layoutPanel(): string {
   const tiles = LAYOUTS_WITH_CUSTOM().map((l) =>
     `<button class="vle-lay${_id === l.id ? ' on' : ''}" data-layout-pick="${l.id}" title="${l.blurb}">`
     + `<span class="vle-lay-g">${l.glyph}</span><span class="vle-lay-n">${l.name}</span></button>`
   ).join('');
-  return '<div class="vle-cz-h">Layout</div><div class="vle-lays">' + tiles + '</div>';
+  const eff = getLayout().density;
+  const dens = ([['compact', 'Compact'], ['comfortable', 'Comfortable'], ['roomy', 'Roomy']] as Array<[Density, string]>)
+    .map(([d, l]) => `<button class="vle-fb-btn${eff === d ? ' on' : ''}" data-density-pick="${d}">${l}</button>`).join('');
+  return '<div class="vle-cz-h">Layout</div><div class="vle-lays">' + tiles + '</div>'
+    + '<div class="vle-cz-h">Density</div><div class="vle-fbar">' + dens + '</div>'
+    + '<div class="vle-cz-note">Density spacing applies over any layout. Fine-tune the exact gap with the slider in <b>Window</b>.</div>';
 }
 
 /** Editor for the Custom layout: each section with up/down, show/hide, fold. */

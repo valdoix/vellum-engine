@@ -89,7 +89,7 @@ function openCustomize(onChange: () => void): void {
   reskin();
   wireCustomize(host, onChange, (tab) => { host.innerHTML = customizePanel(tab); reskin(); });
   const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
-  ov.addEventListener('click', (e) => { if (e.target === ov || (e.target as HTMLElement).closest('[data-close]')) close(); });
+  ov.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-close]')) close(); });
 }
 
 /** A self-contained shell instance: renders the tab bar + toolbar + body. */
@@ -180,37 +180,47 @@ function setQolBusy(id: string, busy: boolean, timeoutMs = 30000): void {
 
 /** Open the grouped Actions menu as an overlay. Items reuse the same `data-qol`
  * ids so all existing busy/toggle wiring keeps working; only the container moved
- * off the always-on toolbar. Toggles render their current state inline. */
+ * off the always-on toolbar. Toggles render their current state inline. The menu
+ * PERSISTS across actions (re-rendering toggle state) — only Close dismisses it. */
 function openActions(ctx: Ctx): void {
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
-  const toggleState: Record<string, string> = {
-    hide: _hideOn ? 'on' : 'off',
-    traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
-    tone: (_tone.romance === 'medium' && _tone.disposition === 'fair') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition}`,
-  };
   const groups: Array<[string, string]> = [['maint', 'Maintenance'], ['toggle', 'Toggles'], ['data', 'Data'], ['danger', 'Danger']];
-  const body = groups.map(([g, label]) => {
-    const items = QOL.filter((q) => q.group === g);
-    if (!items.length) return '';
-    const rows = items.map((q) => {
-      const st = toggleState[q.id];
-      const stHtml = g === 'toggle' ? `<span class="vle-act-st">${esc(st ?? '')}</span>` : '';
-      return `<button class="vle-act-item${g === 'danger' ? ' danger' : ''}" data-qol="${q.id}" title="${esc(q.title)}"><span class="vle-act-l">${q.label}</span>${stHtml}</button>`;
+  const bodyHtml = (): string => {
+    const toggleState: Record<string, string> = {
+      hide: _hideOn ? 'on' : 'off',
+      traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
+      tone: (_tone.romance === 'medium' && _tone.disposition === 'fair') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition}`,
+    };
+    return groups.map(([g, label]) => {
+      const items = QOL.filter((q) => q.group === g);
+      if (!items.length) return '';
+      const rows = items.map((q) => {
+        const st = toggleState[q.id];
+        const stHtml = g === 'toggle' ? `<span class="vle-act-st">${esc(st ?? '')}</span>` : '';
+        return `<button class="vle-act-item${g === 'danger' ? ' danger' : ''}" data-qol="${q.id}" title="${esc(q.title)}"><span class="vle-act-l">${q.label}</span>${stHtml}</button>`;
+      }).join('');
+      return `<div class="vle-act-grp"><div class="vle-act-h">${label}</div>${rows}</div>`;
     }).join('');
-    return `<div class="vle-act-grp"><div class="vle-act-h">${label}</div>${rows}</div>`;
-  }).join('');
+  };
   ov.innerHTML = '<div class="vlfm vle-root" style="width:min(420px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u22EF</span>Actions</div>'
-    + `<div class="vlfm-body vle-acts">${body}</div>`
+    + `<div class="vlfm-body vle-acts" data-acts-host>${bodyHtml()}</div>`
     + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-close>Close</button></div></div>';
   document.body.appendChild(ov);
   applyTheme(ov.querySelector('.vlfm') as HTMLElement);
+  const host = ov.querySelector('[data-acts-host]') as HTMLElement;
   const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
   ov.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
-    if (t === ov || t.closest('[data-close]')) { close(); return; }
+    if (t.closest('[data-close]')) { close(); return; }
     const item = t.closest('[data-qol]');
-    if (item) { close(); onQol(ctx, item.getAttribute('data-qol')!); }
+    if (item) {
+      const id = item.getAttribute('data-qol')!;
+      onQol(ctx, id);
+      // keep the menu open; refresh toggle state. Actions that open their own
+      // modal (import/clear) render over this; it's still here when they finish.
+      host.innerHTML = bodyHtml();
+    }
   });
 }
 
@@ -254,7 +264,7 @@ function openSearch(getState: () => ChronicleState, go: (tab: string) => void): 
   input.addEventListener('input', render);
   ov.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
-    if (t === ov || t.closest('[data-close]')) { close(); return; }
+    if (t.closest('[data-close]')) { close(); return; }
     const hit = t.closest('[data-go]'); if (hit) { go(hit.getAttribute('data-go')!); close(); }
   });
   render();
@@ -295,7 +305,7 @@ function openDirector(getState: () => ChronicleState): void {
   const push = (next: UIDirective[]): void => { send({ type: 'vellum_set_directives', directives: next }); close(); };
   ov.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
-    if (t === ov || t.closest('[data-close]')) { close(); return; }
+    if (t.closest('[data-close]')) { close(); return; }
     const del = t.closest('[data-dir-del]');
     if (del) { push(_directives.filter((d) => d.id !== del.getAttribute('data-dir-del'))); return; }
     if (t.closest('[data-dir-add]')) { close(); addDirective(s); }
