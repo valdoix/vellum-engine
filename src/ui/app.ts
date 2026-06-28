@@ -11,6 +11,8 @@ import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize } from './theme.js';
 import { dashboardHtml } from './dashboard.js';
+import { esc } from './format.js';
+import type { Component } from './component.js';
 import { wireBridge, wirePagers, wireFilters } from './bridge.js';
 import { confirmModal, formModal } from './modal.js';
 
@@ -36,30 +38,42 @@ interface Ctx {
 
 const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:var(--vg,#cda84e)"><path d="M4 3.5h9l3 3V16.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4"/><path d="M6 9h8M6 12h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
+// "Now" — the live-scene dashboard, reused as the first drawer view so the drawer
+// and the floating window share one language (float = Now alone; drawer = Now +
+// the archive tabs). Same composable section engine as the float (dashboard.ts).
+const nowTab: Component<ChronicleState> = {
+  version: (s) => `${s.turns}:${s.day}:${s.scene.location ?? ''}:${s.scene.tension ?? 0}:${s.scene.present.join(',')}:${s.relations.length}`,
+  render: (s) => `<div class="vld">${dashboardHtml(s)}</div>`,
+};
+
 const TABS = [
-  { id: 'chronicle', label: 'Chronicle', comp: chronicleTab },
-  { id: 'cast', label: 'Cast', comp: castTab },
-  { id: 'relations', label: 'Relations', comp: relationsTab },
-  { id: 'journal', label: 'Journal', comp: journalTab },
-  { id: 'graph', label: 'Graph', comp: graphTab },
-  { id: 'vault', label: 'Vault', comp: vaultTab },
-  { id: 'injection', label: 'Injection', comp: injectionTab },
+  { id: 'now', label: 'Now', comp: nowTab, group: 'primary' },
+  { id: 'chronicle', label: 'Chronicle', comp: chronicleTab, group: 'primary' },
+  { id: 'cast', label: 'Cast', comp: castTab, group: 'primary' },
+  { id: 'relations', label: 'Relations', comp: relationsTab, group: 'primary' },
+  { id: 'journal', label: 'Journal', comp: journalTab, group: 'primary' },
+  { id: 'graph', label: 'Graph', comp: graphTab, group: 'primary' },
+  { id: 'vault', label: 'Vault', comp: vaultTab, group: 'tools' },
+  { id: 'injection', label: 'Context', comp: injectionTab, group: 'tools' },
 ] as const;
 
+// QOL actions, grouped. 'inline' stays on the toolbar; the rest live in the
+// Actions menu so the shell isn't a wall of 12 equal-weight pills. Toggles show
+// their current state; the destructive Clear is quarantined in its own group.
 const QOL = [
-  { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins' },
-  { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories' },
-  { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message' },
-  { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)' },
-  { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)' },
-  { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)' },
-  { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)' },
-  { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you' },
-  { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)' },
-  { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON' },
-  { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON' },
-  { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat' },
-];
+  { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins', group: 'inline' },
+  { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'maint' },
+  { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message', group: 'maint' },
+  { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)', group: 'maint' },
+  { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)', group: 'maint' },
+  { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)', group: 'maint' },
+  { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
+  { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
+  { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
+  { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON', group: 'data' },
+  { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON', group: 'data' },
+  { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat', group: 'danger' },
+] as const;
 
 /** Open the Customize (theme) panel as a modal-style overlay. */
 function openCustomize(onChange: () => void): void {
@@ -81,12 +95,20 @@ function openCustomize(onChange: () => void): void {
 function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const root = document.createElement('div');
   root.className = 'vle-root';
+  const primary = TABS.filter((t) => t.group === 'primary');
+  const tools = TABS.filter((t) => t.group === 'tools');
+  const tabBtn = (t: typeof TABS[number], on: boolean): string => `<button class="vle-tabbtn${on ? ' on' : ''}" data-tab="${t.id}">${t.label}</button>`;
   root.innerHTML = '<div class="vle-head"><span class="vle-mark">\u2756</span> VELLUM <span class="vle-ver">II</span>'
     + '<span class="vle-stats" data-stats></span></div>'
-    + '<div class="vle-tabbar" data-tabbar>' + TABS.map((t, i) =>
-      `<button class="vle-tabbtn${i === 0 ? ' on' : ''}" data-tab="${t.id}">${t.label}</button>`).join('') + '</div>'
-    + '<div class="vle-toolbar" data-toolbar>' + QOL.map((q) =>
-      `<button class="vle-qol" data-qol="${q.id}" title="${q.title}">${q.label}</button>`).join('') + '</div>'
+    + '<div class="vle-tabbar" data-tabbar>'
+      + primary.map((t, i) => tabBtn(t, i === 0)).join('')
+      + '<span class="vle-tabbar-sep"></span>'
+      + tools.map((t) => tabBtn(t, false)).join('')
+    + '</div>'
+    + '<div class="vle-toolbar" data-toolbar>'
+      + '<button class="vle-qol" data-qol="customize" title="Theme: color, font, size & skins">\u25C8 Customize</button>'
+      + '<button class="vle-qol vle-qol-menu" data-actions title="Chronicle actions">\u22EF Actions</button>'
+    + '</div>'
     + '<div class="vle-body" data-body></div>';
 
   const statsEl = root.querySelector('[data-stats]') as HTMLElement;
@@ -94,14 +116,17 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const bodyEl = root.querySelector('[data-body]') as HTMLElement;
   let active: string = TABS[0]!.id;
   let mounted: Mounted<ChronicleState> | null = null;
+  const _scroll = new Map<string, number>(); // remember reading position per tab
 
   const showTab = (id: string): void => {
+    if (active !== id) _scroll.set(active, bodyEl.scrollTop); // stash before leaving
     active = id;
     tabbar.querySelectorAll('.vle-tabbtn').forEach((b) => b.classList.toggle('on', b.getAttribute('data-tab') === id));
     if (mounted) { mounted.destroy(); mounted = null; }
     bodyEl.innerHTML = '';
     const def = TABS.find((t) => t.id === id) ?? TABS[0]!;
     mounted = mount(bodyEl, def.comp, getState(), def.id);
+    bodyEl.scrollTop = _scroll.get(id) ?? 0; // restore reading position
   };
   const stats = (): void => {
     const s = getState();
@@ -109,7 +134,10 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
     statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 D${s.day ?? 0} \u00b7 ${Object.keys(s.cast).length} cast \u00b7 ${s.relations.length} bonds${w}`;
   };
   tabbar.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
-  root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) onQol(ctx, b.getAttribute('data-qol')!); });
+  root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) { onQol(ctx, b.getAttribute('data-qol')!); return; }
+    if ((e.target as HTMLElement).closest('[data-actions]')) openActions(ctx);
+  });
   wirePagers(bodyEl); // delegated pager clicks for any paginated list
   wireFilters(bodyEl); // delegated filter-bar controls
 
@@ -142,6 +170,42 @@ function setQolBusy(id: string, busy: boolean, timeoutMs = 30000): void {
   const prev = _busyTimers.get(id);
   if (prev) { clearTimeout(prev); _busyTimers.delete(id); }
   if (busy) _busyTimers.set(id, setTimeout(() => setQolBusy(id, false), timeoutMs));
+}
+
+/** Open the grouped Actions menu as an overlay. Items reuse the same `data-qol`
+ * ids so all existing busy/toggle wiring keeps working; only the container moved
+ * off the always-on toolbar. Toggles render their current state inline. */
+function openActions(ctx: Ctx): void {
+  const ov = document.createElement('div');
+  ov.className = 'vlfm-overlay';
+  const toggleState: Record<string, string> = {
+    hide: _hideOn ? 'on' : 'off',
+    traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${_traverseAxis === 'character' ? 'by char' : 'by time'}` : 'flat'),
+    tone: (_tone.romance === 'medium' && _tone.disposition === 'fair') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition}`,
+  };
+  const groups: Array<[string, string]> = [['maint', 'Maintenance'], ['toggle', 'Toggles'], ['data', 'Data'], ['danger', 'Danger']];
+  const body = groups.map(([g, label]) => {
+    const items = QOL.filter((q) => q.group === g);
+    if (!items.length) return '';
+    const rows = items.map((q) => {
+      const st = toggleState[q.id];
+      const stHtml = g === 'toggle' ? `<span class="vle-act-st">${esc(st ?? '')}</span>` : '';
+      return `<button class="vle-act-item${g === 'danger' ? ' danger' : ''}" data-qol="${q.id}" title="${esc(q.title)}"><span class="vle-act-l">${q.label}</span>${stHtml}</button>`;
+    }).join('');
+    return `<div class="vle-act-grp"><div class="vle-act-h">${label}</div>${rows}</div>`;
+  }).join('');
+  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(420px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u22EF</span>Actions</div>'
+    + `<div class="vlfm-body vle-acts">${body}</div>`
+    + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-close>Close</button></div></div>';
+  document.body.appendChild(ov);
+  applyTheme(ov.querySelector('.vlfm') as HTMLElement);
+  const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
+  ov.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    if (t === ov || t.closest('[data-close]')) { close(); return; }
+    const item = t.closest('[data-qol]');
+    if (item) { close(); onQol(ctx, item.getAttribute('data-qol')!); }
+  });
 }
 
 function onQol(ctx: Ctx, id: string): void {

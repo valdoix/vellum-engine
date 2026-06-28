@@ -6,6 +6,12 @@ export function esc(s: unknown): string {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
+/** One empty-state shape + voice across every tab: a short line + optional muted
+ * hint. Replaces the ad-hoc mix of bare "—", terse strings, and <br><span> hints. */
+export function emptyState(msg: string, hint?: string): string {
+  return `<div class="vle-empty sm">${esc(msg)}${hint ? `<br><span>${esc(hint)}</span>` : ''}</div>`;
+}
+
 export function initials(name: string): string {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';

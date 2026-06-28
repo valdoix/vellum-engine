@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Memory } from '../../domain/types.js';
-import { esc, byRecent, nameOf } from '../format.js';
+import { esc, byRecent, nameOf, emptyState } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, applyFilter } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -91,7 +91,7 @@ function relChip(r: string): string {
 
 function knowledge(s: ChronicleState): string {
   const head = '<div class="vle-sec-h">\u25C8 Knowledge <span class="vle-n">' + s.knowledge.length + '</span><button class="vle-add sm" data-know-add>+</button></div>';
-  if (!s.knowledge.length) return head + '<div class="vle-empty sm">\u2014</div>';
+  if (!s.knowledge.length) return head + emptyState('Nothing known yet.', 'Who-knows-what fills in as the story reveals it.');
   const whos = Array.from(new Set(s.knowledge.map((k) => k.who))).map((id) => ({ id, name: nameOf(s, id) }));
   const bar = filterBar('knowledge', { whos });
   const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
@@ -104,7 +104,7 @@ function knowledge(s: ChronicleState): string {
 
 function secrets(s: ChronicleState): string {
   const head = '<div class="vle-sec-h">\u26C0 Secrets <span class="vle-n">' + s.secrets.length + '</span><button class="vle-add sm" data-sec-add>+</button></div>';
-  if (!s.secrets.length) return head + '<div class="vle-empty sm">\u2014</div>';
+  if (!s.secrets.length) return head + emptyState('No secrets yet.', 'Hidden knowledge appears here as characters keep things from each other.');
   const whos = Array.from(new Set(s.secrets.map((x) => x.keeper))).map((id) => ({ id, name: nameOf(s, id) }));
   const bar = filterBar('secrets', { whos });
   const filtered = applyFilter('secrets', s.secrets.map((x) => ({ ...x, turn: x.formedTurn })), { who: (x) => x.keeper });

@@ -22,7 +22,8 @@ const KIND_GLYPH: Record<string, string> = {
   interaction: '\u2194', promise: '\u270B', betrayal: '\u2020', gift: '\u2728',
   shared: '\u269C', wound: '\u2620', observation: '\u25C9',
 };
-const SENT_CLR: Record<string, string> = { positive: '#8fa67e', negative: '#c96a6a', neutral: '#8c8478', complex: '#b48ed0' };
+// sentiment → semantic-token class (skin-aware; no hardcoded hex reaches the DOM)
+const SENT_CLS: Record<string, string> = { positive: 'pos', negative: 'neg', neutral: 'neu', complex: 'cx' };
 
 // "book" view: when set, show one character's full journal on its own page
 let _openBook: string | null = null;
@@ -96,14 +97,14 @@ function jrForm(title: string, v: Record<string, string>): void {
 
 function card(s: ChronicleState, j: JournalEntry): string {
   const A = (x: unknown): string => esc(x);
-  const clr = SENT_CLR[j.sentiment] ?? '#8c8478';
+  const sc = SENT_CLS[j.sentiment] ?? 'neu';
   const about = j.about ? ' \u2192 ' + esc(nameOf(s, j.about)) : '';
-  return `<div class="vle-jr" style="--c:${clr}">`
+  return `<div class="vle-jr vle-jr--${sc}">`
     + `<div class="vle-jr-top"><span class="vle-jr-glyph">${KIND_GLYPH[j.kind] ?? '\u25C9'}</span>`
     + `<span class="vle-jr-who">${esc(nameOf(s, j.who))}${about}</span>`
     + `<span class="vle-jr-ctl"><button class="vle-mini" data-jr-edit data-id="${A(j.id)}" data-who="${A(nameOf(s, j.who))}" data-about="${A(j.about ? nameOf(s, j.about) : '')}" data-mem="${A(j.memory)}" data-kind="${A(j.kind)}" data-weight="${A(j.weight)}" data-sent="${A(j.sentiment)}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-jr-del data-id="${A(j.id)}" title="Delete">\u2715</button></span></div>`
     + `<div class="vle-jr-mem">${esc(j.memory)}</div>`
-    + `<div class="vle-jr-tags"><span class="vle-jr-tag">${esc(j.kind)}</span><span class="vle-jr-tag w-${j.weight}">${esc(j.weight)}</span><span class="vle-jr-tag" style="color:${clr}">${esc(j.sentiment)}</span>${j.day ? `<span class="vle-jr-day">day ${j.day}</span>` : ''}</div>`
+    + `<div class="vle-jr-tags"><span class="vle-jr-tag">${esc(j.kind)}</span><span class="vle-jr-tag w-${j.weight}">${esc(j.weight)}</span><span class="vle-jr-tag vle-jr-sent">${esc(j.sentiment)}</span>${j.day ? `<span class="vle-jr-day">day ${j.day}</span>` : ''}</div>`
     + '</div>';
 }
