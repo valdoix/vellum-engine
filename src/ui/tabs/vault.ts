@@ -1,7 +1,7 @@
 import type { Component } from '../component.js';
 import type { ChronicleState } from '../../domain/types.js';
 import { esc } from '../format.js';
-import { send } from '../bridge.js';
+import { send, paginate, pagerHtml, setPage } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
 /**
@@ -22,6 +22,7 @@ interface VSnap { ok: boolean; reason?: string; categories: VCat[]; books: VBook
 let _snap: VSnap | null = null;
 let _filter = 'all';
 let _scope: 'vault' | 'all' = 'vault';
+let _sort: 'az' | 'za' | 'new' | 'old' = 'az';
 export function setVaultSnap(s: VSnap): void { _snap = s; }
 
 const POS_OPTS = [
@@ -32,7 +33,7 @@ const POS_OPTS = [
 const ROLE_OPTS = [{ value: 'system', label: 'system' }, { value: 'user', label: 'user' }, { value: 'assistant', label: 'assistant' }];
 
 export const vaultTab: Component<ChronicleState> = {
-  version: () => (_snap ? `${_snap.books.reduce((a, b) => a + b.entries.length, 0)}:${_snap.categories.length}:${_snap.activated.length}:${_filter}` : 'none'),
+  version: () => (_snap ? `${_snap.books.reduce((a, b) => a + b.entries.length, 0)}:${_snap.categories.length}:${_snap.activated.length}:${_filter}:${_scope}:${_sort}` : 'none'),
   render() {
     if (!_snap) { send({ type: 'vellum_get_vault' }); return '<div class="vle-empty sm">Loading vault\u2026</div>'; }
     if (!_snap.ok && _snap.reason === 'no_permission') return '<div class="vlm-comp-error">The Vault needs the <b>world_books</b> permission. Grant it in the extension settings to author lorebooks here.<br><span>Activation stays native; the Vault just organizes + auto-configures.</span></div>';
@@ -61,12 +62,19 @@ export const vaultTab: Component<ChronicleState> = {
     const curBody = names.length ? names.join('<span class="vlv-current-sep"> \u00b7 </span>') : '\u2014 none (one will be created)';
     const cur = `<div class="vlv-current"><span class="vlv-current-l">${curLabel}</span><span class="vlv-current-n" data-vbook>${curBody}</span></div>`;
     const top = '<div class="vle-sec-top"><button class="vle-add" data-ventry-add>+ Entry</button><button class="vle-qol" data-vbook>\u2913 Books</button></div>' + cur;
-    const shown = _filter === 'all' ? entries : entries.filter((e) => e.category === _filter);
+    const shown = sortEntries((_filter === 'all' ? entries : entries.filter((e) => e.category === _filter)).filter((e) => !e.pending));
     const active = new Set(_snap.activated.map((a) => a.id));
     const pending = all.filter((e) => e.pending);
-    const grid = shown.filter((e) => !e.pending).length
-      ? '<div class="vlv-grid">' + shown.filter((e) => !e.pending).map((e) => entryCard(e, active.has(e.id))).join('') + '</div>'
-      : '<div class="vle-empty sm">' + (_scope === 'vault' ? 'No Vault entries yet. <b>+ Entry</b> to author lore, or switch to <b>All lorebooks</b> to adopt existing entries.' : 'No entries here yet.') + '</div>';
+    const sortBar = '<div class="vle-fbar">'
+      + (['az', 'za', 'new', 'old'] as const).map((k) => `<button class="vle-fb-btn${_sort === k ? ' on' : ''}" data-vsort="${k}">${SORT_LABEL[k]}</button>`).join('')
+      + '</div>';
+    let grid: string;
+    if (shown.length) {
+      const { slice, page, pages } = paginate('vault', shown);
+      grid = sortBar + '<div class="vlv-grid">' + slice.map((e) => entryCard(e, active.has(e.id))).join('') + '</div>' + pagerHtml('vault', page, pages);
+    } else {
+      grid = '<div class="vle-empty sm">' + (_scope === 'vault' ? 'No Vault entries yet. <b>+ Entry</b> to author lore, or switch to <b>All lorebooks</b> to adopt existing entries.' : 'No entries here yet.') + '</div>';
+    }
     return top + pendingTray(pending) + suggestStrip() + scopeBar + bar + grid;
   },
   mount(host) {
@@ -78,9 +86,11 @@ export const vaultTab: Component<ChronicleState> = {
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       const sc = t.closest('[data-vscope]');
-      if (sc) { _scope = sc.getAttribute('data-vscope') as 'vault' | 'all'; _filter = 'all'; rerender(host); return; }
+      if (sc) { _scope = sc.getAttribute('data-vscope') as 'vault' | 'all'; _filter = 'all'; setPage('vault', 0); rerender(host); return; }
+      const so = t.closest('[data-vsort]');
+      if (so) { _sort = so.getAttribute('data-vsort') as typeof _sort; setPage('vault', 0); rerender(host); return; }
       const chip = t.closest('[data-vcat]');
-      if (chip && !t.closest('[data-vcat-settings]')) { _filter = chip.getAttribute('data-vcat')!; rerender(host); return; }
+      if (chip && !t.closest('[data-vcat-settings]')) { _filter = chip.getAttribute('data-vcat')!; setPage('vault', 0); rerender(host); return; }
       const gear = t.closest('[data-vcat-settings]'); if (gear) { categorySettings(gear.getAttribute('data-vcat-settings')!); return; }
       if (t.closest('[data-vcat-add]')) { categoryCreate(); return; }
       if (t.closest('[data-ventry-add]')) { entryForm(null); return; }
@@ -97,6 +107,18 @@ export const vaultTab: Component<ChronicleState> = {
 };
 
 function allEntries(): VEntry[] { return (_snap?.books ?? []).flatMap((b) => b.entries.map((e) => ({ ...e, bookId: b.id }))); }
+
+const SORT_LABEL: Record<'az' | 'za' | 'new' | 'old', string> = { az: 'A\u2013Z', za: 'Z\u2013A', new: '\u2193 newest', old: '\u2191 oldest' };
+// Entries carry no timestamp, so newest/oldest use snapshot (insertion) order as
+// the proxy — newest = last in the book arrays. A-Z/Z-A sort by title then keys.
+// ponytail: real recency needs a created/updated turn on VEntry; add when entries gain one.
+function sortEntries(list: VEntry[]): VEntry[] {
+  const label = (e: VEntry): string => (e.comment || e.key[0] || '').toLowerCase();
+  if (_sort === 'new') return list.slice().reverse();
+  if (_sort === 'old') return list.slice();
+  const dir = _sort === 'za' ? -1 : 1;
+  return list.slice().sort((a, b) => dir * label(a).localeCompare(label(b)));
+}
 
 function suggestStrip(): string {
   const sg = _snap?.suggestions ?? [];

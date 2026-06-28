@@ -220,6 +220,7 @@ export const STYLES = [
   ".vle-fbar{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 9px}",
   ".vle-fb-btn,.vle-fb-sel{font:600 9px/1 var(--vmono);letter-spacing:.4px;color:var(--vi2);background:rgba(var(--vg-rgb),.08);border:1px solid rgba(var(--vg-rgb),.22);border-radius:7px;padding:5px 9px;cursor:pointer}",
   ".vle-fb-btn:hover{background:rgba(var(--vg-rgb),.2);color:var(--vle-gold)}",
+  ".vle-fb-btn.on{background:rgba(var(--vg-rgb),.2);color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.45)}",
   ".vle-fb-sel{text-transform:none}",
   // ---- journal ----
   ".vle-jr-grid{display:flex;flex-direction:column;gap:7px}",

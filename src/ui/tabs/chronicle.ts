@@ -70,15 +70,16 @@ function tracks(title: string, list: ChronicleState['arcs']): string {
 function memories(s: ChronicleState): string {
   const head = '<div class="vle-sec-h">\uD83D\uDCD6 Memory <span class="vle-n">' + s.memories.length + '</span><button class="vle-add sm" data-mem-add>+</button></div>';
   if (!s.memories.length) return head + '<div class="vle-empty sm">No memories yet.</div>';
-  const order = { arc: 0, chapter: 1, turn: 2 } as Record<string, number>;
-  const sorted = s.memories.slice().sort((a, b) => (order[a.tier]! - order[b.tier]!) || b.turn - a.turn);
-  const { slice, page, pages } = paginate('memories', sorted);
+  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'] });
+  const filtered = applyFilter('memories', s.memories, { cat: (m) => m.tier });
+  const { slice, page, pages } = paginate('memories', filtered);
   const rows = slice.map((m: Memory) =>
     '<div class="vle-mem"><span class="vle-mem-tier t-' + m.tier + '">' + m.tier + '</span>'
     + '<span class="vle-mem-t">' + esc(m.text) + '</span>'
     + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></div>`
   ).join('');
-  return head + rows + pagerHtml('memories', page, pages);
+  if (!slice.length) return head + bar + '<div class="vle-empty sm">No memories match this filter.</div>';
+  return head + bar + rows + pagerHtml('memories', page, pages);
 }
 
 /** Small certainty chip before a fact. 'knows' is the neutral default and shows
