@@ -128,13 +128,47 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   if (!prose || !prose.trim() || !(await has('generation'))) return [];
   const gen = await internalGenerate(
     [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: prose.slice(0, 8000) }],
-    { temperature: 0.2, max_tokens: 700 },
+    { temperature: 0.2, max_tokens: 900 },
     userId,
+    { reasoningOff: true, responseFormat: EXTRACT_SCHEMA },
   );
   if (!gen.ok) return [];
   const obj = parseJson(gen.value);
   return mapExtracted(obj, turn, day, names, nextSeq, state, tone);
 }
+
+// JSON-schema for the extractor output. Best-effort: the host enforces it only
+// when generation_parameters is granted (else it's stripped and we still parse
+// defensively). Guarantees the prose fallback yields parseable JSON so a turn
+// that omitted its <vellum> block still mines knowledge/secrets/bonds/journal.
+const EXTRACT_SCHEMA = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'vellum_extract',
+    strict: false,
+    schema: {
+      type: 'object',
+      properties: {
+        knowledge: { type: 'array', items: { type: 'object', properties: {
+          who: { type: 'string' }, fact: { type: 'string' }, about: { type: 'string' },
+          reliability: { type: 'string', enum: ['knows', 'believes', 'suspects', 'wrong', 'unaware'] },
+          truth: { type: 'string', enum: ['true', 'false', 'unknown'] }, source: { type: 'string' },
+        }, required: ['who', 'fact'] } },
+        secrets: { type: 'array', items: { type: 'object', properties: {
+          keeper: { type: 'string' }, secret: { type: 'string' }, from: { type: 'string' }, danger: { type: 'string' },
+        }, required: ['keeper', 'secret'] } },
+        journal: { type: 'array', items: { type: 'object', properties: {
+          who: { type: 'string' }, about: { type: 'string' }, memory: { type: 'string' },
+          kind: { type: 'string' }, weight: { type: 'string' }, sentiment: { type: 'string' },
+        }, required: ['who', 'memory'] } },
+        bonds: { type: 'array', items: { type: 'object', properties: {
+          a: { type: 'string' }, b: { type: 'string' }, aff: { type: 'number' }, trust: { type: 'number' },
+          cat: { type: 'array', items: { type: 'string' } }, why: { type: 'string' },
+        }, required: ['a', 'b'] } },
+      },
+    },
+  },
+} as const;
 
 const clamp = (v: unknown): number => Math.max(-40, Math.min(40, Math.round(Number(v) || 0)));
 const REL = new Set(['knows', 'believes', 'suspects', 'wrong', 'unaware']);

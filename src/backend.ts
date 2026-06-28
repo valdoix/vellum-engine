@@ -174,12 +174,17 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
     prior = await append(chatId, evs);
     added += evs.length;
-    // prose-driven extraction: knowledge / secrets / journal (incl. the player)
-    // that the model didn't hand-write in the <vellum> block. Best-effort.
+    // prose-driven extraction: knowledge / secrets / journal / bonds (incl. the
+    // player) the model didn't hand-write in a <vellum> block. When the turn had
+    // NO parseable block (source 'none'/'regex'), this is the SAFETY NET — the
+    // schema-guaranteed extractor mines the structure from prose so a forgotten
+    // block never means lost continuity. Best-effort; never throws into the fold.
+    const hadBlock = source === 'json';
     if (gist) {
       try {
         const xevs = await extractFromProse(gist, turnNo, prior.day || 0, names, userId, prior, tone);
-        if (xevs.length) { prior = await append(chatId, xevs); added += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal) from turn ${turnNo}`); }
+        if (xevs.length) { prior = await append(chatId, xevs); added += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal/bond)${hadBlock ? '' : ' [FALLBACK: no <vellum> block]'} from turn ${turnNo}`); }
+        else if (!hadBlock) spindle.log?.warn?.(`[vellum_engine] turn ${turnNo} had no <vellum> block and prose extraction yielded nothing`);
       } catch (e) { spindle.log?.warn?.('[vellum_engine] extract: ' + ((e as Error)?.message ?? e)); }
     }
     spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);

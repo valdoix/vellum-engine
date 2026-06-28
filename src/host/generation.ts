@@ -35,14 +35,17 @@ export async function internalGenerate(
   messages: GenMsg[],
   params: Record<string, unknown>,
   userId: string | null,
-  opts?: { reasoningOff?: boolean },
+  opts?: { reasoningOff?: boolean; responseFormat?: Record<string, unknown> },
 ): Promise<Result<string, string>> {
   if (!(await has('generation'))) return Err('no_generation_permission');
   if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
   // Disable extended thinking for internal tasks by default: on a reasoning model
   // the token budget is otherwise spent on hidden thinking and `content` comes
   // back empty, which silently drops us to the structural fallback.
-  const req = { messages, parameters: params || {}, userId, ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
+  // `responseFormat` (json_schema) is best-effort: the host strips it without the
+  // generation_parameters permission, so we still parse defensively downstream.
+  const params2 = opts?.responseFormat ? { ...(params || {}), response_format: opts.responseFormat } : (params || {});
+  const req = { messages, parameters: params2, userId, ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
   return tryCatchAsync(async () => {
     const r = spindle.generate.quiet
       ? await spindle.generate.quiet(req)
