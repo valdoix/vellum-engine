@@ -13,7 +13,7 @@ import { applyTheme, customizePanel, wireCustomize } from './theme.js';
 import { dashboardHtml, setPhoneSection, setSysInfo } from './dashboard.js';
 import { esc } from './format.js';
 import type { Component } from './component.js';
-import { wireBridge, wirePagers, wireFilters, refreshUI } from './bridge.js';
+import { wireBridge, wirePagers, wireFilters, refreshUI, send } from './bridge.js';
 import { confirmModal, formModal } from './modal.js';
 
 /**
@@ -108,6 +108,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
     + '</div>'
     + '<div class="vle-toolbar" data-toolbar>'
       + '<button class="vle-qol" data-search title="Search the chronicle (cast, bonds, journal, knowledge)">\u2315 Search</button>'
+      + '<button class="vle-qol" data-director title="Plot Director: steer the next scene">\u2691 Director</button>'
       + '<button class="vle-qol" data-qol="customize" title="Theme: color, font, size & skins">\u25C8 Customize</button>'
       + '<button class="vle-qol vle-qol-menu" data-actions title="Chronicle actions">\u22EF Actions</button>'
     + '</div>'
@@ -139,6 +140,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) { onQol(ctx, b.getAttribute('data-qol')!); return; }
     if ((e.target as HTMLElement).closest('[data-search]')) openSearch(getState, showTab);
+    if ((e.target as HTMLElement).closest('[data-director]')) openDirector(getState);
     if ((e.target as HTMLElement).closest('[data-actions]')) openActions(ctx);
   });
   wirePagers(bodyEl); // delegated pager clicks for any paginated list
@@ -257,6 +259,69 @@ function openSearch(getState: () => ChronicleState, go: (tab: string) => void): 
   });
   render();
   setTimeout(() => input.focus(), 30);
+}
+
+// Plot Director directives mirrored from the backend broadcast.
+interface UIDirective { id: string; kind: string; text: string; target?: string; status: string; ttl: number }
+let _directives: UIDirective[] = [];
+function setDirectives(d: UIDirective[]): void { _directives = Array.isArray(d) ? d : []; }
+
+const DIR_KIND_LABEL: Record<string, string> = {
+  reveal_secret: 'reveal secret', reveal_knowledge: 'act on knowledge', advance_thread: 'advance thread', note: 'note',
+};
+
+/** Plot Director panel: armed/done directives + add a new one. Directives are
+ * gentle nudges injected next turn; they self-clear when the fold sees them done. */
+function openDirector(getState: () => ChronicleState): void {
+  const s = getState();
+  const ov = document.createElement('div');
+  ov.className = 'vlfm-overlay';
+  const armed = _directives.filter((d) => d.status === 'armed');
+  const list = armed.length
+    ? armed.map((d) => `<div class="vle-dir-row"><span class="vle-dir-k">${esc(DIR_KIND_LABEL[d.kind] ?? d.kind)}</span><span class="vle-dir-t">${esc(d.text)}</span><button class="vle-mini del" data-dir-del="${esc(d.id)}" title="Remove">\u2715</button></div>`).join('')
+    : '<div class="vle-empty sm">No active directives. Add one to steer the next scene.</div>';
+  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(480px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2691</span>Plot Director</div>'
+    + `<div class="vlfm-body"><div class="vle-cz-h">Active intent</div><div class="vle-dir-list">${list}</div>`
+    + '<div class="vle-cz-row"><button class="vle-cz-btn" data-dir-add>+ Add directive</button></div>'
+    + '<div class="vle-cz-note">Directives inject as gentle guidance next scene and self-clear when fulfilled. They suggest \u2014 they don\u2019t force.</div></div>'
+    + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-close>Close</button></div></div>';
+  document.body.appendChild(ov);
+  applyTheme(ov.querySelector('.vlfm') as HTMLElement);
+  const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
+  const push = (next: UIDirective[]): void => { send({ type: 'vellum_set_directives', directives: next }); close(); };
+  ov.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    if (t === ov || t.closest('[data-close]')) { close(); return; }
+    const del = t.closest('[data-dir-del]');
+    if (del) { push(_directives.filter((d) => d.id !== del.getAttribute('data-dir-del'))); return; }
+    if (t.closest('[data-dir-add]')) { close(); addDirective(s); }
+  });
+}
+
+/** Add-directive form: pick a kind + target (an existing secret/thread) or a note. */
+function addDirective(s: ChronicleState): void {
+  const secrets = s.secrets.filter((x) => !x.revealed).map((x) => ({ value: 'reveal_secret|' + x.id, label: 'reveal: ' + x.text.slice(0, 50) }));
+  const threads = s.threads.filter((t) => t.status !== 'resolved').map((t) => ({ value: 'advance_thread|' + t.name, label: 'advance: ' + t.name }));
+  const opts = [...secrets, ...threads, { value: 'note|', label: 'free note (custom)' }];
+  if (!opts.length) return;
+  formModal('New directive', [
+    { key: 'pick', label: 'What should happen next scene?', type: 'select', value: opts[0]!.value, options: opts },
+    { key: 'note', label: 'Custom note (for free note, or extra detail)', type: 'text', value: '' },
+    { key: 'ttl', label: 'Expire after N turns (0 = never)', type: 'text', value: '6' },
+  ], (out) => {
+    const parts = (out.pick ?? 'note|').split('|');
+    const kind = parts[0] || 'note';
+    const target = parts[1] || '';
+    const ttl = Math.max(0, Math.min(50, parseInt(out.ttl ?? '6', 10) || 0));
+    let text = out.note?.trim() ?? '';
+    if (!text) {
+      const sec = s.secrets.find((x) => x.id === target);
+      const thr = s.threads.find((t) => t.name === target);
+      text = kind === 'reveal_secret' && sec ? `Reveal the secret: ${sec.text}` : kind === 'advance_thread' && thr ? `Advance the thread: ${thr.name}` : 'Director note';
+    }
+    const dir: UIDirective = { id: 'd' + Date.now().toString(36), kind, text, ...(target ? { target } : {}), status: 'armed', ttl };
+    send({ type: 'vellum_set_directives', directives: [..._directives.filter((d) => d.status === 'armed'), dir] });
+  });
 }
 
 function onQol(ctx: Ctx, id: string): void {
@@ -388,6 +453,7 @@ export function setup(ctx: Ctx): () => void {
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
+        if (Array.isArray(p.directives)) setDirectives(p.directives);
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;

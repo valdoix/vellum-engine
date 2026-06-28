@@ -30,6 +30,7 @@ import { reconcileFactionEntries } from './domain/faction-vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
 import { parseTone, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, type RelationLock } from './domain/relation-lock.js';
+import { sanitizeDirectives, directiveInjection, reconcileDirectives, type Directive } from './domain/directive.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
@@ -98,7 +99,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   try { if (await getChatVar(chatId, 'vellum_traversal')) traversalMode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat'; } catch { /* best effort */ }
   const traversalAxis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
   const relationLocks = await readLocks(chatId);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode, traversalAxis, relationLocks }, userId ?? currentUser());
+  const directives = await readDirectives(chatId);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode, traversalAxis, relationLocks, directives }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
@@ -154,6 +156,14 @@ async function readLocks(chatId: string): Promise<RelationLock[]> {
   try { const raw = await getChatVar(chatId, 'vellum_relation_locks'); return raw ? sanitizeLocks(JSON.parse(raw)) : []; } catch { return []; }
 }
 
+/** Read + sanitize the per-chat Plot Director directives. */
+async function readDirectives(chatId: string): Promise<Directive[]> {
+  try { const raw = await getChatVar(chatId, 'vellum_directives'); return raw ? sanitizeDirectives(JSON.parse(raw)) : []; } catch { return []; }
+}
+async function writeDirectives(chatId: string, d: Directive[]): Promise<void> {
+  try { await setChatVar(chatId, 'vellum_directives', JSON.stringify(d)); } catch { /* best effort */ }
+}
+
 async function foldChatInner(chatId: string, userId: string | null, hint?: string): Promise<void> {
   let msgs = await allAssistantContents(chatId);
   if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allAssistantContents(chatId); }
@@ -178,6 +188,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     spindle.log?.info?.(`[vellum_engine] reconcile: turn ${rollbackTo + 1} changed (regenerate/edit) \u2014 rolled back to turn ${rollbackTo}, re-folding.`);
   }
   let added = 0;
+  const foldedEvents: VellumEvent[] = []; // accumulate for Plot Director self-clear
   for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
@@ -186,6 +197,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
     const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
     if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
+    foldedEvents.push(...evs);
     prior = await append(chatId, evs);
     added += evs.length;
     // prose-driven extraction: knowledge / secrets / journal / bonds (incl. the
@@ -208,6 +220,15 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     }
   }
   if (!added) return;
+  // Plot Director: self-clear armed directives whose target transition fired this
+  // fold, and expire any past TTL. Persist only on change.
+  try {
+    const dirs = await readDirectives(chatId);
+    if (dirs.length) {
+      const { directives: next, changed } = reconcileDirectives(dirs, foldedEvents, prior.turns ?? 0);
+      if (changed) await writeDirectives(chatId, next);
+    }
+  } catch { /* best effort */ }
   invalidateIndex(chatId);
   await broadcastState(chatId, userId);
   void maybeAutoSummarize(chatId, userId);
@@ -534,12 +555,16 @@ async function wireCapabilities(): Promise<void> {
           const pre = tmode === 'tree' ? getPrecomputedTree(chatId) : null;
           const controller = pre ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
           const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller, tmode, pre);
-          if (!inj.text) return out;
-          const rec = recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
+          // Plot Director: append armed directives as gentle guidance (suggestive,
+          // not a hard block — they self-clear at the fold when fulfilled).
+          const dirText = directiveInjection(await readDirectives(chatId));
+          const injText = dirText ? (inj.text ? inj.text + '\n\n' + dirText : dirText) : inj.text;
+          if (!injText) return out;
+          const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
           // streams in real time instead of only on manual Refresh.
           try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
-          const head = { role: 'system', content: inj.text };
+          const head = { role: 'system', content: injText };
           return { messages: [head, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Recall' }] };
         } catch (e) {
           spindle.log?.warn?.('[vellum_engine] interceptor: ' + ((e as Error)?.message ?? e));
@@ -845,6 +870,16 @@ const dispatch: Record<string, Handler> = {
     if (evs.length) { await append(chatId, evs); invalidateIndex(chatId); }
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_locks_done', ok: true, locks }, uid);
+  },
+  vellum_set_directives: async (p, uid) => {
+    // Plot Director: replace the directive list (UI sends the full set). Suggestive
+    // nudges — injected while armed, self-cleared at the fold, TTL-expired.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const directives = sanitizeDirectives(p?.directives);
+    await writeDirectives(chatId, directives);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_directives_done', ok: true, directives }, uid);
   },
   vellum_set_tidy: async (p, uid) => {
     // toggle auto thread/arc reconcile (Layer 3); persist in a chat var
