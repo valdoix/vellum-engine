@@ -145,6 +145,7 @@ export interface ParallelEvent {
   where?: string;
   activity: string;
   note?: string;
+  src?: 'sim'; // tagged when authored by the off-screen simulation (vs model-narrated)
   turn: number;
   day: number;
 }

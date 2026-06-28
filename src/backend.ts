@@ -32,6 +32,7 @@ import { parseTone, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
 import { checkContinuity } from './domain/continuity.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
@@ -95,13 +96,15 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const tone = await readTone(chatId, userId);
   let tidy = false;
   try { tidy = !!(await getChatVar(chatId, 'vellum_tidy_threads')); } catch { /* best effort */ }
+  let offscreen = false;
+  try { offscreen = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
   const chapterVault = await readChapterVaultMode(chatId);
   let traversalMode = 'off';
   try { if (await getChatVar(chatId, 'vellum_traversal')) traversalMode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat'; } catch { /* best effort */ }
   const traversalAxis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
   const relationLocks = await readLocks(chatId);
   const directives = await readDirectives(chatId);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode, traversalAxis, relationLocks, directives }, userId ?? currentUser());
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
@@ -248,6 +251,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   void maybeAutoSummarize(chatId, userId);
   void maybeVaultSync(chatId, userId);
   void maybeTidyThreads(chatId, userId);
+  void maybeSimulate(chatId, userId);
   void maybeChapterVault(chatId, userId);
   void precomputeTree(chatId, userId); // PR2: warm the tree ranking for next turn
 }
@@ -302,6 +306,52 @@ async function maybeTidyThreads(chatId: string, userId: string | null): Promise<
   if (open <= TIDY_THRESHOLD) return;
   if ((state.turns || 0) % 4 !== 0) return; // cadence guard
   await tidyThreads(chatId, userId);
+}
+
+const _simulating = new Set<string>();
+const SIM_CADENCE = 3; // tick the off-screen world every Nth turn (cost control)
+
+/**
+ * Off-screen simulation tick — advance characters who aren't in the scene. Opt-in
+ * (chat var) + generation-permission-gated + cadence-throttled + serialized per
+ * chat, exactly like tidyThreads. One bounded controller call; respects locks,
+ * armed directives, and tone. Fail/timeout/empty → no-op. Beats are tagged
+ * src:'sim' so the UI distinguishes them; the append-only log makes them undoable.
+ */
+async function simulateOffscreen(chatId: string, userId: string | null): Promise<void> {
+  if (_simulating.has(chatId)) return;
+  if (!(await has('generation'))) return;
+  _simulating.add(chatId);
+  try {
+    const state = await loadState(chatId);
+    const cast = offscreenCast(state);
+    if (cast.length < 1) return; // nobody plausibly off-screen
+    const tone = await readTone(chatId, userId);
+    const locks = await readLocks(chatId);
+    const directives = await readDirectives(chatId);
+    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition } });
+    const res = await controllerGenerate([{ role: 'system', content: SIM_SYS }, { role: 'user', content: prompt }], userId, 3000);
+    if (!res.ok) return;
+    const parsed = parseSim(res.value);
+    if (!parsed) return;
+    const evs = simEvents(parsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal());
+    if (!evs.length) return;
+    await append(chatId, evs);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, userId);
+    spindle.log?.info?.(`[vellum_engine] off-screen sim: ${parsed.parallel.length} beat(s)`);
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] simulateOffscreen: ' + ((e as Error)?.message ?? e)); }
+  finally { _simulating.delete(chatId); }
+}
+
+/** Auto off-screen sim: opt-in chat var, throttled to every SIM_CADENCE-th turn. */
+async function maybeSimulate(chatId: string, userId: string | null): Promise<void> {
+  let on = false;
+  try { on = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
+  if (!on) return;
+  const state = await loadState(chatId);
+  if ((state.turns || 0) % SIM_CADENCE !== 0) return; // cadence guard
+  await simulateOffscreen(chatId, userId);
 }
 
 const _vaultSyncing = new Set<string>();
@@ -902,6 +952,15 @@ const dispatch: Record<string, Handler> = {
     const enabled = !!p?.enabled;
     try { await setChatVar(chatId, 'vellum_tidy_threads', enabled ? '1' : ''); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_tidy_set_done', ok: true, enabled, available: await has('generation') }, uid);
+  },
+  vellum_set_offscreen: async (p, uid) => {
+    // toggle off-screen simulation; persist in a chat var. Costs a generation per
+    // tick (cadence-throttled), so it's opt-in and gated on the generation perm.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const enabled = !!p?.enabled;
+    try { await setChatVar(chatId, 'vellum_offscreen', enabled ? '1' : ''); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_offscreen_set_done', ok: true, enabled, available: await has('generation') }, uid);
   },
   vellum_set_chaptervault: async (p, uid) => {
     // chapter-vault mode: off | keyed (default) | constant. Detailed chapter

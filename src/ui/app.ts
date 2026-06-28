@@ -71,6 +71,7 @@ const QOL = [
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
+  { id: 'offscreen', label: '\u2748 Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON', group: 'data' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON', group: 'data' },
   { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat', group: 'danger' },
@@ -156,6 +157,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
+let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
 let _traverseMode = 'off'; // off | flat | tree
 let _traverseAxis = 'temporal'; // temporal | character | hybrid (tree only)
 const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === 'hybrid' ? 'by char+time' : 'by time';
@@ -189,6 +191,7 @@ function openActions(ctx: Ctx): void {
   const bodyHtml = (): string => {
     const toggleState: Record<string, string> = {
       hide: _hideOn ? 'on' : 'off',
+      offscreen: _offscreenOn ? 'on' : 'off',
       traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
       tone: (_tone.romance === 'medium' && _tone.disposition === 'fair') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition}`,
     };
@@ -363,6 +366,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
   else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { setQolBusy('rebuild', true); ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
+  else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'traverse') {
     // cycle: off → flat → tree·time → tree·char → tree·hybrid → off
     if (_traverseMode === 'off') { _traverseMode = 'flat'; }
@@ -483,6 +487,7 @@ export function setup(ctx: Ctx): () => void {
           document.querySelectorAll('[data-qol=\'tone\']').forEach((b) => b.classList.toggle('on', !isDefault));
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
+        if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
         if (Array.isArray(p.directives)) setDirectives(p.directives);
@@ -567,6 +572,10 @@ export function setup(ctx: Ctx): () => void {
         _tidyOn = !!p.enabled;
         if (p.enabled && !p.available) ctx.toast?.warning?.('Auto-tidy needs the generation permission to run.');
         else ctx.toast?.success?.(p.enabled ? 'Auto-tidy threads on.' : 'Auto-tidy threads off.');
+      } else if (p?.type === 'vellum_offscreen_set_done') {
+        _offscreenOn = !!p.enabled;
+        if (p.enabled && !p.available) ctx.toast?.warning?.('Off-screen sim needs the generation permission to run.');
+        else ctx.toast?.success?.(p.enabled ? 'Off-screen simulation on \u2014 the world ticks every few turns.' : 'Off-screen simulation off.');
       } else if (p?.type === 'vellum_chaptervault_done') {
         _chapterVault = p.mode ?? 'keyed';
         if (p.mode !== 'off' && !p.available) ctx.toast?.warning?.('Chapter-vault needs the world_books permission \u2014 keeping chronicle gist only.');

@@ -152,7 +152,8 @@ function parallelBlock(s: ChronicleState): string {
   const rows = s.parallel.slice(0, 6).map((p) => {
     const who = p.who ? esc(nameOf(s, p.who)) : '';
     const where = p.where ? ` <span class="vld-par-w">@${esc(p.where)}</span>` : '';
-    return `<div class="vld-par"><span class="vld-par-who">${who}</span>${where}<div class="vld-par-act">${esc(p.activity)}${p.note ? ` <em>${esc(p.note)}</em>` : ''}</div></div>`;
+    const sim = p.src === 'sim' ? ' <span class="vld-par-sim" title="Off-screen simulation">auto</span>' : '';
+    return `<div class="vld-par"><span class="vld-par-who">${who}</span>${where}${sim}<div class="vld-par-act">${esc(p.activity)}${p.note ? ` <em>${esc(p.note)}</em>` : ''}</div></div>`;
   }).join('');
   return `<div class="vld-sec"><div class="vld-h">\u22C8 Parallel (offscreen) <span class="vld-n">${s.parallel.length}</span></div>${rows}</div>`;
 }

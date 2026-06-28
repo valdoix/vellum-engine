@@ -349,6 +349,7 @@ export const STYLES = [
   ".vld-par+.vld-par{margin-top:6px}",
   ".vld-par-who{font-family:var(--vserif);font-size:calc(15px * var(--vscale));color:var(--v-info)}",
   ".vld-par-w{font:600 calc(9px * var(--vscale))/1 var(--vmono);opacity:.55}",
+  ".vld-par-sim{font:600 calc(8px * var(--vscale))/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--v-info);border:1px solid color-mix(in srgb,var(--v-info) 35%,transparent);border-radius:var(--vr1);padding:1px 4px;opacity:.8}",
   ".vld-par-act{font-size:calc(12.5px * var(--vscale));opacity:.82;margin-top:3px;line-height:1.45}",
   ".vld-rec{font-size:calc(12.5px * var(--vscale));line-height:1.55;padding:5px 0;color:var(--vi2);border-top:1px solid rgba(var(--vg-rgb),.08)}",
   ".vld-rec:first-child{border-top:none}",

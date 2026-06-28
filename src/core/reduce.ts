@@ -103,7 +103,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'parallel.set': {
-      s.parallel = e.items.map((it) => ({ ...(it.who ? { who: it.who } : {}), ...(it.where ? { where: it.where } : {}), activity: it.activity, ...(it.note ? { note: it.note } : {}), turn: e.turn, day: e.day }));
+      s.parallel = e.items.map((it) => ({ ...(it.who ? { who: it.who } : {}), ...(it.where ? { where: it.where } : {}), activity: it.activity, ...(it.note ? { note: it.note } : {}), ...(it.src ? { src: it.src } : {}), turn: e.turn, day: e.day }));
       break;
     }
     case 'cast.seen': {
