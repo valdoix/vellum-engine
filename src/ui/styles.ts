@@ -75,6 +75,8 @@ export const STYLES = [
   ".vle-dir-row{display:flex;align-items:center;gap:8px;background:rgba(var(--vg-rgb),.06);border:1px solid var(--vle-gold-soft);border-radius:8px;padding:7px 10px}",
   ".vle-dir-k{flex:none;font:600 8px/1.3 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--v-warn);min-width:88px}",
   ".vle-dir-t{flex:1;font-size:12px;line-height:1.4}",
+  ".vle-dir-row.dormant{opacity:.7}",
+  ".vle-dir-when{flex:none;font:600 8px/1.4 var(--vmono);letter-spacing:.4px;color:var(--v-info)}",
   ".vle-body{min-height:60px}",
   ".vle-empty{padding:28px 10px;text-align:center;opacity:.65;font-size:calc(15px * var(--vscale));line-height:1.6}",
   ".vle-empty.sm{padding:14px;font-size:calc(13px * var(--vscale))}",

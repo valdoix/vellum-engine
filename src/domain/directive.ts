@@ -13,7 +13,7 @@ import type { VellumEvent } from '../core/events.js';
  */
 
 export type DirectiveKind = 'reveal_secret' | 'reveal_knowledge' | 'advance_thread' | 'note';
-export type DirectiveStatus = 'armed' | 'done';
+export type DirectiveStatus = 'dormant' | 'armed' | 'done';
 
 export interface Directive {
   id: string;
@@ -26,6 +26,10 @@ export interface Directive {
   createdTurn: number;
   /** turns-to-live while armed; 0 = no expiry */
   ttl: number;
+  /** scheduled: stay dormant until the story reaches this turn (then arm) */
+  whenTurn?: number;
+  /** scheduled: or this day (model-emitted; either condition arms it) */
+  whenDay?: number;
 }
 
 const KINDS = new Set<DirectiveKind>(['reveal_secret', 'reveal_knowledge', 'advance_thread', 'note']);
@@ -46,9 +50,11 @@ export function sanitizeDirectives(raw: unknown): Directive[] {
       kind,
       text,
       ...(o.target ? { target: String(o.target).trim() } : {}),
-      status: o.status === 'done' ? 'done' : 'armed',
+      status: o.status === 'done' ? 'done' : o.status === 'dormant' ? 'dormant' : 'armed',
       createdTurn: Number.isFinite(o.createdTurn) ? Number(o.createdTurn) : 0,
       ttl: Number.isFinite(o.ttl) ? Math.max(0, Math.min(50, Number(o.ttl))) : 6,
+      ...(Number.isFinite(o.whenTurn) ? { whenTurn: Math.max(0, Number(o.whenTurn)) } : {}),
+      ...(Number.isFinite(o.whenDay) ? { whenDay: Math.max(0, Number(o.whenDay)) } : {}),
     });
   }
   return out;
@@ -99,5 +105,21 @@ export function reconcileDirectives(directives: readonly Directive[], newEvents:
 
 /** Drop done directives (housekeeping; keep the armed set lean). */
 export function pruneDone(directives: readonly Directive[]): Directive[] {
-  return directives.filter((d) => d.status === 'armed');
+  return directives.filter((d) => d.status === 'armed' || d.status === 'dormant');
+}
+
+/**
+ * Promote dormant SCHEDULED directives to armed once the story reaches their
+ * whenTurn/whenDay (either condition fires). Pure — returns a new list + changed.
+ * Re-set createdTurn on arming so the TTL clock starts when it actually engages.
+ */
+export function armScheduled(directives: readonly Directive[], currentTurn: number, currentDay: number): { directives: Directive[]; changed: boolean } {
+  let changed = false;
+  const next = directives.map((d) => {
+    if (d.status !== 'dormant') return d;
+    const due = (d.whenTurn !== undefined && currentTurn >= d.whenTurn) || (d.whenDay !== undefined && currentDay >= d.whenDay);
+    if (due) { changed = true; return { ...d, status: 'armed' as const, createdTurn: currentTurn }; }
+    return d;
+  });
+  return { directives: next, changed };
 }

@@ -30,7 +30,7 @@ import { reconcileFactionEntries } from './domain/faction-vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
 import { parseTone, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, type RelationLock } from './domain/relation-lock.js';
-import { sanitizeDirectives, directiveInjection, reconcileDirectives, type Directive } from './domain/directive.js';
+import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
@@ -225,8 +225,10 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   try {
     const dirs = await readDirectives(chatId);
     if (dirs.length) {
-      const { directives: next, changed } = reconcileDirectives(dirs, foldedEvents, prior.turns ?? 0);
-      if (changed) await writeDirectives(chatId, next);
+      // first arm any scheduled directives the story has now reached, then self-clear/expire
+      const armedRes = armScheduled(dirs, prior.turns ?? 0, prior.day ?? 0);
+      const { directives: next, changed } = reconcileDirectives(armedRes.directives, foldedEvents, prior.turns ?? 0);
+      if (armedRes.changed || changed) await writeDirectives(chatId, next);
     }
   } catch { /* best effort */ }
   invalidateIndex(chatId);

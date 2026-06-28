@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeDirectives, directiveInjection, reconcileDirectives, pruneDone, type Directive } from '../src/domain/directive.js';
+import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, pruneDone, type Directive } from '../src/domain/directive.js';
 import type { VellumEvent } from '../src/core/events.js';
 
 const armed = (over: Partial<Directive> = {}): Directive => ({ id: 'd1', kind: 'reveal_secret', text: 'Reveal the poison plot', target: 'sec1', status: 'armed', createdTurn: 1, ttl: 6, ...over });
@@ -54,5 +54,35 @@ describe('directive — self-clear + TTL', () => {
 
   it('pruneDone keeps only armed', () => {
     expect(pruneDone([armed(), armed({ id: 'd2', status: 'done' })])).toHaveLength(1);
+  });
+});
+
+describe('directive — scheduled (Phase 4)', () => {
+  const dormant = (over: Partial<Directive> = {}): Directive => armed({ status: 'dormant', whenTurn: 10, ...over });
+
+  it('stays dormant before the scheduled turn', () => {
+    const { directives, changed } = armScheduled([dormant()], 5, 1);
+    expect(changed).toBe(false);
+    expect(directives[0]!.status).toBe('dormant');
+  });
+
+  it('arms when the turn is reached, resetting the TTL clock', () => {
+    const { directives, changed } = armScheduled([dormant({ createdTurn: 1 })], 10, 1);
+    expect(changed).toBe(true);
+    expect(directives[0]!.status).toBe('armed');
+    expect(directives[0]!.createdTurn).toBe(10); // TTL starts on arming
+  });
+
+  it('arms on the scheduled day even if the turn condition is absent', () => {
+    const { directives } = armScheduled([dormant({ whenTurn: undefined, whenDay: 12 })], 99, 12);
+    expect(directives[0]!.status).toBe('armed');
+  });
+
+  it('a dormant directive does not inject until armed', () => {
+    expect(directiveInjection([dormant()])).toBe('');
+  });
+
+  it('pruneDone keeps dormant (scheduled) directives', () => {
+    expect(pruneDone([dormant(), armed({ id: 'x', status: 'done' })])).toHaveLength(1);
   });
 });

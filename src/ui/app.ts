@@ -262,7 +262,7 @@ function openSearch(getState: () => ChronicleState, go: (tab: string) => void): 
 }
 
 // Plot Director directives mirrored from the backend broadcast.
-interface UIDirective { id: string; kind: string; text: string; target?: string; status: string; ttl: number }
+interface UIDirective { id: string; kind: string; text: string; target?: string; status: string; ttl: number; whenTurn?: number; whenDay?: number }
 let _directives: UIDirective[] = [];
 function setDirectives(d: UIDirective[]): void { _directives = Array.isArray(d) ? d : []; }
 
@@ -276,9 +276,13 @@ function openDirector(getState: () => ChronicleState): void {
   const s = getState();
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
-  const armed = _directives.filter((d) => d.status === 'armed');
-  const list = armed.length
-    ? armed.map((d) => `<div class="vle-dir-row"><span class="vle-dir-k">${esc(DIR_KIND_LABEL[d.kind] ?? d.kind)}</span><span class="vle-dir-t">${esc(d.text)}</span><button class="vle-mini del" data-dir-del="${esc(d.id)}" title="Remove">\u2715</button></div>`).join('')
+  const active = _directives.filter((d) => d.status === 'armed' || d.status === 'dormant');
+  const row = (d: UIDirective): string => {
+    const when = d.status === 'dormant' ? `<span class="vle-dir-when">\u29D6 ${d.whenTurn !== undefined ? 't' + d.whenTurn : ''}${d.whenDay !== undefined ? (d.whenTurn !== undefined ? '/' : '') + 'd' + d.whenDay : ''}</span>` : '';
+    return `<div class="vle-dir-row${d.status === 'dormant' ? ' dormant' : ''}"><span class="vle-dir-k">${esc(DIR_KIND_LABEL[d.kind] ?? d.kind)}</span><span class="vle-dir-t">${esc(d.text)}</span>${when}<button class="vle-mini del" data-dir-del="${esc(d.id)}" title="Remove">\u2715</button></div>`;
+  };
+  const list = active.length
+    ? active.map(row).join('')
     : '<div class="vle-empty sm">No active directives. Add one to steer the next scene.</div>';
   ov.innerHTML = '<div class="vlfm vle-root" style="width:min(480px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2691</span>Plot Director</div>'
     + `<div class="vlfm-body"><div class="vle-cz-h">Active intent</div><div class="vle-dir-list">${list}</div>`
@@ -298,29 +302,39 @@ function openDirector(getState: () => ChronicleState): void {
   });
 }
 
-/** Add-directive form: pick a kind + target (an existing secret/thread) or a note. */
+/** Add-directive form: pick a kind + target (an existing secret/thread) or a note,
+ * optionally SCHEDULED for a future turn/day (dormant until the story reaches it). */
 function addDirective(s: ChronicleState): void {
   const secrets = s.secrets.filter((x) => !x.revealed).map((x) => ({ value: 'reveal_secret|' + x.id, label: 'reveal: ' + x.text.slice(0, 50) }));
   const threads = s.threads.filter((t) => t.status !== 'resolved').map((t) => ({ value: 'advance_thread|' + t.name, label: 'advance: ' + t.name }));
   const opts = [...secrets, ...threads, { value: 'note|', label: 'free note (custom)' }];
   if (!opts.length) return;
   formModal('New directive', [
-    { key: 'pick', label: 'What should happen next scene?', type: 'select', value: opts[0]!.value, options: opts },
+    { key: 'pick', label: 'What should happen?', type: 'select', value: opts[0]!.value, options: opts },
     { key: 'note', label: 'Custom note (for free note, or extra detail)', type: 'text', value: '' },
-    { key: 'ttl', label: 'Expire after N turns (0 = never)', type: 'text', value: '6' },
+    { key: 'whenTurn', label: 'Schedule for turn (blank = next scene)', type: 'text', value: '' },
+    { key: 'whenDay', label: 'or schedule for day (blank = none)', type: 'text', value: '' },
+    { key: 'ttl', label: 'Expire after N turns once active (0 = never)', type: 'text', value: '6' },
   ], (out) => {
     const parts = (out.pick ?? 'note|').split('|');
     const kind = parts[0] || 'note';
     const target = parts[1] || '';
     const ttl = Math.max(0, Math.min(50, parseInt(out.ttl ?? '6', 10) || 0));
+    const wt = parseInt(out.whenTurn ?? '', 10);
+    const wd = parseInt(out.whenDay ?? '', 10);
+    const scheduled = Number.isFinite(wt) || Number.isFinite(wd);
     let text = out.note?.trim() ?? '';
     if (!text) {
       const sec = s.secrets.find((x) => x.id === target);
       const thr = s.threads.find((t) => t.name === target);
       text = kind === 'reveal_secret' && sec ? `Reveal the secret: ${sec.text}` : kind === 'advance_thread' && thr ? `Advance the thread: ${thr.name}` : 'Director note';
     }
-    const dir: UIDirective = { id: 'd' + Date.now().toString(36), kind, text, ...(target ? { target } : {}), status: 'armed', ttl };
-    send({ type: 'vellum_set_directives', directives: [..._directives.filter((d) => d.status === 'armed'), dir] });
+    const dir: UIDirective = {
+      id: 'd' + Date.now().toString(36), kind, text, ...(target ? { target } : {}),
+      status: scheduled ? 'dormant' : 'armed', ttl,
+      ...(Number.isFinite(wt) ? { whenTurn: wt } : {}), ...(Number.isFinite(wd) ? { whenDay: wd } : {}),
+    };
+    send({ type: 'vellum_set_directives', directives: [..._directives.filter((d) => d.status === 'armed' || d.status === 'dormant'), dir] });
   });
 }
 
