@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMemoryTree, buildCharacterTree } from '../src/retrieval/tree.js';
+import { buildMemoryTree, buildCharacterTree, buildHybridTree } from '../src/retrieval/tree.js';
 import { traverseTree } from '../src/retrieval/traverse-tree.js';
 import { buildInjection, buildInjectionHybrid } from '../src/retrieval/recall.js';
 import { Ok, Err } from '../src/core/result.js';
@@ -113,6 +113,85 @@ describe('buildCharacterTree (PR2)', () => {
     const r = await traverseTree(index, s, model, { axis: 'character' });
     expect(r).not.toBeNull();
     expect(r!.ids).toContain('k1');
+  });
+});
+
+describe('buildHybridTree (PR3)', () => {
+  function hybridState(): ChronicleState {
+    const s = freshState();
+    s.turns = 30;
+    s.cast = {
+      cersei: { id: 'cersei', name: 'Cersei', role: 'queen', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 16, userEdited: false },
+      ned: { id: 'ned', name: 'Ned', aka: [], status: 'mentioned', source: 'auto', firstTurn: 1, lastTurn: 3, userEdited: false },
+    } as any;
+    s.memories = [
+      { id: 'arc1', tier: 'arc', text: 'The Harrenhal arc.', detail: 'Arc detail.', keys: [], covers: [1, 16], turn: 16 },
+      { id: 'chapA', tier: 'chapter', text: 'Arrival.', detail: 'Chapter A detail.', keys: [], covers: [1, 8], turn: 8 },
+      { id: 'chapB', tier: 'chapter', text: 'The letters.', detail: 'Chapter B detail.', keys: [], covers: [9, 16], turn: 16 },
+    ] as any;
+    s.knowledge = [
+      { id: 'k_rose', who: 'cersei', fact: 'the golden rose', turn: 4, reliability: 'knows', truth: 'true' },
+      { id: 'k_letters', who: 'cersei', fact: 'the letters', turn: 12, reliability: 'knows', truth: 'true' },
+      { id: 'k_ned', who: 'ned', fact: 'the truth', turn: 3, reliability: 'knows', truth: 'true' },
+    ] as any;
+    return s;
+  }
+
+  it('nests character → arc → chapter → leaf, scoped per character', () => {
+    const s = hybridState();
+    const tree = buildHybridTree(s, collectItems(s));
+    expect(tree.rootIds).toContain('char:cersei');
+    const cersei = tree.nodes.get('char:cersei')!;
+    // Cersei's branch holds the scoped arc (namespaced id, sourceId = bare arc)
+    const arcId = cersei.childrenIds.find((id) => id.startsWith('h:cersei:arc1'))!;
+    expect(arcId).toBeTruthy();
+    const arc = tree.nodes.get(arcId)!;
+    expect(arc.sourceId).toBe('arc1');
+    // chapter A (turns 1-8) holds the turn-4 rose fact; chapter B holds turn-12 letters
+    const chIds = arc.childrenIds.map((id) => tree.nodes.get(id)!);
+    const chA = chIds.find((n) => n.sourceId === 'chapA')!;
+    expect(chA.childrenIds).toContain('k_rose'); // leaf id stays bare
+    const chB = chIds.find((n) => n.sourceId === 'chapB')!;
+    expect(chB.childrenIds).toContain('k_letters');
+  });
+
+  it('omits characters with no leaves and keeps only their own branches', () => {
+    const s = hybridState();
+    const tree = buildHybridTree(s, collectItems(s));
+    // Ned has only k_ned (turn 3 → chapter A). Cersei's branch must not carry k_ned.
+    const ned = tree.nodes.get('char:ned')!;
+    const nedArc = tree.nodes.get(ned.childrenIds.find((id) => id.startsWith('h:ned:'))!)!;
+    const nedLeaves = nedArc.childrenIds.flatMap((cid) => tree.nodes.get(cid)!.childrenIds);
+    expect(nedLeaves).toContain('k_ned');
+    expect(nedLeaves).not.toContain('k_rose');
+  });
+
+  it('axis:hybrid drills char → arc → chapter → leaf and resolves bare ids', async () => {
+    const s = hybridState();
+    const index = buildIndex(collectItems(s));
+    const seq = [
+      '{"expand":["char:cersei"],"select":[]}',
+      `{"expand":["${'h:cersei:arc1'}"],"select":[]}`,
+      `{"expand":["${'h:cersei:chapB'}"],"select":[]}`,
+      '{"expand":[],"select":["k_letters"]}',
+    ];
+    let n = 0;
+    const model: CallModel = async () => Ok(seq[n++] ?? '{"expand":[],"select":[]}');
+    const r = await traverseTree(index, s, model, { axis: 'hybrid' });
+    expect(r).not.toBeNull();
+    expect(r!.ids).toContain('k_letters'); // bare leaf id, assemble-ready
+  });
+
+  it('selecting a scoped chapter resolves to its bare memory id as a summary', async () => {
+    const s = hybridState();
+    const index = buildIndex(collectItems(s));
+    const seq = ['{"expand":["char:cersei"],"select":[]}', '{"expand":["h:cersei:arc1"],"select":[]}', '{"expand":[],"select":["h:cersei:chapB"]}'];
+    let n = 0;
+    const model: CallModel = async () => Ok(seq[n++] ?? '{"expand":[],"select":[]}');
+    const r = await traverseTree(index, s, model, { axis: 'hybrid' });
+    expect(r).not.toBeNull();
+    expect(r!.summaryIds).toContain('chapB'); // bare id → detail lookup + assemble match
+    expect(r!.ids).toContain('chapB');
   });
 });
 

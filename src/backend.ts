@@ -13,6 +13,11 @@ import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
 import type { CallModel } from './retrieval/traverse.js';
 import { traverseTree, type TreeTraversalResult } from './retrieval/traverse-tree.js';
+
+/** Validate the persisted traversal axis to the three known values. */
+type TraversalAxis = 'temporal' | 'character' | 'hybrid';
+function readAxis(v: unknown): TraversalAxis { return v === 'character' || v === 'hybrid' ? v : 'temporal'; }
+
 import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
@@ -90,7 +95,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const chapterVault = await readChapterVaultMode(chatId);
   let traversalMode = 'off';
   try { if (await getChatVar(chatId, 'vellum_traversal')) traversalMode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat'; } catch { /* best effort */ }
-  const traversalAxis = (await getChatVar(chatId, 'vellum_traversal_axis')) === 'character' ? 'character' : 'temporal';
+  const traversalAxis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
   spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode, traversalAxis }, userId ?? currentUser());
 }
 
@@ -479,7 +484,7 @@ async function precomputeTree(chatId: string, userId: string | null): Promise<vo
     const state = await loadState(chatId);
     const { buildIndex, collectItems } = await import('./retrieval/invindex.js');
     const index = buildIndex(collectItems(state));
-    const axis = (await getChatVar(chatId, 'vellum_traversal_axis')) === 'character' ? 'character' : 'temporal';
+    const axis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
     const result = await traverseTree(index, state, controller, { axis });
     if (result) _treeCache.set(chatId, { version, result });
   } catch (e) { spindle.log?.warn?.('[vellum_engine] precomputeTree: ' + ((e as Error)?.message ?? e)); }
@@ -794,10 +799,10 @@ const dispatch: Record<string, Handler> = {
     const enabled = mode !== 'off';
     try { await setChatVar(chatId, 'vellum_traversal', enabled ? '1' : ''); } catch { /* best effort */ }
     try { await setChatVar(chatId, 'vellum_traversal_mode', mode === 'tree' ? 'tree' : 'flat'); } catch { /* best effort */ }
-    if (p?.axis === 'character' || p?.axis === 'temporal') { try { await setChatVar(chatId, 'vellum_traversal_axis', p.axis); } catch { /* best effort */ } }
+    if (p?.axis === 'character' || p?.axis === 'temporal' || p?.axis === 'hybrid') { try { await setChatVar(chatId, 'vellum_traversal_axis', p.axis); } catch { /* best effort */ } }
     _treeCache.delete(chatId); // settings changed → drop any stale precompute
     const available = await has('generation');
-    const axis = (await getChatVar(chatId, 'vellum_traversal_axis')) === 'character' ? 'character' : 'temporal';
+    const axis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
     spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, mode, axis, available }, uid);
   },
   vellum_set_tone: async (p, uid) => {

@@ -2,7 +2,7 @@ import type { ChronicleState } from '../domain/types.js';
 import type { InvertedIndex } from './invindex.js';
 import { type Result } from '../core/result.js';
 import { buildScene, type CallModel } from './traverse.js';
-import { buildMemoryTree, buildCharacterTree, type MemTree, type MemNode } from './tree.js';
+import { buildMemoryTree, buildCharacterTree, buildHybridTree, type MemTree, type MemNode } from './tree.js';
 
 /**
  * Tiered TREE traversal (variant B) — the controller drills the derived memory
@@ -36,7 +36,7 @@ export interface TreeTraverseOpts {
   depthLimit?: number; // max tree depth to drill (arc=1, chapter=2, leaf=3)
   selectLimit?: number; // max accumulated selections
   frontierMax?: number; // max nodes shown per step
-  axis?: 'temporal' | 'character'; // which tree to walk (PR2 adds character)
+  axis?: 'temporal' | 'character' | 'hybrid'; // which tree to walk
 }
 
 const SYS =
@@ -66,11 +66,14 @@ export async function traverseTree(
   opts: TreeTraverseOpts = {},
 ): Promise<TreeTraversalResult | null> {
   const stepLimit = opts.stepLimit ?? 4;
-  const depthLimit = opts.depthLimit ?? 3;
+  // hybrid adds a character tier above arc→chapter→leaf, so it drills one level deeper
+  const depthLimit = opts.depthLimit ?? (opts.axis === 'hybrid' ? 4 : 3);
   const selectLimit = opts.selectLimit ?? 10;
   const frontierMax = opts.frontierMax ?? 24;
 
-  const tree = opts.axis === 'character' ? buildCharacterTree(state) : buildMemoryTree(state);
+  const tree = opts.axis === 'character' ? buildCharacterTree(state)
+    : opts.axis === 'hybrid' ? buildHybridTree(state)
+    : buildMemoryTree(state);
   if (!tree.rootIds.length) return null;
   const scene = buildScene(state);
 
@@ -112,6 +115,13 @@ export async function traverseTree(
   }
 
   if (!anyCall || !selected.length) return null;
-  const summaryIds = selected.filter((id) => { const k = tree.nodes.get(id)?.kind; return k === 'arc' || k === 'chapter'; });
-  return { ids: selected, summaryIds, trace: { scene, steps, selectedIds: selected } };
+  // hybrid scopes arc/chapter nodes as `h:<char>:<memId>`; resolve to the bare
+  // memory id so assemble() + detail-lookup still match (temporal/character have
+  // no sourceId → identity, so their output is unchanged). char nodes aren't summaries.
+  const idOf = (id: string): string => tree.nodes.get(id)?.sourceId ?? id;
+  const ids = Array.from(new Set(selected.map(idOf)));
+  const summaryIds = selected
+    .filter((id) => { const n = tree.nodes.get(id); return (n?.kind === 'arc' || n?.kind === 'chapter') && !id.startsWith('char:'); })
+    .map(idOf);
+  return { ids, summaryIds, trace: { scene, steps, selectedIds: selected } };
 }

@@ -154,7 +154,8 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _traverseMode = 'off'; // off | flat | tree
-let _traverseAxis = 'temporal'; // temporal | character (tree only)
+let _traverseAxis = 'temporal'; // temporal | character | hybrid (tree only)
+const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === 'hybrid' ? 'by char+time' : 'by time';
 let _tone = { romance: 'medium', disposition: 'fair' };
 let _tidyOn = false;
 let _chapterVault = 'keyed';
@@ -182,7 +183,7 @@ function openActions(ctx: Ctx): void {
   ov.className = 'vlfm-overlay';
   const toggleState: Record<string, string> = {
     hide: _hideOn ? 'on' : 'off',
-    traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${_traverseAxis === 'character' ? 'by char' : 'by time'}` : 'flat'),
+    traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
     tone: (_tone.romance === 'medium' && _tone.disposition === 'fair') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition}`,
   };
   const groups: Array<[string, string]> = [['maint', 'Maintenance'], ['toggle', 'Toggles'], ['data', 'Data'], ['danger', 'Danger']];
@@ -265,10 +266,11 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { setQolBusy('rebuild', true); ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'traverse') {
-    // cycle: off → flat → tree·time → tree·char → off
+    // cycle: off → flat → tree·time → tree·char → tree·hybrid → off
     if (_traverseMode === 'off') { _traverseMode = 'flat'; }
     else if (_traverseMode === 'flat') { _traverseMode = 'tree'; _traverseAxis = 'temporal'; }
     else if (_traverseMode === 'tree' && _traverseAxis === 'temporal') { _traverseAxis = 'character'; }
+    else if (_traverseMode === 'tree' && _traverseAxis === 'character') { _traverseAxis = 'hybrid'; }
     else { _traverseMode = 'off'; _traverseAxis = 'temporal'; }
     setQolBusy('traverse', true);
     ctx.sendToBackend({ type: 'vellum_set_traversal', mode: _traverseMode, axis: _traverseAxis });
@@ -442,7 +444,7 @@ export function setup(ctx: Ctx): () => void {
         if (typeof p.axis === 'string') _traverseAxis = p.axis;
         document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseMode !== 'off'));
         if (_traverseMode !== 'off' && !p.available) ctx.toast?.warning?.('Traversal needs the generation permission \u2014 falling back to standard recall.');
-        else if (_traverseMode === 'tree') ctx.toast?.success?.(`Controller retrieval: tree drill (${_traverseAxis === 'character' ? 'by character' : 'by timeline'}).`);
+        else if (_traverseMode === 'tree') ctx.toast?.success?.(`Controller retrieval: tree drill (${_traverseAxis === 'character' ? 'by character' : _traverseAxis === 'hybrid' ? 'by character + timeline' : 'by timeline'}).`);
         else ctx.toast?.success?.(_traverseMode === 'flat' ? 'Controller retrieval: flat (one-shot).' : 'Controller retrieval off.');
       } else if (p?.type === 'vellum_tone_done') {
         _tone = { romance: p.romance ?? 'medium', disposition: p.disposition ?? 'fair' };

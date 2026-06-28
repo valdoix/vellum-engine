@@ -22,6 +22,7 @@ export interface MemNode {
   gist: string; // compact label shown while drilling
   childrenIds: string[];
   covers?: [number, number];
+  sourceId?: string; // underlying memory id when `id` is namespaced (hybrid scoped nodes)
 }
 
 export interface MemTree {
@@ -125,6 +126,68 @@ export function buildCharacterTree(state: ChronicleState, items?: RetrievableIte
     for (const id of childIds) claimed.add(id);
   }
   // leaves concerning no tracked character → root (so nothing is unreachable)
+  for (const it of leaves) if (!claimed.has(it.id)) rootIds.push(it.id);
+  return { rootIds, nodes };
+}
+
+/**
+ * Hybrid tree (PR3): character → arc → chapter → leaf. The WHO of the character
+ * axis with the WHEN structure of the temporal axis — "this is a Cersei scene →
+ * walk Cersei's history in order." Built by computing the per-character leaf map
+ * (like buildCharacterTree), then, for each character, keeping only the temporal
+ * branches (from buildMemoryTree) that contain at least one of that character's
+ * leaves. Scoped arc/chapter nodes are namespaced `h:<charId>:<memId>` so the
+ * same arc can sit under several characters; `sourceId` carries the bare memory
+ * id so the caller still resolves DETAIL + assembles by it. Leaf ids stay bare
+ * (selection dedups on bare id). Pure + deterministic.
+ */
+export function buildHybridTree(state: ChronicleState, items?: RetrievableItem[]): MemTree {
+  const leaves = items ?? collectItems(state);
+  const temporal = buildMemoryTree(state, leaves);
+  const nodes = new Map<string, MemNode>();
+  for (const it of leaves) nodes.set(it.id, { id: it.id, kind: 'leaf', gist: clip(it.text, 200), childrenIds: [] });
+
+  // per-character leaf map (same sources as buildCharacterTree)
+  const byChar = new Map<string, Set<string>>();
+  const push = (cid: string, id: string): void => { if (!cid || !nodes.has(id)) return; (byChar.get(cid) ?? byChar.set(cid, new Set()).get(cid)!).add(id); };
+  for (const k of state.knowledge) { push(k.who, k.id); if (k.about) push(k.about, k.id); }
+  for (const sec of state.secrets) push(sec.keeper, sec.id);
+  for (const j of state.journal) { push(j.who, j.id); if (j.about) push(j.about, j.id); }
+
+  const rank = (c: { status: string }): number => (c.status === 'present' ? 0 : c.status === 'active' ? 1 : c.status === 'mentioned' ? 2 : 3);
+  const cast = Object.values(state.cast).slice().sort((a, b) => rank(a) - rank(b) || (b.lastTurn || 0) - (a.lastTurn || 0));
+
+  // clone a temporal node's subtree, scoped to one character: keep only branches
+  // that reach ≥1 of `keep`. Returns the scoped node id, or '' if nothing kept.
+  // `path` breaks cycles (a summary memory can also be a leaf nested back under a
+  // chapter whose range contains its turn — buildMemoryTree relies on the
+  // traverse-time expandedSeen guard; here we guard structurally).
+  const cloneScoped = (tid: string, cid: string, keep: Set<string>, path: Set<string>): string => {
+    const tn = temporal.nodes.get(tid); if (!tn) return '';
+    if (tn.kind === 'leaf') return keep.has(tid) ? tid : ''; // leaves stay bare
+    if (path.has(tid)) return ''; // cycle — already on this branch
+    path.add(tid);
+    const kids = tn.childrenIds.map((c) => cloneScoped(c, cid, keep, path)).filter(Boolean);
+    path.delete(tid);
+    if (!kids.length) return '';
+    const sid = `h:${cid}:${tid}`;
+    nodes.set(sid, { id: sid, kind: tn.kind, gist: tn.gist, childrenIds: kids, covers: tn.covers, sourceId: tid });
+    return sid;
+  };
+
+  const rootIds: string[] = [];
+  const claimed = new Set<string>();
+  for (const c of cast) {
+    const keep = byChar.get(c.id); if (!keep || !keep.size) continue;
+    // scoped temporal branches reachable from root that touch this character
+    const branches = temporal.rootIds.map((rid) => cloneScoped(rid, c.id, keep, new Set())).filter(Boolean);
+    if (!branches.length) continue;
+    const nodeId = 'char:' + c.id;
+    nodes.set(nodeId, { id: nodeId, kind: 'arc', gist: clip(c.name + (c.role ? ' \u2014 ' + c.role : ''), 120), childrenIds: branches });
+    rootIds.push(nodeId);
+    for (const id of keep) claimed.add(id);
+  }
+  // leaves concerning no tracked character → root (nothing unreachable)
   for (const it of leaves) if (!claimed.has(it.id)) rootIds.push(it.id);
   return { rootIds, nodes };
 }
