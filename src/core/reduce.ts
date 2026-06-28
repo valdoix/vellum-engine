@@ -54,7 +54,24 @@ function ensureCast(s: ChronicleState, id: string, turn: number, name?: string):
 
 /** Readable name from a canonical id: `cersei_lannister` → `Cersei Lannister`. */
 function deCanon(id: string): string {
-  return String(id).split('_').filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || id;
+  return String(id).replace(/^fac:/, '').split('_').filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || id;
+}
+
+/** Auto-register a faction referenced before it was introduced (mirrors
+ * ensureCast). 'added' pre-seed promotes to 'mentioned' on first reference. */
+function ensureFaction(s: ChronicleState, id: string, turn: number, name?: string): void {
+  if (!id) return;
+  const f = s.factions[id];
+  if (!f) {
+    s.factions[id] = {
+      id, name: name || deCanon(id), aka: [], kind: undefined,
+      status: 'mentioned', standing: 0, trust: 0, source: 'auto',
+      firstTurn: turn, lastTurn: turn, userEdited: false,
+    };
+    return;
+  }
+  f.lastTurn = Math.max(f.lastTurn, turn);
+  if (f.status === 'added') f.status = 'mentioned';
 }
 
 function apply(s: ChronicleState, e: VellumEvent): void {
@@ -117,6 +134,54 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'cast.drop': {
       delete s.cast[e.id];
       s.relations = s.relations.filter((r) => r.a !== e.id && r.b !== e.id);
+      s.memberships = s.memberships.filter((m) => m.char !== e.id); // drop their memberships too
+      break;
+    }
+    case 'faction.seen': {
+      const f = s.factions[e.id];
+      if (f) {
+        f.lastTurn = Math.max(f.lastTurn, e.turn);
+        if (e.status === 'present' || e.status === 'active') f.status = e.status;
+      } else {
+        s.factions[e.id] = {
+          id: e.id, name: e.name, aka: [], status: e.status, standing: 0, trust: 0,
+          source: e.src === 'user' ? 'user' : 'auto',
+          firstTurn: e.turn, lastTurn: e.turn, userEdited: e.src === 'user',
+        };
+      }
+      break;
+    }
+    case 'faction.edit': {
+      const f = s.factions[e.id];
+      if (f) {
+        const { id: _id, source: _src, firstTurn: _ft, standing: _st, trust: _tr, ...safe } = e.patch as Record<string, unknown>;
+        void _id; void _src; void _ft; void _st; void _tr;
+        Object.assign(f, safe);
+        if (e.src === 'user') f.userEdited = true;
+      }
+      break;
+    }
+    case 'faction.drop': {
+      delete s.factions[e.id];
+      s.memberships = s.memberships.filter((m) => m.faction !== e.id);
+      break;
+    }
+    case 'faction.member': {
+      ensureCast(s, e.char, e.turn);
+      ensureFaction(s, e.faction, e.turn);
+      const i = s.memberships.findIndex((m) => m.char === e.char && m.faction === e.faction);
+      if (e.op === 'remove') { if (i >= 0) s.memberships.splice(i, 1); }
+      else if (i >= 0) { if (e.role) s.memberships[i]!.role = e.role; }
+      else s.memberships.push({ char: e.char, faction: e.faction, ...(e.role ? { role: e.role } : {}) });
+      break;
+    }
+    case 'faction.standing': {
+      ensureFaction(s, e.faction, e.turn);
+      const f = s.factions[e.faction]!;
+      const clamp = (n: number): number => Math.max(-100, Math.min(100, n));
+      if (typeof e.standing === 'number') f.standing = clamp(e.absolute ? e.standing : f.standing + e.standing);
+      if (typeof e.trust === 'number') f.trust = clamp(e.absolute ? e.trust : f.trust + e.trust);
+      f.lastTurn = Math.max(f.lastTurn, e.turn);
       break;
     }
     case 'bond.delta': {

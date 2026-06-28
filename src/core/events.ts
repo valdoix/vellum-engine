@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 6 as const;
+export const SCHEMA_VERSION = 7 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -56,6 +56,16 @@ export const CastPatch = z.object({ name: z.string().optional(), role: z.string(
 export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: CastPatch });
 export const EvCastDrop = z.object({ ...base, kind: z.literal('cast.drop'), id: z.string() });
 
+// --- factions: "cast for groups". ids live in a SEPARATE namespace (fac:<canon>)
+// and never cross the cast id-space. Membership is edges (faction.member), so a
+// character in many factions / a standalone faction are the same code path.
+export const EvFactionSeen = z.object({ ...base, kind: z.literal('faction.seen'), id: z.string(), name: z.string(), status: CastStatus });
+export const FactionPatch = z.object({ name: z.string().optional(), kind: z.string().optional(), note: z.string().optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional() });
+export const EvFactionEdit = z.object({ ...base, kind: z.literal('faction.edit'), id: z.string(), patch: FactionPatch });
+export const EvFactionDrop = z.object({ ...base, kind: z.literal('faction.drop'), id: z.string() });
+export const EvFactionMember = z.object({ ...base, kind: z.literal('faction.member'), char: z.string(), faction: z.string(), op: z.enum(['add', 'remove']).default('add'), role: z.string().optional() });
+export const EvFactionStanding = z.object({ ...base, kind: z.literal('faction.standing'), faction: z.string(), standing: z.number().min(-100).max(100).optional(), trust: z.number().min(-100).max(100).optional(), absolute: z.boolean().optional(), why: z.string().optional() });
+
 export const EvBondDelta = z.object({
   ...base, kind: z.literal('bond.delta'),
   a: z.string(), b: z.string(),
@@ -94,6 +104,7 @@ export const EvArcMerge = z.object({ ...base, kind: z.literal('arc.merge'), from
 export const VellumEvent = z.discriminatedUnion('kind', [
   EvTurnFold, EvSceneSet,
   EvCastSeen, EvCastEdit, EvCastDrop,
+  EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding,
   EvBondDelta, EvBondDrop,
   EvKnowledge, EvKnowledgeDrop, EvSecretForm, EvSecretReveal, EvSecretDrop,
   EvMemory, EvMemoryDrop, EvMemoryLink,

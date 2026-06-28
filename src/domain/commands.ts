@@ -1,6 +1,7 @@
 import type { VellumEvent, Category } from '../core/events.js';
 import type { ChronicleState } from './types.js';
 import { canonId, nextSeq } from '../core/ids.js';
+import { resolveFactionId } from './identity.js';
 import { isCategory, normalizeCategorySet } from './category.js';
 
 /**
@@ -30,6 +31,37 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     }
     case 'cast_delete':
       return e.id ? [{ ...base(ctx), kind: 'cast.drop', id: String(e.id) } as VellumEvent] : [];
+    case 'faction_upsert': {
+      const name = String(e.name ?? '').trim();
+      if (!name) return [];
+      const id = e.id ? String(e.id) : (resolveFactionId(state, name) || ('fac:' + canonId(name)));
+      if (!id) return [];
+      const patch: Record<string, unknown> = {};
+      for (const k of ['name', 'kind', 'note']) if (e[k] !== undefined) patch[k] = e[k];
+      if (Array.isArray(e.aka)) patch.aka = e.aka;
+      else if (typeof e.aka === 'string') patch.aka = e.aka.split(',').map((s: string) => s.trim()).filter(Boolean);
+      const out: VellumEvent[] = [];
+      if (!state.factions[id]) out.push({ ...base(ctx), kind: 'faction.seen', id, name, status: (e.status ?? 'active') } as VellumEvent);
+      out.push({ ...base(ctx), kind: 'faction.edit', id, patch } as VellumEvent);
+      if (e.standing !== undefined || e.trust !== undefined) {
+        out.push({ ...base(ctx), kind: 'faction.standing', faction: id, ...(e.standing !== undefined ? { standing: Number(e.standing) || 0 } : {}), ...(e.trust !== undefined ? { trust: Number(e.trust) || 0 } : {}), absolute: true } as VellumEvent);
+      }
+      return out;
+    }
+    case 'faction_delete':
+      return e.id ? [{ ...base(ctx), kind: 'faction.drop', id: String(e.id) } as VellumEvent] : [];
+    case 'faction_member': {
+      const char = canonId(e.char ?? '');
+      const faction = e.faction ? String(e.faction) : resolveFactionId(state, e.factionName ?? '');
+      if (!char || !faction) return [];
+      const op = e.op === 'remove' ? 'remove' : 'add';
+      return [{ ...base(ctx), kind: 'faction.member', char, faction, op, ...(e.role ? { role: String(e.role) } : {}) } as VellumEvent];
+    }
+    case 'faction_standing_set': {
+      const faction = e.faction ? String(e.faction) : resolveFactionId(state, e.factionName ?? '');
+      if (!faction) return [];
+      return [{ ...base(ctx), kind: 'faction.standing', faction, ...(e.standing !== undefined ? { standing: Number(e.standing) || 0 } : {}), ...(e.trust !== undefined ? { trust: Number(e.trust) || 0 } : {}), absolute: true } as VellumEvent];
+    }
     case 'relation_upsert': {
       const a = canonId(e.a ?? ''), b = canonId(e.b ?? '');
       if (!a || !b || a === b) return [];
@@ -114,6 +146,7 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
 
 export const CMD_TYPES = new Set([
   'cast_upsert', 'cast_delete', 'relation_upsert', 'relation_delete',
+  'faction_upsert', 'faction_delete', 'faction_member', 'faction_standing_set',
   'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
   'memory_add', 'memory_delete',
   'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set',

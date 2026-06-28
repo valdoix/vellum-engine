@@ -200,6 +200,8 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
   const parallel = s.parallel.map((p) => ({ ...p, ...(p.who ? { who: map(p.who) } : {}) }));
   const present = Array.from(new Set(s.scene.present.map(map)));
   const detail = s.scene.detail.map((d) => ({ ...d, id: map(d.id) })).filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
+  // memberships reference cast ids on the `char` side — remap + dedupe
+  const memberships = dedupeMemberships(s.memberships.map((m) => ({ ...m, char: map(m.char) })));
 
   return {
     ...s,
@@ -209,6 +211,86 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
     secrets,
     journal,
     parallel,
+    memberships,
     scene: { ...s.scene, present, detail },
   };
+}
+
+function dedupeMemberships(list: Array<{ char: string; faction: string; role?: string }>): Array<{ char: string; faction: string; role?: string }> {
+  const seen = new Set<string>();
+  const out: typeof list = [];
+  for (const m of list) {
+    if (m.char === m.faction) continue;
+    const k = m.char + '|' + m.faction;
+    if (seen.has(k)) continue;
+    seen.add(k); out.push(m);
+  }
+  return out;
+}
+
+/**
+ * Resolve a raw GROUP name onto an existing faction id (namespace `fac:`), or
+ * mint a fresh one. Parallel to resolveCastId — exact / aka / unique token-prefix
+ * — but entirely within the faction id-space, so it can NEVER collide with cast
+ * (the "Daeron Targaryen" vs "The Targaryens" hazard). Returns '' for non-names.
+ */
+export function resolveFactionId(state: ChronicleState, rawName: string): string {
+  if (notAName(rawName)) return '';
+  const bare = canonId(rawName);
+  if (!bare) return '';
+  const id = 'fac:' + bare;
+  const facs = state.factions;
+  if (facs[id]) return id;
+  for (const f of Object.values(facs)) {
+    if ((f.aka ?? []).some((a) => 'fac:' + canonId(a) === id)) return f.id;
+  }
+  const matches: string[] = [];
+  for (const existingId of Object.keys(facs)) {
+    if (existingId === id) continue;
+    const a = existingId.replace(/^fac:/, ''), b = bare;
+    if (tokenPrefix(a, b) || tokenPrefix(b, a)) matches.push(existingId);
+  }
+  if (matches.length === 1) return matches[0]!;
+  return id;
+}
+
+/** Self-healing merge for split faction nodes (e.g. `fac:targaryens` ⊂
+ * `fac:targaryen_house`). Parallel to mergeCastDuplicates; remaps faction ids
+ * across factions + memberships only. NEVER touches cast ids. */
+export function mergeFactionDuplicates(s: ChronicleState): ChronicleState {
+  const ids = Object.keys(s.factions);
+  if (ids.length < 2) return s;
+  const remap = new Map<string, string>();
+  for (const shortId of ids) {
+    const a = shortId.replace(/^fac:/, '');
+    const supersets = ids.filter((other) => other !== shortId && tokenPrefix(a, other.replace(/^fac:/, '')));
+    if (supersets.length === 1) remap.set(shortId, supersets[0]!);
+  }
+  if (!remap.size) return s;
+  const map = (id: string): string => { let cur = id, g = 0; while (remap.has(cur) && g++ < 16) cur = remap.get(cur)!; return cur; };
+
+  const factions: Record<string, typeof s.factions[string]> = {};
+  for (const id of ids) {
+    const target = map(id);
+    const src = s.factions[id]!;
+    if (!factions[target]) factions[target] = { ...(s.factions[target] ?? src), id: target };
+    const keep = factions[target]!;
+    if (id !== target) {
+      const akas = new Set([...(keep.aka ?? []), src.name, ...(src.aka ?? [])].filter(Boolean));
+      keep.aka = Array.from(akas).filter((a) => 'fac:' + canonId(a) !== target);
+      keep.standing = Math.max(-100, Math.min(100, keep.standing + src.standing));
+      keep.trust = Math.max(-100, Math.min(100, keep.trust + src.trust));
+      keep.firstTurn = Math.min(keep.firstTurn, src.firstTurn);
+      keep.lastTurn = Math.max(keep.lastTurn, src.lastTurn);
+      keep.userEdited = keep.userEdited || src.userEdited;
+    }
+  }
+  const memberships = dedupeMemberships(s.memberships.map((m) => ({ ...m, faction: map(m.faction) })));
+  return { ...s, factions, memberships };
+}
+
+/** Run both self-healing merges (cast then factions). The single entry point
+ * stores call to keep the two id-spaces reconciled together. */
+export function mergeDuplicates(s: ChronicleState): ChronicleState {
+  return mergeFactionDuplicates(mergeCastDuplicates(s));
 }

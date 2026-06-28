@@ -21,6 +21,30 @@ export interface CastCard {
   userEdited: boolean;
 }
 
+/** A group/organization — "cast for groups". Standing is the group's regard
+ * toward {{user}} (same shape as relation affection); membership lives in edges
+ * (Membership[]), not nested here, so multi-faction + standalone are one path. */
+export interface Faction {
+  id: string; // 'fac:<canon>' — a SEPARATE namespace from cast ids
+  name: string;
+  aka: string[];
+  kind?: string; // household | house | guild | order | ...
+  note?: string;
+  status: 'present' | 'active' | 'mentioned' | 'added';
+  standing: number; // -100..100 toward {{user}}
+  trust: number; // -100..100
+  source: 'auto' | 'user';
+  firstTurn: number;
+  lastTurn: number;
+  userEdited: boolean;
+}
+
+export interface Membership {
+  char: string; // cast id
+  faction: string; // faction id
+  role?: string;
+}
+
 export interface CategoryStep {
   turn: number;
   day: number;
@@ -139,6 +163,8 @@ export interface JournalEntry {
 
 export interface ChronicleState {
   cast: Record<string, CastCard>;
+  factions: Record<string, Faction>;
+  memberships: Membership[];
   relations: Relation[];
   knowledge: KnowledgeFact[];
   secrets: Secret[];
@@ -155,6 +181,8 @@ export interface ChronicleState {
 export function freshState(): ChronicleState {
   return {
     cast: {},
+    factions: {},
+    memberships: [],
     relations: [],
     knowledge: [],
     secrets: [],

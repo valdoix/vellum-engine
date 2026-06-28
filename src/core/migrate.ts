@@ -56,6 +56,12 @@ export function migrate(raw: unknown): unknown {
     version = 6;
   }
 
+  // v6 → v7: factions (faction.* events) + state.factions/memberships. Additive,
+  // optional — old logs have no factions and behave as before.
+  if (version < 7) {
+    version = 7;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }
