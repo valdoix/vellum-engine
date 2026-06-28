@@ -50,7 +50,7 @@ describe('planChapterEntry', () => {
     expect(input.content).toContain('marriage on equal terms');
     expect(input.key).toContain('Harrenhal');
     expect(input.link).toBe('chapter:chap_a');
-    expect(input.category).toBe('chapter');
+    expect(input.category).toBe('summary');
     expect(input.settings.constant).toBe(false);
   });
   it('constant mode sets constant:true', () => {

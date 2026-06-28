@@ -12,18 +12,21 @@ export interface Field {
   value?: string | string[];
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
+  big?: boolean; // textarea: render tall (for long content like summaries)
 }
+
+export interface FormModalOpts { large?: boolean }
 
 const esc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
-export function formModal(title: string, fields: Field[], onSave: (values: Record<string, string>) => void): void {
+export function formModal(title: string, fields: Field[], onSave: (values: Record<string, string>) => void, opts?: FormModalOpts): void {
   const overlay = document.createElement('div');
   overlay.className = 'vlfm-overlay';
   const fieldHtml = fields.map((f) => {
-    if (f.type === 'textarea') return `<label class="vlfm-l">${esc(f.label)}<textarea class="vlfm-in vlfm-ta" data-f="${f.key}" placeholder="${esc(f.placeholder ?? '')}">${esc(f.value ?? '')}</textarea></label>`;
+    if (f.type === 'textarea') return `<label class="vlfm-l${f.big ? ' vlfm-l-grow' : ''}">${esc(f.label)}<textarea class="vlfm-in vlfm-ta${f.big ? ' vlfm-ta-big' : ''}" data-f="${f.key}" placeholder="${esc(f.placeholder ?? '')}">${esc(f.value ?? '')}</textarea></label>`;
     if (f.type === 'select') {
-      const opts = (f.options ?? []).map((o) => `<option value="${esc(o.value)}"${String(o.value) === String(f.value) ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
-      return `<label class="vlfm-l">${esc(f.label)}<select class="vlfm-in" data-f="${f.key}">${opts}</select></label>`;
+      const opts2 = (f.options ?? []).map((o) => `<option value="${esc(o.value)}"${String(o.value) === String(f.value) ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
+      return `<label class="vlfm-l">${esc(f.label)}<select class="vlfm-in" data-f="${f.key}">${opts2}</select></label>`;
     }
     if (f.type === 'checks') {
       const sel = Array.isArray(f.value) ? f.value.map(String) : String(f.value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -32,7 +35,7 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
     }
     return `<label class="vlfm-l">${esc(f.label)}<input class="vlfm-in" data-f="${f.key}" value="${esc(f.value ?? '')}" placeholder="${esc(f.placeholder ?? '')}"></label>`;
   }).join('');
-  overlay.innerHTML = `<div class="vlfm"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>${esc(title)}</div>`
+  overlay.innerHTML = `<div class="vlfm${opts?.large ? ' vlfm-large' : ''}"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>${esc(title)}</div>`
     + `<div class="vlfm-body">${fieldHtml}</div>`
     + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-cancel>Cancel</button><button class="vlfm-btn vlfm-save" data-save>Save</button></div></div>';
   document.body.appendChild(overlay);

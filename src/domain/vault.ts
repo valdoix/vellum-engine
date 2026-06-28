@@ -84,6 +84,7 @@ export const DEFAULT_CATEGORIES: VaultCategory[] = [
   { id: 'systems', label: 'Systems & Rules', glyph: '\u2699', color: '#b48ed0', builtin: true, hidden: false, sync: 'off', defaults: sys({ position: 'after_main', order: 40, constant: true }) },
   { id: 'events', label: 'Events & Timeline', glyph: '\u29D6', color: '#c96a6a', builtin: true, hidden: false, sync: 'off', source: 'threads', defaults: sys({ position: 'at_depth', depth: 1, order: 200 }) },
   { id: 'relationships', label: 'Relationships', glyph: '\u29AF', color: '#cdbfa0', builtin: true, hidden: false, sync: 'off', source: 'relations', defaults: sys({ position: 'at_depth', depth: 3, order: 90, sticky: 2 }) },
+  { id: 'summary', label: 'Summary', glyph: '\u269C', color: '#b9a06a', builtin: true, hidden: false, sync: 'off', defaults: sys({ position: 'at_depth', depth: 4, order: 60 }) },
 ];
 
 export function customCategory(id: string, label: string, glyph: string, color: string): VaultCategory {

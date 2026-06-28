@@ -43,7 +43,7 @@ export interface ChapterEntryInput {
   key: string[];
   content: string;
   comment: string;
-  category: 'chapter' | 'arc';
+  category: 'summary'; // grouped under the vault "Summary" section; identity is the link
   settings: EntrySettings;
 }
 
@@ -57,7 +57,7 @@ export function planChapterEntry(m: Memory, mode: ChapterVaultMode): ChapterEntr
     key: dedupeKeys(m.keys ?? []),
     content: (m.detail ?? m.text ?? '').trim(),
     comment: label,
-    category: tier,
+    category: 'summary',
     settings: entrySettings(mode, tier),
   };
 }

@@ -189,6 +189,11 @@ export const STYLES = [
   ".vlfm-in{font-family:var(--vserif);font-size:15px;letter-spacing:0;text-transform:none;color:var(--vle-ink);background:rgba(12,10,8,.7);border:1px solid rgba(var(--vg-rgb),.26);border-radius:8px;padding:8px 10px;outline:none}",
   ".vlfm-in:focus{border-color:var(--vle-gold);box-shadow:0 0 0 2px rgba(var(--vg-rgb),.16)}",
   ".vlfm-ta{min-height:84px;resize:vertical;line-height:1.5}",
+  // large editor (vault entries): wide dialog + tall content area, with a body that grows
+  ".vlfm-large{width:min(860px,94vw);max-height:90vh}",
+  ".vlfm-large .vlfm-body{flex:1 1 auto}",
+  ".vlfm-l-grow{flex:1 1 auto;min-height:0}",
+  ".vlfm-ta-big{min-height:min(58vh,520px);height:min(58vh,520px);resize:vertical;line-height:1.6;font-size:15px}",
   ".vlfm-chkrow{display:flex;flex-wrap:wrap;gap:8px 14px;padding:3px 0}",
   ".vlfm-chk{display:inline-flex;align-items:center;gap:5px;font:500 12px/1 var(--vmono);text-transform:none;letter-spacing:0;cursor:pointer}",
   ".vlfm-chk input{accent-color:var(--vle-gold);cursor:pointer}",

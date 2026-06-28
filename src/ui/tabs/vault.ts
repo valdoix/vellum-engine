@@ -52,8 +52,14 @@ export const vaultTab: Component<ChronicleState> = {
       + cats.map((c) => `<button class="vlv-chip${_filter === c.id ? ' on' : ''}" data-vcat="${esc(c.id)}" style="--c:${c.color}"><span class="vlv-glyph">${esc(c.glyph)}</span>${esc(c.label)} <span class="vlv-cn">${counts[c.id] ?? 0}</span><span class="vlv-gear" data-vcat-settings="${esc(c.id)}">\u2699</span></button>`).join('')
       + '<button class="vlv-chip add" data-vcat-add>+ Category</button>'
       + '</div>';
-    const activeBook = _snap.books.find((b) => b.attachedToChat && b.vellum) || _snap.books.find((b) => b.attachedToChat) || _snap.books.find((b) => b.vellum) || _snap.books[0];
-    const cur = `<div class="vlv-current"><span class="vlv-current-l">Current lorebook</span><span class="vlv-current-n" data-vbook>${activeBook ? esc(activeBook.name) + (activeBook.attachedToChat ? ' \u2713' : '') : '\u2014 none (one will be created)'}</span></div>`;
+    // list ALL lorebooks attached to this chat (not just the first); fall back
+    // to a vellum/first book when none is attached yet.
+    const attached = _snap.books.filter((b) => b.attachedToChat);
+    const names = (attached.length ? attached : [_snap.books.find((b) => b.vellum) || _snap.books[0]].filter(Boolean) as VBook[])
+      .map((b) => esc(b.name) + (b.attachedToChat ? ' \u2713' : ''));
+    const curLabel = attached.length > 1 ? 'Current lorebooks' : 'Current lorebook';
+    const curBody = names.length ? names.join('<span class="vlv-current-sep"> \u00b7 </span>') : '\u2014 none (one will be created)';
+    const cur = `<div class="vlv-current"><span class="vlv-current-l">${curLabel}</span><span class="vlv-current-n" data-vbook>${curBody}</span></div>`;
     const top = '<div class="vle-sec-top"><button class="vle-add" data-ventry-add>+ Entry</button><button class="vle-qol" data-vbook>\u2913 Books</button></div>' + cur;
     const shown = _filter === 'all' ? entries : entries.filter((e) => e.category === _filter);
     const active = new Set(_snap.activated.map((a) => a.id));
@@ -143,13 +149,13 @@ function entryForm(e: VEntry | null): void {
     { key: 'category', label: 'Category', type: 'select', value: e?.category ?? cats[0]?.id ?? 'characters', options: cats.map((c) => ({ value: c.id, label: c.label })) },
     ...(e ? [] : [{ key: 'bookId', label: 'Lorebook', type: 'select' as const, value: '', options: bookOpts }]),
     { key: 'key', label: 'Keywords (comma-separated)', type: 'text', value: e?.key.join(', ') ?? '', placeholder: 'Thornfield, the castle' },
-    { key: 'content', label: 'Content', type: 'textarea', value: e?.content ?? '' },
+    { key: 'content', label: 'Content', type: 'textarea', value: e?.content ?? '', big: true },
   ], (v) => {
     if (!v.content?.trim()) return;
     const payload = { category: v.category, key: v.key, content: v.content, comment: v.title };
     if (e) send({ type: 'vellum_vault_op', op: 'entry_update', entryId: e.id, ...payload });
     else send({ type: 'vellum_vault_op', op: 'entry_create', bookId: v.bookId || '', ...payload });
-  });
+  }, { large: true });
 }
 
 function categorySettings(id: string): void {
