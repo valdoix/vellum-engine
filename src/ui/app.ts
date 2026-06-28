@@ -53,7 +53,7 @@ const QOL = [
   { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)' },
   { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)' },
-  { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval: a cheap LLM picks what to recall (needs generation permission; toggle)' },
+  { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you' },
   { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON' },
@@ -123,7 +123,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
-let _traverseOn = false;
+let _traverseMode = 'off'; // off | flat | tree (cycled by the Traverse button)
 let _tone = { romance: 'medium', disposition: 'fair' };
 let _tidyOn = false;
 let _chapterVault = 'keyed';
@@ -150,7 +150,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
   else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { setQolBusy('rebuild', true); ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
-  else if (id === 'traverse') { _traverseOn = !_traverseOn; setQolBusy('traverse', true); ctx.sendToBackend({ type: 'vellum_set_traversal', enabled: _traverseOn }); }
+  else if (id === 'traverse') { _traverseMode = _traverseMode === 'off' ? 'flat' : _traverseMode === 'flat' ? 'tree' : 'off'; setQolBusy('traverse', true); ctx.sendToBackend({ type: 'vellum_set_traversal', mode: _traverseMode }); }
   else if (id === 'tone') { openToneModal(ctx); }
   else if (id === 'tidy') { setQolBusy('tidy', true); ctx.sendToBackend({ type: 'vellum_tidy_now' }); ctx.toast?.info?.('Reconciling plot threads\u2026'); }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
@@ -259,6 +259,10 @@ export function setup(ctx: Ctx): () => void {
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
+        if (typeof p.traversalMode === 'string') {
+          _traverseMode = p.traversalMode;
+          document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseMode !== 'off'));
+        }
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
@@ -303,10 +307,10 @@ export function setup(ctx: Ctx): () => void {
         ctx.toast?.success?.(p.enabled ? `Hiding ${p.hid ?? 0} filed turn(s) from the prompt.` : `Restored ${p.shown ?? 0} turn(s).`);
       } else if (p?.type === 'vellum_traversal_done') {
         setQolBusy('traverse', false);
-        _traverseOn = !!p.enabled;
-        document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseOn));
-        if (p.enabled && !p.available) ctx.toast?.warning?.('Traversal needs the generation permission \u2014 falling back to standard recall.');
-        else ctx.toast?.success?.(p.enabled ? 'Controller-guided retrieval on.' : 'Controller-guided retrieval off.');
+        _traverseMode = p.mode ?? (p.enabled ? 'flat' : 'off');
+        document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseMode !== 'off'));
+        if (_traverseMode !== 'off' && !p.available) ctx.toast?.warning?.('Traversal needs the generation permission \u2014 falling back to standard recall.');
+        else ctx.toast?.success?.(_traverseMode === 'tree' ? 'Controller retrieval: tree (arc\u2192chapter\u2192leaf drill).' : _traverseMode === 'flat' ? 'Controller retrieval: flat (one-shot).' : 'Controller retrieval off.');
       } else if (p?.type === 'vellum_tone_done') {
         _tone = { romance: p.romance ?? 'medium', disposition: p.disposition ?? 'fair' };
         const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair';

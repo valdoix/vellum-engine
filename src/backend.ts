@@ -86,7 +86,9 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   let tidy = false;
   try { tidy = !!(await getChatVar(chatId, 'vellum_tidy_threads')); } catch { /* best effort */ }
   const chapterVault = await readChapterVaultMode(chatId);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault }, userId ?? currentUser());
+  let traversalMode = 'off';
+  try { if (await getChatVar(chatId, 'vellum_traversal')) traversalMode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat'; } catch { /* best effort */ }
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
@@ -407,14 +409,14 @@ function sceneQuery(messages: any[]): string {
  * generation permission is missing, so recall stays on the deterministic path.
  * The model call is cheap (reasoning off) and hard-timeout bounded.
  */
-async function traversalController(chatId: string, uid: string | null): Promise<CallModel | undefined> {
+async function traversalController(chatId: string, uid: string | null, perCallMs = 1500): Promise<CallModel | undefined> {
   let enabled = false;
   try { enabled = !!(await getChatVar(chatId, 'vellum_traversal')); } catch { /* best effort */ }
   if (!enabled || !(await has('generation'))) return undefined;
   return async (prompt) => controllerGenerate(
     [{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }],
     uid,
-    1500,
+    perCallMs,
   );
 }
 
@@ -446,10 +448,13 @@ async function wireCapabilities(): Promise<void> {
           // Controller-guided traversal (variant A), opt-in per chat. Builds a
           // CallModel backed by a cheap, timeout-bounded controller generation;
           // buildInjectionHybrid falls back to the deterministic path on any miss.
-          const controller = await traversalController(chatId, uid);
-          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller);
+          const tmode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat';
+          // tree mode makes up to 4 sequential drill calls; tighten each so the
+          // total inline budget stays bounded (~3.2s worst case).
+          const controller = await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
+          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller, tmode);
           if (!inj.text) return out;
-          const rec = recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds, { source: inj.source, trace: inj.trace });
+          const rec = recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
           // streams in real time instead of only on manual Refresh.
           try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
@@ -713,14 +718,16 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_hide_done', ok: true, enabled, ...res }, uid);
   },
   vellum_set_traversal: async (p, uid) => {
-    // toggle controller-guided traversal (variant A); persist in a chat var.
-    // Requires the generation permission to actually engage.
+    // controller-guided retrieval mode: off | flat (one-shot) | tree (tiered
+    // arc→chapter→leaf drill). Persisted in chat vars; needs generation to engage.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
-    const enabled = !!p?.enabled;
+    const mode = (p?.mode === 'flat' || p?.mode === 'tree') ? p.mode : (p?.enabled ? 'flat' : 'off');
+    const enabled = mode !== 'off';
     try { await setChatVar(chatId, 'vellum_traversal', enabled ? '1' : ''); } catch { /* best effort */ }
+    try { await setChatVar(chatId, 'vellum_traversal_mode', mode === 'tree' ? 'tree' : 'flat'); } catch { /* best effort */ }
     const available = await has('generation');
-    spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, available }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, mode, available }, uid);
   },
   vellum_set_tone: async (p, uid) => {
     // persist romance pace + world disposition; they steer the fold (bond seed/

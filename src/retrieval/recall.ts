@@ -6,6 +6,7 @@ import { rrf } from './fuse.js';
 import { vectorSearch } from './embed.js';
 import { hashStr } from '../core/ids.js';
 import { traverseRanked, type CallModel, type TraversalTrace } from './traverse.js';
+import { traverseTree, type TreeTraversalTrace } from './traverse-tree.js';
 
 /**
  * Recall assembler. Produces the text VELLUM injects into the prompt, in two
@@ -24,8 +25,9 @@ import { traverseRanked, type CallModel, type TraversalTrace } from './traverse.
 export interface InjectionResult {
   text: string;
   recallIds: string[];
-  source: 'lexical' | 'hybrid' | 'traversal';
+  source: 'lexical' | 'hybrid' | 'traversal' | 'traversal-tree';
   trace?: TraversalTrace;
+  treeTrace?: TreeTraversalTrace;
 }
 
 // knowledge items flow through collectItems→ranked recall (kind:'knowledge'); the
@@ -115,16 +117,27 @@ function assemble(
   index: InvertedIndex,
   rankedIds: string[],
   budgets: Record<string, number>,
-  source: 'lexical' | 'hybrid' | 'traversal',
+  source: 'lexical' | 'hybrid' | 'traversal' | 'traversal-tree',
   trace?: TraversalTrace,
+  detailIds?: Set<string>,
+  recallBudgetOverride?: number,
 ): InjectionResult {
   const structured = structuredBlock(state, budgets.structured ?? 1200);
+  // a selected chapter/arc node injects its DETAILED summary (the continuity
+  // payload), not the lean gist; everything else uses the indexed text.
+  const detailById = detailIds && detailIds.size
+    ? new Map(state.memories.filter((m) => detailIds.has(m.id)).map((m) => [m.id, m.detail || m.text]))
+    : null;
   const lines: string[] = [];
   for (const id of rankedIds) {
+    const detail = detailById?.get(id);
+    if (detail) { lines.push('- ' + detail); continue; }
     const it = index.byId.get(id);
     if (it) lines.push('- ' + it.text);
   }
-  const recallLines = fitLines(lines, budgets.recall ?? 1200);
+  // tree selections can pull long detailed summaries → give recall more room
+  const recallCap = recallBudgetOverride ?? budgets.recall ?? 1200;
+  const recallLines = fitLines(lines, recallCap);
   const recallIds = rankedIds.slice(0, recallLines.length);
   const recall = recallLines.length
     ? '[CHRONICLE RECALL \u2014 relevant established history. Honor it; do not recite.]\n' + recallLines.join('\n')
@@ -170,18 +183,29 @@ export async function buildInjectionHybrid(
   phaseMult = 1,
   version?: number,
   controller?: CallModel,
+  traversalMode: 'flat' | 'tree' = 'flat',
 ): Promise<InjectionResult> {
   const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
   const index = indexFor(chatId, state, version);
   const lexIds = lexicalRanked(index, state, query);
 
-  // Controller-guided traversal (variant A), opt-in. A cheap LLM selects which
-  // candidates THIS scene needs. Any failure (error/timeout/empty/invalid) →
-  // null → fall through to the deterministic hybrid path. The structured
+  // Controller-guided traversal, opt-in. Any failure (error/timeout/empty/
+  // invalid) → null → fall through to the deterministic path. The structured
   // authoritative block is never traversed (guardrail preserved).
   if (controller) {
-    const t = await traverseRanked(index, state, lexIds, controller);
-    if (t) return assemble(state, index, t.ids, budgets, 'traversal', t.trace);
+    if (traversalMode === 'tree') {
+      // tiered drill (arc→chapter→leaf); selected chapter/arc nodes inject their
+      // DETAILED summary, so give recall extra budget for those long payloads.
+      const tt = await traverseTree(index, state, controller);
+      if (tt) {
+        const detailIds = new Set(tt.summaryIds);
+        const r = assemble(state, index, tt.ids, budgets, 'traversal-tree', undefined, detailIds, Math.floor((budgets.recall ?? 1200) * 1.8));
+        return { ...r, treeTrace: tt.trace };
+      }
+    } else {
+      const t = await traverseRanked(index, state, lexIds, controller);
+      if (t) return assemble(state, index, t.ids, budgets, 'traversal', t.trace);
+    }
   }
 
   const contentToId = (text: string): string | null => {
