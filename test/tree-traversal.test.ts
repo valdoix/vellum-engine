@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMemoryTree } from '../src/retrieval/tree.js';
+import { buildMemoryTree, buildCharacterTree } from '../src/retrieval/tree.js';
 import { traverseTree } from '../src/retrieval/traverse-tree.js';
 import { buildInjection, buildInjectionHybrid } from '../src/retrieval/recall.js';
 import { Ok, Err } from '../src/core/result.js';
@@ -76,6 +76,43 @@ describe('traverseTree — drill loop', () => {
     expect(await traverseTree(index, s, async () => Err('timeout'))).toBeNull();
     expect(await traverseTree(index, s, async () => Ok('garbage'))).toBeNull();
     expect(await traverseTree(index, s, async () => Ok('{"expand":[],"select":[]}'))).toBeNull();
+  });
+});
+
+describe('buildCharacterTree (PR2)', () => {
+  function charState(): ChronicleState {
+    const s = freshState();
+    s.turns = 10;
+    s.cast = {
+      cersei: { id: 'cersei', name: 'Cersei', role: 'queen', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 10, userEdited: false },
+      ned: { id: 'ned', name: 'Ned', aka: [], status: 'mentioned', source: 'auto', firstTurn: 1, lastTurn: 3, userEdited: false },
+    } as any;
+    s.knowledge = [
+      { id: 'k1', who: 'cersei', fact: 'knows a secret tunnel', turn: 4, reliability: 'knows', truth: 'true' },
+      { id: 'k2', who: 'ned', fact: 'discovered the truth', turn: 3, reliability: 'knows', truth: 'true' },
+    ] as any;
+    s.journal = [{ id: 'j1', who: 'cersei', memory: 'the look across the hall', kind: 'interaction', weight: 'minor', sentiment: 'complex', turn: 5, day: 1 }] as any;
+    return s;
+  }
+
+  it('roots cast (present first) with their facts/journal as children', () => {
+    const s = charState();
+    const tree = buildCharacterTree(s, collectItems(s));
+    expect(tree.rootIds).toContain('char:cersei');
+    expect(tree.rootIds.indexOf('char:cersei')).toBeLessThan(tree.rootIds.indexOf('char:ned')); // present before mentioned
+    const c = tree.nodes.get('char:cersei')!;
+    expect(c.childrenIds).toEqual(expect.arrayContaining(['k1', 'j1'])); // knowledge + journal are drillable leaves
+    expect(tree.nodes.get('char:ned')!.childrenIds).toContain('k2');
+  });
+
+  it('traverseTree axis:character drills a character node', async () => {
+    const s = charState();
+    const index = buildIndex(collectItems(s));
+    let n = 0;
+    const model: CallModel = async () => { n++; return n === 1 ? Ok('{"expand":["char:cersei"],"select":[]}') : Ok('{"expand":[],"select":["k1"]}'); };
+    const r = await traverseTree(index, s, model, { axis: 'character' });
+    expect(r).not.toBeNull();
+    expect(r!.ids).toContain('k1');
   });
 });
 

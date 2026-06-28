@@ -11,7 +11,8 @@ import { send } from '../bridge.js';
  */
 
 export interface InjTrace { scene: string; candidateIds: string[]; selectedIds: string[] }
-export interface InjRecord { turn: number; at: number; chars: number; recallIds: string[]; text: string; source?: string; trace?: InjTrace }
+export interface InjTreeTrace { scene: string; steps: Array<{ frontier: string[]; expand: string[]; select: string[] }>; selectedIds: string[] }
+export interface InjRecord { turn: number; at: number; chars: number; recallIds: string[]; text: string; source?: string; trace?: InjTrace | InjTreeTrace }
 
 // module-held latest injection log (filled by app.ts on vellum_injection)
 let _log: InjRecord[] = [];
@@ -46,7 +47,8 @@ function record(r: InjRecord): string {
     return `<span class="vle-inj-reason">${esc(label)} \u00b7 ${lines} line${lines === 1 ? '' : 's'}</span>`;
   }).join('');
   // source badge: traversal (controller-picked) vs hybrid/lexical (deterministic)
-  const src = r.source ? `<span class="vle-inj-src vle-inj-src-${esc(r.source)}">${esc(r.source === 'traversal' ? '\u2748 traversal' : r.source)}</span>` : '';
+  const srcLabel = r.source === 'traversal-tree' ? '\u2748 tree' : r.source === 'traversal' ? '\u2748 traversal' : r.source;
+  const src = r.source ? `<span class="vle-inj-src vle-inj-src-${esc(r.source)}">${esc(srcLabel ?? '')}</span>` : '';
   return '<div class="vle-inj">'
     + `<div class="vle-inj-top" data-inj-toggle><span class="vle-inj-turn">turn ${r.turn}</span>`
     + `<span class="vle-inj-reasons">${src}${reasons}</span>`
@@ -56,13 +58,32 @@ function record(r: InjRecord): string {
     + '</div>';
 }
 
-/** Render the controller-traversal trace: scene seen + candidates → selected. */
-function traceHtml(t?: InjTrace): string {
+/** Render the controller-traversal trace — flat (scene + candidates→selected) or
+ * tree (the step-by-step arc→chapter→leaf drill, LoreRecall-style). */
+function traceHtml(t?: InjTrace | InjTreeTrace): string {
   if (!t) return '';
-  const sel = new Set(t.selectedIds);
-  const chips = t.candidateIds.map((id) => `<span class="vle-inj-cand${sel.has(id) ? ' on' : ''}">${esc(id)}</span>`).join('');
+  if ('steps' in t && Array.isArray(t.steps)) return treeTraceHtml(t);
+  const f = t as InjTrace;
+  const sel = new Set(f.selectedIds);
+  const chips = f.candidateIds.map((id) => `<span class="vle-inj-cand${sel.has(id) ? ' on' : ''}">${esc(id)}</span>`).join('');
   return '<div class="vle-inj-trace">'
+    + `<div class="vle-inj-scene">scene: ${esc(f.scene)}</div>`
+    + `<div class="vle-inj-cands">${f.selectedIds.length}/${f.candidateIds.length} selected ${chips}</div>`
+    + '</div>';
+}
+
+/** Tree drill: one row per controller step showing what it expanded vs selected. */
+function treeTraceHtml(t: InjTreeTrace): string {
+  const sel = new Set(t.selectedIds);
+  const steps = t.steps.map((s, i) => {
+    const exp = s.expand.map((id) => `<span class="vle-inj-cand exp">\u2192 ${esc(id)}</span>`).join('');
+    const sl = s.select.map((id) => `<span class="vle-inj-cand on">\u2714 ${esc(id)}</span>`).join('');
+    return `<div class="vle-inj-step"><span class="vle-inj-stepn">drill ${i + 1}</span>`
+      + `<span class="vle-inj-stepf">${s.frontier.length} in view</span>${exp}${sl}</div>`;
+  }).join('');
+  return '<div class="vle-inj-trace vle-inj-tree">'
     + `<div class="vle-inj-scene">scene: ${esc(t.scene)}</div>`
-    + `<div class="vle-inj-cands">${t.selectedIds.length}/${t.candidateIds.length} selected ${chips}</div>`
+    + steps
+    + `<div class="vle-inj-cands">${sel.size} injected</div>`
     + '</div>';
 }

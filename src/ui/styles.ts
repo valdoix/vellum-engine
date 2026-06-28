@@ -405,4 +405,15 @@ export const STYLES = [
   ".vle-clr-n{flex:1;font-family:var(--vserif);font-size:14px;color:var(--vi)}",
   ".vle-clr-b{font:600 8px/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px;color:var(--vi2);background:rgba(var(--vg-rgb),.08);border:1px solid rgba(var(--vg-rgb),.2);border-radius:6px;padding:4px 7px;cursor:pointer}",
   ".vle-clr-b.on{color:var(--vg);border-color:rgba(var(--vg-rgb),.45);background:rgba(var(--vg-rgb),.18)}",
+  // controller-traversal trace (flat + tree drill)
+  ".vle-inj-trace{margin:4px 0 2px;padding:6px 8px;border-left:2px solid rgba(var(--vg-rgb),.35);background:rgba(var(--vg-rgb),.05);border-radius:0 6px 6px 0;font:500 10px/1.5 var(--vmono)}",
+  ".vle-inj-scene{color:var(--vle-dim);font-style:italic;margin-bottom:4px}",
+  ".vle-inj-cands{color:var(--vle-dim);margin-top:3px}",
+  ".vle-inj-cand{display:inline-block;margin:2px 4px 0 0;padding:1px 5px;border-radius:3px;border:1px solid rgba(255,255,255,.12);color:var(--vle-dim);font-size:9px}",
+  ".vle-inj-cand.on{color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.5);background:rgba(var(--vg-rgb),.12)}",
+  ".vle-inj-cand.exp{color:#8fb0c9;border-color:rgba(143,176,201,.4)}",
+  ".vle-inj-step{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:3px 0;border-top:1px dashed rgba(255,255,255,.08)}",
+  ".vle-inj-stepn{color:var(--vle-gold);font-weight:600;margin-right:4px}",
+  ".vle-inj-stepf{color:var(--vle-dim);margin-right:6px;font-size:9px}",
+  ".vle-inj-tree{border-left-color:rgba(var(--vg-rgb),.5)}",
 ].join('\n');

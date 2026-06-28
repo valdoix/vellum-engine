@@ -10,7 +10,7 @@ import { tokenize } from './tokenize.js';
  */
 export interface RetrievableItem {
   id: string;
-  kind: 'knowledge' | 'secret' | 'memory';
+  kind: 'knowledge' | 'secret' | 'memory' | 'journal';
   text: string;
   turn: number;
   tokens: string[];
@@ -35,6 +35,12 @@ export function collectItems(state: ChronicleState): RetrievableItem[] {
   for (const m of state.memories) {
     const t = m.text + ' ' + (m.keys || []).join(' ');
     items.push({ id: m.id, kind: 'memory', text: m.text, turn: m.turn, tokens: tokenize(t), tier: m.tier });
+  }
+  for (const j of state.journal) {
+    // a character's POV memory of a turning point — continuity-rich, so it's
+    // retrievable. Prefix the holder so recall reads it as "Cersei recalls: …".
+    const text = j.memory;
+    items.push({ id: j.id, kind: 'journal', text, turn: j.turn, tokens: tokenize(text + ' ' + (j.about ?? '')) });
   }
   return items;
 }

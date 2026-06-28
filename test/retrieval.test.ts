@@ -27,6 +27,14 @@ describe('inverted index + lexical (BM25)', () => {
     expect(hits[0]!.id).toBe('k2'); // Ned + Lannister + incest beats generic words
   });
 
+  it('journal entries are retrievable items', () => {
+    const s = stateWith();
+    s.journal = [{ id: 'j1', who: 'cersei', memory: 'the golden rose he offered at the godswood', kind: 'gift', weight: 'significant', sentiment: 'complex', turn: 6, day: 1 }] as any;
+    const idx = buildIndex(collectItems(s));
+    const hits = lexicalSearch(idx, 'golden rose godswood');
+    expect(hits.map((h) => h.id)).toContain('j1');
+  });
+
   it('matches the betrothal memory by its keys', () => {
     const idx = buildIndex(collectItems(stateWith()));
     const hits = lexicalSearch(idx, 'the betrothal to Joffrey');

@@ -184,10 +184,19 @@ export async function buildInjectionHybrid(
   version?: number,
   controller?: CallModel,
   traversalMode: 'flat' | 'tree' = 'flat',
+  precomputed?: { ids: string[]; summaryIds: string[]; trace: TreeTraversalTrace } | null,
 ): Promise<InjectionResult> {
   const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
   const index = indexFor(chatId, state, version);
   const lexIds = lexicalRanked(index, state, query);
+
+  // PR2: a precomputed tree ranking (built on GENERATION_ENDED, cached by
+  // logVersion) skips the live drill entirely — zero prompt-path latency.
+  if (precomputed && precomputed.ids.length) {
+    const detailIds = new Set(precomputed.summaryIds);
+    const r = assemble(state, index, precomputed.ids, budgets, 'traversal-tree', undefined, detailIds, Math.floor((budgets.recall ?? 1200) * 1.8));
+    return { ...r, treeTrace: precomputed.trace };
+  }
 
   // Controller-guided traversal, opt-in. Any failure (error/timeout/empty/
   // invalid) → null → fall through to the deterministic path. The structured

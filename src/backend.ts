@@ -12,6 +12,7 @@ import { summarizeOnce, summarizeAll } from './bus/summarize.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
 import type { CallModel } from './retrieval/traverse.js';
+import { traverseTree, type TreeTraversalResult } from './retrieval/traverse-tree.js';
 import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
@@ -88,7 +89,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const chapterVault = await readChapterVaultMode(chatId);
   let traversalMode = 'off';
   try { if (await getChatVar(chatId, 'vellum_traversal')) traversalMode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat'; } catch { /* best effort */ }
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode }, userId ?? currentUser());
+  const traversalAxis = (await getChatVar(chatId, 'vellum_traversal_axis')) === 'character' ? 'character' : 'temporal';
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode, traversalAxis }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
@@ -193,6 +195,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   void maybeVaultSync(chatId, userId);
   void maybeTidyThreads(chatId, userId);
   void maybeChapterVault(chatId, userId);
+  void precomputeTree(chatId, userId); // PR2: warm the tree ranking for next turn
 }
 
 const _tidying = new Set<string>();
@@ -420,6 +423,40 @@ async function traversalController(chatId: string, uid: string | null, perCallMs
   );
 }
 
+// PR2 — precomputed tree traversal. After a turn ends we walk the memory/character
+// tree in the BACKGROUND (nobody waiting) and cache the ranking keyed on
+// logVersion. The interceptor reads the cache instead of drilling live, so tree
+// mode costs ~0 on the prompt path. Stale/missing → live drill (or fallback).
+interface PrecomputedTree { version: number; result: TreeTraversalResult }
+const _treeCache = new Map<string, PrecomputedTree>();
+const _precomputing = new Set<string>();
+
+/** Read a fresh (current-logVersion) precomputed tree ranking, else null. */
+function getPrecomputedTree(chatId: string): TreeTraversalResult | null {
+  const c = _treeCache.get(chatId);
+  return c && c.version === logVersion(chatId) ? c.result : null;
+}
+
+/** Walk the tree after a turn and cache it. Gated on tree mode + generation. */
+async function precomputeTree(chatId: string, userId: string | null): Promise<void> {
+  if (_precomputing.has(chatId)) return;
+  if ((await getChatVar(chatId, 'vellum_traversal_mode')) !== 'tree') return;
+  if (!(await getChatVar(chatId, 'vellum_traversal'))) return;
+  const controller = await traversalController(chatId, userId, 1200);
+  if (!controller) return;
+  _precomputing.add(chatId);
+  try {
+    const version = logVersion(chatId);
+    const state = await loadState(chatId);
+    const { buildIndex, collectItems } = await import('./retrieval/invindex.js');
+    const index = buildIndex(collectItems(state));
+    const axis = (await getChatVar(chatId, 'vellum_traversal_axis')) === 'character' ? 'character' : 'temporal';
+    const result = await traverseTree(index, state, controller, { axis });
+    if (result) _treeCache.set(chatId, { version, result });
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] precomputeTree: ' + ((e as Error)?.message ?? e)); }
+  finally { _precomputing.delete(chatId); }
+}
+
 // --- permission-gated wiring --------------------------------------------
 // The host rejects interceptor/generation registration when the permission
 // isn't granted, and won't re-wire on its own when the user grants it later.
@@ -449,10 +486,12 @@ async function wireCapabilities(): Promise<void> {
           // CallModel backed by a cheap, timeout-bounded controller generation;
           // buildInjectionHybrid falls back to the deterministic path on any miss.
           const tmode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat';
-          // tree mode makes up to 4 sequential drill calls; tighten each so the
-          // total inline budget stays bounded (~3.2s worst case).
-          const controller = await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
-          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller, tmode);
+          // PR2: prefer a fresh precomputed tree ranking (warmed after the last
+          // turn) — zero prompt-path latency. Else drill live, tightening each of
+          // the up-to-4 calls so the inline budget stays bounded (~3.2s).
+          const pre = tmode === 'tree' ? getPrecomputedTree(chatId) : null;
+          const controller = pre ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
+          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller, tmode, pre);
           if (!inj.text) return out;
           const rec = recordInjection(chatId, state.turns || 0, inj.text, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
@@ -726,8 +765,11 @@ const dispatch: Record<string, Handler> = {
     const enabled = mode !== 'off';
     try { await setChatVar(chatId, 'vellum_traversal', enabled ? '1' : ''); } catch { /* best effort */ }
     try { await setChatVar(chatId, 'vellum_traversal_mode', mode === 'tree' ? 'tree' : 'flat'); } catch { /* best effort */ }
+    if (p?.axis === 'character' || p?.axis === 'temporal') { try { await setChatVar(chatId, 'vellum_traversal_axis', p.axis); } catch { /* best effort */ } }
+    _treeCache.delete(chatId); // settings changed → drop any stale precompute
     const available = await has('generation');
-    spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, mode, available }, uid);
+    const axis = (await getChatVar(chatId, 'vellum_traversal_axis')) === 'character' ? 'character' : 'temporal';
+    spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, mode, axis, available }, uid);
   },
   vellum_set_tone: async (p, uid) => {
     // persist romance pace + world disposition; they steer the fold (bond seed/

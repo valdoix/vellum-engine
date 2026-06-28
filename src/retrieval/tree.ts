@@ -86,3 +86,45 @@ export function buildMemoryTree(state: ChronicleState, items?: RetrievableItem[]
 
 function span(c?: [number, number]): number { return c ? c[1] - c[0] : Number.MAX_SAFE_INTEGER; }
 function clip(s: string, n: number): string { const t = (s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '\u2026' : t; }
+
+/**
+ * Character-scoped tree (PR2): cast → that character's facts/secrets/journal.
+ * The other tree axis — instead of WHEN something happened (arc→chapter→leaf),
+ * organize by WHO it concerns. Top level is the cast (present/active first, then
+ * mentioned); each character node's children are the knowledge they hold, the
+ * secrets they keep, and the journal entries from their POV. Lets the controller
+ * drill "this scene is about Cersei → pull what Cersei knows/feels."
+ *
+ * Leaf ids are the same RetrievableItem ids, so selection feeds the same
+ * assemble() path. Pure + deterministic.
+ */
+export function buildCharacterTree(state: ChronicleState, items?: RetrievableItem[]): MemTree {
+  const leaves = (items ?? collectItems(state));
+  const nodes = new Map<string, MemNode>();
+  for (const it of leaves) nodes.set(it.id, { id: it.id, kind: 'leaf', gist: clip(it.text, 200), childrenIds: [] });
+
+  // map each character → leaf ids that concern them (knowledge they hold,
+  // secrets they keep, journal entries from their POV — all retrievable leaves).
+  const byChar = new Map<string, string[]>();
+  const push = (cid: string, id: string): void => { if (!cid || !nodes.has(id)) return; (byChar.get(cid) ?? byChar.set(cid, []).get(cid)!).push(id); };
+  for (const k of state.knowledge) { push(k.who, k.id); if (k.about) push(k.about, k.id); }
+  for (const s of state.secrets) { push(s.keeper, s.id); }
+  for (const j of state.journal) { push(j.who, j.id); if (j.about) push(j.about, j.id); }
+
+  const rank = (c: { status: string }): number => (c.status === 'present' ? 0 : c.status === 'active' ? 1 : c.status === 'mentioned' ? 2 : 3);
+  const cast = Object.values(state.cast).slice().sort((a, b) => rank(a) - rank(b) || (b.lastTurn || 0) - (a.lastTurn || 0));
+
+  const rootIds: string[] = [];
+  const claimed = new Set<string>();
+  for (const c of cast) {
+    const childIds = Array.from(new Set(byChar.get(c.id) ?? []));
+    if (!childIds.length) continue; // skip characters with nothing to drill into
+    const nodeId = 'char:' + c.id;
+    nodes.set(nodeId, { id: nodeId, kind: 'arc', gist: clip(c.name + (c.role ? ' \u2014 ' + c.role : ''), 120), childrenIds: childIds });
+    rootIds.push(nodeId);
+    for (const id of childIds) claimed.add(id);
+  }
+  // leaves concerning no tracked character → root (so nothing is unreachable)
+  for (const it of leaves) if (!claimed.has(it.id)) rootIds.push(it.id);
+  return { rootIds, nodes };
+}

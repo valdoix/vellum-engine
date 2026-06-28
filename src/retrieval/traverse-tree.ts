@@ -2,7 +2,7 @@ import type { ChronicleState } from '../domain/types.js';
 import type { InvertedIndex } from './invindex.js';
 import { type Result } from '../core/result.js';
 import { buildScene, type CallModel } from './traverse.js';
-import { buildMemoryTree, type MemTree, type MemNode } from './tree.js';
+import { buildMemoryTree, buildCharacterTree, type MemTree, type MemNode } from './tree.js';
 
 /**
  * Tiered TREE traversal (variant B) — the controller drills the derived memory
@@ -36,6 +36,7 @@ export interface TreeTraverseOpts {
   depthLimit?: number; // max tree depth to drill (arc=1, chapter=2, leaf=3)
   selectLimit?: number; // max accumulated selections
   frontierMax?: number; // max nodes shown per step
+  axis?: 'temporal' | 'character'; // which tree to walk (PR2 adds character)
 }
 
 const SYS =
@@ -69,7 +70,7 @@ export async function traverseTree(
   const selectLimit = opts.selectLimit ?? 10;
   const frontierMax = opts.frontierMax ?? 24;
 
-  const tree = buildMemoryTree(state);
+  const tree = opts.axis === 'character' ? buildCharacterTree(state) : buildMemoryTree(state);
   if (!tree.rootIds.length) return null;
   const scene = buildScene(state);
 
