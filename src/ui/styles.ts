@@ -436,4 +436,15 @@ export const STYLES = [
   ".vle-root :focus-visible,.vlf :focus-visible,.vlfm :focus-visible{outline:2px solid var(--vg);outline-offset:2px;border-radius:var(--vr1)}",
   ".vlf-launch:focus-visible{outline:2px solid var(--vg);outline-offset:2px}",
   ".vlg-node:focus-visible{outline:none}.vlg-node:focus-visible .vlg-node-c{stroke:var(--vg);stroke-width:3.4}.vlg-node:focus-visible .vlg-node-l{opacity:1}",
+  // factions
+  ".vle-sec-title{font:600 11px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);opacity:.85}",
+  ".vle-fac-av{background:rgba(var(--vg-rgb),.16);color:var(--vle-gold)}",
+  ".vle-fac-stand{font-weight:600}",
+  ".vle-fac-stand.warm{color:#7bbf8f}", ".vle-fac-stand.cool{color:#c97a7a}", ".vle-fac-stand.neu{color:var(--vle-dim)}",
+  ".vle-fac-mems{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}",
+  ".vle-fac-mem{display:inline-flex;align-items:center;gap:3px;font:500 9px/1.4 var(--vmono);padding:2px 4px;border-radius:3px;border:1px solid rgba(255,255,255,.12);color:var(--vle-dim)}",
+  ".vle-fac-x{background:none;border:0;color:var(--vle-dim);cursor:pointer;font-size:11px;line-height:1;padding:0 0 0 2px;opacity:.6}",
+  ".vle-fac-x:hover{opacity:1;color:#c97a7a}",
+  ".vle-fac-more{font:500 9px/1.4 var(--vmono);color:var(--vle-dim);opacity:.7}",
+  ".vle-dim{opacity:.6}",
 ].join('\n');

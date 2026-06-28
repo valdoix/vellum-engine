@@ -21,6 +21,12 @@ const ROMANCE_CLAMP: Record<Romance, number> = { off: 0, slow_burn: 4, medium: 1
 // one-time opening lean added to a NEW {{user}}↔cast bond's first aff delta.
 const DISP_SEED: Record<Disposition, number> = { kind: 15, warm: 7, fair: 0, harsh: -10, brutal: -25 };
 
+/** A new faction's opening standing toward {{user}}, seeded by World Disposition
+ * — the per-group granular version of the global dial. 0 for fair. */
+export function seedFactionStanding(tone: Tone): number {
+  return DISP_SEED[tone.disposition] ?? 0;
+}
+
 export function parseTone(romance?: string | null, disposition?: string | null): Tone {
   const r = (romance && ROMANCES.has(romance as Romance)) ? romance as Romance : DEFAULT_TONE.romance;
   const d = (disposition && DISPOSITIONS.has(disposition as Disposition)) ? disposition as Disposition : DEFAULT_TONE.disposition;

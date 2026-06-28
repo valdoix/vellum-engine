@@ -74,6 +74,16 @@ export const ParsedSecret = z.object({
   from: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
+export const ParsedFaction = z.object({
+  name: z.string(),
+  kind: z.string().optional(),
+  status: z.enum(['present', 'active', 'mentioned', 'added']).optional().catch(undefined),
+  members: z.array(z.string()).optional(),
+  standing: z.number().min(-100).max(100).optional().catch(undefined),
+  trust: z.number().min(-100).max(100).optional().catch(undefined),
+  why: z.string().optional(),
+});
+
 export const ParsedState = z.object({
   v: z.number().optional(),
   turn: z.number().optional(),
@@ -87,6 +97,7 @@ export const ParsedState = z.object({
     journal: z.array(ParsedJournal).optional(),
     knowledge: z.array(ParsedKnowledge).optional(),
     secrets: z.array(ParsedSecret).optional(),
+    factions: z.array(ParsedFaction).optional(),
     parallel: z.array(ParsedParallel).optional(),
   }).optional(),
   // Open extension point: future blocks (e.g. inventory, factions) can land here

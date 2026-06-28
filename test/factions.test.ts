@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { reduce } from '../src/core/reduce.js';
+import { coreFeature } from '../src/domain/core-feature.js';
 import { resolveFactionId, mergeFactionDuplicates, mergeDuplicates } from '../src/domain/identity.js';
 import { cmdEvents, CMD_TYPES } from '../src/domain/commands.js';
 import { freshState, type ChronicleState, type CastCard, type Faction } from '../src/domain/types.js';
@@ -88,6 +89,17 @@ describe('identity — faction id space NEVER crosses cast', () => {
     const m = mergeFactionDuplicates(s);
     expect(Object.keys(m.factions)).toEqual(['fac:targaryens_house']);
     expect(m.memberships[0]!.faction).toBe('fac:targaryens_house');
+  });
+});
+
+describe('extraction — factions from the block + tone seed', () => {
+  it('folds delta.factions into faction + members + (disposition-seeded) standing', () => {
+    let n = 0;
+    const parsed = { present: [], delta: { factions: [{ name: 'The Household', kind: 'household', members: ['Martha', 'Bessa'], standing: -5 }] } };
+    const s = reduce(coreFeature.extract!(parsed as any, { turn: 1, day: 1, state: freshState(), seq: () => ++n, tone: { romance: 'medium', disposition: 'brutal' } } as any));
+    const fid = Object.keys(s.factions).find((k) => k.includes('household'))!;
+    expect(s.memberships.filter((m) => m.faction === fid).length).toBe(2);
+    expect(s.factions[fid]!.standing).toBe(-30); // brutal seed -25 + explicit -5
   });
 });
 

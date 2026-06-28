@@ -1,8 +1,8 @@
 import type { VellumEvent, Category } from '../core/events.js';
 import { canonId, nextSeq } from '../core/ids.js';
 import { isCategory } from '../domain/category.js';
-import { resolveCastId, notAName } from '../domain/identity.js';
-import { adjustBond, DEFAULT_TONE, type Tone } from '../domain/tone.js';
+import { resolveCastId, notAName, resolveFactionId } from '../domain/identity.js';
+import { adjustBond, DEFAULT_TONE, seedFactionStanding, type Tone } from '../domain/tone.js';
 import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate } from '../host/generation.js';
 import { has } from '../host/capability.js';
@@ -28,7 +28,7 @@ const EXTRACT_SYS =
   + '{"knowledge":[{"who":"Name","fact":"one clause","reliability":"knows|believes|suspects|wrong|unaware","truth":"true|false|unknown","source":"how they learned it, brief or omit","about":"Name or omit"}],'
   + '"secrets":[{"secret":"one clause","keeper":"Name","from":"Name(s) comma-sep or omit","danger":"minor|major|explosive"}],'
   + '"journal":[{"who":"Name","about":"Name or omit","memory":"one vivid sentence from WHO\'S point of view","kind":"interaction|promise|betrayal|gift|shared|wound|observation","weight":"trivial|minor|significant|defining","sentiment":"positive|negative|neutral|complex"}],'
-  + '"bonds":[{"a":"Name","b":"Name","aff":<int -40..40>,"trust":<int -40..40>,"cat":["familial|romantic|alliance|rivalry|social"],"why":"one clause"}]}. '
+  + '"bonds":[{"a":"Name","b":"Name","aff":<int -40..40>,"trust":<int -40..40>,"cat":["familial|romantic|alliance|rivalry|social"],"why":"one clause"}],"factions":[{"name":"Group name","kind":"household|house|guild|order","members":["Name"],"standing":<int -40..40 toward the player, optional>}]}. '
   + 'RULES: use ONLY real character names that appear in the prose (the persona/player and the characters), never placeholders or unnamed figures (a guard, a servant). '
   + 'EVERY NAMED CHARACTER COUNTS — not just the lead or the player. Attribute knowledge, secrets, and journal entries to side characters, rivals, family, and minor figures too whenever the prose gives them a real name; the chronicle tracks them all equally. '
   + 'KNOWLEDGE is the engine of dramatic irony — track the INFORMATION STATE. Extract when ANY character (including the player) learns, realizes, infers, overhears, confesses, or comes to wrongly believe something — e.g. "Cersei revealed her father beat her" => {who:"<listener>",fact:"<speaker>\'s father beat <speaker>"} AND a secret if it was hidden. '
@@ -37,7 +37,7 @@ const EXTRACT_SYS =
   + 'SECRETS: extract when someone conceals something OR a hidden thing is revealed this excerpt (a confessed abuse, a hidden parentage, a lie). '
   + 'JOURNAL: extract genuine TURNING POINTS a character would personally carry — a confession, promise, betrayal, gift, wound, first kiss, a moment of being truly seen — written from that character\'s POV; the PLAYER can and should hold journal entries too. '
   + 'BONDS: aff/trust are the CHANGE this excerpt caused to how A feels toward B; omit pairs that did not move; cat only when the bond\'s nature changed. '
-  + 'Capture every real reveal/turning-point that carries dramatic weight, invent nothing the prose does not support. Empty arrays are fine.';
+  + 'FACTIONS: name a GROUP (household staff, a house, a guild) when it acts, is referenced as a bloc, or a character belongs to one; list known members and the group\'s standing toward the player if it shifted. Capture every real reveal/turning-point that carries dramatic weight, invent nothing the prose does not support. Empty arrays are fine.';
 
 function parseJson(text: string): any | null {
   let t = String(text || '').replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
@@ -116,6 +116,20 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     if (!adj) continue;
     out.push({ ...base(), kind: 'bond.delta', a: ra, b: rb, ...(typeof adj.aff === 'number' ? { aff: adj.aff } : {}), ...(typeof adj.trust === 'number' ? { trust: adj.trust } : {}), ...(adj.addCats?.length ? { addCats: adj.addCats as Category[] } : {}), ...(b?.why ? { why: String(b.why) } : {}) } as VellumEvent);
   }
+  for (const fx of Array.isArray(obj.factions) ? obj.factions : []) {
+    const name = String(fx?.name || '').trim();
+    if (!name || notAName(name)) continue;
+    const fid = state ? resolveFactionId(state, name) : ('fac:' + canonId(name));
+    if (!fid) continue;
+    const isNew = !state?.factions?.[fid];
+    out.push({ ...base(), kind: 'faction.seen', id: fid, name, status: 'active' } as VellumEvent);
+    if (fx?.kind) out.push({ ...base(), kind: 'faction.edit', id: fid, patch: { kind: String(fx.kind) } } as VellumEvent);
+    const members = Array.isArray(fx?.members) ? fx.members : String(fx?.members || '').split(',');
+    for (const mn of members) { const m = realName(mn, names); if (m && !bad(m)) out.push({ ...base(), kind: 'faction.member', char: rid(m), faction: fid, op: 'add' } as VellumEvent); }
+    const seed = isNew ? seedFactionStanding(tone) : 0;
+    const delta = (Number.isFinite(fx?.standing) ? clamp(fx.standing) : 0) + seed;
+    if (delta) out.push({ ...base(), kind: 'faction.standing', faction: fid, standing: Math.max(-100, Math.min(100, delta)) } as VellumEvent);
+  }
   return out;
 }
 
@@ -165,6 +179,10 @@ const EXTRACT_SCHEMA = {
           a: { type: 'string' }, b: { type: 'string' }, aff: { type: 'number' }, trust: { type: 'number' },
           cat: { type: 'array', items: { type: 'string' } }, why: { type: 'string' },
         }, required: ['a', 'b'] } },
+        factions: { type: 'array', items: { type: 'object', properties: {
+          name: { type: 'string' }, kind: { type: 'string' },
+          members: { type: 'array', items: { type: 'string' } }, standing: { type: 'number' },
+        }, required: ['name'] } },
       },
     },
   },

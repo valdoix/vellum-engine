@@ -95,7 +95,7 @@ export function parseState(content: string): ParseResult {
 /** Models sometimes put bonds/threads/arcs/journal/parallel at the TOP level
  * instead of inside `delta`. Hoist them in so nothing is silently dropped. */
 function hoistDeltaFields(obj: Record<string, unknown>): void {
-  const keys = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'parallel'];
+  const keys = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'factions', 'parallel'];
   const delta = (obj.delta && typeof obj.delta === 'object') ? obj.delta as Record<string, unknown> : {};
   let moved = false;
   for (const k of keys) {

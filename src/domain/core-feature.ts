@@ -2,8 +2,8 @@ import type { Feature, ExtractCtx } from '../bus/registry.js';
 import type { ParsedState } from '../parse/parsed.js';
 import type { VellumEvent } from '../core/events.js';
 import { canonId } from '../core/ids.js';
-import { resolveCastId, notAName } from './identity.js';
-import { adjustBond, DEFAULT_TONE } from './tone.js';
+import { resolveCastId, notAName, resolveFactionId } from './identity.js';
+import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -135,6 +135,26 @@ export const coreFeature: Feature = {
       const fromRaw = Array.isArray(s.from) ? s.from : String(s.from || '').split(',');
       const from = fromRaw.map((x) => String(x).trim()).filter((x) => x && !notAName(x)).map(rid);
       out.push({ ...base(), kind: 'secret.form', id: 'sec_' + ctx.turn + '_' + (si++), keeper: rid(s.keeper), from, text } as VellumEvent);
+    }
+
+    // factions written inline: group + members (edges) + standing. A NEW faction's
+    // opening standing is seeded from World Disposition (per-group granular dial).
+    for (const fx of parsed.delta?.factions ?? []) {
+      const fid = resolveFactionId(ctx.state, fx.name);
+      if (!fid) continue;
+      const isNew = !ctx.state.factions[fid];
+      out.push({ ...base(), kind: 'faction.seen', id: fid, name: String(fx.name).trim(), status: (fx.status ?? 'active') } as VellumEvent);
+      if (fx.kind) out.push({ ...base(), kind: 'faction.edit', id: fid, patch: { kind: String(fx.kind) } } as VellumEvent);
+      for (const mn of fx.members ?? []) {
+        if (notAName(mn)) continue;
+        out.push({ ...base(), kind: 'faction.member', char: rid(mn), faction: fid, op: 'add' } as VellumEvent);
+      }
+      // seed once on creation; an explicit standing delta still applies on top
+      const seed = isNew ? seedFactionStanding(tone) : 0;
+      const delta = (typeof fx.standing === 'number' ? fx.standing : 0) + seed;
+      if (delta || (isNew && typeof fx.trust === 'number')) {
+        out.push({ ...base(), kind: 'faction.standing', faction: fid, ...(delta ? { standing: delta } : {}), ...(typeof fx.trust === 'number' ? { trust: fx.trust } : {}) } as VellumEvent);
+      }
     }
 
     // off-screen parallel events
