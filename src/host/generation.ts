@@ -14,10 +14,14 @@ export async function internalGenerate(
   messages: GenMsg[],
   params: Record<string, unknown>,
   userId: string | null,
+  opts?: { reasoningOff?: boolean },
 ): Promise<Result<string, string>> {
   if (!(await has('generation'))) return Err('no_generation_permission');
   if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
-  const req = { messages, parameters: params || {}, userId };
+  // Disable extended thinking for internal tasks by default: on a reasoning model
+  // the token budget is otherwise spent on hidden thinking and `content` comes
+  // back empty, which silently drops us to the structural fallback.
+  const req = { messages, parameters: params || {}, userId, ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
   return tryCatchAsync(async () => {
     const r = spindle.generate.quiet
       ? await spindle.generate.quiet(req)

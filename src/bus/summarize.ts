@@ -1,6 +1,6 @@
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
-import { planChapter, chapterEvents } from '../domain/memory.js';
+import { planChapter, chapterEvents, type CompressPlan } from '../domain/memory.js';
 import { internalGenerate } from '../host/generation.js';
 import { nextSeq } from '../core/ids.js';
 
@@ -58,8 +58,9 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
     : '';
   const gen = await internalGenerate(
     [{ role: 'system', content: SUMMARY_SYS + nameHint }, { role: 'user', content: src }],
-    { temperature: 0.2, max_tokens: 320 },
+    { temperature: 0.2, max_tokens: 500 },
     userId,
+    { reasoningOff: true },
   );
   if (gen.ok && gen.value.trim()) {
     const body = gen.value.trim();
@@ -68,11 +69,37 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
     else text = body;
     text = text.replace(/```[a-z]*\n?|```/gi, '').trim();
   } else {
-    // fallback: structural concatenation (loses nothing, just not prose)
-    text = 'Chapter (turns ' + plan.covers[0] + '-' + plan.covers[1] + '): '
-      + plan.sourceIds.map((id) => state.memories.find((m) => m.id === id)?.text).filter(Boolean).join(' ');
+    // fallback (LLM unavailable): a COMPACT structural digest, not raw prose.
+    // Take the first sentence of each source memory so it reads as a record and
+    // never cuts mid-word. Better than dumping concatenated narrative.
+    text = fallbackDigest(state, plan);
   }
   return chapterEvents(plan, text.slice(0, 1200), keys, state.turns || plan.covers[1], state.day || 0, nextSeq);
+}
+
+/** Sentence-bounded structural digest used when host generation is unavailable.
+ * One lead sentence per source turn, trimmed — readable, never mid-word, and
+ * kept within the chapter budget so the downstream slice can't cut it. */
+function fallbackDigest(state: ChronicleState, plan: CompressPlan): string {
+  const firstSentence = (t: string): string => {
+    const s = t.replace(/\s+/g, ' ').trim();
+    const m = s.match(/^.*?[.!?](?=\s|$)/);
+    let out = (m ? m[0] : s);
+    if (out.length > 180) out = out.slice(0, 177).replace(/\s+\S*$/, '') + '\u2026'; // word-boundary trim
+    return out.trim();
+  };
+  const prefix = `Chapter (turns ${plan.covers[0]}\u2013${plan.covers[1]}): `;
+  const BUDGET = 1180; // leave headroom under the 1200 store cap
+  const out: string[] = [];
+  let len = prefix.length;
+  for (const id of plan.sourceIds) {
+    const t = state.memories.find((m) => m.id === id)?.text;
+    if (!t || !t.trim()) continue;
+    const sentence = firstSentence(t);
+    if (len + sentence.length + 1 > BUDGET) break; // stop on a whole sentence, never mid-word
+    out.push(sentence); len += sentence.length + 1;
+  }
+  return prefix + out.join(' ');
 }
 
 /** Compress as many windows as exist (manual "summarize all"). A manual run uses
