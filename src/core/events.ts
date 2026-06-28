@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 5 as const;
+export const SCHEMA_VERSION = 6 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -76,7 +76,11 @@ export const EvSecretReveal = z.object({ ...base, kind: z.literal('secret.reveal
 export const EvSecretDrop = z.object({ ...base, kind: z.literal('secret.drop'), id: z.string() });
 
 const SubsumedMem = z.object({ id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]) });
-export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional() });
+export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), detail: z.string().optional(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional() });
+// Links a chapter/arc memory to its detailed VAULT projection (world-book entry).
+// Append-only so the log stays the source of truth; reduce sets vaultEntryId.
+// `keys` carries back the (possibly user-edited) entry keywords for round-trip sync.
+export const EvMemoryLink = z.object({ ...base, kind: z.literal('memory.link'), id: z.string(), vaultEntryId: z.string(), keys: z.array(z.string()).optional() });
 export const EvMemoryDrop = z.object({ ...base, kind: z.literal('memory.drop'), id: z.string() });
 
 export const EvThread = z.object({ ...base, kind: z.literal('thread.op'), op: z.enum(['new', 'advance', 'stall', 'resolve']), name: z.string(), note: z.string().optional() });
@@ -92,7 +96,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvCastSeen, EvCastEdit, EvCastDrop,
   EvBondDelta, EvBondDrop,
   EvKnowledge, EvKnowledgeDrop, EvSecretForm, EvSecretReveal, EvSecretDrop,
-  EvMemory, EvMemoryDrop,
+  EvMemory, EvMemoryDrop, EvMemoryLink,
   EvThread, EvArc, EvThreadMerge, EvArcMerge,
   EvJournal, EvJournalDrop, EvJournalEdit,
   EvParallel,

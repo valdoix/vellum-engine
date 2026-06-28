@@ -19,6 +19,7 @@ import type { ChronicleState } from './domain/types.js';
 import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
+import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
 import { parseTone, type Tone } from './domain/tone.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
@@ -84,7 +85,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const tone = await readTone(chatId, userId);
   let tidy = false;
   try { tidy = !!(await getChatVar(chatId, 'vellum_tidy_threads')); } catch { /* best effort */ }
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy }, userId ?? currentUser());
+  const chapterVault = await readChapterVaultMode(chatId);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
@@ -188,6 +190,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   void maybeAutoSummarize(chatId, userId);
   void maybeVaultSync(chatId, userId);
   void maybeTidyThreads(chatId, userId);
+  void maybeChapterVault(chatId, userId);
 }
 
 const _tidying = new Set<string>();
@@ -298,6 +301,62 @@ async function maybeVaultSync(chatId: string, userId: string | null): Promise<vo
   finally { _vaultSyncing.delete(chatId); }
 }
 
+const _chapterVaulting = new Set<string>();
+
+/** Read the per-chat chapter-vault mode (off | keyed | constant). Default keyed
+ * when world_books is granted; off otherwise. */
+async function readChapterVaultMode(chatId: string): Promise<ChapterVaultMode> {
+  const v = await getChatVar(chatId, 'vellum_chapter_vault');
+  if (v === 'off' || v === 'keyed' || v === 'constant') return v;
+  return 'keyed'; // default ON (keyed) per design
+}
+
+/**
+ * Hybrid chapter memory — VAULT projection (the I/O half). Mirrors each chapter/
+ * arc memory's DETAIL into a world-book entry so the host injects it on keyword
+ * relevance, outside VELLUM's recall budget. Reconciles create/update/delete and
+ * round-trips user-edited keys back into the chronicle (memory.link). Pure diff
+ * lives in domain/chapter-vault.ts. Best-effort, serialized per chat.
+ */
+async function maybeChapterVault(chatId: string, userId: string | null): Promise<void> {
+  if (_chapterVaulting.has(chatId)) return;
+  if (!(await hasVault())) return;
+  const mode = await readChapterVaultMode(chatId);
+  _chapterVaulting.add(chatId);
+  try {
+    const state = await loadState(chatId);
+    const snap = await vaultSnapshot(chatId, userId);
+    const entries = snap.books.flatMap((b) => b.entries);
+    const plan = reconcileChapterEntries(state, entries, mode);
+    if (mode === 'off') {
+      // tear down our chapter/arc entries when disabled
+      for (const e of entries.filter((x) => x.vellum && /^(chapter|arc):/.test(x.link))) await deleteEntry(e.id, userId);
+      return;
+    }
+    const bookId = snap.books.find((b) => b.vellum)?.id
+      ?? (await (async () => { const r = await createBook('VELLUM Chronicle', 'Auto-authored chapters, arcs, and lore.', userId); if (r.ok && chatId) await setBookAttached(chatId, r.value, true, userId); return r.ok ? r.value : ''; })());
+    if (!bookId) return;
+    const linkEvents: VellumEvent[] = [];
+    for (const c of plan.create) {
+      const r = await createEntry({ bookId, key: c.input.key, content: c.input.content, comment: c.input.comment, settings: c.input.settings, category: c.input.category, source: 'chapter', link: c.input.link }, userId);
+      if (r.ok && r.value) linkEvents.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: 'memory.link', id: c.memId, vaultEntryId: r.value, keys: c.input.key } as VellumEvent);
+    }
+    for (const u of plan.update) {
+      // content/constant only — keys are owned by the entry post-creation and
+      // round-trip via keySync, so we never clobber a user's edited keywords.
+      await updateEntry(u.entryId, { content: u.input.content, constant: u.input.settings.constant ?? false, extensions: { vellum: true, vellumCategory: u.input.category, vellumSource: 'chapter', vellumLink: u.input.link } }, userId);
+    }
+    for (const k of plan.keySync) {
+      // user edited the entry's keys → pull them back to the chronicle memory
+      linkEvents.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: 'memory.link', id: k.memId, vaultEntryId: k.entryId, keys: k.keys } as VellumEvent);
+    }
+    for (const entryId of plan.remove) await deleteEntry(entryId, userId);
+    if (linkEvents.length) { await append(chatId, linkEvents.filter((e) => (e as any).vaultEntryId)); invalidateIndex(chatId); }
+    if (plan.create.length || plan.update.length || plan.remove.length) spindle.log?.info?.(`[vellum_engine] chapter-vault: +${plan.create.length} ~${plan.update.length} -${plan.remove.length} (mode ${mode})`);
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] chapter-vault: ' + ((e as Error)?.message ?? e)); }
+  finally { _chapterVaulting.delete(chatId); }
+}
+
 let _summarizing = new Set<string>();
 async function maybeAutoSummarize(chatId: string, userId: string | null): Promise<void> {
   if (_summarizing.has(chatId)) return;
@@ -310,6 +369,7 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
     if (evs.length) {
       await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, userId);
       spindle.log?.info?.('[vellum_engine] auto-summarized a chapter');
+      void maybeChapterVault(chatId, userId); // project the new chapter's detail to the vault
       // if the user enabled hide-summarized, fold the freshly-covered turns away
       try {
         const enabled = !!(await getChatVar(chatId, 'vellum_hide_summarized'));
@@ -475,6 +535,7 @@ const dispatch: Record<string, Handler> = {
       }
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
+      void maybeChapterVault(chatId, uid); // reconcile vault chapter entries after a full rebuild
       spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: true, turns }, uid);
       spindle.log?.info?.('[vellum_engine] rebuilt chronicle from transcript: ' + turns + ' turns');
     } catch (e) {
@@ -513,6 +574,7 @@ const dispatch: Record<string, Handler> = {
     const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs), 4, await chatNames(chatId, uid));
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
+    void maybeChapterVault(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds }, uid);
   },
   vellum_clear: async (p, uid) => {
@@ -677,6 +739,16 @@ const dispatch: Record<string, Handler> = {
     const enabled = !!p?.enabled;
     try { await setChatVar(chatId, 'vellum_tidy_threads', enabled ? '1' : ''); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_tidy_set_done', ok: true, enabled, available: await has('generation') }, uid);
+  },
+  vellum_set_chaptervault: async (p, uid) => {
+    // chapter-vault mode: off | keyed (default) | constant. Detailed chapter
+    // summaries mirror to the vault; chronicle keeps the lean gist.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const mode: ChapterVaultMode = (p?.mode === 'off' || p?.mode === 'constant') ? p.mode : 'keyed';
+    try { await setChatVar(chatId, 'vellum_chapter_vault', mode); } catch { /* best effort */ }
+    void maybeChapterVault(chatId, uid); // apply immediately (project / re-key / tear down)
+    spindle.sendToFrontend?.({ type: 'vellum_chaptervault_done', ok: true, mode, available: await hasVault() }, uid);
   },
   vellum_tidy_now: async (p, uid) => {
     // manual "Tidy threads" — merge near-duplicate threads/arcs right now

@@ -50,6 +50,12 @@ export function migrate(raw: unknown): unknown {
     version = 5;
   }
 
+  // v5 → v6: chapter/arc memories gained optional detail + vaultEntryId, and a
+  // memory.link event kind (hybrid chapter-vault). Additive — no rewrite.
+  if (version < 6) {
+    version = 6;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

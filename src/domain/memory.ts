@@ -40,19 +40,19 @@ export function planChapter(state: ChronicleState, windowSize = 8): CompressPlan
 /**
  * Build the events for a completed compression: record the new chapter memory
  * and drop the source turn-memories it subsumes (kept retrievable via the
- * chapter). Caller provides the produced summary text + keywords.
+ * chapter). `gist` is the lean chronicle text; `detail` the dense body mirrored
+ * to the vault; `keys` the retrieval keywords (shared by both).
  */
 export function chapterEvents(
   plan: CompressPlan,
-  summary: string,
-  keys: string[],
+  summary: { gist: string; detail: string; keys: string[] },
   turn: number,
   day: number,
   seq: () => number,
 ): VellumEvent[] {
   const id = 'chap_' + hashStr(plan.sourceIds.join(',')).slice(0, 8);
   const events: VellumEvent[] = [
-    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary, keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
+    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
   ];
   for (const sid of plan.sourceIds) {
     events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid });

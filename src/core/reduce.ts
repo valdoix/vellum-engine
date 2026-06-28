@@ -189,8 +189,13 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'memory.record': {
       if (!s.memories.find((m) => m.id === e.id)) {
-        s.memories.push({ id: e.id, tier: e.tier, text: e.text, keys: e.keys, ...(e.covers ? { covers: e.covers } : {}), ...(e.subsumed ? { subsumed: e.subsumed } : {}), turn: e.turn });
+        s.memories.push({ id: e.id, tier: e.tier, text: e.text, ...(e.detail ? { detail: e.detail } : {}), keys: e.keys, ...(e.covers ? { covers: e.covers } : {}), ...(e.subsumed ? { subsumed: e.subsumed } : {}), turn: e.turn });
       }
+      break;
+    }
+    case 'memory.link': {
+      const m = s.memories.find((x) => x.id === e.id);
+      if (m) { m.vaultEntryId = e.vaultEntryId; if (e.keys) m.keys = e.keys; }
       break;
     }
     case 'memory.drop': {

@@ -126,6 +126,7 @@ let _hideOn = false;
 let _traverseOn = false;
 let _tone = { romance: 'medium', disposition: 'fair' };
 let _tidyOn = false;
+let _chapterVault = 'keyed';
 let _retheme: () => void = () => { /* set in setup */ };
 
 // Transient "running" indication for one-shot QOL actions. Set busy when the
@@ -177,9 +178,15 @@ function openToneModal(ctx: Ctx): void {
       { value: 'off', label: 'Off' },
       { value: 'on', label: 'On (merge duplicate threads as you play)' },
     ] },
+    { key: 'chaptervault', label: 'Chapter detail in vault', type: 'select', value: _chapterVault, options: [
+      { value: 'keyed', label: 'Keyed (detailed chapters, injected on relevance)' },
+      { value: 'constant', label: 'Constant (detailed chapters, always in context)' },
+      { value: 'off', label: 'Off (chronicle gist only)' },
+    ] },
   ], (out) => {
     ctx.sendToBackend({ type: 'vellum_set_tone', romance: out.romance, disposition: out.disposition });
     ctx.sendToBackend({ type: 'vellum_set_tidy', enabled: out.tidy === 'on' });
+    ctx.sendToBackend({ type: 'vellum_set_chaptervault', mode: out.chaptervault });
   });
 }
 
@@ -251,6 +258,7 @@ export function setup(ctx: Ctx): () => void {
           document.querySelectorAll('[data-qol=\'tone\']').forEach((b) => b.classList.toggle('on', !isDefault));
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
+        if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
@@ -312,6 +320,10 @@ export function setup(ctx: Ctx): () => void {
         _tidyOn = !!p.enabled;
         if (p.enabled && !p.available) ctx.toast?.warning?.('Auto-tidy needs the generation permission to run.');
         else ctx.toast?.success?.(p.enabled ? 'Auto-tidy threads on.' : 'Auto-tidy threads off.');
+      } else if (p?.type === 'vellum_chaptervault_done') {
+        _chapterVault = p.mode ?? 'keyed';
+        if (p.mode !== 'off' && !p.available) ctx.toast?.warning?.('Chapter-vault needs the world_books permission \u2014 keeping chronicle gist only.');
+        else ctx.toast?.success?.(p.mode === 'off' ? 'Chapter detail: chronicle only.' : `Chapter detail \u2192 vault (${p.mode}).`);
       }
     } catch (e) { try { console.warn('[vellum] message handler:', e); } catch { /* ignore */ } }
   });

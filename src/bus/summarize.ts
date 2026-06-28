@@ -14,19 +14,30 @@ declare const spindle: any;
  * concatenation so it never silently no-ops.
  */
 
+// The hybrid prompt produces THREE things in one pass:
+//   DETAIL — a dense, structured chapter record for the VAULT (durable, keyword-
+//            activated, read for deep continuity). Beat-by-beat, past tense.
+//   GIST   — one lean sentence for the CHRONICLE (recall/traversal + hide-on-file).
+//   KEYS   — concrete retrieval keywords (LumiBooks doctrine: scene-specific
+//            nouns/places/objects/actions; NOT abstract themes or character names).
 const SUMMARY_SYS =
-  'You are a story archivist compressing a roleplay excerpt into ONE dense, factual chapter-memory for long-term recall. '
-  + 'Write 3-6 tight PAST-TENSE sentences in plain third person. Capture only what MATTERS: who was involved, where, key '
-  + 'actions, decisions, revelations, promises, and what CHANGED by the end (relationships, stakes, knowledge). '
-  + 'Pack facts; DROP atmosphere, sensory description, interiority, and metaphor - this is a record, not prose. '
-  + 'No run-on sentences and no em-dash pile-ups: one clear idea per sentence, each able to stand alone. '
-  + 'Use the real character names; never write {{user}}/{{char}}/"you". End with a strong factual close on what the chapter '
-  + 'leaves changed - not a lyrical flourish. Then a final line: KEYS: <6-12 comma-separated names/places/topics>.\n'
-  + 'BAD (wordy, atmospheric, run-on): "She descended from the wheelhouse unaided, refusing a servant\u2019s hand, and took in '
-  + 'the courtyard\u2014soldiers, servants, the oppressive weight of a castle she was told would soon be her home." '
-  + 'GOOD (tight, factual): "Cersei arrived at Harrenhal and was received in the courtyard. Daeron presented her a golden rose '
-  + 'and bluntly called the castle hard to look at, surprising her into a near-laugh. Jaime embraced her warmly. By the end '
-  + 'her guarded contempt had softened toward both brothers."';
+  'You are a story archivist. Compress the roleplay excerpt into a CHAPTER record for long-term memory. '
+  + 'Respond in EXACTLY this layout, nothing before or after:\n'
+  + 'DETAIL:\n'
+  + '<a dense beat-by-beat record in PAST TENSE, third person, using real names. Lead with the day/time if known. '
+  + 'Capture every plot-relevant beat: who was involved and where, decisions, revelations, promises, conflicts, '
+  + 'emotional turns, and the cause->effect logic that links them. Include what each character now KNOWS, FEELS, or '
+  + 'has COMMITTED to, and any unresolved thread left open. Be comprehensive but compact: concrete nouns over '
+  + 'adjectives, one idea per sentence, no purple prose, no [OOC]/meta. 6-12 sentences (or tight bullet lines). '
+  + 'This replaces reading the full scene, so lose nothing that future continuity needs.>\n'
+  + 'GIST:\n'
+  + '<ONE past-tense sentence naming who + the single most important change this chapter leaves. A reader should grasp '
+  + 'the chapter from this line alone.>\n'
+  + 'KEYS:\n'
+  + '<8-16 comma-separated retrieval keywords: CONCRETE and scene-specific — places, objects, proper nouns, distinctive '
+  + 'actions, unique phrases a later scene might echo. One concept each. NOT abstract themes (love, trust, betrayal), '
+  + 'NOT bare character names, NOT multi-fact phrases.>\n'
+  + 'Use real character names throughout; never write {{user}}/{{char}}/"you".';
 
 /** Build the source text for the LLM from the memories being folded. With the
  * resolved persona/char names, replace {{user}}/{{char}}/you so the summary uses
@@ -50,7 +61,8 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
   const plan = planChapter(state, windowSize);
   if (!plan) return [];
   const src = sourceText(state, plan.sourceIds, names);
-  let text = '';
+  let gist = '';
+  let detail = '';
   let keys: string[] = [];
 
   const nameHint = (names && (names.user || names.char))
@@ -58,23 +70,45 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
     : '';
   const gen = await internalGenerate(
     [{ role: 'system', content: SUMMARY_SYS + nameHint }, { role: 'user', content: src }],
-    { temperature: 0.2, max_tokens: 1200 },
+    { temperature: 0.2, max_tokens: 1400 },
     userId,
     { reasoningOff: true },
   );
   if (gen.ok && gen.value.trim()) {
-    // strip any leaked thinking, fences, then peel KEYS off the end
-    let body = gen.value.replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
-    const km = body.match(/KEYS:\s*(.+)\s*$/i);
-    if (km) { keys = km[1]!.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 12); body = body.slice(0, km.index).trim(); }
-    text = body;
-  } else {
-    // fallback (LLM unavailable): a COMPACT structural digest, not raw prose.
-    // Take the first sentence of each source memory so it reads as a record and
-    // never cuts mid-word. Better than dumping concatenated narrative.
-    text = fallbackDigest(state, plan);
+    const parsed = parseSummary(gen.value);
+    detail = parsed.detail;
+    gist = parsed.gist;
+    keys = parsed.keys;
   }
-  return chapterEvents(plan, capText(text, 1200), keys, state.turns || plan.covers[1], state.day || 0, nextSeq);
+  // fallback (LLM unavailable, or parse produced nothing usable): a compact
+  // structural digest as the gist; no detail → no vault entry worth writing.
+  if (!gist && !detail) gist = fallbackDigest(state, plan);
+  if (!gist) gist = capText(detail, 200); // detail came through but no explicit gist
+  if (!detail) detail = gist; // fallback path: chronicle-only chapter
+
+  return chapterEvents(
+    plan,
+    { gist: capText(gist, 280), detail: capText(detail, 2000), keys },
+    state.turns || plan.covers[1], state.day || 0, nextSeq,
+  );
+}
+
+/** Parse the DETAIL / GIST / KEYS layout. Tolerant of missing sections, leaked
+ * thinking, and fences. Falls back to treating the whole body as detail. */
+export function parseSummary(raw: string): { detail: string; gist: string; keys: string[] } {
+  const body = raw.replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
+  const section = (label: string): string => {
+    const re = new RegExp(label + '\\s*:?\\s*\\n?([\\s\\S]*?)(?=\\n\\s*(?:DETAIL|GIST|KEYS)\\s*:|$)', 'i');
+    const m = body.match(re);
+    return m ? m[1]!.trim() : '';
+  };
+  let detail = section('DETAIL');
+  const gist = section('GIST');
+  const keysRaw = section('KEYS');
+  // if no labeled sections at all, treat the whole thing as detail
+  if (!detail && !gist && !keysRaw) detail = body;
+  const keys = keysRaw.split(/[,\n]/).map((s) => s.replace(/^[-*\u2022\s]+/, '').trim()).filter(Boolean).slice(0, 16);
+  return { detail, gist, keys };
 }
 
 /** Cap to a length at a sentence boundary if possible, else a word boundary —

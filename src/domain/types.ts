@@ -83,8 +83,10 @@ export interface Secret {
 export interface Memory {
   id: string;
   tier: 'turn' | 'chapter' | 'arc';
-  text: string;
+  text: string; // LEAN gist — what chronicle recall/traversal inject + hide-on-file uses
+  detail?: string; // DETAILED summary — mirrored to the vault entry; lives in the log, not chronicle recall
   keys: string[];
+  vaultEntryId?: string; // world-book entry holding `detail` (the hybrid-memory projection)
   covers?: [number, number];
   subsumed?: Array<{ id: string; turn: number; text: string; keys: string[] }>;
   turn: number;

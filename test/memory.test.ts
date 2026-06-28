@@ -29,7 +29,7 @@ describe('hierarchical memory', () => {
     const state = withTurnMemories(10);
     const plan = planChapter(state, 8)!;
     let seq = 1000;
-    const evs = chapterEvents(plan, 'Chapter: the first eight turns', ['opening'], 11, 1, () => ++seq);
+    const evs = chapterEvents(plan, { gist: 'Chapter: the first eight turns', detail: 'A detailed record of the first eight turns.', keys: ['opening'] }, 11, 1, () => ++seq);
     // replay onto the existing memories to verify the net effect
     const base: VellumEvent[] = state.memories.map((m, i) => ({ seq: i, turn: m.turn, day: 1, src: 'system', kind: 'memory.record', id: m.id, tier: m.tier, text: m.text, keys: m.keys } as VellumEvent));
     const s = reduce([...base, ...evs]);
@@ -45,7 +45,7 @@ describe('hierarchical memory', () => {
     const plan = planChapter(state, 8)!;
     let seq = 1000;
     const base: VellumEvent[] = state.memories.map((m, i) => ({ seq: i, turn: m.turn, day: 1, src: 'system', kind: 'memory.record', id: m.id, tier: m.tier, text: m.text, keys: m.keys } as VellumEvent));
-    const compress = chapterEvents(plan, 'Chapter summary', ['opening'], 11, 1, () => ++seq);
+    const compress = chapterEvents(plan, { gist: 'Chapter summary', detail: 'Chapter detail', keys: ['opening'] }, 11, 1, () => ++seq);
     const chapId = compress.find((e) => e.kind === 'memory.record')!.id!;
     // after compression: 1 chapter + 2 recent turns
     let s = reduce([...base, ...compress]);
