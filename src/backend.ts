@@ -323,9 +323,9 @@ async function readChapterVaultMode(chatId: string): Promise<ChapterVaultMode> {
  * round-trips user-edited keys back into the chronicle (memory.link). Pure diff
  * lives in domain/chapter-vault.ts. Best-effort, serialized per chat.
  */
-async function maybeChapterVault(chatId: string, userId: string | null): Promise<void> {
-  if (_chapterVaulting.has(chatId)) return;
-  if (!(await hasVault())) return;
+async function maybeChapterVault(chatId: string, userId: string | null): Promise<{ ok: boolean; reason?: string; created: number; updated: number; removed: number }> {
+  if (_chapterVaulting.has(chatId)) return { ok: false, reason: 'busy', created: 0, updated: 0, removed: 0 };
+  if (!(await hasVault())) return { ok: false, reason: 'no_world_books', created: 0, updated: 0, removed: 0 };
   const mode = await readChapterVaultMode(chatId);
   _chapterVaulting.add(chatId);
   try {
@@ -335,12 +335,13 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
     const plan = reconcileChapterEntries(state, entries, mode);
     if (mode === 'off') {
       // tear down our chapter/arc entries when disabled
-      for (const e of entries.filter((x) => x.vellum && /^(chapter|arc):/.test(x.link))) await deleteEntry(e.id, userId);
-      return;
+      let removed = 0;
+      for (const e of entries.filter((x) => x.vellum && /^(chapter|arc):/.test(x.link))) { await deleteEntry(e.id, userId); removed++; }
+      return { ok: true, reason: 'mode_off', created: 0, updated: 0, removed };
     }
     const bookId = snap.books.find((b) => b.vellum)?.id
       ?? (await (async () => { const r = await createBook('VELLUM Chronicle', 'Auto-authored chapters, arcs, and lore.', userId); if (r.ok && chatId) await setBookAttached(chatId, r.value, true, userId); return r.ok ? r.value : ''; })());
-    if (!bookId) return;
+    if (!bookId) return { ok: false, reason: 'no_book', created: 0, updated: 0, removed: 0 };
     const linkEvents: VellumEvent[] = [];
     for (const c of plan.create) {
       const r = await createEntry({ bookId, key: c.input.key, content: c.input.content, comment: c.input.comment, settings: c.input.settings, category: c.input.category, source: 'chapter', link: c.input.link }, userId);
@@ -358,7 +359,8 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
     for (const entryId of plan.remove) await deleteEntry(entryId, userId);
     if (linkEvents.length) { await append(chatId, linkEvents.filter((e) => (e as any).vaultEntryId)); invalidateIndex(chatId); }
     if (plan.create.length || plan.update.length || plan.remove.length) spindle.log?.info?.(`[vellum_engine] chapter-vault: +${plan.create.length} ~${plan.update.length} -${plan.remove.length} (mode ${mode})`);
-  } catch (e) { spindle.log?.warn?.('[vellum_engine] chapter-vault: ' + ((e as Error)?.message ?? e)); }
+    return { ok: true, created: plan.create.length, updated: plan.update.length, removed: plan.remove.length };
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] chapter-vault: ' + ((e as Error)?.message ?? e)); return { ok: false, reason: 'error', created: 0, updated: 0, removed: 0 }; }
   finally { _chapterVaulting.delete(chatId); }
 }
 
@@ -618,8 +620,8 @@ const dispatch: Record<string, Handler> = {
     const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs), 4, await chatNames(chatId, uid));
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
-    void maybeChapterVault(chatId, uid);
-    spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds }, uid);
+    const vault = await maybeChapterVault(chatId, uid); // project new chapters' detail to the vault
+    spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds, vault }, uid);
   },
   vellum_clear: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

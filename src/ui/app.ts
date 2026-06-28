@@ -295,6 +295,14 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_summarize_done') {
         setQolBusy('summarize', false);
         ctx.toast?.success?.(p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'Nothing old enough to summarize yet.');
+        // surface WHY the vault didn't update (the silent-gate that hid this)
+        const v = p.vault;
+        if (p.rounds && v && !v.created && !v.updated) {
+          if (v.reason === 'no_world_books') ctx.toast?.warning?.('Chapter detail not saved to vault — grant the world_books permission.');
+          else if (v.reason === 'mode_off') ctx.toast?.info?.('Chapter-vault is off (Tone \u2192 Chapter detail in vault) — chronicle gist only.');
+        } else if (v && (v.created || v.updated)) {
+          ctx.toast?.success?.(`Vault: ${v.created} chapter${v.created === 1 ? '' : 's'} saved${v.updated ? `, ${v.updated} updated` : ''}.`);
+        }
       } else if (p?.type === 'vellum_cleared') {
         setQolBusy('clear', false);
         ctx.toast?.success?.('Chronicle cleared.');
