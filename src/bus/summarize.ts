@@ -96,11 +96,16 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
 /** Parse the DETAIL / GIST / KEYS layout. Tolerant of missing sections, leaked
  * thinking, and fences. Falls back to treating the whole body as detail. */
 export function parseSummary(raw: string): { detail: string; gist: string; keys: string[] } {
-  const body = raw.replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
+  let body = raw.replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
+  // a reasoning model can return a fragment whose first "sentence" is actually
+  // the tail of a cut-off one ("ered and made anyway."). Drop a leading partial:
+  // if the body starts lowercase / mid-word (no capital, not a label), trim to
+  // the first real sentence start so we never surface a headless fragment.
+  body = dropLeadingFragment(body);
   const section = (label: string): string => {
     const re = new RegExp(label + '\\s*:?\\s*\\n?([\\s\\S]*?)(?=\\n\\s*(?:DETAIL|GIST|KEYS)\\s*:|$)', 'i');
     const m = body.match(re);
-    return m ? m[1]!.trim() : '';
+    return m ? dropLeadingFragment(m[1]!.trim()) : '';
   };
   let detail = section('DETAIL');
   const gist = section('GIST');
@@ -109,6 +114,20 @@ export function parseSummary(raw: string): { detail: string; gist: string; keys:
   if (!detail && !gist && !keysRaw) detail = body;
   const keys = keysRaw.split(/[,\n]/).map((s) => s.replace(/^[-*\u2022\s]+/, '').trim()).filter(Boolean).slice(0, 16);
   return { detail, gist, keys };
+}
+
+/** If text begins mid-word / mid-sentence (a streamed-output cut), drop the
+ * leading fragment up to the first capitalized sentence start. Leaves clean
+ * text (already starting with a capital or a label) untouched. */
+function dropLeadingFragment(t: string): string {
+  const s = t.trim();
+  if (!s) return s;
+  // starts with a label, a capital letter, a quote, or a bullet → clean
+  if (/^(DETAIL|GIST|KEYS)\b/i.test(s) || /^["'\u201c\u2018\-\u2022*]/.test(s) || /^[A-Z0-9]/.test(s)) return s;
+  // otherwise it's a headless fragment ("ered and made anyway. The lesson…") —
+  // skip to the first sentence that begins with a capital letter.
+  const m = s.match(/[.!?]\s+([A-Z][\s\S]*)$/);
+  return m ? m[1]!.trim() : s;
 }
 
 /** Cap to a length at a sentence boundary if possible, else a word boundary —

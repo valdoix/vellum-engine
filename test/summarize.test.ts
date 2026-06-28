@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeOnce } from '../src/bus/summarize.js';
+import { summarizeOnce, parseSummary } from '../src/bus/summarize.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
 // In tests there's no `spindle`, so internalGenerate returns an error and
@@ -43,5 +43,20 @@ describe('summarize fallback (no host generation)', () => {
     const last = text.trim().slice(-1);
     const endsClean = /[.!?\u2026)]/.test(last) || !text.includes('\u2026') ;
     expect(endsClean).toBe(true);
+  });
+});
+
+describe('parseSummary - drop leading headless fragment', () => {
+  it('skips a body cut mid-word to the first real sentence', () => {
+    const r = parseSummary('ered and made anyway. During the lesson their arms brushed. Cersei moved astride him.');
+    expect(r.detail.startsWith('ered')).toBe(false);
+    expect(r.detail.startsWith('During')).toBe(true);
+  });
+  it('leaves clean capitalized text untouched', () => {
+    expect(parseSummary('The lesson began. Their arms brushed.').detail.startsWith('The lesson')).toBe(true);
+  });
+  it('cleans a headless GIST line', () => {
+    const r = parseSummary('DETAIL:\nThe lesson began.\nGIST:\npered and surrendered. Cersei gave the word.');
+    expect(r.gist.startsWith('Cersei')).toBe(true);
   });
 });
