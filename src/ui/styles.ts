@@ -184,6 +184,10 @@ export const STYLES = [
   ".vle-add:hover{background:rgba(var(--vg-rgb),.28)}",
   ".vle-add.sm{margin-left:auto;padding:2px 8px;font-size:11px;line-height:1}",
   ".vle-card-ctl,.vle-rel-ctl{display:inline-flex;gap:3px;margin-left:auto}",
+  // controls fade in on hover/keyboard-focus; only hidden where hover exists, so
+  // touch devices (hover:none) keep them tappable. Kept in DOM (not display:none).
+  "@media (hover:hover){.vle-card .vle-card-ctl{opacity:0;transition:opacity .15s}.vle-card:hover .vle-card-ctl,.vle-card:focus-within .vle-card-ctl{opacity:1}}",
+  "html[data-vle-motion='off'] .vle-card .vle-card-ctl{opacity:1}",
   ".vle-mini{width:22px;height:22px;display:grid;place-items:center;border-radius:6px;font-size:11px;color:var(--vi2);background:rgba(var(--vg-rgb),.08);border:1px solid rgba(var(--vg-rgb),.2);cursor:pointer}",
   ".vle-mini:hover{background:rgba(var(--vg-rgb),.22);color:var(--vle-gold)}",
   ".vle-mini.del:hover{color:#e09090;border-color:rgba(201,106,106,.4);background:rgba(201,106,106,.1)}",
@@ -438,13 +442,21 @@ export const STYLES = [
   ".vlg-node:focus-visible{outline:none}.vlg-node:focus-visible .vlg-node-c{stroke:var(--vg);stroke-width:3.4}.vlg-node:focus-visible .vlg-node-l{opacity:1}",
   // factions
   ".vle-sec-title{font:600 11px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);opacity:.85}",
+  ".vle-sec-gap{margin-top:14px}",
   ".vle-fac-av{background:rgba(var(--vg-rgb),.16);color:var(--vle-gold)}",
-  ".vle-fac-stand{font-weight:600}",
-  ".vle-fac-stand.warm{color:#7bbf8f}", ".vle-fac-stand.cool{color:#c97a7a}", ".vle-fac-stand.neu{color:var(--vle-dim)}",
+  ".vle-fac-stand{font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px}",
+  ".vle-fac-stand.warm{color:var(--v-pos-i)}", ".vle-fac-stand.cool{color:var(--v-neg-i)}", ".vle-fac-stand.neu{color:var(--vle-dim)}",
+  ".vle-fac-meter{display:block;margin-top:4px;max-width:220px}",
   ".vle-fac-mems{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}",
-  ".vle-fac-mem{display:inline-flex;align-items:center;gap:3px;font:500 9px/1.4 var(--vmono);padding:2px 4px;border-radius:3px;border:1px solid rgba(255,255,255,.12);color:var(--vle-dim)}",
+  ".vle-fac-mem{display:inline-flex;align-items:center;gap:3px;font:500 9px/1.4 var(--vmono);padding:2px 4px;border-radius:var(--vr1);border:1px solid rgba(255,255,255,.12);color:var(--vle-dim)}",
   ".vle-fac-x{background:none;border:0;color:var(--vle-dim);cursor:pointer;font-size:11px;line-height:1;padding:0 0 0 2px;opacity:.6}",
-  ".vle-fac-x:hover{opacity:1;color:#c97a7a}",
+  ".vle-fac-x:hover{opacity:1;color:var(--v-neg-i)}",
   ".vle-fac-more{font:500 9px/1.4 var(--vmono);color:var(--vle-dim);opacity:.7}",
   ".vle-dim{opacity:.6}",
+  // status-on-avatar: cards self-describe presence (signal lands where the eye does)
+  ".vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 9px rgba(var(--vg-rgb),.5)}",
+  ".vle-card--active .vle-av{box-shadow:0 0 0 2px rgba(var(--vg-rgb),.45)}",
+  ".vle-card--mentioned .vle-av{box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.3);opacity:.8}",
+  ".vle-card--added .vle-av{opacity:.55}",
+  ".vle-card--mentioned,.vle-card--added{opacity:.92}",
 ].join('\n');

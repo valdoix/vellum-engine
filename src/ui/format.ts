@@ -35,6 +35,17 @@ export function byRecent<T extends { lastTurn?: number }>(a: T, b: T): number {
   return (b.lastTurn ?? 0) - (a.lastTurn ?? 0);
 }
 
+/** A -100..100 diverging meter (affection/trust/standing). Pure HTML; uses the
+ * shared .vle-bar* classes + --v-pos/--v-neg tokens. */
+export function bar(label: string, v: number): string {
+  const n = Math.max(-100, Math.min(100, v || 0));
+  const pct = Math.abs(n) / 2; const pos = n >= 0;
+  return '<div class="vle-bar"><span class="vle-bar-l">' + esc(label) + '</span>'
+    + '<span class="vle-bar-t"><span class="vle-bar-mid"></span>'
+    + '<span class="vle-bar-f ' + (pos ? 'pos' : 'neg') + '" style="' + (pos ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%') + '"></span></span>'
+    + '<span class="vle-bar-v ' + (pos ? 'pos' : 'neg') + '">' + (n > 0 ? '+' : '') + n + '</span></div>';
+}
+
 export function castByStatus(state: ChronicleState): { present: CastCard[]; active: CastCard[]; mentioned: CastCard[]; added: CastCard[] } {
   const all = Object.values(state.cast);
   return {

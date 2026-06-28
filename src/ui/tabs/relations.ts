@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Relation } from '../../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL } from '../format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bar } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -61,15 +61,6 @@ function relForm(title: string, v: Record<string, string>): void {
     { key: 'aff', label: 'Affection (-100..100)', type: 'text', value: v.aff ?? '0' },
     { key: 'trust', label: 'Trust (-100..100)', type: 'text', value: v.trust ?? '0' },
   ], (out) => { if (out.a?.trim() && out.b?.trim()) cmd('relation_upsert', out); });
-}
-
-function bar(label: string, v: number): string {
-  const n = Math.max(-100, Math.min(100, v || 0));
-  const pct = Math.abs(n) / 2; const pos = n >= 0;
-  return '<div class="vle-bar"><span class="vle-bar-l">' + label + '</span>'
-    + '<span class="vle-bar-t"><span class="vle-bar-mid"></span>'
-    + '<span class="vle-bar-f ' + (pos ? 'pos' : 'neg') + '" style="' + (pos ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%') + '"></span></span>'
-    + '<span class="vle-bar-v ' + (pos ? 'pos' : 'neg') + '">' + (n > 0 ? '+' : '') + n + '</span></div>';
 }
 
 function card(s: ChronicleState, r: Relation): string {
