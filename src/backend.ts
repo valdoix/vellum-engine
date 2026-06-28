@@ -31,6 +31,7 @@ import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/pr
 import { parseTone, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
+import { checkContinuity } from './domain/continuity.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
@@ -189,6 +190,10 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   }
   let added = 0;
   const foldedEvents: VellumEvent[] = []; // accumulate for Plot Director self-clear
+  // snapshot the PRE-fold state for the continuity check: loadState/append return
+  // the same cached object mutated in place, so a live reference would already show
+  // this turn's reveals/learns. Clone the few slices the checker reads.
+  const preFold = { cast: prior.cast, secrets: prior.secrets.map((x) => ({ ...x })), knowledge: prior.knowledge.map((x) => ({ ...x })) } as ChronicleState;
   for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
@@ -230,6 +235,13 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
       const { directives: next, changed } = reconcileDirectives(armedRes.directives, foldedEvents, prior.turns ?? 0);
       if (armedRes.changed || changed) await writeDirectives(chatId, next);
     }
+  } catch { /* best effort */ }
+  // Plot Director continuity alarm: passive, non-blocking warnings comparing the
+  // fold's events to the PRE-fold state (snapshot, so reveals/learns aren't yet
+  // applied). Advisory only — surfaced as a toast + in the Director panel.
+  try {
+    const warnings = checkContinuity(foldedEvents, preFold);
+    if (warnings.length) spindle.sendToFrontend?.({ type: 'vellum_continuity', chatId, warnings }, userId ?? currentUser());
   } catch { /* best effort */ }
   invalidateIndex(chatId);
   await broadcastState(chatId, userId);

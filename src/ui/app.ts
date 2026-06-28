@@ -482,6 +482,9 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_injection_push') {
         // Fix 11 — live retrieval feed: stream the new record in as it happens
         if (p.record) { pushInjectionRecord(p.record); if (p.record.chars) setSysInfo({ injChars: p.record.chars }); drawer.update(); float.refresh(); }
+      } else if (p?.type === 'vellum_continuity') {
+        // Plot Director: passive continuity warnings — advise, never block.
+        if (Array.isArray(p.warnings) && p.warnings.length) ctx.toast?.warning?.('Continuity: ' + p.warnings.map((w: { text: string }) => w.text).join(' '));
       } else if (p?.type === 'vellum_vault') {
         setVaultSnap(p);
         drawer.update();
