@@ -28,24 +28,45 @@ export interface Theme {
   texture: string;     // '' | bundled id | data/https url (scrimmed)
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
+  chrome: 'illuminated' | 'modern' | 'futuristic'; // window ornamentation, orthogonal to skin
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
   // skin-derived (overridden by skin pick)
   surf1: string; surf2: string; ink: string; ink2: string; glass: string;
+  // semantic colors (skin-tunable; base hue + lighter ink variant)
+  pos: string; posInk: string; neg: string; negInk: string; info: string; warn: string;
 }
 
-export interface Skin { id: string; name: string; blurb: string; theme: Pick<Theme, 'accent' | 'serif' | 'mono' | 'surf1' | 'surf2' | 'ink' | 'ink2' | 'glass'> }
+export interface Skin { id: string; name: string; blurb: string; theme: Pick<Theme, 'accent' | 'serif' | 'mono' | 'surf1' | 'surf2' | 'ink' | 'ink2' | 'glass' | 'pos' | 'posInk' | 'neg' | 'negInk' | 'info' | 'warn'> }
 
 const F_SERIF = "'Cormorant Garamond',Georgia,serif";
 const F_MONO = "'JetBrains Mono',ui-monospace,monospace";
+const F_SANS = 'system-ui,-apple-system,"Segoe UI",sans-serif';
+
+export type Chrome = 'illuminated' | 'modern' | 'futuristic';
+
+/**
+ * A "mode" is a one-click preset over existing axes — chrome (window ornament) plus
+ * sensible window-knob defaults. It is orthogonal to skin: any mode composes with any
+ * palette. After picking, every knob is still individually overridable.
+ */
+export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme> }
+export const MODES: Mode[] = [
+  { id: 'illuminated', name: 'Illuminated', blurb: 'Gilt double-rule frame, soft glow, serif caps — the manuscript.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: '', serif: F_SERIF } },
+  { id: 'modern', name: 'Modern', blurb: 'Flat, quiet, sans title, tighter corners — clean app chrome.', patch: { chrome: 'modern', radius: 12, border: 1, texture: '', serif: F_SANS } },
+  { id: 'futuristic', name: 'Futuristic', blurb: 'Sharp edges, accent edge-glow, mono HUD title — sci-fi console.', patch: { chrome: 'futuristic', radius: 3, border: 1, texture: 'grid', serif: F_MONO } },
+];
+
+// base semantic palette, reused by every skin (skins override clash-prone ones)
+const SEM = { pos: '#8fa67e', posInk: '#a9c089', neg: '#c96a6a', negInk: '#e09090', info: '#9bc0e6', warn: '#b48ed0' } as const;
 
 export const SKINS: Skin[] = [
-  { id: 'illuminated', name: 'Illuminated', blurb: 'Gilt manuscript on aged vellum — the classic.', theme: { accent: '#cda84e', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(28,25,20,.55)', surf2: 'rgba(16,14,11,.5)', ink: '#e7d6ad', ink2: '#cdbfa0', glass: 'linear-gradient(168deg,rgba(26,22,16,.97),rgba(15,13,10,.985))' } },
-  { id: 'moonlit', name: 'Moonlit Ink', blurb: 'Cold silver-blue, midnight paper — quiet and literary.', theme: { accent: '#9bc0e6', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(20,26,34,.55)', surf2: 'rgba(12,16,22,.5)', ink: '#d8e3f0', ink2: '#a9bdd2', glass: 'linear-gradient(168deg,rgba(18,24,32,.97),rgba(10,14,20,.985))' } },
-  { id: 'crimson', name: 'Crimson Court', blurb: 'Oxblood and brass — opulent, dangerous, GoT-coded.', theme: { accent: '#c97a6a', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(34,18,18,.58)', surf2: 'rgba(20,10,11,.52)', ink: '#eccfc4', ink2: '#cda79c', glass: 'linear-gradient(168deg,rgba(32,16,16,.97),rgba(18,9,10,.985))' } },
-  { id: 'verdant', name: 'Verdant Grove', blurb: 'Mossy sage and bark — pastoral, warm, alive.', theme: { accent: '#8fa67e', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(22,28,20,.55)', surf2: 'rgba(13,17,12,.5)', ink: '#dde6d2', ink2: '#aebfa0', glass: 'linear-gradient(168deg,rgba(20,26,18,.97),rgba(11,15,10,.985))' } },
-  { id: 'noir', name: 'Onyx Terminal', blurb: 'High-contrast mono, amber phosphor — hardboiled/sci-fi.', theme: { accent: '#e0a44e', serif: F_MONO, mono: F_MONO, surf1: 'rgba(18,18,18,.6)', surf2: 'rgba(9,9,9,.55)', ink: '#e6dcc8', ink2: '#b8ad96', glass: 'linear-gradient(168deg,rgba(16,16,16,.98),rgba(7,7,7,.99))' } },
-  { id: 'orchid', name: 'Orchid Dusk', blurb: 'Violet and rose-gold — dreamlike, romantic, soft.', theme: { accent: '#b48ed0', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(28,22,34,.55)', surf2: 'rgba(17,13,22,.5)', ink: '#e6d6ee', ink2: '#c2afce', glass: 'linear-gradient(168deg,rgba(26,20,32,.97),rgba(15,11,20,.985))' } },
+  { id: 'illuminated', name: 'Illuminated', blurb: 'Gilt manuscript on aged vellum — the classic.', theme: { accent: '#cda84e', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(28,25,20,.55)', surf2: 'rgba(16,14,11,.5)', ink: '#e7d6ad', ink2: '#cdbfa0', glass: 'linear-gradient(168deg,rgba(26,22,16,.97),rgba(15,13,10,.985))', ...SEM } },
+  { id: 'moonlit', name: 'Moonlit Ink', blurb: 'Cold silver-blue, midnight paper — quiet and literary.', theme: { accent: '#9bc0e6', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(20,26,34,.55)', surf2: 'rgba(12,16,22,.5)', ink: '#d8e3f0', ink2: '#a9bdd2', glass: 'linear-gradient(168deg,rgba(18,24,32,.97),rgba(10,14,20,.985))', ...SEM, info: '#86d0e0' } },
+  { id: 'crimson', name: 'Crimson Court', blurb: 'Oxblood and brass — opulent, dangerous, GoT-coded.', theme: { accent: '#c97a6a', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(34,18,18,.58)', surf2: 'rgba(20,10,11,.52)', ink: '#eccfc4', ink2: '#cda79c', glass: 'linear-gradient(168deg,rgba(32,16,16,.97),rgba(18,9,10,.985))', ...SEM, neg: '#d65a5a', negInk: '#f2a0a0' } },
+  { id: 'verdant', name: 'Verdant Grove', blurb: 'Mossy sage and bark — pastoral, warm, alive.', theme: { accent: '#8fa67e', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(22,28,20,.55)', surf2: 'rgba(13,17,12,.5)', ink: '#dde6d2', ink2: '#aebfa0', glass: 'linear-gradient(168deg,rgba(20,26,18,.97),rgba(11,15,10,.985))', ...SEM, pos: '#a8c089', posInk: '#c2db9f' } },
+  { id: 'noir', name: 'Onyx Terminal', blurb: 'High-contrast mono, amber phosphor — hardboiled/sci-fi.', theme: { accent: '#e0a44e', serif: F_MONO, mono: F_MONO, surf1: 'rgba(18,18,18,.6)', surf2: 'rgba(9,9,9,.55)', ink: '#e6dcc8', ink2: '#b8ad96', glass: 'linear-gradient(168deg,rgba(16,16,16,.98),rgba(7,7,7,.99))', ...SEM } },
+  { id: 'orchid', name: 'Orchid Dusk', blurb: 'Violet and rose-gold — dreamlike, romantic, soft.', theme: { accent: '#b48ed0', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(28,22,34,.55)', surf2: 'rgba(17,13,22,.5)', ink: '#e6d6ee', ink2: '#c2afce', glass: 'linear-gradient(168deg,rgba(26,20,32,.97),rgba(15,11,20,.985))', ...SEM, warn: '#c79ae0' } },
 ];
 
 const FONT_CHOICES: Array<{ label: string; stack: string }> = [
@@ -73,7 +94,7 @@ const DEFAULT: Theme = {
   skin: 'illuminated', accent2: '#9bc0e6', accentIntensity: 1,
   scale: 1.12, dataScale: 1, density: 1,
   opacity: 1, blur: 8, radius: 18, border: 1, inkEmphasis: 1, texture: '', motion: true,
-  launcher: 'right', tensionStyle: 'both',
+  launcher: 'right', chrome: 'illuminated', tensionStyle: 'both',
   ...SKINS[0]!.theme,
 };
 
@@ -95,6 +116,7 @@ function sanitize(t: Theme): Theme {
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
+    chrome: (['illuminated', 'modern', 'futuristic'] as const).includes(t.chrome) ? t.chrome : 'illuminated',
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -126,14 +148,22 @@ export function applyTheme(scope: HTMLElement | null): void {
     el.style.setProperty('--vsurf-1', t.surf1);
     el.style.setProperty('--vsurf-2', t.surf2);
     el.style.setProperty('--vglass', t.glass);
+    el.style.setProperty('--v-pos', t.pos);
+    el.style.setProperty('--v-pos-i', t.posInk);
+    el.style.setProperty('--v-neg', t.neg);
+    el.style.setProperty('--v-neg-i', t.negInk);
+    el.style.setProperty('--v-info', t.info);
+    el.style.setProperty('--v-warn', t.warn);
   };
   if (scope) set(scope);
   set(document.documentElement);
   document.documentElement.setAttribute('data-vle-launch', t.launcher);
+  document.documentElement.setAttribute('data-vle-chrome', t.chrome);
   document.documentElement.setAttribute('data-vle-motion', t.motion ? 'on' : 'off');
 }
 
 export function setSkin(id: string): void { const s = SKINS.find((x) => x.id === id); if (s) { _theme = sanitize({ ..._theme, skin: id, ...s.theme }); save(); } }
+export function setMode(id: string): void { const m = MODES.find((x) => x.id === id); if (m) { _theme = sanitize({ ..._theme, ...m.patch }); save(); } }
 export function patchTheme(patch: Partial<Theme>): void { _theme = sanitize({ ..._theme, ...patch }); save(); }
 export function resetTheme(): void { _theme = { ...DEFAULT }; save(); }
 export function exportTheme(): string { return JSON.stringify(_theme, null, 2); }
@@ -142,7 +172,7 @@ export function importTheme(json: string): boolean { try { const t = JSON.parse(
 export { FONT_CHOICES, TEXTURES };
 
 // --- tabbed Customize panel ---------------------------------------------
-type CzTab = 'skin' | 'layout' | 'color' | 'type' | 'window' | 'sections';
+type CzTab = 'skin' | 'mode' | 'layout' | 'color' | 'type' | 'window' | 'sections';
 
 const slider = (key: string, label: string, min: number, max: number, step: number, val: number, fmt: (v: number) => string): string =>
   `<div class="vle-cz-h">${label} <span class="vle-cz-rst" data-cz-reset="${key}" title="Reset">\u21BA</span></div><div class="vle-cz-row">`
@@ -153,7 +183,7 @@ const pct = (v: number): string => Math.round(v * 100) + '%';
 
 export function customizePanel(tab: CzTab = 'skin'): string {
   const t = _theme;
-  const tabs = (['skin', 'layout', 'color', 'type', 'window', 'sections'] as CzTab[])
+  const tabs = (['skin', 'mode', 'layout', 'color', 'type', 'window', 'sections'] as CzTab[])
     .map((id) => `<button class="vle-czt${tab === id ? ' on' : ''}" data-cz-tab="${id}">${id}</button>`).join('');
   let body = '';
   if (tab === 'skin') {
@@ -161,6 +191,10 @@ export function customizePanel(tab: CzTab = 'skin'): string {
       + SKINS.map((s) => `<button class="vle-skin${t.skin === s.id ? ' on' : ''}" data-skin="${s.id}" title="${s.blurb}" style="--sw:${s.theme.accent}"><span class="vle-skin-sw"></span><span class="vle-skin-n">${s.name}</span></button>`).join('')
       + '</div>'
       + '<div class="vle-cz-h">Theme</div><div class="vle-cz-row"><button class="vle-cz-btn" data-cz-export>\u2913 Export</button><button class="vle-cz-btn" data-cz-import>\u2912 Import</button><button class="vle-cz-btn danger" data-cz-resetall>\u21BA Reset all</button></div>';
+  } else if (tab === 'mode') {
+    body = '<div class="vle-cz-h">Window mode</div><div class="vle-skins">'
+      + MODES.map((m) => `<button class="vle-skin${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}" style="--sw:${t.accent}"><span class="vle-skin-sw"></span><span class="vle-skin-n">${m.name}</span></button>`).join('')
+      + '</div><div class="vle-cz-note">A starting point — composes with any skin. Fine-tune corners, border &amp; texture in <b>Window</b>.</div>';
   } else if (tab === 'layout') {
     body = layoutPanel() + customLayoutEditor();
   } else if (tab === 'color') {
@@ -229,6 +263,7 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
     if (t.closest('[data-cz-export]')) { try { const b = new Blob([exportTheme()], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'vellum-theme.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); } catch { /* ignore */ } return; }
     if (t.closest('[data-cz-import]')) { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json,.json'; inp.addEventListener('change', () => { const f = inp.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { if (importTheme(String(r.result))) { rerender('skin'); reapply(); } }; r.readAsText(f); }); inp.click(); return; }
     const sk = t.closest('[data-skin]'); if (sk) { setSkin(sk.getAttribute('data-skin')!); rerender('skin'); reapply(); return; }
+    const md = t.closest('[data-mode]'); if (md) { setMode(md.getAttribute('data-mode')!); rerender('mode'); reapply(); return; }
     const lp = t.closest('[data-layout-pick]'); if (lp) { setLayout(lp.getAttribute('data-layout-pick')!); rerender('layout'); onChange(); return; }
     // custom-layout editor clicks are handled by layout-defs via delegation below
     if (t.closest('[data-clay]')) { import('./layout-defs.js').then((m) => { m.handleCustomLayoutClick(t); rerender('layout'); onChange(); }); }

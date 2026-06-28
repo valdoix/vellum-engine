@@ -94,7 +94,7 @@ export function renderGraph(model: GraphModel, lay: Layout): string {
     const r = nodeRadius(nd.degree, nd.present);
     const cls = 'vlg-node' + (nd.present ? ' is-present' : '') + (nd.user ? ' is-user' : '') + (nd.status === 'mentioned' ? ' is-mention' : '');
     const short = nd.name.length > 16 ? nd.name.slice(0, 15) + '\u2026' : nd.name;
-    return `<g class="${cls}" data-node="${esc(nd.id)}" data-r="${r}" transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})">`
+    return `<g class="${cls}" data-node="${esc(nd.id)}" data-r="${r}" tabindex="0" role="button" aria-label="${esc(nd.name)}" transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})">`
       + `<circle class="vlg-node-glow" r="${r + 7}"/>`
       + `<circle class="vlg-node-c" r="${r}"/>`
       + `<text class="vlg-node-i" text-anchor="middle" dy="0.34em">${esc(initials(nd.name))}</text>`
