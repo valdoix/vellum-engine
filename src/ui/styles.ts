@@ -534,7 +534,7 @@ export const STYLES = [
   ".vle-fac-av{background:rgba(var(--vg-rgb),.16);color:var(--vle-gold)}",
   ".vle-fac-stand{font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px}",
   ".vle-fac-stand.warm{color:var(--v-pos-i)}", ".vle-fac-stand.cool{color:var(--v-neg-i)}", ".vle-fac-stand.neu{color:var(--vle-dim)}",
-  ".vle-fac-meter{display:block;margin-top:4px;max-width:220px}",
+  ".vle-fac-meter{display:block;margin-top:8px;max-width:220px}",
   ".vle-fac-mems{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}",
   ".vle-fac-mem{display:inline-flex;align-items:center;gap:3px;font:500 9px/1.4 var(--vmono);padding:2px 4px;border-radius:var(--vr1);border:1px solid rgba(255,255,255,.12);color:var(--vle-dim)}",
   ".vle-fac-x{background:none;border:0;color:var(--vle-dim);cursor:pointer;font-size:11px;line-height:1;padding:0 0 0 2px;opacity:.6}",
