@@ -441,7 +441,7 @@ export const STYLES = [
   ".vlf-launch:focus-visible{outline:2px solid var(--vg);outline-offset:2px}",
   ".vlg-node:focus-visible{outline:none}.vlg-node:focus-visible .vlg-node-c{stroke:var(--vg);stroke-width:3.4}.vlg-node:focus-visible .vlg-node-l{opacity:1}",
   // factions
-  ".vle-sec-title{font:600 11px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);opacity:.85}",
+  ".vle-sec-title{font:600 11px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);opacity:.85;margin-right:auto}",
   ".vle-sec-gap{margin-top:14px}",
   ".vle-fac-av{background:rgba(var(--vg-rgb),.16);color:var(--vle-gold)}",
   ".vle-fac-stand{font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px}",
