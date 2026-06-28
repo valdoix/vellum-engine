@@ -27,6 +27,8 @@ export interface ExtractCtx {
   tone?: import('../domain/tone.js').Tone;
   /** canonical {{user}} id, for the disposition first-impression seed */
   userCanon?: string;
+  /** relation locks (Plot Director): forbidden/pinned categories per pair */
+  locks?: readonly import('../domain/relation-lock.js').RelationLock[];
 }
 
 export interface InjectCtx {

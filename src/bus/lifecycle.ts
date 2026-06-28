@@ -5,6 +5,7 @@ import { hashStr } from '../core/ids.js';
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
 import type { Tone } from '../domain/tone.js';
+import type { RelationLock } from '../domain/relation-lock.js';
 
 /**
  * The FOLD step, as a PURE function: given the prior derived state and a turn's
@@ -23,7 +24,7 @@ export interface FoldResult {
   sig: string;
 }
 
-export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string }): FoldResult {
+export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[] }): FoldResult {
   const sig = hashStr(content.slice(0, 4000));
   const { state: parsed, source } = parseState(content);
   if (!parsed) return { events: [], source, sig };
@@ -36,7 +37,7 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // duplicating bond deltas. Day stays narrative (model-supplied).
   const turn = turnNo;
   const day = parsed.day ?? prior.day ?? 1;
-  const ctx: ExtractCtx = { turn, day, state: prior, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}) };
+  const ctx: ExtractCtx = { turn, day, state: prior, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}) };
 
   const events: VellumEvent[] = [
     { seq: nextSeq(), turn, day, src: 'system', kind: 'turn.fold', sig },

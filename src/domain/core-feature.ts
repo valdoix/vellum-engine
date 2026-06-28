@@ -4,6 +4,7 @@ import type { VellumEvent } from '../core/events.js';
 import { canonId } from '../core/ids.js';
 import { resolveCastId, notAName, resolveFactionId } from './identity.js';
 import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
+import { findLock, applyLockToBond } from './relation-lock.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -81,13 +82,21 @@ export const coreFeature: Feature = {
       if (!adj) continue; // romance-off stripped the only (romantic) content
       // an absolute bond whose only content was a stripped romantic cat → skip
       if (b.absolute && adj.aff === undefined && adj.trust === undefined && !adj.addCats?.length) continue;
+      // relation lock (Plot Director): strip forbidden addCats / protect pinned
+      // removeCats for this pair, at the same chokepoint as the tone strip.
+      const locked = applyLockToBond(
+        { addCats: adj.addCats as import('../core/events.js').Category[] | undefined, removeCats: b.removeCats as import('../core/events.js').Category[] | undefined },
+        findLock(ctx.locks, a, bb),
+      );
+      // a bond whose ONLY content was a forbidden cat (now stripped) → skip
+      if (adj.aff === undefined && adj.trust === undefined && !locked.addCats?.length && !locked.removeCats?.length && !b.label) continue;
       out.push({
         ...base(), kind: 'bond.delta', a, b: bb,
         ...(typeof adj.aff === 'number' ? { aff: adj.aff } : {}),
         ...(typeof adj.trust === 'number' ? { trust: adj.trust } : {}),
         ...(b.absolute ? { absolute: true } : {}),
-        ...(adj.addCats?.length ? { addCats: adj.addCats } : {}),
-        ...(b.removeCats?.length ? { removeCats: b.removeCats } : {}),
+        ...(locked.addCats?.length ? { addCats: locked.addCats } : {}),
+        ...(locked.removeCats?.length ? { removeCats: locked.removeCats } : {}),
         ...(b.label ? { label: b.label } : {}),
         ...(b.why ? { why: b.why } : {}),
       } as VellumEvent);

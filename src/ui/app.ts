@@ -3,7 +3,7 @@ import { mount, type Mounted } from './component.js';
 import { freshState, type ChronicleState } from '../domain/types.js';
 import { chronicleTab } from './tabs/chronicle.js';
 import { castTab } from './tabs/cast.js';
-import { relationsTab } from './tabs/relations.js';
+import { relationsTab, setRelationLocks } from './tabs/relations.js';
 import { graphTab, resetGraphCache } from './tabs/graph.js';
 import { journalTab } from './tabs/journal.js';
 import { injectionTab, setInjectionLog, pushInjectionRecord } from './tabs/injection.js';
@@ -387,6 +387,7 @@ export function setup(ctx: Ctx): () => void {
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
+        if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;

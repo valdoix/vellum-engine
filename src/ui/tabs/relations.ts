@@ -1,7 +1,7 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Relation } from '../../domain/types.js';
 import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bar, emptyState, sectionHeader } from '../format.js';
-import { cmd, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
+import { cmd, send, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
 /**
@@ -15,8 +15,16 @@ const CAT_OPTS = [
   { value: 'alliance', label: 'alliance' }, { value: 'rivalry', label: 'rivalry' }, { value: 'social', label: 'social' },
 ];
 
+// Plot Director relation locks, mirrored from the backend broadcast (set by app.ts).
+// Keyed by sorted-canonical pair so direction doesn't matter.
+interface UILock { key: string; a: string; b: string; forbid: string[]; pin: string[] }
+let _locks: UILock[] = [];
+const pairKey = (a: string, b: string): string => [a, b].sort().join('|');
+export function setRelationLocks(locks: UILock[]): void { _locks = Array.isArray(locks) ? locks : []; }
+function lockFor(a: string, b: string): UILock | undefined { const k = pairKey(a, b); return _locks.find((l) => l.key === k); }
+
 export const relationsTab: Component<ChronicleState> = {
-  version: (s) => s.relations.length + ':' + s.relations.reduce((a, r) => a + r.affection + r.trust + r.categories.length, 0),
+  version: (s) => s.relations.length + ':' + s.relations.reduce((a, r) => a + r.affection + r.trust + r.categories.length, 0) + ':L' + _locks.length + _locks.reduce((a, l) => a + l.forbid.length + l.pin.length, 0),
   render(s) {
     const header = sectionHeader('', { action: '<button class="vle-add" data-rel-add>+ Relation</button>' });
     if (!s.relations.length) return header + emptyState('No bonds recorded yet.', 'Relationships appear as characters interact.');
@@ -47,10 +55,32 @@ export const relationsTab: Component<ChronicleState> = {
         return;
       }
       const del = t.closest('[data-rel-del]');
-      if (del) confirmModal(`Delete the bond ${del.getAttribute('data-a')} \u2192 ${del.getAttribute('data-b')}?`, () => cmd('relation_delete', { a: del.getAttribute('data-a'), b: del.getAttribute('data-b') }));
+      if (del) { confirmModal(`Delete the bond ${del.getAttribute('data-a')} \u2192 ${del.getAttribute('data-b')}?`, () => cmd('relation_delete', { a: del.getAttribute('data-a'), b: del.getAttribute('data-b') })); return; }
+      const lk = t.closest('[data-rel-lock]');
+      if (lk) lockForm(lk.getAttribute('data-a') ?? '', lk.getAttribute('data-b') ?? '', lk.getAttribute('data-an') ?? '', lk.getAttribute('data-bn') ?? '');
     });
   },
 };
+
+/** Plot Director lock editor for one pair: pick categories that can never form
+ * (forbid) or that are protected from removal (pin). Sends the full updated lock
+ * list to the backend, which strips forbidden cats at the fold + drops any that
+ * already exist on the graph. */
+function lockForm(aId: string, bId: string, aName: string, bName: string): void {
+  const cur = lockFor(aId, bId);
+  const forbid = new Set(cur?.forbid ?? []);
+  const pin = new Set(cur?.pin ?? []);
+  formModal(`Lock: ${aName} \u2194 ${bName}`, [
+    { key: 'forbid', label: 'Forbid (can never form)', type: 'checks', value: Array.from(forbid).join(','), options: CAT_OPTS },
+    { key: 'pin', label: 'Pin (protect from removal)', type: 'checks', value: Array.from(pin).join(','), options: CAT_OPTS },
+  ], (out) => {
+    const fb = (out.forbid ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    const pn = (out.pin ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    const others = _locks.filter((l) => l.key !== pairKey(aId, bId));
+    const next = (fb.length || pn.length) ? [...others, { key: pairKey(aId, bId), a: aId, b: bId, forbid: fb, pin: pn }] : others;
+    send({ type: 'vellum_set_locks', locks: next });
+  });
+}
 
 function relForm(title: string, v: Record<string, string>): void {
   formModal(title, [
@@ -68,13 +98,16 @@ function card(s: ChronicleState, r: Relation): string {
   const A = (x: unknown): string => esc(x);
   const chips = cats.map((c) => '<span class="vle-cat" style="--c:' + (CAT_COLORS[c] || '#888') + '">' + esc(c) + '</span>').join('');
   const an = nameOf(s, r.a), bn = nameOf(s, r.b);
+  const lock = lockFor(r.a, r.b);
+  const lockBadge = lock ? `<span class="vle-rel-lockbadge" title="${A('forbidden: ' + (lock.forbid.join(', ') || '\u2014') + (lock.pin.length ? ' \u00b7 pinned: ' + lock.pin.join(', ') : ''))}">\uD83D\uDD12 ${esc(lock.forbid.join(', ') || 'pinned')}</span>` : '';
   return '<div class="vle-rel-card">'
     + '<div class="vle-rel-top"><span class="vle-rel-pair">' + esc(an) + ' \u2192 ' + esc(bn) + '</span>'
     + '<span class="vle-rel-ctl">'
+    + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(r.a)}" data-b="${A(r.b)}" data-an="${A(an)}" data-bn="${A(bn)}" title="Plot Director lock">\uD83D\uDD12</button>`
     + `<button class="vle-mini" data-rel-edit data-a="${A(an)}" data-b="${A(bn)}" data-label="${A(r.label)}" data-cats="${A(cats.join(','))}" data-aff="${r.affection}" data-trust="${r.trust}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-rel-del data-a="${A(an)}" data-b="${A(bn)}" title="Delete">\u2715</button>`
     + '</span></div>'
-    + '<div class="vle-rel-sub"><span class="vle-rel-sent">' + esc(SENT_LABEL[r.sentiment] || r.sentiment) + '</span></div>'
+    + '<div class="vle-rel-sub"><span class="vle-rel-sent">' + esc(SENT_LABEL[r.sentiment] || r.sentiment) + '</span>' + lockBadge + '</div>'
     + (r.label ? '<div class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</div>' : '')
     + '<div class="vle-cats">' + chips + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '') + '</div>'
     + '<div class="vle-bars">' + bar('Aff', r.affection) + bar('Trust', r.trust) + '</div>'

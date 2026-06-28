@@ -29,6 +29,7 @@ import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from
 import { reconcileFactionEntries } from './domain/faction-vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
 import { parseTone, type Tone } from './domain/tone.js';
+import { sanitizeLocks, lockKey, type RelationLock } from './domain/relation-lock.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
@@ -96,7 +97,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   let traversalMode = 'off';
   try { if (await getChatVar(chatId, 'vellum_traversal')) traversalMode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat'; } catch { /* best effort */ }
   const traversalAxis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode, traversalAxis }, userId ?? currentUser());
+  const relationLocks = await readLocks(chatId);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, chapterVault, traversalMode, traversalAxis, relationLocks }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
@@ -147,6 +149,11 @@ async function readTone(chatId: string, userId: string | null): Promise<Tone> {
   return parseTone(r, d);
 }
 
+/** Read + sanitize the per-chat relation locks (Plot Director). */
+async function readLocks(chatId: string): Promise<RelationLock[]> {
+  try { const raw = await getChatVar(chatId, 'vellum_relation_locks'); return raw ? sanitizeLocks(JSON.parse(raw)) : []; } catch { return []; }
+}
+
 async function foldChatInner(chatId: string, userId: string | null, hint?: string): Promise<void> {
   let msgs = await allAssistantContents(chatId);
   if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allAssistantContents(chatId); }
@@ -157,6 +164,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   const tone = await readTone(chatId, userId);
   const names = await chatNames(chatId, userId);
   const userCanon = names.user ? canonId(names.user) : '';
+  const locks = await readLocks(chatId);
   // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
   // message count, so the forward-only fold below would never revisit it and the
   // chronicle would keep the STALE turn's deltas. Compare each already-folded
@@ -173,7 +181,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
-    const { events, source } = foldTurn(content, prior, turnNo, { tone, userCanon });
+    const { events, source } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
     const evs: VellumEvent[] = [...events];
     if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
     const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
@@ -597,11 +605,12 @@ const dispatch: Record<string, Handler> = {
       const tone = await readTone(chatId, uid);
       const names = await chatNames(chatId, uid);
       const userCanon = names.user ? canonId(names.user) : '';
+      const locks = await readLocks(chatId);
       let turns = 0;
       for (let turnNo = 1; turnNo <= msgs.length; turnNo++) {
         const content = (msgs[turnNo - 1] ?? '').trim();
         if (!content) continue;
-        const { events } = foldTurn(content, prior, turnNo, { tone, userCanon });
+        const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
         const evs: VellumEvent[] = [...events];
         if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
         const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
@@ -814,6 +823,28 @@ const dispatch: Record<string, Handler> = {
     try { await setChatVar(chatId, 'vellum_romance', tone.romance); } catch { /* best effort */ }
     try { await setChatVar(chatId, 'vellum_disposition', tone.disposition); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition }, uid);
+  },
+  vellum_set_locks: async (p, uid) => {
+    // Plot Director relation locks: persist the per-pair forbid/pin list. On
+    // create, also drop any category already on the graph that the lock now
+    // forbids (a one-time cleanup — future deltas are stripped at the fold).
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const locks = sanitizeLocks(p?.locks);
+    try { await setChatVar(chatId, 'vellum_relation_locks', JSON.stringify(locks)); } catch { /* best effort */ }
+    const state = await loadState(chatId);
+    const evs: VellumEvent[] = [];
+    for (const lock of locks) {
+      if (!lock.forbid.length) continue;
+      // match the existing relation in either direction; strip forbidden cats now
+      const r = state.relations.find((x) => lockKey(x.a, x.b) === lock.key);
+      if (!r) continue;
+      const offending = (r.categories ?? []).filter((c) => lock.forbid.includes(c));
+      if (offending.length) evs.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'bond.delta', a: r.a, b: r.b, removeCats: offending } as VellumEvent);
+    }
+    if (evs.length) { await append(chatId, evs); invalidateIndex(chatId); }
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_locks_done', ok: true, locks }, uid);
   },
   vellum_set_tidy: async (p, uid) => {
     // toggle auto thread/arc reconcile (Layer 3); persist in a chat var
