@@ -45,6 +45,35 @@ describe('parseState', () => {
     expect(s.relations[0]?.categories).toContain('romantic');
   });
 
+  it('an INVALID bond category does not nuke the whole block (filtered, not fatal)', () => {
+    // model invented "physical" — must keep the valid cat + the rest of the turn,
+    // not drop the entire <vellum> block to source:none (the reverie-bleed bug).
+    const block = '<vellum>\n' + JSON.stringify({
+      turn: 2, day: 2,
+      scene: { loc: "Prince's Study, Harrenhal", time: '8:15 AM', tension: 8 },
+      present: [{ id: 'Cersei', mood: 'undone' }],
+      delta: { bonds: [{ a: 'Cersei', b: 'Daeron', aff: 0, trust: 0, cat: ['romantic', 'physical'], why: 'x' }] },
+    }) + '\n</vellum>';
+    const r = parseState(block);
+    expect(r.source).toBe('json'); // not 'none'
+    expect(r.state?.scene?.loc).toBe("Prince's Study, Harrenhal");
+    const cats = r.state?.delta?.bonds?.[0]?.addCats;
+    expect(cats).toContain('romantic');
+    expect(cats).not.toContain('physical'); // invented cat filtered out
+  });
+
+  it('a bond with ONLY invalid categories drops addCats but keeps the bond/scene', () => {
+    const block = '<vellum>\n' + JSON.stringify({
+      turn: 3, scene: { loc: 'Hall' }, present: [{ id: 'A' }],
+      delta: { bonds: [{ a: 'A', b: 'B', aff: 5, cat: ['physical', 'sexual'] }] },
+    }) + '\n</vellum>';
+    const r = parseState(block);
+    expect(r.source).toBe('json');
+    expect(r.state?.scene?.loc).toBe('Hall');
+    expect(r.state?.delta?.bonds?.[0]?.aff).toBe(5);
+    expect(r.state?.delta?.bonds?.[0]?.addCats).toBeUndefined();
+  });
+
   it('falls back to regex for terse [BTS]-style rel lines', () => {
     const r = parseState('Some prose.\nrelCersei \u2192 Jaime: aff +8, trust -2 cat:romantic (the look)');
     expect(r.source).toBe('regex');

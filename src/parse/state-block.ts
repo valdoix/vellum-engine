@@ -115,11 +115,22 @@ function normalizeBlock(obj: Record<string, unknown>): void {
   const delta = obj.delta as Record<string, unknown> | undefined;
   const bonds = delta && Array.isArray(delta.bonds) ? delta.bonds : null;
   if (!bonds) return;
+  // valid relationship categories — anything else (e.g. the model inventing
+  // "physical") is FILTERED, not left to fail the whole block's validation.
+  const VALID = new Set(['familial', 'romantic', 'alliance', 'rivalry', 'social', 'neutral']);
+  const clean = (v: unknown): string[] | undefined => {
+    if (!Array.isArray(v)) return undefined;
+    const out = v.map((x) => String(x).toLowerCase().trim()).filter((x) => VALID.has(x));
+    return out.length ? Array.from(new Set(out)) : undefined;
+  };
   for (const b of bonds) {
     if (!b || typeof b !== 'object') continue;
     const bond = b as Record<string, unknown>;
     if (bond.addCats === undefined && bond.cat !== undefined) { bond.addCats = bond.cat; delete bond.cat; }
     if (bond.removeCats === undefined && bond.removeCat !== undefined) { bond.removeCats = bond.removeCat; delete bond.removeCat; }
+    // drop unknown categories so one invented value can't nuke the whole turn
+    if (bond.addCats !== undefined) { const c = clean(bond.addCats); if (c) bond.addCats = c; else delete bond.addCats; }
+    if (bond.removeCats !== undefined) { const c = clean(bond.removeCats); if (c) bond.removeCats = c; else delete bond.removeCats; }
   }
 }
 
