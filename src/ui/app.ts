@@ -106,6 +106,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
       + tools.map((t) => tabBtn(t, false)).join('')
     + '</div>'
     + '<div class="vle-toolbar" data-toolbar>'
+      + '<button class="vle-qol" data-search title="Search the chronicle (cast, bonds, journal, knowledge)">\u2315 Search</button>'
       + '<button class="vle-qol" data-qol="customize" title="Theme: color, font, size & skins">\u25C8 Customize</button>'
       + '<button class="vle-qol vle-qol-menu" data-actions title="Chronicle actions">\u22EF Actions</button>'
     + '</div>'
@@ -136,6 +137,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   tabbar.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) { onQol(ctx, b.getAttribute('data-qol')!); return; }
+    if ((e.target as HTMLElement).closest('[data-search]')) openSearch(getState, showTab);
     if ((e.target as HTMLElement).closest('[data-actions]')) openActions(ctx);
   });
   wirePagers(bodyEl); // delegated pager clicks for any paginated list
@@ -206,6 +208,53 @@ function openActions(ctx: Ctx): void {
     const item = t.closest('[data-qol]');
     if (item) { close(); onQol(ctx, item.getAttribute('data-qol')!); }
   });
+}
+
+interface SearchHit { tab: string; kind: string; label: string; sub: string }
+/** Flat free-text search across cast, factions, relations, journal, knowledge,
+ * secrets by name/text. Result click jumps to the owning tab. Read-only over
+ * state; no index to maintain — the chronicle is small enough to scan live. */
+function buildSearchIndex(s: ChronicleState): SearchHit[] {
+  const hits: SearchHit[] = [];
+  const nm = (id: string): string => s.cast[id]?.name ?? id;
+  for (const c of Object.values(s.cast)) hits.push({ tab: 'cast', kind: 'cast', label: c.name, sub: [c.role, c.status].filter(Boolean).join(' \u00b7 ') });
+  for (const f of Object.values(s.factions)) hits.push({ tab: 'cast', kind: 'faction', label: f.name, sub: f.kind || 'faction' });
+  for (const r of s.relations) hits.push({ tab: 'relations', kind: 'bond', label: `${nm(r.a)} \u2192 ${nm(r.b)}`, sub: r.label || r.categories.join(', ') });
+  for (const j of s.journal) hits.push({ tab: 'journal', kind: 'journal', label: nm(j.who), sub: j.memory });
+  for (const k of s.knowledge) hits.push({ tab: 'chronicle', kind: 'knowledge', label: nm(k.who), sub: k.fact });
+  for (const sec of s.secrets) hits.push({ tab: 'chronicle', kind: 'secret', label: nm(sec.keeper), sub: sec.text });
+  return hits;
+}
+
+function openSearch(getState: () => ChronicleState, go: (tab: string) => void): void {
+  const index = buildSearchIndex(getState());
+  const ov = document.createElement('div');
+  ov.className = 'vlfm-overlay';
+  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(520px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2315</span>Search</div>'
+    + '<div class="vlfm-body"><input class="vlfm-in" data-search-in placeholder="character, bond, memory, fact\u2026" autocomplete="off" spellcheck="false">'
+    + '<div class="vle-search-results" data-search-out></div></div>'
+    + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-close>Close</button></div></div>';
+  document.body.appendChild(ov);
+  applyTheme(ov.querySelector('.vlfm') as HTMLElement);
+  const input = ov.querySelector('[data-search-in]') as HTMLInputElement;
+  const out = ov.querySelector('[data-search-out]') as HTMLElement;
+  const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
+  const render = (): void => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { out.innerHTML = '<div class="vle-empty sm">Type to search the chronicle.</div>'; return; }
+    const matches = index.filter((h) => h.label.toLowerCase().includes(q) || h.sub.toLowerCase().includes(q)).slice(0, 40);
+    if (!matches.length) { out.innerHTML = `<div class="vle-empty sm">No matches for \u201c${esc(q)}\u201d.</div>`; return; }
+    out.innerHTML = matches.map((h) =>
+      `<button class="vle-search-hit" data-go="${esc(h.tab)}"><span class="vle-search-k">${esc(h.kind)}</span><span class="vle-search-l">${esc(h.label)}</span><span class="vle-search-s">${esc(h.sub.slice(0, 80))}</span></button>`).join('');
+  };
+  input.addEventListener('input', render);
+  ov.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    if (t === ov || t.closest('[data-close]')) { close(); return; }
+    const hit = t.closest('[data-go]'); if (hit) { go(hit.getAttribute('data-go')!); close(); }
+  });
+  render();
+  setTimeout(() => input.focus(), 30);
 }
 
 function onQol(ctx: Ctx, id: string): void {

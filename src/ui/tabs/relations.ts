@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Relation } from '../../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bar } from '../format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bar, emptyState, sectionHeader } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -18,8 +18,8 @@ const CAT_OPTS = [
 export const relationsTab: Component<ChronicleState> = {
   version: (s) => s.relations.length + ':' + s.relations.reduce((a, r) => a + r.affection + r.trust + r.categories.length, 0),
   render(s) {
-    const header = '<div class="vle-sec-top"><button class="vle-add" data-rel-add>+ Relation</button></div>';
-    if (!s.relations.length) return header + '<div class="vle-empty sm">No bonds recorded yet.</div>';
+    const header = sectionHeader('', { action: '<button class="vle-add" data-rel-add>+ Relation</button>' });
+    if (!s.relations.length) return header + emptyState('No bonds recorded yet.', 'Relationships appear as characters interact.');
     // filter bar: sort (newest/oldest by lastTurn) + category + per-character
     const cats = Array.from(new Set(s.relations.flatMap((r) => catsOf(r)))).sort();
     const ids = Array.from(new Set(s.relations.flatMap((r) => [r.a, r.b])));
@@ -30,7 +30,7 @@ export const relationsTab: Component<ChronicleState> = {
       && (f.who === 'all' || r.a === f.who || r.b === f.who));
     rels = rels.sort((a, b) => f.sort === 'desc' ? (b.lastTurn ?? 0) - (a.lastTurn ?? 0) : (a.lastTurn ?? 0) - (b.lastTurn ?? 0));
     const { slice, page, pages } = paginate('relations', rels);
-    if (!slice.length) return header + bar + '<div class="vle-empty sm">No bonds match this filter.</div>';
+    if (!slice.length) return header + bar + emptyState('No bonds match this filter.');
     return header + bar + '<div class="vle-rel-grid">' + slice.map((r) => card(s, r)).join('') + '</div>' + pagerHtml('relations', page, pages);
   },
   mount(host) {

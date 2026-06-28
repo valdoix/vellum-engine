@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, JournalEntry } from '../../domain/types.js';
-import { esc, nameOf } from '../format.js';
+import { esc, nameOf, emptyState, sectionHeader } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -32,8 +32,8 @@ export const journalTab: Component<ChronicleState> = {
   version: (s) => s.journal.length + ':' + Object.keys(s.cast).length + ':' + (_openBook ?? ''),
   render(s) {
     if (_openBook) return bookView(s, _openBook);
-    const header = '<div class="vle-sec-top"><button class="vle-add" data-jr-add>+ Memory</button></div>';
-    if (!s.journal.length) return header + '<div class="vle-empty sm">No journal entries yet. Characters remember moments as the story unfolds.</div>';
+    const header = sectionHeader('', { action: '<button class="vle-add" data-jr-add>+ Memory</button>' });
+    if (!s.journal.length) return header + emptyState('No journal entries yet.', 'Characters remember moments as the story unfolds.');
     const whos = Array.from(new Set(s.journal.map((j) => j.who))).map((id) => ({ id, name: nameOf(s, id) }));
     // a "shelf" of per-character books to open
     const shelf = '<div class="vle-shelf">' + whos.map((w) => {
@@ -42,7 +42,7 @@ export const journalTab: Component<ChronicleState> = {
     }).join('') + '</div>';
     const bar = filterBar('journal', { cats: KIND_OPTS.map((k) => k.value), whos });
     const filtered = applyFilter('journal', s.journal, { cat: (j) => j.kind, who: (j) => j.who });
-    if (!filtered.length) return header + shelf + bar + '<div class="vle-empty sm">No entries match the filter.</div>';
+    if (!filtered.length) return header + shelf + bar + emptyState('No entries match the filter.');
     const { slice, page, pages } = paginate('journal', filtered);
     return header + shelf + bar + '<div class="vle-jr-grid">' + slice.map((j) => card(s, j)).join('') + '</div>' + pagerHtml('journal', page, pages);
   },
@@ -76,7 +76,7 @@ function bookView(s: ChronicleState, who: string): string {
   const head = `<div class="vle-book-head"><button class="vle-mini" data-jr-close title="Back">\u2039</button>`
     + `<span class="vle-book-title">${esc(nameOf(s, who))}\u2019s Journal</span>`
     + `<span class="vle-n">${entries.length}</span></div>`;
-  const body = filtered.length ? '<div class="vle-jr-grid">' + filtered.map((j) => card(s, j)).join('') + '</div>' : '<div class="vle-empty sm">No entries match.</div>';
+  const body = filtered.length ? '<div class="vle-jr-grid">' + filtered.map((j) => card(s, j)).join('') + '</div>' : emptyState('No entries match.');
   return head + bar + body;
 }
 

@@ -12,6 +12,21 @@ export function emptyState(msg: string, hint?: string): string {
   return `<div class="vle-empty sm">${esc(msg)}${hint ? `<br><span>${esc(hint)}</span>` : ''}</div>`;
 }
 
+/** One section-header construction for the whole UI. Two roles, both reusing the
+ * already-styled classes so there's no visual regression — the win is a single
+ * path (consistent markup + escaping) instead of hand-built header strings:
+ *  - top  (default): section title left + optional action(s) right (vle-sec-top)
+ *  - sub  ({sub:true}): glyph + title + count chip + optional inline action (vle-sec-h)
+ * `action` is developer-authored literal HTML (e.g. an add button), not user data. */
+export function sectionHeader(title: string, opts: { glyph?: string; count?: number; action?: string; sub?: boolean; gap?: boolean } = {}): string {
+  if (opts.sub) {
+    const g = opts.glyph ? esc(opts.glyph) + ' ' : '';
+    const c = opts.count !== undefined ? ` <span class="vle-n">${opts.count}</span>` : '';
+    return `<div class="vle-sec-h">${g}${esc(title)}${c}${opts.action ?? ''}</div>`;
+  }
+  return `<div class="vle-sec-top${opts.gap ? ' vle-sec-gap' : ''}"><span class="vle-sec-title">${esc(title)}</span>${opts.action ?? ''}</div>`;
+}
+
 export function initials(name: string): string {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';

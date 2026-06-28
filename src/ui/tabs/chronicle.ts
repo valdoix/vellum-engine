@@ -1,22 +1,42 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Memory } from '../../domain/types.js';
-import { esc, byRecent, nameOf, emptyState } from '../format.js';
-import { cmd, paginate, pagerHtml, filterBar, applyFilter } from '../bridge.js';
+import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
+import { cmd, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
 /**
- * Chronicle tab. Scene, arcs, threads, memory (turn/chapter/arc tiers),
- * knowledge & secrets. Memories paginate and can be added/deleted; knowledge
- * and secrets can be added. CRUD flows through the bridge → vellum_cmd.
+ * Chronicle tab. Split into sub-views so it stops being a 6-deep heterogeneous
+ * scroll: World (scene + arcs + threads), Memory, Knowledge, Secrets. One view
+ * at a time via a sub-nav; each keeps its own filter/pager wiring. CRUD flows
+ * through the bridge → vellum_cmd.
  */
+
+type CView = 'world' | 'memory' | 'knowledge' | 'secrets';
+const VIEWS: Array<{ id: CView; label: string }> = [
+  { id: 'world', label: 'World' }, { id: 'memory', label: 'Memory' },
+  { id: 'knowledge', label: 'Knowledge' }, { id: 'secrets', label: 'Secrets' },
+];
+let _view: CView = 'world';
+
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
-    return scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) + memories(s) + knowledge(s) + secrets(s);
+    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length };
+    const nav = '<div class="vle-subnav">' + VIEWS.map((v) =>
+      `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`).join('') + '</div>';
+    let body = '';
+    if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) || '';
+    else if (_view === 'memory') body = memories(s);
+    else if (_view === 'knowledge') body = knowledge(s);
+    else body = secrets(s);
+    if (_view === 'world' && !s.scene.location && !s.scene.tension && !s.arcs.length && !s.threads.length) body = emptyState('No world state yet.', 'Scene, arcs, and threads fill in as the story unfolds.');
+    return nav + body;
   },
   mount(host) {
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
+      const nv = t.closest('[data-cview]');
+      if (nv) { _view = nv.getAttribute('data-cview') as CView; refreshUI(); return; }
       if (t.closest('[data-mem-add]')) { formModal('New Memory', [
         { key: 'text', label: 'Memory', type: 'textarea', placeholder: 'What happened, in detail.' },
         { key: 'keys', label: 'Keywords (comma-separated)', type: 'text' },
@@ -64,12 +84,12 @@ function tracks(title: string, list: ChronicleState['arcs']): string {
   const rows = list.slice().sort(byRecent).slice(0, 12).map((t) =>
     '<div class="vle-track"><span class="vle-track-n">' + esc(t.name) + '</span><span class="vle-track-s">' + esc(t.status) + '</span></div>'
   ).join('');
-  return '<div class="vle-sec-h">' + esc(title) + ' <span class="vle-n">' + list.length + '</span></div>' + rows;
+  return sectionHeader(title, { sub: true, count: list.length }) + rows;
 }
 
 function memories(s: ChronicleState): string {
-  const head = '<div class="vle-sec-h">\uD83D\uDCD6 Memory <span class="vle-n">' + s.memories.length + '</span><button class="vle-add sm" data-mem-add>+</button></div>';
-  if (!s.memories.length) return head + '<div class="vle-empty sm">No memories yet.</div>';
+  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: '<button class="vle-add sm" data-mem-add>+</button>' });
+  if (!s.memories.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
   const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'] });
   const filtered = applyFilter('memories', s.memories, { cat: (m) => m.tier });
   const { slice, page, pages } = paginate('memories', filtered);
@@ -78,7 +98,7 @@ function memories(s: ChronicleState): string {
     + '<span class="vle-mem-t">' + esc(m.text) + '</span>'
     + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></div>`
   ).join('');
-  if (!slice.length) return head + bar + '<div class="vle-empty sm">No memories match this filter.</div>';
+  if (!slice.length) return head + bar + emptyState('No memories match this filter.');
   return head + bar + rows + pagerHtml('memories', page, pages);
 }
 
@@ -90,7 +110,7 @@ function relChip(r: string): string {
 }
 
 function knowledge(s: ChronicleState): string {
-  const head = '<div class="vle-sec-h">\u25C8 Knowledge <span class="vle-n">' + s.knowledge.length + '</span><button class="vle-add sm" data-know-add>+</button></div>';
+  const head = sectionHeader('\u25C8 Knowledge', { sub: true, count: s.knowledge.length, action: '<button class="vle-add sm" data-know-add>+</button>' });
   if (!s.knowledge.length) return head + emptyState('Nothing known yet.', 'Who-knows-what fills in as the story reveals it.');
   const whos = Array.from(new Set(s.knowledge.map((k) => k.who))).map((id) => ({ id, name: nameOf(s, id) }));
   const bar = filterBar('knowledge', { whos });
@@ -99,11 +119,12 @@ function knowledge(s: ChronicleState): string {
   const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
     + `<span class="vle-mem-t"${k.source ? ` title="source: ${esc(k.source)}"` : ''}>` + relChip(k.reliability) + (k.truth === 'false' ? '<span class="vle-kfalse" title="actually false — dramatic irony">\u2717 false</span>' : '') + esc(k.fact) + '</span>'
     + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button></div>`).join('');
+  if (!slice.length) return head + bar + emptyState('No knowledge matches this filter.');
   return head + bar + rows + pagerHtml('knowledge', page, pages);
 }
 
 function secrets(s: ChronicleState): string {
-  const head = '<div class="vle-sec-h">\u26C0 Secrets <span class="vle-n">' + s.secrets.length + '</span><button class="vle-add sm" data-sec-add>+</button></div>';
+  const head = sectionHeader('\u26C0 Secrets', { sub: true, count: s.secrets.length, action: '<button class="vle-add sm" data-sec-add>+</button>' });
   if (!s.secrets.length) return head + emptyState('No secrets yet.', 'Hidden knowledge appears here as characters keep things from each other.');
   const whos = Array.from(new Set(s.secrets.map((x) => x.keeper))).map((id) => ({ id, name: nameOf(s, id) }));
   const bar = filterBar('secrets', { whos });
@@ -112,5 +133,6 @@ function secrets(s: ChronicleState): string {
   const rows = slice.map((sec) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
     + (sec.revealed ? '' : `<button class="vle-mini" data-sec-reveal data-id="${esc(sec.id)}" title="Reveal">\u25D0</button>`)
     + `<button class="vle-mini del" data-sec-del data-id="${esc(sec.id)}" title="Delete">\u2715</button></div>`).join('');
+  if (!slice.length) return head + bar + emptyState('No secrets match this filter.');
   return head + bar + rows + pagerHtml('secrets', page, pages);
 }

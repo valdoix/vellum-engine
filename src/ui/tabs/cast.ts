@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, CastCard, Faction } from '../../domain/types.js';
-import { esc, initials, byRecent, bar } from '../format.js';
+import { esc, initials, byRecent, bar, emptyState, sectionHeader } from '../format.js';
 import { cmd, paginate, pagerHtml, send, setPage } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -111,15 +111,15 @@ export const castTab: Component<ChronicleState> = {
 // ---------- characters ----------
 function castSection(s: ChronicleState): string {
   const all = Object.values(s.cast);
-  const header = '<div class="vle-sec-top"><span class="vle-sec-title">Characters</span><button class="vle-add" data-cast-add>+ Character</button></div>';
-  if (!all.length) return header + '<div class="vle-empty sm">No characters yet.</div>';
+  const header = sectionHeader('Characters', { action: '<button class="vle-add" data-cast-add>+ Character</button>' });
+  if (!all.length) return header + emptyState('No characters yet.', 'They appear as the story introduces them.');
   const counts: Record<string, number> = {};
   for (const c of all) counts[c.status] = (counts[c.status] ?? 0) + 1;
   const filtered = _st.cast === 'all' ? all : all.filter((c) => c.status === _st.cast);
   const sorted = sortItems(filtered, _sort.cast);
   const { slice, page, pages } = paginate('cast-list', sorted);
   const bar = filterBar('cast', counts, all.length);
-  if (!slice.length) return header + bar + '<div class="vle-empty sm">No characters match this filter.</div>';
+  if (!slice.length) return header + bar + emptyState('No characters match this filter.');
   return header + bar + '<div class="vle-cards">' + slice.map((c) => card(c)).join('') + '</div>' + pagerHtml('cast-list', page, pages);
 }
 
@@ -154,15 +154,15 @@ function card(c: CastCard): string {
 // ---------- factions ----------
 function factionSection(s: ChronicleState): string {
   const all = Object.values(s.factions);
-  const header = '<div class="vle-sec-top vle-sec-gap"><span class="vle-sec-title">Factions</span><button class="vle-add" data-fac-add>+ Faction</button></div>';
-  if (!all.length) return header + '<div class="vle-empty sm">No factions yet \u2014 groups appear as the story names them.</div>';
+  const header = sectionHeader('Factions', { gap: true, action: '<button class="vle-add" data-fac-add>+ Faction</button>' });
+  if (!all.length) return header + emptyState('No factions yet.', 'Groups appear as the story names them.');
   const counts: Record<string, number> = {};
   for (const f of all) counts[f.status] = (counts[f.status] ?? 0) + 1;
   const filtered = _st.fac === 'all' ? all : all.filter((f) => f.status === _st.fac);
   const sorted = sortItems(filtered, _sort.fac);
   const { slice, page, pages } = paginate('fac-list', sorted);
   const bar = filterBar('fac', counts, all.length);
-  if (!slice.length) return header + bar + '<div class="vle-empty sm">No factions match this filter.</div>';
+  if (!slice.length) return header + bar + emptyState('No factions match this filter.');
   return header + bar + '<div class="vle-cards">' + slice.map((f) => factionCard(s, f)).join('') + '</div>' + pagerHtml('fac-list', page, pages);
 }
 
