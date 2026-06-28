@@ -302,35 +302,43 @@ function openDirector(getState: () => ChronicleState): void {
   });
 }
 
-/** Add-directive form: pick a kind + target (an existing secret/thread) or a note,
- * optionally SCHEDULED for a future turn/day (dormant until the story reaches it). */
+/** Add-directive form: pick a kind + target (an existing secret/thread/character)
+ * or a note, optionally SCHEDULED for a future turn/day (dormant until reached).
+ * Agendas (standing per-character goals, ttl 0) and scene beats (next-turn-only,
+ * ttl 1) are just note directives with a preset TTL — no new backend. */
 function addDirective(s: ChronicleState): void {
   const secrets = s.secrets.filter((x) => !x.revealed).map((x) => ({ value: 'reveal_secret|' + x.id, label: 'reveal: ' + x.text.slice(0, 50) }));
   const threads = s.threads.filter((t) => t.status !== 'resolved').map((t) => ({ value: 'advance_thread|' + t.name, label: 'advance: ' + t.name }));
-  const opts = [...secrets, ...threads, { value: 'note|', label: 'free note (custom)' }];
+  const agendas = Object.values(s.cast).filter((c) => c.status === 'present' || c.status === 'active').map((c) => ({ value: 'agenda|' + c.id, label: 'agenda: ' + c.name }));
+  const opts = [...secrets, ...threads, ...agendas, { value: 'beat|', label: 'scene beat (next turn only)' }, { value: 'note|', label: 'free note (custom)' }];
   if (!opts.length) return;
   formModal('New directive', [
     { key: 'pick', label: 'What should happen?', type: 'select', value: opts[0]!.value, options: opts },
-    { key: 'note', label: 'Custom note (for free note, or extra detail)', type: 'text', value: '' },
+    { key: 'note', label: 'Detail (required for beat / note / agenda)', type: 'text', value: '' },
     { key: 'whenTurn', label: 'Schedule for turn (blank = next scene)', type: 'text', value: '' },
     { key: 'whenDay', label: 'or schedule for day (blank = none)', type: 'text', value: '' },
     { key: 'ttl', label: 'Expire after N turns once active (0 = never)', type: 'text', value: '6' },
   ], (out) => {
     const parts = (out.pick ?? 'note|').split('|');
-    const kind = parts[0] || 'note';
+    const pick = parts[0] || 'note';
     const target = parts[1] || '';
-    const ttl = Math.max(0, Math.min(50, parseInt(out.ttl ?? '6', 10) || 0));
+    const note = out.note?.trim() ?? '';
     const wt = parseInt(out.whenTurn ?? '', 10);
     const wd = parseInt(out.whenDay ?? '', 10);
     const scheduled = Number.isFinite(wt) || Number.isFinite(wd);
-    let text = out.note?.trim() ?? '';
-    if (!text) {
+    // agenda = standing per-character goal (ttl 0 = until cleared); beat = next
+    // turn only (ttl 1). Both are 'note' directives with a preset TTL.
+    let kind = pick; let ttl = Math.max(0, Math.min(50, parseInt(out.ttl ?? '6', 10) || 0));
+    let text = note;
+    if (pick === 'agenda') { kind = 'note'; ttl = 0; const c = s.cast[target]; if (!note) return; text = `${c?.name ?? target}'s standing goal: ${note}`; }
+    else if (pick === 'beat') { kind = 'note'; ttl = 1; if (!note) return; text = `Next-scene beat: ${note}`; }
+    else if (!text) {
       const sec = s.secrets.find((x) => x.id === target);
       const thr = s.threads.find((t) => t.name === target);
-      text = kind === 'reveal_secret' && sec ? `Reveal the secret: ${sec.text}` : kind === 'advance_thread' && thr ? `Advance the thread: ${thr.name}` : 'Director note';
+      text = pick === 'reveal_secret' && sec ? `Reveal the secret: ${sec.text}` : pick === 'advance_thread' && thr ? `Advance the thread: ${thr.name}` : 'Director note';
     }
     const dir: UIDirective = {
-      id: 'd' + Date.now().toString(36), kind, text, ...(target ? { target } : {}),
+      id: 'd' + Date.now().toString(36), kind, text, ...(target && kind !== 'note' ? { target } : {}),
       status: scheduled ? 'dormant' : 'armed', ttl,
       ...(Number.isFinite(wt) ? { whenTurn: wt } : {}), ...(Number.isFinite(wd) ? { whenDay: wd } : {}),
     };
