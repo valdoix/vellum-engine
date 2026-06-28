@@ -34,42 +34,97 @@ function extractFenced(content: string): string | null {
 function balancedObject(s: string): string | null {
   const start = s.indexOf('{');
   if (start < 0) return null;
-  let depth = 0, inStr = false, esc = false;
+  let depth = 0, inStr = false, esc = false, quote = '"';
   for (let i = start; i < s.length; i++) {
     const c = s[i]!;
-    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
-    if (c === '"') inStr = true;
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === quote) inStr = false; continue; }
+    if (c === '"' || c === "'") { inStr = true; quote = c; }
     else if (c === '{') depth++;
     else if (c === '}') { depth--; if (depth === 0) return s.slice(start, i + 1); }
   }
   return null;
 }
 
-/** Tolerant JSON: normalize smart quotes, strip an inner ```fence, // and
- * block comments, trailing commas; then parse the outermost balanced object.
- * Handles the common ways models mangle the block. */
+/**
+ * Tolerant JSON parse, hardened against the many ways models mangle the block.
+ * Strategy ladder (cheapest first; first success wins):
+ *   1. plain JSON.parse on the balanced object (the happy path — no mangling)
+ *   2. structural repair OUTSIDE string literals (comments, trailing commas,
+ *      leading +, unquoted keys, single quotes) — a single string-aware scan so
+ *      we never corrupt prose/URLs/punctuation inside a value
+ *   3. the same, plus quote-normalization, as a last resort
+ * Returns the parsed value, or null if nothing works.
+ */
 function lenientParse(raw: string): unknown | null {
-  let s = raw
-    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')   // curly/smart double quotes → "
-    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")          // curly single quotes → '
-    .replace(/\u00A0/g, ' ')                               // nbsp → space
+  const base = raw
+    .replace(/\u00A0/g, ' ')
+    .replace(/^\s*```[a-z]*\s*/i, '').replace(/```\s*$/i, '')
     .trim();
-  // drop an inner markdown code fence (```json ... ```)
-  s = s.replace(/^```[a-z]*\s*/i, '').replace(/```$/i, '').trim();
-  const obj0 = balancedObject(s) ?? s;
-  let cleaned = obj0
-    .replace(/\/\/[^\n\r]*/g, '')              // line comments
-    .replace(/\/\*[\s\S]*?\*\//g, '')          // block comments
-    .replace(/"[A-Za-z_][\w]*"\s*:\s*<[^>{}\[\]]*>\s*,?/g, '') // drop "key": <placeholder>
-    .replace(/,(\s*[}\]])/g, '$1');            // trailing commas (after the drop)
-  try { return JSON.parse(cleaned); } catch { /* try harder */ }
-  // last resort: single-quoted strings + unquoted keys → JSON-ish
-  try {
-    const fixed = cleaned
-      .replace(/'([^'\\]*)'/g, '"$1"')                                   // 'str' → "str"
-      .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":');     // key: → "key":
-    return JSON.parse(fixed);
-  } catch { return null; }
+  const obj0 = balancedObject(base) ?? base;
+
+  // 1. happy path
+  const direct = tryParse(obj0);
+  if (direct !== undefined) return direct;
+
+  // 2. structural repair, string-aware
+  const repaired = repairJson(obj0);
+  const r1 = tryParse(repaired);
+  if (r1 !== undefined) return r1;
+
+  // 3. + smart-quote normalization (do this LAST: it can mangle apostrophes in prose)
+  const normalized = repaired
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'");
+  const r2 = tryParse(repairJson(normalized));
+  if (r2 !== undefined) return r2;
+
+  return null;
+}
+
+function tryParse(s: string): unknown | undefined {
+  try { return JSON.parse(s); } catch { return undefined; }
+}
+
+/**
+ * Repair common JSON mangles, editing ONLY structure outside string literals so
+ * a `//`, comma, or `+2` inside a value is never touched. Single left-to-right
+ * scan that tracks string state, emitting a cleaned buffer.
+ */
+function repairJson(src: string): string {
+  let out = '';
+  let inStr = false, esc = false, quote = '"';
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]!;
+    if (inStr) {
+      if (esc) { out += c; esc = false; continue; }
+      if (c === '\\') { out += c; esc = true; continue; }
+      if (c === quote) { inStr = false; out += '"'; continue; } // close (normalize ' → ")
+      if (c === '"' && quote === "'") { out += '\\"'; continue; } // a " inside a '..' string
+      if (c === '\n') { out += '\\n'; continue; } // unescaped newline in a string
+      out += c; continue;
+    }
+    // --- outside a string ---
+    if (c === '"' || c === "'") { inStr = true; quote = c; out += '"'; continue; }
+    // line comment // … (only outside strings, so URLs in values are safe)
+    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    // block comment /* … */
+    if (c === '/' && src[i + 1] === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i++; continue; }
+    // leading + on a number: "+2" → "2"
+    if (c === '+' && /\d/.test(src[i + 1] ?? '')) continue;
+    out += c;
+  }
+  // structural fixups on the now string-safe scaffold (these run on the emitted
+  // buffer; string contents are already escaped/closed so they're inert here):
+  return out
+    // quote unquoted keys:  { key:  ,key:  →  "key":
+    .replace(/([{,]\s*)([A-Za-z_$][\w$]*)(\s*:)/g, '$1"$2"$3')
+    // drop "key": <placeholder> the model left in
+    .replace(/"[\w$]+"\s*:\s*<[^>{}\[\]]*>\s*,?/g, '')
+    // trailing commas before } or ]
+    .replace(/,(\s*[}\]])/g, '$1')
+    // collapse doubled commas from dropped fields
+    .replace(/,\s*,/g, ',')
+    .replace(/([{\[])\s*,/g, '$1');
 }
 
 export function parseState(content: string): ParseResult {
