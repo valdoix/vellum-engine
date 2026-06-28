@@ -58,23 +58,34 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
     : '';
   const gen = await internalGenerate(
     [{ role: 'system', content: SUMMARY_SYS + nameHint }, { role: 'user', content: src }],
-    { temperature: 0.2, max_tokens: 500 },
+    { temperature: 0.2, max_tokens: 1200 },
     userId,
     { reasoningOff: true },
   );
   if (gen.ok && gen.value.trim()) {
-    const body = gen.value.trim();
+    // strip any leaked thinking, fences, then peel KEYS off the end
+    let body = gen.value.replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
     const km = body.match(/KEYS:\s*(.+)\s*$/i);
-    if (km) { keys = km[1]!.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 12); text = body.slice(0, km.index).trim(); }
-    else text = body;
-    text = text.replace(/```[a-z]*\n?|```/gi, '').trim();
+    if (km) { keys = km[1]!.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 12); body = body.slice(0, km.index).trim(); }
+    text = body;
   } else {
     // fallback (LLM unavailable): a COMPACT structural digest, not raw prose.
     // Take the first sentence of each source memory so it reads as a record and
     // never cuts mid-word. Better than dumping concatenated narrative.
     text = fallbackDigest(state, plan);
   }
-  return chapterEvents(plan, text.slice(0, 1200), keys, state.turns || plan.covers[1], state.day || 0, nextSeq);
+  return chapterEvents(plan, capText(text, 1200), keys, state.turns || plan.covers[1], state.day || 0, nextSeq);
+}
+
+/** Cap to a length at a sentence boundary if possible, else a word boundary —
+ * never mid-word. Keeps a long LLM summary from being hard-sliced ugly. */
+function capText(t: string, max: number): string {
+  const s = t.trim();
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const lastStop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  if (lastStop > max * 0.6) return cut.slice(0, lastStop + 1).trim();
+  return cut.replace(/\s+\S*$/, '').trim() + '\u2026';
 }
 
 /** Sentence-bounded structural digest used when host generation is unavailable.

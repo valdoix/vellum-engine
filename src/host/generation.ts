@@ -3,6 +3,27 @@ import { has } from './capability.js';
 
 declare const spindle: any;
 
+/** Pull generated text from whichever channel it lands in. `reasoning: off`
+ * doesn't cover every provider (OpenRouter etc. still think), so the answer can
+ * arrive in the reasoning / reasoning_details channel instead of `content`.
+ * Mirrors legacy extractGenContent — without this, summaries come back empty or
+ * truncated when the model reasons. */
+function extractGenContent(r: any): string {
+  if (!r) return '';
+  if (typeof r === 'string') return r;
+  const pick = (v: unknown): string => (typeof v === 'string' && v.trim() ? v : '');
+  let c = pick(r.content) || pick(r.message?.content) || pick(r.text);
+  if (c) return c;
+  c = pick(r.reasoning) || pick(r.reasoning_content);
+  if (c) return c;
+  const rd = r.reasoning_details || r.reasoningDetails;
+  if (Array.isArray(rd)) {
+    const joined = rd.map((d: any) => (d && (d.text || d.summary || d.content)) || '').filter(Boolean).join('\n');
+    if (joined.trim()) return joined;
+  }
+  return '';
+}
+
 /**
  * Host text generation for internal tasks (summarization). Uses the user's
  * connection via spindle.generate.raw / .quiet, mirroring the legacy path.
@@ -26,8 +47,7 @@ export async function internalGenerate(
     const r = spindle.generate.quiet
       ? await spindle.generate.quiet(req)
       : await spindle.generate.raw(req);
-    const text = typeof r === 'string' ? r : (r?.content ?? r?.text ?? r?.message?.content ?? '');
-    return String(text || '');
+    return extractGenContent(r);
   });
 }
 

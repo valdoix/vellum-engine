@@ -33,4 +33,15 @@ describe('summarize fallback (no host generation)', () => {
     const evs = await summarizeOnce(stateWithTurnMemories(3), null, 8);
     expect(evs).toEqual([]);
   });
+
+  it('never stores a summary cut mid-word', async () => {
+    const evs = await summarizeOnce(stateWithTurnMemories(8), null, 8);
+    const chapter = evs.find((e: any) => e.kind === 'memory.record') as any;
+    const text: string = chapter.text;
+    expect(text.length).toBeLessThanOrEqual(1200);
+    // ends on sentence punctuation, ellipsis, or a complete word — not a fragment
+    const last = text.trim().slice(-1);
+    const endsClean = /[.!?\u2026)]/.test(last) || !text.includes('\u2026') ;
+    expect(endsClean).toBe(true);
+  });
 });
