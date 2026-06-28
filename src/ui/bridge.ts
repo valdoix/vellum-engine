@@ -60,15 +60,20 @@ const _filter = new Map<string, FilterState>();
 export function filterOf(listId: string): FilterState { return _filter.get(listId) ?? { sort: 'desc', cat: 'all', who: 'all' }; }
 export function setFilter(listId: string, patch: Partial<FilterState>): void { _filter.set(listId, { ...filterOf(listId), ...patch }); setPage(listId, 0); }
 
-/** Render a filter bar: sort toggle + optional category + per-character selects. */
-export function filterBar(listId: string, opts: { cats?: string[]; whos?: Array<{ id: string; name: string }> }): string {
+/** Render a filter bar: sort toggle + optional category + per-character selects.
+ * `counts`/`whoCounts` (keyed by option value) append an amount to each label,
+ * with the grand total shown on the "all" option. */
+export function filterBar(listId: string, opts: { cats?: string[]; whos?: Array<{ id: string; name: string }>; counts?: Record<string, number>; whoCounts?: Record<string, number> }): string {
   const f = filterOf(listId);
   const sort = `<button class="vle-fb-btn" data-filter-sort="${listId}" title="Sort by date">${f.sort === 'desc' ? '\u2193 newest' : '\u2191 oldest'}</button>`;
+  const n = (v: number | undefined): string => (v === undefined ? '' : ` (${v})`);
+  const catTotal = opts.counts ? Object.values(opts.counts).reduce((a, b) => a + b, 0) : undefined;
   const cat = opts.cats?.length
-    ? `<select class="vle-fb-sel" data-filter-cat="${listId}"><option value="all">all kinds</option>${opts.cats.map((c) => `<option value="${esc(c)}"${f.cat === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>`
+    ? `<select class="vle-fb-sel" data-filter-cat="${listId}"><option value="all">all kinds${n(catTotal)}</option>${opts.cats.map((c) => `<option value="${esc(c)}"${f.cat === c ? ' selected' : ''}>${esc(c)}${n(opts.counts?.[c])}</option>`).join('')}</select>`
     : '';
+  const whoTotal = opts.whoCounts ? Object.values(opts.whoCounts).reduce((a, b) => a + b, 0) : undefined;
   const who = opts.whos?.length
-    ? `<select class="vle-fb-sel" data-filter-who="${listId}"><option value="all">everyone</option>${opts.whos.map((w) => `<option value="${esc(w.id)}"${f.who === w.id ? ' selected' : ''}>${esc(w.name)}</option>`).join('')}</select>`
+    ? `<select class="vle-fb-sel" data-filter-who="${listId}"><option value="all">everyone${n(whoTotal)}</option>${opts.whos.map((w) => `<option value="${esc(w.id)}"${f.who === w.id ? ' selected' : ''}>${esc(w.name)}${n(opts.whoCounts?.[w.id])}</option>`).join('')}</select>`
     : '';
   return `<div class="vle-fbar" data-fbar="${listId}">${sort}${cat}${who}</div>`;
 }

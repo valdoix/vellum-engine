@@ -28,6 +28,13 @@ const SENT_CLS: Record<string, string> = { positive: 'pos', negative: 'neg', neu
 // "book" view: when set, show one character's full journal on its own page
 let _openBook: string | null = null;
 
+/** Tally journal entries by a key extractor → {value: count} for filter labels. */
+function jCounts(s: ChronicleState, key: (j: ChronicleState['journal'][number]) => string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const j of s.journal) { const k = key(j); out[k] = (out[k] ?? 0) + 1; }
+  return out;
+}
+
 export const journalTab: Component<ChronicleState> = {
   version: (s) => s.journal.length + ':' + Object.keys(s.cast).length + ':' + (_openBook ?? ''),
   render(s) {
@@ -40,7 +47,7 @@ export const journalTab: Component<ChronicleState> = {
       const n = s.journal.filter((j) => j.who === w.id).length;
       return `<button class="vle-book" data-jr-book="${esc(w.id)}">${esc(w.name)} <span class="vle-book-n">${n}</span></button>`;
     }).join('') + '</div>';
-    const bar = filterBar('journal', { cats: KIND_OPTS.map((k) => k.value), whos });
+    const bar = filterBar('journal', { cats: KIND_OPTS.map((k) => k.value), whos, counts: jCounts(s, (j) => j.kind), whoCounts: jCounts(s, (j) => j.who) });
     const filtered = applyFilter('journal', s.journal, { cat: (j) => j.kind, who: (j) => j.who });
     if (!filtered.length) return header + shelf + bar + emptyState('No entries match the filter.');
     const { slice, page, pages } = paginate('journal', filtered);

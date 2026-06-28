@@ -32,7 +32,11 @@ export const relationsTab: Component<ChronicleState> = {
     const cats = Array.from(new Set(s.relations.flatMap((r) => catsOf(r)))).sort();
     const ids = Array.from(new Set(s.relations.flatMap((r) => [r.a, r.b])));
     const whos = ids.map((id) => ({ id, name: nameOf(s, id) })).sort((a, b) => a.name.localeCompare(b.name));
-    const bar = filterBar('relations', { cats, whos });
+    const counts: Record<string, number> = {};
+    for (const r of s.relations) for (const c of catsOf(r)) counts[c] = (counts[c] ?? 0) + 1;
+    const whoCounts: Record<string, number> = {};
+    for (const r of s.relations) { whoCounts[r.a] = (whoCounts[r.a] ?? 0) + 1; if (r.b !== r.a) whoCounts[r.b] = (whoCounts[r.b] ?? 0) + 1; }
+    const bar = filterBar('relations', { cats, whos, counts, whoCounts });
     const f = filterOf('relations');
     let rels = s.relations.filter((r) => (f.cat === 'all' || catsOf(r).includes(f.cat as Relation['category']))
       && (f.who === 'all' || r.a === f.who || r.b === f.who));

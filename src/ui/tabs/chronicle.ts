@@ -118,10 +118,12 @@ function timeline(s: ChronicleState): string {
   // filter bars: kind (group) + day. Days are sparse, so only offer ones present.
   const KINDS: Array<[string, string]> = [['all', 'all'], ['memory', '\u25C9 memory'], ['knew', '\u25C8 knowledge'], ['secret', '\u26C0 secrets'], ['journal', '\u270E journal']];
   const days = Array.from(new Set(rows.map((r) => r.day).filter((d): d is number => typeof d === 'number'))).sort((a, b) => a - b);
+  const gCount = (g: string): number => g === 'all' ? rows.length : rows.filter((r) => r.group === g).length;
   const kindBar = '<div class="vle-fbar">' + KINDS.map(([v, l]) =>
-    `<button class="vle-fb-btn${_tlKind === v ? ' on' : ''}" data-tl-kind="${v}">${l}</button>`).join('') + '</div>';
+    `<button class="vle-fb-btn${_tlKind === v ? ' on' : ''}" data-tl-kind="${v}">${l} <span class="vle-n">${gCount(v)}</span></button>`).join('') + '</div>';
+  const dayCount = (d: number): number => rows.filter((r) => r.day === d).length;
   const dayBar = days.length ? '<div class="vle-fbar"><button class="vle-fb-btn' + (_tlDay === 'all' ? ' on' : '') + '" data-tl-day="all">all days</button>'
-    + days.map((d) => `<button class="vle-fb-btn${_tlDay === String(d) ? ' on' : ''}" data-tl-day="${d}">d${d}</button>`).join('') + '</div>' : '';
+    + days.map((d) => `<button class="vle-fb-btn${_tlDay === String(d) ? ' on' : ''}" data-tl-day="${d}">d${d} <span class="vle-n">${dayCount(d)}</span></button>`).join('') + '</div>' : '';
 
   let shown = rows;
   if (_tlKind !== 'all') shown = shown.filter((r) => r.group === _tlKind);
@@ -139,7 +141,7 @@ function timeline(s: ChronicleState): string {
 function memories(s: ChronicleState): string {
   const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: '<button class="vle-add sm" data-mem-add>+</button>' });
   if (!s.memories.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
-  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'] });
+  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: s.memories.filter((m) => m.tier === 'turn').length, chapter: s.memories.filter((m) => m.tier === 'chapter').length, arc: s.memories.filter((m) => m.tier === 'arc').length } });
   const filtered = applyFilter('memories', s.memories, { cat: (m) => m.tier });
   const { slice, page, pages } = paginate('memories', filtered);
   const rows = slice.map((m: Memory) =>
@@ -162,7 +164,9 @@ function knowledge(s: ChronicleState): string {
   const head = sectionHeader('\u25C8 Knowledge', { sub: true, count: s.knowledge.length, action: '<button class="vle-add sm" data-know-add>+</button>' });
   if (!s.knowledge.length) return head + emptyState('Nothing known yet.', 'Who-knows-what fills in as the story reveals it.');
   const whos = Array.from(new Set(s.knowledge.map((k) => k.who))).map((id) => ({ id, name: nameOf(s, id) }));
-  const bar = filterBar('knowledge', { whos });
+  const whoCounts: Record<string, number> = {};
+  for (const k of s.knowledge) whoCounts[k.who] = (whoCounts[k.who] ?? 0) + 1;
+  const bar = filterBar('knowledge', { whos, whoCounts });
   const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
   const { slice, page, pages } = paginate('knowledge', filtered);
   const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
@@ -176,7 +180,9 @@ function secrets(s: ChronicleState): string {
   const head = sectionHeader('\u26C0 Secrets', { sub: true, count: s.secrets.length, action: '<button class="vle-add sm" data-sec-add>+</button>' });
   if (!s.secrets.length) return head + emptyState('No secrets yet.', 'Hidden knowledge appears here as characters keep things from each other.');
   const whos = Array.from(new Set(s.secrets.map((x) => x.keeper))).map((id) => ({ id, name: nameOf(s, id) }));
-  const bar = filterBar('secrets', { whos });
+  const whoCounts: Record<string, number> = {};
+  for (const x of s.secrets) whoCounts[x.keeper] = (whoCounts[x.keeper] ?? 0) + 1;
+  const bar = filterBar('secrets', { whos, whoCounts });
   const filtered = applyFilter('secrets', s.secrets.map((x) => ({ ...x, turn: x.formedTurn })), { who: (x) => x.keeper });
   const { slice, page, pages } = paginate('secrets', filtered);
   const rows = slice.map((sec) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
