@@ -877,6 +877,27 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (chatId) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); spindle.sendToFrontend?.({ type: 'vellum_rescan_done', ok: true }, uid); }
   },
+  vellum_refresh: async (p, uid) => {
+    // REFRESH TRACKER: re-fold the LATEST turn even if it was already folded
+    // (wrongly). rescan only folds turns AFTER the last one, so a turn that
+    // mis-folded — e.g. fell to the regex parser before a parser fix — can't be
+    // corrected by it. Here we drop the latest turn's events and re-fold it from
+    // the raw message with current parser logic, preserving all earlier history.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_refresh_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    const state = await loadState(chatId);
+    const maxTurn = state.turns || 0;
+    if (maxTurn <= 0) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); spindle.sendToFrontend?.({ type: 'vellum_refresh_done', ok: true, refolded: 0 }, uid); return; }
+    try {
+      await truncateAfterTurn(chatId, maxTurn - 1); // drop the latest turn's events
+      lastSigByChat.delete(chatId);                  // clear the dedupe sig so it re-folds
+      await foldChat(chatId, uid);                   // re-fold the latest turn cleanly
+      spindle.sendToFrontend?.({ type: 'vellum_refresh_done', ok: true, refolded: maxTurn }, uid);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] refresh: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_refresh_done', ok: false, reason: 'error' }, uid);
+    }
+  },
   vellum_set_hide: async (p, uid) => {
     // toggle hide-summarized-turns; persist the preference in a chat var
     const chatId = p?.chatId || (await activeChatId(uid));

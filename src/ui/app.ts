@@ -462,8 +462,8 @@ export function setup(ctx: Ctx): () => void {
   // beautiful floating window â€” a live scene DASHBOARD with a refresh button
   const float: FloatWindow = createFloatWindow({
     title: 'VELLUM',
-    actions: [{ id: 'refresh', label: '\u27F3', title: 'Refresh' }],
-    onAction: (id) => { if (id === 'refresh') ctx.sendToBackend({ type: 'vellum_get_state' }); },
+    actions: [{ id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' }],
+    onAction: (id) => { if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); ctx.toast?.info?.('Refreshing the tracker\u2026'); } },
     render: (host) => {
       try { host.innerHTML = `<div class="vld">${dashboardHtml(getState())}</div>`; } catch (e) { try { console.warn('[vellum] dashboard render failed:', e); } catch { /* ignore */ } host.innerHTML = '<div class="vld"><div class="vle-empty sm">Dashboard hit an error. Hit refresh.</div></div>'; }
       if (!host.hasAttribute('data-phone-wired')) { host.setAttribute('data-phone-wired', '1'); host.addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-phone-sec]'); if (d) { setPhoneSection(d.getAttribute('data-phone-sec')!); refreshUI(); } }); }
@@ -540,6 +540,8 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_rescan_done') {
         setQolBusy('rescan', false);
         ctx.toast?.success?.('Rescanned.');
+      } else if (p?.type === 'vellum_refresh_done') {
+        ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? (p.refolded ? `Re-folded turn ${p.refolded}.` : 'Tracker refreshed.') : (p.reason === 'no_active_chat' ? 'No active chat.' : 'Refresh failed.'));
       } else if (p?.type === 'vellum_undo_done') {
         setQolBusy('undo', false);
         ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
