@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { reduce } from '../src/core/reduce.js';
 import { cmdEvents } from '../src/domain/commands.js';
-import { nameHtml, lowContrast } from '../src/ui/format.js';
+import { nameHtml, lowContrast, setAutoNameMode } from '../src/ui/format.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
 function withCast(): ChronicleState {
@@ -67,5 +67,46 @@ describe('nameHtml', () => {
     expect(nameHtml(s, 'cersei')).toContain('vle-name--lift');
     expect(lowContrast('#010101')).toBe(true);
     expect(lowContrast('#ffffff')).toBe(false);
+  });
+});
+
+describe('auto name color', () => {
+  function two(): ChronicleState {
+    const s = freshState();
+    s.cast = {
+      cersei: { id: 'cersei', name: 'Cersei', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false },
+      jaime: { id: 'jaime', name: 'Jaime', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false },
+    } as any;
+    return s;
+  }
+  afterEach(() => setAutoNameMode('off'));
+
+  it('off → plain text (today\u2019s default)', () => {
+    setAutoNameMode('off');
+    expect(nameHtml(two(), 'cersei')).toBe('Cersei');
+  });
+
+  it('solid → a deterministic colored span, distinct per character', () => {
+    setAutoNameMode('solid');
+    const s = two();
+    const a = nameHtml(s, 'cersei'), b = nameHtml(s, 'jaime');
+    expect(a).toContain('color:#');
+    expect(a).not.toContain('--grad');
+    expect(nameHtml(s, 'cersei')).toBe(a); // deterministic (same id → same color)
+    expect(a).not.toBe(b);                  // distinct ids → distinct colors
+  });
+
+  it('gradient → a clip-text gradient span', () => {
+    setAutoNameMode('gradient');
+    const h = nameHtml(two(), 'cersei');
+    expect(h).toContain('vle-name--grad');
+    expect(h).toMatch(/--c1:#[0-9a-f]{6}/);
+    expect(h).toMatch(/--c2:#[0-9a-f]{6}/);
+  });
+
+  it('an explicit per-character color WINS over auto', () => {
+    setAutoNameMode('solid');
+    const s = two(); s.cast.cersei!.color = '#abcdef';
+    expect(nameHtml(s, 'cersei')).toContain('color:#abcdef');
   });
 });

@@ -1,4 +1,5 @@
 import type { ChronicleState, Relation, CastCard } from '../domain/types.js';
+import { hash01 } from '../core/ids.js';
 
 /** Small formatting helpers shared across UI components. Pure, no DOM. */
 
@@ -51,33 +52,68 @@ export function nameOf(state: ChronicleState, id: string): string {
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 
 /**
- * Render a character's name with their optional color/gradient, applied
- * everywhere names show. No color → plain escaped text (today's output). Solid →
- * `color`. Gradient (color + colorTo) → background-clip:text. Hex is re-validated
- * here (defense in depth) so a bad value can't inject style. */
+ * AUTO name color: derive a stable, distinct color per character from their id,
+ * so the whole cast gets readable, consistent colors without manual picking.
+ * Mode is persisted (localStorage); an EXPLICIT per-character color always wins.
+ *   off      → inherited ink (today's default)
+ *   solid    → one deterministic hue
+ *   gradient → that hue → a complementary-ish second hue
+ */
+type AutoMode = 'off' | 'solid' | 'gradient';
+const AKEY = 'vellum2.autoname';
+let _auto: AutoMode = loadAuto();
+function loadAuto(): AutoMode { try { const v = localStorage.getItem(AKEY); return v === 'solid' || v === 'gradient' ? v : 'off'; } catch { return 'off'; } }
+export function autoNameMode(): AutoMode { return _auto; }
+export function setAutoNameMode(m: AutoMode): void { _auto = m; try { if (m === 'off') localStorage.removeItem(AKEY); else localStorage.setItem(AKEY, m); } catch { /* ignore */ } }
+
+/** Deterministic, readable HSL hex from a seed. Mid-high lightness + saturation
+ * so it reads on the dark VELLUM surfaces; hue spread across the wheel by hash. */
+function autoHue(seed: string, shift = 0): string {
+  const h = Math.floor(hash01(seed) * 360 + shift) % 360;
+  return hslHex(h, 60, 68);
+}
+function hslHex(h: number, s: number, l: number): string {
+  s /= 100; l /= 100;
+  const k = (n: number): number => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number): number => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const to = (x: number): string => Math.round(x * 255).toString(16).padStart(2, '0');
+  return '#' + to(f(0)) + to(f(8)) + to(f(4));
+}
+
+/** Resolve the [color, colorTo?] a name should render with: explicit card colors
+ * win; else the auto mode derives from the id; else none. */
+function resolveColor(id: string, color?: string, colorTo?: string): { c: string; to: string } {
+  const c = color && HEX6.test(color) ? color : '';
+  if (c) return { c, to: colorTo && HEX6.test(colorTo) ? colorTo : '' };
+  if (_auto === 'off' || !id) return { c: '', to: '' };
+  const base = autoHue(id);
+  return { c: base, to: _auto === 'gradient' ? autoHue(id, 150) : '' };
+}
+
+function paint(label: string, c: string, to: string): string {
+  if (!c) return label;
+  if (to) return `<span class="vle-name vle-name--grad" style="--c1:${c};--c2:${to}">${label}</span>`;
+  const lift = lowContrast(c) ? ' vle-name--lift' : '';
+  return `<span class="vle-name${lift}" style="color:${c}">${label}</span>`;
+}
+
+/**
+ * Render a character's name with color, applied everywhere names show. Priority:
+ * explicit per-character color/gradient → auto mode (deterministic per id) →
+ * plain ink. Hex is re-validated (defense in depth) so a bad value can't inject
+ * style; the name is always escaped. */
 export function nameHtml(state: ChronicleState, id: string): string {
   const c = state.cast[id];
-  const label = esc(c?.name ?? id);
-  const col = c?.color && HEX6.test(c.color) ? c.color : '';
-  if (!col) return label;
-  const to = c?.colorTo && HEX6.test(c.colorTo) ? c.colorTo : '';
-  if (to) return `<span class="vle-name vle-name--grad" style="--c1:${col};--c2:${to}">${label}</span>`;
-  // contrast guardrail: a very dark solid color gets a subtle light lift so it
-  // stays legible on dark surfaces (automatic, non-blocking — better than a warning).
-  const lift = lowContrast(col) ? ' vle-name--lift' : '';
-  return `<span class="vle-name${lift}" style="color:${col}">${label}</span>`;
+  const { c: col, to } = resolveColor(id, c?.color, c?.colorTo);
+  return paint(esc(c?.name ?? id), col, to);
 }
 
 /** Like nameHtml but from a CastCard directly (call sites that already hold the
  * card, e.g. the cast grid). */
 export function nameHtmlCard(c: CastCard): string {
-  const label = esc(c.name);
-  const col = c.color && HEX6.test(c.color) ? c.color : '';
-  if (!col) return label;
-  const to = c.colorTo && HEX6.test(c.colorTo) ? c.colorTo : '';
-  if (to) return `<span class="vle-name vle-name--grad" style="--c1:${col};--c2:${to}">${label}</span>`;
-  const lift = lowContrast(col) ? ' vle-name--lift' : '';
-  return `<span class="vle-name${lift}" style="color:${col}">${label}</span>`;
+  const { c: col, to } = resolveColor(c.id, c.color, c.colorTo);
+  return paint(esc(c.name), col, to);
 }
 
 /** Relative luminance (0..1) of a #rrggbb, per WCAG. For the contrast guardrail. */
