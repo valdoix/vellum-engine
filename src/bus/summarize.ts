@@ -23,6 +23,9 @@ declare const spindle: any;
 //            nouns/places/objects/actions; NOT abstract themes or character names).
 const SUMMARY_SYS =
   'You are a story archivist. Compress the roleplay excerpt into a CHAPTER record for long-term memory. '
+  + 'GROUND EVERYTHING in the provided turns: record ONLY events, decisions, and revelations that actually occur in the '
+  + 'excerpt. Do NOT invent, infer motives not stated, embellish, or add events that did not happen. If something is '
+  + 'ambiguous, omit it rather than guess. Prefer the exact who/what/where as written. '
   + 'Respond in EXACTLY this layout, nothing before or after:\n'
   + 'DETAIL:\n'
   + '<a dense beat-by-beat record in PAST TENSE, third person, using real names. Lead with the day/time if known. '

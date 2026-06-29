@@ -89,6 +89,7 @@ const QOL = [
   { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)', group: 'maint' },
   { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)', group: 'maint' },
   { id: 'tidyfacts', label: '\u2702 Tidy lore', title: 'Fold near-duplicate knowledge & secrets now (needs generation permission)', group: 'maint' },
+  { id: 'resummarize', label: '\u27F3 Re-summarize all', title: 'Rebuild every chapter summary from scratch with the current pipeline (needs generation permission)', group: 'maint' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
@@ -401,6 +402,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'tone') { openToneModal(ctx); }
   else if (id === 'tidy') { setQolBusy('tidy', true); ctx.sendToBackend({ type: 'vellum_tidy_now' }); notify(ctx, 'info', 'Reconciling plot threads\u2026'); }
   else if (id === 'tidyfacts') { setQolBusy('tidyfacts', true); ctx.sendToBackend({ type: 'vellum_tidy_facts_now' }); notify(ctx, 'info', 'Folding duplicate knowledge & secrets\u2026'); }
+  else if (id === 'resummarize') { setQolBusy('resummarize', true); ctx.sendToBackend({ type: 'vellum_resummarize' }); notify(ctx, 'info', 'Rebuilding all chapter summaries\u2026'); }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => { setQolBusy('clear', true); ctx.sendToBackend({ type: 'vellum_clear' }); }); }
@@ -557,6 +559,10 @@ export function setup(ctx: Ctx): () => void {
         } else if (v && (v.created || v.updated)) {
           notify(ctx, 'success', `Vault: ${v.created} chapter${v.created === 1 ? '' : 's'} saved${v.updated ? `, ${v.updated} updated` : ''}.`);
         }
+      } else if (p?.type === 'vellum_resummarize_done') {
+        setQolBusy('resummarize', false);
+        if (!p.ok) notify(ctx, 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : 'Re-summarize failed.');
+        else notify(ctx, 'success', p.rounds ? `Rebuilt ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'No chapters to rebuild.');
       } else if (p?.type === 'vellum_cleared') {
         setQolBusy('clear', false);
         notify(ctx, 'success', 'Chronicle cleared.');

@@ -54,7 +54,7 @@ function splitList(v: unknown): string[] {
 const _dismissed = new Map<string, Set<string>>();
 function dismissedFor(chatId: string): Set<string> { let s = _dismissed.get(chatId); if (!s) { s = new Set(); _dismissed.set(chatId, s); } return s; }
 
-/** Snapshot + scene-coverage suggestions â†’ broadcast the full vault view. */
+/** Snapshot + scene-coverage suggestions Ã¢â€ â€™ broadcast the full vault view. */
 async function vaultBroadcast(chatId: string, uid: string | null): Promise<void> {
   const categories = await loadCategories();
   const snap = await vaultSnapshot(chatId, uid);
@@ -73,7 +73,7 @@ declare const spindle: any;
 
 /**
  * Backend entrypoint. Registers features, folds each turn into the event log,
- * and serves the frontend via a dispatch table. Everything is guarded â€” the
+ * and serves the frontend via a dispatch table. Everything is guarded Ã¢â‚¬â€ the
  * worker must never crash the host. New features call registerFeature() and
  * (if they need UI) add a message handler in the dispatch table below.
  */
@@ -108,7 +108,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives }, userId ?? currentUser());
 }
 
-/** FOLD: read the raw turn, parse â†’ events â†’ append â†’ broadcast. */
+/** FOLD: read the raw turn, parse Ã¢â€ â€™ events Ã¢â€ â€™ append Ã¢â€ â€™ broadcast. */
 const _foldChain = new Map<string, Promise<void>>();
 function foldChat(chatId: string, userId: string | null, hint?: string): Promise<void> {
   // serialize folds per chat: concurrent triggers (GENERATION_ENDED +
@@ -121,24 +121,41 @@ function foldChat(chatId: string, userId: string | null, hint?: string): Promise
   return next;
 }
 
-/** Content signature for a turn — MUST match foldTurn's sig (hashStr of the
+/** Content signature for a turn â€” MUST match foldTurn's sig (hashStr of the
  * first 4000 chars of the trimmed content) so stored and current sigs compare. */
 function sigOf(content: string): string { return hashStr(content.slice(0, 4000)); }
 
+/** Per-turn memory text fed to the summarizer: strip the vellum/reverie blocks,
+ * collapse whitespace, then keep a GENEROUS window cut at a sentence boundary
+ * (not a hard mid-word slice). Accuracy of chapter summaries depends on this â€”
+ * the old 600-char hard cut dropped most of each turn, so summaries were built
+ * on fragments. ~1600 chars holds the full beat of a typical turn. */
+function turnGist(content: string): string {
+  const s = content
+    .replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '')
+    .replace(/<reverie>[\s\S]*?<\/reverie>/gi, '')
+    .replace(/\s+/g, ' ').trim();
+  const MAX = 1600;
+  if (s.length <= MAX) return s;
+  const cut = s.slice(0, MAX);
+  const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  return stop > MAX * 0.5 ? cut.slice(0, stop + 1).trim() : cut.replace(/\s+\S*$/, '').trim();
+}
+
 /**
  * Find the lowest already-folded turn whose content changed (regenerate/edit),
- * or the new turn count if messages were deleted — i.e. the turn to roll BACK
- * to (return = keep turns ≤ N). Returns null when nothing earlier diverged.
+ * or the new turn count if messages were deleted â€” i.e. the turn to roll BACK
+ * to (return = keep turns â‰¤ N). Returns null when nothing earlier diverged.
  */
 async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number): Promise<number | null> {
   if (foldedTurns <= 0) return null;
-  // messages deleted: fewer assistant turns than we folded → roll back to the new count
+  // messages deleted: fewer assistant turns than we folded â†’ roll back to the new count
   if (msgs.length < foldedTurns) return msgs.length;
   const sigs = await turnSigs(chatId);
   for (let turnNo = 1; turnNo <= foldedTurns; turnNo++) {
     const stored = sigs.get(turnNo);
-    if (stored === undefined) continue; // turn had no fold marker — skip
-    // legacy constant sigs (pre-reconcile builds) can't be compared — skip them
+    if (stored === undefined) continue; // turn had no fold marker â€” skip
+    // legacy constant sigs (pre-reconcile builds) can't be compared â€” skip them
     // so we never roll back a chronicle folded by an older version.
     if (stored === 'auto' || stored === 'rebuild') continue;
     const cur = sigOf((msgs[turnNo - 1] ?? '').trim());
@@ -148,7 +165,7 @@ async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number)
 }
 
 /** Read the per-chat tone dials (romance pace + world disposition) the user set
- * via the Tone control. Defaults to neutral (medium/fair) → today's behavior. */
+ * via the Tone control. Defaults to neutral (medium/fair) â†’ today's behavior. */
 async function readTone(chatId: string, userId: string | null): Promise<Tone> {
   void userId;
   const r = await getChatVar(chatId, 'vellum_romance');
@@ -204,14 +221,14 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     const { events, source } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
     const evs: VellumEvent[] = [...events];
     if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
-    const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
-    if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
+    const gist = turnGist(content);
+    if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
     foldedEvents.push(...evs);
     prior = await append(chatId, evs);
     added += evs.length;
     // prose-driven extraction: knowledge / secrets / journal / bonds (incl. the
     // player) the model didn't hand-write in a <vellum> block. When the turn had
-    // NO parseable block (source 'none'/'regex'), this is the SAFETY NET — the
+    // NO parseable block (source 'none'/'regex'), this is the SAFETY NET â€” the
     // schema-guaranteed extractor mines the structure from prose so a forgotten
     // block never means lost continuity. Best-effort; never throws into the fold.
     const hadBlock = source === 'json';
@@ -242,7 +259,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   } catch { /* best effort */ }
   // Plot Director continuity alarm: passive, non-blocking warnings comparing the
   // fold's events to the PRE-fold state (snapshot, so reveals/learns aren't yet
-  // applied). Advisory only — surfaced as a toast + in the Director panel.
+  // applied). Advisory only â€” surfaced as a toast + in the Director panel.
   try {
     const warnings = checkContinuity(foldedEvents, preFold);
     if (warnings.length) spindle.sendToFrontend?.({ type: 'vellum_continuity', chatId, warnings }, userId ?? currentUser());
@@ -261,9 +278,9 @@ const _tidying = new Set<string>();
 const TIDY_THRESHOLD = 8; // auto-tidy only once open-thread count exceeds this
 
 /**
- * Layer 3 — reconcile near-duplicate threads/arcs via a cheap controller LLM.
+ * Layer 3 â€” reconcile near-duplicate threads/arcs via a cheap controller LLM.
  * Returns the number of tracks merged away. Honors the generation permission;
- * any failure (no perm, timeout, unparseable, nothing valid) → 0, no events.
+ * any failure (no perm, timeout, unparseable, nothing valid) â†’ 0, no events.
  * Serialized per chat. Both threads and arcs are swept.
  */
 async function tidyThreads(chatId: string, userId: string | null): Promise<number> {
@@ -298,8 +315,8 @@ async function tidyThreads(chatId: string, userId: string | null): Promise<numbe
 
 const _tidyingFacts = new Set<string>();
 /**
- * Tidy Knowledge/Secrets — the knowledge/secret sibling of tidyThreads. For each
- * holder with ≥2 entries, a cheap controller LLM groups near-duplicate facts the
+ * Tidy Knowledge/Secrets â€” the knowledge/secret sibling of tidyThreads. For each
+ * holder with â‰¥2 entries, a cheap controller LLM groups near-duplicate facts the
  * reducer dedup can't catch (different wording, no shared token); emits
  * knowledge.merge / secret.merge to fold them. Generation-gated, serialized per
  * chat. Returns the count of folded entries.
@@ -351,10 +368,10 @@ const _simulating = new Set<string>();
 const SIM_CADENCE = 3; // tick the off-screen world every Nth turn (cost control)
 
 /**
- * Off-screen simulation tick — advance characters who aren't in the scene. Opt-in
+ * Off-screen simulation tick â€” advance characters who aren't in the scene. Opt-in
  * (chat var) + generation-permission-gated + cadence-throttled + serialized per
  * chat, exactly like tidyThreads. One bounded controller call; respects locks,
- * armed directives, and tone. Fail/timeout/empty → no-op. Beats are tagged
+ * armed directives, and tone. Fail/timeout/empty â†’ no-op. Beats are tagged
  * src:'sim' so the UI distinguishes them; the append-only log makes them undoable.
  */
 async function simulateOffscreen(chatId: string, userId: string | null): Promise<void> {
@@ -460,7 +477,7 @@ async function readChapterVaultMode(chatId: string): Promise<ChapterVaultMode> {
 }
 
 /**
- * Hybrid chapter memory — VAULT projection (the I/O half). Mirrors each chapter/
+ * Hybrid chapter memory â€” VAULT projection (the I/O half). Mirrors each chapter/
  * arc memory's DETAIL into a world-book entry so the host injects it on keyword
  * relevance, outside VELLUM's recall budget. Reconciles create/update/delete and
  * round-trips user-edited keys back into the chronicle (memory.link). Pure diff
@@ -505,12 +522,12 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
       if (r.ok && r.value) linkEvents.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: 'memory.link', id: c.memId, vaultEntryId: r.value, keys: c.input.key } as VellumEvent);
     }
     for (const u of plan.update) {
-      // content/constant only — keys are owned by the entry post-creation and
+      // content/constant only â€” keys are owned by the entry post-creation and
       // round-trip via keySync, so we never clobber a user's edited keywords.
       await updateEntry(u.entryId, { content: u.input.content, constant: u.input.settings.constant ?? false, extensions: { vellum: true, vellumCategory: u.input.category, vellumSource: 'chapter', vellumLink: u.input.link } }, userId);
     }
     for (const k of plan.keySync) {
-      // user edited the entry's keys → pull them back to the chronicle memory
+      // user edited the entry's keys â†’ pull them back to the chronicle memory
       linkEvents.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: 'memory.link', id: k.memId, vaultEntryId: k.entryId, keys: k.keys } as VellumEvent);
     }
     for (const entryId of plan.remove) await deleteEntry(entryId, userId);
@@ -555,7 +572,7 @@ const AUTO_SUMMARY_AT = 16; // compress the oldest 8 once 16 turn-memories accru
 async function boot(): Promise<void> {
   await restoreUser();
   await wireCapabilities(); // attach interceptor + generation fold if already granted
-  spindle.log?.info?.('[vellum_engine] booted â€” event-log core online');
+  spindle.log?.info?.('[vellum_engine] booted Ã¢â‚¬â€ event-log core online');
 }
 void boot();
 
@@ -589,10 +606,10 @@ async function traversalController(chatId: string, uid: string | null, perCallMs
   );
 }
 
-// PR2 — precomputed tree traversal. After a turn ends we walk the memory/character
+// PR2 â€” precomputed tree traversal. After a turn ends we walk the memory/character
 // tree in the BACKGROUND (nobody waiting) and cache the ranking keyed on
 // logVersion. The interceptor reads the cache instead of drilling live, so tree
-// mode costs ~0 on the prompt path. Stale/missing → live drill (or fallback).
+// mode costs ~0 on the prompt path. Stale/missing â†’ live drill (or fallback).
 interface PrecomputedTree { version: number; result: TreeTraversalResult }
 const _treeCache = new Map<string, PrecomputedTree>();
 const _precomputing = new Set<string>();
@@ -627,7 +644,7 @@ async function precomputeTree(chatId: string, userId: string | null): Promise<vo
 // The host rejects interceptor/generation registration when the permission
 // isn't granted, and won't re-wire on its own when the user grants it later.
 // So we attach each piece behind a capability check, idempotently, and re-run
-// the whole attach pass whenever permissions change â€” no reload required.
+// the whole attach pass whenever permissions change Ã¢â‚¬â€ no reload required.
 let _interceptorWired = false;
 let _genWired = false;
 
@@ -637,7 +654,7 @@ async function wireCapabilities(): Promise<void> {
     try {
       // The host calls (messages, context) and expects the messages array back
       // (or { messages, breakdown }). We PREPEND our injection as a system
-      // message rather than returning a custom shape â€” returning anything
+      // message rather than returning a custom shape Ã¢â‚¬â€ returning anything
       // without `.messages` breaks the host's `normalized.messages`.
       spindle.registerInterceptor(async (messages: any[], context: any) => {
         const out = Array.isArray(messages) ? messages : [];
@@ -653,18 +670,18 @@ async function wireCapabilities(): Promise<void> {
           // buildInjectionHybrid falls back to the deterministic path on any miss.
           const tmode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat';
           // PR2: prefer a fresh precomputed tree ranking (warmed after the last
-          // turn) — zero prompt-path latency. Else drill live, tightening each of
+          // turn) â€” zero prompt-path latency. Else drill live, tightening each of
           // the up-to-4 calls so the inline budget stays bounded (~3.2s).
           const pre = tmode === 'tree' ? getPrecomputedTree(chatId) : null;
           const controller = pre ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
           const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller, tmode, pre);
           // Plot Director: append armed directives as gentle guidance (suggestive,
-          // not a hard block — they self-clear at the fold when fulfilled).
+          // not a hard block â€” they self-clear at the fold when fulfilled).
           const dirText = directiveInjection(await readDirectives(chatId));
           const injText = dirText ? (inj.text ? inj.text + '\n\n' + dirText : dirText) : inj.text;
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
-          // Fix 11 — live retrieval feed: push the record so the Injection tab
+          // Fix 11 â€” live retrieval feed: push the record so the Injection tab
           // streams in real time instead of only on manual Refresh.
           try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
           const head = { role: 'system', content: injText };
@@ -720,7 +737,7 @@ const dispatch: Record<string, Handler> = {
   },
   vellum_rebuild: async (p, uid) => {
     // RECOVER: rebuild the whole chronicle from the chat transcript (the true
-    // source). Clears the derived log, then re-folds every assistant turn — so a
+    // source). Clears the derived log, then re-folds every assistant turn â€” so a
     // wiped/corrupt chronicle can be reconstructed (cast/relations/knowledge/
     // journal) from the messages, which were never lost.
     const chatId = p?.chatId || (await activeChatId(uid));
@@ -741,8 +758,8 @@ const dispatch: Record<string, Handler> = {
         const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
         const evs: VellumEvent[] = [...events];
         if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
-        const gist = content.replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '').replace(/<reverie>[\s\S]*?<\/reverie>/gi, '').replace(/\s+/g, ' ').trim();
-        if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist.slice(0, 600), keys: [] } as VellumEvent);
+        const gist = turnGist(content);
+        if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
         prior = await append(chatId, evs);
         turns++;
         // optional deep extraction per turn (knowledge/secrets/journal) when asked
@@ -785,7 +802,7 @@ const dispatch: Record<string, Handler> = {
     if (p.cmd === 'memory_delete' || p.cmd === 'memory_edit') void maybeChapterVault(chatId, uid);
   },
   vellum_summarize: async (p, uid) => {
-    // manual "summarize past turns" — compress as many full windows as exist.
+    // manual "summarize past turns" â€” compress as many full windows as exist.
     // Broadcast state + a progress count after EACH window so summaries appear
     // one-by-one in the chronicle/vault instead of all at once on reload.
     const chatId = p?.chatId || (await activeChatId(uid));
@@ -801,6 +818,37 @@ const dispatch: Record<string, Handler> = {
     await broadcastState(chatId, uid);
     const vault = await maybeChapterVault(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds, vault }, uid);
+  },
+  vellum_resummarize: async (p, uid) => {
+    // Rebuild ALL chapter summaries with the current pipeline. Drop every chapter
+    // memory (the reducer restores each chapter's subsumed turn-memories), then
+    // re-run summarizeAll over the restored turns. Fixes old/low-quality gists.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'no_generation' }, uid); return; }
+    try {
+      let state = await loadState(chatId);
+      const chapters = state.memories.filter((m) => m.tier === 'chapter');
+      if (chapters.length) {
+        const drops = chapters.map((m) => ({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'memory.drop', id: m.id } as VellumEvent));
+        state = await append(chatId, drops); // reducer restores the subsumed turns
+        invalidateIndex(chatId);
+        await broadcastState(chatId, uid);
+      }
+      const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs), 4, await chatNames(chatId, uid), async (done, total) => {
+        invalidateIndex(chatId);
+        await broadcastState(chatId, uid);
+        await maybeChapterVault(chatId, uid);
+        spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total }, uid);
+      });
+      invalidateIndex(chatId);
+      await broadcastState(chatId, uid);
+      const vault = await maybeChapterVault(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: true, rounds, vault }, uid);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] resummarize: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'error' }, uid);
+    }
   },
   vellum_clear: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
@@ -852,7 +900,7 @@ const dispatch: Record<string, Handler> = {
       else if (p.op === 'entry_create') {
         const cat = resolveCategory(cats, p.category);
         const settings: EntrySettings = p.settings ?? cat.defaults;
-        // auto-resolve a target book: explicit → a VELLUM book → create+attach one
+        // auto-resolve a target book: explicit â†’ a VELLUM book â†’ create+attach one
         let bookId = String(p.bookId || '');
         if (!bookId) {
           const snap = await vaultSnapshot(chatId ?? '', uid);
@@ -929,7 +977,7 @@ const dispatch: Record<string, Handler> = {
   vellum_refresh: async (p, uid) => {
     // REFRESH TRACKER: re-fold the LATEST turn even if it was already folded
     // (wrongly). rescan only folds turns AFTER the last one, so a turn that
-    // mis-folded — e.g. fell to the regex parser before a parser fix — can't be
+    // mis-folded â€” e.g. fell to the regex parser before a parser fix â€” can't be
     // corrected by it. Here we drop the latest turn's events and re-fold it from
     // the raw message with current parser logic, preserving all earlier history.
     const chatId = p?.chatId || (await activeChatId(uid));
@@ -960,7 +1008,7 @@ const dispatch: Record<string, Handler> = {
   },
   vellum_set_traversal: async (p, uid) => {
     // controller-guided retrieval mode: off | flat (one-shot) | tree (tiered
-    // arc→chapter→leaf drill). Persisted in chat vars; needs generation to engage.
+    // arcâ†’chapterâ†’leaf drill). Persisted in chat vars; needs generation to engage.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const mode = (p?.mode === 'flat' || p?.mode === 'tree') ? p.mode : (p?.enabled ? 'flat' : 'off');
@@ -968,7 +1016,7 @@ const dispatch: Record<string, Handler> = {
     try { await setChatVar(chatId, 'vellum_traversal', enabled ? '1' : ''); } catch { /* best effort */ }
     try { await setChatVar(chatId, 'vellum_traversal_mode', mode === 'tree' ? 'tree' : 'flat'); } catch { /* best effort */ }
     if (p?.axis === 'character' || p?.axis === 'temporal' || p?.axis === 'hybrid') { try { await setChatVar(chatId, 'vellum_traversal_axis', p.axis); } catch { /* best effort */ } }
-    _treeCache.delete(chatId); // settings changed → drop any stale precompute
+    _treeCache.delete(chatId); // settings changed â†’ drop any stale precompute
     const available = await has('generation');
     const axis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
     spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, mode, axis, available }, uid);
@@ -986,7 +1034,7 @@ const dispatch: Record<string, Handler> = {
   vellum_set_locks: async (p, uid) => {
     // Plot Director relation locks: persist the per-pair forbid/pin list. On
     // create, also drop any category already on the graph that the lock now
-    // forbids (a one-time cleanup — future deltas are stripped at the fold).
+    // forbids (a one-time cleanup â€” future deltas are stripped at the fold).
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const locks = sanitizeLocks(p?.locks);
@@ -1007,7 +1055,7 @@ const dispatch: Record<string, Handler> = {
   },
   vellum_set_directives: async (p, uid) => {
     // Plot Director: replace the directive list (UI sends the full set). Suggestive
-    // nudges — injected while armed, self-cleared at the fold, TTL-expired.
+    // nudges â€” injected while armed, self-cleared at the fold, TTL-expired.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const directives = sanitizeDirectives(p?.directives);
@@ -1046,7 +1094,7 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_chaptervault_done', ok: true, mode, available: await hasVault() }, uid);
   },
   vellum_tidy_now: async (p, uid) => {
-    // manual "Tidy threads" — merge near-duplicate threads/arcs right now
+    // manual "Tidy threads" â€” merge near-duplicate threads/arcs right now
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_tidy_done', ok: false, reason: 'no_active_chat' }, uid); return; }
     if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_tidy_done', ok: false, reason: 'no_generation' }, uid); return; }
@@ -1054,7 +1102,7 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_tidy_done', ok: true, merged }, uid);
   },
   vellum_tidy_facts_now: async (p, uid) => {
-    // manual "Tidy Knowledge/Secrets" — fold near-duplicate facts right now
+    // manual "Tidy Knowledge/Secrets" â€” fold near-duplicate facts right now
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_tidy_facts_done', ok: false, reason: 'no_active_chat' }, uid); return; }
     if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_tidy_facts_done', ok: false, reason: 'no_generation' }, uid); return; }
@@ -1072,7 +1120,7 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_import_done', ok: true, events: v.data.events.length }, uid);
   },
   vellum_undo: async (p, uid) => {
-    // Fix 10 — UNDO LAST TURN: drop every event at the max turn in the log, then
+    // Fix 10 â€” UNDO LAST TURN: drop every event at the max turn in the log, then
     // re-reduce. Honors the read-only durability guard (truncate bails on it).
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_undo_done', ok: false, reason: 'no_active_chat' }, uid); return; }
