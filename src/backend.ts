@@ -151,19 +151,25 @@ function turnGist(content: string, names?: { user: string; char: string }): stri
  * or the new turn count if messages were deleted Ã¢â‚¬â€ i.e. the turn to roll BACK
  * to (return = keep turns Ã¢â€°Â¤ N). Returns null when nothing earlier diverged.
  */
-async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number): Promise<number | null> {
+async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number, asstMsgs?: string[]): Promise<number | null> {
   if (foldedTurns <= 0) return null;
-  // messages deleted: fewer assistant turns than we folded Ã¢â€ â€™ roll back to the new count
+  // messages deleted: fewer assistant turns than we folded → roll back to the new count
   if (msgs.length < foldedTurns) return msgs.length;
   const sigs = await turnSigs(chatId);
   for (let turnNo = 1; turnNo <= foldedTurns; turnNo++) {
     const stored = sigs.get(turnNo);
-    if (stored === undefined) continue; // turn had no fold marker Ã¢â‚¬â€ skip
-    // legacy constant sigs (pre-reconcile builds) can't be compared Ã¢â‚¬â€ skip them
+    if (stored === undefined) continue; // turn had no fold marker — skip
+    // legacy constant sigs (pre-reconcile builds) can't be compared — skip them
     // so we never roll back a chronicle folded by an older version.
     if (stored === 'auto' || stored === 'rebuild') continue;
     const cur = sigOf((msgs[turnNo - 1] ?? '').trim());
-    if (cur !== stored) return turnNo - 1; // keep up to the turn before the change
+    if (cur === stored) continue;
+    // BASIS-SHIFT SAFETY: chronicles folded before user-messages were included
+    // stored an ASSISTANT-ONLY signature. Don't treat that basis change as an
+    // edit (which would roll back and wipe chapters) — also accept a match on the
+    // assistant-only signature for this turn.
+    if (asstMsgs && sigOf((asstMsgs[turnNo - 1] ?? '').trim()) === stored) continue;
+    return turnNo - 1; // keep up to the turn before the change
   }
   return null;
 }
@@ -207,7 +213,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   // turn's stored content signature to the message's current signature; at the
   // first divergence (or if messages were deleted), roll the log back to just
   // before it so the loop re-folds the new content. (Swipes are out of scope.)
-  const rollbackTo = await divergedTurn(chatId, msgs, prior.turns ?? 0);
+  const rollbackTo = await divergedTurn(chatId, msgs, prior.turns ?? 0, await allAssistantContents(chatId));
   if (rollbackTo !== null && rollbackTo < (prior.turns ?? 0)) {
     prior = await truncateAfterTurn(chatId, rollbackTo);
     invalidateIndex(chatId);
