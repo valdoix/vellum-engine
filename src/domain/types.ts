@@ -176,9 +176,24 @@ export interface ChronicleState {
   threads: Track[];
   arcs: Track[];
   parallel: ParallelEvent[];
+  offscreen: OffscreenThread[];
   scene: Scene;
   day: number;
   turns: number;
+}
+
+/** A living off-screen subplot the off-screen sim advances over turns. Mirrors
+ * a plot thread but tracks its own running `beats` log + who/where. */
+export interface OffscreenThread {
+  id: string;
+  name: string;
+  who?: string;   // canonical cast id, when it concerns a known character
+  where?: string;
+  status: 'active' | 'resolved';
+  gist: string;   // latest one-line state
+  beats: string[]; // running history of what happened off-screen (newest last, capped)
+  firstTurn: number;
+  lastTurn: number;
 }
 
 export function freshState(): ChronicleState {
@@ -194,6 +209,7 @@ export function freshState(): ChronicleState {
     threads: [],
     arcs: [],
     parallel: [],
+    offscreen: [],
     scene: { location: '', time: '', tension: 0, weather: '', present: [], detail: [] },
     day: 0,
     turns: 0,

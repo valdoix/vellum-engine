@@ -116,11 +116,11 @@ function structuredBlock(state: ChronicleState, budget: number): string {
   const blocks: string[] = [];
   if (castRel.length) blocks.push('[CAST & BONDS \u2014 established, authoritative. Keep consistent; do not contradict.]\n' + castRel.join('\n'));
   if (trackLines.length) blocks.push('[OPEN THREADS & ARCS \u2014 advance or resolve these; reuse the EXACT title, do not restate as a new thread.]\n' + trackLines.join('\n'));
-  // off-screen sim beats — what happened elsewhere since last scene, so the model
-  // can acknowledge it. Only the recent ones; capped tight.
-  const meanwhile = (state.parallel ?? []).filter((p) => p.src === 'sim').slice(0, 4)
-    .map((p) => '- ' + (p.who ? (state.cast[p.who]?.name ?? p.who) + ': ' : '') + p.activity + (p.where ? ' (@' + p.where + ')' : ''));
-  if (meanwhile.length) blocks.push('[MEANWHILE, OFF-SCREEN \u2014 happening elsewhere; weave in if relevant, don\u2019t force.]\n' + meanwhile.join('\n'));
+  // off-screen subplots — living "meanwhile" threads the sim advances, fed back so
+  // the on-screen model can acknowledge/react to them. Open ones, latest beat.
+  const meanwhile = (state.offscreen ?? []).filter((o) => o.status === 'active').slice(0, 5)
+    .map((o) => '- ' + o.name + (o.who ? ' (' + (state.cast[o.who]?.name ?? o.who) + ')' : '') + ': ' + (o.gist || o.beats[o.beats.length - 1] || ''));
+  if (meanwhile.length) blocks.push('[MEANWHILE, OFF-SCREEN \u2014 subplots in motion elsewhere; acknowledge or advance if relevant, don\u2019t force.]\n' + meanwhile.join('\n'));
   return blocks.join('\n\n');
 }
 

@@ -16,13 +16,14 @@ import { canonId } from '../core/ids.js';
  * secret mutation off-screen — that would let the sim rewrite canon unseen.
  */
 
-const MAX_BEATS = 4;
-
-/** Characters plausibly "elsewhere": active (known) but not in the current scene. */
+/** Characters plausibly "elsewhere": known but not in the current scene. Widened
+ * beyond `active` (the old filter that left the cast empty) to include recently-
+ * seen `mentioned` characters, so a known-but-offstage person still qualifies. */
 export function offscreenCast(state: ChronicleState): ChronicleState['cast'][string][] {
   const present = new Set(state.scene.present);
+  const recent = (state.turns || 0) - 6;
   return Object.values(state.cast)
-    .filter((c) => c.status === 'active' && !present.has(c.id))
+    .filter((c) => !present.has(c.id) && (c.status === 'active' || (c.status === 'mentioned' && (c.lastTurn || 0) >= recent)))
     .sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0))
     .slice(0, 5);
 }
@@ -34,22 +35,27 @@ export interface SimCtx {
 }
 
 export const SIM_SYS = [
-  'You advance OFF-SCREEN life in a roleplay world. Given characters who are NOT in the current scene,',
-  'invent ONE small, plausible beat each: what they are quietly doing elsewhere right now.',
-  'Rules: keep beats SMALL (a clause, not a plot twist). Do not resolve major arcs, kill anyone, or',
-  'change relationships. Stay consistent with each character and the world\u2019s tone.',
-  'Reply STRICT JSON only: {"parallel":[{"who":"Name","where":"place","activity":"...","note":"..."}],"threads":[{"op":"advance|stall","name":"thread name"}]}',
-  'At most ' + MAX_BEATS + ' parallel beats. Omit threads if none fit.',
+  'You advance OFF-SCREEN life in a roleplay world: small subplots unfolding elsewhere while the main scene plays out.',
+  'You are given OFF-SCREEN CHARACTERS (not in the current scene) and the CURRENT OFF-SCREEN SUBPLOTS already in motion.',
+  'For each, decide a small next beat: ADVANCE an existing subplot (reuse its id), RESOLVE one that has run its course, or open a NEW one.',
+  'Keep beats SMALL and plausible (a clause, not a plot twist). Do NOT kill anyone, resolve a major on-screen arc, or change relationships/secrets.',
+  'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened"}]}',
+  'Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most 4 entries.',
 ].join(' ');
 
-/** Build the user prompt: who's off-screen + the world guardrails (locks, armed
- * directives, tone) so the sim can't, e.g., advance a forbidden romance. */
+/** Build the user prompt: off-screen cast + the OPEN subplots to advance/resolve
+ * + world guardrails (locks, armed directives, tone). */
 export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name: string; role?: string }>, ctx: SimCtx = {}): string {
   const lines: string[] = [];
-  lines.push('OFF-SCREEN CHARACTERS (advance one small beat each):');
+  lines.push('OFF-SCREEN CHARACTERS:');
   for (const c of cast) lines.push(`- ${c.name}${c.role ? ` (${c.role})` : ''}`);
-  const openThreads = state.threads.filter((t) => !/resolv/i.test(t.status || '')).slice(0, 6);
-  if (openThreads.length) { lines.push('', 'OPEN THREADS (you may nudge one):'); for (const t of openThreads) lines.push(`- ${t.name}`); }
+  const open = (state.offscreen ?? []).filter((o) => o.status === 'active').slice(0, 8);
+  if (open.length) {
+    lines.push('', 'CURRENT OFF-SCREEN SUBPLOTS (advance with the same id, or resolve):');
+    for (const o of open) lines.push(`- [${o.id}] ${o.name}${o.who ? ` (${o.who})` : ''}: ${o.gist || o.beats[o.beats.length - 1] || ''}`);
+  } else {
+    lines.push('', 'No off-screen subplots yet — open one or two NEW ones.');
+  }
   if (ctx.tone?.disposition && ctx.tone.disposition !== 'fair') lines.push('', `WORLD TONE: ${ctx.tone.disposition} — let off-screen life lean this way.`);
   const armed = (ctx.directives ?? []).filter((d) => d.status === 'armed');
   if (armed.length) { lines.push('', 'DIRECTOR INTENT (honor if it fits):'); for (const d of armed) lines.push(`- ${d.text}`); }
@@ -61,10 +67,9 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
   return lines.join('\n');
 }
 
-export interface ParsedSim { parallel: Array<{ who?: string; where?: string; activity: string; note?: string }>; threads: Array<{ op: 'advance' | 'stall'; name: string }> }
+export interface ParsedSim { offscreen: Array<{ op: 'new' | 'advance' | 'resolve'; id: string; name?: string; who?: string; where?: string; gist?: string }> }
 
-/** Tolerant JSON parse of the controller reply (mirrors parseMergeReply): strip
- * fences/prose, take the first object, validate + cap. Returns null on garbage. */
+/** Tolerant parse of the controller reply. Returns null on garbage / nothing. */
 export function parseSim(text: string): ParsedSim | null {
   if (!text) return null;
   const m = text.match(/\{[\s\S]*\}/);
@@ -73,42 +78,37 @@ export function parseSim(text: string): ParsedSim | null {
   try { obj = JSON.parse(m[0]); } catch { return null; }
   if (!obj || typeof obj !== 'object') return null;
   const o = obj as Record<string, unknown>;
-  const parallel = (Array.isArray(o.parallel) ? o.parallel : [])
+  const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+  const offscreen = (Array.isArray(o.offscreen) ? o.offscreen : [])
     .map((p) => (p && typeof p === 'object') ? p as Record<string, unknown> : {})
-    .map((p) => ({ ...(p.who ? { who: String(p.who) } : {}), ...(p.where ? { where: String(p.where) } : {}), activity: String(p.activity ?? '').trim(), ...(p.note ? { note: String(p.note) } : {}) }))
-    .filter((p) => p.activity)
-    .slice(0, MAX_BEATS);
-  const threads = (Array.isArray(o.threads) ? o.threads : [])
-    .map((t) => (t && typeof t === 'object') ? t as Record<string, unknown> : {})
-    .map((t) => ({ op: (t.op === 'stall' ? 'stall' : 'advance') as 'advance' | 'stall', name: String(t.name ?? '').trim() }))
-    .filter((t) => t.name)
-    .slice(0, 3);
-  if (!parallel.length && !threads.length) return null;
-  return { parallel, threads };
+    .map((p) => {
+      const op = (p.op === 'resolve' ? 'resolve' : p.op === 'new' ? 'new' : 'advance') as 'new' | 'advance' | 'resolve';
+      const name = p.name ? String(p.name).trim() : '';
+      const id = p.id ? slug(String(p.id)) : slug(name);
+      const gist = String(p.gist ?? '').trim();
+      return { op, id, ...(name ? { name } : {}), ...(p.who ? { who: String(p.who).trim() } : {}), ...(p.where ? { where: String(p.where).trim() } : {}), ...(gist ? { gist } : {}) };
+    })
+    .filter((p) => p.id && (p.gist || p.op === 'resolve'))
+    .slice(0, 4);
+  if (!offscreen.length) return null;
+  return { offscreen };
 }
 
 /**
- * Map a parsed sim to events. parallel.set REPLACES the whole list in the
- * reducer, so we MERGE the new sim beats with the existing parallel state (the
- * model-narrated ones), tagging the new ones src:'sim'. Thread nudges only touch
- * threads that already exist (the sim can't invent threads). Resolves who-names
- * to canonical cast ids when they match a known character.
+ * Map a parsed sim to `offscreen.op` events — first-class subplots that
+ * accumulate beats and round-trip to the prompt (vs the old ephemeral
+ * parallel.set snapshot). `who` resolves to a known cast id when it matches,
+ * else stays as the raw name (an off-screen subplot may name a not-present
+ * character without minting a scene presence). Still NO bond/secret mutation.
  */
 export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number, day: number, seq: () => number): VellumEvent[] {
-  const out: VellumEvent[] = [];
-  const knownThread = new Set(state.threads.map((t) => t.name.toLowerCase()));
   const castByName = new Map(Object.values(state.cast).map((c) => [c.name.toLowerCase(), c.id]));
   const resolve = (who?: string): string | undefined => who ? (castByName.get(who.toLowerCase()) ?? canonId(who)) : undefined;
-
-  const existing = (state.parallel ?? []).map((p) => ({ ...(p.who ? { who: p.who } : {}), ...(p.where ? { where: p.where } : {}), activity: p.activity, ...(p.note ? { note: p.note } : {}), ...(p.src ? { src: p.src } : {}) }));
-  const fresh = parsed.parallel.map((p) => ({ ...(p.who ? { who: resolve(p.who) } : {}), ...(p.where ? { where: p.where } : {}), activity: p.activity, ...(p.note ? { note: p.note } : {}), src: 'sim' as const }));
-  // keep recent existing + the new sim beats, capped so parallel doesn't grow forever
-  const items = [...fresh, ...existing].slice(0, 8);
-  out.push({ seq: seq(), turn, day, src: 'system', kind: 'parallel.set', items } as VellumEvent);
-
-  for (const t of parsed.threads) {
-    if (!knownThread.has(t.name.toLowerCase())) continue; // sim can't invent threads
-    out.push({ seq: seq(), turn, day, src: 'system', kind: 'thread.op', op: t.op, name: t.name, note: 'off-screen' } as VellumEvent);
-  }
-  return out;
+  const known = new Set((state.offscreen ?? []).map((o) => o.id));
+  return parsed.offscreen.map((p) => {
+    // a "new" that collides with a known id becomes an advance; an "advance" on
+    // an unknown id becomes a new — so the model can't fork or orphan a subplot.
+    const op = p.op === 'resolve' ? 'resolve' : (known.has(p.id) ? 'advance' : 'new');
+    return { seq: seq(), turn, day, src: 'system', kind: 'offscreen.op', op, id: p.id, ...(p.name ? { name: p.name } : {}), ...(p.who ? { who: resolve(p.who) } : {}), ...(p.where ? { where: p.where } : {}), ...(p.gist ? { gist: p.gist } : {}) } as VellumEvent;
+  });
 }

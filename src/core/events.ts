@@ -100,6 +100,9 @@ export const EvArc = z.object({ ...base, kind: z.literal('arc.op'), op: z.enum([
 // Append-only → auditable + undoable. `from`/`into` are track names.
 export const EvThreadMerge = z.object({ ...base, kind: z.literal('thread.merge'), from: z.array(z.string()), into: z.string() });
 export const EvArcMerge = z.object({ ...base, kind: z.literal('arc.merge'), from: z.array(z.string()), into: z.string() });
+// off-screen subplot: a living "meanwhile" thread the off-screen sim advances —
+// accumulates beats, can resolve, round-trips to the prompt like a plot thread.
+export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), op: z.enum(['new', 'advance', 'resolve']), id: z.string(), name: z.string().optional(), who: z.string().optional(), where: z.string().optional(), gist: z.string().optional() });
 
 export const VellumEvent = z.discriminatedUnion('kind', [
   EvTurnFold, EvSceneSet,
@@ -110,7 +113,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvMemory, EvMemoryDrop, EvMemoryLink,
   EvThread, EvArc, EvThreadMerge, EvArcMerge,
   EvJournal, EvJournalDrop, EvJournalEdit,
-  EvParallel,
+  EvParallel, EvOffscreen,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;
 

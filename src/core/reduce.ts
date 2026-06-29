@@ -288,6 +288,22 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'thread.merge': { mergeTracks(s.threads, e.from, e.into); break; }
     case 'arc.merge': { mergeTracks(s.arcs, e.from, e.into); break; }
+    case 'offscreen.op': {
+      const list = s.offscreen;
+      let ot = list.find((o) => o.id === e.id);
+      if (!ot) {
+        if (e.op === 'resolve') break; // nothing to resolve
+        ot = { id: e.id, name: e.name || e.id, status: 'active', gist: e.gist ?? '', beats: [], firstTurn: e.turn, lastTurn: e.turn, ...(e.who ? { who: e.who } : {}), ...(e.where ? { where: e.where } : {}) };
+        list.push(ot);
+      }
+      if (e.name) ot.name = e.name;
+      if (e.who) ot.who = e.who;
+      if (e.where) ot.where = e.where;
+      if (e.gist) { ot.gist = e.gist; ot.beats = [...ot.beats, e.gist].slice(-6); }
+      ot.lastTurn = Math.max(ot.lastTurn, e.turn);
+      if (e.op === 'resolve') ot.status = 'resolved';
+      break;
+    }
     case 'journal.entry': {
       if (!s.journal.find((j) => j.id === e.id)) {
         // dedupe identical memory text for the same holder

@@ -339,7 +339,7 @@ async function simulateOffscreen(chatId: string, userId: string | null): Promise
     await append(chatId, evs);
     invalidateIndex(chatId);
     await broadcastState(chatId, userId);
-    spindle.log?.info?.(`[vellum_engine] off-screen sim: ${parsed.parallel.length} beat(s)`);
+    spindle.log?.info?.(`[vellum_engine] off-screen sim: ${parsed.offscreen.length} subplot beat(s)`);
   } catch (e) { spindle.log?.warn?.('[vellum_engine] simulateOffscreen: ' + ((e as Error)?.message ?? e)); }
   finally { _simulating.delete(chatId); }
 }
@@ -982,6 +982,9 @@ const dispatch: Record<string, Handler> = {
     const enabled = !!p?.enabled;
     try { await setChatVar(chatId, 'vellum_offscreen', enabled ? '1' : ''); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_offscreen_set_done', ok: true, enabled, available: await has('generation') }, uid);
+    // run once immediately on enable so the user sees subplots without waiting
+    // for the cadence gate (every Nth turn). Off the response path.
+    if (enabled) void simulateOffscreen(chatId, uid);
   },
   vellum_set_chaptervault: async (p, uid) => {
     // chapter-vault mode: off | keyed (default) | constant. Detailed chapter

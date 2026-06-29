@@ -103,6 +103,15 @@ export const STYLES = [
   // tracks + memory
   ".vle-track{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 8px;border-left:2px solid var(--vle-gold-soft);margin-bottom:3px}",
   ".vle-track-s{font:600 9px/1.3 var(--vmono);color:var(--vle-gold);opacity:.8}",
+  // off-screen subplots (the sim) in the World view
+  ".vle-os{border-left:2px solid color-mix(in srgb,var(--v-info) 50%,transparent);background:color-mix(in srgb,var(--v-info) 6%,transparent);border-radius:0 var(--vr1) var(--vr1) 0;padding:6px 10px;margin-bottom:5px}",
+  ".vle-os--narr{border-left-color:var(--vle-gold-soft);background:rgba(var(--vg-rgb),.04)}",
+  ".vle-os-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}",
+  ".vle-os-n{font-family:var(--vserif);font-size:calc(14px * var(--vscale))}",
+  ".vle-os-who{font:600 9px/1.3 var(--vmono);color:var(--v-info)}",
+  ".vle-os-w{font:600 9px/1.3 var(--vmono);opacity:.55}",
+  ".vle-os-gist{font-size:12px;line-height:1.45;opacity:.9;margin-top:2px}",
+  ".vle-os-h{margin-top:4px;font-size:11px;opacity:.6}.vle-os-h summary{cursor:pointer;font:600 9px/1.3 var(--vmono);text-transform:uppercase;letter-spacing:.4px}.vle-os-h div{padding:2px 0 0 8px}",
   ".vle-mem{display:flex;gap:7px;font-size:12px;padding:4px 0;line-height:1.45;align-items:baseline}",
   ".vle-mem-tier{flex:none;font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;border-radius:var(--vr1);opacity:.85}",
   ".vle-mem-tier.t-turn{color:#8c8478;border:1px solid rgba(140,132,120,.4)}",
