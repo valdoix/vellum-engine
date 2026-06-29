@@ -73,7 +73,7 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
     : '';
   const gen = await internalGenerate(
     [{ role: 'system', content: SUMMARY_SYS + nameHint }, { role: 'user', content: src }],
-    { temperature: 0.2, max_tokens: 1400 },
+    { temperature: 0.2, max_tokens: 2000 },
     userId,
     { reasoningOff: true },
   );

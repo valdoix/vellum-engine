@@ -35,7 +35,7 @@ export async function internalGenerate(
   messages: GenMsg[],
   params: Record<string, unknown>,
   userId: string | null,
-  opts?: { reasoningOff?: boolean; responseFormat?: Record<string, unknown> },
+  opts?: { reasoningOff?: boolean; responseFormat?: Record<string, unknown>; connectionId?: string },
 ): Promise<Result<string, string>> {
   if (!(await has('generation'))) return Err('no_generation_permission');
   if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
@@ -45,13 +45,34 @@ export async function internalGenerate(
   // `responseFormat` (json_schema) is best-effort: the host strips it without the
   // generation_parameters permission, so we still parse defensively downstream.
   const params2 = opts?.responseFormat ? { ...(params || {}), response_format: opts.responseFormat } : (params || {});
-  const req = { messages, parameters: params2, userId, ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
+  // Resolve the user's connection so internal tasks run on the SAME model the
+  // user chats with (smarter summaries). `quiet` already follows the active
+  // connection; passing connection_id also fixes the `raw` fallback, which would
+  // otherwise have no provider/model. Caller may pin a specific connection.
+  const connId = opts?.connectionId ?? (await defaultConnectionId(userId));
+  const req = { messages, parameters: params2, userId, ...(connId ? { connection_id: connId } : {}), ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
   return tryCatchAsync(async () => {
     const r = spindle.generate.quiet
       ? await spindle.generate.quiet(req)
       : await spindle.generate.raw(req);
     return extractGenContent(r);
   });
+}
+
+// The user's default connection id, cached per user (the model they actually
+// chat with). Lets internal tasks pin the real connection instead of defaulting.
+const _connCache = new Map<string, string>();
+async function defaultConnectionId(userId: string | null): Promise<string> {
+  const key = userId ?? '_';
+  const hit = _connCache.get(key);
+  if (hit !== undefined) return hit;
+  let id = '';
+  try {
+    const list = await spindle.connections?.list?.(userId ?? undefined);
+    if (Array.isArray(list) && list.length) id = (list.find((c: any) => c?.is_default) ?? list[0])?.id ?? '';
+  } catch { /* connections API optional */ }
+  _connCache.set(key, id);
+  return id;
 }
 
 /**
@@ -69,7 +90,8 @@ export async function controllerGenerate(
   if (!(await has('generation'))) return Err('no_generation_permission');
   if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
-  const req = { messages, parameters: { max_tokens: 200, temperature: 0 }, reasoning: { source: 'off' as const }, userId, ...(signal ? { signal } : {}) };
+  const connId = await defaultConnectionId(userId); // run on the user's own model
+  const req = { messages, parameters: { max_tokens: 200, temperature: 0 }, reasoning: { source: 'off' as const }, userId, ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}) };
   return tryCatchAsync(async () => {
     const r = spindle.generate.quiet
       ? await spindle.generate.quiet(req)

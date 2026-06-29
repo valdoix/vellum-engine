@@ -128,7 +128,7 @@ describe('reduce — cast, knowledge, secrets, memory', () => {
       ev({ kind: 'knowledge.learn', who: 'jon', fact: 'a secret about ned', about: 'ned' }),
       ev({ kind: 'secret.form', id: 's1', keeper: 'ned', from: ['jon'], text: 'true parentage' }),
       ev({ kind: 'secret.form', id: 's2', keeper: 'jon', from: ['ned'], text: 'kept from ned' }),
-      ev({ kind: 'journal.entry', id: 'j1', who: 'ned', about: 'jon', memory: 'm', kind: 'shared', weight: 'normal', sentiment: 'positive' }),
+      ev({ kind: 'journal.entry', id: 'j1', who: 'ned', about: 'jon', memory: 'm', jkind: 'shared', weight: 'significant', sentiment: 'positive' }),
       ev({ kind: 'faction.member', char: 'ned', faction: 'fac:starks', op: 'add' }),
       ev({ kind: 'cast.drop', id: 'ned' }),
     ]);
