@@ -218,10 +218,13 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'knowledge.learn': {
       ensureCast(s, e.who, e.turn); if (e.about) ensureCast(s, e.about, e.turn); // knower + subject become tracked cast
-      const dup = s.knowledge.find((k) => k.who === e.who && k.fact === e.fact);
+      // dedup: same knower + the SAME fact (exact, or a near-duplicate clause —
+      // "in love with Daeron" vs "in love with Daeron and has not said it yet").
+      const dup = s.knowledge.find((k) => k.who === e.who && similarFact(k.fact, e.fact));
       if (dup) {
-        // re-fold of the same who|fact: firm up the epistemic frame in place
-        // (legacy applyKnowResult behavior) rather than duplicating.
+        // re-fold of the same who|fact: keep the richer wording + firm up the
+        // epistemic frame in place, rather than duplicating.
+        dup.fact = richer(dup.fact, e.fact);
         if (e.reliability) dup.reliability = e.reliability;
         if (e.truth) dup.truth = e.truth;
         if (e.source) dup.source = e.source;
@@ -239,10 +242,28 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       s.knowledge = s.knowledge.filter((k) => k.id !== e.id);
       break;
     }
+    case 'knowledge.merge': {
+      const into = s.knowledge.find((k) => k.id === e.into);
+      if (into) {
+        const drop = new Set(e.from);
+        for (const k of s.knowledge) if (drop.has(k.id)) { into.fact = richer(into.fact, k.fact); if (!into.source && k.source) into.source = k.source; }
+        s.knowledge = s.knowledge.filter((k) => !drop.has(k.id));
+      }
+      break;
+    }
     case 'secret.form': {
       if (!s.secrets.find((x) => x.id === e.id)) {
         ensureCast(s, e.keeper, e.turn); for (const f of e.from) ensureCast(s, f, e.turn); // keeper + those kept in the dark
-        s.secrets.push({ id: e.id, keeper: e.keeper, from: e.from, text: e.text, revealed: false, revealedTo: [], formedTurn: e.turn });
+        // dedup: the same keeper concealing the SAME secret (near-duplicate text)
+        // is one secret — merge the `from` lists (who it's kept from accumulates)
+        // and keep the richer wording, rather than spawning parallel rows.
+        const dup = s.secrets.find((x) => x.keeper === e.keeper && !x.revealed && similarFact(x.text, e.text));
+        if (dup) {
+          dup.text = richer(dup.text, e.text);
+          dup.from = Array.from(new Set([...dup.from, ...e.from]));
+        } else {
+          s.secrets.push({ id: e.id, keeper: e.keeper, from: e.from, text: e.text, revealed: false, revealedTo: [], formedTurn: e.turn });
+        }
       }
       break;
     }
@@ -253,6 +274,20 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'secret.drop': {
       s.secrets = s.secrets.filter((x) => x.id !== e.id);
+      break;
+    }
+    case 'secret.merge': {
+      const into = s.secrets.find((x) => x.id === e.into);
+      if (into) {
+        const drop = new Set(e.from);
+        for (const x of s.secrets) if (drop.has(x.id)) {
+          into.text = richer(into.text, x.text);
+          into.from = Array.from(new Set([...into.from, ...x.from]));
+          into.revealedTo = Array.from(new Set([...into.revealedTo, ...x.revealedTo]));
+          if (x.revealed) into.revealed = true;
+        }
+        s.secrets = s.secrets.filter((x) => !drop.has(x.id));
+      }
       break;
     }
     case 'memory.record': {
@@ -368,6 +403,43 @@ function sameTrack(existing: string, incoming: string): boolean {
   if (small.size >= 2 && subset(small, big)) return true; // containment, >=2 tokens
   return false;
 }
+
+// Content-fact stopwords (broader than track titles — facts are full clauses).
+const FACT_STOP = new Set([
+  ...TRACK_STOP, 'has', 'have', 'had', 'not', 'yet', 'said', 'words', 'her', 'his',
+  'their', 'them', 'they', 'she', 'he', 'it', 'that', 'this', 'who', 'whom', 'been',
+  'will', 'would', 'about', 'into', 'from', 'but', 'or', 'so', 'than', 'then', 'now',
+]);
+function factTokens(text: string): Set<string> {
+  return new Set(
+    String(text || '').toLowerCase()
+      .replace(/['\u2019]s\b/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 1 && !FACT_STOP.has(w))
+      .map((w) => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w)), // light stem: loves→love
+  );
+}
+/**
+ * Near-duplicate match for KNOWLEDGE facts / SECRET texts (full clauses, not
+ * titles). True when, after stripping stopwords, one significant-token set is a
+ * subset of the other (e.g. "in love with Daeron" ⊂ "in love with Daeron and has
+ * not said the words yet") OR they overlap strongly (Jaccard ≥ .6). Both sides
+ * must carry ≥2 significant tokens, so trivially-short facts never blind-merge.
+ */
+function similarFact(a: string, b: string): boolean {
+  if (a.toLowerCase().trim() === b.toLowerCase().trim()) return true;
+  const ta = factTokens(a), tb = factTokens(b);
+  if (ta.size < 2 || tb.size < 2) return false;
+  const [small, big] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
+  if (subset(small, big)) return true; // one clause contains the other's content
+  let shared = 0; for (const x of ta) if (tb.has(x)) shared++;
+  const union = ta.size + tb.size - shared;
+  return union > 0 && shared / union >= 0.6;
+}
+/** Pick the richer (more informative) of two near-duplicate texts — the longer
+ * one carries more detail ("…and has not said the words yet"). */
+function richer(a: string, b: string): string { return b.length > a.length ? b : a; }
 
 function upsertTrack(list: { name: string; status: string; firstTurn: number; lastTurn: number }[], name: string, status: string, turn: number): void {
   const t = list.find((x) => sameTrack(x.name, name));

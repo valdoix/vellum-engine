@@ -81,9 +81,15 @@ export const EvBondDrop = z.object({ ...base, kind: z.literal('bond.drop'), a: z
 
 export const EvKnowledge = z.object({ ...base, kind: z.literal('knowledge.learn'), who: z.string(), fact: z.string(), about: z.string().optional(), reliability: Reliability.optional(), truth: Truth.optional(), source: z.string().optional() });
 export const EvKnowledgeDrop = z.object({ ...base, kind: z.literal('knowledge.drop'), id: z.string() });
+// Tidy: fold near-duplicate knowledge facts (by id) into one. The richer text +
+// firmest epistemic frame is kept on `into`; the `from` ids are removed.
+export const EvKnowledgeMerge = z.object({ ...base, kind: z.literal('knowledge.merge'), into: z.string(), from: z.array(z.string()) });
 export const EvSecretForm = z.object({ ...base, kind: z.literal('secret.form'), id: z.string(), keeper: z.string(), from: z.array(z.string()).default([]), text: z.string() });
 export const EvSecretReveal = z.object({ ...base, kind: z.literal('secret.reveal'), id: z.string(), to: z.array(z.string()).default([]) });
 export const EvSecretDrop = z.object({ ...base, kind: z.literal('secret.drop'), id: z.string() });
+// Tidy: fold near-duplicate secrets (by id) into one — union the `from`/revealedTo
+// lists, keep the richer text on `into`; the `from` ids are removed.
+export const EvSecretMerge = z.object({ ...base, kind: z.literal('secret.merge'), into: z.string(), from: z.array(z.string()) });
 
 const SubsumedMem = z.object({ id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]) });
 export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), detail: z.string().optional(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional() });
@@ -109,7 +115,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvCastSeen, EvCastEdit, EvCastDrop,
   EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding,
   EvBondDelta, EvBondDrop,
-  EvKnowledge, EvKnowledgeDrop, EvSecretForm, EvSecretReveal, EvSecretDrop,
+  EvKnowledge, EvKnowledgeDrop, EvKnowledgeMerge, EvSecretForm, EvSecretReveal, EvSecretDrop, EvSecretMerge,
   EvMemory, EvMemoryDrop, EvMemoryLink,
   EvThread, EvArc, EvThreadMerge, EvArcMerge,
   EvJournal, EvJournalDrop, EvJournalEdit,

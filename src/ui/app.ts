@@ -68,6 +68,7 @@ const QOL = [
   { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)', group: 'maint' },
   { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)', group: 'maint' },
   { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)', group: 'maint' },
+  { id: 'tidyfacts', label: '\u2702 Tidy lore', title: 'Fold near-duplicate knowledge & secrets now (needs generation permission)', group: 'maint' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
@@ -379,6 +380,7 @@ function onQol(ctx: Ctx, id: string): void {
   }
   else if (id === 'tone') { openToneModal(ctx); }
   else if (id === 'tidy') { setQolBusy('tidy', true); ctx.sendToBackend({ type: 'vellum_tidy_now' }); ctx.toast?.info?.('Reconciling plot threads\u2026'); }
+  else if (id === 'tidyfacts') { setQolBusy('tidyfacts', true); ctx.sendToBackend({ type: 'vellum_tidy_facts_now' }); ctx.toast?.info?.('Folding duplicate knowledge & secrets\u2026'); }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => { setQolBusy('clear', true); ctx.sendToBackend({ type: 'vellum_clear' }); }); }
@@ -570,6 +572,10 @@ export function setup(ctx: Ctx): () => void {
         setQolBusy('tidy', false);
         if (!p.ok) ctx.toast?.warning?.(p.reason === 'no_generation' ? 'Tidy threads needs the generation permission.' : 'Tidy threads failed.');
         else ctx.toast?.success?.(p.merged ? `Merged ${p.merged} duplicate thread(s).` : 'No duplicate threads found.');
+      } else if (p?.type === 'vellum_tidy_facts_done') {
+        setQolBusy('tidyfacts', false);
+        if (!p.ok) ctx.toast?.warning?.(p.reason === 'no_generation' ? 'Tidy lore needs the generation permission.' : 'Tidy lore failed.');
+        else ctx.toast?.success?.(p.merged ? `Folded ${p.merged} duplicate knowledge/secret(s).` : 'No duplicate lore found.');
       } else if (p?.type === 'vellum_tidy_set_done') {
         _tidyOn = !!p.enabled;
         if (p.enabled && !p.available) ctx.toast?.warning?.('Auto-tidy needs the generation permission to run.');

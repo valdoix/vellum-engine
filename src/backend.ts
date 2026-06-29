@@ -34,6 +34,7 @@ import { sanitizeDirectives, directiveInjection, reconcileDirectives, armSchedul
 import { checkContinuity } from './domain/continuity.js';
 import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
+import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
 /** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
@@ -293,6 +294,44 @@ async function tidyThreads(chatId: string, userId: string | null): Promise<numbe
     return merged;
   } catch (e) { spindle.log?.warn?.('[vellum_engine] tidyThreads: ' + ((e as Error)?.message ?? e)); return 0; }
   finally { _tidying.delete(chatId); }
+}
+
+const _tidyingFacts = new Set<string>();
+/**
+ * Tidy Knowledge/Secrets — the knowledge/secret sibling of tidyThreads. For each
+ * holder with ≥2 entries, a cheap controller LLM groups near-duplicate facts the
+ * reducer dedup can't catch (different wording, no shared token); emits
+ * knowledge.merge / secret.merge to fold them. Generation-gated, serialized per
+ * chat. Returns the count of folded entries.
+ */
+async function tidyFacts(chatId: string, userId: string | null): Promise<number> {
+  if (_tidyingFacts.has(chatId)) return 0;
+  if (!(await has('generation'))) return 0;
+  _tidyingFacts.add(chatId);
+  try {
+    const state = await loadState(chatId);
+    const evs: VellumEvent[] = [];
+    for (const kind of ['knowledge', 'secrets'] as const) {
+      const evKind = kind === 'knowledge' ? 'knowledge.merge' : 'secret.merge';
+      for (const cand of mergeCandidates(state, kind)) {
+        const res = await controllerGenerate(
+          [{ role: 'system', content: FACT_MERGE_SYS }, { role: 'user', content: buildFactMergePrompt(cand.label, cand.entries) }],
+          userId, 2500,
+        );
+        if (!res.ok) continue;
+        const groups = validateFactMerges(parseFactMergeReply(res.value), cand.entries.map((e) => e.id));
+        for (const g of groups) evs.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: evKind, into: g.into, from: g.from } as VellumEvent);
+      }
+    }
+    if (!evs.length) return 0;
+    const merged = evs.reduce((n, e) => n + ((e as { from: string[] }).from.length), 0);
+    await append(chatId, evs);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, userId);
+    spindle.log?.info?.(`[vellum_engine] tidy-facts: folded ${merged} duplicate(s) across ${evs.length} group(s)`);
+    return merged;
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] tidyFacts: ' + ((e as Error)?.message ?? e)); return 0; }
+  finally { _tidyingFacts.delete(chatId); }
 }
 
 /** Auto-tidy: opt-in chat var, only when open threads exceed the threshold, and
@@ -1003,6 +1042,14 @@ const dispatch: Record<string, Handler> = {
     if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_tidy_done', ok: false, reason: 'no_generation' }, uid); return; }
     const merged = await tidyThreads(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_tidy_done', ok: true, merged }, uid);
+  },
+  vellum_tidy_facts_now: async (p, uid) => {
+    // manual "Tidy Knowledge/Secrets" — fold near-duplicate facts right now
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_tidy_facts_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_tidy_facts_done', ok: false, reason: 'no_generation' }, uid); return; }
+    const merged = await tidyFacts(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_tidy_facts_done', ok: true, merged }, uid);
   },
   vellum_import: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
