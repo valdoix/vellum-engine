@@ -82,4 +82,7 @@ describe('cleanGist — strips bullets, meta, fragments into flowing prose', () 
     const s = 'Cersei arrived at Harrenhal and received a golden rose from Daeron. She kept it.';
     expect(cleanGist(s)).toBe(s);
   });
+  it('drops only the partial first word when a fragment has no later sentence', () => {
+    expect(cleanGist('ered the quality of the renovation and stared at his forearms')).toBe('the quality of the renovation and stared at his forearms.');
+  });
 });

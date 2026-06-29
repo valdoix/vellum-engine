@@ -96,9 +96,18 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
   if (!gist) gist = capText(detail, 200); // detail came through but no explicit gist
   if (!detail) detail = gist; // fallback path: chronicle-only chapter
 
+  // final guard: if the cleaned gist is still a low-quality fragment (starts
+  // lowercase, or too short to be a real recap), derive it from the DETAIL,
+  // whose first sentences are clean event prose. Never surface a "ered…" tail.
+  let finalGist = cleanGist(gist);
+  if (!finalGist || finalGist.length < 24 || /^[a-z]/.test(finalGist)) {
+    const fromDetail = cleanGist(detail);
+    if (fromDetail.length >= 24 && /^[A-Z0-9"'\u201c]/.test(fromDetail)) finalGist = fromDetail;
+  }
+
   return chapterEvents(
     plan,
-    { gist: capText(cleanGist(gist), 600), detail: capText(detail, 2400), keys },
+    { gist: capText(finalGist || gist, 600), detail: capText(detail, 2400), keys },
     state.turns || plan.covers[1], state.day || 0, nextSeq,
   );
 }
@@ -166,6 +175,9 @@ const META_SENTENCE = /^(the (unresolved )?thread( left open)?|unresolved|left (
  */
 export function cleanGist(raw: string): string {
   let s = dropLeadingFragment(String(raw || '').trim());
+  // a cut fragment with no later capitalized sentence starts mid-word
+  // ("ered the quality…"); drop the partial first word so the rest survives.
+  if (/^[a-z]/.test(s) && !/[.!?]\s+[A-Z]/.test(s)) s = s.replace(/^[a-z]+\b[\s,;:]*/, '').trim();
   // a leading bullet/dash on the WHOLE gist, or list items: convert "- foo\n- bar"
   // into "foo. bar." by stripping markers; join lines into one paragraph.
   s = s
