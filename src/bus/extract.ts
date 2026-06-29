@@ -29,7 +29,8 @@ const EXTRACT_SYS =
   + '"secrets":[{"secret":"one clause","keeper":"Name","from":"Name(s) comma-sep or omit","danger":"minor|major|explosive"}],'
   + '"journal":[{"who":"Name","about":"Name or omit","memory":"one vivid sentence from WHO\'S point of view","kind":"interaction|promise|betrayal|gift|shared|wound|observation","weight":"trivial|minor|significant|defining","sentiment":"positive|negative|neutral|complex"}],'
   + '"bonds":[{"a":"Name","b":"Name","aff":<int -40..40>,"trust":<int -40..40>,"cat":["familial|romantic|alliance|rivalry|social"],"why":"one clause"}],"factions":[{"name":"Group name","kind":"household|house|guild|order","members":["Name"],"standing":<int -40..40 toward the player, optional>}]}. '
-  + 'RULES: use ONLY real character names that appear in the prose (the persona/player and the characters), never placeholders or unnamed figures (a guard, a servant). '
+  + 'RULES: use ONLY real character names that LITERALLY APPEAR in the prose excerpt below (the persona/player and the characters named in it), never placeholders or unnamed figures (a guard, a servant). '
+  + 'NEVER invent a name, and NEVER substitute a different or more-famous name for the one written — if the prose says "Daeron", attribute to Daeron, never to "Rhaegar" or any other character, even if they seem related or similar. Copy the name EXACTLY as it appears. If you are unsure who acted, OMIT the entry rather than guess. '
   + 'EVERY NAMED CHARACTER COUNTS — not just the lead or the player. Attribute knowledge, secrets, and journal entries to side characters, rivals, family, and minor figures too whenever the prose gives them a real name; the chronicle tracks them all equally. '
   + 'KNOWLEDGE is the engine of dramatic irony — track the INFORMATION STATE. Extract when ANY character (including the player) learns, realizes, infers, overhears, confesses, or comes to wrongly believe something — e.g. "Cersei revealed her father beat her" => {who:"<listener>",fact:"<speaker>\'s father beat <speaker>"} AND a secret if it was hidden. '
   + 'reliability = the knower\'s stance (wrong = they believe something untrue); truth = the ACTUAL state regardless of belief (a mistaken belief is reliability:"wrong",truth:"false"); source = how they came to it. '
@@ -63,12 +64,38 @@ function bad(name: string): boolean {
 }
 
 /**
+ * Anti-hallucination / anti-misattribution gate for SUBJECT names (the knower,
+ * keeper, journaller, bond endpoints, faction members). A character can only
+ * LEARN/HOLD/ACT if they are actually in THIS turn's prose — so a subject name
+ * is accepted only when it (or its first/last token) appears in the prose, OR is
+ * the persona/{{char}}. This kills two failure classes at once:
+ *   - pure hallucination (the model invents "Aegon" who isn't in the text)
+ *   - misattribution to an off-scene cast member (writes "Rhaegar" for a Daeron
+ *     scene — Rhaegar isn't in this prose, so it's dropped)
+ * OBJECT slots (about / secret `from` / faction name) are NOT gated here: you can
+ * learn a fact ABOUT someone absent. `proseTokens` is the lowercased word set of
+ * the turn's narration. */
+function buildProseTokens(prose: string): Set<string> {
+  const set = new Set<string>();
+  for (const w of String(prose || '').toLowerCase().match(/[a-z][a-z'-]{1,}/g) ?? []) set.add(w);
+  return set;
+}
+function inProse(name: string, prose: Set<string>, userCanon: string, charCanon: string): boolean {
+  const id = canonId(name);
+  if (!id) return false;
+  if (id === userCanon || id === charCanon) return true; // persona always counts
+  // any token of the name present in the prose ("Aegon" matches "Aegon Targaryen"
+  // and vice-versa; a multi-word name needs only one token to land).
+  return id.split('_').some((tok) => tok.length > 1 && prose.has(tok));
+}
+
+/**
  * PURE mapping: extractor JSON → events (src:'living'). Split out from the host
  * call so it is unit-testable without `generation`/`internalGenerate` — which is
  * exactly why bugs here (the `bad(b)` typo, the over-eager name filter) shipped
  * uncaught. `seqFn` defaults to the global monotonic seq; tests can inject one.
  */
-export function mapExtracted(obj: any, turn: number, day: number, names: { user: string; char: string }, seqFn: () => number = nextSeq, state?: ChronicleState, tone: Tone = DEFAULT_TONE): VellumEvent[] {
+export function mapExtracted(obj: any, turn: number, day: number, names: { user: string; char: string }, seqFn: () => number = nextSeq, state?: ChronicleState, tone: Tone = DEFAULT_TONE, prose = ''): VellumEvent[] {
   if (!obj || typeof obj !== 'object') return [];
   const out: VellumEvent[] = [];
   const base = () => ({ seq: seqFn(), turn, day, src: 'living' as const });
@@ -76,10 +103,16 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   // "Cersei Lannister") so knowledge/secrets/journal don't split a character.
   const rid = (name: string): string => (state ? resolveCastId(state, name) : canonId(name));
   const userCanon = names.user ? canonId(names.user) : '';
+  const charCanon = names.char ? canonId(names.char) : '';
+  // subject-name gate: a knower/holder/actor must be in THIS prose (or persona).
+  // When no prose is supplied (older callers/tests), the gate is a no-op so
+  // behaviour is unchanged. OBJECT names (about/from/faction) bypass it.
+  const tokens = prose ? buildProseTokens(prose) : null;
+  const present = (name: string): boolean => !tokens || inProse(name, tokens, userCanon, charCanon);
 
   for (const k of Array.isArray(obj.knowledge) ? obj.knowledge : []) {
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
-    if (bad(who) || !fact) continue;
+    if (bad(who) || !fact || !present(who)) continue;
     const about = realName(k?.about, names);
     const reliability = REL.has(String(k?.reliability)) ? k.reliability : undefined;
     const truth = TRU.has(String(k?.truth)) ? k.truth : undefined;
@@ -89,20 +122,20 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   let si = 0;
   for (const s of Array.isArray(obj.secrets) ? obj.secrets : []) {
     const keeper = realName(s?.keeper, names); const text = String(s?.secret || s?.text || '').trim();
-    if (bad(keeper) || !text) continue;
+    if (bad(keeper) || !text || !present(keeper)) continue;
     const from = String(s?.from || '').split(',').map((x: string) => realName(x, names)).filter((x: string) => x && !bad(x)).map(rid);
     out.push({ ...base(), kind: 'secret.form', id: 'sec_' + turn + '_' + (si++), keeper: rid(keeper), from, text } as VellumEvent);
   }
   let ji = 0;
   for (const j of Array.isArray(obj.journal) ? obj.journal : []) {
     const who = realName(j?.who, names); const memory = String(j?.memory || '').trim();
-    if (bad(who) || !memory) continue;
+    if (bad(who) || !memory || !present(who)) continue;
     const about = realName(j?.about, names);
     out.push({ ...base(), kind: 'journal.entry', id: 'mj_' + rid(who) + '_' + turn + '_' + (ji++), who: rid(who), ...(about && !bad(about) ? { about: rid(about) } : {}), memory, jkind: jk(j?.kind), weight: jw(j?.weight), sentiment: js(j?.sentiment) } as VellumEvent);
   }
   for (const b of Array.isArray(obj.bonds) ? obj.bonds : []) {
     const a = realName(b?.a, names), bb = realName(b?.b, names);
-    if (bad(a) || bad(bb) || rid(a) === rid(bb)) continue;
+    if (bad(a) || bad(bb) || rid(a) === rid(bb) || !present(a) || !present(bb)) continue;
     const cats = (Array.isArray(b?.cat) ? b.cat : []).map((c: string) => String(c).toLowerCase()).filter(isCategory) as Category[];
     const aff = clamp(b?.aff), trust = clamp(b?.trust);
     if (!aff && !trust && !cats.length) continue;
@@ -126,7 +159,7 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     out.push({ ...base(), kind: 'faction.seen', id: fid, name, status: 'active' } as VellumEvent);
     if (fx?.kind) out.push({ ...base(), kind: 'faction.edit', id: fid, patch: { kind: String(fx.kind) } } as VellumEvent);
     const members = Array.isArray(fx?.members) ? fx.members : String(fx?.members || '').split(',');
-    for (const mn of members) { const m = realName(mn, names); if (m && !bad(m)) out.push({ ...base(), kind: 'faction.member', char: rid(m), faction: fid, op: 'add' } as VellumEvent); }
+    for (const mn of members) { const m = realName(mn, names); if (m && !bad(m) && present(m)) out.push({ ...base(), kind: 'faction.member', char: rid(m), faction: fid, op: 'add' } as VellumEvent); }
     const seed = isNew ? seedFactionStanding(tone) : 0;
     const delta = (Number.isFinite(fx?.standing) ? clamp(fx.standing) : 0) + seed;
     if (delta) out.push({ ...base(), kind: 'faction.standing', faction: fid, standing: Math.max(-100, Math.min(100, delta)) } as VellumEvent);
@@ -149,7 +182,7 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   );
   if (!gen.ok) return [];
   const obj = parseJson(gen.value);
-  return mapExtracted(obj, turn, day, names, nextSeq, state, tone);
+  return mapExtracted(obj, turn, day, names, nextSeq, state, tone, prose);
 }
 
 // JSON-schema for the extractor output. Best-effort: the host enforces it only

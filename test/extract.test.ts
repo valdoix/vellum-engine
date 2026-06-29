@@ -73,3 +73,46 @@ describe('mapExtracted — pure JSON → events', () => {
     expect(s.keeper).toBe('cersei_lannister');
   });
 });
+
+describe('mapExtracted — prose gate (anti-hallucination / anti-misattribution)', () => {
+  const prose = 'Daeron knelt beside Cersei and confessed what he had done. She wept.';
+
+  it('drops a hallucinated subject not in the prose ("Aegon")', () => {
+    const evs = mapExtracted({ knowledge: [{ who: 'Aegon', fact: 'plots in secret' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+    expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(0);
+  });
+
+  it('drops misattribution to an off-scene cast member ("Rhaegar" for a Daeron scene)', () => {
+    const state = freshState();
+    state.cast.rhaegar = { id: 'rhaegar', name: 'Rhaegar', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false } as any;
+    const evs = mapExtracted({ journal: [{ who: 'Rhaegar', memory: 'I confessed' }] }, 5, 1, names, sf, state, undefined, prose);
+    expect(evs.filter((e) => e.kind === 'journal.entry')).toHaveLength(0);
+  });
+
+  it('keeps a subject present in the prose (Daeron, by token)', () => {
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'admitted the deed' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+    expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(1);
+  });
+
+  it('matches by token: "Daeron Targaryen" subject lands when prose says "Daeron"', () => {
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron Targaryen', fact: 'x' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+    expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(1);
+  });
+
+  it('allows an OBJECT (about) to be someone absent from the prose', () => {
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'Aegon is dead', about: 'Aegon' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+    const k = evs.find((e) => e.kind === 'knowledge.learn') as any;
+    expect(k).toBeDefined();
+    expect(k.about).toBe('aegon'); // topic can be absent; only the SUBJECT is gated
+  });
+
+  it('persona ({{user}}) is always allowed even if not literally in the prose', () => {
+    const evs = mapExtracted({ journal: [{ who: '{{user}}', memory: 'I watched it happen' }] }, 5, 1, names, sf, freshState(), undefined, 'a quiet room with no names');
+    expect(evs.filter((e) => e.kind === 'journal.entry')).toHaveLength(1);
+  });
+
+  it('no prose supplied → gate is a no-op (back-compat)', () => {
+    const evs = mapExtracted({ knowledge: [{ who: 'Aegon', fact: 'x' }] }, 5, 1, names, sf, freshState());
+    expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(1);
+  });
+});
