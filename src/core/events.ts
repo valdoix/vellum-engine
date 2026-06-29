@@ -98,6 +98,8 @@ export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id
 // `keys` carries back the (possibly user-edited) entry keywords for round-trip sync.
 export const EvMemoryLink = z.object({ ...base, kind: z.literal('memory.link'), id: z.string(), vaultEntryId: z.string(), keys: z.array(z.string()).optional() });
 export const EvMemoryDrop = z.object({ ...base, kind: z.literal('memory.drop'), id: z.string() });
+// User edit of a memory's gist text and/or detail (the vault-mirrored body).
+export const EvMemoryEdit = z.object({ ...base, kind: z.literal('memory.edit'), id: z.string(), text: z.string().optional(), detail: z.string().optional() });
 
 export const EvThread = z.object({ ...base, kind: z.literal('thread.op'), op: z.enum(['new', 'advance', 'stall', 'resolve']), name: z.string(), note: z.string().optional() });
 export const EvArc = z.object({ ...base, kind: z.literal('arc.op'), op: z.enum(['new', 'advance', 'resolve']), name: z.string(), note: z.string().optional() });
@@ -116,7 +118,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding,
   EvBondDelta, EvBondDrop,
   EvKnowledge, EvKnowledgeDrop, EvKnowledgeMerge, EvSecretForm, EvSecretReveal, EvSecretDrop, EvSecretMerge,
-  EvMemory, EvMemoryDrop, EvMemoryLink,
+  EvMemory, EvMemoryDrop, EvMemoryLink, EvMemoryEdit,
   EvThread, EvArc, EvThreadMerge, EvArcMerge,
   EvJournal, EvJournalDrop, EvJournalEdit,
   EvParallel, EvOffscreen,

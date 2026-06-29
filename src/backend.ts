@@ -780,19 +780,26 @@ const dispatch: Record<string, Handler> = {
     await append(chatId, evs);
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
-    // deleting a chapter/arc memory must also remove its mirrored Vault entry
-    // (reconcile drops orphaned chapter:/arc: entries whose memory is gone).
-    if (p.cmd === 'memory_delete') void maybeChapterVault(chatId, uid);
+    // deleting OR editing a chapter/arc memory must reconcile its mirrored Vault
+    // entry (drop orphans; re-project edited detail/keys).
+    if (p.cmd === 'memory_delete' || p.cmd === 'memory_edit') void maybeChapterVault(chatId, uid);
   },
   vellum_summarize: async (p, uid) => {
-    // manual "summarize past turns" â€” compress as many full windows as exist
+    // manual "summarize past turns" — compress as many full windows as exist.
+    // Broadcast state + a progress count after EACH window so summaries appear
+    // one-by-one in the chronicle/vault instead of all at once on reload.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const state = await loadState(chatId);
-    const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs), 4, await chatNames(chatId, uid));
+    const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs), 4, await chatNames(chatId, uid), async (done, total) => {
+      invalidateIndex(chatId);
+      await broadcastState(chatId, uid);
+      await maybeChapterVault(chatId, uid); // project each new chapter to the vault as it lands
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total }, uid);
+    });
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
-    const vault = await maybeChapterVault(chatId, uid); // project new chapters' detail to the vault
+    const vault = await maybeChapterVault(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds, vault }, uid);
   },
   vellum_clear: async (p, uid) => {

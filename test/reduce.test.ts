@@ -120,6 +120,26 @@ describe('reduce — cast, knowledge, secrets, memory', () => {
     expect(s.relations).toHaveLength(0); // edge removed with the node
   });
 
+  it('memory.edit updates the gist text and detail in place', () => {
+    const s = reduce([
+      ev({ kind: 'memory.record', id: 'chap1', tier: 'chapter', text: 'old gist', detail: 'old detail', keys: [] }),
+      ev({ kind: 'memory.edit', id: 'chap1', text: 'new gist', detail: 'new detail' }),
+    ]);
+    const m = s.memories.find((x) => x.id === 'chap1')!;
+    expect(m.text).toBe('new gist');
+    expect(m.detail).toBe('new detail');
+  });
+
+  it('memory.edit with empty detail clears it; blank text is ignored', () => {
+    const s = reduce([
+      ev({ kind: 'memory.record', id: 'c2', tier: 'chapter', text: 'keep', detail: 'd', keys: [] }),
+      ev({ kind: 'memory.edit', id: 'c2', text: '   ', detail: '' }),
+    ]);
+    const m = s.memories.find((x) => x.id === 'c2')!;
+    expect(m.text).toBe('keep'); // blank text ignored
+    expect(m.detail).toBeUndefined(); // empty detail cleared
+  });
+
   it('cast.drop cascades to ALL their data (knowledge/secrets/journal/memberships)', () => {
     const s = reduce([
       ev({ kind: 'cast.seen', id: 'ned', name: 'Ned', status: 'present' }),

@@ -72,6 +72,15 @@ export const chronicleTab: Component<ChronicleState> = {
       ], (o) => { if (o.keeper?.trim() && o.text?.trim()) cmd('secret_add', o); }); return; }
       const md = t.closest('[data-mem-del]');
       if (md) { confirmModal('Delete this memory?', () => cmd('memory_delete', { id: md.getAttribute('data-id') })); return; }
+      const me = t.closest('[data-mem-edit]');
+      if (me) {
+        const id = me.getAttribute('data-id'); const hasDetail = !!me.getAttribute('data-detail');
+        formModal('Edit summary', [
+          { key: 'text', label: 'Summary (chronicle)', type: 'textarea', value: me.getAttribute('data-text') ?? '' },
+          ...(hasDetail ? [{ key: 'detail', label: 'Detailed record (vault)', type: 'textarea' as const, value: me.getAttribute('data-detail') ?? '' }] : []),
+        ], (o) => { if (o.text?.trim()) cmd('memory_edit', { id, text: o.text, ...(hasDetail ? { detail: o.detail ?? '' } : {}) }); });
+        return;
+      }
       const kd = t.closest('[data-know-del]');
       if (kd) { confirmModal('Delete this knowledge?', () => cmd('knowledge_delete', { id: kd.getAttribute('data-id') })); return; }
       const sd = t.closest('[data-sec-del]');
@@ -168,7 +177,8 @@ function memories(s: ChronicleState): string {
   const rows = slice.map((m: Memory) =>
     '<div class="vle-mem"><span class="vle-mem-tier t-' + m.tier + '">' + m.tier + '</span>'
     + '<span class="vle-mem-t">' + esc(m.text) + '</span>'
-    + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></div>`
+    + `<span class="vle-mem-ctl"><button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit summary">\u270E</button>`
+    + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`
   ).join('');
   if (!slice.length) return head + bar + emptyState('No memories match this filter.');
   return head + bar + rows + pagerHtml('memories', page, pages);

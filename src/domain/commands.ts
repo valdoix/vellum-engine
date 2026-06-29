@@ -144,6 +144,13 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     }
     case 'memory_delete':
       return e.id ? [{ ...base(ctx), kind: 'memory.drop', id: String(e.id) } as VellumEvent] : [];
+    case 'memory_edit': {
+      if (!e.id) return [];
+      const patch: Record<string, unknown> = { ...base(ctx), kind: 'memory.edit', id: String(e.id) };
+      if (e.text !== undefined) patch.text = String(e.text);
+      if (e.detail !== undefined) patch.detail = String(e.detail);
+      return [patch as VellumEvent];
+    }
     case 'thread_op':
       return e.name ? [{ ...base(ctx), kind: 'thread.op', op: (e.op ?? 'advance'), name: String(e.name), ...(e.note ? { note: String(e.note) } : {}) } as VellumEvent] : [];
     case 'arc_op':
@@ -177,6 +184,6 @@ export const CMD_TYPES = new Set([
   'cast_upsert', 'cast_delete', 'relation_upsert', 'relation_delete',
   'faction_upsert', 'faction_delete', 'faction_member', 'faction_standing_set',
   'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
-  'memory_add', 'memory_delete',
+  'memory_add', 'memory_delete', 'memory_edit',
   'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set',
 ]);

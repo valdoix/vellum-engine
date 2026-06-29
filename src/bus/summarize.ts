@@ -174,15 +174,27 @@ function fallbackDigest(state: ChronicleState, plan: CompressPlan): string {
 
 /** Compress as many windows as exist (manual "summarize all"). A manual run uses
  * a smaller minimum window so it works even on shorter chats, and keeps the most
- * recent few turns verbatim. */
-export async function summarizeAll(state: ChronicleState, userId: string | null, append: (evs: VellumEvent[]) => Promise<ChronicleState>, windowSize = 4, names?: { user: string; char: string }): Promise<number> {
+ * recent few turns verbatim. `onRound` fires after EACH window is appended so the
+ * UI can show summaries appear one-by-one + a progress count. `total` is the
+ * up-front estimate of windows to process. */
+export async function summarizeAll(
+  state: ChronicleState,
+  userId: string | null,
+  append: (evs: VellumEvent[]) => Promise<ChronicleState>,
+  windowSize = 4,
+  names?: { user: string; char: string },
+  onRound?: (done: number, total: number) => Promise<void> | void,
+): Promise<number> {
   let rounds = 0;
   let cur = state;
+  const turnCount = cur.memories.filter((m) => m.tier === 'turn').length;
+  const total = Math.max(1, Math.floor(turnCount / windowSize));
   for (let i = 0; i < 50; i++) {
     const evs = await summarizeOnce(cur, userId, windowSize, names);
     if (!evs.length) break;
     cur = await append(evs);
     rounds++;
+    if (onRound) await onRound(rounds, Math.max(rounds, total));
   }
   return rounds;
 }

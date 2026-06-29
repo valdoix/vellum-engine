@@ -542,6 +542,10 @@ export function setup(ctx: Ctx): () => void {
         setQolBusy('export', false);
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
         notify(ctx, 'success', 'Chronicle exported.');
+      } else if (p?.type === 'vellum_summarize_progress') {
+        // live count as each window is summarized; state already re-rendered by
+        // the per-round broadcast, so this is just the running notification.
+        notify(ctx, 'info', `Summarizing\u2026 ${p.done}/${p.total}`);
       } else if (p?.type === 'vellum_summarize_done') {
         setQolBusy('summarize', false);
         notify(ctx, 'success', p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'Nothing old enough to summarize yet.');

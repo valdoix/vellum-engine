@@ -113,6 +113,8 @@ export const STYLES = [
   ".vle-os-gist{font-size:12px;line-height:1.45;opacity:.9;margin-top:2px}",
   ".vle-os-h{margin-top:4px;font-size:11px;opacity:.6}.vle-os-h summary{cursor:pointer;font:600 9px/1.3 var(--vmono);text-transform:uppercase;letter-spacing:.4px}.vle-os-h div{padding:2px 0 0 8px}",
   ".vle-mem{display:flex;gap:7px;font-size:12px;padding:4px 0;line-height:1.45;align-items:baseline}",
+  ".vle-mem-t{flex:1;min-width:0}",
+  ".vle-mem-ctl{flex:none;display:inline-flex;gap:3px;align-self:flex-start}",
   ".vle-mem-tier{flex:none;font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;border-radius:var(--vr1);opacity:.85}",
   ".vle-mem-tier.t-turn{color:#8c8478;border:1px solid rgba(140,132,120,.4)}",
   ".vle-mem-tier.t-chapter{color:var(--v-info);border:1px solid color-mix(in srgb,var(--v-info) 40%,transparent)}",

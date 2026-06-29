@@ -308,6 +308,14 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (m) { m.vaultEntryId = e.vaultEntryId; if (e.keys) m.keys = e.keys; }
       break;
     }
+    case 'memory.edit': {
+      const m = s.memories.find((x) => x.id === e.id);
+      if (m) {
+        if (typeof e.text === 'string' && e.text.trim()) m.text = e.text.trim();
+        if (typeof e.detail === 'string') m.detail = e.detail.trim() || undefined; // empty clears the detail
+      }
+      break;
+    }
     case 'memory.drop': {
       // deleting a CHAPTER restores the turn-memories it subsumed (so a user can
       // undo a compression and get the per-turn detail back); other drops just remove.
