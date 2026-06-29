@@ -80,6 +80,11 @@ export async function allAssistantContents(chatId: string): Promise<string[]> {
  * the content now carries what the PLAYER did + how the AI responded — so
  * memories and summaries reflect both sides, not just the assistant's words.
  * Leading user messages before the first assistant reply attach to that reply.
+ *
+ * Both sides get an explicit structural marker ([Player action] / [Scene]) so
+ * the player's input and the AI's third-person narration are never blurred into
+ * one voice. The markers are bracketed labels, not in-fiction speaker names, so
+ * resolving {{user}} can't make narration read as the player's dialogue.
  */
 export async function allTurnContents(chatId: string): Promise<string[]> {
   try {
@@ -101,9 +106,9 @@ export async function allTurnContents(chatId: string): Promise<string[]> {
         const c = pickContent(m).trim();
         if (c) pendingUser.push(c);
       } else if (m.role === 'assistant') {
-        const reply = pickContent(m);
+        const reply = pickContent(m).trim();
         const block = pendingUser.length
-          ? pendingUser.map((u) => `{{user}}: ${u}`).join('\n\n') + '\n\n' + reply
+          ? pendingUser.map((u) => `[Player action]\n${u}`).join('\n\n') + (reply ? `\n\n[Scene]\n${reply}` : '')
           : reply;
         out.push(block);
         pendingUser = [];
