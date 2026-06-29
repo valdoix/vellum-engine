@@ -274,6 +274,14 @@ export const STYLES = [
   ".vlfm-chkrow{display:flex;flex-wrap:wrap;gap:8px 14px;padding:3px 0}",
   ".vlfm-chk{display:inline-flex;align-items:center;gap:5px;font:500 12px/1 var(--vmono);text-transform:none;letter-spacing:0;cursor:pointer}",
   ".vlfm-chk input{accent-color:var(--vle-gold);cursor:pointer}",
+  // edit-character color field: space the color input from the 'none' toggle
+  ".vlfm-colrow{display:flex;align-items:center;gap:14px;margin-top:4px}",
+  ".vlfm-col{width:46px;height:28px;padding:0;border:1px solid rgba(var(--vg-rgb),.3);border-radius:6px;background:transparent;cursor:pointer}",
+  // cast tab auto-color control
+  ".vle-autoc{display:inline-flex;align-items:center;gap:4px;font:600 8.5px/1 var(--vmono);letter-spacing:.3px;text-transform:uppercase;color:var(--vle-dim);margin-right:8px}",
+  ".vle-autoc-b{font:inherit;color:var(--vi2);background:rgba(var(--vg-rgb),.08);border:1px solid var(--vle-gold-soft);border-radius:6px;padding:4px 7px;cursor:pointer}",
+  ".vle-autoc-b:hover{color:var(--vle-gold)}",
+  ".vle-autoc-b.on{background:rgba(var(--vg-rgb),.22);color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.45)}",
   ".vlfm-foot{display:flex;justify-content:flex-end;gap:8px;padding:11px 16px;border-top:1px solid rgba(var(--vg-rgb),.18)}",
   ".vlfm-btn{font:600 11px/1 var(--vmono);letter-spacing:.5px;border-radius:8px;padding:8px 16px;cursor:pointer;border:1px solid rgba(var(--vg-rgb),.3);background:transparent;color:var(--vi2)}",
   ".vlfm-save{background:rgba(var(--vg-rgb),.22);color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.5)}",
@@ -548,7 +556,7 @@ export const STYLES = [
   ".vle-fac-av{background:rgba(var(--vg-rgb),.16);color:var(--vle-gold)}",
   ".vle-fac-stand{font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px}",
   ".vle-fac-stand.warm{color:var(--v-pos-i)}", ".vle-fac-stand.cool{color:var(--v-neg-i)}", ".vle-fac-stand.neu{color:var(--vle-dim)}",
-  ".vle-fac-meter{display:block;margin-top:8px;max-width:220px}",
+  ".vle-fac-meter{display:block;margin-top:12px;max-width:220px}",
   ".vle-fac-mems{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}",
   ".vle-fac-mem{display:inline-flex;align-items:center;gap:3px;font:500 9px/1.4 var(--vmono);padding:2px 4px;border-radius:var(--vr1);border:1px solid rgba(255,255,255,.12);color:var(--vle-dim)}",
   ".vle-fac-x{background:none;border:0;color:var(--vle-dim);cursor:pointer;font-size:11px;line-height:1;padding:0 0 0 2px;opacity:.6}",

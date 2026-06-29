@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCastId, notAName, mergeCastDuplicates, nameConflict } from '../src/domain/identity.js';
+import { resolveCastId, notAName, mergeCastDuplicates, nameConflict, mergeFactionDuplicates } from '../src/domain/identity.js';
 import { coreFeature } from '../src/domain/core-feature.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState, type CastCard, type Relation } from '../src/domain/types.js';
@@ -256,5 +256,44 @@ describe('resolveCastId — never collapses distinct same-surname people', () =>
     const s = withCast(['Daeron Targaryen'], ['Rhaegar Targaryen']);
     const m = mergeCastDuplicates(s);
     expect(Object.keys(m.cast).sort()).toEqual(['daeron_targaryen', 'rhaegar_targaryen']);
+  });
+});
+
+describe('mergeFactionDuplicates — member-overlap near-dupes', () => {
+  function fac(id: string, name: string, firstTurn: number): any {
+    return { id: 'fac:' + id, name, aka: [], status: 'active', standing: 10, trust: 0, source: 'auto', firstTurn, lastTurn: firstTurn, userEdited: false };
+  }
+  function withFactions(): ChronicleState {
+    const s = freshState();
+    s.factions = { 'fac:baldness_conspiracy': fac('baldness_conspiracy', 'The Baldness Conspiracy', 5), 'fac:hair_conspiracy': fac('hair_conspiracy', 'The Hair Conspiracy', 8) } as any;
+    const mem = (faction: string, ...chars: string[]) => chars.map((c) => ({ char: c, faction }));
+    s.memberships = [
+      ...mem('fac:baldness_conspiracy', 'daeron', 'jaime', 'oberyn', 'cersei'),
+      ...mem('fac:hair_conspiracy', 'daeron', 'jaime', 'oberyn', 'cersei'),
+    ] as any;
+    return s;
+  }
+
+  it('folds two factions with the same members into the older one', () => {
+    const m = mergeFactionDuplicates(withFactions());
+    expect(Object.keys(m.factions)).toEqual(['fac:baldness_conspiracy']); // older kept
+    expect(m.factions['fac:baldness_conspiracy']!.aka).toContain('The Hair Conspiracy'); // newer name folded to aka
+  });
+
+  it('does NOT merge factions with little member overlap', () => {
+    const s = withFactions();
+    s.memberships = [
+      { char: 'daeron', faction: 'fac:baldness_conspiracy' }, { char: 'jaime', faction: 'fac:baldness_conspiracy' },
+      { char: 'tywin', faction: 'fac:hair_conspiracy' }, { char: 'robert', faction: 'fac:hair_conspiracy' },
+    ] as any;
+    const m = mergeFactionDuplicates(s);
+    expect(Object.keys(m.factions).sort()).toEqual(['fac:baldness_conspiracy', 'fac:hair_conspiracy']);
+  });
+
+  it('never auto-merges a user-edited faction', () => {
+    const s = withFactions();
+    s.factions['fac:hair_conspiracy']!.userEdited = true;
+    const m = mergeFactionDuplicates(s);
+    expect(Object.keys(m.factions).length).toBe(2);
   });
 });

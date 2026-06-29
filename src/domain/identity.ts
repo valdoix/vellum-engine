@@ -287,6 +287,30 @@ export function mergeFactionDuplicates(s: ChronicleState): ChronicleState {
     const supersets = ids.filter((other) => other !== shortId && tokenPrefix(a, other.replace(/^fac:/, '')));
     if (supersets.length === 1) remap.set(shortId, supersets[0]!);
   }
+  // member-overlap dedup: the auto-extractor can name the SAME group two ways
+  // ("The Baldness Conspiracy" vs "The Hair Conspiracy"), which token-prefix
+  // can't catch. Two factions whose member sets strongly overlap (Jaccard ≥ .6,
+  // ≥2 shared) are the same group — fold the newer into the older. Skip pairs
+  // already remapped, and never auto-merge a user-edited faction.
+  const membersOf = (fid: string): Set<string> => new Set(s.memberships.filter((m) => m.faction === fid).map((m) => m.char));
+  const memCache = new Map(ids.map((id) => [id, membersOf(id)]));
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const x = ids[i]!, y = ids[j]!;
+      if (remap.has(x) || remap.has(y)) continue;
+      const fx = s.factions[x]!, fy = s.factions[y]!;
+      if (fx.userEdited || fy.userEdited) continue;
+      const mx = memCache.get(x)!, my = memCache.get(y)!;
+      if (mx.size < 2 || my.size < 2) continue;
+      let shared = 0; for (const m of mx) if (my.has(m)) shared++;
+      const union = mx.size + my.size - shared;
+      if (shared >= 2 && union > 0 && shared / union >= 0.6) {
+        // keep the older (smaller firstTurn); fold the other into it
+        const [keep, drop] = (fx.firstTurn <= fy.firstTurn) ? [x, y] : [y, x];
+        remap.set(drop, keep);
+      }
+    }
+  }
   if (!remap.size) return s;
   const map = (id: string): string => { let cur = id, g = 0; while (remap.has(cur) && g++ < 16) cur = remap.get(cur)!; return cur; };
 

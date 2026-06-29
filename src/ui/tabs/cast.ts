@@ -1,7 +1,7 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, CastCard, Faction } from '../../domain/types.js';
-import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml } from '../format.js';
-import { cmd, paginate, pagerHtml, send, setPage } from '../bridge.js';
+import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, autoNameMode, setAutoNameMode } from '../format.js';
+import { cmd, paginate, pagerHtml, send, setPage, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
 /**
@@ -57,7 +57,7 @@ export const castTab: Component<ChronicleState> = {
     const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${(c.aka ?? []).join(',')}|${c.lastTurn}|${c.color ?? ''}|${c.colorTo ?? ''}`).join(';');
     const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}`).join(';');
     const mv = s.memberships.map((m) => `${m.char}>${m.faction}:${m.role ?? ''}`).join(',');
-    return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac;
+    return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode();
   },
   render(s) {
     _state = s;
@@ -66,6 +66,8 @@ export const castTab: Component<ChronicleState> = {
   mount(host) {
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
+      const ac = t.closest('[data-autoname]');
+      if (ac) { setAutoNameMode(ac.getAttribute('data-autoname') as 'off' | 'solid' | 'gradient'); refreshUI(); return; }
       const cs = t.closest('[data-cstatus]');
       if (cs) { const [side, v] = cs.getAttribute('data-cstatus')!.split(':') as ['cast' | 'fac', string]; _st[side] = v; setPage((side === 'cast' ? 'cast' : 'fac') + '-list', 0); return; }
       const so = t.closest('[data-csort]');
@@ -112,7 +114,11 @@ export const castTab: Component<ChronicleState> = {
 // ---------- characters ----------
 function castSection(s: ChronicleState): string {
   const all = Object.values(s.cast);
-  const header = sectionHeader('Characters', { action: '<button class="vle-add" data-cast-add>+ Character</button>' });
+  const auto = autoNameMode();
+  const autoCtl = '<span class="vle-autoc">auto color: '
+    + (['off', 'solid', 'gradient'] as const).map((m) => `<button class="vle-autoc-b${auto === m ? ' on' : ''}" data-autoname="${m}">${m}</button>`).join('')
+    + '</span>';
+  const header = sectionHeader('Characters', { action: autoCtl + '<button class="vle-add" data-cast-add>+ Character</button>' });
   if (!all.length) return header + emptyState('No characters yet.', 'They appear as the story introduces them.');
   const counts: Record<string, number> = {};
   for (const c of all) counts[c.status] = (counts[c.status] ?? 0) + 1;
