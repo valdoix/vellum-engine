@@ -52,7 +52,9 @@ function balancedObject(s: string): string | null {
  *   2. structural repair OUTSIDE string literals (comments, trailing commas,
  *      leading +, unquoted keys, single quotes) — a single string-aware scan so
  *      we never corrupt prose/URLs/punctuation inside a value
- *   3. the same, plus quote-normalization, as a last resort
+ *   3. close a TRUNCATED block (model ran out of tokens mid-object): trim any
+ *      dangling partial token and append the missing }/] implied by the stack
+ *   4. the same, plus quote-normalization, as a last resort
  * Returns the parsed value, or null if nothing works.
  */
 function lenientParse(raw: string): unknown | null {
@@ -60,7 +62,10 @@ function lenientParse(raw: string): unknown | null {
     .replace(/\u00A0/g, ' ')
     .replace(/^\s*```[a-z]*\s*/i, '').replace(/```\s*$/i, '')
     .trim();
-  const obj0 = balancedObject(base) ?? base;
+  // slice from the first '{' so leading prose/reverie never reaches the parser,
+  // even when the object is unbalanced (balancedObject would return null then).
+  const fromBrace = base.slice(Math.max(0, base.indexOf('{')));
+  const obj0 = balancedObject(base) ?? fromBrace;
 
   // 1. happy path
   const direct = tryParse(obj0);
@@ -71,14 +76,60 @@ function lenientParse(raw: string): unknown | null {
   const r1 = tryParse(repaired);
   if (r1 !== undefined) return r1;
 
-  // 3. + smart-quote normalization (do this LAST: it can mangle apostrophes in prose)
-  const normalized = repaired
+  // 3. close a truncated block, then repair
+  const closed = closeUnbalanced(fromBrace);
+  if (closed) {
+    const r2 = tryParse(closed) ?? tryParse(repairJson(closed));
+    if (r2 !== undefined) return r2;
+  }
+
+  // 4. + smart-quote normalization (do this LAST: it can mangle apostrophes in prose)
+  const normalized = (closed ?? repaired)
     .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
     .replace(/[\u2018\u2019\u201A\u2032]/g, "'");
-  const r2 = tryParse(repairJson(normalized));
-  if (r2 !== undefined) return r2;
+  const r3 = tryParse(repairJson(normalized));
+  if (r3 !== undefined) return r3;
 
   return null;
+}
+
+/**
+ * Repair a TRUNCATED object: the model emitted a prefix and ran out of tokens.
+ * String-aware scan tracks the bracket stack; we trim back to the last "safe"
+ * boundary (drop a dangling partial key/value), then append the closers the
+ * stack implies. Returns null if there's nothing to close.
+ */
+function closeUnbalanced(s: string): string | null {
+  if (!s || s[0] !== '{') return null;
+  const stack: string[] = [];
+  let inStr = false, esc = false;
+  let lastSafe = -1; // index just after a completed value/element (a ',' or close)
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]!;
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') { inStr = false; lastSafe = i + 1; } continue; }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '{') stack.push('}');
+    else if (c === '[') stack.push(']');
+    else if (c === '}' || c === ']') { stack.pop(); lastSafe = i + 1; }
+    else if (c === ',') lastSafe = i; // keep up to (not incl) the comma
+    else if (/\d/.test(c) || c === 'e' || c === 'l' || c === 'u') lastSafe = Math.max(lastSafe, i + 1); // tail of number/true/null/false
+  }
+  if (!stack.length && !inStr) return null; // balanced already — not our case
+  // if we ended mid-string, cut the string off at lastSafe (last completed value)
+  let body = inStr ? s.slice(0, lastSafe) : s;
+  // drop a trailing dangling token like  , "key":   or  , "key"
+  body = body.replace(/,\s*"[^"]*"\s*:?\s*$/, '').replace(/,\s*$/, '').replace(/:\s*$/, '');
+  // recompute closers for the trimmed body (string-aware)
+  const cl: string[] = []; let st = false, e = false;
+  for (const c of body) {
+    if (st) { if (e) e = false; else if (c === '\\') e = true; else if (c === '"') st = false; continue; }
+    if (c === '"') st = true;
+    else if (c === '{') cl.push('}');
+    else if (c === '[') cl.push(']');
+    else if (c === '}' || c === ']') cl.pop();
+  }
+  if (st) return null; // still mid-string after trim → give up
+  return body + cl.reverse().join('');
 }
 
 function tryParse(s: string): unknown | undefined {

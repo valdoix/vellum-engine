@@ -55,4 +55,24 @@ describe('lenientParse durability', () => {
     expect(s.scene.loc).toBe('X');
     expect(s.turn).toBe(2);
   });
+
+  // --- truncation: model ran out of tokens mid-object (missing closing braces) ---
+  it('closes a block truncated mid-array (one missing brace)', () => {
+    // valid prefix, just missing the final } — the real-world bug
+    const s = ok('{ "scene": { "loc": "Harrenhal" }, "delta": { "factions": [ { "name": "The Four", "standing": 94 } ] }');
+    expect(s.scene.loc).toBe('Harrenhal');
+    expect(s.delta.factions[0].name).toBe('The Four');
+  });
+
+  it('closes a block truncated mid-string + drops the dangling field', () => {
+    const r = parseState('<vellum>{ "scene": { "loc": "Hall" }, "delta": { "journal": [ { "who": "C", "memory": "she said');
+    expect(r.source).toBe('json');
+    expect(r.state!.scene!.loc).toBe('Hall');
+  });
+
+  it('truncated with NO closing fence still parses (not regex fallback)', () => {
+    const r = parseState('prose\n<vellum>\n{ "scene": { "loc": "Keep" }, "delta": { "bonds": [ { "a": "A", "b": "B", "aff": +1 } ]');
+    expect(r.source).toBe('json');
+    expect(r.state!.scene!.loc).toBe('Keep');
+  });
 });
