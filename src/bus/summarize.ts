@@ -32,10 +32,12 @@ const SUMMARY_SYS =
   + 'adjectives, one idea per sentence, no purple prose, no [OOC]/meta. 6-12 sentences (or tight bullet lines). '
   + 'This replaces reading the full scene, so lose nothing that future continuity needs.>\n'
   + 'GIST:\n'
-  + '<a compact past-tense SUMMARY OF WHAT HAPPENED this chapter: the concrete events and their outcome, in order — '
-  + 'who did what, what was decided/revealed/changed, and where it left things. 1-3 plain sentences. Name real people '
-  + 'and concrete actions; this is a factual recap a reader skims to know the events, NOT a mood line or a single theme. '
-  + 'End each sentence with a full stop so it is never cut mid-thought.>\n'
+  + '<2-4 flowing past-tense sentences of plain prose that recap WHAT HAPPENED this chapter in chronological order, '
+  + 'continuing smoothly from the STORY SO FAR if one is given (do not repeat it; carry it forward). State the concrete '
+  + 'events and their outcome — who did what, what was decided/revealed/changed, where it left things. Write it as a '
+  + 'connected paragraph a reader skims to follow the plot. HARD RULES: no bullet points or dashes, no labels, no '
+  + 'meta-commentary ("the thread left open", "she now knows", "the unresolved thread", "this chapter"), no analysis of '
+  + 'feelings or themes — only events. Every sentence is complete and ends with a full stop.>\n'
   + 'KEYS:\n'
   + '<8-16 comma-separated retrieval keywords: CONCRETE and scene-specific — places, objects, proper nouns, distinctive '
   + 'actions, unique phrases a later scene might echo. One concept each. NOT abstract themes (love, trust, betrayal), '
@@ -71,8 +73,13 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
   const nameHint = (names && (names.user || names.char))
     ? `\nThe player is "${names.user || '(unnamed)'}"; the focal character is "${names.char || '(unnamed)'}". Use these real names; never write {{user}}/{{char}}/"you".`
     : '';
+  // CONTINUITY: feed the recent chapter gists so this chapter flows on from them.
+  // The model reads them as "story so far" and carries the thread forward rather
+  // than restating — what makes the chronicle read as one continuous account.
+  const soFar = storySoFar(state, plan);
+  const userMsg = soFar ? `STORY SO FAR (for continuity — do not repeat):\n${soFar}\n\n---\nNEW TURNS TO SUMMARIZE:\n${src}` : src;
   const gen = await internalGenerate(
-    [{ role: 'system', content: SUMMARY_SYS + nameHint }, { role: 'user', content: src }],
+    [{ role: 'system', content: SUMMARY_SYS + nameHint }, { role: 'user', content: userMsg }],
     { temperature: 0.2, max_tokens: 2000 },
     userId,
     { reasoningOff: true },
@@ -91,9 +98,21 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
 
   return chapterEvents(
     plan,
-    { gist: capText(gist, 600), detail: capText(detail, 2400), keys },
+    { gist: capText(cleanGist(gist), 600), detail: capText(detail, 2400), keys },
     state.turns || plan.covers[1], state.day || 0, nextSeq,
   );
+}
+
+/** The most recent chapter/arc gists BEFORE this window, oldest→newest, as the
+ * continuity preamble. Capped so it stays a lightweight thread, not the whole
+ * history (the vault holds the deep record). */
+function storySoFar(state: ChronicleState, plan: CompressPlan): string {
+  const priors = state.memories
+    .filter((m) => (m.tier === 'chapter' || m.tier === 'arc') && (m.covers ? m.covers[1] : m.turn) <= plan.covers[0])
+    .sort((a, b) => (a.covers ? a.covers[1] : a.turn) - (b.covers ? b.covers[1] : b.turn));
+  if (!priors.length) return '';
+  const recent = priors.slice(-3); // last few chapters give enough thread
+  return recent.map((m) => `- ${m.text}`).join('\n');
 }
 
 /** Parse the DETAIL / GIST / KEYS layout. Tolerant of missing sections, leaked
@@ -131,6 +150,42 @@ function dropLeadingFragment(t: string): string {
   // skip to the first sentence that begins with a capital letter.
   const m = s.match(/[.!?]\s+([A-Z][\s\S]*)$/);
   return m ? m[1]!.trim() : s;
+}
+
+// Meta-commentary openers the model slips into the gist despite the prompt —
+// "the thread left open: …", "she now knows …", "unresolved: …". We cut the
+// whole sentence that leads with one (it's analysis, not an event).
+const META_SENTENCE = /^(the (unresolved )?thread( left open)?|unresolved|left (open|hanging)|what remains|the open beat|this chapter|the chapter|she now knows|he now knows|they now know|the merger|the lesson)\b[^.!?]*[.!?]\s*/i;
+
+/**
+ * Sanitize a GIST into clean flowing prose for the chronicle: drop a leading
+ * cut-off fragment, strip bullet/dash list markers and turn the list into
+ * sentences, remove meta-commentary sentences, and collapse whitespace. This is
+ * the deterministic backstop for when the model ignores the "no bullets/meta"
+ * rule (the symptom: "- She now knows…", "The thread left open: …").
+ */
+export function cleanGist(raw: string): string {
+  let s = dropLeadingFragment(String(raw || '').trim());
+  // a leading bullet/dash on the WHOLE gist, or list items: convert "- foo\n- bar"
+  // into "foo. bar." by stripping markers; join lines into one paragraph.
+  s = s
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.replace(/^\s*[-*\u2022\u2013\u2014]\s+/, '').trim()) // drop list markers
+    .filter(Boolean)
+    .map((line) => (/[.!?]["')\u201d]?$/.test(line) ? line : line + '.')) // ensure each ends as a sentence
+    .join(' ');
+  // drop meta-commentary sentences anywhere (iterate: there can be several)
+  for (let i = 0; i < 6; i++) {
+    const sentences = s.split(/(?<=[.!?])\s+/);
+    const kept = sentences.filter((x) => x.trim() && !META_SENTENCE.test(x.trim()));
+    const next = kept.join(' ').trim();
+    if (next === s) break;
+    s = next;
+  }
+  // a leftover inline "...: " analysis lead-in at the very start ("Outcome: …")
+  s = s.replace(/^[A-Z][a-z]+( [a-z]+){0,3}:\s+/, '');
+  return s.replace(/\s{2,}/g, ' ').trim();
 }
 
 /** Cap to a length at a sentence boundary if possible, else a word boundary —

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeOnce, parseSummary } from '../src/bus/summarize.js';
+import { summarizeOnce, parseSummary, cleanGist } from '../src/bus/summarize.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
 // In tests there's no `spindle`, so internalGenerate returns an error and
@@ -58,5 +58,28 @@ describe('parseSummary - drop leading headless fragment', () => {
   it('cleans a headless GIST line', () => {
     const r = parseSummary('DETAIL:\nThe lesson began.\nGIST:\npered and surrendered. Cersei gave the word.');
     expect(r.gist.startsWith('Cersei')).toBe(true);
+  });
+});
+
+describe('cleanGist — strips bullets, meta, fragments into flowing prose', () => {
+  it('drops a leading cut-off fragment', () => {
+    expect(cleanGist('ered the two experiences as one. Cersei held the lily.')).toBe('Cersei held the lily.');
+  });
+  it('converts bullet lines into sentences', () => {
+    const out = cleanGist('- Daeron poured the wine.\n- Cersei agreed to stay.');
+    expect(out).toBe('Daeron poured the wine. Cersei agreed to stay.');
+    expect(out).not.toContain('-');
+  });
+  it('removes meta-commentary sentences', () => {
+    const out = cleanGist('Daeron confessed about Tom. The thread left open: what it cost him to say the name.');
+    expect(out).toBe('Daeron confessed about Tom.');
+  });
+  it('removes "she now knows" analysis sentences', () => {
+    const out = cleanGist('Cersei chose the sofa. She now knows she cannot separate her body from his words.');
+    expect(out).toBe('Cersei chose the sofa.');
+  });
+  it('leaves clean event prose untouched', () => {
+    const s = 'Cersei arrived at Harrenhal and received a golden rose from Daeron. She kept it.';
+    expect(cleanGist(s)).toBe(s);
   });
 });
