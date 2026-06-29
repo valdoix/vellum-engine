@@ -73,6 +73,48 @@ export async function allAssistantContents(chatId: string): Promise<string[]> {
   }
 }
 
+/**
+ * One folded text block per ASSISTANT turn, but INCLUDING the user message(s)
+ * that immediately precede it. A "turn" stays keyed on the assistant reply (so
+ * turn-count = assistant-count, the invariant the fold/rollback rely on), but
+ * the content now carries what the PLAYER did + how the AI responded — so
+ * memories and summaries reflect both sides, not just the assistant's words.
+ * Leading user messages before the first assistant reply attach to that reply.
+ */
+export async function allTurnContents(chatId: string): Promise<string[]> {
+  try {
+    const msgs = await spindle.chat?.getMessages?.(chatId);
+    if (!Array.isArray(msgs)) return [];
+    const pickContent = (m: any): string => {
+      let content = typeof m.content === 'string' ? m.content : '';
+      if (!content && Array.isArray(m.swipes) && m.swipes.length) {
+        const slot = typeof m.swipe_id === 'number' ? m.swipes[m.swipe_id] : null;
+        content = String(slot ?? m.swipes[m.swipes.length - 1] ?? '');
+      }
+      return content;
+    };
+    const out: string[] = [];
+    let pendingUser: string[] = []; // user lines awaiting the next assistant turn
+    for (const m of msgs) {
+      if (!m) continue;
+      if (m.role === 'user') {
+        const c = pickContent(m).trim();
+        if (c) pendingUser.push(c);
+      } else if (m.role === 'assistant') {
+        const reply = pickContent(m);
+        const block = pendingUser.length
+          ? pendingUser.map((u) => `{{user}}: ${u}`).join('\n\n') + '\n\n' + reply
+          : reply;
+        out.push(block);
+        pendingUser = [];
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export function isPermDenied(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
   return /permission|denied|not granted/i.test(msg);
