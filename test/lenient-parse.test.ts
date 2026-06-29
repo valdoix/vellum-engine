@@ -76,3 +76,54 @@ describe('lenientParse durability', () => {
     expect(r.state!.scene!.loc).toBe('Keep');
   });
 });
+
+describe('lenientParse — control chars + advanced mangles', () => {
+  it('escapes a literal TAB inside a string', () => {
+    expect(ok('{ "scene": { "loc": "a\tb" } }').scene.loc).toBe('a\tb');
+  });
+
+  it('escapes a literal CR inside a string', () => {
+    expect(ok('{ "scene": { "loc": "a\rb" } }').scene.loc).toContain('a');
+  });
+
+  it('escapes a literal newline inside a string (non-truncated)', () => {
+    expect(ok('{ "scene": { "loc": "line1\nline2" } }').scene.loc).toBe('line1\nline2');
+  });
+
+  it('handles a control char in a TRUNCATED tail (shared escaping)', () => {
+    const r = parseState('<vellum>{ "scene": { "loc": "Hall" }, "delta": { "journal": [ { "who": "C", "memory": "a\tb and then');
+    expect(r.source).toBe('json');
+    expect(r.state!.scene!.loc).toBe('Hall');
+  });
+
+  it('closes truncation inside a nested array-of-objects', () => {
+    const r = parseState('<vellum>{ "scene": { "loc": "X" }, "delta": { "bonds": [ { "a": "A", "b": "B", "aff": 2 }, { "a": "C", "b": "D"');
+    expect(r.source).toBe('json');
+    expect(r.state!.delta!.bonds!.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('picks the real block over an earlier example fence', () => {
+    const content = 'Example: <vellum>{ "scene": { "loc": "EXAMPLE" } }</vellum>\nNow the real one:\n<vellum>{ "turn": 9, "scene": { "loc": "REAL", "time": "dawn" }, "delta": { "bonds": [] } }</vellum>';
+    const r = parseState(content);
+    expect(r.source).toBe('json');
+    expect(r.state!.scene!.loc).toBe('REAL');
+  });
+
+  it('does NOT corrupt smart quotes used as apostrophes inside prose values', () => {
+    // a value that needs NO repair keeps its content verbatim
+    const s = ok('{ "delta": { "journal": [ { "who": "C", "memory": "it\u2019s hers, the \u2018rose\u2019" } ] } }');
+    expect(s.delta.journal[0].memory).toContain('\u2019'); // apostrophe preserved
+  });
+
+  it('unwraps a double-nested delta.delta', () => {
+    const s = ok('{ "scene": { "loc": "X" }, "delta": { "delta": { "bonds": [ { "a": "A", "b": "B", "aff": 1 } ] } } }');
+    expect(s.delta.bonds[0].a).toBe('A');
+  });
+
+  it('does not choke on a 1MB pathological input', () => {
+    const big = '{ "scene": { "loc": "X" }, "junk": "' + 'z'.repeat(1_200_000) + '" }';
+    const r = parseState('<vellum>' + big + '</vellum>');
+    // either parses (truncated junk) or falls back cleanly — must not hang/throw
+    expect(r.source === 'json' || r.source === 'regex' || r.source === 'none').toBe(true);
+  });
+});

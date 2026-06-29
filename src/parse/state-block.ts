@@ -16,52 +16,156 @@ const FENCES: Array<[string, string]> = [
   ['[VELLUM]', '[/VELLUM]'],
 ];
 
+const SCHEMA_KEY = /"(?:delta|scene|present|turn|day)"/;
+
 function extractFenced(content: string): string | null {
+  const candidates: string[] = [];
   for (const [open, close] of FENCES) {
-    const i = content.indexOf(open);
-    if (i < 0) continue;
-    const j = content.indexOf(close, i + open.length);
-    if (j < 0) continue;
-    return content.slice(i + open.length, j).trim();
+    let from = 0;
+    // collect EVERY occurrence of this fence (a model may show an example block
+    // earlier in prose and the real one later — we score by schema keys below).
+    for (;;) {
+      const i = content.indexOf(open, from);
+      if (i < 0) break;
+      const j = content.indexOf(close, i + open.length);
+      // closing fence missing (truncated mid-block) → take the rest of the message
+      candidates.push(content.slice(i + open.length, j < 0 ? undefined : j).trim());
+      from = i + open.length;
+      if (j < 0) break;
+    }
   }
-  // last resort: a bare {...} block that looks like our schema
-  const m = content.match(/\{[\s\S]*?"(?:delta|scene|present|turn)"[\s\S]*\}/);
-  return m ? m[0] : null;
+  if (candidates.length) {
+    // prefer a candidate that actually looks like our state block
+    const withSchema = candidates.filter((c) => SCHEMA_KEY.test(c));
+    const pool = withSchema.length ? withSchema : candidates;
+    // among those, the LARGEST (most complete) wins
+    return pool.reduce((a, b) => (b.length > a.length ? b : a));
+  }
+  // last resort: the first balanced {...} that contains a schema key (non-greedy,
+  // bracket-aware — not the old greedy regex that ran to the last } in the message)
+  let idx = content.indexOf('{');
+  while (idx >= 0) {
+    const obj = balancedObject(content.slice(idx));
+    if (obj && SCHEMA_KEY.test(obj)) return obj;
+    idx = content.indexOf('{', idx + 1);
+  }
+  // truly unbalanced bare object: hand the from-brace slice to lenientParse
+  const b = content.indexOf('{');
+  return b >= 0 && SCHEMA_KEY.test(content.slice(b)) ? content.slice(b) : null;
 }
 
-/** Pull the outermost balanced {...} object out of a string (ignores prose/
- * fences around it). Returns null if none. */
+// smart double/single quote variants the models love to emit
+const SMART_DQ = /[\u201C\u201D\u201E\u201F\u2033]/;
+const SMART_SQ = /[\u2018\u2019\u201A\u2032]/;
+// a "quote family": double (" and smart doubles) vs single (' and smart singles).
+// We track the FAMILY when a string opens, so a smart-open / smart-close pair
+// (which are different code points) still matches and the string closes.
+const isDQ = (c: string): boolean => c === '"' || SMART_DQ.test(c);
+const isSQ = (c: string): boolean => c === "'" || SMART_SQ.test(c);
+const closesQuote = (c: string, fam: 'd' | 's'): boolean => fam === 'd' ? isDQ(c) : isSQ(c);
+
+/** Pull the outermost balanced object out of a string (ignores prose/fences
+ * around it). Quote-aware (straight + smart, both families) and tracks BOTH
+ * {}/[] nesting, so a brace inside a string or a mismatched bracket can't end
+ * the scan early. Returns null if no complete top-level object closes. */
 function balancedObject(s: string): string | null {
   const start = s.indexOf('{');
   if (start < 0) return null;
-  let depth = 0, inStr = false, esc = false, quote = '"';
+  let depth = 0, inStr = false, esc = false, fam: 'd' | 's' = 'd';
   for (let i = start; i < s.length; i++) {
     const c = s[i]!;
-    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === quote) inStr = false; continue; }
-    if (c === '"' || c === "'") { inStr = true; quote = c; }
-    else if (c === '{') depth++;
-    else if (c === '}') { depth--; if (depth === 0) return s.slice(start, i + 1); }
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (closesQuote(c, fam)) inStr = false; continue; }
+    if (isDQ(c) || isSQ(c)) { inStr = true; fam = isSQ(c) ? 's' : 'd'; }
+    else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') { depth--; if (depth === 0) return s.slice(start, i + 1); }
   }
   return null;
 }
 
+interface ScanResult {
+  /** cleaned, string-safe scaffold (comments stripped, quotes/controls fixed) */
+  out: string;
+  /** unclosed brackets in stack order; reverse-join to close a truncation */
+  stack: string[];
+  /** true if the scan ended inside an open string literal (truncated mid-value) */
+  inStr: boolean;
+  /** length of `out` at the last completed value/element boundary */
+  safeLen: number;
+}
+
+/**
+ * ONE string-aware left-to-right scan that does ALL repairs at once, so the
+ * in-string and out-of-string rules can never disagree (the bug that let a
+ * newline/control char survive on one path but not another):
+ *   inside strings  → normalize smart→straight quotes, escape inner ", escape
+ *                     EVERY control char (\n \r \t and 0x00–0x1F), keep prose
+ *                     punctuation (//, commas, +2, URLs) untouched
+ *   outside strings → strip // and /* *\/ comments, drop leading + on numbers,
+ *                     normalize smart quotes to ", track the bracket stack
+ * Records the bracket stack + last safe boundary so a truncated block can be
+ * closed from the SAME cleaned buffer.
+ */
+function scanJson(src: string): ScanResult {
+  let out = '';
+  const stack: string[] = [];
+  let inStr = false, esc = false, fam: 'd' | 's' = 'd';
+  let safeLen = 0;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]!;
+    const code = c.charCodeAt(0);
+    if (inStr) {
+      if (esc) { out += c; esc = false; continue; }
+      if (c === '\\') { out += c; esc = true; continue; }
+      if (closesQuote(c, fam)) { inStr = false; out += '"'; safeLen = out.length; continue; } // close → normalize to "
+      if (c === '"') { out += '\\"'; continue; }                     // a literal " inside a single-quoted string
+      if (isDQ(c) || isSQ(c)) { out += '\\"'; continue; }            // a stray smart quote as content → keep parseable
+      if (code < 0x20) { out += code === 10 ? '\\n' : code === 13 ? '\\r' : code === 9 ? '\\t' : '\\u' + code.toString(16).padStart(4, '0'); continue; } // ALL control chars
+      out += c; continue;
+    }
+    // --- outside a string ---
+    if (isDQ(c)) { inStr = true; fam = 'd'; out += '"'; continue; }  // straight or smart double opens a string
+    if (isSQ(c)) { inStr = true; fam = 's'; out += '"'; continue; }  // straight or smart single opens a string
+    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }     // line comment
+    if (c === '/' && src[i + 1] === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i++; continue; } // block comment
+    if (c === '+' && /\d/.test(src[i + 1] ?? '')) continue;          // leading + on a number
+    out += c;
+    if (c === '{' || c === '[') { stack.push(c === '{' ? '}' : ']'); }
+    else if (c === '}' || c === ']') { stack.pop(); safeLen = out.length; }
+    else if (c === ',') safeLen = out.length - 1;                    // before the comma
+    else if (/[\d\]}eluatrsf.+-]/i.test(c)) safeLen = out.length;    // tail of a number/keyword
+  }
+  return { out, stack, inStr, safeLen };
+}
+
+/** Post-scan structural fixups on the string-safe scaffold (inert vs content,
+ * since strings are already closed/escaped in `out`). */
+function structuralFixups(out: string): string {
+  return out
+    .replace(/([{,]\s*)([A-Za-z_$][\w$]*)(\s*:)/g, '$1"$2"$3')        // quote unquoted keys
+    .replace(/"[\w$]+"\s*:\s*<[^>{}\[\]]*>\s*,?/g, '')                // drop "key": <placeholder>
+    .replace(/,(\s*[}\]])/g, '$1')                                    // trailing commas
+    .replace(/,\s*,/g, ',')                                           // doubled commas
+    .replace(/([{\[])\s*,/g, '$1');                                   // leading comma in container
+}
+
+const MAX_INPUT = 1_000_000; // 1MB guard against pathological inputs
+
 /**
  * Tolerant JSON parse, hardened against the many ways models mangle the block.
  * Strategy ladder (cheapest first; first success wins):
- *   1. plain JSON.parse on the balanced object (the happy path — no mangling)
- *   2. structural repair OUTSIDE string literals (comments, trailing commas,
- *      leading +, unquoted keys, single quotes) — a single string-aware scan so
- *      we never corrupt prose/URLs/punctuation inside a value
- *   3. close a TRUNCATED block (model ran out of tokens mid-object): trim any
- *      dangling partial token and append the missing }/] implied by the stack
- *   4. the same, plus quote-normalization, as a last resort
+ *   1. plain JSON.parse on the balanced object (happy path — no mangling)
+ *   2. one string-aware repair scan + structural fixups
+ *   3. close a TRUNCATED block from the SAME scan (trim the dangling token, then
+ *      append the missing }/] the bracket stack implies)
  * Returns the parsed value, or null if nothing works.
  */
 function lenientParse(raw: string): unknown | null {
-  const base = raw
+  let base = raw
     .replace(/\u00A0/g, ' ')
     .replace(/^\s*```[a-z]*\s*/i, '').replace(/```\s*$/i, '')
     .trim();
+  if (base.length > MAX_INPUT) base = base.slice(0, MAX_INPUT);
+
   // slice from the first '{' so leading prose/reverie never reaches the parser,
   // even when the object is unbalanced (balancedObject would return null then).
   const fromBrace = base.slice(Math.max(0, base.indexOf('{')));
@@ -71,111 +175,60 @@ function lenientParse(raw: string): unknown | null {
   const direct = tryParse(obj0);
   if (direct !== undefined) return direct;
 
-  // 2. structural repair, string-aware
-  const repaired = repairJson(obj0);
+  // 2. one repair scan (covers comments, smart quotes, control chars, leading +,
+  //    inner quotes) + structural fixups (unquoted keys, trailing commas, …)
+  const scan = scanJson(obj0);
+  const repaired = structuralFixups(scan.out);
   const r1 = tryParse(repaired);
   if (r1 !== undefined) return r1;
 
-  // 3. close a truncated block, then repair
-  const closed = closeUnbalanced(fromBrace);
+  // 3. truncation: close from the SAME cleaned scan of the full from-brace slice
+  const closed = closeTruncated(fromBrace);
   if (closed) {
-    const r2 = tryParse(closed) ?? tryParse(repairJson(closed));
+    const r2 = tryParse(closed) ?? tryParse(structuralFixups(closed));
     if (r2 !== undefined) return r2;
   }
-
-  // 4. + smart-quote normalization (do this LAST: it can mangle apostrophes in prose)
-  const normalized = (closed ?? repaired)
-    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
-    .replace(/[\u2018\u2019\u201A\u2032]/g, "'");
-  const r3 = tryParse(repairJson(normalized));
-  if (r3 !== undefined) return r3;
-
   return null;
 }
 
 /**
- * Repair a TRUNCATED object: the model emitted a prefix and ran out of tokens.
- * String-aware scan tracks the bracket stack; we trim back to the last "safe"
- * boundary (drop a dangling partial key/value), then append the closers the
- * stack implies. Returns null if there's nothing to close.
+ * Close a TRUNCATED object using the shared scan: trim the cleaned buffer back
+ * to the last completed value/element, drop any dangling partial key, then
+ * append the closers the bracket stack implies. Returns null if not truncated.
  */
-function closeUnbalanced(s: string): string | null {
+function closeTruncated(s: string): string | null {
   if (!s || s[0] !== '{') return null;
-  const stack: string[] = [];
-  let inStr = false, esc = false;
-  let lastSafe = -1; // index just after a completed value/element (a ',' or close)
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i]!;
-    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') { inStr = false; lastSafe = i + 1; } continue; }
-    if (c === '"') { inStr = true; continue; }
-    if (c === '{') stack.push('}');
-    else if (c === '[') stack.push(']');
-    else if (c === '}' || c === ']') { stack.pop(); lastSafe = i + 1; }
-    else if (c === ',') lastSafe = i; // keep up to (not incl) the comma
-    else if (/\d/.test(c) || c === 'e' || c === 'l' || c === 'u') lastSafe = Math.max(lastSafe, i + 1); // tail of number/true/null/false
+  const scan = scanJson(s);
+  if (!scan.stack.length && !scan.inStr) return null; // already balanced
+  // if cut off mid-string, fall back to the last completed boundary
+  let body = scan.inStr ? scan.out.slice(0, scan.safeLen) : scan.out;
+  // iteratively drop dangling fragments so we never leave a HALF-BUILT element
+  // (which would parse as JSON but fail the schema for missing required fields):
+  //   - a trailing partial object  …[ { "who":"C"   → drop the whole element
+  //   - a dangling key  …,"memory":  or  …,"memory"  → drop it
+  //   - a trailing comma/colon
+  for (let g = 0; g < 12; g++) {
+    const before = body;
+    body = body
+      .replace(/,?\s*\{[^{}\[\]]*$/, '')        // trailing unclosed object (partial element)
+      .replace(/,\s*"[^"]*"\s*:?\s*$/, '')      // dangling "key": or "key"
+      .replace(/[,:]\s*$/, '');                  // trailing comma/colon
+    if (body === before) break;
   }
-  if (!stack.length && !inStr) return null; // balanced already — not our case
-  // if we ended mid-string, cut the string off at lastSafe (last completed value)
-  let body = inStr ? s.slice(0, lastSafe) : s;
-  // drop a trailing dangling token like  , "key":   or  , "key"
-  body = body.replace(/,\s*"[^"]*"\s*:?\s*$/, '').replace(/,\s*$/, '').replace(/:\s*$/, '');
-  // recompute closers for the trimmed body (string-aware)
-  const cl: string[] = []; let st = false, e = false;
+  // recompute closers for the trimmed body (it's string-safe now)
+  const stack: string[] = []; let st = false, e = false;
   for (const c of body) {
     if (st) { if (e) e = false; else if (c === '\\') e = true; else if (c === '"') st = false; continue; }
     if (c === '"') st = true;
-    else if (c === '{') cl.push('}');
-    else if (c === '[') cl.push(']');
-    else if (c === '}' || c === ']') cl.pop();
+    else if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') stack.pop();
   }
-  if (st) return null; // still mid-string after trim → give up
-  return body + cl.reverse().join('');
+  if (st) return null;
+  return body + stack.reverse().join('');
 }
 
 function tryParse(s: string): unknown | undefined {
   try { return JSON.parse(s); } catch { return undefined; }
-}
-
-/**
- * Repair common JSON mangles, editing ONLY structure outside string literals so
- * a `//`, comma, or `+2` inside a value is never touched. Single left-to-right
- * scan that tracks string state, emitting a cleaned buffer.
- */
-function repairJson(src: string): string {
-  let out = '';
-  let inStr = false, esc = false, quote = '"';
-  for (let i = 0; i < src.length; i++) {
-    const c = src[i]!;
-    if (inStr) {
-      if (esc) { out += c; esc = false; continue; }
-      if (c === '\\') { out += c; esc = true; continue; }
-      if (c === quote) { inStr = false; out += '"'; continue; } // close (normalize ' → ")
-      if (c === '"' && quote === "'") { out += '\\"'; continue; } // a " inside a '..' string
-      if (c === '\n') { out += '\\n'; continue; } // unescaped newline in a string
-      out += c; continue;
-    }
-    // --- outside a string ---
-    if (c === '"' || c === "'") { inStr = true; quote = c; out += '"'; continue; }
-    // line comment // … (only outside strings, so URLs in values are safe)
-    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
-    // block comment /* … */
-    if (c === '/' && src[i + 1] === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i++; continue; }
-    // leading + on a number: "+2" → "2"
-    if (c === '+' && /\d/.test(src[i + 1] ?? '')) continue;
-    out += c;
-  }
-  // structural fixups on the now string-safe scaffold (these run on the emitted
-  // buffer; string contents are already escaped/closed so they're inert here):
-  return out
-    // quote unquoted keys:  { key:  ,key:  →  "key":
-    .replace(/([{,]\s*)([A-Za-z_$][\w$]*)(\s*:)/g, '$1"$2"$3')
-    // drop "key": <placeholder> the model left in
-    .replace(/"[\w$]+"\s*:\s*<[^>{}\[\]]*>\s*,?/g, '')
-    // trailing commas before } or ]
-    .replace(/,(\s*[}\]])/g, '$1')
-    // collapse doubled commas from dropped fields
-    .replace(/,\s*,/g, ',')
-    .replace(/([{\[])\s*,/g, '$1');
 }
 
 export function parseState(content: string): ParseResult {
@@ -201,6 +254,11 @@ export function parseState(content: string): ParseResult {
 /** Models sometimes put bonds/threads/arcs/journal/parallel at the TOP level
  * instead of inside `delta`. Hoist them in so nothing is silently dropped. */
 function hoistDeltaFields(obj: Record<string, unknown>): void {
+  // unwrap an accidental double-nest: { delta: { delta: {...} } }
+  let guard = 0;
+  while (obj.delta && typeof obj.delta === 'object' && (obj.delta as Record<string, unknown>).delta && typeof (obj.delta as Record<string, unknown>).delta === 'object' && guard++ < 4) {
+    obj.delta = (obj.delta as Record<string, unknown>).delta;
+  }
   const keys = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'factions', 'parallel'];
   const delta = (obj.delta && typeof obj.delta === 'object') ? obj.delta as Record<string, unknown> : {};
   let moved = false;
