@@ -118,12 +118,48 @@ const META = new Set([
   'unnamed', 'unknown', 'nobody', 'everyone', 'someone', 'anybody', 'main',
 ]);
 
+// COLLECTIVE / GROUP nouns — these name a FACTION, not a character. A name whose
+// LAST word is one of these ("household staff", "the Kingsguard", "the court",
+// "House Lannister", "the small council") is a group; it must not mint a cast
+// card or a bond endpoint. (Used only by the CHARACTER guard — resolveFactionId
+// deliberately bypasses this so a group is still a valid faction.)
+const GROUP_HEAD = new Set([
+  'staff', 'court', 'household', 'guards', 'guard', 'kingsguard', 'watch', 'council',
+  'order', 'guild', 'house', 'faction', 'conspiracy', 'family', 'clan', 'company',
+  'garrison', 'retinue', 'entourage', 'servants', 'soldiers', 'guardsmen', 'men',
+  'army', 'crew', 'band', 'pack', 'circle', 'cabal', 'alliance', 'coalition', 'staffs',
+]);
+
+/** True when a raw name reads as a COLLECTIVE/GROUP (→ a faction, not a person).
+ * Checks the head noun (last word), allowing a leading article. Single bare
+ * lowercase generics are already caught by GENERIC; this catches multi-word
+ * groups like "Household Staff" / "The Small Council" regardless of case. */
+export function looksLikeGroup(rawName: string): boolean {
+  const rest = String(rawName ?? '').trim().replace(/^(a|an|the)\s+/i, '');
+  if (!rest) return false;
+  const words = rest.split(/\s+/);
+  const head = words[words.length - 1]!.toLowerCase().replace(/[^a-z]/g, '');
+  // "House Lannister" leads with the group word; "Lannister Household" trails it.
+  const lead = words[0]!.toLowerCase().replace(/[^a-z]/g, '');
+  return GROUP_HEAD.has(head) || (words.length > 1 && (lead === 'house' || lead === 'clan' || lead === 'order'));
+}
+
 /**
  * True when a raw name is NOT a usable character identity. Rejects: empty,
- * placeholders, pronouns/deixis (any case), and bare LOWERCASE generic nouns.
- * Passes: proper names ("Anne", "Daeron"), capitalized epithets ("The Stranger").
+ * placeholders, pronouns/deixis (any case), bare LOWERCASE generic nouns, and
+ * COLLECTIVE/GROUP names (those are factions). Passes: proper names ("Anne",
+ * "Daeron"), capitalized epithets ("The Stranger").
  */
 export function notAName(rawName: string): boolean {
+  return notAFactionName(rawName) || looksLikeGroup(rawName);
+}
+
+/**
+ * The shared junk-name guard MINUS the group check — a GROUP is a valid faction
+ * name, so faction resolution uses this (rejects pronouns/meta/placeholders/
+ * clauses) while the character guard `notAName` adds the group rejection on top.
+ */
+export function notAFactionName(rawName: string): boolean {
   const s = String(rawName ?? '').trim();
   if (!s) return true;
   if (/\{\{/.test(s) || /placeholder/i.test(s)) return true;
@@ -256,7 +292,7 @@ function dedupeMemberships(list: Array<{ char: string; faction: string; role?: s
  * (the "Daeron Targaryen" vs "The Targaryens" hazard). Returns '' for non-names.
  */
 export function resolveFactionId(state: ChronicleState, rawName: string): string {
-  if (notAName(rawName)) return '';
+  if (notAFactionName(rawName)) return '';
   const bare = canonId(rawName);
   if (!bare) return '';
   const id = 'fac:' + bare;

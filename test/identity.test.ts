@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCastId, notAName, mergeCastDuplicates, nameConflict, mergeFactionDuplicates } from '../src/domain/identity.js';
+import { resolveCastId, notAName, mergeCastDuplicates, nameConflict, mergeFactionDuplicates, looksLikeGroup, resolveFactionId } from '../src/domain/identity.js';
 import { coreFeature } from '../src/domain/core-feature.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState, type CastCard, type Relation } from '../src/domain/types.js';
@@ -295,5 +295,30 @@ describe('mergeFactionDuplicates — member-overlap near-dupes', () => {
     s.factions['fac:hair_conspiracy']!.userEdited = true;
     const m = mergeFactionDuplicates(s);
     expect(Object.keys(m.factions).length).toBe(2);
+  });
+});
+
+describe('groups are factions, not characters', () => {
+  it('looksLikeGroup flags collective nouns', () => {
+    expect(looksLikeGroup('Household Staff')).toBe(true);
+    expect(looksLikeGroup('The Court')).toBe(true);
+    expect(looksLikeGroup('the guards')).toBe(true);
+    expect(looksLikeGroup('the Small Council')).toBe(true);
+    expect(looksLikeGroup('House Lannister')).toBe(true);
+  });
+  it('looksLikeGroup does NOT flag real people', () => {
+    expect(looksLikeGroup('Cersei')).toBe(false);
+    expect(looksLikeGroup('Daeron Targaryen')).toBe(false);
+    expect(looksLikeGroup('The Stranger')).toBe(false);
+  });
+  it('notAName rejects a group from the CHARACTER path', () => {
+    expect(notAName('Household Staff')).toBe(true);
+    expect(notAName('The Court')).toBe(true);
+    expect(notAName('Cersei')).toBe(false); // real person still passes
+  });
+  it('a group is still a VALID faction (resolveFactionId accepts it)', () => {
+    const s = freshState();
+    expect(resolveFactionId(s, 'Household Staff')).toBe('fac:household_staff');
+    expect(resolveFactionId(s, 'The Court')).toBe('fac:the_court');
   });
 });

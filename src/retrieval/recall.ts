@@ -112,10 +112,13 @@ function structuredBlock(state: ChronicleState, budget: number): string {
   const trackBudget = (openThreads.length || openArcs.length) ? Math.floor(budget * 0.4) : 0;
   const trackLines = fitLines([...openThreads, ...openArcs], trackBudget);
   const usedByTracks = trackLines.reduce((n, l) => n + l.length + 1, 0);
-  const castRel = fitLines([...castLines, ...relLines, ...facLines], Math.max(0, budget - usedByTracks));
+  const castRel = fitLines([...castLines, ...relLines], Math.max(0, budget - usedByTracks));
   const blocks: string[] = [];
   if (castRel.length) blocks.push('[CAST & BONDS \u2014 established, authoritative. Keep consistent; do not contradict.]\n' + castRel.join('\n'));
   if (trackLines.length) blocks.push('[OPEN THREADS & ARCS \u2014 advance or resolve these; reuse the EXACT title, do not restate as a new thread.]\n' + trackLines.join('\n'));
+  // factions feed-back: list established GROUPS so the model reuses them by name
+  // (and treats them as factions, not characters) instead of coining synonyms.
+  if (facLines.length) blocks.push('[FACTIONS \u2014 established GROUPS (not characters). Reuse the EXACT name; don\u2019t restate a group as a new one or as a character.]\n' + facLines.join('\n'));
   // off-screen subplots — living "meanwhile" threads the sim advances, fed back so
   // the on-screen model can acknowledge/react to them. Open ones, latest beat.
   const meanwhile = (state.offscreen ?? []).filter((o) => o.status === 'active').slice(0, 5)
