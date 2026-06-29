@@ -23,7 +23,9 @@ let _snap: VSnap | null = null;
 let _filter = 'all';
 let _scope: 'vault' | 'all' = 'vault';
 let _sort: 'az' | 'za' | 'new' | 'old' = 'az';
+let _book = 'all'; // lorebook filter ('all' or a book id)
 export function setVaultSnap(s: VSnap): void { _snap = s; }
+function bookName(id: string): string { return _snap?.books.find((b) => b.id === id)?.name ?? id; }
 
 const POS_OPTS = [
   { value: 'before_main', label: 'before main' }, { value: 'after_main', label: 'after main' },
@@ -33,7 +35,7 @@ const POS_OPTS = [
 const ROLE_OPTS = [{ value: 'system', label: 'system' }, { value: 'user', label: 'user' }, { value: 'assistant', label: 'assistant' }];
 
 export const vaultTab: Component<ChronicleState> = {
-  version: () => (_snap ? `${_snap.books.reduce((a, b) => a + b.entries.length, 0)}:${_snap.categories.length}:${_snap.activated.length}:${_filter}:${_scope}:${_sort}` : 'none'),
+  version: () => (_snap ? `${_snap.books.reduce((a, b) => a + b.entries.length, 0)}:${_snap.categories.length}:${_snap.activated.length}:${_filter}:${_scope}:${_sort}:${_book}` : 'none'),
   render() {
     if (!_snap) { send({ type: 'vellum_get_vault' }); return '<div class="vle-empty sm">Loading vault\u2026</div>'; }
     if (!_snap.ok && _snap.reason === 'no_permission') return '<div class="vlm-comp-error">The Vault needs the <b>world_books</b> permission. Grant it in the extension settings to author lorebooks here.<br><span>Activation stays native; the Vault just organizes + auto-configures.</span></div>';
@@ -41,7 +43,13 @@ export const vaultTab: Component<ChronicleState> = {
     const all = allEntries();
     // scope: 'vault' shows only VELLUM-managed entries (default, clean); 'all'
     // shows every native lorebook entry too (for adopting existing lore).
-    const entries = _scope === 'vault' ? all.filter((e) => e.vellum) : all;
+    const scoped = _scope === 'vault' ? all.filter((e) => e.vellum) : all;
+    // lorebook filter: only the books that actually contribute scoped entries.
+    const bookIds = Array.from(new Set(scoped.map((e) => e.bookId)));
+    const bookCounts: Record<string, number> = {};
+    for (const e of scoped) bookCounts[e.bookId] = (bookCounts[e.bookId] ?? 0) + 1;
+    if (_book !== 'all' && !bookIds.includes(_book)) _book = 'all'; // stale filter guard
+    const entries = _book === 'all' ? scoped : scoped.filter((e) => e.bookId === _book);
     const counts: Record<string, number> = {};
     for (const e of entries) counts[e.category || 'uncat'] = (counts[e.category || 'uncat'] ?? 0) + 1;
     const scopeBar = '<div class="vlv-scopebar">'
@@ -68,12 +76,18 @@ export const vaultTab: Component<ChronicleState> = {
     const sortBar = '<div class="vle-fbar">'
       + (['az', 'za', 'new', 'old'] as const).map((k) => `<button class="vle-fb-btn${_sort === k ? ' on' : ''}" data-vsort="${k}">${SORT_LABEL[k]}</button>`).join('')
       + '</div>';
+    // lorebook filter — only worth showing when 2+ books contribute scoped entries
+    const bookBar = bookIds.length > 1
+      ? '<div class="vle-fbar vlv-bookbar"><button class="vle-fb-btn' + (_book === 'all' ? ' on' : '') + '" data-vbookfilter="all">all books <span class="vle-n">' + scoped.length + '</span></button>'
+        + bookIds.map((id) => `<button class="vle-fb-btn${_book === id ? ' on' : ''}" data-vbookfilter="${esc(id)}">${esc(bookName(id))} <span class="vle-n">${bookCounts[id] ?? 0}</span></button>`).join('')
+        + '</div>'
+      : '';
     let grid: string;
     if (shown.length) {
       const { slice, page, pages } = paginate('vault', shown);
-      grid = sortBar + '<div class="vlv-grid">' + slice.map((e) => entryCard(e, active.has(e.id))).join('') + '</div>' + pagerHtml('vault', page, pages);
+      grid = sortBar + bookBar + '<div class="vlv-grid">' + slice.map((e) => entryCard(e, active.has(e.id))).join('') + '</div>' + pagerHtml('vault', page, pages);
     } else {
-      grid = '<div class="vle-empty sm">' + (_scope === 'vault' ? 'No Vault entries yet. <b>+ Entry</b> to author lore, or switch to <b>All lorebooks</b> to adopt existing entries.' : 'No entries here yet.') + '</div>';
+      grid = sortBar + bookBar + '<div class="vle-empty sm">' + (_scope === 'vault' ? 'No Vault entries yet. <b>+ Entry</b> to author lore, or switch to <b>All lorebooks</b> to adopt existing entries.' : 'No entries here yet.') + '</div>';
     }
     return top + pendingTray(pending) + suggestStrip() + scopeBar + bar + grid;
   },
@@ -89,6 +103,8 @@ export const vaultTab: Component<ChronicleState> = {
       if (sc) { _scope = sc.getAttribute('data-vscope') as 'vault' | 'all'; _filter = 'all'; setPage('vault', 0); rerender(host); return; }
       const so = t.closest('[data-vsort]');
       if (so) { _sort = so.getAttribute('data-vsort') as typeof _sort; setPage('vault', 0); rerender(host); return; }
+      const bf = t.closest('[data-vbookfilter]');
+      if (bf) { _book = bf.getAttribute('data-vbookfilter')!; setPage('vault', 0); rerender(host); return; }
       const chip = t.closest('[data-vcat]');
       if (chip && !t.closest('[data-vcat-settings]')) { _filter = chip.getAttribute('data-vcat')!; setPage('vault', 0); rerender(host); return; }
       const gear = t.closest('[data-vcat-settings]'); if (gear) { categorySettings(gear.getAttribute('data-vcat-settings')!); return; }
@@ -153,6 +169,7 @@ function entryCard(e: VEntry, firing: boolean): string {
   const keys = e.key.join(', ');
   return `<div class="vlv-entry${e.disabled ? ' off' : ''}" style="--c:${clr}">`
     + `<div class="vlv-entry-top"><span class="vlv-entry-cat">${esc(cat?.glyph ?? '\u2727')} ${esc(cat?.label ?? 'Uncategorized')}</span>`
+    + (e.bookId ? `<span class="vlv-entry-book" title="Lorebook">\uD83D\uDCD5 ${esc(bookName(e.bookId))}</span>` : '')
     + (firing ? '<span class="vlv-firing">\u25C9 firing</span>' : '')
     + `<span class="vlv-entry-ctl"><button class="vle-mini" data-ventry-edit data-id="${esc(e.id)}">\u270E</button><button class="vle-mini del" data-ventry-del data-id="${esc(e.id)}">\u2715</button></span></div>`
     + (e.comment ? `<div class="vlv-title">${esc(e.comment)}</div>` : '')

@@ -396,6 +396,7 @@ export const STYLES = [
   ".vlv-entry-top{display:flex;align-items:center;gap:7px}",
   ".vlv-entry-cat{font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;color:var(--c,var(--vi2))}",
   ".vlv-firing{font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px;color:var(--v-pos-i);background:color-mix(in srgb,var(--v-pos) 18%,transparent);border-radius:var(--vr1);padding:2px 6px}",
+  ".vlv-entry-book{font:600 8px/1 var(--vmono);letter-spacing:.3px;color:var(--vi2);opacity:.7;border:1px solid var(--vle-gold-soft);border-radius:var(--vr1);padding:2px 5px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
   ".vlv-entry-ctl{margin-left:auto;display:inline-flex;gap:3px}",
   ".vlv-keys{font:600 10px/1.3 var(--vmono);color:var(--vle-gold);margin-top:5px;opacity:.85}",
   ".vlv-content{font-size:12px;line-height:1.5;color:#cdc3ad;margin-top:4px;white-space:pre-wrap;word-break:break-word}",
