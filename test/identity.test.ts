@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCastId, notAName, mergeCastDuplicates } from '../src/domain/identity.js';
+import { resolveCastId, notAName, mergeCastDuplicates, nameConflict } from '../src/domain/identity.js';
 import { coreFeature } from '../src/domain/core-feature.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState, type CastCard, type Relation } from '../src/domain/types.js';
@@ -226,5 +226,35 @@ describe('mergeCastDuplicates — self-heal split nodes across EVERY section', (
     s.cast.cersei_baratheon = card('cersei_baratheon', 'Cersei Baratheon');
     const m = mergeCastDuplicates(s);
     expect(Object.keys(m.cast).sort()).toEqual(['cersei', 'cersei_baratheon', 'cersei_lannister']);
+  });
+});
+
+describe('nameConflict — same surname, different given name', () => {
+  it('flags two full names sharing only the surname', () => {
+    expect(nameConflict('daeron_targaryen', 'rhaegar_targaryen')).toBe(true);
+    expect(nameConflict('robb_stark', 'arya_stark')).toBe(true);
+  });
+  it('does NOT flag the legitimate short↔full case', () => {
+    expect(nameConflict('daeron', 'daeron_targaryen')).toBe(false);
+    expect(nameConflict('targaryen', 'daeron_targaryen')).toBe(false); // single token
+  });
+  it('does NOT flag same given name (a real fuller spelling)', () => {
+    expect(nameConflict('cersei_lannister', 'cersei_baratheon')).toBe(false); // different surname, same given
+  });
+});
+
+describe('resolveCastId — never collapses distinct same-surname people', () => {
+  it('a corrupted aka cannot route "Daeron Targaryen" onto Rhaegar', () => {
+    const s = withCast(['Rhaegar Targaryen', ['Daeron Targaryen']]); // poisoned aka
+    expect(resolveCastId(s, 'Daeron Targaryen')).toBe('daeron_targaryen'); // fresh, not rhaegar
+  });
+  it('still merges a true alias that is not a name-conflict', () => {
+    const s = withCast(['Cersei Lannister', ['The Queen']]);
+    expect(resolveCastId(s, 'The Queen')).toBe('cersei_lannister');
+  });
+  it('mergeCastDuplicates never collapses same-surname distinct people', () => {
+    const s = withCast(['Daeron Targaryen'], ['Rhaegar Targaryen']);
+    const m = mergeCastDuplicates(s);
+    expect(Object.keys(m.cast).sort()).toEqual(['daeron_targaryen', 'rhaegar_targaryen']);
   });
 });

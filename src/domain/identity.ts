@@ -24,8 +24,12 @@ export function resolveCastId(state: ChronicleState, rawName: string, extraIds?:
   const cast = state.cast;
   if (cast[id]) return id; // exact, already known
 
-  // alias hit: some existing card lists this name (or its canon) as an aka
+  // alias hit: some existing card lists this name (or its canon) as an aka — but
+  // NEVER merge two names that conflict (same surname, different given name:
+  // "Daeron Targaryen" vs "Rhaegar Targaryen"). A corrupted aka or a fuzzy model
+  // pass must not be able to collapse two distinct people.
   for (const c of Object.values(cast)) {
+    if (c.id !== id && nameConflict(id, c.id)) continue;
     if ((c.aka ?? []).some((a) => canonId(a) === id)) return c.id;
   }
 
@@ -42,11 +46,28 @@ export function resolveCastId(state: ChronicleState, rawName: string, extraIds?:
   const matches: string[] = [];
   for (const existingId of known) {
     if (existingId === id) continue;
+    if (nameConflict(id, existingId)) continue; // distinct people, same surname
     if (tokenPrefix(id, existingId) || tokenPrefix(existingId, id)) matches.push(existingId);
   }
   if (matches.length === 1) return matches[0]!;
 
   return id;
+}
+
+/**
+ * True when two canonical ids name DIFFERENT people who must never be merged:
+ * both are multi-token, they share the SAME last token (surname/house) but
+ * differ in the FIRST token (given name). "daeron_targaryen" vs
+ * "rhaegar_targaryen", "robb_stark" vs "arya_stark". A single-token name
+ * ("daeron" vs "daeron_targaryen") is NOT a conflict — that's the legitimate
+ * short↔full merge. Pure + symmetric.
+ */
+export function nameConflict(a: string, b: string): boolean {
+  if (a === b) return false;
+  const ta = a.split('_'), tb = b.split('_');
+  if (ta.length < 2 || tb.length < 2) return false;     // need given + surname on both
+  if (ta[0] === tb[0]) return false;                     // same given name → not a conflict
+  return ta[ta.length - 1] === tb[tb.length - 1];        // same surname, different given → conflict
 }
 
 /** True if `short` is a leading whole-token prefix of `full` (underscore-joined
@@ -144,7 +165,7 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
   // build id → canonical-id remap from unique token-prefix containment
   const remap = new Map<string, string>();
   for (const shortId of ids) {
-    const supersets = ids.filter((other) => other !== shortId && tokenPrefix(shortId, other));
+    const supersets = ids.filter((other) => other !== shortId && !nameConflict(shortId, other) && tokenPrefix(shortId, other));
     if (supersets.length === 1) remap.set(shortId, supersets[0]!); // unique → merge into the longer
   }
   if (!remap.size) return s;
