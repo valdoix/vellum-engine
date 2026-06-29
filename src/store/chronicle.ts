@@ -112,10 +112,53 @@ async function persist(chatId: string): Promise<void> {
   c.log.version = SCHEMA_VERSION;
   await tryCatchAsync(async () => {
     if (!spindle.storage?.write) return;
-    // backup the last good on-disk log before overwriting
-    try { if (spindle.storage.exists && (await spindle.storage.exists(path(chatId)))) { const prev = await spindle.storage.read(path(chatId)); if (prev) await spindle.storage.write(bakPath(chatId), prev); } } catch { /* best effort */ }
+    // Backup the last good on-disk log before overwriting — but NEVER let a
+    // SHORTER log clobber a LONGER backup. A rollback/truncation that shrinks the
+    // log must not destroy the only copy of the fuller history (the wipe vector).
+    try {
+      if (spindle.storage.exists && (await spindle.storage.exists(path(chatId)))) {
+        const prev = await spindle.storage.read(path(chatId));
+        if (prev) {
+          const prevLen = eventCount(prev);
+          const bakLen = (spindle.storage.exists && (await spindle.storage.exists(bakPath(chatId)))) ? eventCount(await spindle.storage.read(bakPath(chatId))) : -1;
+          // keep whichever is LONGER as the backup (the fullest history we've seen)
+          if (prevLen >= bakLen) await spindle.storage.write(bakPath(chatId), prev);
+          else if (c.log.events.length > bakLen) { /* current write is the longest — leave the bak as the prior longest */ }
+        }
+      }
+    } catch { /* best effort */ }
     await spindle.storage.write(path(chatId), JSON.stringify(c.log));
   });
+}
+
+/** Count events in a raw stored envelope without full validation (for the
+ * shrink-guard: cheap, tolerant). Returns -1 if unparseable. */
+function eventCount(raw: string | null | undefined): number {
+  if (!raw) return -1;
+  try { const o = JSON.parse(raw); return Array.isArray(o?.events) ? o.events.length : -1; } catch { return -1; }
+}
+
+/**
+ * RECOVERY: restore a chat from its `.bak` if the backup holds MORE events than
+ * the current log (i.e. a shrink/wipe happened). Clears the read-only guard and
+ * re-persists. Returns the recovered state, or null if there's nothing better to
+ * restore. Safe to call anytime.
+ */
+export async function recoverFromBackup(chatId: string): Promise<ChronicleState | null> {
+  if (!spindle.storage?.read) return null;
+  let bakRaw: string | null = null;
+  try { if (spindle.storage.exists && (await spindle.storage.exists(bakPath(chatId)))) bakRaw = await spindle.storage.read(bakPath(chatId)); } catch { /* ignore */ }
+  if (!bakRaw) return null;
+  let curLen = -1;
+  try { if (spindle.storage.exists && (await spindle.storage.exists(path(chatId)))) curLen = eventCount(await spindle.storage.read(path(chatId))); } catch { /* ignore */ }
+  let parsed: unknown = null;
+  try { parsed = JSON.parse(bakRaw); } catch { return null; }
+  const { log, usable } = lenientLog(parsed, chatId);
+  if (!usable || log.events.length <= curLen) return null; // backup isn't fuller — nothing to recover
+  _cache.set(chatId, { log, state: mergeDuplicates(reduce(log.events)), reduced: log.events.length, readonly: false });
+  await persist(chatId);
+  spindle.log?.warn?.('[vellum_engine] recovered ' + chatId + ' from backup (' + log.events.length + ' events).');
+  return _cache.get(chatId)!.state;
 }
 
 /** Append events to a chat's log (in memory) + persist. Returns new state. */

@@ -96,6 +96,7 @@ const QOL = [
   { id: 'offscreen', label: '\u2748 Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON', group: 'data' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON', group: 'data' },
+  { id: 'recover', label: '\u21BA Recover', title: 'Restore this chat from its automatic backup if data was lost', group: 'data' },
   { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat', group: 'danger' },
 ] as const;
 
@@ -405,6 +406,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'resummarize') { setQolBusy('resummarize', true); ctx.sendToBackend({ type: 'vellum_resummarize' }); notify(ctx, 'info', 'Rebuilding all chapter summaries\u2026'); }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
+  else if (id === 'recover') { ctx.sendToBackend({ type: 'vellum_recover' }); notify(ctx, 'info', 'Checking backup\u2026'); }
   else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => { setQolBusy('clear', true); ctx.sendToBackend({ type: 'vellum_clear' }); }); }
 }
 
@@ -566,6 +568,8 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_cleared') {
         setQolBusy('clear', false);
         notify(ctx, 'success', 'Chronicle cleared.');
+      } else if (p?.type === 'vellum_recover_done') {
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Recovered ${p.events} events from backup.` : (p.reason === 'no_active_chat' ? 'No active chat.' : 'No fuller backup to recover \u2014 current data is already the most complete.'));
       } else if (p?.type === 'vellum_import_done') {
         setQolBusy('import', false);
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Imported ${p.events ?? ''} events.` : `Import failed: ${p.reason ?? 'error'}`);

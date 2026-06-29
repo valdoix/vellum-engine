@@ -1,7 +1,7 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar } from './host/chats.js';
-import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs } from './store/chronicle.js';
+import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs, recoverFromBackup } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
@@ -740,6 +740,16 @@ const dispatch: Record<string, Handler> = {
     // self-heal: catch up any turns that weren't folded, then broadcast
     try { await foldChat(chatId, uid); } catch { /* best effort */ }
     await broadcastState(chatId, uid);
+  },
+  vellum_recover: async (p, uid) => {
+    // Restore from the .bak if it holds more events than the current log (undo a
+    // shrink/wipe). Reports how many events were recovered.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_recover_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    invalidate(chatId);
+    const recovered = await recoverFromBackup(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_recover_done', ok: !!recovered, events: recovered ? (await loadState(chatId)) && logVersion(chatId) : 0 }, uid);
   },
   vellum_refold: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
