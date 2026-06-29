@@ -17,7 +17,8 @@ declare const spindle: any;
 // The hybrid prompt produces THREE things in one pass:
 //   DETAIL — a dense, structured chapter record for the VAULT (durable, keyword-
 //            activated, read for deep continuity). Beat-by-beat, past tense.
-//   GIST   — one lean sentence for the CHRONICLE (recall/traversal + hide-on-file).
+//   GIST   — a compact factual recap of what happened (1-3 sentences) for the
+//            CHRONICLE (recall/traversal + hide-on-file). Events, not mood.
 //   KEYS   — concrete retrieval keywords (LumiBooks doctrine: scene-specific
 //            nouns/places/objects/actions; NOT abstract themes or character names).
 const SUMMARY_SYS =
@@ -31,8 +32,10 @@ const SUMMARY_SYS =
   + 'adjectives, one idea per sentence, no purple prose, no [OOC]/meta. 6-12 sentences (or tight bullet lines). '
   + 'This replaces reading the full scene, so lose nothing that future continuity needs.>\n'
   + 'GIST:\n'
-  + '<ONE past-tense sentence naming who + the single most important change this chapter leaves. A reader should grasp '
-  + 'the chapter from this line alone.>\n'
+  + '<a compact past-tense SUMMARY OF WHAT HAPPENED this chapter: the concrete events and their outcome, in order — '
+  + 'who did what, what was decided/revealed/changed, and where it left things. 1-3 plain sentences. Name real people '
+  + 'and concrete actions; this is a factual recap a reader skims to know the events, NOT a mood line or a single theme. '
+  + 'End each sentence with a full stop so it is never cut mid-thought.>\n'
   + 'KEYS:\n'
   + '<8-16 comma-separated retrieval keywords: CONCRETE and scene-specific — places, objects, proper nouns, distinctive '
   + 'actions, unique phrases a later scene might echo. One concept each. NOT abstract themes (love, trust, betrayal), '
@@ -88,7 +91,7 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
 
   return chapterEvents(
     plan,
-    { gist: capText(gist, 280), detail: capText(detail, 2000), keys },
+    { gist: capText(gist, 600), detail: capText(detail, 2400), keys },
     state.turns || plan.covers[1], state.day || 0, nextSeq,
   );
 }
@@ -131,14 +134,17 @@ function dropLeadingFragment(t: string): string {
 }
 
 /** Cap to a length at a sentence boundary if possible, else a word boundary —
- * never mid-word. Keeps a long LLM summary from being hard-sliced ugly. */
+ * never mid-word. Keeps a long LLM summary from being hard-sliced ugly. A text
+ * that already ends in terminal punctuation is returned whole when within range,
+ * so a complete one-sentence gist never gains a spurious "…". */
 function capText(t: string, max: number): string {
   const s = t.trim();
   if (s.length <= max) return s;
   const cut = s.slice(0, max);
   const lastStop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
-  if (lastStop > max * 0.6) return cut.slice(0, lastStop + 1).trim();
-  return cut.replace(/\s+\S*$/, '').trim() + '\u2026';
+  if (lastStop > max * 0.5) return cut.slice(0, lastStop + 1).trim(); // whole sentence(s)
+  // no usable sentence boundary → trim at a word and mark the elision
+  return cut.replace(/\s+\S*$/, '').trim().replace(/[\s,;:.\u2014-]+$/, '') + '\u2026';
 }
 
 /** Sentence-bounded structural digest used when host generation is unavailable.

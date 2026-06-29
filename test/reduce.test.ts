@@ -120,6 +120,27 @@ describe('reduce — cast, knowledge, secrets, memory', () => {
     expect(s.relations).toHaveLength(0); // edge removed with the node
   });
 
+  it('cast.drop cascades to ALL their data (knowledge/secrets/journal/memberships)', () => {
+    const s = reduce([
+      ev({ kind: 'cast.seen', id: 'ned', name: 'Ned', status: 'present' }),
+      ev({ kind: 'cast.seen', id: 'jon', name: 'Jon', status: 'active' }),
+      ev({ kind: 'knowledge.learn', who: 'ned', fact: 'winter is coming', about: 'jon' }),
+      ev({ kind: 'knowledge.learn', who: 'jon', fact: 'a secret about ned', about: 'ned' }),
+      ev({ kind: 'secret.form', id: 's1', keeper: 'ned', from: ['jon'], text: 'true parentage' }),
+      ev({ kind: 'secret.form', id: 's2', keeper: 'jon', from: ['ned'], text: 'kept from ned' }),
+      ev({ kind: 'journal.entry', id: 'j1', who: 'ned', about: 'jon', memory: 'm', kind: 'shared', weight: 'normal', sentiment: 'positive' }),
+      ev({ kind: 'faction.member', char: 'ned', faction: 'fac:starks', op: 'add' }),
+      ev({ kind: 'cast.drop', id: 'ned' }),
+    ]);
+    expect(s.cast.ned).toBeUndefined();
+    expect(s.knowledge.some((k) => k.who === 'ned' || k.about === 'ned')).toBe(false); // held by + about
+    expect(s.secrets.some((x) => x.keeper === 'ned' || (x.from ?? []).includes('ned'))).toBe(false); // kept by + kept-from
+    expect(s.journal.some((j) => j.who === 'ned' || j.about === 'ned')).toBe(false);
+    expect(s.memberships.some((m) => m.char === 'ned')).toBe(false);
+    // Jon's own unrelated-to-ned data is unaffected beyond the ned linkage
+    expect(s.cast.jon).toBeDefined();
+  });
+
   it('Fix 22: cast.edit changes only allowed fields, protects identity keys', () => {
     const s = reduce([
       ev({ kind: 'cast.seen', id: 'ned', name: 'Ned Stark', status: 'present' }),

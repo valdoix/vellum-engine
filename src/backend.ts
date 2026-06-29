@@ -780,6 +780,9 @@ const dispatch: Record<string, Handler> = {
     await append(chatId, evs);
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
+    // deleting a chapter/arc memory must also remove its mirrored Vault entry
+    // (reconcile drops orphaned chapter:/arc: entries whose memory is gone).
+    if (p.cmd === 'memory_delete') void maybeChapterVault(chatId, uid);
   },
   vellum_summarize: async (p, uid) => {
     // manual "summarize past turns" â€” compress as many full windows as exist

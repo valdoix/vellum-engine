@@ -138,6 +138,13 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       delete s.cast[e.id];
       s.relations = s.relations.filter((r) => r.a !== e.id && r.b !== e.id);
       s.memberships = s.memberships.filter((m) => m.char !== e.id); // drop their memberships too
+      // full cascade: erase everything ABOUT or HELD BY this character so a delete
+      // leaves no orphaned data behind. Knowledge they hold or that's about them,
+      // secrets they keep or are kept from, and their journal entries (incl. ones
+      // about them) all go.
+      s.knowledge = s.knowledge.filter((k) => k.who !== e.id && k.about !== e.id);
+      s.secrets = s.secrets.filter((x) => x.keeper !== e.id && !(x.from ?? []).includes(e.id));
+      s.journal = s.journal.filter((j) => j.who !== e.id && j.about !== e.id);
       break;
     }
     case 'faction.seen': {
