@@ -186,8 +186,8 @@ function factionCard(s: ChronicleState, f: Faction): string {
   return '<div class="vle-card vle-fac vle-card--' + esc(f.status) + (f.status === 'present' ? ' on' : '') + '">'
     + '<span class="vle-av vle-fac-av" title="' + esc(f.status) + '">' + esc(initials(f.name)) + '</span>'
     + '<span class="vle-card-main"><span class="vle-card-n">' + esc(f.name) + (f.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
-    + '<span class="vle-card-meta">' + (f.kind ? esc(f.kind) + ' \u00b7 ' : '') + `<span class="vle-fac-stand ${stand.cls}">${stand.text}</span></span>`
-    + '<span class="vle-fac-meter">' + bar('Standing', f.standing) + '</span>'
+    + (f.kind ? '<span class="vle-card-meta">' + esc(f.kind) + '</span>' : '')
+    + `<span class="vle-fac-standrow"><span class="vle-fac-stand ${stand.cls}">${stand.text}</span><span class="vle-fac-meter">` + bar('Standing', f.standing) + '</span></span>'
     + (members.length ? '<span class="vle-fac-mems">' + chips + (members.length > 8 ? ` <span class="vle-fac-more">+${members.length - 8}</span>` : '') + '</span>' : '<span class="vle-card-app vle-dim">no members</span>')
     + '</span>'
     + '<span class="vle-card-ctl">'

@@ -29,6 +29,28 @@ describe('command layer (CRUD → events)', () => {
     expect(s.relations).toHaveLength(0);
   });
 
+  it('both-sides add creates A→B and B→A as distinct directed edges', () => {
+    let s = freshState();
+    const evs = cmdEvents('relation_upsert', { entry: { a: 'Cersei', b: 'Jaime', categories: 'familial', aff: 80, both: 'yes', blabel: 'twin sister', bcategories: 'familial', baff: 40, btrust: 30 } }, s, ctx);
+    expect(evs.filter((e: any) => e.kind === 'bond.delta')).toHaveLength(2);
+    s = reduce(evs, s, 0);
+    const ab = s.relations.find((r) => r.a === 'cersei' && r.b === 'jaime')!;
+    const ba = s.relations.find((r) => r.a === 'jaime' && r.b === 'cersei')!;
+    expect(ab.affection).toBe(80);
+    expect(ba.affection).toBe(40); // independent reverse score
+    expect(ba.label).toBe('twin sister');
+  });
+
+  it('both:yes with an empty reciprocal adds only A→B (no blank reverse)', () => {
+    const evs = cmdEvents('relation_upsert', { entry: { a: 'A', b: 'B', categories: 'social', both: 'yes' } }, freshState(), ctx);
+    expect(evs.filter((e: any) => e.kind === 'bond.delta')).toHaveLength(1);
+  });
+
+  it('both omitted → one edge (unchanged)', () => {
+    const evs = cmdEvents('relation_upsert', { entry: { a: 'A', b: 'B', aff: 10 } }, freshState(), ctx);
+    expect(evs.filter((e: any) => e.kind === 'bond.delta')).toHaveLength(1);
+  });
+
   it('user edit sets categories absolutely (removes dropped facets)', () => {
     let s = freshState();
     s = reduce(cmdEvents('relation_upsert', { entry: { a: 'A', b: 'B', categories: 'familial,rivalry' } }, s, ctx), s, 0);

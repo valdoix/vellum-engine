@@ -40,10 +40,15 @@ export const relationsTab: Component<ChronicleState> = {
     const f = filterOf('relations');
     let rels = s.relations.filter((r) => (f.cat === 'all' || catsOf(r).includes(f.cat as Relation['category']))
       && (f.who === 'all' || r.a === f.who || r.b === f.who));
-    rels = rels.sort((a, b) => f.sort === 'desc' ? (b.lastTurn ?? 0) - (a.lastTurn ?? 0) : (a.lastTurn ?? 0) - (b.lastTurn ?? 0));
-    const { slice, page, pages } = paginate('relations', rels);
+    // group the two directed edges of a pair into ONE card (A→B + B→A together).
+    const groups = new Map<string, Relation[]>();
+    for (const r of rels) { const k = pairKey(r.a, r.b); (groups.get(k) ?? groups.set(k, []).get(k)!).push(r); }
+    const pairs = Array.from(groups.values());
+    const recency = (g: Relation[]): number => Math.max(...g.map((r) => r.lastTurn ?? 0));
+    pairs.sort((x, y) => f.sort === 'desc' ? recency(y) - recency(x) : recency(x) - recency(y));
+    const { slice, page, pages } = paginate('relations', pairs);
     if (!slice.length) return header + bar + emptyState('No bonds match this filter.');
-    return header + bar + '<div class="vle-rel-grid">' + slice.map((r) => card(s, r)).join('') + '</div>' + pagerHtml('relations', page, pages);
+    return header + bar + '<div class="vle-rel-grid">' + slice.map((g) => card(s, g)).join('') + '</div>' + pagerHtml('relations', page, pages);
   },
   mount(host) {
     host.addEventListener('click', (e) => {
@@ -54,7 +59,7 @@ export const relationsTab: Component<ChronicleState> = {
         relForm('Edit Relation', {
           a: ed.getAttribute('data-a') ?? '', b: ed.getAttribute('data-b') ?? '',
           label: ed.getAttribute('data-label') ?? '', categories: ed.getAttribute('data-cats') ?? '',
-          aff: ed.getAttribute('data-aff') ?? '0', trust: ed.getAttribute('data-trust') ?? '0',
+          aff: ed.getAttribute('data-aff') ?? '0', trust: ed.getAttribute('data-trust') ?? '0', edit: '1',
         });
         return;
       }
@@ -87,35 +92,70 @@ function lockForm(aId: string, bId: string, aName: string, bName: string): void 
 }
 
 function relForm(title: string, v: Record<string, string>): void {
-  formModal(title, [
-    { key: 'a', label: 'Character A', type: 'text', value: v.a, placeholder: 'Cersei' },
-    { key: 'b', label: 'Character B', type: 'text', value: v.b, placeholder: 'Jaime' },
-    { key: 'label', label: 'Label (from A\u2019s view)', type: 'text', value: v.label, placeholder: 'twin brother' },
-    { key: 'categories', label: 'Categories', type: 'checks', value: v.categories ?? '', options: CAT_OPTS },
-    { key: 'aff', label: 'Affection (-100..100)', type: 'text', value: v.aff ?? '0' },
-    { key: 'trust', label: 'Trust (-100..100)', type: 'text', value: v.trust ?? '0' },
-  ], (out) => { if (out.a?.trim() && out.b?.trim()) cmd('relation_upsert', out); });
+  // `edit` is true when editing one existing directed edge — the reciprocal
+  // section is offered only for NEW relations (editing stays single-direction).
+  const edit = !!v.edit;
+  const fields = [
+    { key: 'a', label: 'Character A', type: 'text' as const, value: v.a, placeholder: 'Cersei' },
+    { key: 'b', label: 'Character B', type: 'text' as const, value: v.b, placeholder: 'Jaime' },
+    { key: 'label', label: 'Label (from A\u2019s view)', type: 'text' as const, value: v.label, placeholder: 'twin brother' },
+    { key: 'categories', label: 'Categories (A \u2192 B)', type: 'checks' as const, value: v.categories ?? '', options: CAT_OPTS },
+    { key: 'aff', label: 'Affection A\u2192B (-100..100)', type: 'text' as const, value: v.aff ?? '0' },
+    { key: 'trust', label: 'Trust A\u2192B (-100..100)', type: 'text' as const, value: v.trust ?? '0' },
+  ];
+  const reciprocal = [
+    { key: 'both', label: 'Also add the reverse (B \u2192 A)?', type: 'select' as const, value: 'no', options: [{ value: 'no', label: 'no' }, { value: 'yes', label: 'yes' }] },
+    { key: 'blabel', label: 'Label (from B\u2019s view)', type: 'text' as const, value: '', placeholder: 'twin sister' },
+    { key: 'bcategories', label: 'Categories (B \u2192 A)', type: 'checks' as const, value: '', options: CAT_OPTS },
+    { key: 'baff', label: 'Affection B\u2192A (-100..100)', type: 'text' as const, value: '0' },
+    { key: 'btrust', label: 'Trust B\u2192A (-100..100)', type: 'text' as const, value: '0' },
+  ];
+  formModal(title, edit ? fields : [...fields, ...reciprocal], (out) => {
+    if (out.a?.trim() && out.b?.trim()) cmd('relation_upsert', out);
+  });
 }
 
-function card(s: ChronicleState, r: Relation): string {
-  const cats = catsOf(r);
+/** A paired relation card: the A↔B header + lock, then one directional row per
+ * existing edge (A→B and/or B→A), each with its own label/cats/bars/edit/delete/
+ * history. Directed edges stay distinct so asymmetry (she devoted, he wary) shows. */
+function card(s: ChronicleState, group: Relation[]): string {
   const A = (x: unknown): string => esc(x);
-  const chips = cats.map((c) => '<span class="vle-cat" style="--c:' + (CAT_COLORS[c] || '#888') + '">' + esc(c) + '</span>').join('');
-  const an = nameOf(s, r.a), bn = nameOf(s, r.b);
-  const lock = lockFor(r.a, r.b);
+  // stable endpoint order from the sorted pair key, so the header reads the same
+  // regardless of which direction was authored first.
+  const [pa, pb] = group[0]!.a <= group[0]!.b ? [group[0]!.a, group[0]!.b] : [group[0]!.b, group[0]!.a];
+  const lock = lockFor(pa, pb);
   const lockBadge = lock ? `<span class="vle-rel-lockbadge" title="${A('forbidden: ' + (lock.forbid.join(', ') || '\u2014') + (lock.pin.length ? ' \u00b7 pinned: ' + lock.pin.join(', ') : ''))}">\uD83D\uDD12 ${esc(lock.forbid.join(', ') || 'pinned')}</span>` : '';
+  const byDir = (from: string, to: string): Relation | undefined => group.find((r) => r.a === from && r.b === to);
+  const dirs = [byDir(pa, pb), byDir(pb, pa)].filter(Boolean) as Relation[];
+
+  const dirRow = (r: Relation): string => {
+    const cats = catsOf(r);
+    const an = nameOf(s, r.a), bn = nameOf(s, r.b);
+    const chips = cats.map((c) => '<span class="vle-cat" style="--c:' + (CAT_COLORS[c] || '#888') + '">' + esc(c) + '</span>').join('');
+    return '<div class="vle-rel-dir">'
+      + '<div class="vle-rel-dirtop"><span class="vle-rel-dirn">' + nameHtml(s, r.a) + ' \u2192 ' + nameHtml(s, r.b) + '</span>'
+      + '<span class="vle-rel-sent">' + esc(SENT_LABEL[r.sentiment] || r.sentiment) + '</span>'
+      + '<span class="vle-rel-ctl">'
+      + `<button class="vle-mini" data-rel-edit data-a="${A(an)}" data-b="${A(bn)}" data-label="${A(r.label)}" data-cats="${A(cats.join(','))}" data-aff="${r.affection}" data-trust="${r.trust}" title="Edit">\u270E</button>`
+      + `<button class="vle-mini del" data-rel-del data-a="${A(an)}" data-b="${A(bn)}" title="Delete">\u2715</button>`
+      + '</span></div>'
+      + (r.label ? '<div class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</div>' : '')
+      + '<div class="vle-cats">' + chips + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '') + '</div>'
+      + '<div class="vle-bars">' + bar('Aff', r.affection) + bar('Trust', r.trust) + '</div>'
+      + historyHtml(r)
+      + '</div>';
+  };
+
+  const reverseMissing = dirs.length === 1
+    ? `<div class="vle-rel-onesided">no reciprocal bond from ${esc(nameOf(s, dirs[0]!.b))} yet</div>`
+    : '';
   return '<div class="vle-rel-card">'
-    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, r.a) + ' \u2192 ' + nameHtml(s, r.b) + '</span>'
-    + '<span class="vle-rel-ctl">'
-    + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(r.a)}" data-b="${A(r.b)}" data-an="${A(an)}" data-bn="${A(bn)}" title="Plot Director lock">\uD83D\uDD12</button>`
-    + `<button class="vle-mini" data-rel-edit data-a="${A(an)}" data-b="${A(bn)}" data-label="${A(r.label)}" data-cats="${A(cats.join(','))}" data-aff="${r.affection}" data-trust="${r.trust}" title="Edit">\u270E</button>`
-    + `<button class="vle-mini del" data-rel-del data-a="${A(an)}" data-b="${A(bn)}" title="Delete">\u2715</button>`
+    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, pa) + ' \u2194 ' + nameHtml(s, pb) + '</span>'
+    + '<span class="vle-rel-ctl">' + lockBadge
+    + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(pa)}" data-b="${A(pb)}" data-an="${A(nameOf(s, pa))}" data-bn="${A(nameOf(s, pb))}" title="Plot Director lock">\uD83D\uDD12</button>`
     + '</span></div>'
-    + '<div class="vle-rel-sub"><span class="vle-rel-sent">' + esc(SENT_LABEL[r.sentiment] || r.sentiment) + '</span>' + lockBadge + '</div>'
-    + (r.label ? '<div class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</div>' : '')
-    + '<div class="vle-cats">' + chips + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '') + '</div>'
-    + '<div class="vle-bars">' + bar('Aff', r.affection) + bar('Trust', r.trust) + '</div>'
-    + historyHtml(r)
+    + dirs.map(dirRow).join('')
+    + reverseMissing
     + '</div>';
 }
 

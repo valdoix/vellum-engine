@@ -83,7 +83,32 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
         ev.addCats = cats;
         if (existing) { const rm = (existing.categories || []).filter((c) => !cats.includes(c) && c !== 'neutral'); if (rm.length) ev.removeCats = rm; }
       }
-      return [ev as VellumEvent];
+      const out: VellumEvent[] = [ev as VellumEvent];
+      // optional reciprocal B→A edge (its own label/categories/aff/trust). Only
+      // when explicitly requested AND it carries content, so we never mint a blank
+      // reverse. Each edge is independent in the directed model.
+      if (String(e.both) === 'yes' || e.both === true) {
+        const bcatsRaw = normalizeCategorySet(
+          (Array.isArray(e.bcategories) ? e.bcategories : typeof e.bcategories === 'string' ? e.bcategories.split(',') : [])
+            .map((c: string) => String(c).trim().toLowerCase()).filter(isCategory),
+        ) as Category[];
+        // normalizeCategorySet defaults [] → ['neutral']; treat a neutral-only set
+        // as "no categories" so an empty reciprocal doesn't count as content.
+        const bcats = (bcatsRaw.length === 1 && bcatsRaw[0] === 'neutral') ? [] : bcatsRaw;
+        const baff = (e.baff !== undefined) ? Number(e.baff) || 0 : 0;
+        const btrust = (e.btrust !== undefined) ? Number(e.btrust) || 0 : 0;
+        const blabel = e.blabel !== undefined ? String(e.blabel) : '';
+        if (bcats.length || baff || btrust || blabel.trim()) {
+          const rev = state.relations.find((r) => r.a === b && r.b === a);
+          const ev2: any = { ...base(ctx), kind: 'bond.delta', a: b, b: a, absolute: true };
+          if (baff) ev2.aff = baff;
+          if (btrust) ev2.trust = btrust;
+          if (blabel) ev2.label = blabel;
+          if (bcats.length) { ev2.addCats = bcats; if (rev) { const rm = (rev.categories || []).filter((c) => !bcats.includes(c) && c !== 'neutral'); if (rm.length) ev2.removeCats = rm; } }
+          out.push(ev2 as VellumEvent);
+        }
+      }
+      return out;
     }
     case 'relation_delete': {
       const a = canonId(e.a ?? ''), b = canonId(e.b ?? '');
