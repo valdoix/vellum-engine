@@ -264,6 +264,13 @@ export const STYLES = [
   ".vle-pg-n{font:600 9px/1 var(--vmono);opacity:.6;min-width:42px;text-align:center}",
   // ---- modal ----
   ".vlfm-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(8,7,5,.6);backdrop-filter:blur(3px)}",
+  // self-owned toasts (the Lumiverse ctx has no toast API) — above overlays
+  ".vle-toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10002;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}",
+  ".vle-toast{pointer-events:auto;max-width:min(460px,90vw);padding:10px 16px;border-radius:10px;font:600 12px/1.4 var(--vmono);letter-spacing:.2px;color:var(--vle-ink);background:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1));border:1px solid rgba(var(--vg-rgb),.45);box-shadow:0 12px 40px rgba(0,0,0,.6);opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s}",
+  ".vle-toast.on{opacity:1;transform:translateY(0)}",
+  ".vle-toast--success{border-color:color-mix(in srgb,var(--v-pos) 55%,transparent)}",
+  ".vle-toast--warning{border-color:color-mix(in srgb,var(--v-warn) 60%,transparent)}",
+  ".vle-toast--info{border-color:rgba(var(--vg-rgb),.45)}",
   ".vlfm{width:min(440px,92vw);max-height:86vh;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;color:var(--vle-ink);background:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1));border:1px solid rgba(var(--vg-rgb),.5);box-shadow:0 28px 80px rgba(0,0,0,.7)}",
   ".vlfm-head{display:flex;align-items:center;gap:8px;padding:13px 16px;font-family:var(--vserif);font-size:18px;letter-spacing:1.5px;text-transform:uppercase;color:var(--vi);border-bottom:1px solid rgba(var(--vg-rgb),.22)}",
   ".vlfm-mark{color:var(--vle-gold)}",

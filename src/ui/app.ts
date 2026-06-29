@@ -36,9 +36,29 @@ interface Ctx {
   toast?: { info?(m: string): void; warning?(m: string): void; success?(m: string): void };
 }
 
+// Lumiverse's frontend context does NOT provide a toast API (ctx.toast was
+// always undefined Ã¢â€ â€™ every ctx.toast?.x?.() was a silent no-op). Own a tiny
+// toast that renders above overlays. `ctx.toast` is still preferred if a future
+// host adds it. Use notify(ctx, level, msg) everywhere instead of ctx.toast.
+type ToastLevel = 'info' | 'success' | 'warning';
+function notify(ctx: Ctx, level: ToastLevel, msg: string): void {
+  const hostFn = ctx.toast?.[level];
+  if (typeof hostFn === 'function') { try { hostFn(msg); return; } catch { /* fall through */ } }
+  try {
+    let host = document.querySelector('.vle-toasts') as HTMLElement | null;
+    if (!host) { host = document.createElement('div'); host.className = 'vle-toasts'; document.body.appendChild(host); }
+    const el = document.createElement('div');
+    el.className = 'vle-toast vle-toast--' + level;
+    el.textContent = msg;
+    host.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('on'));
+    setTimeout(() => { el.classList.remove('on'); setTimeout(() => { try { el.remove(); } catch { /* ignore */ } }, 250); }, 3200);
+  } catch { /* DOM unavailable */ }
+}
+
 const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:var(--vg,#cda84e)"><path d="M4 3.5h9l3 3V16.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4"/><path d="M6 9h8M6 12h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
-// "Now" — the live-scene dashboard, reused as the first drawer view so the drawer
+// "Now" Ã¢â‚¬â€ the live-scene dashboard, reused as the first drawer view so the drawer
 // and the floating window share one language (float = Now alone; drawer = Now +
 // the archive tabs). Same composable section engine as the float (dashboard.ts).
 const nowTab: Component<ChronicleState> = {
@@ -184,7 +204,7 @@ function setQolBusy(id: string, busy: boolean, timeoutMs = 30000): void {
 /** Open the grouped Actions menu as an overlay. Items reuse the same `data-qol`
  * ids so all existing busy/toggle wiring keeps working; only the container moved
  * off the always-on toolbar. Toggles render their current state inline. The menu
- * PERSISTS across actions (re-rendering toggle state) — only Close dismisses it. */
+ * PERSISTS across actions (re-rendering toggle state) Ã¢â‚¬â€ only Close dismisses it. */
 function openActions(ctx: Ctx): void {
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
@@ -231,7 +251,7 @@ function openActions(ctx: Ctx): void {
 interface SearchHit { tab: string; kind: string; label: string; sub: string }
 /** Flat free-text search across cast, factions, relations, journal, knowledge,
  * secrets by name/text. Result click jumps to the owning tab. Read-only over
- * state; no index to maintain — the chronicle is small enough to scan live. */
+ * state; no index to maintain Ã¢â‚¬â€ the chronicle is small enough to scan live. */
 function buildSearchIndex(s: ChronicleState): SearchHit[] {
   const hits: SearchHit[] = [];
   const nm = (id: string): string => s.cast[id]?.name ?? id;
@@ -319,7 +339,7 @@ function openDirector(getState: () => ChronicleState): void {
 /** Add-directive form: pick a kind + target (an existing secret/thread/character)
  * or a note, optionally SCHEDULED for a future turn/day (dormant until reached).
  * Agendas (standing per-character goals, ttl 0) and scene beats (next-turn-only,
- * ttl 1) are just note directives with a preset TTL — no new backend. */
+ * ttl 1) are just note directives with a preset TTL Ã¢â‚¬â€ no new backend. */
 function addDirective(s: ChronicleState): void {
   const secrets = s.secrets.filter((x) => !x.revealed).map((x) => ({ value: 'reveal_secret|' + x.id, label: 'reveal: ' + x.text.slice(0, 50) }));
   const threads = s.threads.filter((t) => t.status !== 'resolved').map((t) => ({ value: 'advance_thread|' + t.name, label: 'advance: ' + t.name }));
@@ -362,14 +382,14 @@ function addDirective(s: ChronicleState): void {
 
 function onQol(ctx: Ctx, id: string): void {
   if (id === 'customize') { openCustomize(() => _retheme()); }
-  else if (id === 'summarize') { setQolBusy('summarize', true); ctx.sendToBackend({ type: 'vellum_summarize' }); ctx.toast?.info?.('Summarizing older turns\u2026'); }
-  else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); ctx.toast?.info?.('Rescanning the latest turn\u2026'); }
+  else if (id === 'summarize') { setQolBusy('summarize', true); ctx.sendToBackend({ type: 'vellum_summarize' }); notify(ctx, 'info', 'Summarizing older turns\u2026'); }
+  else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); notify(ctx, 'info', 'Rescanning the latest turn\u2026'); }
   else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
-  else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { setQolBusy('rebuild', true); ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); ctx.toast?.info?.('Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
+  else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { setQolBusy('rebuild', true); ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); notify(ctx, 'info', 'Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'traverse') {
-    // cycle: off → flat → tree·time → tree·char → tree·hybrid → off
+    // cycle: off Ã¢â€ â€™ flat Ã¢â€ â€™ treeÃ‚Â·time Ã¢â€ â€™ treeÃ‚Â·char Ã¢â€ â€™ treeÃ‚Â·hybrid Ã¢â€ â€™ off
     if (_traverseMode === 'off') { _traverseMode = 'flat'; }
     else if (_traverseMode === 'flat') { _traverseMode = 'tree'; _traverseAxis = 'temporal'; }
     else if (_traverseMode === 'tree' && _traverseAxis === 'temporal') { _traverseAxis = 'character'; }
@@ -379,8 +399,8 @@ function onQol(ctx: Ctx, id: string): void {
     ctx.sendToBackend({ type: 'vellum_set_traversal', mode: _traverseMode, axis: _traverseAxis });
   }
   else if (id === 'tone') { openToneModal(ctx); }
-  else if (id === 'tidy') { setQolBusy('tidy', true); ctx.sendToBackend({ type: 'vellum_tidy_now' }); ctx.toast?.info?.('Reconciling plot threads\u2026'); }
-  else if (id === 'tidyfacts') { setQolBusy('tidyfacts', true); ctx.sendToBackend({ type: 'vellum_tidy_facts_now' }); ctx.toast?.info?.('Folding duplicate knowledge & secrets\u2026'); }
+  else if (id === 'tidy') { setQolBusy('tidy', true); ctx.sendToBackend({ type: 'vellum_tidy_now' }); notify(ctx, 'info', 'Reconciling plot threads\u2026'); }
+  else if (id === 'tidyfacts') { setQolBusy('tidyfacts', true); ctx.sendToBackend({ type: 'vellum_tidy_facts_now' }); notify(ctx, 'info', 'Folding duplicate knowledge & secrets\u2026'); }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => { setQolBusy('clear', true); ctx.sendToBackend({ type: 'vellum_clear' }); }); }
@@ -424,7 +444,7 @@ function triggerImport(ctx: Ctx): void {
   inp.addEventListener('change', () => {
     const f = inp.files?.[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = () => { try { const log = JSON.parse(String(r.result)); setQolBusy('import', true); ctx.sendToBackend({ type: 'vellum_import', log }); ctx.toast?.info?.('Importing chronicle\u2026'); } catch { ctx.toast?.warning?.('That file is not valid JSON.'); } };
+    r.onload = () => { try { const log = JSON.parse(String(r.result)); setQolBusy('import', true); ctx.sendToBackend({ type: 'vellum_import', log }); notify(ctx, 'info', 'Importing chronicle\u2026'); } catch { notify(ctx, 'warning', 'That file is not valid JSON.'); } };
     r.readAsText(f);
   });
   inp.click();
@@ -461,11 +481,11 @@ export function setup(ctx: Ctx): () => void {
   // bridge: tab components issue CRUD via send(); refresh re-renders both shells
   wireBridge((payload) => ctx.sendToBackend(payload), (force?: boolean) => { drawer.update(force); float.refresh(); });
 
-  // beautiful floating window â€” a live scene DASHBOARD with a refresh button
+  // beautiful floating window ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a live scene DASHBOARD with a refresh button
   const float: FloatWindow = createFloatWindow({
     title: 'VELLUM',
     actions: [{ id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' }],
-    onAction: (id) => { if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); ctx.toast?.info?.('Refreshing the tracker\u2026'); } },
+    onAction: (id) => { if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); notify(ctx, 'info', 'Refreshing the tracker\u2026'); } },
     render: (host) => {
       try { host.innerHTML = `<div class="vld">${dashboardHtml(getState())}</div>`; } catch (e) { try { console.warn('[vellum] dashboard render failed:', e); } catch { /* ignore */ } host.innerHTML = '<div class="vld"><div class="vle-empty sm">Dashboard hit an error. Hit refresh.</div></div>'; }
       if (!host.hasAttribute('data-phone-wired')) { host.setAttribute('data-phone-wired', '1'); host.addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-phone-sec]'); if (d) { setPhoneSection(d.getAttribute('data-phone-sec')!); refreshUI(); } }); }
@@ -505,89 +525,89 @@ export function setup(ctx: Ctx): () => void {
         if (p.log?.[0]?.chars) setSysInfo({ injChars: p.log[0].chars });
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection_push') {
-        // Fix 11 — live retrieval feed: stream the new record in as it happens
+        // Fix 11 Ã¢â‚¬â€ live retrieval feed: stream the new record in as it happens
         if (p.record) { pushInjectionRecord(p.record); if (p.record.chars) setSysInfo({ injChars: p.record.chars }); drawer.update(); float.refresh(); }
       } else if (p?.type === 'vellum_continuity') {
-        // Plot Director: passive continuity warnings — advise, never block.
-        if (Array.isArray(p.warnings) && p.warnings.length) ctx.toast?.warning?.('Continuity: ' + p.warnings.map((w: { text: string }) => w.text).join(' '));
+        // Plot Director: passive continuity warnings Ã¢â‚¬â€ advise, never block.
+        if (Array.isArray(p.warnings) && p.warnings.length) notify(ctx, 'warning', 'Continuity: ' + p.warnings.map((w: { text: string }) => w.text).join(' '));
       } else if (p?.type === 'vellum_vault') {
         setVaultSnap(p);
         drawer.update();
       } else if (p?.type === 'vellum_vault_categories') {
-        // categories changed — re-request the full snapshot to reflect counts
+        // categories changed Ã¢â‚¬â€ re-request the full snapshot to reflect counts
         ctx.sendToBackend({ type: 'vellum_get_vault' });
       } else if (p?.type === 'vellum_vault_done') {
-        if (!p.ok) ctx.toast?.warning?.('Vault: ' + (p.reason ?? 'failed'));
+        if (!p.ok) notify(ctx, 'warning', 'Vault: ' + (p.reason ?? 'failed'));
       } else if (p?.type === 'vellum_export' && p.log) {
         setQolBusy('export', false);
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
-        ctx.toast?.success?.('Chronicle exported.');
+        notify(ctx, 'success', 'Chronicle exported.');
       } else if (p?.type === 'vellum_summarize_done') {
         setQolBusy('summarize', false);
-        ctx.toast?.success?.(p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'Nothing old enough to summarize yet.');
+        notify(ctx, 'success', p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'Nothing old enough to summarize yet.');
         // surface WHY the vault didn't update (the silent-gate that hid this)
         const v = p.vault;
         if (p.rounds && v && !v.created && !v.updated) {
-          if (v.reason === 'no_world_books') ctx.toast?.warning?.('Chapter detail not saved to vault — grant the world_books permission.');
-          else if (v.reason === 'mode_off') ctx.toast?.info?.('Chapter-vault is off (Tone \u2192 Chapter detail in vault) — chronicle gist only.');
+          if (v.reason === 'no_world_books') notify(ctx, 'warning', 'Chapter detail not saved to vault Ã¢â‚¬â€ grant the world_books permission.');
+          else if (v.reason === 'mode_off') notify(ctx, 'info', 'Chapter-vault is off (Tone \u2192 Chapter detail in vault) Ã¢â‚¬â€ chronicle gist only.');
         } else if (v && (v.created || v.updated)) {
-          ctx.toast?.success?.(`Vault: ${v.created} chapter${v.created === 1 ? '' : 's'} saved${v.updated ? `, ${v.updated} updated` : ''}.`);
+          notify(ctx, 'success', `Vault: ${v.created} chapter${v.created === 1 ? '' : 's'} saved${v.updated ? `, ${v.updated} updated` : ''}.`);
         }
       } else if (p?.type === 'vellum_cleared') {
         setQolBusy('clear', false);
-        ctx.toast?.success?.('Chronicle cleared.');
+        notify(ctx, 'success', 'Chronicle cleared.');
       } else if (p?.type === 'vellum_import_done') {
         setQolBusy('import', false);
-        ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Imported ${p.events ?? ''} events.` : `Import failed: ${p.reason ?? 'error'}`);
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Imported ${p.events ?? ''} events.` : `Import failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_rescan_done') {
         setQolBusy('rescan', false);
-        ctx.toast?.success?.('Rescanned.');
+        notify(ctx, 'success', 'Rescanned.');
       } else if (p?.type === 'vellum_refresh_done') {
-        ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? (p.refolded ? `Re-folded turn ${p.refolded}.` : 'Tracker refreshed.') : (p.reason === 'no_active_chat' ? 'No active chat.' : 'Refresh failed.'));
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? (p.refolded ? `Re-folded turn ${p.refolded}.` : 'Tracker refreshed.') : (p.reason === 'no_active_chat' ? 'No active chat.' : 'Refresh failed.'));
       } else if (p?.type === 'vellum_undo_done') {
         setQolBusy('undo', false);
-        ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
       } else if (p?.type === 'vellum_rebuild_done') {
         setQolBusy('rebuild', false);
-        ctx.toast?.[p.ok ? 'success' : 'warning']?.(p.ok ? `Chronicle rebuilt from ${p.turns ?? 0} turn(s).` : `Rebuild failed: ${p.reason ?? 'error'}`);
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Chronicle rebuilt from ${p.turns ?? 0} turn(s).` : `Rebuild failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_hide_done') {
         setQolBusy('hide', false);
         _hideOn = !!p.enabled;
         document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn));
-        ctx.toast?.success?.(p.enabled ? `Hiding ${p.hid ?? 0} filed turn(s) from the prompt.` : `Restored ${p.shown ?? 0} turn(s).`);
+        notify(ctx, 'success', p.enabled ? `Hiding ${p.hid ?? 0} filed turn(s) from the prompt.` : `Restored ${p.shown ?? 0} turn(s).`);
       } else if (p?.type === 'vellum_traversal_done') {
         setQolBusy('traverse', false);
         _traverseMode = p.mode ?? (p.enabled ? 'flat' : 'off');
         if (typeof p.axis === 'string') _traverseAxis = p.axis;
         document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseMode !== 'off'));
-        if (_traverseMode !== 'off' && !p.available) ctx.toast?.warning?.('Traversal needs the generation permission \u2014 falling back to standard recall.');
-        else if (_traverseMode === 'tree') ctx.toast?.success?.(`Controller retrieval: tree drill (${_traverseAxis === 'character' ? 'by character' : _traverseAxis === 'hybrid' ? 'by character + timeline' : 'by timeline'}).`);
-        else ctx.toast?.success?.(_traverseMode === 'flat' ? 'Controller retrieval: flat (one-shot).' : 'Controller retrieval off.');
+        if (_traverseMode !== 'off' && !p.available) notify(ctx, 'warning', 'Traversal needs the generation permission \u2014 falling back to standard recall.');
+        else if (_traverseMode === 'tree') notify(ctx, 'success', `Controller retrieval: tree drill (${_traverseAxis === 'character' ? 'by character' : _traverseAxis === 'hybrid' ? 'by character + timeline' : 'by timeline'}).`);
+        else notify(ctx, 'success', _traverseMode === 'flat' ? 'Controller retrieval: flat (one-shot).' : 'Controller retrieval off.');
       } else if (p?.type === 'vellum_tone_done') {
         _tone = { romance: p.romance ?? 'medium', disposition: p.disposition ?? 'fair' };
         const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair';
         document.querySelectorAll('[data-qol=\'tone\']').forEach((b) => b.classList.toggle('on', !isDefault));
-        ctx.toast?.success?.(`Tone set \u2014 romance: ${_tone.romance.replace('_', ' ')}, world: ${_tone.disposition}.`);
+        notify(ctx, 'success', `Tone set \u2014 romance: ${_tone.romance.replace('_', ' ')}, world: ${_tone.disposition}.`);
       } else if (p?.type === 'vellum_tidy_done') {
         setQolBusy('tidy', false);
-        if (!p.ok) ctx.toast?.warning?.(p.reason === 'no_generation' ? 'Tidy threads needs the generation permission.' : 'Tidy threads failed.');
-        else ctx.toast?.success?.(p.merged ? `Merged ${p.merged} duplicate thread(s).` : 'No duplicate threads found.');
+        if (!p.ok) notify(ctx, 'warning', p.reason === 'no_generation' ? 'Tidy threads needs the generation permission.' : 'Tidy threads failed.');
+        else notify(ctx, 'success', p.merged ? `Merged ${p.merged} duplicate thread(s).` : 'No duplicate threads found.');
       } else if (p?.type === 'vellum_tidy_facts_done') {
         setQolBusy('tidyfacts', false);
-        if (!p.ok) ctx.toast?.warning?.(p.reason === 'no_generation' ? 'Tidy lore needs the generation permission.' : 'Tidy lore failed.');
-        else ctx.toast?.success?.(p.merged ? `Folded ${p.merged} duplicate knowledge/secret(s).` : 'No duplicate lore found.');
+        if (!p.ok) notify(ctx, 'warning', p.reason === 'no_generation' ? 'Tidy lore needs the generation permission.' : 'Tidy lore failed.');
+        else notify(ctx, 'success', p.merged ? `Folded ${p.merged} duplicate knowledge/secret(s).` : 'No duplicate lore found.');
       } else if (p?.type === 'vellum_tidy_set_done') {
         _tidyOn = !!p.enabled;
-        if (p.enabled && !p.available) ctx.toast?.warning?.('Auto-tidy needs the generation permission to run.');
-        else ctx.toast?.success?.(p.enabled ? 'Auto-tidy threads on.' : 'Auto-tidy threads off.');
+        if (p.enabled && !p.available) notify(ctx, 'warning', 'Auto-tidy needs the generation permission to run.');
+        else notify(ctx, 'success', p.enabled ? 'Auto-tidy threads on.' : 'Auto-tidy threads off.');
       } else if (p?.type === 'vellum_offscreen_set_done') {
         _offscreenOn = !!p.enabled;
-        if (p.enabled && !p.available) ctx.toast?.warning?.('Off-screen sim needs the generation permission to run.');
-        else ctx.toast?.success?.(p.enabled ? 'Off-screen simulation on \u2014 the world ticks every few turns.' : 'Off-screen simulation off.');
+        if (p.enabled && !p.available) notify(ctx, 'warning', 'Off-screen sim needs the generation permission to run.');
+        else notify(ctx, 'success', p.enabled ? 'Off-screen simulation on \u2014 the world ticks every few turns.' : 'Off-screen simulation off.');
       } else if (p?.type === 'vellum_chaptervault_done') {
         _chapterVault = p.mode ?? 'keyed';
-        if (p.mode !== 'off' && !p.available) ctx.toast?.warning?.('Chapter-vault needs the world_books permission \u2014 keeping chronicle gist only.');
-        else ctx.toast?.success?.(p.mode === 'off' ? 'Chapter detail: chronicle only.' : `Chapter detail \u2192 vault (${p.mode}).`);
+        if (p.mode !== 'off' && !p.available) notify(ctx, 'warning', 'Chapter-vault needs the world_books permission \u2014 keeping chronicle gist only.');
+        else notify(ctx, 'success', p.mode === 'off' ? 'Chapter detail: chronicle only.' : `Chapter detail \u2192 vault (${p.mode}).`);
       }
     } catch (e) { try { console.warn('[vellum] message handler:', e); } catch { /* ignore */ } }
   });
