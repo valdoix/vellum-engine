@@ -24,7 +24,7 @@ let _tlDay = 'all';
 export const chronicleTab: Component<ChronicleState> = {
   version: (s) => `${_view}:${_tlKind}:${_tlDay}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
-    const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length;
+    const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length };
     const nav = '<div class="vle-subnav">' + VIEWS.map((v) =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`).join('') + '</div>';
@@ -102,15 +102,16 @@ function offscreenSection(s: ChronicleState): string {
   const open = (s.offscreen ?? []).filter((o) => o.status === 'active').sort(byRecent);
   const narrated = (s.parallel ?? []).filter((p) => p.src !== 'sim'); // model-written meanwhile
   if (!open.length && !narrated.length) return '';
-  let html = sectionHeader('\u2748 Off-screen', { sub: true, count: open.length });
+  const shownNarr = narrated.slice(0, 4);
+  let html = sectionHeader('\u2748 Off-screen', { sub: true, count: open.length + shownNarr.length });
   html += open.map((o) => {
     const who = o.who ? esc(s.cast[o.who]?.name ?? o.who) : '';
     const where = o.where ? ` <span class="vle-os-w">@${esc(o.where)}</span>` : '';
     const hist = o.beats.length > 1 ? `<details class="vle-os-h"><summary>${o.beats.length} beats</summary>${o.beats.map((b) => '<div>\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
     return `<div class="vle-os"><div class="vle-os-top"><span class="vle-os-n">${esc(o.name)}</span>${who ? `<span class="vle-os-who">${who}</span>` : ''}${where}</div><div class="vle-os-gist">${esc(o.gist || o.beats[o.beats.length - 1] || '')}</div>${hist}</div>`;
   }).join('');
-  if (narrated.length) {
-    html += narrated.slice(0, 4).map((p) => `<div class="vle-os vle-os--narr"><div class="vle-os-gist">${p.who ? '<b>' + esc(s.cast[p.who]?.name ?? p.who) + '</b>: ' : ''}${esc(p.activity)}${p.where ? ` <span class="vle-os-w">@${esc(p.where)}</span>` : ''}</div></div>`).join('');
+  if (shownNarr.length) {
+    html += shownNarr.map((p) => `<div class="vle-os vle-os--narr"><div class="vle-os-gist">${p.who ? '<b>' + esc(s.cast[p.who]?.name ?? p.who) + '</b>: ' : ''}${esc(p.activity)}${p.where ? ` <span class="vle-os-w">@${esc(p.where)}</span>` : ''}</div></div>`).join('');
   }
   return html;
 }
