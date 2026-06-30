@@ -133,6 +133,40 @@ const GROUP_HEAD = new Set([
   'army', 'crew', 'band', 'pack', 'circle', 'cabal', 'alliance', 'coalition', 'staffs',
 ]);
 
+// RELATIONSHIP / ABSTRACTION nouns: a name built around one of these describes a
+// BOND or a CONCEPT, not a person or an organized group. The extractor sometimes
+// emits "Daeron and Jaime Friendship", "The Rivalry", "Cersei's Bond with Jaime".
+// These must be rejected as BOTH cast and faction. (Organized-group nouns like
+// "alliance"/"coalition"/"order" live in GROUP_HEAD and stay valid factions.)
+const ABSTRACT_NOUN = new Set([
+  'friendship', 'bond', 'rivalry', 'relationship', 'romance', 'feud', 'dynamic',
+  'tension', 'situation', 'connection', 'partnership', 'affair', 'enmity',
+  'kinship', 'fling', 'courtship', 'attraction', 'pairing', 'duo', 'closeness',
+  'estrangement', 'reconciliation', 'reunion', 'standoff', 'truce', 'tryst',
+  'entanglement', 'frenemy', 'situationship', 'flirtation', 'grudge',
+]);
+// JOINER words that bind TWO entities into a relationship phrase ("X and Y",
+// "X vs Y") rather than naming one. Their PRESENCE means "not a single entity".
+const JOINER = new Set(['and', '&', 'vs', 'vs.', 'versus', 'between', '+']);
+
+/** True when a raw name describes a RELATIONSHIP or ABSTRACTION rather than a
+ * single entity — so it must not mint a cast card OR a faction. Catches:
+ *   - a joiner word ("Daeron and Jaime", "Stark vs Lannister", "A & B")
+ *   - a one-word abstraction ("The Rivalry", "The Situation")
+ *   - "with" + an abstraction noun ("Cersei's Bond with Jaime")
+ * Conservative on single proper names: "James Bond" (two words, no joiner, no
+ * "with") and "The Alliance" (alliance is a group, not in this set) both pass. */
+function looksLikeRelationship(rawName: string): boolean {
+  const rest = String(rawName ?? '').trim().replace(/^(a|an|the)\s+/i, '');
+  if (!rest) return false;
+  const words = rest.split(/\s+/);
+  const norm = (w: string): string => w.toLowerCase().replace(/[^a-z]/g, '');
+  if (words.some((w) => JOINER.has(w.toLowerCase()))) return true;        // X and/vs/& Y
+  if (words.length === 1 && ABSTRACT_NOUN.has(norm(words[0]!))) return true; // "The Rivalry"
+  if (words.some((w) => w.toLowerCase() === 'with') && words.some((w) => ABSTRACT_NOUN.has(norm(w)))) return true; // "Bond with X"
+  return false;
+}
+
 /** True when a raw name reads as a COLLECTIVE/GROUP (→ a faction, not a person).
  * Checks the head noun (last word), allowing a leading article. Single bare
  * lowercase generics are already caught by GENERIC; this catches multi-word
@@ -168,6 +202,9 @@ export function notAFactionName(rawName: string): boolean {
   if (/\{\{/.test(s) || /placeholder/i.test(s)) return true;
   const rest = s.replace(/^(a|an|the)\s+/i, '');
   if (!rest) return true;
+  // a relationship/abstraction phrase ("Daeron and Jaime", "The Rivalry") is
+  // neither a person nor an organized group — reject for both cast and faction.
+  if (looksLikeRelationship(s)) return true;
   const lower = rest.toLowerCase();
   if (PRONOUN.has(lower)) return true; // pronoun/deixis, any case
   const words = rest.split(/\s+/);
