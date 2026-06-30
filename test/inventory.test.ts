@@ -109,7 +109,7 @@ describe('migration v8 \u2192 v9', () => {
   it('advances version; reduce yields empty items', () => {
     const log = migrate({ version: 8, chatId: 'c', events: [], createdAt: 1, updatedAt: 1 }) as any;
     expect(log.version).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(9);
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(9); // items landed in v9
     expect(reduce([]).items).toEqual([]);
   });
 });

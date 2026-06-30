@@ -455,6 +455,29 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       s.items = s.items.filter((x) => x.id !== e.id);
       break;
     }
+    case 'location.set': {
+      const norm = (x: string): string => x.trim().toLowerCase();
+      const cur = s.locations.find((l) => l.id === e.id) ?? s.locations.find((l) => norm(l.name) === norm(e.name));
+      if (cur) {
+        cur.name = e.name;
+        if (e.note !== undefined) cur.note = e.note;
+        // a user edit (auto:false) sticks; an auto refresh never downgrades it
+        if (e.auto === false) cur.auto = false;
+        cur.lastTurn = e.turn;
+      } else {
+        s.locations.push({ id: e.id, name: e.name, ...(e.note ? { note: e.note } : {}), ...(e.auto !== undefined ? { auto: e.auto } : {}), firstTurn: e.turn, lastTurn: e.turn });
+      }
+      break;
+    }
+    case 'location.drop': {
+      s.locations = s.locations.filter((l) => l.id !== e.id);
+      break;
+    }
+    case 'continuity.flag': {
+      s.continuityFlags.push({ turn: e.turn, code: e.code, detail: e.detail });
+      if (s.continuityFlags.length > 50) s.continuityFlags = s.continuityFlags.slice(-50); // ring buffer
+      break;
+    }
     default: {
       // exhaustiveness guard — a new event kind must be handled here
       const _never: never = e;

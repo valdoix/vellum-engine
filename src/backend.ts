@@ -11,6 +11,7 @@ import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.js';
 import { planChapterFrom, planArc, planArcFrom } from './domain/memory.js';
 import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats } from './domain/beats.js';
+import { locationList } from './domain/locations.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -108,7 +109,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const traversalAxis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
   const relationLocks = await readLocks(chatId);
   const directives = await readDirectives(chatId);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives }, userId ?? currentUser());
+  const nextScene = await readNextScene(chatId);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ events ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ append ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ broadcast. */
@@ -198,6 +200,28 @@ async function writeDirectives(chatId: string, d: Directive[]): Promise<void> {
   try { await setChatVar(chatId, 'vellum_directives', JSON.stringify(d)); } catch { /* best effort */ }
 }
 
+// --- Next-scene setter: the author's where/when for the UPCOMING turn. Stored
+// as a chat var, injected as a strong (but non-teleport) steer, then cleared
+// after one generation so it never persists.
+interface NextScene { location?: string; day?: number; time?: string; note?: string }
+async function readNextScene(chatId: string): Promise<NextScene | null> {
+  try { const raw = await getChatVar(chatId, 'vellum_next_scene'); if (!raw) return null; const o = JSON.parse(raw); return (o && typeof o === 'object') ? o as NextScene : null; } catch { return null; }
+}
+async function clearNextScene(chatId: string): Promise<void> {
+  try { await setChatVar(chatId, 'vellum_next_scene', ''); } catch { /* best effort */ }
+}
+async function nextSceneInjection(chatId: string): Promise<string> {
+  const ns = await readNextScene(chatId);
+  if (!ns) return '';
+  const where = ns.location ? `Location: ${ns.location}.` : '';
+  const when = [ns.day !== undefined && ns.day !== null ? `Day ${ns.day}` : '', ns.time || ''].filter(Boolean).join(', ');
+  const whenS = when ? `${when}.` : '';
+  const note = ns.note ? ` ${ns.note}` : '';
+  const body = [where, whenS].filter(Boolean).join(' ') + note;
+  if (!body.trim()) return '';
+  return '[NEXT SCENE \u2014 the author sets where/when this turn opens. Open the scene here and honor it. This frames the OPENING; it does not teleport characters who would plausibly be elsewhere.] ' + body.trim();
+}
+
 async function foldChatInner(chatId: string, userId: string | null, hint?: string): Promise<void> {
   let msgs = await allTurnContents(chatId);
   if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allTurnContents(chatId); }
@@ -274,7 +298,12 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   // applied). Advisory only Ã¢â‚¬â€ surfaced as a toast + in the Director panel.
   try {
     const warnings = checkContinuity(foldedEvents, preFold);
-    if (warnings.length) spindle.sendToFrontend?.({ type: 'vellum_continuity', chatId, warnings }, userId ?? currentUser());
+    if (warnings.length) {
+      spindle.sendToFrontend?.({ type: 'vellum_continuity', chatId, warnings }, userId ?? currentUser());
+      // persist as a small ring-buffer log so the Director tab can show them
+      const flagTurn = (await loadState(chatId)).turns || 0;
+      await append(chatId, warnings.map((w) => ({ seq: nextSeqLocal(), turn: flagTurn, day: 0, src: 'system', kind: 'continuity.flag', code: w.kind, detail: w.text } as VellumEvent)));
+    }
   } catch { /* best effort */ }
   invalidateIndex(chatId);
   await broadcastState(chatId, userId);
@@ -707,7 +736,11 @@ async function wireCapabilities(): Promise<void> {
           const dirText = directiveInjection(await readDirectives(chatId));
           // Story Beats: the author-curated chronological spine — always-on, cheap.
           const spineText = beatSpine(state);
-          const injText = [inj.text, spineText, dirText].filter(Boolean).join('\n\n');
+          // Locations gazetteer — canonical place names so the model doesn't hallucinate.
+          const locText = locationList(state);
+          // Next-scene setter — the author's where/when for THIS turn (clears after).
+          const nextSceneText = await nextSceneInjection(chatId);
+          const injText = [inj.text, locText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 Ã¢â‚¬â€ live retrieval feed: push the record so the Injection tab
@@ -735,6 +768,7 @@ async function wireCapabilities(): Promise<void> {
         // some hosts include the finished text on the event; use it if present
         const hint = typeof p?.message === 'string' ? p.message : (typeof p?.content === 'string' ? p.content : (typeof p?.text === 'string' ? p.text : ''));
         await foldChat(chatId, p?.userId ?? currentUser(), hint);
+        void clearNextScene(chatId); // the next-scene steer is for one turn only
       });
       _genWired = true;
       spindle.log?.info?.('[vellum_engine] generation fold wired');
@@ -1003,6 +1037,46 @@ const dispatch: Record<string, Handler> = {
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_item_done', ok: true }, uid);
+  },
+  vellum_location_set: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const name = String(p?.name ?? '').trim();
+    if (!name) return;
+    const state = await loadState(chatId);
+    const id = p?.id ? String(p.id) : 'loc_' + canonId(name);
+    // user create/edit: auto:false so it sticks and never gets downgraded by auto-collect
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'location.set', id, name, ...(p?.note !== undefined ? { note: String(p.note).slice(0, 200) } : {}), auto: false } as VellumEvent]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true }, uid);
+  },
+  vellum_location_drop: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'location.drop', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true }, uid);
+  },
+  vellum_set_next_scene: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const clear = !!p?.clear;
+    if (clear) { await clearNextScene(chatId); }
+    else {
+      const ns: Record<string, unknown> = {};
+      if (p?.location !== undefined && String(p.location).trim()) ns.location = String(p.location).trim().slice(0, 120);
+      if (Number.isFinite(p?.day)) ns.day = Number(p.day);
+      if (p?.time !== undefined && String(p.time).trim()) ns.time = String(p.time).trim().slice(0, 60);
+      if (p?.note !== undefined && String(p.note).trim()) ns.note = String(p.note).trim().slice(0, 200);
+      try { await setChatVar(chatId, 'vellum_next_scene', Object.keys(ns).length ? JSON.stringify(ns) : ''); } catch { /* best effort */ }
+    }
+    spindle.sendToFrontend?.({ type: 'vellum_next_scene_done', ok: true, next: clear ? null : await readNextScene(chatId) }, uid);
+  },
+  vellum_get_next_scene: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    spindle.sendToFrontend?.({ type: 'vellum_next_scene_state', next: chatId ? await readNextScene(chatId) : null }, uid);
   },
   vellum_beat_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

@@ -198,6 +198,25 @@ export interface LoreNote {
 /** A possession: a named, notable item held by a character (`who` = cast id) or
  * present in the scene (`scene: true`, `who` = 'world'). Narrative, not a
  * quantity ledger — no counts, weight, or slots. */
+/** A canonical place in the story. Auto-collected from visited scenes
+ * (`auto: true`) or user-pinned. The gazetteer is injected (capped) so the model
+ * reuses names instead of inventing or renaming locations. */
+export interface Location {
+  id: string;
+  name: string;
+  note?: string;
+  auto?: boolean;       // engine-collected from a visited scene (vs user-pinned)
+  firstTurn: number;
+  lastTurn: number;
+}
+
+/** A persisted continuity-alarm finding (advisory; shown in the Director Log). */
+export interface ContinuityFlag {
+  turn: number;
+  code: string;
+  detail: string;
+}
+
 export interface Item {
   id: string;
   who: string;   // cast id, or 'world' for scene/location items
@@ -219,6 +238,8 @@ export interface ChronicleState {
   scars: Scar[];
   lore: LoreNote[];
   items: Item[];
+  locations: Location[];
+  continuityFlags: ContinuityFlag[];
   threads: Track[];
   arcs: Track[];
   parallel: ParallelEvent[];
@@ -255,6 +276,8 @@ export function freshState(): ChronicleState {
     scars: [],
     lore: [],
     items: [],
+    locations: [],
+    continuityFlags: [],
     threads: [],
     arcs: [],
     parallel: [],

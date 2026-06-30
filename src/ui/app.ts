@@ -3,6 +3,7 @@ import { FONT_FACES } from './fonts.js';
 import { mount, type Mounted } from './component.js';
 import { freshState, type ChronicleState } from '../domain/types.js';
 import { chronicleTab, setBeatSuggestions } from './tabs/chronicle.js';
+import { directorTab, setDirectorDirectives, setDirectorNextScene } from './tabs/director.js';
 import { castTab } from './tabs/cast.js';
 import { relationsTab, setRelationLocks } from './tabs/relations.js';
 import { graphTab, resetGraphCache } from './tabs/graph.js';
@@ -76,6 +77,7 @@ const TABS = [
   { id: 'chronicle', label: 'Chronicle', icon: 'chronicle', comp: chronicleTab, group: 'primary' },
   { id: 'journal', label: 'Journal', icon: 'journal', comp: journalTab, group: 'tools' },
   { id: 'graph', label: 'Graph', icon: 'graph', comp: graphTab, group: 'tools' },
+  { id: 'director', label: 'Director', icon: 'director', comp: directorTab, group: 'tools' },
   { id: 'vault', label: 'Vault', icon: 'vault', comp: vaultTab, group: 'tools' },
   { id: 'injection', label: 'Context', icon: 'context', comp: injectionTab, group: 'tools' },
 ] as const;
@@ -170,7 +172,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) { onQol(ctx, b.getAttribute('data-qol')!); return; }
     if ((e.target as HTMLElement).closest('[data-search]')) openSearch(getState, showTab);
-    if ((e.target as HTMLElement).closest('[data-director]')) openDirector(getState);
+    if ((e.target as HTMLElement).closest('[data-director]')) showTab('director');
     if ((e.target as HTMLElement).closest('[data-actions]')) openActions(ctx);
   });
   wirePagers(bodyEl); // delegated pager clicks for any paginated list
@@ -654,7 +656,8 @@ export function setup(ctx: Ctx): () => void {
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
-        if (Array.isArray(p.directives)) setDirectives(p.directives);
+        if (Array.isArray(p.directives)) { setDirectives(p.directives); setDirectorDirectives(p.directives); }
+        if ('nextScene' in p) setDirectorNextScene(p.nextScene);
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;

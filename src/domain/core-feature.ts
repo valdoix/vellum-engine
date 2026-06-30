@@ -80,6 +80,13 @@ export const coreFeature: Feature = {
         present,
         ...(detail.length ? { detail } : {}),
       } as VellumEvent);
+      // auto-collect the visited place into the gazetteer (dedupe is in reduce);
+      // a real place name only (skip pronouns/blanks). User edits aren't clobbered
+      // because location.set with auto:true never downgrades a user-pinned entry.
+      const loc = String(parsed.scene?.loc ?? '').trim();
+      if (loc && loc.length >= 2 && !notAName(loc)) {
+        out.push({ ...base(), kind: 'location.set', id: 'loc_' + canonId(loc), name: loc, auto: true } as VellumEvent);
+      }
     }
     // mark present characters as cast (present status); names seed cards
     for (const p of parsed.present ?? []) {

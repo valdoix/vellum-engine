@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 9 as const;
+export const SCHEMA_VERSION = 10 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -75,6 +75,16 @@ export const EvLoreDrop = z.object({ ...base, kind: z.literal('lore.drop'), id: 
 // removes (give re-adds under `to`), note updates. Carried in `ext.inventory`.
 export const EvItemChange = z.object({ ...base, kind: z.literal('item.change'), id: z.string(), who: z.string(), item: z.string(), op: z.enum(['gain', 'lose', 'give', 'scene', 'note']), to: z.string().optional(), note: z.string().optional(), scene: z.boolean().optional() });
 export const EvItemDrop = z.object({ ...base, kind: z.literal('item.drop'), id: z.string() });
+
+// --- Locations: a canonical gazetteer of established places, so the model
+// reuses names instead of inventing/renaming. Auto-collected from visited
+// scenes (auto:true) or user-pinned. Dedupe by normalized name.
+export const EvLocationSet = z.object({ ...base, kind: z.literal('location.set'), id: z.string(), name: z.string(), note: z.string().optional(), auto: z.boolean().optional() });
+export const EvLocationDrop = z.object({ ...base, kind: z.literal('location.drop'), id: z.string() });
+
+// --- Continuity flags: the passive alarm's advisory findings, persisted as a
+// small ring buffer so the Director Log can show them (never blocks anything).
+export const EvContinuityFlag = z.object({ ...base, kind: z.literal('continuity.flag'), code: z.string(), detail: z.string() });
 
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
 export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional() });
@@ -148,6 +158,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvJournal, EvJournalDrop, EvJournalEdit,
   EvScarForm, EvScarDrop, EvLoreNote, EvLoreDrop,
   EvItemChange, EvItemDrop,
+  EvLocationSet, EvLocationDrop, EvContinuityFlag,
   EvParallel, EvOffscreen,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;

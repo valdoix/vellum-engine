@@ -75,6 +75,13 @@ export function migrate(raw: unknown): unknown {
     version = 9;
   }
 
+  // v9 → v10: locations gazetteer (location.* / state.locations) + continuity
+  // flag log (continuity.flag / state.continuityFlags). Additive — old logs
+  // reduce to empty collections.
+  if (version < 10) {
+    version = 10;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }
