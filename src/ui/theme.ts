@@ -29,37 +29,41 @@ export interface Theme {
   texture: string;     // '' | bundled id | data/https url (scrimmed)
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
-  chrome: 'illuminated' | 'modern' | 'futuristic'; // window ornamentation, orthogonal to skin
+  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic'; // window ornamentation, orthogonal to skin
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
   // skin-derived (overridden by skin pick)
   surf1: string; surf2: string; ink: string; ink2: string; glass: string;
   // semantic colors (skin-tunable; base hue + lighter ink variant)
   pos: string; posInk: string; neg: string; negInk: string; info: string; warn: string;
+  press: string; pressInk: string; // amber "pressure" — tension/bond-shift, distinct from danger(neg)
 }
 
-export interface Skin { id: string; name: string; blurb: string; theme: Pick<Theme, 'accent' | 'serif' | 'mono' | 'surf1' | 'surf2' | 'ink' | 'ink2' | 'glass' | 'pos' | 'posInk' | 'neg' | 'negInk' | 'info' | 'warn'> }
+export interface Skin { id: string; name: string; blurb: string; theme: Pick<Theme, 'accent' | 'serif' | 'mono' | 'surf1' | 'surf2' | 'ink' | 'ink2' | 'glass' | 'pos' | 'posInk' | 'neg' | 'negInk' | 'info' | 'warn' | 'press' | 'pressInk'> }
 
 const F_SERIF = "'Cormorant Garamond',Georgia,serif";
 const F_MONO = "'JetBrains Mono',ui-monospace,monospace";
-const F_SANS = 'system-ui,-apple-system,"Segoe UI",sans-serif';
+const F_SANS = "'Inter',system-ui,-apple-system,\"Segoe UI\",sans-serif";
+const F_DISPLAY = "'Cinzel','Cormorant Garamond',Georgia,serif"; // Fantasy display
+const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
 
-export type Chrome = 'illuminated' | 'modern' | 'futuristic';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic';
 
 /**
  * A "mode" is a one-click preset over existing axes — chrome (window ornament) plus
  * sensible window-knob defaults. It is orthogonal to skin: any mode composes with any
  * palette. After picking, every knob is still individually overridable.
  */
-export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme>; form: string }
+export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme>; form: string; skin?: string }
 export const MODES: Mode[] = [
-  { id: 'illuminated', name: 'Illuminated', blurb: 'An open codex \u2014 gilt double-rule, center gutter, two facing pages.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: '', serif: F_SERIF }, form: 'codex' },
-  { id: 'modern', name: 'Modern', blurb: 'A device \u2014 flat, sans, a bottom dock that swaps panels like an app.', patch: { chrome: 'modern', radius: 12, border: 1, texture: '', serif: F_SANS }, form: 'phone' },
-  { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 sharp brackets, telemetry rows, a live system readout.', patch: { chrome: 'futuristic', radius: 3, border: 1, texture: 'grid', serif: F_MONO }, form: 'hud' },
+  { id: 'default', name: 'Default', blurb: 'Calm &amp; legible \u2014 hierarchy first, quiet gold, the refined baseline.', patch: { chrome: 'default', radius: 14, border: 1, texture: '', serif: F_SERIF }, form: 'dashboard', skin: 'illuminated' },
+  { id: 'illuminated', name: 'Fantasy', blurb: 'An open codex \u2014 gilt double-rule, drop-caps, heraldic bonds, a wax seal.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: 'parchment', serif: F_DISPLAY }, form: 'codex', skin: 'illuminated' },
+  { id: 'modern', name: 'Modern', blurb: 'A device \u2014 flat, sans, calm cards, a bottom dock that swaps panels.', patch: { chrome: 'modern', radius: 16, border: 1, texture: '', serif: F_SANS }, form: 'phone', skin: 'moonlit' },
+  { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 cyan telemetry, reticle avatars, a live bond radar.', patch: { chrome: 'futuristic', radius: 2, border: 1, texture: 'grid', serif: F_HUD, accent: '#28e0d8', accent2: '#7a5cff' }, form: 'hud', skin: 'noir' },
 ];
 
 // base semantic palette, reused by every skin (skins override clash-prone ones)
-const SEM = { pos: '#8fa67e', posInk: '#a9c089', neg: '#c96a6a', negInk: '#e09090', info: '#9bc0e6', warn: '#b48ed0' } as const;
+const SEM = { pos: '#8fa67e', posInk: '#a9c089', neg: '#c96a6a', negInk: '#e09090', info: '#9bc0e6', warn: '#b48ed0', press: '#c8923e', pressInk: '#dcad62' } as const;
 
 export const SKINS: Skin[] = [
   { id: 'illuminated', name: 'Illuminated', blurb: 'Gilt manuscript on aged vellum — the classic.', theme: { accent: '#cda84e', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(28,25,20,.55)', surf2: 'rgba(16,14,11,.5)', ink: '#e7d6ad', ink2: '#cdbfa0', glass: 'linear-gradient(168deg,rgba(26,22,16,.97),rgba(15,13,10,.985))', ...SEM } },
@@ -95,7 +99,7 @@ const DEFAULT: Theme = {
   skin: 'illuminated', accent2: '#9bc0e6', accentIntensity: 1,
   scale: 1.12, dataScale: 1, density: 1,
   opacity: 1, blur: 8, radius: 18, border: 1, inkEmphasis: 1, texture: '', motion: true,
-  launcher: 'right', chrome: 'illuminated', tensionStyle: 'both',
+  launcher: 'right', chrome: 'default', tensionStyle: 'both',
   ...SKINS[0]!.theme,
 };
 
@@ -117,7 +121,7 @@ function sanitize(t: Theme): Theme {
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
-    chrome: (['illuminated', 'modern', 'futuristic'] as const).includes(t.chrome) ? t.chrome : 'illuminated',
+    chrome: (['default', 'illuminated', 'modern', 'futuristic'] as const).includes(t.chrome) ? t.chrome : 'default',
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -155,6 +159,8 @@ export function applyTheme(scope: HTMLElement | null): void {
     el.style.setProperty('--v-neg-i', t.negInk);
     el.style.setProperty('--v-info', t.info);
     el.style.setProperty('--v-warn', t.warn);
+    el.style.setProperty('--v-press', t.press);
+    el.style.setProperty('--v-press-i', t.pressInk);
   };
   if (scope) set(scope);
   set(document.documentElement);
@@ -164,7 +170,15 @@ export function applyTheme(scope: HTMLElement | null): void {
 }
 
 export function setSkin(id: string): void { const s = SKINS.find((x) => x.id === id); if (s) { _theme = sanitize({ ..._theme, skin: id, ...s.theme }); save(); } }
-export function setMode(id: string): void { const m = MODES.find((x) => x.id === id); if (m) { _theme = sanitize({ ..._theme, ...m.patch }); save(); setLayout(m.form); } }
+export function setMode(id: string): void {
+  const m = MODES.find((x) => x.id === id);
+  if (!m) return;
+  // a mode is a one-click bundle: recommended skin palette first, then the
+  // mode's own patch (chrome/radius/fonts/accent) which wins over the skin.
+  const skin = m.skin ? SKINS.find((x) => x.id === m.skin) : undefined;
+  _theme = sanitize({ ..._theme, ...(skin ? { skin: skin.id, ...skin.theme } : {}), ...m.patch });
+  save(); setLayout(m.form);
+}
 export function patchTheme(patch: Partial<Theme>): void { _theme = sanitize({ ..._theme, ...patch }); save(); }
 export function resetTheme(): void { _theme = { ...DEFAULT }; save(); }
 export function exportTheme(): string { return JSON.stringify(_theme, null, 2); }
@@ -193,9 +207,17 @@ export function customizePanel(tab: CzTab = 'skin'): string {
       + '</div>'
       + '<div class="vle-cz-h">Theme</div><div class="vle-cz-row"><button class="vle-cz-btn" data-cz-export>\u2913 Export</button><button class="vle-cz-btn" data-cz-import>\u2912 Import</button><button class="vle-cz-btn danger" data-cz-resetall>\u21BA Reset all</button></div>';
   } else if (tab === 'mode') {
-    body = '<div class="vle-cz-h">Window mode</div><div class="vle-skins">'
-      + MODES.map((m) => `<button class="vle-skin${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}" style="--sw:${t.accent}"><span class="vle-skin-sw"></span><span class="vle-skin-n">${m.name}</span></button>`).join('')
-      + '</div><div class="vle-cz-note">A starting point — composes with any skin. Fine-tune corners, border &amp; texture in <b>Window</b>.</div>';
+    // theme gallery: a tiny wireframe sketch per chrome + name + blurb
+    const sketch: Record<Chrome, string> = {
+      default: '<span class="vle-mode-sk sk-default"><i></i><i></i><i></i></span>',
+      illuminated: '<span class="vle-mode-sk sk-codex"><i></i><i></i></span>',
+      modern: '<span class="vle-mode-sk sk-phone"><i></i><i></i><i></i></span>',
+      futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
+    };
+    body = '<div class="vle-cz-h">Theme</div><div class="vle-modes">'
+      + MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
+        + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('')
+      + '</div><div class="vle-cz-note">A one-click starting point \u2014 sets chrome, palette, layout &amp; font together, then composes with any skin. Fine-tune everything in the other tabs.</div>';
   } else if (tab === 'layout') {
     body = layoutPanel() + customLayoutEditor();
   } else if (tab === 'color') {

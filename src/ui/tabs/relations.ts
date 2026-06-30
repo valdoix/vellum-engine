@@ -3,6 +3,8 @@ import type { ChronicleState, Relation } from '../../domain/types.js';
 import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bar, emptyState, sectionHeader, nameHtml } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
+import { getTheme } from '../theme.js';
+import { renderBondRadar } from '../theme-render.js';
 
 /**
  * Relations tab. One card per bond (pair-identity) with its coexisting category
@@ -149,11 +151,15 @@ function card(s: ChronicleState, group: Relation[]): string {
   const reverseMissing = dirs.length === 1
     ? `<div class="vle-rel-onesided">no reciprocal bond from ${esc(nameOf(s, dirs[0]!.b))} yet</div>`
     : '';
+  // futuristic chrome: a dual-axis radar leads the card (boundary-safe; '' falls
+  // back to the per-direction bars below).
+  const radar = getTheme().chrome === 'futuristic' ? renderBondRadar(s, group) : '';
   return '<div class="vle-rel-card">'
     + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, pa) + ' \u2194 ' + nameHtml(s, pb) + '</span>'
     + '<span class="vle-rel-ctl">' + lockBadge
     + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(pa)}" data-b="${A(pb)}" data-an="${A(nameOf(s, pa))}" data-bn="${A(nameOf(s, pb))}" title="Plot Director lock">\uD83D\uDD12</button>`
     + '</span></div>'
+    + radar
     + dirs.map(dirRow).join('')
     + reverseMissing
     + '</div>';

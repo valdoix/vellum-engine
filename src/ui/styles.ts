@@ -7,12 +7,18 @@ export const STYLES = [
   // --- theme tokens (overridden at runtime by theme.ts) ---------------------
   // --vg accent (hex) + --vg-rgb its r,g,b ; --vi primary ink, --vi2 muted ink ;
   // --vserif/--vmono fonts ; --vscale chrome size multiplier ; --vsurf-* panel bg.
-  ":root{--vg:#cda84e;--vg-rgb:205,168,78;--vi:#e7d6ad;--vi2:#cdbfa0;--vserif:'Cormorant Garamond',Georgia,serif;--vmono:'JetBrains Mono',ui-monospace,monospace;--vscale:1;--vsurf-1:rgba(28,25,20,.5);--vsurf-2:rgba(18,16,12,.4);--vle-gold:var(--vg);--vle-gold-soft:rgba(var(--vg-rgb),.16);--vle-ink:var(--vi);--vle-bg:rgba(20,18,14,.55);--vg2:#9bc0e6;--vg2-rgb:155,192,230;--vai:1;--vdscale:1;--vdensity:1;--vopacity:1;--vblur:8px;--vradius:18px;--vborder:1px;--vink-e:1;--v1:4px;--v2:8px;--v3:12px;--v4:16px;--v5:20px;--v6:24px;--vr1:6px;--vr2:9px;--vr3:13px;--rpill:20px;--v-pos:#8fa67e;--v-pos-i:#a9c089;--v-neg:#c96a6a;--v-neg-i:#e09090;--v-info:#9bc0e6;--v-warn:#b48ed0}",
+  ":root{--vg:#cda84e;--vg-rgb:205,168,78;--vi:#e7d6ad;--vi2:#cdbfa0;--vserif:'Cormorant Garamond',Georgia,serif;--vmono:'JetBrains Mono',ui-monospace,monospace;--vscale:1;--vsurf-1:rgba(28,25,20,.5);--vsurf-2:rgba(18,16,12,.4);--vle-gold:var(--vg);--vle-gold-soft:rgba(var(--vg-rgb),.16);--vle-ink:var(--vi);--vle-bg:rgba(20,18,14,.55);--vg2:#9bc0e6;--vg2-rgb:155,192,230;--vai:1;--vdscale:1;--vdensity:1;--vopacity:1;--vblur:8px;--vradius:18px;--vborder:1px;--vink-e:1;--v1:4px;--v2:8px;--v3:12px;--v4:16px;--v5:20px;--v6:24px;--vr1:6px;--vr2:9px;--vr3:13px;--rpill:20px;--v-pos:#8fa67e;--v-pos-i:#a9c089;--v-neg:#c96a6a;--v-neg-i:#e09090;--v-info:#9bc0e6;--v-warn:#b48ed0;--v-press:#c8923e;--v-press-i:#dcad62;--vt-display:calc(24px * var(--vscale));--vt-title:calc(18px * var(--vscale));--vt-body:calc(14px * var(--vscale));--vt-meta:calc(11px * var(--vdscale));--vt-eyebrow:calc(10px * var(--vscale))}",
   // launcher edge + reduced-motion (set on document by theme.ts)
   "html[data-vle-launch='left'] .vlf-launch{right:auto;left:0;border-radius:0 13px 13px 0;border-right:1px solid rgba(var(--vg-rgb),.5);border-left:none;writing-mode:vertical-rl;transform:rotate(180deg)}",
   "html[data-vle-launch='left'] .vlf-launch .vlf-launch-mark,html[data-vle-launch='left'] .vlf-launch .vlf-launch-t{transform:rotate(180deg)}",
   "html[data-vle-launch='hidden'] .vlf-launch{display:none!important}",
   "html[data-vle-motion='off'] *{transition:none!important;animation:none!important}",
+  // unified chip family: ONE shape (radius --vr1, mono label, --vt-meta) with
+  // tone modifiers driving color only. New surfaces use this; legacy bespoke
+  // chips migrate onto it incrementally. .v-chip--solid fills; default is outline.
+  ".v-chip{display:inline-flex;align-items:center;gap:4px;font:600 var(--vt-meta)/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:var(--vr1);border:1px solid color-mix(in srgb,var(--v-chip-c,var(--vg)) 42%,transparent);color:var(--v-chip-c,var(--vi2));white-space:nowrap}",
+  ".v-chip--solid{background:color-mix(in srgb,var(--v-chip-c,var(--vg)) 16%,transparent)}",
+  ".v-chip--gold{--v-chip-c:var(--vg)}.v-chip--pos{--v-chip-c:var(--v-pos-i)}.v-chip--neg{--v-chip-c:var(--v-neg-i)}.v-chip--info{--v-chip-c:var(--v-info)}.v-chip--warn{--v-chip-c:var(--v-warn)}.v-chip--press{--v-chip-c:var(--v-press-i)}.v-chip--muted{--v-chip-c:#8c8478}",
   // mono/data text honors its own scale; ink emphasis tints body text
   ".vld-stat,.vld-h,.vld-mood,.vld-cond,.vld-rel-s,.vld-cat,.vld-thread-s,.vld-par-w,.vld-rec-k{font-size:calc(1em * var(--vdscale))}",
   ".vle-root,.vlf-body{opacity:1}",
@@ -29,6 +35,9 @@ export const STYLES = [
   ".vle-tabbar-sep{flex:none;width:1px;align-self:stretch;margin:2px 4px;background:rgba(var(--vg-rgb),.22)}",
   // chronicle sub-nav (segmented in-tab views)
   ".vle-subnav{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 calc(11px * var(--vscale))}",
+  // soft group label between sub-nav clusters (forces a wrap to its own line)
+  ".vle-subnav-g{flex-basis:100%;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:1.2px;text-transform:uppercase;color:var(--vg);opacity:.55;margin:6px 0 2px}",
+  ".vle-subnav-g:first-child{margin-top:0}",
   ".vle-subnav-b{font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:8px;padding:6px 10px;cursor:pointer;opacity:.7;transition:opacity .15s,background .15s,color .15s}",
   ".vle-subnav-b:hover{opacity:1;background:rgba(var(--vg-rgb),.08)}",
   ".vle-subnav-b.on{opacity:1;background:rgba(var(--vg-rgb),.18);border-color:rgba(var(--vg-rgb),.4);color:var(--vle-gold)}",
@@ -124,6 +133,13 @@ export const STYLES = [
   ".vle-os-gist{font-size:12px;line-height:1.45;opacity:.9;margin-top:2px}",
   ".vle-os-h{margin-top:4px;font-size:11px;opacity:.6}.vle-os-h summary{cursor:pointer;font:600 9px/1.3 var(--vmono);text-transform:uppercase;letter-spacing:.4px}.vle-os-h div{padding:2px 0 0 8px}",
   ".vle-mem{display:flex;gap:7px;font-size:12px;padding:4px 0;line-height:1.45;align-items:baseline}",
+  // per-type record identity: a colored left spine so Knowledge/Secrets/Scars/
+  // Codex read as different kinds down a long list (not one flat texture).
+  ".vle-mem--know,.vle-mem--secret,.vle-mem--scar,.vle-mem--codex{padding-left:9px;border-left:3px solid var(--vle-gold-soft)}",
+  ".vle-mem--know{border-left-color:var(--v-info)}",
+  ".vle-mem--secret{border-left-color:var(--v-neg)}",
+  ".vle-mem--scar{border-left-color:var(--v-warn)}",
+  ".vle-mem--codex{border-left-color:var(--vg)}",
   ".vle-mem-t{flex:1;min-width:0}",
   ".vle-mem-ctl{flex:none;display:inline-flex;gap:3px;align-self:flex-start}",
   ".vle-mem-tier{flex:none;font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;border-radius:var(--vr1);opacity:.85}",
@@ -162,6 +178,16 @@ export const STYLES = [
   ".vle-bar-f.pos{background:var(--v-pos)}.vle-bar-f.neg{background:var(--v-neg)}",
   ".vle-bar-v{flex:none;width:30px;text-align:right;font:600 9px/1 var(--vmono)}",
   ".vle-bar-v.pos{color:var(--v-pos-i)}.vle-bar-v.neg{color:var(--v-neg-i)}",
+  // twin meter (compact aff/trust, used on the redesigned bond + dashboard)
+  ".vle-tw{display:flex;align-items:center;gap:6px;margin-top:3px}",
+  ".vle-tw-l{flex:none;width:34px;font:600 var(--vt-meta)/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;opacity:.6}",
+  ".vle-tw-t{position:relative;flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.06)}",
+  ".vle-tw-mid{position:absolute;left:50%;top:-1px;width:1px;height:10px;background:rgba(255,255,255,.22)}",
+  ".vle-tw-f{position:absolute;top:0;height:8px;border-radius:5px}",
+  ".vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--v-pos) 70%,transparent),var(--v-pos-i))}",
+  ".vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--v-info) 70%,transparent),var(--v-info))}",
+  ".vle-tw-f.neg{filter:saturate(.7) brightness(.92)}",
+  ".vle-tw-v{flex:none;width:30px;text-align:right;font:600 var(--vt-meta)/1 var(--vmono)}",
   // error boundary
   ".vlm-comp-error{padding:8px;font-size:11px;color:#e09090;border:1px solid rgba(201,106,106,.3);border-radius:8px;background:rgba(201,106,106,.08)}",
   ".vlm-comp-error span{opacity:.7;font-size:10px}",
@@ -377,6 +403,23 @@ export const STYLES = [
   ".vld-stat{font:600 calc(11px * var(--vscale))/1 var(--vmono);color:var(--vi2);background:rgba(var(--vg-rgb),.1);border:1px solid rgba(var(--vg-rgb),.24);border-radius:8px;padding:7px 11px;display:inline-flex;gap:6px}",
   ".vld-stat b{color:var(--vle-gold);font-weight:600;opacity:.85}",
   ".vld-loc{font-family:var(--vserif);font-size:calc(18px * var(--vscale));color:var(--vi);font-style:italic;line-height:1.3}",
+  // redesigned hero scene block + single quiet meta line (replaces the 4 pills)
+  ".vld-sec--hero{gap:calc(6px * var(--vscale))}",
+  ".vld-hero{font-size:var(--vt-display);line-height:1.18}",
+  ".vld-hero:not(.vld-loc--none)::before{content:'\\25C8 ';color:var(--vg);opacity:.7;font-style:normal}",
+  ".vld-loc--none{opacity:.5}",
+  ".vld-meta{font:600 var(--vt-meta)/1.4 var(--vmono);letter-spacing:.5px;color:var(--vi2);opacity:.7}",
+  // amber tension dot-meter (semantic --v-press, no longer danger-red)
+  ".vld-dots{display:flex;gap:4px;align-items:center;flex:1}",
+  ".vld-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.1)}",
+  ".vld-dot.on{background:var(--v-press);box-shadow:0 0 6px color-mix(in srgb,var(--v-press) 60%,transparent)}",
+  // twin meters under a dashboard relation row
+  ".vld-rel-meters{display:flex;flex-direction:column;gap:2px;margin:1px 0 6px;padding-left:2px}",
+  // colored left spine per recent-event kind (scannable mixed feed)
+  ".vld-rec--journal{border-left:3px solid var(--v-pos);padding-left:9px}",
+  ".vld-rec--knew{border-left:3px solid var(--v-info);padding-left:9px}",
+  ".vld-rec--secret{border-left:3px solid var(--v-neg);padding-left:9px}",
+  ".vld-rec--shift{border-left:3px solid var(--v-press);padding-left:9px}",
   ".vld-tension-row{display:flex;align-items:center;gap:12px}",
   ".vld-tension{position:relative;flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}",
   ".vld-tension-f{position:absolute;left:0;top:0;height:8px;border-radius:5px;transition:width .3s;box-shadow:0 0 8px currentColor}",
@@ -476,6 +519,19 @@ export const STYLES = [
   ".vle-skin.on{border-color:var(--sw);background:color-mix(in srgb,var(--sw) 16%,transparent);box-shadow:0 0 10px color-mix(in srgb,var(--sw) 35%,transparent)}",
   ".vle-skin-sw{width:100%;height:14px;border-radius:5px;background:linear-gradient(90deg,var(--sw),color-mix(in srgb,var(--sw) 35%,transparent));box-shadow:0 0 6px color-mix(in srgb,var(--sw) 50%,transparent)}",
   ".vle-skin-n{font:600 9.5px/1.2 var(--vmono);letter-spacing:.3px;text-align:center;color:var(--vi2)}",
+  // theme gallery (Mode tab): big cards with a tiny wireframe sketch
+  ".vle-modes{display:flex;flex-direction:column;gap:8px}",
+  ".vle-mode{display:grid;grid-template-columns:64px 1fr;grid-template-rows:auto auto;gap:2px 12px;align-items:center;text-align:left;padding:11px 13px;border:1px solid rgba(var(--vg-rgb),.2);border-radius:12px;background:rgba(var(--vg-rgb),.05);cursor:pointer;transition:border-color .15s,background .15s}",
+  ".vle-mode:hover{background:rgba(var(--vg-rgb),.12)}",
+  ".vle-mode.on{border-color:var(--vg);background:rgba(var(--vg-rgb),.16);box-shadow:0 0 12px rgba(var(--vg-rgb),.28)}",
+  ".vle-mode-sk{grid-row:1 / 3;width:64px;height:48px;border-radius:6px;border:1px solid rgba(var(--vg-rgb),.35);background:rgba(0,0,0,.25);display:flex;gap:3px;padding:5px;overflow:hidden}",
+  ".vle-mode-sk i{background:rgba(var(--vg-rgb),.4);border-radius:2px;display:block}",
+  ".vle-mode-sk.sk-default{flex-direction:column;gap:4px}.vle-mode-sk.sk-default i{height:8px}.vle-mode-sk.sk-default i:first-child{height:12px}",
+  ".vle-mode-sk.sk-codex i{flex:1}.vle-mode-sk.sk-codex i:first-child{border-right:1px solid rgba(var(--vg-rgb),.5)}",
+  ".vle-mode-sk.sk-phone{flex-direction:column;gap:4px}.vle-mode-sk.sk-phone i{height:7px}.vle-mode-sk.sk-phone i:last-child{margin-top:auto;height:9px}",
+  ".vle-mode-sk.sk-hud{flex-direction:column;gap:4px}.vle-mode-sk.sk-hud i{height:5px;width:70%}.vle-mode-sk.sk-hud i:last-child{width:45%}",
+  ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
+  ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
   // ---- layout picker + dashboard layout modes ----
   ".vle-lays{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px}",
   ".vle-lay{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border:1px solid rgba(var(--vg-rgb),.2);border-radius:11px;background:rgba(var(--vg-rgb),.05);cursor:pointer;color:var(--vi2);transition:border-color .15s,background .15s}",
@@ -602,4 +658,100 @@ export const STYLES = [
   ".vle-card--mentioned .vle-av{box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.3);opacity:.8}",
   ".vle-card--added .vle-av{opacity:.55}",
   ".vle-card--mentioned,.vle-card--added{opacity:.92}",
+
+  // ================= THEME: MODERN ("The App") — float + drawer =================
+  // Calm, flat, sans, rounded. Drawer (.vle-root) gets equal treatment to the float.
+  "html[data-vle-chrome='modern'] .vle-root{font-family:var(--vserif)}",
+  // head → app title, no glow; tab bar → flat pills with an accent underline
+  "html[data-vle-chrome='modern'] .vle-head{border-bottom:none;font-weight:700;letter-spacing:0}",
+  "html[data-vle-chrome='modern'] .vle-mark{text-shadow:none}",
+  "html[data-vle-chrome='modern'] .vle-tabbtn{border-radius:var(--rpill);text-transform:none;letter-spacing:.2px;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-weight:600}",
+  "html[data-vle-chrome='modern'] .vle-tabbtn.on{background:color-mix(in srgb,var(--vg) 16%,transparent);border-color:transparent;position:relative}",
+  "html[data-vle-chrome='modern'] .vle-tabbtn.on::after{content:'';position:absolute;left:18%;right:18%;bottom:-3px;height:2px;border-radius:2px;background:var(--vg);transition:left .2s,right .2s}",
+  // cards → soft, rounded, flat shadow (no gold hairline shouting)
+  "html[data-vle-chrome='modern'] .vle-card,html[data-vle-chrome='modern'] .vld-sec,html[data-vle-chrome='modern'] .vle-rel-card{border-color:color-mix(in srgb,var(--vg) 10%,transparent);border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,.25)}",
+  // hero scene + soft top glow (recolor the bloom to the cool accent)
+  "html[data-vle-chrome='modern'] .vlf-frame::after{background:radial-gradient(120% 80% at 50% -20%,rgba(var(--vg-rgb),.16),transparent 70%)}",
+  "html[data-vle-chrome='modern'] .vld-hero{font-weight:700;letter-spacing:-.3px}",
+  // tension → rounded amber pill instead of dots row
+  "html[data-vle-chrome='modern'] .vld-dots{gap:5px}html[data-vle-chrome='modern'] .vld-dot{width:7px;height:7px}",
+  // present cast → notification cards; avatars fully round with presence ring
+  "html[data-vle-chrome='modern'] .vld-pc{border:none;border-radius:16px;background:color-mix(in srgb,var(--vi) 4%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.22);padding:calc(11px * var(--vscale)) calc(13px * var(--vscale))}",
+  // activity feed "Latest" → timeline nodes on the colored spines (reuse --rec)
+  "html[data-vle-chrome='modern'] .vld-rec{position:relative;margin-left:6px;padding-left:16px;border-left-width:2px}",
+  "html[data-vle-chrome='modern'] .vld-rec::before{content:'';position:absolute;left:-5px;top:9px;width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.85}",
+  "html[data-vle-chrome='modern'] .vld-rec--journal::before{color:var(--v-pos-i)}html[data-vle-chrome='modern'] .vld-rec--knew::before{color:var(--v-info)}html[data-vle-chrome='modern'] .vld-rec--secret::before{color:var(--v-neg-i)}html[data-vle-chrome='modern'] .vld-rec--shift::before{color:var(--v-press-i)}",
+  // twin meters fully rounded + a touch taller in modern
+  "html[data-vle-chrome='modern'] .vle-tw-t{height:9px;border-radius:6px}",
+  // float frame already flat (existing rules); round the drawer launcher too
+  "html[data-vle-chrome='modern'] .vlf-title{font-weight:700}",
+
+  // ================= THEME: FANTASY ("The Codex") — float + drawer =================
+  // Deepens the illuminated chrome. Float keeps BOTH Codex (2-col) + Scroll (1-col)
+  // forms (rules above); these add ornament, drop-caps, rubrics, heraldry, seal.
+  // --- drop-cap on the hero scene line (float dashboard + drawer Now share it) ---
+  "html[data-vle-chrome='illuminated'] .vld-hero::before{content:none}",
+  "html[data-vle-chrome='illuminated'] .vld-hero::first-letter{font-size:2.6em;line-height:.8;float:left;margin:4px 8px 0 0;padding:4px 8px;color:var(--v-neg-i);background:color-mix(in srgb,var(--v-neg) 14%,transparent);border:1px solid color-mix(in srgb,var(--v-neg) 30%,transparent);border-radius:var(--vr1);font-family:'Cinzel',var(--vserif);font-style:normal}",
+  // --- rubric section eyebrows: small-caps, red, hairline rule + fleurons ---
+  "html[data-vle-chrome='illuminated'] .vld-h,html[data-vle-chrome='illuminated'] .vle-sec-h{color:var(--v-neg-i);font-variant:small-caps;letter-spacing:2px}",
+  "html[data-vle-chrome='illuminated'] .vld-h::before,html[data-vle-chrome='illuminated'] .vle-sec-h::before{content:'\\2766 ';opacity:.7}",
+  // --- portrait medallions: present-cast avatars round, double-gilt, haloed ---
+  "html[data-vle-chrome='illuminated'] .vle-av{border-radius:50%;box-shadow:0 0 0 1px rgba(var(--vg-rgb),.6),0 0 0 4px rgba(0,0,0,.25),0 0 0 5px rgba(var(--vg-rgb),.3)}",
+  "html[data-vle-chrome='illuminated'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.35),0 0 12px rgba(var(--vg-rgb),.5)}",
+  // --- heraldic bond card: split-shield tint + gilded base ---
+  "html[data-vle-chrome='illuminated'] .vle-rel-card{background:linear-gradient(180deg,rgba(var(--vg-rgb),.07),transparent 60%),var(--vsurf-1);border-color:rgba(var(--vg-rgb),.35);border-bottom-width:2px;position:relative}",
+  "html[data-vle-chrome='illuminated'] .vle-rel-pair{font-variant:small-caps;letter-spacing:1px}",
+  // --- wax-seal close button (float only; the drawer has no frame) ---
+  "html[data-vle-chrome='illuminated'] .vlf-x{border-radius:50%;background:radial-gradient(40% 35% at 40% 35%,#b8403a,#6e1f1c);border:1px solid #4a1513;color:#f0c4c0;box-shadow:0 2px 6px rgba(0,0,0,.5),inset 0 1px 2px rgba(255,200,190,.3);text-shadow:0 1px 1px rgba(0,0,0,.5)}",
+  "html[data-vle-chrome='illuminated'] .vlf-x:hover{background:radial-gradient(40% 35% at 40% 35%,#c84a44,#7e2622);color:#ffd8d2;border-color:#4a1513}",
+  // --- drawer 'binding': a gilt top rule + parchment already via texture default ---
+  "html[data-vle-chrome='illuminated'] .vlf-title{font-family:'Cinzel',var(--vserif)}",
+  "html[data-vle-chrome='illuminated'] .vle-head{border-bottom:2px solid rgba(var(--vg-rgb),.3);box-shadow:0 1px 0 rgba(var(--vg-rgb),.15);font-family:'Cinzel',var(--vserif)}",
+  // --- ribbon-bookmark tabs (both surfaces' nav): notched bottom ---
+  "html[data-vle-chrome='illuminated'] .vle-tabbtn.on{border-radius:3px 3px 0 0;position:relative}",
+  "html[data-vle-chrome='illuminated'] .vle-tabbtn.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:0;border-left:5px solid transparent;border-right:5px solid transparent}",
+  // --- corner flourishes on the float frame (additive to the existing double-rule) ---
+  "html[data-vle-chrome='illuminated'] .vlf-bar::before{content:'\\2766';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg);opacity:.4;font-size:11px;pointer-events:none}",
+
+  // ================= THEME: FUTURISTIC ("Oracle HUD") — float + drawer =================
+  // Deepens the futuristic chrome (sharp corners/edge-glow/mono caps already exist).
+  // grid void backdrop on both roots
+  "html[data-vle-chrome='futuristic'] .vle-root{background-image:linear-gradient(rgba(var(--vg-rgb),.05) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--vg-rgb),.05) 1px,transparent 1px);background-size:22px 22px}",
+  // drawer head → telemetry bar
+  "html[data-vle-chrome='futuristic'] .vle-head{font-family:'Orbitron',var(--vmono);text-transform:uppercase;letter-spacing:3px;border-bottom:1px solid rgba(var(--vg-rgb),.4);font-size:calc(16px * var(--vscale))}",
+  "html[data-vle-chrome='futuristic'] .vle-head::before{content:'\\25E4 ';color:var(--vg)}",
+  "html[data-vle-chrome='futuristic'] .vle-stats{color:var(--vg);opacity:.8}",
+  // tab bar → segmented HUD buttons with bracket corners
+  "html[data-vle-chrome='futuristic'] .vle-tabbtn{border-radius:0;border-color:rgba(var(--vg-rgb),.25);letter-spacing:2px}",
+  "html[data-vle-chrome='futuristic'] .vle-tabbtn.on{border-color:var(--vg);box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.4),0 0 10px rgba(var(--vg-rgb),.25);background:rgba(var(--vg-rgb),.12)}",
+  "html[data-vle-chrome='futuristic'] .vle-tabbtn.on::before{content:'\\25B7 '}",
+  // cards → bracketed, sharp, edge-lit
+  "html[data-vle-chrome='futuristic'] .vle-card,html[data-vle-chrome='futuristic'] .vld-sec,html[data-vle-chrome='futuristic'] .vle-rel-card{border-radius:0;border-color:rgba(var(--vg-rgb),.3);border-left:2px solid var(--vg);background:linear-gradient(90deg,rgba(var(--vg-rgb),.06),transparent)}",
+  "html[data-vle-chrome='futuristic'] .vld-h{font-family:var(--vmono);text-transform:uppercase;letter-spacing:2px}",
+  "html[data-vle-chrome='futuristic'] .vld-h::before{content:'\\25B7 ';color:var(--vg);font-size:9px}",
+  // hero → mono caps telemetry
+  "html[data-vle-chrome='futuristic'] .vlf-title{font-family:'Orbitron',var(--vmono)}",
+  "html[data-vle-chrome='futuristic'] .vld-hero{font-family:'Orbitron',var(--vmono);text-transform:uppercase;letter-spacing:1px;font-size:calc(20px * var(--vscale));text-shadow:0 0 8px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='futuristic'] .vld-hero::before{content:'\\25B7 '}",
+  // targeting-reticle avatars: transparent center, crosshair ticks, ring
+  "html[data-vle-chrome='futuristic'] .vle-av{border-radius:50%;background:transparent;border:1.5px solid var(--vg);box-shadow:0 0 8px rgba(var(--vg-rgb),.4),inset 0 0 6px rgba(var(--vg-rgb),.2);position:relative;color:var(--vg)}",
+  "html[data-vle-chrome='futuristic'] .vle-av::before,html[data-vle-chrome='futuristic'] .vle-av::after{content:'';position:absolute;background:var(--vg)}",
+  "html[data-vle-chrome='futuristic'] .vle-av::before{left:-3px;right:-3px;top:50%;height:1px}",
+  "html[data-vle-chrome='futuristic'] .vle-av::after{top:-3px;bottom:-3px;left:50%;width:1px}",
+  // tension → segmented notched amber→red bar (dots become ticks)
+  "html[data-vle-chrome='futuristic'] .vld-dot{border-radius:0;width:100%;height:10px;flex:1}",
+  "html[data-vle-chrome='futuristic'] .vld-dot.on{background:linear-gradient(180deg,var(--v-press),var(--v-neg));box-shadow:0 0 6px rgba(var(--vg-rgb),.4)}",
+  // scanline shimmer over the float body (motion-gated by the global kill-switch)
+  "html[data-vle-chrome='futuristic'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(var(--vg-rgb),.025) 3px 4px);z-index:2}",
+  "html[data-vle-chrome='futuristic'] .vlf-body{position:relative}",
+  // bond radar block
+  ".vle-radar{display:block;margin:8px auto 4px;max-width:240px}",
+  ".vle-radar-ring{fill:none;stroke:rgba(var(--vg-rgb),.2)}",
+  ".vle-radar-axis{stroke:rgba(var(--vg-rgb),.3)}",
+  ".vle-radar-axl{fill:var(--vg);font:600 7px/1 var(--vmono);letter-spacing:.5px;opacity:.7}",
+  ".vle-radar-a{fill:color-mix(in srgb,var(--v-info) 22%,transparent);stroke:var(--v-info);stroke-width:1.5}",
+  ".vle-radar-b{fill:color-mix(in srgb,var(--v-warn) 18%,transparent);stroke:var(--v-warn);stroke-width:1.5}",
+  ".vle-radar-dot{fill:var(--vi)}",
+  ".vle-radar-leg{display:flex;justify-content:center;gap:14px;font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}",
+  ".vle-radar-leg i{font-style:normal;opacity:.7}",
 ].join('\n');

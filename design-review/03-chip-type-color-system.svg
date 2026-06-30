@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" font-family="Georgia, serif">
+  <rect width="1200" height="900" fill="#1a1610"/>
+  <text x="40" y="50" fill="#cda84e" font-size="26" letter-spacing="2">REDESIGN — chip system + type scale + color roles</text>
+  <text x="40" y="76" fill="#9a8f78" font-size="15" font-style="italic">The reusable fix: one chip family, a real type scale, and disciplined color. Touches every tab.</text>
+
+  <!-- LEFT: chip zoo today -->
+  <text x="40" y="128" fill="#ff8a8a" font-family="monospace" font-size="14" letter-spacing="1">TODAY — the “chip zoo” (≈12 bespoke rules)</text>
+  <g font-family="monospace" font-size="10">
+    <rect x="40" y="146" width="68" height="22" rx="6" fill="none" stroke="#c97a6a" stroke-opacity="0.45"/><text x="50" y="161" fill="#c97a6a">ALLIANCE</text>
+    <rect x="116" y="146" width="60" height="22" rx="6" fill="none" stroke="#cda84e" stroke-opacity="0.4"/><text x="126" y="161" fill="#c8a24e">BELIEVES</text>
+    <rect x="184" y="146" width="64" height="22" rx="6" fill="#c96a6a" fill-opacity="0.08" stroke="#c96a6a" stroke-opacity="0.5"/><text x="194" y="161" fill="#e09090">WRONG</text>
+    <rect x="256" y="146" width="50" height="22" rx="6" fill="none" stroke="#b48ed0" stroke-opacity="0.45"/><text x="264" y="161" fill="#b48ed0">SUSP</text>
+    <rect x="40" y="176" width="58" height="22" rx="6" fill="none" stroke="#9bc0e6" stroke-opacity="0.4"/><text x="50" y="191" fill="#9bc0e6">CHAPTER</text>
+    <rect x="106" y="176" width="44" height="22" rx="6" fill="none" stroke="#cda84e" stroke-opacity="0.4"/><text x="114" y="191" fill="#cda84e">ARC</text>
+    <rect x="158" y="176" width="52" height="22" rx="6" fill="#8fa67e" fill-opacity="0.2"/><text x="166" y="191" fill="#a9c089">WARY</text>
+    <rect x="218" y="176" width="70" height="22" rx="6" fill="#c96a6a" fill-opacity="0.18"/><text x="226" y="191" fill="#e09090">BLEEDING</text>
+    <rect x="40" y="206" width="56" height="22" rx="5" fill="#cda84e" fill-opacity="0.14"/><text x="48" y="221" fill="#cda84e">journal</text>
+    <rect x="104" y="206" width="66" height="22" rx="5" fill="#cda84e" fill-opacity="0.1"/><text x="112" y="221" fill="#cdbfa0">RECALL</text>
+    <rect x="178" y="206" width="62" height="22" rx="20" fill="#cda84e" fill-opacity="0.08" stroke="#cda84e" stroke-opacity="0.3"/><text x="186" y="221" fill="#cdbfa0">+beat</text>
+  </g>
+  <text x="40" y="252" fill="#9a8f78" font-size="12">Different radii (5/6/20px), different fills, different casing, ad-hoc colors.</text>
+  <text x="40" y="270" fill="#9a8f78" font-size="12">Each one a separate CSS rule = visual noise + maintenance drag.</text>
+
+  <!-- RIGHT: one chip family -->
+  <text x="630" y="128" fill="#9fd08a" font-family="monospace" font-size="14" letter-spacing="1">REDESIGN — one .v-chip + tone modifiers</text>
+  <g font-family="monospace" font-size="10">
+    <!-- shared shape: same radius, same padding, same 9.5px label; tone = color role only -->
+    <rect x="630" y="146" width="64" height="24" rx="6" fill="#8fa67e" fill-opacity="0.14" stroke="#8fa67e" stroke-opacity="0.4"/><text x="640" y="162" fill="#a9c089">alliance</text>
+    <rect x="702" y="146" width="72" height="24" rx="6" fill="#c96a6a" fill-opacity="0.14" stroke="#c96a6a" stroke-opacity="0.4"/><text x="712" y="162" fill="#e09090">rivalry</text>
+    <rect x="782" y="146" width="76" height="24" rx="6" fill="#b48ed0" fill-opacity="0.14" stroke="#b48ed0" stroke-opacity="0.4"/><text x="792" y="162" fill="#c79ae0">romantic</text>
+    <rect x="866" y="146" width="64" height="24" rx="6" fill="#9bc0e6" fill-opacity="0.14" stroke="#9bc0e6" stroke-opacity="0.4"/><text x="876" y="162" fill="#9bc0e6">familial</text>
+
+    <rect x="630" y="178" width="70" height="24" rx="6" fill="#9bc0e6" fill-opacity="0.14" stroke="#9bc0e6" stroke-opacity="0.4"/><text x="640" y="194" fill="#9bc0e6">believes</text>
+    <rect x="708" y="178" width="62" height="24" rx="6" fill="#b48ed0" fill-opacity="0.14" stroke="#b48ed0" stroke-opacity="0.4"/><text x="718" y="194" fill="#c79ae0">suspects</text>
+    <rect x="778" y="178" width="58" height="24" rx="6" fill="#c96a6a" fill-opacity="0.16" stroke="#c96a6a" stroke-opacity="0.5"/><text x="788" y="194" fill="#e09090">wrong</text>
+    <rect x="844" y="178" width="70" height="24" rx="6" fill="#ffffff" fill-opacity="0.04" stroke="#8c8478" stroke-opacity="0.5"/><text x="854" y="194" fill="#8c8478">unaware</text>
+
+    <rect x="630" y="210" width="58" height="24" rx="6" fill="#9bc0e6" fill-opacity="0.14" stroke="#9bc0e6" stroke-opacity="0.4"/><text x="640" y="226" fill="#9bc0e6">chapter</text>
+    <rect x="696" y="210" width="44" height="24" rx="6" fill="#cda84e" fill-opacity="0.16" stroke="#cda84e" stroke-opacity="0.45"/><text x="704" y="226" fill="#cda84e">arc</text>
+    <rect x="748" y="210" width="56" height="24" rx="6" fill="#8fa67e" fill-opacity="0.14" stroke="#8fa67e" stroke-opacity="0.4"/><text x="758" y="226" fill="#a9c089">journal</text>
+    <rect x="812" y="210" width="48" height="24" rx="6" fill="#cda84e" fill-opacity="0.16" stroke="#cda84e" stroke-opacity="0.45"/><text x="820" y="226" fill="#cda84e">beat</text>
+  </g>
+  <text x="630" y="266" fill="#bcd9ad" font-size="12">One radius (var --vr1), one padding, one label size. Tone modifier = color role only.</text>
+  <text x="630" y="284" fill="#bcd9ad" font-size="12">~12 rules → 1 base + 6 tones. Slider for radius now affects all chips uniformly.</text>
+
+  <line x1="40" y1="312" x2="1160" y2="312" stroke="#cda84e" stroke-opacity="0.18"/>
+
+  <!-- TYPE SCALE -->
+  <text x="40" y="350" fill="#cda84e" font-family="monospace" font-size="14" letter-spacing="1">TYPE SCALE — collapse ~9 ad-hoc sizes into 5 steps</text>
+  <g>
+    <text x="40" y="392" fill="#f2e4bd" font-size="26" font-style="italic">Display 24 — scene / hero</text>
+    <text x="800" y="392" fill="#6f6655" font-family="monospace" font-size="11">serif · the one thing per panel</text>
+    <text x="40" y="426" fill="#e7d6ad" font-size="19">Title 18 — character names, section heroes</text>
+    <text x="800" y="426" fill="#6f6655" font-family="monospace" font-size="11">serif</text>
+    <text x="40" y="456" fill="#cdbfa0" font-size="14">Body 14 — prose, doing, thoughts, content (was 12–13, too small)</text>
+    <text x="800" y="456" fill="#6f6655" font-family="monospace" font-size="11">serif · reading floor</text>
+    <text x="40" y="484" fill="#cdbfa0" font-family="monospace" font-size="11">Meta 11 — chip + stat labels (was 7/7.5/8/9 — a11y floor now 11)</text>
+    <text x="800" y="484" fill="#6f6655" font-family="monospace" font-size="11">mono</text>
+    <text x="40" y="510" fill="#8a8071" font-family="monospace" font-size="10" letter-spacing="2">EYEBROW 10 — SECTION HEADERS ONLY</text>
+    <text x="800" y="510" fill="#6f6655" font-family="monospace" font-size="11">mono · uppercase</text>
+  </g>
+
+  <line x1="40" y1="540" x2="1160" y2="540" stroke="#cda84e" stroke-opacity="0.18"/>
+
+  <!-- COLOR ROLES -->
+  <text x="40" y="578" fill="#cda84e" font-family="monospace" font-size="14" letter-spacing="1">COLOR ROLES — stop overloading gold &amp; red</text>
+
+  <g font-family="monospace" font-size="12">
+    <!-- gold -->
+    <rect x="40" y="600" width="34" height="34" rx="6" fill="#cda84e"/>
+    <text x="88" y="615" fill="#e7d6ad" font-size="14">Gold — brand + interactive only</text>
+    <text x="88" y="633" fill="#9a8f78">accents, active state, focus, the ONE hairline. Not body text, not every border.</text>
+
+    <rect x="40" y="644" width="34" height="34" rx="6" fill="#c96a6a"/>
+    <text x="88" y="659" fill="#e09090" font-size="14">Red — harm / danger / destructive ONLY</text>
+    <text x="88" y="677" fill="#9a8f78">wounds, “wrong” beliefs, secrets, delete. Freed from doing double-duty as tension.</text>
+
+    <rect x="40" y="688" width="34" height="34" rx="6" fill="#c8923e"/>
+    <text x="88" y="703" fill="#d8a85e" font-size="14">Amber — pressure / tension / bond-shift</text>
+    <text x="88" y="721" fill="#9a8f78">a distinct warm step between gold and red so “rising tension” ≠ “danger”.</text>
+
+    <rect x="640" y="600" width="34" height="34" rx="6" fill="#8fa67e"/>
+    <text x="688" y="615" fill="#a9c089" font-size="14">Sage — positive / affection / journal</text>
+    <text x="688" y="633" fill="#9a8f78">warmth, growth, kept memories.</text>
+
+    <rect x="640" y="644" width="34" height="34" rx="6" fill="#9bc0e6"/>
+    <text x="688" y="659" fill="#9bc0e6" font-size="14">Blue — knowledge / trust / info</text>
+    <text x="688" y="677" fill="#9a8f78">what’s known, the trust axis, learned facts.</text>
+
+    <rect x="640" y="688" width="34" height="34" rx="6" fill="#b48ed0"/>
+    <text x="688" y="703" fill="#c79ae0" font-size="14">Violet — romance / suspicion / uncertainty</text>
+    <text x="688" y="721" fill="#9a8f78">the ambiguous register: desire and doubt.</text>
+  </g>
+
+  <line x1="40" y1="748" x2="1160" y2="748" stroke="#cda84e" stroke-opacity="0.18"/>
+
+  <text x="40" y="786" fill="#9fd08a" font-family="monospace" font-size="13" letter-spacing="1">WHY THIS IS THE HIGHEST-LEVERAGE CHANGE</text>
+  <g font-size="13" fill="#bcd9ad" font-family="monospace">
+    <text x="40" y="812">· These tokens already exist (--v-pos/-neg/-info/-warn, --vr1, --vN). The redesign mostly DELETES bespoke rules and reuses them.</text>
+    <text x="40" y="834">· Fixes ~60% of the visible noise in one pass (per the repo’s own UI-PLAN Phase 1) without touching a single feature or data path.</text>
+    <text x="40" y="856">· Every tab (Cast, Relations, Knowledge, Vault, Journal, Timeline) inherits the calmer look for free — consistency by construction.</text>
+    <text x="40" y="878">· Honest caveat: I rebuilt these from the CSS, not a running build. Validate contrast on real skins (esp. Crimson/Noir) before shipping.</text>
+  </g>
+</svg>

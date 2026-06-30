@@ -136,6 +136,12 @@ export function catsOf(r: Relation): string[] {
   return r.categories.length ? r.categories : [r.category || 'neutral'];
 }
 
+export type ChipTone = 'gold' | 'pos' | 'neg' | 'info' | 'warn' | 'press' | 'muted';
+/** Unified chip: one shape (.v-chip), tone drives color only. `solid` fills. */
+export function chip(label: string, tone: ChipTone = 'gold', solid = false): string {
+  return `<span class="v-chip v-chip--${tone}${solid ? ' v-chip--solid' : ''}">${esc(label)}</span>`;
+}
+
 export function byRecent<T extends { lastTurn?: number }>(a: T, b: T): number {
   return (b.lastTurn ?? 0) - (a.lastTurn ?? 0);
 }
@@ -149,6 +155,18 @@ export function bar(label: string, v: number): string {
     + '<span class="vle-bar-t"><span class="vle-bar-mid"></span>'
     + '<span class="vle-bar-f ' + (pos ? 'pos' : 'neg') + '" style="' + (pos ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%') + '"></span></span>'
     + '<span class="vle-bar-v ' + (pos ? 'pos' : 'neg') + '">' + (n > 0 ? '+' : '') + n + '</span></div>';
+}
+
+/** A compact diverging meter sized by --vt-meta; affection uses --v-pos, trust
+ * uses --v-info. Both directions can stack. Pure HTML reusing .vle-tw* classes. */
+export function barTwin(label: string, v: number, axis: 'aff' | 'trust'): string {
+  const n = Math.max(-100, Math.min(100, v || 0));
+  const pct = Math.abs(n) / 2; const pos = n >= 0;
+  const fill = axis === 'aff' ? 'tw-aff' : 'tw-trust';
+  return '<div class="vle-tw"><span class="vle-tw-l">' + esc(label) + '</span>'
+    + '<span class="vle-tw-t"><span class="vle-tw-mid"></span>'
+    + '<span class="vle-tw-f ' + fill + (pos ? '' : ' neg') + '" style="' + (pos ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%') + '"></span></span>'
+    + '<span class="vle-tw-v">' + (n > 0 ? '+' : '') + n + '</span></div>';
 }
 
 export function castByStatus(state: ChronicleState): { present: CastCard[]; active: CastCard[]; mentioned: CastCard[]; added: CastCard[] } {

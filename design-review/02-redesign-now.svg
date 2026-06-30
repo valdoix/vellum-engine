@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" font-family="Georgia, serif">
+  <defs>
+    <linearGradient id="glass2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#17140f"/>
+      <stop offset="1" stop-color="#0d0b08"/>
+    </linearGradient>
+    <radialGradient id="bloom2" cx="50%" cy="0%" r="60%">
+      <stop offset="0" stop-color="#cda84e" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#cda84e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#241f16"/>
+      <stop offset="1" stop-color="#15120c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="900" fill="#26221b"/>
+  <text x="40" y="48" fill="#cda84e" font-size="26" letter-spacing="2">REDESIGN — “Now” dashboard</text>
+  <text x="40" y="74" fill="#9a8f78" font-size="15" font-style="italic">Same tokens, same engine. Green callouts = what changed and why.</text>
+
+  <g>
+    <rect x="40" y="100" width="560" height="760" rx="16" fill="url(#glass2)" stroke="#cda84e" stroke-opacity="0.4"/>
+    <rect x="40" y="100" width="560" height="120" rx="16" fill="url(#bloom2)"/>
+
+    <!-- Title bar: quieter, one accent mark -->
+    <text x="66" y="146" fill="#cda84e" font-size="16">✦</text>
+    <text x="90" y="148" fill="#e7d6ad" font-size="19" letter-spacing="4">VELLUM</text>
+    <text x="176" y="148" fill="#6f6655" font-family="monospace" font-size="10" letter-spacing="1">PALIMPSEST</text>
+    <g font-family="monospace" font-size="11" fill="#9a8f78">
+      <text x="470" y="148">Cast</text><text x="516" y="148">Graph</text><text x="566" y="148" fill="#cda84e">⚙</text>
+    </g>
+    <line x1="40" y1="166" x2="600" y2="166" stroke="#cda84e" stroke-opacity="0.18"/>
+
+    <!-- HERO: scene line gets the most weight + a single meta row -->
+    <rect x="40" y="166" width="560" height="118" fill="url(#hero)"/>
+    <text x="64" y="214" fill="#f2e4bd" font-size="26" font-style="italic">The drowned chapel,</text>
+    <text x="64" y="244" fill="#f2e4bd" font-size="26" font-style="italic">lower crypt</text>
+    <!-- meta as a single quiet line, not 4 pills -->
+    <text x="64" y="270" fill="#8a8071" font-family="monospace" font-size="12" letter-spacing="0.5">Turn 147  ·  Day 12  ·  dusk  ·  rain</text>
+    <!-- tension as a compact dot-meter top-right, semantic color reserved -->
+    <text x="430" y="200" fill="#8a8071" font-family="monospace" font-size="10" letter-spacing="1">TENSION</text>
+    <g>
+      <circle cx="438" cy="218" r="5" fill="#c8923e"/><circle cx="456" cy="218" r="5" fill="#c8923e"/>
+      <circle cx="474" cy="218" r="5" fill="#c8923e"/><circle cx="492" cy="218" r="5" fill="#c8923e"/>
+      <circle cx="510" cy="218" r="5" fill="#c8923e"/><circle cx="528" cy="218" r="5" fill="#c8923e"/>
+      <circle cx="546" cy="218" r="5" fill="#c8923e"/>
+      <circle cx="438" cy="236" r="5" fill="#3a352b"/><circle cx="456" cy="236" r="5" fill="#3a352b"/>
+      <circle cx="474" cy="236" r="5" fill="#3a352b"/>
+      <text x="500" y="240" fill="#cdbfa0" font-family="monospace" font-size="11">7/10</text>
+    </g>
+    <line x1="40" y1="284" x2="600" y2="284" stroke="#cda84e" stroke-opacity="0.14"/>
+
+    <!-- PRESENT: hero cards, serif-led, status on a calm left rule -->
+    <text x="64" y="312" fill="#8a8071" font-family="monospace" font-size="11" letter-spacing="2">IN THE ROOM</text>
+    <text x="180" y="312" fill="#6f6655" font-family="monospace" font-size="11">2</text>
+
+    <g>
+      <rect x="64" y="324" width="496" height="92" rx="10" fill="#1c1813" stroke="#cda84e" stroke-opacity="0.12"/>
+      <rect x="64" y="324" width="4" height="92" rx="2" fill="#8fa67e"/>
+      <text x="84" y="352" fill="#f2e4bd" font-size="19">Sister Aveline</text>
+      <!-- status as lowercase, sentence-case, color-coded by meaning not shouted -->
+      <text x="84" y="374" fill="#a9c089" font-size="13" font-style="italic">wary</text>
+      <text x="128" y="374" fill="#6f6655" font-size="13">·</text>
+      <text x="140" y="374" fill="#e09090" font-size="13" font-style="italic">bleeding</text>
+      <text x="84" y="396" fill="#cdbfa0" font-size="13.5">Pressing a torn sleeve to the wound, watching the stairs.</text>
+      <text x="84" y="412" fill="#b3a888" font-size="13" font-style="italic">“He said the door was sealed. He lied.”</text>
+    </g>
+    <g>
+      <rect x="64" y="424" width="496" height="78" rx="10" fill="#1c1813" stroke="#cda84e" stroke-opacity="0.12"/>
+      <rect x="64" y="424" width="4" height="78" rx="2" fill="#8fa67e"/>
+      <text x="84" y="452" fill="#f2e4bd" font-size="19">Coren</text>
+      <text x="84" y="474" fill="#a9c089" font-size="13" font-style="italic">guarded</text>
+      <text x="84" y="494" fill="#cdbfa0" font-size="13.5">Between her and the dark, blade half-drawn.</text>
+    </g>
+
+    <!-- RELATIONS: now shows the 2-axis bond the engine actually tracks -->
+    <text x="64" y="534" fill="#8a8071" font-family="monospace" font-size="11" letter-spacing="2">BONDS HERE</text>
+    <g>
+      <rect x="64" y="546" width="496" height="74" rx="10" fill="#1c1813" stroke="#cda84e" stroke-opacity="0.12"/>
+      <text x="84" y="572" fill="#e7d6ad" font-size="15">Aveline ⇄ Coren</text>
+      <text x="84" y="592" fill="#b48ed0" font-size="11.5" font-style="italic">infatuation, mistrust — uneven</text>
+      <!-- twin mini meters: affection (warm) + trust (cool) -->
+      <text x="320" y="566" fill="#6f6655" font-family="monospace" font-size="9">AFF</text>
+      <rect x="350" y="558" width="160" height="6" rx="3" fill="#ffffff" fill-opacity="0.06"/>
+      <rect x="350" y="558" width="120" height="6" rx="3" fill="#c8923e"/>
+      <text x="518" y="566" fill="#cdbfa0" font-family="monospace" font-size="9">+62</text>
+      <text x="320" y="588" fill="#6f6655" font-family="monospace" font-size="9">TRU</text>
+      <rect x="350" y="580" width="160" height="6" rx="3" fill="#ffffff" fill-opacity="0.06"/>
+      <rect x="350" y="580" width="42" height="6" rx="3" fill="#9bc0e6"/>
+      <text x="518" y="588" fill="#cdbfa0" font-family="monospace" font-size="9">+18</text>
+      <text x="84" y="610" fill="#7f8a72" font-size="11">alliance</text>
+      <text x="138" y="610" fill="#9a7ab0" font-size="11">romantic (one-sided →)</text>
+    </g>
+
+    <!-- LATEST: grouped by type with quiet color spines, not a flat list -->
+    <text x="64" y="650" fill="#8a8071" font-family="monospace" font-size="11" letter-spacing="2">SINCE LAST TURN</text>
+    <g font-size="13">
+      <rect x="64" y="662" width="496" height="42" rx="8" fill="#1c1813"/>
+      <rect x="64" y="662" width="3" height="42" fill="#8fa67e"/>
+      <text x="80" y="680" fill="#8fa67e" font-family="monospace" font-size="9" letter-spacing="1">JOURNAL · Aveline</text>
+      <text x="80" y="698" fill="#cdbfa0" font-style="italic">“I will not kneel to him again.”</text>
+
+      <rect x="64" y="710" width="242" height="42" rx="8" fill="#1c1813"/>
+      <rect x="64" y="710" width="3" height="42" fill="#9bc0e6"/>
+      <text x="80" y="728" fill="#9bc0e6" font-family="monospace" font-size="9" letter-spacing="1">LEARNED · Coren</text>
+      <text x="80" y="746" fill="#cdbfa0" font-size="12">a second exit exists</text>
+
+      <rect x="318" y="710" width="242" height="42" rx="8" fill="#1c1813"/>
+      <rect x="318" y="710" width="3" height="42" fill="#c96a6a"/>
+      <text x="334" y="728" fill="#e09090" font-family="monospace" font-size="9" letter-spacing="1">SECRET · Aveline</text>
+      <text x="334" y="746" fill="#cdbfa0" font-size="12">carries the Vicar’s seal</text>
+
+      <rect x="64" y="758" width="496" height="38" rx="8" fill="#1c1813"/>
+      <rect x="64" y="758" width="3" height="38" fill="#c8923e"/>
+      <text x="80" y="776" fill="#c8923e" font-family="monospace" font-size="9" letter-spacing="1">BOND SHIFT</text>
+      <text x="80" y="790" fill="#cdbfa0" font-size="12">Coren → Aveline   trust +protective</text>
+    </g>
+  </g>
+
+  <!-- CALLOUTS -->
+  <g font-family="monospace" font-size="13" fill="#9fd08a">
+    <line x1="300" y1="244" x2="660" y2="210" stroke="#9fd08a" stroke-width="1.5"/>
+    <text x="668" y="200">A. One hero. The scene line is the biggest thing</text>
+    <text x="688" y="218" fill="#bcd9ad">on screen — it’s what the player came to see.</text>
+    <text x="688" y="236" fill="#bcd9ad">Turn/Day/Time collapse to ONE quiet meta line.</text>
+
+    <line x1="490" y1="226" x2="660" y2="280" stroke="#9fd08a" stroke-width="1.5"/>
+    <text x="668" y="276">B. Tension = dot meter in amber, not a red bar.</text>
+    <text x="688" y="294" fill="#bcd9ad">Red is freed up to mean only danger/harm</text>
+    <text x="688" y="312" fill="#bcd9ad">(“bleeding”, secrets, deletes). Color = meaning.</text>
+
+    <line x1="160" y1="370" x2="660" y2="360" stroke="#9fd08a" stroke-width="1.5"/>
+    <text x="668" y="356">C. Status is sentence-case italic in the serif</text>
+    <text x="688" y="374" fill="#bcd9ad">voice, colored by sentiment. No more shouting</text>
+    <text x="688" y="392" fill="#bcd9ad">UPPERCASE mono pills fighting the name.</text>
+
+    <line x1="510" y1="560" x2="660" y2="470" stroke="#9fd08a" stroke-width="1.5"/>
+    <text x="668" y="466">D. Relations finally SHOW the two-axis bond:</text>
+    <text x="688" y="484" fill="#bcd9ad">affection (warm) vs trust (cool), as twin meters.</text>
+    <text x="688" y="502" fill="#bcd9ad">“infatuation, mistrust” is now legible at a glance —</text>
+    <text x="688" y="520" fill="#bcd9ad">the engine’s signature feature made visible.</text>
+
+    <line x1="300" y1="730" x2="660" y2="610" stroke="#9fd08a" stroke-width="1.2" stroke-dasharray="3 3"/>
+    <text x="668" y="606">E. “Latest” is grouped by kind with a colored</text>
+    <text x="688" y="624" fill="#bcd9ad">spine per type (journal=sage, learned=blue,</text>
+    <text x="688" y="642" fill="#bcd9ad">secret=red, shift=amber). Scannable in 1 glance.</text>
+
+    <text x="668" y="690" fill="#cda84e">F. Type floor raised: body 13.5px serif,</text>
+    <text x="688" y="708" fill="#bcd9ad">labels 11px min. Gold demoted to accents +</text>
+    <text x="688" y="726" fill="#bcd9ad">one hairline; surfaces carry structure. Result:</text>
+    <text x="688" y="744" fill="#bcd9ad">calmer, deeper, readable for hours.</text>
+  </g>
+</svg>

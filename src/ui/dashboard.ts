@@ -1,5 +1,5 @@
 import type { ChronicleState, PresentChar, Relation } from '../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml } from './format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml, barTwin } from './format.js';
 
 /**
  * The floating-window DASHBOARD — a single at-a-glance scene panel (distinct
@@ -95,24 +95,30 @@ export function dashboardHtml(s: ChronicleState): string {
 }
 
 function statusBar(s: ChronicleState): string {
-  const bits = [
-    `<span class="vld-stat"><b>Turn</b>${s.turns ?? 0}</span>`,
-    s.day ? `<span class="vld-stat"><b>Day</b>${s.day}</span>` : '',
-    s.scene.time ? `<span class="vld-stat"><b>Time</b>${esc(s.scene.time)}</span>` : '',
-    s.scene.weather ? `<span class="vld-stat"><b>\u2601</b>${esc(s.scene.weather)}</span>` : '',
-  ].filter(Boolean).join('');
-  const loc = s.scene.location ? `<div class="vld-loc">\u25C8 ${esc(s.scene.location)}</div>` : '';
-  return `<div class="vld-sec"><div class="vld-statbar">${bits}</div>${loc}</div>`;
+  // hero scene line (the biggest thing) + ONE quiet meta line, not 4 gold pills
+  const meta = [
+    `T${s.turns ?? 0}`,
+    s.day ? `Day ${s.day}` : '',
+    s.scene.time ? esc(s.scene.time) : '',
+    s.scene.weather ? esc(s.scene.weather) : '',
+  ].filter(Boolean).join('  \u00b7  ');
+  const loc = s.scene.location
+    ? `<div class="vld-loc vld-hero">${esc(s.scene.location)}</div>`
+    : '<div class="vld-loc vld-hero vld-loc--none">\u2014</div>';
+  return `<div class="vld-sec vld-sec--hero">${loc}<div class="vld-meta">${meta}</div></div>`;
 }
 
 function tensionBar(s: ChronicleState): string {
   const t = Math.max(0, Math.min(10, s.scene.tension || 0));
   if (!t) return '';
-  const hue = 120 - t * 12; // green→red
   const style = getTheme().tensionStyle;
-  const bar = `<div class="vld-tension"><span class="vld-tension-f" style="width:${t * 10}%;background:hsl(${hue},55%,50%)"></span></div>`;
+  // amber dot-meter (--v-press): tension no longer borrows danger-red
+  const dots = Array.from({ length: 10 }, (_, i) =>
+    `<span class="vld-dot${i < t ? ' on' : ''}"></span>`).join('');
+  const meter = `<div class="vld-dots" role="img" aria-label="tension ${t} of 10">${dots}</div>`;
   const num = `<span class="vld-tension-n">${t}/10</span>`;
-  const inner = style === 'bar' ? bar : style === 'num' ? `<span class="vld-tension-n" style="min-width:auto">${t}/10</span>` : bar + num;
+  const inner = style === 'num' ? `<span class="vld-tension-n" style="min-width:auto">${t}/10</span>`
+    : style === 'bar' ? meter : meter + num;
   return `<div class="vld-sec"><div class="vld-h">Tension</div><div class="vld-tension-row">${inner}</div></div>`;
 }
 
@@ -135,7 +141,9 @@ function relationsBlock(s: ChronicleState): string {
   if (!rels.length) return '';
   const rows = rels.map((r) => {
     const cats = catsOf(r).map((c) => `<span class="vld-cat" style="--c:${CAT_COLORS[c] || '#888'}">${esc(c)}</span>`).join('');
-    return `<div class="vld-rel"><span class="vld-rel-p">${nameHtml(s, r.a)} \u2192 ${nameHtml(s, r.b)}</span>${cats}<span class="vld-rel-s">${esc(SENT_LABEL[r.sentiment] || r.sentiment)}</span></div>`;
+    // surface the engine's two-axis bond: affection + trust as compact meters
+    const meters = `<div class="vld-rel-meters">${barTwin('aff', r.affection, 'aff')}${barTwin('tru', r.trust, 'trust')}</div>`;
+    return `<div class="vld-rel"><span class="vld-rel-p">${nameHtml(s, r.a)} \u2192 ${nameHtml(s, r.b)}</span>${cats}<span class="vld-rel-s">${esc(SENT_LABEL[r.sentiment] || r.sentiment)}</span></div>${meters}`;
   }).join('');
   return `<div class="vld-sec"><div class="vld-h">Relations</div>${rows}</div>`;
 }
@@ -159,16 +167,17 @@ function parallelBlock(s: ChronicleState): string {
 }
 
 function recentBlock(s: ChronicleState): string {
-  // newest journal / knowledge / secret + the latest relation change
+  // newest journal / knowledge / secret + the latest relation change, each with
+  // a colored left spine per type so the mixed feed is scannable at a glance.
   const parts: string[] = [];
   const j = s.journal.slice().sort((a, b) => b.turn - a.turn)[0];
-  if (j) parts.push(`<div class="vld-rec"><span class="vld-rec-k">journal</span>${nameHtml(s, j.who)}: \u201C${esc(j.memory)}\u201D</div>`);
+  if (j) parts.push(`<div class="vld-rec vld-rec--journal"><span class="vld-rec-k">journal</span>${nameHtml(s, j.who)}: \u201C${esc(j.memory)}\u201D</div>`);
   const k = latestKnowledge(s);
-  if (k) parts.push(`<div class="vld-rec"><span class="vld-rec-k">knew</span>${nameHtml(s, k.who)}: ${esc(k.fact)}</div>`);
+  if (k) parts.push(`<div class="vld-rec vld-rec--knew"><span class="vld-rec-k">knew</span>${nameHtml(s, k.who)}: ${esc(k.fact)}</div>`);
   const sec = latestSecret(s);
-  if (sec) parts.push(`<div class="vld-rec"><span class="vld-rec-k">secret</span>${nameHtml(s, sec.keeper)}: ${esc(sec.text)}</div>`);
+  if (sec) parts.push(`<div class="vld-rec vld-rec--secret"><span class="vld-rec-k">secret</span>${nameHtml(s, sec.keeper)}: ${esc(sec.text)}</div>`);
   const ch = latestRelChange(s);
-  if (ch) parts.push(`<div class="vld-rec"><span class="vld-rec-k">shift</span>${ch}</div>`);
+  if (ch) parts.push(`<div class="vld-rec vld-rec--shift"><span class="vld-rec-k">shift</span>${ch}</div>`);
   if (!parts.length) return '';
   return `<div class="vld-sec"><div class="vld-h">Latest</div>${parts.join('')}</div>`;
 }

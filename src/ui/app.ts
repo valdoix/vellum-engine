@@ -1,4 +1,5 @@
 import { STYLES } from './styles.js';
+import { FONT_FACES } from './fonts.js';
 import { mount, type Mounted } from './component.js';
 import { freshState, type ChronicleState } from '../domain/types.js';
 import { chronicleTab, setBeatSuggestions } from './tabs/chronicle.js';
@@ -71,7 +72,7 @@ const TABS = [
   { id: 'now', label: 'Now', comp: nowTab, group: 'primary' },
   { id: 'chronicle', label: 'Chronicle', comp: chronicleTab, group: 'primary' },
   { id: 'cast', label: 'Cast', comp: castTab, group: 'primary' },
-  { id: 'relations', label: 'Relations', comp: relationsTab, group: 'primary' },
+  { id: 'relations', label: 'Bonds', comp: relationsTab, group: 'primary' },
   { id: 'journal', label: 'Journal', comp: journalTab, group: 'primary' },
   { id: 'graph', label: 'Graph', comp: graphTab, group: 'primary' },
   { id: 'vault', label: 'Vault', comp: vaultTab, group: 'tools' },
@@ -558,7 +559,7 @@ function downloadJson(name: string, data: unknown): void {
 
 export function setup(ctx: Ctx): () => void {
   _ctxRef = ctx;
-  const style = ctx.dom.addStyle(STYLES);
+  const style = ctx.dom.addStyle(FONT_FACES + '\n' + STYLES);
   let state: ChronicleState = freshState();
   const getState = (): ChronicleState => state;
 

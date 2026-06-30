@@ -53,8 +53,15 @@ export const chronicleTab: Component<ChronicleState> = {
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length };
-    const nav = '<div class="vle-subnav">' + VIEWS.map((v) =>
-      `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`).join('') + '</div>';
+    const btn = (v: { id: CView; label: string }): string =>
+      `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`;
+    // two soft groups give the 8 views meaning as a set (mockup 05B)
+    const G_WORLD: CView[] = ['world', 'timeline', 'beats'];
+    const inGroup = (ids: CView[]): string => VIEWS.filter((v) => ids.includes(v.id)).map(btn).join('');
+    const nav = '<div class="vle-subnav">'
+      + '<span class="vle-subnav-g">The world</span>' + inGroup(G_WORLD)
+      + '<span class="vle-subnav-g">Known &amp; kept</span>' + inGroup(['memory', 'knowledge', 'secrets', 'scars', 'codex'])
+      + '</div>';
     let body = '';
     if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) + offscreenSection(s) || '';
     else if (_view === 'timeline') body = timeline(s);
@@ -340,7 +347,7 @@ function knowledge(s: ChronicleState): string {
   const bar = filterBar('knowledge', { whos, whoCounts });
   const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
   const { slice, page, pages } = paginate('knowledge', filtered);
-  const rows = slice.map((k) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
+  const rows = slice.map((k) => '<div class="vle-mem vle-mem--know"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
     + `<span class="vle-mem-t"${k.source ? ` title="source: ${esc(k.source)}"` : ''}>` + relChip(k.reliability) + (k.truth === 'false' ? '<span class="vle-kfalse" title="actually false — dramatic irony">\u2717 false</span>' : '') + esc(k.fact) + '</span>'
     + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No knowledge matches this filter.');
@@ -356,7 +363,7 @@ function secrets(s: ChronicleState): string {
   const bar = filterBar('secrets', { whos, whoCounts });
   const filtered = applyFilter('secrets', s.secrets.map((x) => ({ ...x, turn: x.formedTurn })), { who: (x) => x.keeper });
   const { slice, page, pages } = paginate('secrets', filtered);
-  const rows = slice.map((sec) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
+  const rows = slice.map((sec) => '<div class="vle-mem vle-mem--secret"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
     + (sec.revealed ? '' : `<button class="vle-mini" data-sec-reveal data-id="${esc(sec.id)}" title="Reveal">\u25D0</button>`)
     + `<button class="vle-mini del" data-sec-del data-id="${esc(sec.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No secrets match this filter.');
@@ -375,7 +382,7 @@ function scars(s: ChronicleState): string {
   const bar = filterBar('scars', { whos, whoCounts });
   const filtered = applyFilter('scars', list, { who: (x) => x.who });
   const { slice, page, pages } = paginate('scars', filtered);
-  const rows = slice.map((x) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, x.who)) + '</span>'
+  const rows = slice.map((x) => '<div class="vle-mem vle-mem--scar"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, x.who)) + '</span>'
     + '<span class="vle-mem-t"><span class="vle-scar-was">' + esc(x.was) + '</span>' + (x.about ? ' <em>(about ' + esc(nameOf(s, x.about)) + ')</em>' : '') + '</span>'
     + `<button class="vle-mini del" data-scar-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No scars match this filter.');
@@ -388,7 +395,7 @@ function codex(s: ChronicleState): string {
   const head = sectionHeader('\u2756 Codex', { sub: true, count: list.length, action: '<button class="vle-add sm" data-lore-add>+</button>' });
   if (!list.length) return head + emptyState('The Codex is empty.', 'World-facts the engine establishes (custom, geography, history) are recorded here as canon.');
   const sorted = list.slice().sort((a, b) => b.turn - a.turn);
-  const rows = sorted.map((x) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(x.tag || 'canon') + '</span>'
+  const rows = sorted.map((x) => '<div class="vle-mem vle-mem--codex"><span class="vle-mem-tier t-chapter">' + esc(x.tag || 'canon') + '</span>'
     + '<span class="vle-mem-t">' + esc(x.fact) + '</span>'
     + `<button class="vle-mini del" data-lore-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
   return head + rows;

@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="940" viewBox="0 0 1100 940" font-family="'JetBrains Mono', ui-monospace, monospace">
+  <defs>
+    <radialGradient id="void" cx="50%" cy="45%" r="80%">
+      <stop offset="0" stop-color="#04121a"/><stop offset="1" stop-color="#01060a"/>
+    </radialGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#00e5ff"/><stop offset="1" stop-color="#0088aa"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="bigglow"><feGaussianBlur stdDeviation="8"/></filter>
+  </defs>
+
+  <rect width="1100" height="940" fill="url(#void)"/>
+  <!-- grid floor -->
+  <g stroke="#0a3a48" stroke-width="0.5" opacity="0.5">
+    <line x1="0" y1="120" x2="1100" y2="120"/><line x1="0" y1="180" x2="1100" y2="180"/>
+    <line x1="0" y1="820" x2="1100" y2="820"/>
+    <line x1="60" y1="0" x2="60" y2="940"/><line x1="1040" y1="0" x2="1040" y2="940"/>
+  </g>
+  <!-- scanline ambience -->
+  <g stroke="#00e5ff" stroke-width="0.4" opacity="0.04">
+    <line x1="0" y1="240" x2="1100" y2="240"/><line x1="0" y1="280" x2="1100" y2="280"/><line x1="0" y1="320" x2="1100" y2="320"/><line x1="0" y1="360" x2="1100" y2="360"/><line x1="0" y1="400" x2="1100" y2="400"/><line x1="0" y1="440" x2="1100" y2="440"/><line x1="0" y1="480" x2="1100" y2="480"/><line x1="0" y1="520" x2="1100" y2="520"/><line x1="0" y1="560" x2="1100" y2="560"/><line x1="0" y1="600" x2="1100" y2="600"/><line x1="0" y1="640" x2="1100" y2="640"/><line x1="0" y1="680" x2="1100" y2="680"/><line x1="0" y1="720" x2="1100" y2="720"/><line x1="0" y1="760" x2="1100" y2="760"/>
+  </g>
+
+  <!-- corner brackets -->
+  <g stroke="#00e5ff" stroke-width="2" fill="none" filter="url(#glow)">
+    <path d="M40 56 h40 M40 56 v40"/><path d="M1060 56 h-40 M1060 56 v40"/>
+    <path d="M40 884 h40 M40 884 v-40"/><path d="M1060 884 h-40 M1060 884 v-40"/>
+  </g>
+
+  <!-- top telemetry bar -->
+  <text x="72" y="92" fill="#00e5ff" font-size="20" letter-spacing="6" filter="url(#glow)">◤ VELLUM // ORACLE</text>
+  <text x="1028" y="92" fill="#00e5ff" font-size="11" letter-spacing="2" text-anchor="end" opacity="0.8">SYS: recall=tree·hybrid · inj=2.4k · LINK ●</text>
+  <line x1="72" y1="106" x2="1028" y2="106" stroke="#00e5ff" stroke-opacity="0.3"/>
+
+  <!-- tab readout (segmented HUD nav) -->
+  <g font-size="12" letter-spacing="2">
+    <rect x="72" y="124" width="96" height="28" fill="#00e5ff" fill-opacity="0.15" stroke="#00e5ff"/><text x="120" y="143" fill="#00e5ff" text-anchor="middle">▷ NOW</text>
+    <rect x="176" y="124" width="96" height="28" fill="none" stroke="#0a4a58"/><text x="224" y="143" fill="#3a8a9a" text-anchor="middle">CAST</text>
+    <rect x="280" y="124" width="110" height="28" fill="none" stroke="#0a4a58"/><text x="335" y="143" fill="#3a8a9a" text-anchor="middle">BONDS</text>
+    <rect x="398" y="124" width="130" height="28" fill="none" stroke="#0a4a58"/><text x="463" y="143" fill="#3a8a9a" text-anchor="middle">CHRONICLE</text>
+  </g>
+
+  <!-- ============ LEFT COLUMN: scene + entities ============ -->
+  <text x="72" y="208" fill="#5fb8c8" font-size="11" letter-spacing="3">▷ SCENE_VECTOR</text>
+  <text x="72" y="244" fill="#e6feff" font-size="26" letter-spacing="2" filter="url(#glow)">DROWNED.CHAPEL</text>
+  <text x="72" y="270" fill="#5fb8c8" font-size="12" letter-spacing="2">SECTOR: lower_crypt · T+147 · 1840h · PRECIP</text>
+
+  <!-- tension as telemetry gauge -->
+  <text x="72" y="312" fill="#5fb8c8" font-size="11" letter-spacing="3">THREAT_LEVEL</text>
+  <g>
+    <rect x="72" y="322" width="380" height="14" fill="none" stroke="#0a4a58"/>
+    <rect x="74" y="324" width="262" height="10" fill="#ff5a3c"/>
+    <g fill="#01060a"><rect x="110" y="322" width="2" height="14"/><rect x="148" y="322" width="2" height="14"/><rect x="186" y="322" width="2" height="14"/><rect x="224" y="322" width="2" height="14"/><rect x="262" y="322" width="2" height="14"/><rect x="300" y="322" width="2" height="14"/><rect x="338" y="322" width="2" height="14"/><rect x="376" y="322" width="2" height="14"/><rect x="414" y="322" width="2" height="14"/></g>
+    <text x="468" y="334" fill="#ff7a5c" font-size="13" filter="url(#glow)">7.0/10 ▲</text>
+  </g>
+
+  <!-- entity readouts -->
+  <text x="72" y="392" fill="#5fb8c8" font-size="11" letter-spacing="3">▷ ENTITIES_IN_RANGE [2]</text>
+
+  <g>
+    <!-- targeting reticle avatar -->
+    <circle cx="104" cy="448" r="26" fill="none" stroke="#00e5ff" stroke-width="1.5"/>
+    <circle cx="104" cy="448" r="20" fill="#00e5ff" fill-opacity="0.08"/>
+    <path d="M104 414 v8 M104 482 v-8 M70 448 h8 M138 448 h-8" stroke="#00e5ff" stroke-width="1.5"/>
+    <text x="104" y="454" fill="#00e5ff" font-size="16" text-anchor="middle">A</text>
+    <text x="148" y="436" fill="#e6feff" font-size="18" letter-spacing="1">AVELINE_S</text>
+    <text x="148" y="456" fill="#ffb05c" font-size="11" letter-spacing="1">STATUS: WARY ▪ INTEGRITY: COMPROMISED</text>
+    <rect x="148" y="466" width="120" height="6" fill="none" stroke="#0a4a58"/><rect x="149" y="467" width="64" height="4" fill="#ff5a3c"/>
+    <text x="148" y="490" fill="#7fd8e6" font-size="12">» "the door was sealed. he lied."</text>
+  </g>
+  <line x1="72" y1="510" x2="500" y2="510" stroke="#0a3a48"/>
+  <g>
+    <circle cx="104" cy="556" r="26" fill="none" stroke="#00e5ff" stroke-width="1.5"/>
+    <path d="M104 522 v8 M104 590 v-8 M70 556 h8 M138 556 h-8" stroke="#00e5ff" stroke-width="1.5"/>
+    <text x="104" y="562" fill="#00e5ff" font-size="16" text-anchor="middle">C</text>
+    <text x="148" y="544" fill="#e6feff" font-size="18" letter-spacing="1">COREN</text>
+    <text x="148" y="564" fill="#5fb8c8" font-size="11" letter-spacing="1">STATUS: GUARDED ▪ ARMED</text>
+    <text x="148" y="590" fill="#7fd8e6" font-size="12">» holding the dark. blade half-drawn.</text>
+  </g>
+
+  <!-- event log feed -->
+  <text x="72" y="652" fill="#5fb8c8" font-size="11" letter-spacing="3">▷ EVENT_STREAM</text>
+  <g font-size="12.5">
+    <text x="72" y="682" fill="#5fb87e">[JRNL]</text><text x="148" y="682" fill="#bfe9f0">AVELINE :: "i will not kneel again"</text>
+    <text x="72" y="708" fill="#5fa0ff">[INTEL]</text><text x="148" y="708" fill="#bfe9f0">COREN :: second_exit DISCOVERED</text>
+    <text x="72" y="734" fill="#ff5a8c">[CLSF]</text><text x="148" y="734" fill="#bfe9f0">AVELINE :: carries vicar.seal [HIDDEN]</text>
+    <text x="72" y="760" fill="#ffb05c">[Δ]</text><text x="148" y="760" fill="#bfe9f0">COREN→AVELINE :: trust +protective</text>
+  </g>
+
+  <!-- ============ RIGHT COLUMN: relationship radar ============ -->
+  <line x1="540" y1="190" x2="540" y2="800" stroke="#0a3a48"/>
+  <text x="580" y="208" fill="#5fb8c8" font-size="11" letter-spacing="3">▷ BOND_MATRIX // AVELINE ⇌ COREN</text>
+
+  <!-- dual-axis radar plot -->
+  <g transform="translate(800,380)">
+    <!-- rings -->
+    <circle r="150" fill="none" stroke="#0a4a58" stroke-width="1"/>
+    <circle r="100" fill="none" stroke="#0a3a48" stroke-width="0.8"/>
+    <circle r="50" fill="none" stroke="#0a3a48" stroke-width="0.8"/>
+    <!-- axes -->
+    <line x1="-150" y1="0" x2="150" y2="0" stroke="#0a4a58"/>
+    <line x1="0" y1="-150" x2="0" y2="150" stroke="#0a4a58"/>
+    <text x="0" y="-158" fill="#5fb8c8" font-size="9" text-anchor="middle">+AFFECTION</text>
+    <text x="158" y="4" fill="#5fb8c8" font-size="9">+TRUST</text>
+    <text x="0" y="168" fill="#5fb8c8" font-size="9" text-anchor="middle">−AFFECTION</text>
+    <text x="-158" y="4" fill="#5fb8c8" font-size="9" text-anchor="end">−TRUST</text>
+    <!-- Aveline vector: aff +62 (up), trust -20 (left) -->
+    <polygon points="0,0 0,-93 -30,0" fill="#00e5ff" fill-opacity="0.18" stroke="#00e5ff" stroke-width="1.5"/>
+    <circle cx="0" cy="-93" r="4" fill="#00e5ff" filter="url(#glow)"/>
+    <circle cx="-30" cy="0" r="4" fill="#00e5ff" filter="url(#glow)"/>
+    <!-- Coren vector: aff +72 (up), trust +40 (right) -->
+    <polygon points="0,0 0,-108 60,0" fill="#ff5a8c" fill-opacity="0.16" stroke="#ff5a8c" stroke-width="1.5"/>
+    <circle cx="0" cy="-108" r="4" fill="#ff5a8c" filter="url(#glow)"/>
+    <circle cx="60" cy="0" r="4" fill="#ff5a8c" filter="url(#glow)"/>
+    <circle r="3" fill="#e6feff"/>
+  </g>
+
+  <!-- legend / numeric readout -->
+  <g font-size="12">
+    <rect x="580" y="566" width="14" height="14" fill="#00e5ff" fill-opacity="0.3" stroke="#00e5ff"/>
+    <text x="602" y="578" fill="#e6feff">AVELINE→COREN</text>
+    <text x="760" y="578" fill="#7fd8e6">aff +62 · trust −20</text>
+    <rect x="580" y="592" width="14" height="14" fill="#ff5a8c" fill-opacity="0.3" stroke="#ff5a8c"/>
+    <text x="602" y="604" fill="#e6feff">COREN→AVELINE</text>
+    <text x="760" y="604" fill="#ff9ab8">aff +72 · trust +40</text>
+    <text x="580" y="636" fill="#5fb8c8" font-size="11" letter-spacing="1">ANALYSIS: ASYMMETRIC. one-sided romantic vector;</text>
+    <text x="580" y="654" fill="#5fb8c8" font-size="11" letter-spacing="1">subject AVELINE withholds trust [scar:active].</text>
+  </g>
+
+  <!-- knowledge irony module -->
+  <text x="580" y="700" fill="#5fb8c8" font-size="11" letter-spacing="3">▷ EPISTEMIC_FLAGS</text>
+  <g font-size="12">
+    <rect x="580" y="712" width="380" height="34" fill="none" stroke="#ff5a3c" stroke-opacity="0.5"/>
+    <text x="594" y="726" fill="#ff7a5c" font-size="10">⚠ IRONY</text>
+    <text x="594" y="740" fill="#bfe9f0">COREN believes [vicar.dead] :: GROUNDTRUTH=FALSE</text>
+    <rect x="580" y="752" width="380" height="34" fill="none" stroke="#a06aff" stroke-opacity="0.5"/>
+    <text x="594" y="766" fill="#b78aff" font-size="10">▣ SCAR</text>
+    <text x="594" y="780" fill="#9a9ab8" font-size="12" text-decoration="line-through">AVELINE :: "coren betrayed me" [healed]</text>
+  </g>
+
+  <!-- bottom command rail -->
+  <line x1="72" y1="826" x2="1028" y2="826" stroke="#00e5ff" stroke-opacity="0.3"/>
+  <g font-size="11" letter-spacing="2">
+    <text x="72" y="858" fill="#3a8a9a">[F1] SUMMARIZE</text>
+    <text x="240" y="858" fill="#3a8a9a">[F2] RESCAN</text>
+    <text x="380" y="858" fill="#3a8a9a">[F3] UNDO</text>
+    <text x="500" y="858" fill="#3a8a9a">[F4] TRAVERSE●</text>
+    <text x="680" y="858" fill="#3a8a9a">[F5] OFFSCREEN○</text>
+    <text x="1028" y="858" fill="#ff5a3c" text-anchor="end">[ESC] DISENGAGE</text>
+  </g>
+
+  <text x="72" y="916" fill="#3a8a9a" font-size="13" opacity="0.7">III · FUTURISTIC — “The Oracle HUD”: tactical telemetry. Targeting-reticle avatars, a dual-axis bond RADAR, epistemic threat flags, a function-key command rail.</text>
+</svg>
