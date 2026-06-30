@@ -1,7 +1,7 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Memory } from '../../domain/types.js';
 import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
-import { cmd, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
+import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
 /**
@@ -21,9 +21,25 @@ let _view: CView = 'world';
 // Timeline filters: by kind (all/memory/knew/secret/journal) and by day (all/<n>).
 let _tlKind = 'all';
 let _tlDay = 'all';
+// Manual turn-pick: selection mode + chosen turn-memory ids (+ shift-range anchor).
+let _pickMode = false;
+const _picked = new Set<string>();
+let _pickAnchor: string | null = null;
+
+/** First-sentence preview of a (possibly very long) stored turn text. We store
+ * turns in FULL now; the chronicle shows only one line + an ellipsis, with the
+ * whole text in the hover title. */
+function oneLine(text: string, max = 160): string {
+  const s = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  const m = s.match(/^.*?[.!?](?=\s|$)/);
+  let out = m && m[0].length <= max ? m[0] : s.slice(0, max);
+  if (out.length < s.length) out = out.replace(/\s+\S*$/, '').replace(/[\s,;:.\u2014-]+$/, '') + '\u2026';
+  return out.trim();
+}
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_picked.size}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length };
@@ -49,6 +65,26 @@ export const chronicleTab: Component<ChronicleState> = {
       if (tk) { _tlKind = tk.getAttribute('data-tl-kind')!; refreshUI(); return; }
       const td = t.closest('[data-tl-day]');
       if (td) { _tlDay = td.getAttribute('data-tl-day')!; refreshUI(); return; }
+      // --- manual turn-pick ---
+      if (t.closest('[data-pick-toggle]')) { _pickMode = !_pickMode; if (!_pickMode) { _picked.clear(); _pickAnchor = null; } refreshUI(); return; }
+      const pk = t.closest('[data-pick-id]');
+      if (pk) {
+        const id = pk.getAttribute('data-pick-id')!;
+        // pickable ids, in displayed order, read from the DOM (the rendered rows)
+        const ids = Array.from(host.querySelectorAll('[data-pick-id]')).map((el) => el.getAttribute('data-pick-id')!).filter(Boolean);
+        if ((e as MouseEvent).shiftKey && _pickAnchor && ids.includes(_pickAnchor) && ids.includes(id)) {
+          const a = ids.indexOf(_pickAnchor), b = ids.indexOf(id);
+          for (let i = Math.min(a, b); i <= Math.max(a, b); i++) _picked.add(ids[i]!);
+        } else {
+          if (_picked.has(id)) _picked.delete(id); else _picked.add(id);
+          _pickAnchor = id;
+        }
+        refreshUI(); return;
+      }
+      if (t.closest('[data-pick-fold]')) {
+        if (_picked.size >= 2) { send({ type: 'vellum_summarize_pick', ids: Array.from(_picked) }); _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI(); }
+        return;
+      }
       if (t.closest('[data-mem-add]')) { formModal('New Memory', [
         { key: 'text', label: 'Memory', type: 'textarea', placeholder: 'What happened, in detail.' },
         { key: 'keys', label: 'Keywords (comma-separated)', type: 'text' },
@@ -187,19 +223,36 @@ function timeline(s: ChronicleState): string {
 }
 
 function memories(s: ChronicleState): string {
-  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: '<button class="vle-add sm" data-mem-add>+</button>' });
+  const turnCount = s.memories.filter((m) => m.tier === 'turn').length;
+  const pickBtn = turnCount >= 2
+    ? `<button class="vle-add sm" data-pick-toggle title="Select turns to fold into a chapter">${_pickMode ? '\u2715 cancel' : '\u2748 pick'}</button>`
+    : '';
+  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: pickBtn + '<button class="vle-add sm" data-mem-add>+</button>' });
   if (!s.memories.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
-  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: s.memories.filter((m) => m.tier === 'turn').length, chapter: s.memories.filter((m) => m.tier === 'chapter').length, arc: s.memories.filter((m) => m.tier === 'arc').length } });
+  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: turnCount, chapter: s.memories.filter((m) => m.tier === 'chapter').length, arc: s.memories.filter((m) => m.tier === 'arc').length } });
   const filtered = applyFilter('memories', s.memories, { cat: (m) => m.tier });
   const { slice, page, pages } = paginate('memories', filtered);
-  const rows = slice.map((m: Memory) =>
-    '<div class="vle-mem"><span class="vle-mem-tier t-' + m.tier + '">' + m.tier + '</span>'
-    + '<span class="vle-mem-t">' + esc(m.text) + '</span>'
-    + `<span class="vle-mem-ctl"><button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit summary">\u270E</button>`
-    + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`
-  ).join('');
+  const rows = slice.map((m: Memory) => {
+    const isTurn = m.tier === 'turn';
+    // turns are stored in full but shown as one line (full text in the title);
+    // chapters/arcs are already concise gists, shown whole.
+    const shown = isTurn ? oneLine(m.text) : m.text;
+    const titleAttr = isTurn ? ` title="${esc(m.text).slice(0, 1000)}"` : '';
+    const pickable = _pickMode && isTurn;
+    const checked = _picked.has(m.id) ? ' checked' : '';
+    const box = pickable ? `<input type="checkbox" class="vle-mem-pick" data-pick-id="${esc(m.id)}"${checked}>` : '';
+    return '<div class="vle-mem' + (pickable ? ' pickable' : '') + '">' + box
+      + '<span class="vle-mem-tier t-' + m.tier + '">' + m.tier + '</span>'
+      + '<span class="vle-mem-t"' + titleAttr + '>' + esc(shown) + '</span>'
+      + `<span class="vle-mem-ctl"><button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit summary">\u270E</button>`
+      + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
+  }).join('');
+  const footer = _pickMode
+    ? `<div class="vle-pickbar"><span>${_picked.size} turn${_picked.size === 1 ? '' : 's'} selected</span>`
+      + `<button class="vle-add sm" data-pick-fold${_picked.size < 2 ? ' disabled' : ''}>Fold into chapter</button></div>`
+    : '';
   if (!slice.length) return head + bar + emptyState('No memories match this filter.');
-  return head + bar + rows + pagerHtml('memories', page, pages);
+  return head + bar + footer + rows + pagerHtml('memories', page, pages);
 }
 
 /** Small certainty chip before a fact. 'knows' is the neutral default and shows

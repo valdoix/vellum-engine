@@ -3,8 +3,16 @@ import type { ChronicleState } from '../domain/types.js';
 import { planChapter, chapterEvents, type CompressPlan } from '../domain/memory.js';
 import { internalGenerate } from '../host/generation.js';
 import { nextSeq } from '../core/ids.js';
+import { DEFAULT_CFG, resolvePrompt, type SummarizerCfg } from '../domain/summarizer-config.js';
 
 declare const spindle: any;
+
+/** Rough token estimate (chars/4) — used only for the live usage toast, never
+ * for budgeting. Good enough to show the user "how much it's using". */
+export function approxTokens(chars: number): number { return Math.max(0, Math.ceil(chars / 4)); }
+
+/** One compression result, with a token estimate for the progress toast. */
+export interface SummaryResult { events: VellumEvent[]; tokens: number; }
 
 /**
  * Auto + manual summarization. Compresses the oldest window of turn-tier
@@ -14,41 +22,9 @@ declare const spindle: any;
  * concatenation so it never silently no-ops.
  */
 
-// The hybrid prompt produces THREE things in one pass:
-//   DETAIL — a dense, structured chapter record for the VAULT (durable, keyword-
-//            activated, read for deep continuity). Beat-by-beat, past tense.
-//   GIST   — a compact factual recap of what happened (1-3 sentences) for the
-//            CHRONICLE (recall/traversal + hide-on-file). Events, not mood.
-//   KEYS   — concrete retrieval keywords (LumiBooks doctrine: scene-specific
-//            nouns/places/objects/actions; NOT abstract themes or character names).
-const SUMMARY_SYS =
-  'You are a story archivist. Compress the roleplay excerpt into a CHAPTER record for long-term memory. '
-  + 'GROUND EVERYTHING in the provided turns: record ONLY events, decisions, and revelations that actually occur in the '
-  + 'excerpt. Do NOT invent, infer motives not stated, embellish, or add events that did not happen. If something is '
-  + 'ambiguous, omit it rather than guess. Prefer the exact who/what/where as written. '
-  + 'Each turn is tagged: "[Player action]" is what the PLAYER (the user character) did/said; "[Scene]" is the narrated '
-  + 'response covering everyone else. Attribute actions to the correct side — never credit the narration\'s deeds to the '
-  + 'player or vice-versa. Do NOT echo the "[Player action]"/"[Scene]" tags in your output. '
-  + 'Respond in EXACTLY this layout, nothing before or after:\n'
-  + 'DETAIL:\n'
-  + '<a dense beat-by-beat record in PAST TENSE, third person, using real names. Lead with the day/time if known. '
-  + 'Capture every plot-relevant beat: who was involved and where, decisions, revelations, promises, conflicts, '
-  + 'emotional turns, and the cause->effect logic that links them. Include what each character now KNOWS, FEELS, or '
-  + 'has COMMITTED to, and any unresolved thread left open. Be comprehensive but compact: concrete nouns over '
-  + 'adjectives, one idea per sentence, no purple prose, no [OOC]/meta. 6-12 sentences (or tight bullet lines). '
-  + 'This replaces reading the full scene, so lose nothing that future continuity needs.>\n'
-  + 'GIST:\n'
-  + '<2-4 flowing past-tense sentences of plain prose that recap WHAT HAPPENED this chapter in chronological order, '
-  + 'continuing smoothly from the STORY SO FAR if one is given (do not repeat it; carry it forward). State the concrete '
-  + 'events and their outcome — who did what, what was decided/revealed/changed, where it left things. Write it as a '
-  + 'connected paragraph a reader skims to follow the plot. HARD RULES: no bullet points or dashes, no labels, no '
-  + 'meta-commentary ("the thread left open", "she now knows", "the unresolved thread", "this chapter"), no analysis of '
-  + 'feelings or themes — only events. Every sentence is complete and ends with a full stop.>\n'
-  + 'KEYS:\n'
-  + '<8-16 comma-separated retrieval keywords: CONCRETE and scene-specific — places, objects, proper nouns, distinctive '
-  + 'actions, unique phrases a later scene might echo. One concept each. NOT abstract themes (love, trust, betrayal), '
-  + 'NOT bare character names, NOT multi-fact phrases.>\n'
-  + 'Use real character names throughout; never write {{user}}/{{char}}/"you".';
+// The hybrid prompt (DETAIL for the vault, GIST for the chronicle, KEYS for
+// retrieval) now lives in domain/summarizer-config.ts so it can be shown,
+// overridden by the user, and reset. resolvePrompt() returns the active text.
 
 /** Build the source text for the LLM from the memories being folded. With the
  * resolved persona/char names, replace {{user}}/{{char}}/you so the summary uses
@@ -65,28 +41,46 @@ function sourceText(state: ChronicleState, ids: string[], names?: { user: string
 }
 
 /**
- * Run one compression pass if a full window exists. Returns the events to
- * append (chapter record + source drops), or [] when nothing to compress.
+ * Run one AUTO compression pass if a full window exists. Returns just the events
+ * (back-compat). Token-aware callers use summarizeWindow / summarizeFromPlan.
  */
-export async function summarizeOnce(state: ChronicleState, userId: string | null, windowSize = 8, names?: { user: string; char: string }): Promise<VellumEvent[]> {
+export async function summarizeOnce(state: ChronicleState, userId: string | null, windowSize = 8, names?: { user: string; char: string }, cfg: SummarizerCfg = DEFAULT_CFG): Promise<VellumEvent[]> {
+  return (await summarizeWindow(state, userId, windowSize, names, cfg)).events;
+}
+
+/** Auto pass with the token estimate (for the live usage toast). */
+export async function summarizeWindow(state: ChronicleState, userId: string | null, windowSize = 8, names?: { user: string; char: string }, cfg: SummarizerCfg = DEFAULT_CFG): Promise<SummaryResult> {
   const plan = planChapter(state, windowSize);
-  if (!plan) return [];
+  if (!plan) return { events: [], tokens: 0 };
+  return summarizeFromPlan(state, userId, plan, names, cfg, 'chapter');
+}
+
+/**
+ * Compress an explicit plan (auto window OR a manual pick) into a chapter,
+ * honoring the config's caps + prompt. PURE of the planning decision — the
+ * caller decides WHAT to fold. Returns the events and a token estimate.
+ */
+export async function summarizeFromPlan(
+  state: ChronicleState,
+  userId: string | null,
+  plan: CompressPlan,
+  names: { user: string; char: string } | undefined,
+  cfg: SummarizerCfg = DEFAULT_CFG,
+  kind: 'chapter' | 'arc' = 'chapter',
+): Promise<SummaryResult> {
   const src = sourceText(state, plan.sourceIds, names);
   let gist = '';
   let detail = '';
   let keys: string[] = [];
+  let tokens = 0;
 
-  const nameHint = (names && (names.user || names.char))
-    ? `\nThe player is "${names.user || '(unnamed)'}"; the focal character is "${names.char || '(unnamed)'}". Use these real names; never write {{user}}/{{char}}/"you".`
-    : '';
+  const system = resolvePrompt(kind, cfg, names);
   // CONTINUITY: feed the recent chapter gists so this chapter flows on from them.
-  // The model reads them as "story so far" and carries the thread forward rather
-  // than restating — what makes the chronicle read as one continuous account.
   const soFar = storySoFar(state, plan);
   const userMsg = soFar ? `STORY SO FAR (for continuity — do not repeat):\n${soFar}\n\n---\nNEW TURNS TO SUMMARIZE:\n${src}` : src;
   const gen = await internalGenerate(
-    [{ role: 'system', content: SUMMARY_SYS + nameHint }, { role: 'user', content: userMsg }],
-    { temperature: 0.2, max_tokens: 2000 },
+    [{ role: 'system', content: system }, { role: 'user', content: userMsg }],
+    { temperature: cfg.temperature, max_tokens: cfg.genMaxTokens },
     userId,
     { reasoningOff: true },
   );
@@ -95,10 +89,13 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
     detail = parsed.detail;
     gist = parsed.gist;
     keys = parsed.keys;
+    tokens = approxTokens(system.length + userMsg.length + gen.value.length);
+  } else {
+    tokens = approxTokens(system.length + userMsg.length); // input-only estimate
   }
   // fallback (LLM unavailable, or parse produced nothing usable): a compact
   // structural digest as the gist; no detail → no vault entry worth writing.
-  if (!gist && !detail) gist = fallbackDigest(state, plan);
+  if (!gist && !detail) gist = fallbackDigest(state, plan, cfg.gistCap);
   if (!gist) gist = capText(detail, 200); // detail came through but no explicit gist
   if (!detail) detail = gist; // fallback path: chronicle-only chapter
 
@@ -111,11 +108,12 @@ export async function summarizeOnce(state: ChronicleState, userId: string | null
     if (fromDetail.length >= 24 && /^[A-Z0-9"'\u201c]/.test(fromDetail)) finalGist = fromDetail;
   }
 
-  return chapterEvents(
+  const events = chapterEvents(
     plan,
-    { gist: capText(finalGist || gist, 600), detail: capText(detail, 2400), keys },
+    { gist: capText(finalGist || gist, cfg.gistCap), detail: capText(detail, cfg.detailCap), keys },
     state.turns || plan.covers[1], state.day || 0, nextSeq,
   );
+  return { events, tokens };
 }
 
 /** The most recent chapter/arc gists BEFORE this window, oldest→newest, as the
@@ -223,7 +221,7 @@ function capText(t: string, max: number): string {
 /** Sentence-bounded structural digest used when host generation is unavailable.
  * One lead sentence per source turn, trimmed — readable, never mid-word, and
  * kept within the chapter budget so the downstream slice can't cut it. */
-function fallbackDigest(state: ChronicleState, plan: CompressPlan): string {
+function fallbackDigest(state: ChronicleState, plan: CompressPlan, gistCap = 600): string {
   const firstSentence = (t: string): string => {
     const s = t.replace(/\s+/g, ' ').trim();
     const m = s.match(/^.*?[.!?](?=\s|$)/);
@@ -232,7 +230,7 @@ function fallbackDigest(state: ChronicleState, plan: CompressPlan): string {
     return out.trim();
   };
   const prefix = `Chapter (turns ${plan.covers[0]}\u2013${plan.covers[1]}): `;
-  const BUDGET = 1180; // leave headroom under the 1200 store cap
+  const BUDGET = Math.max(1180, gistCap * 2); // headroom; scales with the configured gist cap
   const out: string[] = [];
   let len = prefix.length;
   for (const id of plan.sourceIds) {
@@ -256,18 +254,21 @@ export async function summarizeAll(
   append: (evs: VellumEvent[]) => Promise<ChronicleState>,
   windowSize = 4,
   names?: { user: string; char: string },
-  onRound?: (done: number, total: number) => Promise<void> | void,
-): Promise<number> {
+  onRound?: (done: number, total: number, tokensSoFar: number) => Promise<void> | void,
+  cfg: SummarizerCfg = DEFAULT_CFG,
+): Promise<{ rounds: number; tokens: number }> {
   let rounds = 0;
+  let tokens = 0;
   let cur = state;
   const turnCount = cur.memories.filter((m) => m.tier === 'turn').length;
   const total = Math.max(1, Math.floor(turnCount / windowSize));
   for (let i = 0; i < 50; i++) {
-    const evs = await summarizeOnce(cur, userId, windowSize, names);
-    if (!evs.length) break;
-    cur = await append(evs);
+    const r = await summarizeWindow(cur, userId, windowSize, names, cfg);
+    if (!r.events.length) break;
+    cur = await append(r.events);
     rounds++;
-    if (onRound) await onRound(rounds, Math.max(rounds, total));
+    tokens += r.tokens;
+    if (onRound) await onRound(rounds, Math.max(rounds, total), tokens);
   }
-  return rounds;
+  return { rounds, tokens };
 }

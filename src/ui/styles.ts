@@ -43,6 +43,8 @@ export const STYLES = [
   ".vle-tl-dot.vle-tl-knew{background:var(--v-info)}.vle-tl-dot.vle-tl-secret{background:var(--v-neg)}.vle-tl-dot.vle-tl-journal{background:var(--v-pos)}",
   ".vle-tl-dot.vle-tl-scar{background:var(--v-warn)}.vle-tl-dot.vle-tl-lore{background:var(--vle-gold)}",
   ".vle-scar-was{text-decoration:line-through;text-decoration-color:var(--v-neg);opacity:.85}",
+  ".vle-mem.pickable{cursor:pointer}.vle-mem-pick{margin-right:6px;accent-color:var(--vle-gold);cursor:pointer}",
+  ".vle-pickbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;margin:4px 0 8px;border:1px solid color-mix(in srgb,var(--vle-gold) 35%,transparent);border-radius:8px;background:color-mix(in srgb,var(--vle-gold) 8%,transparent);font-size:12px}",
   ".vle-tl-body{flex:1;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;font-size:12px;line-height:1.5}",
   ".vle-tl-k{font:600 8px/1.4 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);opacity:.7}",
   ".vle-tl-day{font:600 8px/1.4 var(--vmono);color:var(--vle-gold);opacity:.6}",

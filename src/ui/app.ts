@@ -90,6 +90,7 @@ const QOL = [
   { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)', group: 'maint' },
   { id: 'tidyfacts', label: '\u2702 Tidy lore', title: 'Fold near-duplicate knowledge & secrets now (needs generation permission)', group: 'maint' },
   { id: 'resummarize', label: '\u27F3 Re-summarize all', title: 'Rebuild every chapter summary from scratch with the current pipeline (needs generation permission)', group: 'maint' },
+  { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc prompts', group: 'maint' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
@@ -187,6 +188,8 @@ const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === '
 let _tone = { romance: 'medium', disposition: 'fair' };
 let _tidyOn = false;
 let _chapterVault = 'keyed';
+let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
+let _summarizerDefaults: { chapter: string; arc: string } = { chapter: '', arc: '' };
 let _retheme: () => void = () => { /* set in setup */ };
 
 // Transient "running" indication for one-shot QOL actions. Set busy when the
@@ -406,6 +409,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'tidy') { setQolBusy('tidy', true); ctx.sendToBackend({ type: 'vellum_tidy_now' }); notify(ctx, 'info', 'Reconciling plot threads\u2026'); }
   else if (id === 'tidyfacts') { setQolBusy('tidyfacts', true); ctx.sendToBackend({ type: 'vellum_tidy_facts_now' }); notify(ctx, 'info', 'Folding duplicate knowledge & secrets\u2026'); }
   else if (id === 'resummarize') { setQolBusy('resummarize', true); ctx.sendToBackend({ type: 'vellum_resummarize' }); notify(ctx, 'info', 'Rebuilding all chapter summaries\u2026'); }
+  else if (id === 'summarizer') { ctx.sendToBackend({ type: 'vellum_get_summarizer' }); /* modal opens when state arrives */ }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'recover') { ctx.sendToBackend({ type: 'vellum_recover' }); notify(ctx, 'info', 'Checking backup\u2026'); }
@@ -444,9 +448,47 @@ function openToneModal(ctx: Ctx): void {
   });
 }
 
+function openSummarizerModal(ctx: Ctx): void {
+  const c = _summarizerCfg ?? {};
+  const num = (k: string, d: number): string => String(typeof c[k] === 'number' ? c[k] : d);
+  const useCustom = !!c.useCustom;
+  formModal('Summarizer Settings', [
+    { key: 'auto', label: 'Automatic summarizing', type: 'select', value: c.auto === false ? 'off' : 'on', options: [
+      { value: 'on', label: 'On (fold older turns as you play)' },
+      { value: 'off', label: 'Off (only summarize manually)' },
+    ] },
+    { key: 'genMaxTokens', label: 'Max summary tokens (model output budget, 500\u201332000)', type: 'text', value: num('genMaxTokens', 4000) },
+    { key: 'detailCap', label: 'Detail size cap \u2014 vault richness (chars, 1000\u201320000)', type: 'text', value: num('detailCap', 6000) },
+    { key: 'gistCap', label: 'Gist size cap \u2014 chronicle line (chars, 200\u20134000)', type: 'text', value: num('gistCap', 800) },
+    { key: 'autoWindow', label: 'Auto window \u2014 turns per chapter (2\u201350)', type: 'text', value: num('autoWindow', 8) },
+    { key: 'minWindow', label: 'Min window \u2014 smallest fold (2\u201350)', type: 'text', value: num('minWindow', 3) },
+    { key: 'temperature', label: 'Temperature (0\u20131)', type: 'text', value: num('temperature', 0.2) },
+    { key: 'useCustom', label: 'Summary prompts', type: 'select', value: useCustom ? 'custom' : 'default', options: [
+      { value: 'default', label: 'Use built-in defaults' },
+      { value: 'custom', label: 'Use my custom prompts (below)' },
+    ] },
+    { key: 'chapterPrompt', label: 'Custom CHAPTER prompt (gist + detail + keys)', type: 'textarea', big: true, value: String(c.chapterPrompt || _summarizerDefaults.chapter || '') },
+    { key: 'arcPrompt', label: 'Custom ARC prompt', type: 'textarea', big: true, value: String(c.arcPrompt || _summarizerDefaults.arc || '') },
+  ], (out) => {
+    const cfg = {
+      auto: out.auto === 'on',
+      genMaxTokens: Number(out.genMaxTokens) || 4000,
+      detailCap: Number(out.detailCap) || 6000,
+      gistCap: Number(out.gistCap) || 800,
+      autoWindow: Number(out.autoWindow) || 8,
+      minWindow: Number(out.minWindow) || 3,
+      temperature: Number(out.temperature) || 0.2,
+      useCustom: out.useCustom === 'custom',
+      chapterPrompt: out.chapterPrompt ?? '',
+      arcPrompt: out.arcPrompt ?? '',
+    };
+    ctx.sendToBackend({ type: 'vellum_set_summarizer', cfg });
+    notify(ctx, 'success', 'Summarizer settings saved.');
+  }, { large: true });
+}
+
 function triggerImport(ctx: Ctx): void {
   const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = 'application/json,.json';
   inp.addEventListener('change', () => {
     const f = inp.files?.[0]; if (!f) return;
     const r = new FileReader();
@@ -455,6 +497,9 @@ function triggerImport(ctx: Ctx): void {
   });
   inp.click();
 }
+
+/** Compact token count for toasts: 1234 -> "1.2k". */
+function fmtTokens(n: number): string { return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n); }
 
 function downloadJson(name: string, data: unknown): void {
   try {
@@ -549,12 +594,15 @@ export function setup(ctx: Ctx): () => void {
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
         notify(ctx, 'success', 'Chronicle exported.');
       } else if (p?.type === 'vellum_summarize_progress') {
-        // live count as each window is summarized; state already re-rendered by
-        // the per-round broadcast, so this is just the running notification.
-        notify(ctx, 'info', `Summarizing\u2026 ${p.done}/${p.total}`);
+        // live count + running token usage as each window is summarized.
+        const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
+        notify(ctx, 'info', `Summarizing\u2026 ${p.done}/${p.total}${tok}`);
       } else if (p?.type === 'vellum_summarize_done') {
         setQolBusy('summarize', false);
-        notify(ctx, 'success', p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'Nothing old enough to summarize yet.');
+        const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
+        if (p.ok === false && p.reason === 'too_few') notify(ctx, 'warning', `Select at least ${p.need ?? 2} turns to fold into a chapter.`);
+        else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Summarizing needs the generation permission.');
+        else notify(ctx, 'success', p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}${tok}.` : 'Nothing old enough to summarize yet.');
         // surface WHY the vault didn't update (the silent-gate that hid this)
         const v = p.vault;
         if (p.rounds && v && !v.created && !v.updated) {
@@ -567,6 +615,13 @@ export function setup(ctx: Ctx): () => void {
         setQolBusy('resummarize', false);
         if (!p.ok) notify(ctx, 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : 'Re-summarize failed.');
         else notify(ctx, 'success', p.rounds ? `Rebuilt ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'No chapters to rebuild.');
+      } else if (p?.type === 'vellum_summarizer_state') {
+        // backend handed us the current config + built-in default prompts → open the editor
+        _summarizerCfg = (p.cfg && typeof p.cfg === 'object') ? p.cfg as Record<string, unknown> : {};
+        if (p.defaults && typeof p.defaults === 'object') _summarizerDefaults = { chapter: String((p.defaults as any).chapter || ''), arc: String((p.defaults as any).arc || '') };
+        if (_ctxRef) openSummarizerModal(_ctxRef);
+      } else if (p?.type === 'vellum_summarizer_done') {
+        if (p.ok && p.cfg && typeof p.cfg === 'object') _summarizerCfg = p.cfg as Record<string, unknown>;
       } else if (p?.type === 'vellum_cleared') {
         setQolBusy('clear', false);
         notify(ctx, 'success', 'Chronicle cleared.');

@@ -8,7 +8,9 @@ import { coreFeature } from './domain/core-feature.js';
 import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
 import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
-import { summarizeOnce, summarizeAll } from './bus/summarize.js';
+import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.js';
+import { planChapterFrom } from './domain/memory.js';
+import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
 import type { CallModel } from './retrieval/traverse.js';
@@ -125,21 +127,20 @@ function foldChat(chatId: string, userId: string | null, hint?: string): Promise
  * first 4000 chars of the trimmed content) so stored and current sigs compare. */
 function sigOf(content: string): string { return hashStr(content.slice(0, 4000)); }
 
-/** Per-turn memory text fed to the summarizer: strip the vellum/reverie blocks,
- * collapse whitespace, then keep a GENEROUS window cut at a sentence boundary
- * (not a hard mid-word slice). Accuracy of chapter summaries depends on this Ã¢â‚¬â€
- * the old 600-char hard cut dropped most of each turn, so summaries were built
- * on fragments. ~1600 chars holds the full beat of a typical turn. */
+/** Per-turn memory text: strip the vellum/reverie blocks, collapse whitespace,
+ * resolve persona tokens to real names, and keep the FULL beat (both the player
+ * message and the scene response). We store it whole so chapter summaries are
+ * built on complete turns, not fragments; the chronicle UI shows only a one-line
+ * preview (first sentence + ellipsis). A large safety guard prevents a
+ * pathological mega-message from bloating the log. */
 function turnGist(content: string, names?: { user: string; char: string }): string {
   let s = content
     .replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '')
     .replace(/<reverie>[\s\S]*?<\/reverie>/gi, '')
     .replace(/\s+/g, ' ').trim();
-  // resolve persona tokens to real names so the stored memory reads cleanly
-  // ("{{user}}: ..." from allTurnContents becomes "Cersei: ...").
   if (names?.user) s = s.replace(/\{\{\s*user\s*\}\}/gi, names.user);
   if (names?.char) s = s.replace(/\{\{\s*char\s*\}\}/gi, names.char);
-  const MAX = 1600;
+  const MAX = 24000; // ~6k tokens: effectively the whole turn, with a sane ceiling
   if (s.length <= MAX) return s;
   const cut = s.slice(0, MAX);
   const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
@@ -556,14 +557,24 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
 }
 
 let _summarizing = new Set<string>();
+
+/** Read the per-chat summarizer config (caps, window, automation, prompts).
+ * Falls back to the generous defaults when unset or unparseable. */
+async function summarizerCfg(chatId: string): Promise<SummarizerCfg> {
+  try { const raw = await getChatVar(chatId, 'vellum_summarizer'); return raw ? sanitizeSummarizerCfg(JSON.parse(raw)) : DEFAULT_CFG; }
+  catch { return DEFAULT_CFG; }
+}
+
 async function maybeAutoSummarize(chatId: string, userId: string | null): Promise<void> {
   if (_summarizing.has(chatId)) return;
+  const cfg = await summarizerCfg(chatId);
+  if (!cfg.auto) return; // user disabled automatic summarization
   const state = await loadState(chatId);
   const turnMems = state.memories.filter((m) => m.tier === 'turn').length;
   if (turnMems < AUTO_SUMMARY_AT) return; // threshold; keeps recent turns verbatim
   _summarizing.add(chatId);
   try {
-    const evs = await summarizeOnce(state, userId, 8, await chatNames(chatId, userId));
+    const evs = await summarizeOnce(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg);
     if (evs.length) {
       await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, userId);
       spindle.log?.info?.('[vellum_engine] auto-summarized a chapter');
@@ -822,22 +833,22 @@ const dispatch: Record<string, Handler> = {
     if (p.cmd === 'memory_delete' || p.cmd === 'memory_edit') void maybeChapterVault(chatId, uid);
   },
   vellum_summarize: async (p, uid) => {
-    // manual "summarize past turns" Ã¢â‚¬â€ compress as many full windows as exist.
-    // Broadcast state + a progress count after EACH window so summaries appear
-    // one-by-one in the chronicle/vault instead of all at once on reload.
+    // manual "summarize past turns" — compress as many full windows as exist.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
+    const cfg = await summarizerCfg(chatId);
     const state = await loadState(chatId);
-    const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs), 4, await chatNames(chatId, uid), async (done, total) => {
+    const win = Math.max(cfg.minWindow, Math.min(4, cfg.autoWindow)); // manual uses a smaller window so short chats still fold
+    const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), async (done, total, tokensSoFar) => {
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
       await maybeChapterVault(chatId, uid); // project each new chapter to the vault as it lands
-      spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total }, uid);
-    });
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total, tokens: tokensSoFar }, uid);
+    }, cfg);
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     const vault = await maybeChapterVault(chatId, uid);
-    spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds, vault }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds, tokens, vault }, uid);
   },
   vellum_resummarize: async (p, uid) => {
     // Rebuild ALL chapter summaries with the current pipeline. Drop every chapter
@@ -855,20 +866,53 @@ const dispatch: Record<string, Handler> = {
         invalidateIndex(chatId);
         await broadcastState(chatId, uid);
       }
-      const rounds = await summarizeAll(state, uid, (evs) => append(chatId, evs), 4, await chatNames(chatId, uid), async (done, total) => {
+      const cfg = await summarizerCfg(chatId);
+      const win = Math.max(cfg.minWindow, Math.min(4, cfg.autoWindow));
+      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), async (done, total, tokensSoFar) => {
         invalidateIndex(chatId);
         await broadcastState(chatId, uid);
         await maybeChapterVault(chatId, uid);
-        spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total }, uid);
-      });
+        spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total, tokens: tokensSoFar }, uid);
+      }, cfg);
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
       const vault = await maybeChapterVault(chatId, uid);
-      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: true, rounds, vault }, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: true, rounds, tokens, vault }, uid);
     } catch (e) {
       spindle.log?.warn?.('[vellum_engine] resummarize: ' + ((e as Error)?.message ?? e));
       spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'error' }, uid);
     }
+  },
+  vellum_get_summarizer: async (p, uid) => {
+    // hand the UI the current config + the built-in default prompts (so the
+    // editor can show them and offer a one-click reset).
+    const chatId = p?.chatId || (await activeChatId(uid));
+    const cfg = chatId ? await summarizerCfg(chatId) : DEFAULT_CFG;
+    spindle.sendToFrontend?.({ type: 'vellum_summarizer_state', cfg, defaults: { chapter: DEFAULT_CHAPTER_PROMPT, arc: DEFAULT_ARC_PROMPT } }, uid);
+  },
+  vellum_set_summarizer: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_summarizer_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    const cfg = sanitizeSummarizerCfg(p?.cfg);
+    try { await setChatVar(chatId, 'vellum_summarizer', JSON.stringify(cfg)); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_summarizer_done', ok: true, cfg }, uid);
+  },
+  vellum_summarize_pick: async (p, uid) => {
+    // manual turn-pick — fold an EXPLICIT set of turn-memory ids into one chapter.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'no_generation' }, uid); return; }
+    const ids: string[] = Array.isArray(p?.ids) ? p.ids.map(String) : [];
+    const cfg = await summarizerCfg(chatId);
+    const state = await loadState(chatId);
+    const plan = planChapterFrom(state, ids, cfg.minWindow);
+    if (!plan) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'too_few', need: cfg.minWindow }, uid); return; }
+    const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'chapter');
+    if (events.length) await append(chatId, events);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    const vault = await maybeChapterVault(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds: events.length ? 1 : 0, tokens, picked: plan.sourceIds.length, vault }, uid);
   },
   vellum_clear: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

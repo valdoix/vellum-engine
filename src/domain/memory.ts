@@ -38,6 +38,28 @@ export function planChapter(state: ChronicleState, windowSize = 8): CompressPlan
 }
 
 /**
+ * Plan a chapter from an EXPLICIT set of turn-memory ids (a manual pick). Keeps
+ * only ids that are real, turn-tier memories; sorts by turn; allows a
+ * non-contiguous pick but records the true [min,max] span. Returns null when
+ * fewer than `minWindow` valid sources remain (so a stray click can't fold one
+ * turn). The chapter is otherwise identical to an auto one (restorable via
+ * `subsumed`).
+ */
+export function planChapterFrom(state: ChronicleState, ids: readonly string[], minWindow = 2): CompressPlan | null {
+  const want = new Set(ids.map(String));
+  const picked = state.memories
+    .filter((m) => m.tier === 'turn' && want.has(m.id))
+    .sort((a, b) => a.turn - b.turn);
+  if (picked.length < Math.max(2, minWindow)) return null;
+  const covers: [number, number] = [picked[0]!.turn, picked[picked.length - 1]!.turn];
+  return {
+    sourceIds: picked.map((m) => m.id),
+    source: picked.map((m) => ({ id: m.id, turn: m.turn, text: m.text, keys: m.keys ?? [] })),
+    covers,
+  };
+}
+
+/**
  * Build the events for a completed compression: record the new chapter memory
  * and drop the source turn-memories it subsumes (kept retrievable via the
  * chapter). `gist` is the lean chronicle text; `detail` the dense body mirrored
