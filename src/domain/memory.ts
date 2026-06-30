@@ -78,7 +78,7 @@ export function chapterEvents(
     { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
   ];
   for (const sid of plan.sourceIds) {
-    events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid });
+    events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid, folded: true });
   }
   return events;
 }
@@ -135,7 +135,7 @@ export function arcEvents(
     { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'arc', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
   ];
   for (const sid of plan.sourceIds) {
-    events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid });
+    events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid, folded: true });
   }
   return events;
 }

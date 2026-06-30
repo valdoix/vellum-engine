@@ -318,14 +318,16 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'memory.drop': {
-      // deleting a compressed memory RESTORES what it subsumed, so a user can undo
-      // a compression: a CHAPTER restores its turn-memories; an ARC restores its
-      // chapter-memories (with their detail/covers preserved). Other drops just
-      // remove. The subsumed entries carry their own tier (default 'turn' for
-      // back-compat with chapters written before arcs existed).
+      // memory.drop is used two ways, and they must behave OPPOSITELY:
+      //   - FOLD-drop (folded:true): the child was just consumed into a parent
+      //     (turns→chapter, chapters→arc). Remove it; do NOT restore — its content
+      //     now lives in the parent. (The parent keeps `subsumed` for later undo.)
+      //   - USER-drop (no flag): the user deleted/undid a compressed memory, so
+      //     RESTORE what it subsumed (a chapter brings back its turns; an arc its
+      //     chapters, with detail/covers). Subsumed entries carry their own tier.
       const target = s.memories.find((m) => m.id === e.id);
       s.memories = s.memories.filter((m) => m.id !== e.id);
-      if ((target?.tier === 'chapter' || target?.tier === 'arc') && target.subsumed?.length) {
+      if (!e.folded && (target?.tier === 'chapter' || target?.tier === 'arc') && target.subsumed?.length) {
         for (const sm of target.subsumed) {
           if (!s.memories.find((m) => m.id === sm.id)) {
             s.memories.push({ id: sm.id, tier: sm.tier ?? 'turn', text: sm.text, keys: sm.keys ?? [], turn: sm.turn, ...(sm.detail ? { detail: sm.detail } : {}), ...(sm.covers ? { covers: sm.covers } : {}) });

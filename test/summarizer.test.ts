@@ -145,6 +145,16 @@ describe('planArc / planArcFrom (chapters → arc)', () => {
     expect(plan!.covers).toEqual([6, 20]); // chap_2 covers 6-10, chap_4 covers 16-20
   });
 
+  it('folding chapters into an arc does NOT release the chapters back (regression)', () => {
+    const s = withChapters(4);
+    const plan = planArcFrom(s, ['chap_1', 'chap_2'], 2)!;
+    const evs = arcEvents(plan, { gist: 'Arc gist.', detail: 'Arc detail.', keys: ['a'] }, 20, 0, (() => { let n = 0; return () => ++n; })());
+    const folded = reduce([...baseMemEvents(s), ...evs]);
+    // the two folded chapters are CONSUMED into the arc, not restored
+    expect(folded.memories.filter((m) => m.tier === 'chapter').map((m) => m.id).sort()).toEqual(['chap_3', 'chap_4']);
+    expect(folded.memories.some((m) => m.tier === 'arc')).toBe(true);
+  });
+
   it('arcEvents records an arc and dropping it RESTORES the chapters', () => {
     const s = withChapters(4);
     const plan = planArcFrom(s, ['chap_1', 'chap_2'], 2)!;

@@ -115,7 +115,7 @@ export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id
 // Append-only so the log stays the source of truth; reduce sets vaultEntryId.
 // `keys` carries back the (possibly user-edited) entry keywords for round-trip sync.
 export const EvMemoryLink = z.object({ ...base, kind: z.literal('memory.link'), id: z.string(), vaultEntryId: z.string(), keys: z.array(z.string()).optional() });
-export const EvMemoryDrop = z.object({ ...base, kind: z.literal('memory.drop'), id: z.string() });
+export const EvMemoryDrop = z.object({ ...base, kind: z.literal('memory.drop'), id: z.string(), folded: z.boolean().optional() });
 // User edit of a memory's gist text and/or detail (the vault-mirrored body).
 export const EvMemoryEdit = z.object({ ...base, kind: z.literal('memory.edit'), id: z.string(), text: z.string().optional(), detail: z.string().optional() });
 
