@@ -1,7 +1,7 @@
 import type { VellumEvent, Category } from '../core/events.js';
 import { canonId, nextSeq } from '../core/ids.js';
 import { isCategory } from '../domain/category.js';
-import { resolveCastId, notAName, resolveFactionId } from '../domain/identity.js';
+import { resolveCastId, notAName, resolveFactionId, isNameMash } from '../domain/identity.js';
 import { adjustBond, DEFAULT_TONE, seedFactionStanding, type Tone } from '../domain/tone.js';
 import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate } from '../host/generation.js';
@@ -118,6 +118,11 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   // resolve a raw name onto an existing cast id (merges "Cersei" with a known
   // "Cersei Lannister") so knowledge/secrets/journal don't split a character.
   const rid = (name: string): string => (state ? resolveCastId(state, name) : canonId(name));
+  // local name-quality guard: junk (pronoun/group/abstraction) OR a mash of two
+  // already-known people ("Daeron Cersei"). Shadows the module `bad` so the
+  // extractor path gets the same mash protection as the block path.
+  const knownPeople = state ? Object.keys(state.cast) : [];
+  const badN = (name: string): boolean => bad(name) || (knownPeople.length > 0 && isNameMash(name, knownPeople));
   const userCanon = names.user ? canonId(names.user) : '';
   const charCanon = names.char ? canonId(names.char) : '';
   // subject-name gate: a knower/holder/actor must be in THIS prose (or persona).
@@ -128,30 +133,30 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
 
   for (const k of Array.isArray(obj.knowledge) ? obj.knowledge : []) {
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
-    if (bad(who) || !fact || !present(who)) continue;
+    if (badN(who) || !fact || !present(who)) continue;
     const about = realName(k?.about, names);
     const reliability = REL.has(String(k?.reliability)) ? k.reliability : undefined;
     const truth = TRU.has(String(k?.truth)) ? k.truth : undefined;
     const source = String(k?.source || '').trim().slice(0, 120) || undefined;
-    out.push({ ...base(), kind: 'knowledge.learn', who: rid(who), fact, ...(about && !bad(about) ? { about: rid(about) } : {}), ...(reliability ? { reliability } : {}), ...(truth ? { truth } : {}), ...(source ? { source } : {}) } as VellumEvent);
+    out.push({ ...base(), kind: 'knowledge.learn', who: rid(who), fact, ...(about && !badN(about) ? { about: rid(about) } : {}), ...(reliability ? { reliability } : {}), ...(truth ? { truth } : {}), ...(source ? { source } : {}) } as VellumEvent);
   }
   let si = 0;
   for (const s of Array.isArray(obj.secrets) ? obj.secrets : []) {
     const keeper = realName(s?.keeper, names); const text = String(s?.secret || s?.text || '').trim();
-    if (bad(keeper) || !text || !present(keeper)) continue;
-    const from = String(s?.from || '').split(',').map((x: string) => realName(x, names)).filter((x: string) => x && !bad(x)).map(rid);
+    if (badN(keeper) || !text || !present(keeper)) continue;
+    const from = String(s?.from || '').split(',').map((x: string) => realName(x, names)).filter((x: string) => x && !badN(x)).map(rid);
     out.push({ ...base(), kind: 'secret.form', id: 'sec_' + turn + '_' + (si++), keeper: rid(keeper), from, text } as VellumEvent);
   }
   let ji = 0;
   for (const j of Array.isArray(obj.journal) ? obj.journal : []) {
     const who = realName(j?.who, names); const memory = String(j?.memory || '').trim();
-    if (bad(who) || !memory || !present(who)) continue;
+    if (badN(who) || !memory || !present(who)) continue;
     const about = realName(j?.about, names);
-    out.push({ ...base(), kind: 'journal.entry', id: 'mj_' + rid(who) + '_' + turn + '_' + (ji++), who: rid(who), ...(about && !bad(about) ? { about: rid(about) } : {}), memory, jkind: jk(j?.kind), weight: jw(j?.weight), sentiment: js(j?.sentiment) } as VellumEvent);
+    out.push({ ...base(), kind: 'journal.entry', id: 'mj_' + rid(who) + '_' + turn + '_' + (ji++), who: rid(who), ...(about && !badN(about) ? { about: rid(about) } : {}), memory, jkind: jk(j?.kind), weight: jw(j?.weight), sentiment: js(j?.sentiment) } as VellumEvent);
   }
   for (const b of Array.isArray(obj.bonds) ? obj.bonds : []) {
     const a = realName(b?.a, names), bb = realName(b?.b, names);
-    if (bad(a) || bad(bb) || rid(a) === rid(bb) || !present(a) || !present(bb)) continue;
+    if (badN(a) || badN(bb) || rid(a) === rid(bb) || !present(a) || !present(bb)) continue;
     const cats = (Array.isArray(b?.cat) ? b.cat : []).map((c: string) => String(c).toLowerCase()).filter(isCategory) as Category[];
     const aff = clamp(b?.aff), trust = clamp(b?.trust);
     if (!aff && !trust && !cats.length) continue;
@@ -175,7 +180,7 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     out.push({ ...base(), kind: 'faction.seen', id: fid, name, status: 'active' } as VellumEvent);
     if (fx?.kind) out.push({ ...base(), kind: 'faction.edit', id: fid, patch: { kind: String(fx.kind) } } as VellumEvent);
     const members = Array.isArray(fx?.members) ? fx.members : String(fx?.members || '').split(',');
-    for (const mn of members) { const m = realName(mn, names); if (m && !bad(m) && present(m)) out.push({ ...base(), kind: 'faction.member', char: rid(m), faction: fid, op: 'add' } as VellumEvent); }
+    for (const mn of members) { const m = realName(mn, names); if (m && !badN(m) && present(m)) out.push({ ...base(), kind: 'faction.member', char: rid(m), faction: fid, op: 'add' } as VellumEvent); }
     const seed = isNew ? seedFactionStanding(tone) : 0;
     const delta = (Number.isFinite(fx?.standing) ? clamp(fx.standing) : 0) + seed;
     if (delta) out.push({ ...base(), kind: 'faction.standing', faction: fid, standing: Math.max(-100, Math.min(100, delta)) } as VellumEvent);

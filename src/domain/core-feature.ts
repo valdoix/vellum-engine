@@ -2,7 +2,7 @@ import type { Feature, ExtractCtx } from '../bus/registry.js';
 import type { ParsedState } from '../parse/parsed.js';
 import type { VellumEvent } from '../core/events.js';
 import { canonId } from '../core/ids.js';
-import { resolveCastId, notAName, resolveFactionId } from './identity.js';
+import { resolveCastId, notAName, resolveFactionId, isNameMash } from './identity.js';
 import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
 import { findLock, applyLockToBond } from './relation-lock.js';
 
@@ -33,16 +33,22 @@ export const coreFeature: Feature = {
     const turnIds = new Set<string>();
     for (const p of parsed.present ?? []) {
       const n = p.id ?? p.name;
-      if (n && !notAName(n)) { const c = canonId(n); if (c) turnIds.add(c); }
+      if (n && !notAName(n) && !isNameMash(n, Object.keys(ctx.state.cast))) { const c = canonId(n); if (c) turnIds.add(c); }
     }
     // resolve a raw name onto an existing-or-this-turn cast id (merges variants).
     const rid = (name: string): string => resolveCastId(ctx.state, name, turnIds);
+    // the known-people universe (existing cast ∪ this-turn present ids), used to
+    // recognize a two-name MASH ("Daeron Cersei") that the model jammed together.
+    const knownPeople = new Set<string>([...Object.keys(ctx.state.cast), ...turnIds]);
+    // a name is unusable as a CHARACTER if it's junk (pronoun/group/abstraction)
+    // OR a mash of two already-known people — drop it before it mints a junk card.
+    const badName = (n: string): boolean => notAName(n) || isNameMash(n, knownPeople);
 
     // scene + presence — a pronoun/generic in `present` ("she") must not seed a card
     const presentName = (p: { id?: string; name?: string }): string => p.id ?? p.name ?? '';
     const presentId = (p: { id?: string; name?: string }): string => {
       const n = presentName(p);
-      return n && !notAName(n) ? rid(n) : '';
+      return n && !badName(n) ? rid(n) : '';
     };
     const present = (parsed.present ?? [])
       .map(presentId)
@@ -65,7 +71,7 @@ export const coreFeature: Feature = {
     // mark present characters as cast (present status); names seed cards
     for (const p of parsed.present ?? []) {
       const name = p.name ?? p.id;
-      if (!name || notAName(name)) continue; // never seed a card from a pronoun/generic
+      if (!name || badName(name)) continue; // never seed a card from a pronoun/generic/mash
       out.push({ ...base(), kind: 'cast.seen', id: rid(name), name, status: 'present' } as VellumEvent);
     }
 
@@ -74,7 +80,7 @@ export const coreFeature: Feature = {
     const tone = ctx.tone ?? DEFAULT_TONE;
     const userCanon = ctx.userCanon ?? '';
     for (const b of parsed.delta?.bonds ?? []) {
-      if (notAName(b.a) || notAName(b.b)) continue; // reject pronoun/generic endpoints ("she → Daeron")
+      if (badName(b.a) || badName(b.b)) continue; // reject pronoun/generic/mash endpoints ("she → Daeron", "Daeron Cersei")
       const a = rid(b.a), bb = rid(b.b);
       if (!a || !bb || a === bb) continue;
       const existing = ctx.state.relations.find((r) => r.a === a && r.b === bb);
@@ -122,11 +128,13 @@ export const coreFeature: Feature = {
 
     // per-character memory journal entries
     for (const j of parsed.delta?.journal ?? []) {
-      const who = rid(j.who); const memory = String(j.memory || '').trim();
-      if (!who || !memory) continue;
+      const memory = String(j.memory || '').trim();
+      if (!memory || badName(j.who)) continue; // reject pronoun/generic/mash holders
+      const who = rid(j.who);
+      if (!who) continue;
       out.push({
         ...base(), kind: 'journal.entry', id: 'mj_' + who + '_' + ctx.turn + '_' + (out.length),
-        who, ...(j.about ? { about: rid(j.about) } : {}), memory,
+        who, ...(j.about && !badName(j.about) ? { about: rid(j.about) } : {}), memory,
         jkind: (j.kind ?? 'interaction'), weight: (j.weight ?? 'minor'), sentiment: (j.sentiment ?? 'neutral'),
       } as VellumEvent);
     }
@@ -144,11 +152,11 @@ export const coreFeature: Feature = {
         out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_' + (li++), fact } as VellumEvent);
         continue;
       }
-      if (notAName(k.who)) continue;
+      if (badName(k.who)) continue;
       const who = rid(k.who);
       out.push({
         ...base(), kind: 'knowledge.learn', who, fact,
-        ...(k.about && !notAName(k.about) ? { about: rid(k.about) } : {}),
+        ...(k.about && !badName(k.about) ? { about: rid(k.about) } : {}),
         ...(k.reliability ? { reliability: k.reliability } : {}),
         ...(k.truth ? { truth: k.truth } : {}),
         ...(k.source ? { source: String(k.source).slice(0, 120) } : {}),
@@ -158,9 +166,9 @@ export const coreFeature: Feature = {
     let si = 0;
     for (const s of parsed.delta?.secrets ?? []) {
       const text = String(s.secret || s.text || '').trim();
-      if (!text || notAName(s.keeper)) continue;
+      if (!text || badName(s.keeper)) continue;
       const fromRaw = Array.isArray(s.from) ? s.from : String(s.from || '').split(',');
-      const from = fromRaw.map((x) => String(x).trim()).filter((x) => x && !notAName(x)).map(rid);
+      const from = fromRaw.map((x) => String(x).trim()).filter((x) => x && !badName(x)).map(rid);
       out.push({ ...base(), kind: 'secret.form', id: 'sec_' + ctx.turn + '_' + (si++), keeper: rid(s.keeper), from, text } as VellumEvent);
     }
 
@@ -173,7 +181,7 @@ export const coreFeature: Feature = {
       out.push({ ...base(), kind: 'faction.seen', id: fid, name: String(fx.name).trim(), status: (fx.status ?? 'active') } as VellumEvent);
       if (fx.kind) out.push({ ...base(), kind: 'faction.edit', id: fid, patch: { kind: String(fx.kind) } } as VellumEvent);
       for (const mn of fx.members ?? []) {
-        if (notAName(mn)) continue;
+        if (badName(mn)) continue;
         out.push({ ...base(), kind: 'faction.member', char: rid(mn), faction: fid, op: 'add' } as VellumEvent);
       }
       // seed once on creation; an explicit standing delta still applies on top
@@ -201,9 +209,9 @@ export const coreFeature: Feature = {
     let xi = 0;
     for (const sc of Array.isArray(ext.scars) ? ext.scars : []) {
       const was = String(sc?.was || '').trim();
-      if (!was || notAName(sc?.who ?? '')) continue;
+      if (!was || badName(sc?.who ?? '')) continue;
       const who = rid(String(sc!.who));
-      out.push({ ...base(), kind: 'scar.form', id: 'scar_' + who + '_' + ctx.turn + '_' + (xi++), who, was, ...(sc?.about && !notAName(sc.about) ? { about: rid(sc.about) } : {}) } as VellumEvent);
+      out.push({ ...base(), kind: 'scar.form', id: 'scar_' + who + '_' + ctx.turn + '_' + (xi++), who, was, ...(sc?.about && !badName(sc.about) ? { about: rid(sc.about) } : {}) } as VellumEvent);
     }
     // Codex — minted canon (true of the world, not a belief). Stored as lore.
     let ci = 0;

@@ -42,16 +42,63 @@ export function resolveCastId(state: ChronicleState, rawName: string, extraIds?:
   if (extraIds) for (const e of extraIds) if (e) known.add(e);
   if (known.has(id)) return id; // exact hit among this-turn ids
 
+  // a two-NAME MASH the extractor jammed together ("Daeron Cersei", "Daeron
+  // Jaime") — every token is itself an already-known distinct person. This is
+  // never a fuller spelling of anyone, so it must not merge onto (and corrupt)
+  // a real card. Leave it as its own id; the upstream guard (isNameMash) drops
+  // it before it can mint a junk card.
+  if (isMashOfKnown(id, known)) return id;
+
+  // a set of known GIVEN names (first token of each known id), so a leftover
+  // token like "cersei" is recognized even when the card id is "cersei_lannister".
+  const knownGiven = new Set<string>();
+  for (const k of known) { const g = k.split('_')[0]; if (g) knownGiven.add(g); }
+
   // token-prefix containment, must be UNIQUE to merge
   const matches: string[] = [];
   for (const existingId of known) {
     if (existingId === id) continue;
     if (nameConflict(id, existingId)) continue; // distinct people, same surname
-    if (tokenPrefix(id, existingId) || tokenPrefix(existingId, id)) matches.push(existingId);
+    if (!(tokenPrefix(id, existingId) || tokenPrefix(existingId, id))) continue;
+    // refuse the merge when the EXTRA tokens (beyond the shared prefix) name
+    // another known person: "daeron_cersei" vs "daeron" leaves "cersei", who is
+    // someone else — a mash, not a fuller spelling. Without this the mash steals
+    // the real person's id.
+    const [short, full] = id.length <= existingId.length ? [id, existingId] : [existingId, id];
+    const leftover = full.startsWith(short + '_') ? full.slice(short.length + 1).split('_').filter(Boolean) : [];
+    if (leftover.some((t) => known.has(t) || knownGiven.has(t))) continue;
+    matches.push(existingId);
   }
   if (matches.length === 1) return matches[0]!;
 
   return id;
+}
+
+/** True when EVERY token of a multi-token id is itself an already-known person
+ * (by full id or given name) — i.e. the name is two real people mashed into one
+ * ("Daeron Cersei"). Distinct from a real full name ("Cersei Lannister"), where
+ * the surname is not a known person. */
+function isMashOfKnown(id: string, known: Set<string>): boolean {
+  const toks = id.split('_').filter(Boolean);
+  if (toks.length < 2) return false;
+  const givens = new Set<string>();
+  for (const k of known) { const g = k.split('_')[0]; if (g) givens.add(g); }
+  // each token must name a known person, and at least two DISTINCT ones must be
+  // present (so "cersei_cersei" or a repeated token isn't treated as a mash).
+  if (!toks.every((t) => known.has(t) || givens.has(t))) return false;
+  return new Set(toks).size >= 2;
+}
+
+/** Public guard: does this raw name read as two known people mashed together?
+ * Used by the extractors to DROP the endpoint before it mints a junk card. The
+ * caller supplies the known-people ids (existing cast ∪ this-turn ids). */
+export function isNameMash(rawName: string, knownPeople: Iterable<string>): boolean {
+  const id = canonId(rawName);
+  if (!id) return false;
+  const known = new Set<string>();
+  for (const k of knownPeople) if (k) known.add(k);
+  if (known.has(id)) return false; // it IS a known entity, not a mash
+  return isMashOfKnown(id, known);
 }
 
 /**

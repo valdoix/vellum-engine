@@ -117,10 +117,15 @@ function scanJson(src: string): ScanResult {
       if (esc) { out += c; esc = false; continue; }
       if (c === '\\') { out += c; esc = true; continue; }
       if (closesQuote(c, fam)) { inStr = false; out += '"'; safeLen = out.length; continue; } // close → normalize to "
-      if (c === '"') { out += '\\"'; continue; }                     // a literal " inside a single-quoted string
-      if (isDQ(c) || isSQ(c)) { out += '\\"'; continue; }            // a stray smart quote as content → keep parseable
+      // An off-family quote is CONTENT, not a delimiter: an apostrophe inside a
+      // double-quoted string ("Daeron's Chambers", "I won't") and a double quote
+      // inside a single-quoted string ('he said "no"') are both legal text. Only
+      // a STRAIGHT double quote needs escaping (it's JSON's delimiter); a smart
+      // quote or an apostrophe of the other family passes through verbatim so the
+      // word it belongs to is never corrupted.
+      if (c === '"') { out += '\\"'; continue; }                     // straight " as content inside a single-quoted string
       if (code < 0x20) { out += code === 10 ? '\\n' : code === 13 ? '\\r' : code === 9 ? '\\t' : '\\u' + code.toString(16).padStart(4, '0'); continue; } // ALL control chars
-      out += c; continue;
+      out += c; continue;                                            // apostrophe / smart quote of the other family → keep as-is
     }
     // --- outside a string ---
     if (isDQ(c)) { inStr = true; fam = 'd'; out += '"'; continue; }  // straight or smart double opens a string
