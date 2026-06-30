@@ -1,7 +1,7 @@
 import { STYLES } from './styles.js';
 import { mount, type Mounted } from './component.js';
 import { freshState, type ChronicleState } from '../domain/types.js';
-import { chronicleTab } from './tabs/chronicle.js';
+import { chronicleTab, setBeatSuggestions } from './tabs/chronicle.js';
 import { castTab } from './tabs/cast.js';
 import { relationsTab, setRelationLocks } from './tabs/relations.js';
 import { graphTab, resetGraphCache } from './tabs/graph.js';
@@ -662,6 +662,13 @@ export function setup(ctx: Ctx): () => void {
         if (p.ok === false && p.reason === 'too_few') notify(ctx, 'warning', 'Need at least 2 chapters to fold into an arc.');
         else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Folding to an arc needs the generation permission.');
         else notify(ctx, 'success', p.rounds ? `Folded ${p.bound ?? 0} chapters into an arc${tok}.` : 'No chapters old enough to fold yet.');
+      } else if (p?.type === 'vellum_beat_suggestions') {
+        setBeatSuggestions(p.items);
+        try { refreshUI(); } catch { /* best effort */ }
+        const n = Array.isArray(p.items) ? p.items.length : 0;
+        notify(ctx, 'info', n ? `${n} beat suggestion${n === 1 ? '' : 's'} ready in Chronicle \u2192 Beats.` : 'No new beats to suggest yet.');
+      } else if (p?.type === 'vellum_beat_done') {
+        // state broadcast already refreshes the view; nothing else to do
       } else if (p?.type === 'vellum_resummarize_done') {
         setQolBusy('resummarize', false);
         if (!p.ok) notify(ctx, 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : 'Re-summarize failed.');

@@ -20,7 +20,10 @@ export type Category = z.infer<typeof Category>;
 export const CastStatus = z.enum(['present', 'active', 'mentioned', 'added']);
 export type CastStatus = z.infer<typeof CastStatus>;
 
-export const MemoryTier = z.enum(['turn', 'chapter', 'arc']);
+// 'beat' = a user-curated Story Beat: an authorial landmark index card, not an
+// auto-compression. Beats are never folded/subsumed; they double as the recall
+// "spine" (a compact chronological through-line injected cheaply each turn).
+export const MemoryTier = z.enum(['turn', 'chapter', 'arc', 'beat']);
 export type MemoryTier = z.infer<typeof MemoryTier>;
 
 // Knowledge epistemic frame (legacy-faithful): how sure the knower is, the
@@ -107,7 +110,7 @@ export const EvSecretDrop = z.object({ ...base, kind: z.literal('secret.drop'), 
 export const EvSecretMerge = z.object({ ...base, kind: z.literal('secret.merge'), into: z.string(), from: z.array(z.string()) });
 
 const SubsumedMem = z.object({ id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]), tier: MemoryTier.optional(), detail: z.string().optional(), covers: z.tuple([z.number(), z.number()]).optional() });
-export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), detail: z.string().optional(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional() });
+export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), detail: z.string().optional(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional(), beatDay: z.number().optional(), beatTime: z.string().optional(), spine: z.boolean().optional(), act: z.string().optional() });
 // Links a chapter/arc memory to its detailed VAULT projection (world-book entry).
 // Append-only so the log stays the source of truth; reduce sets vaultEntryId.
 // `keys` carries back the (possibly user-edited) entry keywords for round-trip sync.

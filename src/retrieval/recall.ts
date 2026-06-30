@@ -178,7 +178,7 @@ function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: strin
     .map((h) => {
       const it = index.byId.get(h.id)!;
       const recency = 1 + 0.4 * (it.turn / maxTurn);
-      const tierBoost = it.tier === 'arc' ? 1.5 : it.tier === 'chapter' ? 1.3 : 1;
+      const tierBoost = it.tier === 'beat' ? 1.6 : it.tier === 'arc' ? 1.5 : it.tier === 'chapter' ? 1.3 : 1;
       return { id: h.id, score: h.score * recency * tierBoost };
     })
     .sort((a, b) => b.score - a.score)

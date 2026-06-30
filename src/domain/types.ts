@@ -108,14 +108,19 @@ export interface Secret {
 
 export interface Memory {
   id: string;
-  tier: 'turn' | 'chapter' | 'arc';
+  tier: 'turn' | 'chapter' | 'arc' | 'beat';
   text: string; // LEAN gist — what chronicle recall/traversal inject + hide-on-file uses
   detail?: string; // DETAILED summary — mirrored to the vault entry; lives in the log, not chronicle recall
   keys: string[];
   vaultEntryId?: string; // world-book entry holding `detail` (the hybrid-memory projection)
   covers?: [number, number];
-  subsumed?: Array<{ id: string; turn: number; text: string; keys: string[]; tier?: 'turn' | 'chapter' | 'arc'; detail?: string; covers?: [number, number] }>;
+  subsumed?: Array<{ id: string; turn: number; text: string; keys: string[]; tier?: 'turn' | 'chapter' | 'arc' | 'beat'; detail?: string; covers?: [number, number] }>;
   turn: number;
+  // --- Story Beat (tier 'beat') fields ---
+  beatDay?: number;   // narrative day the landmark happened (for chronological sort/display)
+  beatTime?: string;  // time-of-day label ("dusk", "9:47 PM")
+  spine?: boolean;    // inject into the always-on chronological spine (vs keyword-recall only)
+  act?: string;       // optional act/part grouping for timeline dividers
 }
 
 export interface Track {

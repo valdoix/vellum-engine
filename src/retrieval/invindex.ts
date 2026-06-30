@@ -16,7 +16,7 @@ export interface RetrievableItem {
   tokens: string[];
   /** memory tier, when kind==='memory' — lets recall prioritize compressed
    * chapter/arc summaries (the long-term backbone) over raw turn-memories. */
-  tier?: 'turn' | 'chapter' | 'arc';
+  tier?: 'turn' | 'chapter' | 'arc' | 'beat';
 }
 
 /** Collect retrievable prose items from derived state. */

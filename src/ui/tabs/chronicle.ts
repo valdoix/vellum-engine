@@ -11,11 +11,16 @@ import { formModal, confirmModal } from '../modal.js';
  * through the bridge → vellum_cmd.
  */
 
-type CView = 'world' | 'timeline' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex';
+type CView = 'world' | 'timeline' | 'beats' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex';
 const VIEWS: Array<{ id: CView; label: string }> = [
-  { id: 'world', label: 'World' }, { id: 'timeline', label: 'Timeline' }, { id: 'memory', label: 'Memory' },
-  { id: 'knowledge', label: 'Knowledge' }, { id: 'secrets', label: 'Secrets' },
-  { id: 'scars', label: 'Scars' }, { id: 'codex', label: 'Codex' },
+  { id: 'world', label: 'World' },
+  { id: 'timeline', label: 'Timeline' },
+  { id: 'beats', label: 'Beats' },
+  { id: 'memory', label: 'Memory' },
+  { id: 'knowledge', label: 'Knowledge' },
+  { id: 'secrets', label: 'Secrets' },
+  { id: 'scars', label: 'Scars' },
+  { id: 'codex', label: 'Codex' },
 ];
 let _view: CView = 'world';
 // Timeline filters: by kind (all/memory/knew/secret/journal) and by day (all/<n>).
@@ -27,6 +32,9 @@ let _pickMode = false;
 let _pickTier: 'turn' | 'chapter' = 'turn';
 const _picked = new Set<string>();
 let _pickAnchor: string | null = null;
+// Story-beat suggestions, filled by the vellum_beat_suggestions broadcast.
+let _beatSuggest: Array<{ turn: number; day?: number; text: string }> = [];
+export function setBeatSuggestions(items: unknown): void { _beatSuggest = Array.isArray(items) ? items as typeof _beatSuggest : []; }
 
 /** First-sentence preview of a (possibly very long) stored turn text. We store
  * turns in FULL now; the chronicle shows only one line + an ellipsis, with the
@@ -41,15 +49,16 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_picked.size}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').length}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
-    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length };
+    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length };
     const nav = '<div class="vle-subnav">' + VIEWS.map((v) =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`).join('') + '</div>';
     let body = '';
     if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) + offscreenSection(s) || '';
     else if (_view === 'timeline') body = timeline(s);
+    else if (_view === 'beats') body = beatsView(s);
     else if (_view === 'memory') body = memories(s);
     else if (_view === 'knowledge') body = knowledge(s);
     else if (_view === 'secrets') body = secrets(s);
@@ -95,6 +104,17 @@ export const chronicleTab: Component<ChronicleState> = {
         }
         return;
       }
+      if (t.closest('[data-beat-add]')) { formModal('New Story Beat', [
+        { key: 'text', label: 'What happened (one line)', type: 'text', placeholder: 'Aldous and Mira dueled; Mira won.' },
+        { key: 'day', label: 'Day (optional)', type: 'number', min: 0, step: 1 },
+        { key: 'time', label: 'Time (optional)', type: 'text', placeholder: 'dusk' },
+        { key: 'spine', label: 'Recall', type: 'select', value: 'spine', options: [{ value: 'spine', label: 'On the always-injected spine' }, { value: 'relevance', label: 'By relevance only' }] },
+      ], (o) => { if (o.text?.trim()) send({ type: 'vellum_beat_add', text: o.text, day: o.day ? Number(o.day) : undefined, time: o.time || undefined, spine: o.spine !== 'relevance' }); }); return; }
+      if (t.closest('[data-beat-suggest]')) { send({ type: 'vellum_beat_suggest' }); return; }
+      const bacc = t.closest('[data-beat-accept]');
+      if (bacc) { const x = _beatSuggest[Number(bacc.getAttribute('data-beat-accept'))]; if (x) { send({ type: 'vellum_beat_add', text: x.text, day: x.day, spine: true }); } return; }
+      const bdel = t.closest('[data-beat-del]');
+      if (bdel) { confirmModal('Delete this story beat?', () => send({ type: 'vellum_beat_delete', id: bdel.getAttribute('data-id') })); return; }
       if (t.closest('[data-mem-add]')) { formModal('New Memory', [
         { key: 'text', label: 'Memory', type: 'textarea', placeholder: 'What happened, in detail.' },
         { key: 'keys', label: 'Keywords (comma-separated)', type: 'text' },
@@ -200,6 +220,7 @@ function timeline(s: ChronicleState): string {
   const rows: Row[] = [];
   for (const m of s.memories) {
     if (m.tier === 'turn') continue; // turn-notes are noise on the timeline
+    if (m.tier === 'beat') { rows.push({ turn: m.turn, ...(m.beatDay !== undefined ? { day: m.beatDay } : {}), kind: 'beat', group: 'beat', text: m.text }); continue; }
     rows.push({ turn: m.covers?.[1] ?? m.turn, kind: m.tier, group: 'memory', text: m.text, ...(m.covers ? { span: m.covers } : {}) });
   }
   for (const k of s.knowledge) rows.push({ turn: k.turn, kind: 'knew', group: 'knew', text: nameOf(s, k.who) + ': ' + k.fact });
@@ -210,7 +231,7 @@ function timeline(s: ChronicleState): string {
   if (!rows.length) return head + emptyState('Nothing on the timeline yet.', 'Arcs, chapters, knowledge and secrets appear here as the story advances.');
 
   // filter bars: kind (group) + day. Days are sparse, so only offer ones present.
-  const KINDS: Array<[string, string]> = [['all', 'all'], ['memory', '\u25C9 memory'], ['knew', '\u25C8 knowledge'], ['secret', '\u26C0 secrets'], ['journal', '\u270E journal'], ['scar', '\u2620 scars'], ['lore', '\u2756 codex']];
+  const KINDS: Array<[string, string]> = [['all', 'all'], ['beat', '\u2691 beats'], ['memory', '\u25C9 memory'], ['knew', '\u25C8 knowledge'], ['secret', '\u26C0 secrets'], ['journal', '\u270E journal'], ['scar', '\u2620 scars'], ['lore', '\u2756 codex']];
   const days = Array.from(new Set(rows.map((r) => r.day).filter((d): d is number => typeof d === 'number'))).sort((a, b) => a - b);
   const gCount = (g: string): number => g === 'all' ? rows.length : rows.filter((r) => r.group === g).length;
   const kindBar = '<div class="vle-fbar">' + KINDS.map(([v, l]) =>
@@ -232,6 +253,28 @@ function timeline(s: ChronicleState): string {
   return head + kindBar + dayBar + `<div class="vle-tl">${items}</div>`;
 }
 
+/** Story Beats — the author-curated landmark layer + recall spine. Sorted by
+ * day then turn; spine-flagged beats carry a marker (always-injected). */
+function beatsView(s: ChronicleState): string {
+  const list = s.memories.filter((m) => m.tier === 'beat')
+    .sort((a, b) => ((a.beatDay ?? 0) * 100000 + a.turn) - ((b.beatDay ?? 0) * 100000 + b.turn));
+  const head = sectionHeader('\u2691 Story Beats', { sub: true, count: list.length, action: '<button class="vle-add sm" data-beat-suggest title="Suggest beats from the story so far">\u2728 suggest</button><button class="vle-add sm" data-beat-add>+</button>' });
+  const intro = '<div class="vle-cz-note">Landmark index cards you author - the story\u2019s through-line. Spine beats (\u2691) are injected into every prompt as ground truth; the rest surface by relevance.</div>';
+  const sug = _beatSuggest.length
+    ? '<div class="vle-pickbar" style="flex-wrap:wrap"><span>Suggested from the story:</span>' + _beatSuggest.slice(0, 8).map((x, i) => `<button class="vle-mini" data-beat-accept="${i}" title="Add as a beat">+ ${esc((x.day ? 'D' + x.day + ' ' : '') + x.text).slice(0, 60)}</button>`).join('') + '</div>'
+    : '';
+  if (!list.length) return head + intro + sug + emptyState('No beats yet.', 'Mark a landmark: a duel, a betrayal, a vow. Or hit \u2728 suggest to pull candidates from what already happened.');
+  const rows = list.map((m) => {
+    const anchor = (m.beatDay !== undefined ? 'Day ' + m.beatDay : '') + (m.beatTime ? (m.beatDay !== undefined ? ', ' : '') + m.beatTime : '');
+    const spine = m.spine ? '<span class="vle-mem-tier t-beat" title="On the always-injected spine">\u2691</span>' : '<span class="vle-mem-tier" title="Recalled by relevance only" style="opacity:.5">\u25CB</span>';
+    return '<div class="vle-mem">' + spine
+      + (anchor ? `<span class="vle-tl-day">${esc(anchor)}</span>` : '')
+      + `<span class="vle-mem-t">${esc(m.text)}</span>`
+      + `<button class="vle-mini del" data-beat-del data-id="${esc(m.id)}" title="Delete">\u2715</button></div>`;
+  }).join('');
+  return head + intro + sug + rows;
+}
+
 function memories(s: ChronicleState): string {
   const turnCount = s.memories.filter((m) => m.tier === 'turn').length;
   const chapCount = s.memories.filter((m) => m.tier === 'chapter').length;
@@ -241,7 +284,7 @@ function memories(s: ChronicleState): string {
   const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: pickTurns + pickChaps + '<button class="vle-add sm" data-mem-add>+</button>' });
   if (!s.memories.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
   const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: turnCount, chapter: chapCount, arc: s.memories.filter((m) => m.tier === 'arc').length } });
-  const filtered = applyFilter('memories', s.memories, { cat: (m) => m.tier });
+  const filtered = applyFilter('memories', s.memories.filter((m) => m.tier !== 'beat'), { cat: (m) => m.tier });
   const { slice, page, pages } = paginate('memories', filtered);
   const rows = slice.map((m: Memory) => {
     const isTurn = m.tier === 'turn';

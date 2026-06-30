@@ -10,6 +10,7 @@ import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.js';
 import { planChapterFrom, planArc, planArcFrom } from './domain/memory.js';
+import { beatSpine, beatEvent, suggestBeats } from './domain/beats.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -697,9 +698,11 @@ async function wireCapabilities(): Promise<void> {
           const controller = pre ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
           const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller, tmode, pre);
           // Plot Director: append armed directives as gentle guidance (suggestive,
-          // not a hard block Ã¢â‚¬â€ they self-clear at the fold when fulfilled).
+          // not a hard block — they self-clear at the fold when fulfilled).
           const dirText = directiveInjection(await readDirectives(chatId));
-          const injText = dirText ? (inj.text ? inj.text + '\n\n' + dirText : dirText) : inj.text;
+          // Story Beats: the author-curated chronological spine — always-on, cheap.
+          const spineText = beatSpine(state);
+          const injText = [inj.text, spineText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 Ã¢â‚¬â€ live retrieval feed: push the record so the Injection tab
@@ -955,6 +958,37 @@ const dispatch: Record<string, Handler> = {
     await broadcastState(chatId, uid);
     const vault = await maybeChapterVault(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: true, rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length, vault }, uid);
+  },
+  vellum_beat_add: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const state = await loadState(chatId);
+    const ev = beatEvent({
+      text: String(p?.text ?? ''),
+      ...(Number.isFinite(p?.day) ? { day: Number(p.day) } : (state.day ? { day: state.day } : {})),
+      ...(p?.time ? { time: String(p.time) } : (state.scene?.time ? { time: String(state.scene.time) } : {})),
+      ...(p?.spine === false ? { spine: false } : {}),
+      ...(p?.act ? { act: String(p.act) } : {}),
+    }, state.turns || 0, nextSeqLocal);
+    if (!ev) return;
+    await append(chatId, [ev]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_beat_done', ok: true }, uid);
+  },
+  vellum_beat_delete: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'memory.drop', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_beat_done', ok: true }, uid);
+  },
+  vellum_beat_suggest: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const state = await loadState(chatId);
+    spindle.sendToFrontend?.({ type: 'vellum_beat_suggestions', items: suggestBeats(state) }, uid);
   },
   vellum_clear: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

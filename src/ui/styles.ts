@@ -42,6 +42,8 @@ export const STYLES = [
   ".vle-tl-dot.vle-tl-arc{background:var(--v-warn)}.vle-tl-dot.vle-tl-chapter{background:var(--vle-gold)}",
   ".vle-tl-dot.vle-tl-knew{background:var(--v-info)}.vle-tl-dot.vle-tl-secret{background:var(--v-neg)}.vle-tl-dot.vle-tl-journal{background:var(--v-pos)}",
   ".vle-tl-dot.vle-tl-scar{background:var(--v-warn)}.vle-tl-dot.vle-tl-lore{background:var(--vle-gold)}",
+  ".vle-tl-dot.vle-tl-beat{background:var(--vle-gold);box-shadow:0 0 0 2px color-mix(in srgb,var(--vle-gold) 40%,transparent)}",
+  ".vle-mem-tier.t-beat{color:var(--vle-gold);border-color:color-mix(in srgb,var(--vle-gold) 45%,transparent)}",
   ".vle-scar-was{text-decoration:line-through;text-decoration-color:var(--v-neg);opacity:.85}",
   ".vle-mem.pickable{cursor:pointer}.vle-mem-pick{margin-right:6px;accent-color:var(--vle-gold);cursor:pointer}",
   ".vle-pickbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;margin:4px 0 8px;border:1px solid color-mix(in srgb,var(--vle-gold) 35%,transparent);border-radius:8px;background:color-mix(in srgb,var(--vle-gold) 8%,transparent);font-size:12px}",
