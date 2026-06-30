@@ -551,7 +551,12 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
       for (const u of fplan.update) await updateEntry(u.entryId, { content: u.input.content, constant: u.input.settings.constant ?? false, extensions: { vellum: true, vellumCategory: 'factions', vellumSource: 'faction', vellumLink: u.input.link } }, userId);
       for (const entryId of fplan.remove) await deleteEntry(entryId, userId);
     }
-    if (plan.create.length || plan.update.length || plan.remove.length) spindle.log?.info?.(`[vellum_engine] chapter-vault: +${plan.create.length} ~${plan.update.length} -${plan.remove.length} (mode ${mode})`);
+    const changed = plan.create.length || plan.update.length || plan.remove.length || fplan.create.length || fplan.update.length || fplan.remove.length;
+    if (changed) spindle.log?.info?.(`[vellum_engine] chapter-vault: +${plan.create.length} ~${plan.update.length} -${plan.remove.length} (mode ${mode})`);
+    // push a fresh vault snapshot so an open Vault tab reflects the reconciled
+    // summary/faction entries immediately (summarize/arc/re-summarize edit these
+    // behind the user's back; without this the tab shows stale content).
+    if (changed) { try { await vaultBroadcast(chatId, userId); } catch { /* best effort */ } }
     return { ok: true, created: plan.create.length, updated: plan.update.length, removed: plan.remove.length };
   } catch (e) { spindle.log?.warn?.('[vellum_engine] chapter-vault: ' + ((e as Error)?.message ?? e)); return { ok: false, reason: 'error', created: 0, updated: 0, removed: 0 }; }
   finally { _chapterVaulting.delete(chatId); }

@@ -35,7 +35,11 @@ const POS_OPTS = [
 const ROLE_OPTS = [{ value: 'system', label: 'system' }, { value: 'user', label: 'user' }, { value: 'assistant', label: 'assistant' }];
 
 export const vaultTab: Component<ChronicleState> = {
-  version: () => (_snap ? `${_snap.books.reduce((a, b) => a + b.entries.length, 0)}:${_snap.categories.length}:${_snap.activated.length}:${_filter}:${_scope}:${_sort}:${_book}` : 'none'),
+  // version must reflect entry CONTENT, not just counts — otherwise editing an
+  // entry (or a reconcile updating a summary's body/keys) leaves the count
+  // unchanged and the drawer's version-diff skips the repaint, so edits never
+  // show. Hash each entry's mutable fields cheaply.
+  version: () => (_snap ? `${vaultContentSig()}:${_snap.categories.length}:${_snap.activated.length}:${_filter}:${_scope}:${_sort}:${_book}` : 'none'),
   render() {
     if (!_snap) { send({ type: 'vellum_get_vault' }); return '<div class="vle-empty sm">Loading vault\u2026</div>'; }
     if (!_snap.ok && _snap.reason === 'no_permission') return '<div class="vlm-comp-error">The Vault needs the <b>world_books</b> permission. Grant it in the extension settings to author lorebooks here.<br><span>Activation stays native; the Vault just organizes + auto-configures.</span></div>';
@@ -123,6 +127,22 @@ export const vaultTab: Component<ChronicleState> = {
 };
 
 function allEntries(): VEntry[] { return (_snap?.books ?? []).flatMap((b) => b.entries.map((e) => ({ ...e, bookId: b.id }))); }
+
+/** A cheap signature of every entry's MUTABLE fields (id + key + comment +
+ * content length/head + disabled + category + pending). Changes whenever an
+ * entry is edited/added/removed, so the version-diff repaints. djb2 over the
+ * concatenation keeps it short regardless of entry count. */
+function vaultContentSig(): string {
+  let h = 5381;
+  const acc = (str: string): void => { for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; };
+  for (const e of allEntries()) {
+    acc(e.id); acc('\u0001'); acc(e.key.join(',')); acc('\u0001'); acc(e.comment || ''); acc('\u0001');
+    acc(String(e.content.length)); acc(e.content.slice(0, 64)); acc('\u0001');
+    acc(e.category || ''); acc(e.disabled ? '1' : '0'); acc(e.pending ? 'p' : ''); acc(e.source || '');
+    acc('\u0002');
+  }
+  return (h >>> 0).toString(36);
+}
 
 const SORT_LABEL: Record<'az' | 'za' | 'new' | 'old', string> = { az: 'A\u2013Z', za: 'Z\u2013A', new: '\u2193 newest', old: '\u2191 oldest' };
 // Entries carry no timestamp, so newest/oldest use snapshot (insertion) order as
