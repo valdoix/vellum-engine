@@ -130,6 +130,21 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         // empty color string = clear → drop the key so it's truly absent (default ink)
         if (safe.color === '') delete c.color;
         if (safe.colorTo === '') delete c.colorTo;
+        // empty disposition string = clear; empty traits array = clear
+        if (safe.disposition === '') delete c.disposition;
+        if (Array.isArray(c.traits)) {
+          // trim, drop blanks, dedupe (case-insensitive), cap at 6
+          const seen = new Set<string>();
+          const clean: string[] = [];
+          for (const t of c.traits) {
+            const v = String(t).trim();
+            const k = v.toLowerCase();
+            if (!v || seen.has(k)) continue;
+            seen.add(k); clean.push(v);
+            if (clean.length >= 6) break;
+          }
+          if (clean.length) c.traits = clean; else delete c.traits;
+        }
         if (e.src === 'user') c.userEdited = true;
       }
       break;

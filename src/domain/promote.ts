@@ -29,7 +29,9 @@ const sig = (s: string): string => hashStr(s);
 export function castContent(c: CastCard): string {
   const bits = [c.role, c.age, c.appearance].filter(Boolean).join('; ');
   const aka = (c.aka ?? []).length ? ` Also known as ${(c.aka ?? []).join(', ')}.` : '';
-  return `${c.name}${bits ? ' — ' + bits + '.' : '.'}${aka}${c.note ? ' ' + c.note : ''}`.trim();
+  const traits = (c.traits ?? []).length ? ` Traits: ${(c.traits ?? []).join(', ')}.` : '';
+  const disp = c.disposition ? ` ${c.disposition}` : '';
+  return `${c.name}${bits ? ' — ' + bits + '.' : '.'}${aka}${disp}${traits}${c.note ? ' ' + c.note : ''}`.trim();
 }
 
 function nameOf(s: ChronicleState, id: string): string { return s.cast[id]?.name ?? id; }

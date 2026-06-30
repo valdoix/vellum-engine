@@ -32,9 +32,11 @@ export interface InjectionResult {
 
 // knowledge items flow through collectItems→ranked recall (kind:'knowledge'); the
 // old separate `knowledge:900` cap was never rendered and only forced TOTAL down-
-// scaling. structured 1400 + recall 1800 = 3200 ≤ 3600 → no spurious scaling.
-const CAPS = { structured: 1400, recall: 1800 };
-const TOTAL = 3600;
+// scaling. structured 1800 + recall 2600 = 4400 ≤ 4400 → no spurious scaling.
+// (Raised from 1400/1800/3600: structured grows for cast personality traits, and
+// recall grows so compressed long-term summaries/facts aren't clipped.)
+const CAPS = { structured: 1800, recall: 2600 };
+const TOTAL = 4400;
 
 // cache the index per chat so we don't rebuild every interceptor call
 interface IndexCache { sig: string; index: InvertedIndex }
@@ -79,7 +81,11 @@ function structuredBlock(state: ChronicleState, budget: number): string {
     .sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0));
   const castLines = cast.map((c) => {
     const bits = [c.role, c.age, c.appearance].filter(Boolean).join('; ');
-    return '- ' + c.name + (bits ? ' (' + bits + ')' : '');
+    // append a capped personality clause (top 3 traits) so the model holds voice
+    // consistent; fitLines clips the whole line if the shared budget is tight.
+    const traits = (c.traits ?? []).slice(0, 3).join(', ');
+    const tail = [bits, traits].filter(Boolean).join('; ');
+    return '- ' + c.name + (tail ? ' (' + tail + ')' : '');
   });
   const nameOf = (id: string): string => state.cast[id]?.name ?? id;
   const relLines = state.relations

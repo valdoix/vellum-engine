@@ -21,13 +21,16 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       if (!name) return [];
       const id = e.id ? String(e.id) : canonId(name);
       const patch: Record<string, unknown> = {};
-      for (const k of ['name', 'role', 'age', 'appearance', 'note']) if (e[k] !== undefined) patch[k] = e[k];
+      for (const k of ['name', 'role', 'age', 'appearance', 'note', 'disposition']) if (e[k] !== undefined) patch[k] = e[k];
       // name color: accept #hex; '' clears; anything else is dropped (no junk stored)
       const hex = (v: unknown): string | undefined => { const s = String(v ?? '').trim(); return s === '' ? '' : (/^#[0-9a-fA-F]{6}$/.test(s) ? s : undefined); };
       if (e.color !== undefined) { const c = hex(e.color); if (c !== undefined) patch.color = c; }
       if (e.colorTo !== undefined) { const c = hex(e.colorTo); if (c !== undefined) patch.colorTo = c; }
       if (Array.isArray(e.aka)) patch.aka = e.aka;
       else if (typeof e.aka === 'string') patch.aka = e.aka.split(',').map((s: string) => s.trim()).filter(Boolean);
+      // traits: array or comma-string → trimmed array (empty → [] clears in reducer)
+      if (Array.isArray(e.traits)) patch.traits = e.traits.map((s: string) => String(s).trim()).filter(Boolean);
+      else if (typeof e.traits === 'string') patch.traits = e.traits.split(',').map((s: string) => s.trim()).filter(Boolean);
       const out: VellumEvent[] = [];
       if (!state.cast[id]) out.push({ ...base(ctx), kind: 'cast.seen', id, name, status: (e.status ?? 'active') } as VellumEvent);
       out.push({ ...base(ctx), kind: 'cast.edit', id, patch } as VellumEvent);

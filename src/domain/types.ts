@@ -15,6 +15,8 @@ export interface CastCard {
   appearance?: string;
   role?: string;
   note?: string;
+  disposition?: string; // one-line stable temperament, distinct from freeform `note`
+  traits?: string[];    // 3-6 short emergent personality tags ("guarded", "dry wit")
   source: 'auto' | 'user';
   firstTurn: number;
   lastTurn: number;

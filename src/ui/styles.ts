@@ -172,6 +172,9 @@ export const STYLES = [
   ".vle-card-bonds{display:flex;flex-wrap:wrap;gap:4px}",
   ".vle-bondchip{font:600 calc(10px * var(--vscale))/1 var(--vmono);padding:3px 7px;border-radius:var(--vr1);border:1px solid color-mix(in srgb,var(--v-chip-c,var(--vg)) 40%,transparent);color:var(--v-chip-c,var(--vi2))}",
   ".vle-bondchip--pos{--v-chip-c:var(--v-pos-i)}.vle-bondchip--neg{--v-chip-c:var(--v-neg-i)}.vle-bondchip--info{--v-chip-c:var(--v-info)}",
+  ".vle-card-disp{font-size:calc(12.5px * var(--vscale));color:var(--vi2);line-height:1.45}",
+  ".vle-card-traits{display:flex;flex-wrap:wrap;gap:4px}",
+  ".vle-traitchip{font:600 calc(10px * var(--vscale))/1 var(--vmono);padding:3px 7px;border-radius:var(--vr1);border:1px solid color-mix(in srgb,var(--vg) 30%,transparent);color:var(--vi2);text-transform:lowercase}",
   ".vle-card-note{font-style:italic;font-size:calc(12.5px * var(--vscale));opacity:.7;line-height:1.5}",
   // compact strip rows (density mode for big casts)
   ".vle-strips{display:flex;flex-direction:column;gap:3px}",

@@ -72,7 +72,23 @@ export const coreFeature: Feature = {
     for (const p of parsed.present ?? []) {
       const name = p.name ?? p.id;
       if (!name || badName(name)) continue; // never seed a card from a pronoun/generic/mash
-      out.push({ ...base(), kind: 'cast.seen', id: rid(name), name, status: 'present' } as VellumEvent);
+      const id = rid(name);
+      out.push({ ...base(), kind: 'cast.seen', id, name, status: 'present' } as VellumEvent);
+      // STABLE personality tags the model surfaced — fold into the card as a
+      // cast.edit (src 'model', so user edits still win in the reducer). Trim,
+      // dedupe (case-insensitive), cap at 6; the reducer re-caps defensively.
+      if (Array.isArray(p.traits) && p.traits.length) {
+        const seen = new Set<string>();
+        const traits: string[] = [];
+        for (const t of p.traits) {
+          const v = String(t).trim();
+          const k = v.toLowerCase();
+          if (!v || seen.has(k)) continue;
+          seen.add(k); traits.push(v);
+          if (traits.length >= 6) break;
+        }
+        if (traits.length) out.push({ ...base(), kind: 'cast.edit', id, patch: { traits } } as VellumEvent);
+      }
     }
 
     // bonds — tone dials (romance pace clamp / off-strip, disposition seed)
