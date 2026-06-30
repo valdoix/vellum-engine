@@ -121,6 +121,7 @@ export interface Memory {
   beatTime?: string;  // time-of-day label ("dusk", "9:47 PM")
   spine?: boolean;    // inject into the always-on chronological spine (vs keyword-recall only)
   act?: string;       // optional act/part grouping for timeline dividers
+  ord?: number;       // manual sort key for beats (author reordering); when set, dominates chronological sort
 }
 
 export interface Track {

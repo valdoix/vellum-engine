@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { freshState } from '../src/domain/types.js';
 import type { Memory, JournalEntry, Track } from '../src/domain/types.js';
-import { beatSpine, beatEvent, beatEditEvents, suggestBeats, sortedBeats, beatLabel } from '../src/domain/beats.js';
+import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats, sortedBeats, beatLabel } from '../src/domain/beats.js';
 import { reduce } from '../src/core/reduce.js';
 
 function beatMem(o: Partial<Memory> & { id: string; text: string }): Memory {
@@ -117,5 +117,39 @@ describe('Story Beats — domain', () => {
     const id = s1.memories[0]!.id;
     const s2 = reduce([ev!, { seq: ++n, turn: 0, day: 0, src: 'user', kind: 'memory.drop', id } as any]);
     expect(s2.memories.find((m) => m.tier === 'beat')).toBeUndefined();
+  });
+
+  it('beatReorderEvents moves a beat down and persists order via ord', () => {
+    let n = 0;
+    const seq = () => ++n;
+    // build three real beats through the event pipeline
+    const base = [
+      beatEvent({ text: 'first', day: 1 }, 1, seq)!,
+      beatEvent({ text: 'second', day: 2 }, 2, seq)!,
+      beatEvent({ text: 'third', day: 3 }, 3, seq)!,
+    ];
+    const s = reduce(base);
+    const ids = sortedBeats(s).map((m) => m.id); // [first, second, third]
+    const evs = beatReorderEvents(s, ids[0]!, 1, seq); // move 'first' down one
+    expect(evs.length).toBe(6); // drop+record per beat (3 beats)
+    const after = reduce([...base, ...evs]);
+    expect(sortedBeats(after).map((m) => m.text)).toEqual(['second', 'first', 'third']);
+  });
+
+  it('beatReorderEvents is a no-op at the edges', () => {
+    const s = freshState();
+    s.memories.push(beatMem({ id: 'b1', text: 'first', beatDay: 1, turn: 1 }));
+    s.memories.push(beatMem({ id: 'b2', text: 'second', beatDay: 2, turn: 2 }));
+    expect(beatReorderEvents(s, 'b1', -1, () => 1)).toEqual([]); // already first
+    expect(beatReorderEvents(s, 'b2', 1, () => 1)).toEqual([]);  // already last
+    expect(beatReorderEvents(s, 'nope', 1, () => 1)).toEqual([]); // missing
+  });
+
+  it('manual ord survives a subsequent edit', () => {
+    const s = freshState();
+    s.memories.push(beatMem({ id: 'b1', text: 'a', ord: 2, beatDay: 1, turn: 1 }));
+    const edits = beatEditEvents(s, 'b1', { text: 'a2' }, () => 1);
+    const rec = edits.find((e) => e.kind === 'memory.record') as any;
+    expect(rec.ord).toBe(2);
   });
 });

@@ -148,12 +148,16 @@ function castForm(title: string, v: Record<string, string>): void {
 }
 
 function card(c: CastCard): string {
-  const meta = [c.role, c.age].filter(Boolean).map(esc).join(' \u00b7 ');
   const A = (x: unknown): string => esc(x);
+  // sentence-case "role, age" line; presence shown by avatar dot + card spine
+  const meta = [c.role, c.age].filter(Boolean).map(esc).join(', ');
+  const st = STATUS.find((s) => s.id === c.status);
+  const where = c.status === 'present' ? 'present' : (st?.label.toLowerCase() ?? c.status);
+  const sub = [where, meta].filter(Boolean).join(' \u00b7 ');
   return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + '">'
-    + '<span class="vle-av" title="' + esc(c.status) + '">' + esc(initials(c.name)) + '</span>'
+    + '<span class="vle-av" title="' + esc(c.status) + '">' + esc(initials(c.name)) + '<span class="vle-av-dot"></span></span>'
     + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
-    + (meta ? '<span class="vle-card-meta">' + meta + '</span>' : '')
+    + (sub ? '<span class="vle-card-sub">' + sub + '</span>' : '')
     + (c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')
     + '</span>'
     + '<span class="vle-card-ctl">'

@@ -300,7 +300,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'memory.record': {
       if (!s.memories.find((m) => m.id === e.id)) {
-        s.memories.push({ id: e.id, tier: e.tier, text: e.text, ...(e.detail ? { detail: e.detail } : {}), keys: e.keys, ...(e.covers ? { covers: e.covers } : {}), ...(e.subsumed ? { subsumed: e.subsumed } : {}), ...(e.beatDay !== undefined ? { beatDay: e.beatDay } : {}), ...(e.beatTime ? { beatTime: e.beatTime } : {}), ...(e.spine ? { spine: e.spine } : {}), ...(e.act ? { act: e.act } : {}), turn: e.turn });
+        s.memories.push({ id: e.id, tier: e.tier, text: e.text, ...(e.detail ? { detail: e.detail } : {}), keys: e.keys, ...(e.covers ? { covers: e.covers } : {}), ...(e.subsumed ? { subsumed: e.subsumed } : {}), ...(e.beatDay !== undefined ? { beatDay: e.beatDay } : {}), ...(e.beatTime ? { beatTime: e.beatTime } : {}), ...(e.spine ? { spine: e.spine } : {}), ...(e.act ? { act: e.act } : {}), ...(e.ord !== undefined ? { ord: e.ord } : {}), turn: e.turn });
       }
       break;
     }

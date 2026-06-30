@@ -10,7 +10,7 @@ import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.js';
 import { planChapterFrom, planArc, planArcFrom } from './domain/memory.js';
-import { beatSpine, beatEvent, beatEditEvents, suggestBeats } from './domain/beats.js';
+import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats } from './domain/beats.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -991,6 +991,18 @@ const dispatch: Record<string, Handler> = {
       time: p?.time !== undefined ? String(p.time) : undefined,
       ...(p?.spine === false ? { spine: false } : {}),
     }, nextSeqLocal);
+    if (!evs.length) return;
+    await append(chatId, evs);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_beat_done', ok: true }, uid);
+  },
+  vellum_beat_reorder: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const state = await loadState(chatId);
+    const dir = p?.dir === 'up' ? -1 : 1;
+    const evs = beatReorderEvents(state, String(p.id), dir, nextSeqLocal);
     if (!evs.length) return;
     await append(chatId, evs);
     invalidateIndex(chatId);

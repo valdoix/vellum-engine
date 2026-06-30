@@ -24,8 +24,46 @@ function beatOrder(m: Memory): number {
   return (m.beatDay ?? 0) * 100000 + m.turn;
 }
 
+/** Beats in display order: manual `ord` (author reordering) wins when present;
+ * otherwise chronological. Mixed lists keep ord-beats in their slot and slot the
+ * rest chronologically around them via a stable comparison. */
 export function sortedBeats(state: ChronicleState): Memory[] {
-  return beats(state).slice().sort((a, b) => beatOrder(a) - beatOrder(b));
+  const key = (m: Memory): number => m.ord !== undefined ? m.ord : beatOrder(m);
+  return beats(state).slice().sort((a, b) => key(a) - key(b) || beatOrder(a) - beatOrder(b));
+}
+
+/**
+ * Reorder one beat by swapping it with its neighbour in the current display
+ * order (dir -1 = up/earlier, +1 = down/later). Returns drop+record event pairs
+ * (same ids) that re-emit ALL beats with a dense `ord`, so the new order is
+ * durable in the append-only log. [] if the move is a no-op.
+ */
+export function beatReorderEvents(state: ChronicleState, id: string, dir: -1 | 1, seq: () => number): VellumEvent[] {
+  const list = sortedBeats(state);
+  const i = list.findIndex((m) => m.id === id);
+  if (i < 0) return [];
+  const j = i + dir;
+  if (j < 0 || j >= list.length) return [];
+  // swap the two neighbours in the display order, then re-emit EVERY beat with a
+  // dense ord = its new index. Re-emitting all (not just the pair) is required:
+  // an ord on only two beats would sort them against the others' chronological
+  // keys and jump them out of place. reduce's memory.record is push-only (ignores
+  // an existing id), so each beat is dropped then re-recorded (like beatEditEvents).
+  const order = list.map((m) => m.id);
+  [order[i], order[j]] = [order[j]!, order[i]!];
+  const out: VellumEvent[] = [];
+  order.forEach((bid, idx) => {
+    const m = list.find((x) => x.id === bid)!;
+    out.push({ seq: seq(), turn: m.turn, day: 0, src: 'user', kind: 'memory.drop', id: m.id } as VellumEvent);
+    out.push({
+      seq: seq(), turn: m.turn, day: m.beatDay ?? 0, src: 'user', kind: 'memory.record', id: m.id, tier: 'beat', text: m.text, keys: m.keys ?? [], ord: idx,
+      ...(m.beatDay !== undefined ? { beatDay: m.beatDay } : {}),
+      ...(m.beatTime ? { beatTime: m.beatTime } : {}),
+      ...(m.spine ? { spine: true } : {}),
+      ...(m.act ? { act: m.act } : {}),
+    } as VellumEvent);
+  });
+  return out;
 }
 
 /** A short "[Day N · time] text" label for one beat (display + spine line). */
@@ -70,6 +108,7 @@ export function beatEditEvents(
     ...(o.time !== undefined ? (o.time ? { beatTime: o.time } : {}) : (cur.beatTime ? { beatTime: cur.beatTime } : {})),
     ...(o.spine !== false ? { spine: true } : {}),
     ...(o.act ? { act: o.act } : (cur.act ? { act: cur.act } : {})),
+    ...(cur.ord !== undefined ? { ord: cur.ord } : {}),
   } as VellumEvent;
   return [{ seq: seq(), turn: cur.turn, day: 0, src: 'user', kind: 'memory.drop', id } as VellumEvent, rec];
 }

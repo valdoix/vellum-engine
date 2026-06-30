@@ -49,7 +49,7 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').length}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length };
@@ -122,6 +122,8 @@ export const chronicleTab: Component<ChronicleState> = {
       if (bacc) { const x = _beatSuggest[Number(bacc.getAttribute('data-beat-accept'))]; if (x) { send({ type: 'vellum_beat_add', text: x.text, day: x.day, spine: true }); } return; }
       const bdel = t.closest('[data-beat-del]');
       if (bdel) { confirmModal('Delete this story beat?', () => send({ type: 'vellum_beat_delete', id: bdel.getAttribute('data-id') })); return; }
+      const bmove = t.closest('[data-beat-move]');
+      if (bmove && !bmove.hasAttribute('disabled')) { send({ type: 'vellum_beat_reorder', id: bmove.getAttribute('data-id'), dir: bmove.getAttribute('data-dir') }); return; }
       const bedit = t.closest('[data-beat-edit]');
       if (bedit) {
         const id = bedit.getAttribute('data-id');
@@ -276,21 +278,28 @@ function timeline(s: ChronicleState): string {
  * day then turn; spine-flagged beats carry a marker (always-injected). */
 function beatsView(s: ChronicleState): string {
   const list = s.memories.filter((m) => m.tier === 'beat')
-    .sort((a, b) => ((a.beatDay ?? 0) * 100000 + a.turn) - ((b.beatDay ?? 0) * 100000 + b.turn));
+    .sort((a, b) => {
+      // manual `ord` (author reordering) wins when present; else chronological
+      const ka = a.ord !== undefined ? a.ord : (a.beatDay ?? 0) * 100000 + a.turn;
+      const kb = b.ord !== undefined ? b.ord : (b.beatDay ?? 0) * 100000 + b.turn;
+      return ka - kb || ((a.beatDay ?? 0) * 100000 + a.turn) - ((b.beatDay ?? 0) * 100000 + b.turn);
+    });
   const head = sectionHeader('\u2691 Story Beats', { sub: true, count: list.length, action: '<button class="vle-add sm" data-beat-suggest title="Suggest beats from the story so far">\u2728 suggest</button><button class="vle-add sm" data-beat-add>+</button>' });
-  const intro = '<div class="vle-cz-note">Landmark index cards you author - the story\u2019s through-line. Spine beats (\u2691) are injected into every prompt as ground truth; the rest surface by relevance.</div>';
+  const intro = '<div class="vle-cz-note">Landmark index cards you author - the story\u2019s through-line. Spine beats (\u2691) are injected into every prompt as ground truth; the rest surface by relevance. Use \u25B4\u25BE to reorder.</div>';
   const sug = _beatSuggest.length
     ? '<div class="vle-beat-sug-h"><span class="vle-beat-sug-lbl">Suggested:</span><div class="vle-beat-sug-row">' + _beatSuggest.slice(0, 12).map((x, i) => `<button class="vle-beat-sug-chip" data-beat-accept="${i}" title="Add as a beat: ${esc(x.text)}">+ ${esc((x.day ? 'D' + x.day + ' ' : '') + x.text).slice(0, 48)}</button>`).join('') + '</div></div>'
     : '';
   if (!list.length) return head + intro + sug + emptyState('No beats yet.', 'Mark a landmark: a duel, a betrayal, a vow. Or hit \u2728 suggest to pull candidates from what already happened.');
-  const rows = list.map((m) => {
+  const rows = list.map((m, i) => {
     const anchor = (m.beatDay !== undefined ? 'Day ' + m.beatDay : '') + (m.beatTime ? (m.beatDay !== undefined ? ', ' : '') + m.beatTime : '');
     const spine = m.spine ? '<span class="vle-mem-tier t-beat" title="On the always-injected spine">\u2691</span>' : '<span class="vle-mem-tier" title="Recalled by relevance only" style="opacity:.5">\u25CB</span>';
+    const up = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="up"${i === 0 ? ' disabled' : ''} title="Move earlier">\u25B4</button>`;
+    const down = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="down"${i === list.length - 1 ? ' disabled' : ''} title="Move later">\u25BE</button>`;
     const edit = `<button class="vle-mini" data-beat-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-day="${m.beatDay ?? ''}" data-time="${esc(m.beatTime ?? '')}" data-spine="${m.spine ? '1' : '0'}" title="Edit">\u270E</button>`;
     return '<div class="vle-mem">' + spine
       + (anchor ? `<span class="vle-tl-day">${esc(anchor)}</span>` : '')
       + `<span class="vle-mem-t">${esc(m.text)}</span>`
-      + `<span class="vle-mem-ctl">${edit}<button class="vle-mini del" data-beat-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
+      + `<span class="vle-mem-ctl">${up}${down}${edit}<button class="vle-mini del" data-beat-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
   }).join('');
   return head + intro + sug + rows;
 }

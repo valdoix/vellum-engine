@@ -107,10 +107,19 @@ export const STYLES = [
   ".vle-tension{font:600 calc(10px * var(--vscale))/1 var(--vmono);color:var(--v-neg);letter-spacing:.5px;margin-left:6px}",
   // cast cards
   ".vle-cards{display:flex;flex-direction:column;gap:calc(7px * var(--vscale))}",
-  ".vle-card{display:flex;align-items:center;gap:11px;padding:calc(10px * var(--vscale)) calc(12px * var(--vscale));border:1px solid var(--vle-gold-soft);border-radius:var(--vr3);background:linear-gradient(170deg,var(--vsurf-1),var(--vsurf-2))}",
-  ".vle-card.on{border-color:var(--vle-gold);box-shadow:0 0 10px rgba(var(--vg-rgb),.18)}",
-  ".vle-av{flex:none;width:calc(34px * var(--vscale));height:calc(34px * var(--vscale));display:grid;place-items:center;border-radius:50%;background:rgba(var(--vg-rgb),.18);color:var(--vle-gold);font-weight:600;font-size:calc(13px * var(--vscale))}",
-  ".vle-card-main{display:flex;flex-direction:column;gap:2px;min-width:0}",
+  ".vle-card{position:relative;display:flex;align-items:center;gap:11px;padding:calc(11px * var(--vscale)) calc(13px * var(--vscale));border:1px solid var(--vle-gold-soft);border-radius:var(--vr3);background:linear-gradient(170deg,var(--vsurf-1),var(--vsurf-2));border-left:4px solid var(--vle-gold-soft)}",
+  // status carried by a colored left spine (visible without reading)
+  ".vle-card--present{border-left-color:var(--v-pos)}",
+  ".vle-card--active{border-left-color:var(--v-info)}",
+  ".vle-card--mentioned{border-left-color:rgba(var(--vg-rgb),.5)}",
+  ".vle-card--added{border-left-color:var(--v-warn)}",
+  ".vle-card.on{border-color:var(--vle-gold);border-left-color:var(--v-pos);box-shadow:0 0 10px rgba(var(--vg-rgb),.18)}",
+  ".vle-av{position:relative;flex:none;width:calc(34px * var(--vscale));height:calc(34px * var(--vscale));display:grid;place-items:center;border-radius:50%;background:rgba(var(--vg-rgb),.18);color:var(--vle-gold);font-weight:600;font-size:calc(13px * var(--vscale))}",
+  // presence dot on the avatar (mockup): tinted by status, hidden unless present/active
+  ".vle-av-dot{position:absolute;right:-1px;top:-1px;width:9px;height:9px;border-radius:50%;border:2px solid var(--vsurf-2);background:transparent}",
+  ".vle-card--present .vle-av-dot{background:var(--v-pos)}",
+  ".vle-card--active .vle-av-dot{background:var(--v-info)}",
+  ".vle-card-main{display:flex;flex-direction:column;gap:3px;min-width:0}",
   ".vle-card-n{font-size:calc(16px * var(--vscale))}",
   // character name color / gradient (nameHtml). Solid uses inline color; gradient
   // clips a background to the text. Inherits weight/size from the surrounding name.
@@ -119,6 +128,9 @@ export const STYLES = [
   ".vle-name--lift{text-shadow:0 0 6px rgba(255,255,255,.35)}",
   ".vle-star{color:var(--vle-gold);font-size:calc(10px * var(--vscale))}",
   ".vle-card-meta{font:600 calc(10px * var(--vscale))/1.2 var(--vmono);opacity:.6}",
+  // sentence-case status+role line (cast redesign): serif, italic, calm
+  ".vle-card-sub{font-family:var(--vserif);font-style:italic;font-size:calc(13px * var(--vscale));color:var(--v-pos-i);opacity:.85}",
+  ".vle-card--mentioned .vle-card-sub,.vle-card--added .vle-card-sub{color:var(--vi2);opacity:.6}",
   ".vle-card-app{font-size:13px;opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
   // tracks + memory
   ".vle-track{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 8px;border-left:2px solid var(--vle-gold-soft);margin-bottom:3px}",
@@ -135,7 +147,7 @@ export const STYLES = [
   ".vle-mem{display:flex;gap:7px;font-size:12px;padding:4px 0;line-height:1.45;align-items:baseline}",
   // per-type record identity: a colored left spine so Knowledge/Secrets/Scars/
   // Codex read as different kinds down a long list (not one flat texture).
-  ".vle-mem--know,.vle-mem--secret,.vle-mem--scar,.vle-mem--codex{padding-left:9px;border-left:3px solid var(--vle-gold-soft)}",
+  ".vle-mem--know,.vle-mem--secret,.vle-mem--scar,.vle-mem--codex{padding-left:13px;border-left:3px solid var(--vle-gold-soft)}",
   ".vle-mem--know{border-left-color:var(--v-info)}",
   ".vle-mem--secret{border-left-color:var(--v-neg)}",
   ".vle-mem--scar{border-left-color:var(--v-warn)}",
@@ -287,7 +299,7 @@ export const STYLES = [
   ".vle-card-ctl,.vle-rel-ctl{display:inline-flex;gap:3px;margin-left:auto}",
   // controls fade in on hover/keyboard-focus; only hidden where hover exists, so
   // touch devices (hover:none) keep them tappable. Kept in DOM (not display:none).
-  "@media (hover:hover){.vle-card .vle-card-ctl{opacity:0;transition:opacity .15s}.vle-card:hover .vle-card-ctl,.vle-card:focus-within .vle-card-ctl{opacity:1}}",
+  "@media (hover:hover){.vle-card .vle-card-ctl{opacity:.4;transition:opacity .15s}.vle-card:hover .vle-card-ctl,.vle-card:focus-within .vle-card-ctl{opacity:1}}",
   "html[data-vle-motion='off'] .vle-card .vle-card-ctl{opacity:1}",
   ".vle-mini{width:22px;height:22px;display:grid;place-items:center;border-radius:6px;font-size:11px;color:var(--vi2);background:rgba(var(--vg-rgb),.08);border:1px solid rgba(var(--vg-rgb),.2);cursor:pointer}",
   ".vle-mini:hover{background:rgba(var(--vg-rgb),.22);color:var(--vle-gold)}",
@@ -397,8 +409,9 @@ export const STYLES = [
   ".vle-book-title{font-family:var(--vserif);font-size:17px;letter-spacing:1px;color:var(--vi);flex:1}",
   // ---- floating dashboard ----
   ".vld{display:flex;flex-direction:column;gap:calc(16px * var(--vscale))}",
-  ".vld-sec{display:flex;flex-direction:column;gap:calc(8px * var(--vscale));padding:calc(12px * var(--vscale)) calc(13px * var(--vscale));border:1px solid rgba(var(--vg-rgb),.14);border-radius:var(--vr3);background:linear-gradient(168deg,var(--vsurf-1),var(--vsurf-2))}",
-  ".vld-h{font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vg);opacity:.85;display:flex;align-items:center;gap:7px}",
+  ".vld-sec{display:flex;flex-direction:column;gap:calc(11px * var(--vscale));padding:calc(13px * var(--vscale)) calc(14px * var(--vscale));border:1px solid rgba(var(--vg-rgb),.14);border-radius:var(--vr3);background:linear-gradient(168deg,var(--vsurf-1),var(--vsurf-2))}",
+  // header sits apart from its body: own line + breathing room beneath the eyebrow
+  ".vld-h{font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vg);opacity:.85;display:flex;align-items:center;gap:7px;margin-bottom:calc(3px * var(--vscale))}",
   ".vld-statbar{display:flex;flex-wrap:wrap;gap:7px}",
   ".vld-stat{font:600 calc(11px * var(--vscale))/1 var(--vmono);color:var(--vi2);background:rgba(var(--vg-rgb),.1);border:1px solid rgba(var(--vg-rgb),.24);border-radius:8px;padding:7px 11px;display:inline-flex;gap:6px}",
   ".vld-stat b{color:var(--vle-gold);font-weight:600;opacity:.85}",
@@ -416,10 +429,10 @@ export const STYLES = [
   // twin meters under a dashboard relation row
   ".vld-rel-meters{display:flex;flex-direction:column;gap:2px;margin:1px 0 6px;padding-left:2px}",
   // colored left spine per recent-event kind (scannable mixed feed)
-  ".vld-rec--journal{border-left:3px solid var(--v-pos);padding-left:9px}",
-  ".vld-rec--knew{border-left:3px solid var(--v-info);padding-left:9px}",
-  ".vld-rec--secret{border-left:3px solid var(--v-neg);padding-left:9px}",
-  ".vld-rec--shift{border-left:3px solid var(--v-press);padding-left:9px}",
+  ".vld-rec--journal{border-left:3px solid var(--v-pos)}",
+  ".vld-rec--knew{border-left:3px solid var(--v-info)}",
+  ".vld-rec--secret{border-left:3px solid var(--v-neg)}",
+  ".vld-rec--shift{border-left:3px solid var(--v-press)}",
   ".vld-tension-row{display:flex;align-items:center;gap:12px}",
   ".vld-tension{position:relative;flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}",
   ".vld-tension-f{position:absolute;left:0;top:0;height:8px;border-radius:5px;transition:width .3s;box-shadow:0 0 8px currentColor}",
@@ -439,13 +452,13 @@ export const STYLES = [
   ".vld-thread{display:flex;justify-content:space-between;gap:8px;font-size:calc(13px * var(--vscale));padding:4px 0 4px 9px;border-left:2px solid rgba(var(--vg-rgb),.3)}",
   ".vld-thread+.vld-thread{border-top:1px solid rgba(var(--vg-rgb),.08)}",
   ".vld-thread-s{font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--vle-gold);opacity:.75}",
-  ".vld-par{border:1px solid color-mix(in srgb,var(--v-info) 22%,transparent);border-radius:10px;background:color-mix(in srgb,var(--v-info) 7%,transparent);padding:calc(8px * var(--vscale)) calc(11px * var(--vscale))}",
-  ".vld-par+.vld-par{margin-top:6px}",
+  ".vld-par{border:1px solid color-mix(in srgb,var(--v-info) 22%,transparent);border-radius:10px;background:color-mix(in srgb,var(--v-info) 7%,transparent);padding:calc(11px * var(--vscale)) calc(13px * var(--vscale))}",
+  ".vld-par+.vld-par{margin-top:8px}",
   ".vld-par-who{font-family:var(--vserif);font-size:calc(15px * var(--vscale));color:var(--v-info)}",
   ".vld-par-w{font:600 calc(9px * var(--vscale))/1 var(--vmono);opacity:.55}",
   ".vld-par-sim{font:600 calc(8px * var(--vscale))/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--v-info);border:1px solid color-mix(in srgb,var(--v-info) 35%,transparent);border-radius:var(--vr1);padding:1px 4px;opacity:.8}",
-  ".vld-par-act{font-size:calc(12.5px * var(--vscale));opacity:.82;margin-top:3px;line-height:1.45}",
-  ".vld-rec{font-size:calc(12.5px * var(--vscale));line-height:1.55;padding:5px 0;color:var(--vi2);border-top:1px solid rgba(var(--vg-rgb),.08)}",
+  ".vld-par-act{font-size:calc(12.5px * var(--vscale));opacity:.82;margin-top:6px;line-height:1.5}",
+  ".vld-rec{font-size:calc(12.5px * var(--vscale));line-height:1.55;padding:6px 0 6px 14px;color:var(--vi2);border-top:1px solid rgba(var(--vg-rgb),.08)}",
   ".vld-rec:first-child{border-top:none}",
   ".vld-rec-k{font:600 calc(9px * var(--vscale))/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;color:var(--vle-gold);background:rgba(var(--vg-rgb),.14);border-radius:5px;padding:3px 6px;margin-right:7px}",
   // ---- Vault tab ----
@@ -705,8 +718,8 @@ export const STYLES = [
   "html[data-vle-chrome='illuminated'] .vlf-x{border-radius:50%;background:radial-gradient(40% 35% at 40% 35%,#b8403a,#6e1f1c);border:1px solid #4a1513;color:#f0c4c0;box-shadow:0 2px 6px rgba(0,0,0,.5),inset 0 1px 2px rgba(255,200,190,.3);text-shadow:0 1px 1px rgba(0,0,0,.5)}",
   "html[data-vle-chrome='illuminated'] .vlf-x:hover{background:radial-gradient(40% 35% at 40% 35%,#c84a44,#7e2622);color:#ffd8d2;border-color:#4a1513}",
   // --- drawer 'binding': a gilt top rule + parchment already via texture default ---
-  "html[data-vle-chrome='illuminated'] .vlf-title{font-family:'Cinzel',var(--vserif)}",
-  "html[data-vle-chrome='illuminated'] .vle-head{border-bottom:2px solid rgba(var(--vg-rgb),.3);box-shadow:0 1px 0 rgba(var(--vg-rgb),.15);font-family:'Cinzel',var(--vserif)}",
+  "html[data-vle-chrome='illuminated'] .vlf-title{font-family:var(--vserif);font-style:italic;letter-spacing:1px}",
+  "html[data-vle-chrome='illuminated'] .vle-head{border-bottom:2px solid rgba(var(--vg-rgb),.3);box-shadow:0 1px 0 rgba(var(--vg-rgb),.15);font-family:var(--vserif);font-style:italic}",
   // --- ribbon-bookmark tabs (both surfaces' nav): notched bottom ---
   "html[data-vle-chrome='illuminated'] .vle-tabbtn.on{border-radius:3px 3px 0 0;position:relative}",
   "html[data-vle-chrome='illuminated'] .vle-tabbtn.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:0;border-left:5px solid transparent;border-right:5px solid transparent}",
