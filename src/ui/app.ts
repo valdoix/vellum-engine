@@ -450,15 +450,15 @@ function openToneModal(ctx: Ctx): void {
 
 function openRebuildModal(ctx: Ctx): void {
   formModal('Rebuild from transcript', [
-    { key: 'mode', label: 'What to rebuild', type: 'select', value: 'full', options: [
-      { value: 'full', label: 'Full \u2014 cast, relations, knowledge, journal + messages' },
-      { value: 'messages', label: 'Messages only \u2014 just capture per-turn memories' },
-    ] },
+    { key: 'mode', label: 'What to do', type: 'select', value: 'full', options: [
+      { value: 'full', label: 'Full rebuild \u2014 replace everything from the transcript' },
+      { value: 'messages', label: 'Capture messages only \u2014 keep all existing data' },
+    ], hint: 'Full REPLACES cast, relations, knowledge, secrets, journal + messages (recovery). Messages-only ADDS any missing per-turn memories and leaves everything else untouched.' },
   ], (out) => {
     const messagesOnly = out.mode === 'messages';
     setQolBusy('rebuild', true);
     ctx.sendToBackend({ type: 'vellum_rebuild', deep: !messagesOnly, messagesOnly });
-    notify(ctx, 'info', messagesOnly ? 'Capturing messages from transcript\u2026' : 'Rebuilding full chronicle from transcript\u2026 this may take a moment.');
+    notify(ctx, 'info', messagesOnly ? 'Capturing missing message memories\u2026' : 'Rebuilding full chronicle from transcript\u2026 this may take a moment.');
   });
 }
 
@@ -691,8 +691,8 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
       } else if (p?.type === 'vellum_rebuild_done') {
         setQolBusy('rebuild', false);
-        const what = p.messagesOnly ? 'Messages captured' : 'Chronicle rebuilt';
-        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `${what} from ${p.turns ?? 0} turn(s).` : `Rebuild failed: ${p.reason ?? 'error'}`);
+        const what = p.messagesOnly ? (p.turns ? `Captured ${p.turns} missing message memor${p.turns === 1 ? 'y' : 'ies'}` : 'No missing message memories \u2014 nothing to capture') : `Chronicle rebuilt from ${p.turns ?? 0} turn(s)`;
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `${what}.` : `Rebuild failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_hide_done') {
         setQolBusy('hide', false);
         _hideOn = !!p.enabled;

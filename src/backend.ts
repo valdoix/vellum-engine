@@ -767,53 +767,61 @@ const dispatch: Record<string, Handler> = {
     if (chatId) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); }
   },
   vellum_rebuild: async (p, uid) => {
-    // RECOVER: rebuild from the chat transcript (the true source). Clears the
-    // derived log, then re-folds every assistant turn. Two modes:
-    //   full (default)  — reconstruct cast/relations/knowledge/journal + the
-    //                      per-turn memories (the state block drives this).
-    //   messagesOnly    — capture ONLY the per-turn message memories (no
-    //                      knowledge/secrets/journal/cast extraction). Fast, and
-    //                      gives a clean turn list to summarize without the model
-    //                      re-deriving (possibly noisy) chronicle data.
+    // Two distinct operations share this handler:
+    //   full (default)  — RECONSTRUCT from the transcript: clear the derived log,
+    //                      then re-fold every turn (cast/relations/knowledge/
+    //                      journal + per-turn memories). Use to recover after loss.
+    //   messagesOnly    — ADDITIVE backfill: do NOT clear anything. Just capture
+    //                      the per-turn message memories for any turn missing one,
+    //                      leaving all existing cast/relations/knowledge/secrets/
+    //                      journal untouched. (memory.record dedups by id.)
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: 'no_active_chat' }, uid); return; }
     const messagesOnly = !!p?.messagesOnly;
     try {
       const msgs = await allTurnContents(chatId);
-      await clearLog(chatId);
-      lastSigByChat.delete(chatId);
+      if (!messagesOnly) { await clearLog(chatId); lastSigByChat.delete(chatId); }
       let prior = await loadState(chatId);
       const tone = await readTone(chatId, uid);
       const names = await chatNames(chatId, uid);
       const userCanon = names.user ? canonId(names.user) : '';
       const locks = await readLocks(chatId);
+      // ids of turn-memories that already exist (messagesOnly: only backfill gaps)
+      const haveTurnMem = new Set(prior.memories.filter((m) => m.tier === 'turn').map((m) => m.id));
       let turns = 0;
+      let added = 0;
       for (let turnNo = 1; turnNo <= msgs.length; turnNo++) {
         const content = (msgs[turnNo - 1] ?? '').trim();
         if (!content) continue;
         const sig = sigOf(content);
-        // messagesOnly: skip block folding (cast/relations/knowledge/journal) and
-        // record just the turn marker + the full-turn memory.
-        const evs: VellumEvent[] = messagesOnly
-          ? [{ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent]
-          : (() => {
-            const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
-            const out: VellumEvent[] = [...events];
-            if (!out.some((e) => e.kind === 'turn.fold')) out.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
-            return out;
-          })();
-        const gist = turnGist(content, names);
-        if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
+        const memId = 'turn_' + chatId.slice(0, 6) + '_' + turnNo;
+        const evs: VellumEvent[] = [];
+        if (messagesOnly) {
+          // additive: only record the full-turn memory when it's missing; never
+          // emit turn.fold (that would re-arm the fold sig / disturb counts) and
+          // never touch knowledge/cast/etc.
+          if (haveTurnMem.has(memId)) continue;
+          const gist = turnGist(content, names);
+          if (!gist) continue;
+          evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: memId, tier: 'turn', text: gist, keys: [] } as VellumEvent);
+        } else {
+          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
+          evs.push(...events);
+          if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
+          const gist = turnGist(content, names);
+          if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: memId, tier: 'turn', text: gist, keys: [] } as VellumEvent);
+        }
+        if (!evs.length) continue;
         prior = await append(chatId, evs);
-        turns++;
-        // optional deep extraction per turn — never in messagesOnly mode
-        if (!messagesOnly && p?.deep && gist) { try { const xe = await extractFromProse(gist, turnNo, prior.day || 0, names, uid, prior, tone); if (xe.length) prior = await append(chatId, xe); } catch { /* best effort */ } }
+        turns++; added++;
+        // optional deep extraction per turn — full mode only
+        if (!messagesOnly && p?.deep) { const g = turnGist(content, names); if (g) { try { const xe = await extractFromProse(g, turnNo, prior.day || 0, names, uid, prior, tone); if (xe.length) prior = await append(chatId, xe); } catch { /* best effort */ } } }
       }
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
-      void maybeChapterVault(chatId, uid); // reconcile vault chapter entries after a full rebuild
-      spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: true, turns, messagesOnly }, uid);
-      spindle.log?.info?.('[vellum_engine] rebuilt chronicle from transcript: ' + turns + ' turns' + (messagesOnly ? ' (messages only)' : ''));
+      void maybeChapterVault(chatId, uid); // reconcile vault chapter entries
+      spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: true, turns: messagesOnly ? added : turns, messagesOnly }, uid);
+      spindle.log?.info?.('[vellum_engine] ' + (messagesOnly ? 'captured ' + added + ' message memories (additive)' : 'rebuilt chronicle from transcript: ' + turns + ' turns'));
     } catch (e) {
       spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: (e as Error)?.message ?? 'error' }, uid);
     }
