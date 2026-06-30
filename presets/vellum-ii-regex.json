@@ -1,14 +1,19 @@
 [
   {
     "script_id": "vellum2-state-strip",
-    "name": "VELLUM II \u2727 State Block (hide)",
+    "name": "VELLUM II ✧ State Block (hide)",
     "folder": "VELLUM II",
     "description": "Removes the <vellum>...</vellum> JSON state block from the visible chat AND from the context sent to the model on later turns. The tracker reads it from the raw stored message regardless, so stripping it here keeps the prose clean and the context lean.",
-    "find_regex": "\\s*(?:\u2039vellum\u203a|<vellum>)[\\s\\S]*?(?:\u2039\\/vellum\u203a|<\\/vellum>)\\s*",
+    "find_regex": "\\s*(?:‹vellum›|<vellum>)[\\s\\S]*?(?:‹\\/vellum›|<\\/vellum>)\\s*",
     "replace_string": "",
     "flags": "gi",
-    "placement": ["ai_output"],
-    "target": ["display", "prompt"],
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display",
+      "prompt"
+    ],
     "scope": "global",
     "scope_id": null,
     "min_depth": null,
@@ -22,14 +27,18 @@
   },
   {
     "script_id": "vellum2-reverie-card",
-    "name": "VELLUM II \u2727 Reverie (display)",
+    "name": "VELLUM II ✧ Reverie (display)",
     "folder": "VELLUM II",
     "description": "Renders the <reverie> planning block as a collapsed dim marginal card in the chat, and strips it entirely from the context sent on later turns. Display-only; disable to hide reasoning completely.",
     "find_regex": "<reverie>([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
-    "replace_string": "<style>.v2r{max-width:780px;margin:12px auto;font-family:'JetBrains Mono',ui-monospace,monospace}.v2r-card{border:1px solid rgba(205,168,78,.28);border-left:3px solid #cda84e;border-radius:10px;overflow:hidden;background:linear-gradient(165deg,rgba(24,21,16,.96),rgba(30,26,20,.95))}.v2r-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Cormorant Garamond',Georgia,serif;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:#cdbfa0}.v2r-card>summary::-webkit-details-marker{display:none}.v2r-card>summary::before{content:'\u2756 ';color:#cda84e}.v2r-in{padding:6px 17px 15px;font-size:11.5px;line-height:1.6;color:#bcb29c;white-space:pre-wrap;border-top:1px solid rgba(205,168,78,.16)}</style><details class='v2r v2r-card'><summary>Reverie \u2014 the writer\u2019s notebook</summary><div class='v2r-in'>$1</div></details>",
+    "replace_string": "<style>.v2r{max-width:780px;margin:12px auto;font-family:'JetBrains Mono',ui-monospace,monospace}.v2r-card{border:1px solid rgba(205,168,78,.28);border-left:3px solid #cda84e;border-radius:10px;overflow:hidden;background:linear-gradient(165deg,rgba(24,21,16,.96),rgba(30,26,20,.95))}.v2r-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Cormorant Garamond',Georgia,serif;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:#cdbfa0}.v2r-card>summary::-webkit-details-marker{display:none}.v2r-card>summary::before{content:'❖ ';color:#cda84e}.v2r-in{padding:6px 17px 15px;font-size:11.5px;line-height:1.6;color:#bcb29c;white-space:pre-wrap;border-top:1px solid rgba(205,168,78,.16)}</style><details class='v2r v2r-card'><summary>Reverie — the writer’s notebook</summary><div class='v2r-in'>$1</div></details>",
     "flags": "gi",
-    "placement": ["ai_output"],
-    "target": ["display"],
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
     "scope": "global",
     "scope_id": null,
     "min_depth": null,
@@ -43,14 +52,18 @@
   },
   {
     "script_id": "vellum2-reverie-context-strip",
-    "name": "VELLUM II \u2727 Reverie (context strip)",
+    "name": "VELLUM II ✧ Reverie (context strip)",
     "folder": "VELLUM II",
     "description": "Strips <reverie> from the context sent to the model on later turns so planning never re-enters the prompt (display card above stays visible).",
     "find_regex": "\\s*<reverie>[\\s\\S]*?<\\/\\s*rever[a-z]*\\s*>\\s*",
     "replace_string": "",
     "flags": "gi",
-    "placement": ["ai_output"],
-    "target": ["prompt"],
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "prompt"
+    ],
     "scope": "global",
     "scope_id": null,
     "min_depth": null,
@@ -64,14 +77,18 @@
   },
   {
     "script_id": "vellum2-vtk-context-strip",
-    "name": "VELLUM II \u2727 Visual Toolkit (context strip)",
+    "name": "VELLUM II ✧ Visual Toolkit (context strip)",
     "folder": "VELLUM II",
     "description": "Strips VTK HTML visuals (<!-- VIS_START --> ... <!-- VIS_END -->) from the context sent to the model on later turns. The visual still renders in the chat; this only removes it from the prompt so a turn's HTML doesn't bloat every subsequent generation. Big token saver when VTK is on.",
     "find_regex": "\\s*<!--\\s*VIS_START\\s*-->[\\s\\S]*?<!--\\s*VIS_END\\s*-->\\s*",
     "replace_string": "",
     "flags": "gi",
-    "placement": ["ai_output"],
-    "target": ["prompt"],
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "prompt"
+    ],
     "scope": "global",
     "scope_id": null,
     "min_depth": null,
@@ -85,14 +102,18 @@
   },
   {
     "script_id": "vellum2-vtk-display",
-    "name": "VELLUM II \u2727 Visual Toolkit (display tidy)",
+    "name": "VELLUM II ✧ Visual Toolkit (display tidy)",
     "folder": "VELLUM II",
     "description": "Removes the bare <!-- VIS_START --> / <!-- VIS_END --> marker comments from the displayed message so only the rendered HTML visual remains. Cosmetic; the HTML between the markers renders normally.",
     "find_regex": "<!--\\s*VIS_(?:START|END)\\s*-->",
     "replace_string": "",
     "flags": "gi",
-    "placement": ["ai_output"],
-    "target": ["display"],
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
     "scope": "global",
     "scope_id": null,
     "min_depth": null,
@@ -103,5 +124,230 @@
     "disabled": false,
     "sort_order": 4,
     "metadata": {}
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-card-codex",
+    "name": "VELLUM II ✧ Card: Codex",
+    "description": "Renders [CODEX|title|body] as an illuminated codex entry (display), and strips the raw tag from later context (prompt).",
+    "find_regex": "\\[CODEX\\|([^|\\]]*)\\|([^\\]]*)\\]",
+    "replace_string": "<div style=\"max-width:560px;margin:14px auto;border:1px solid rgba(205,168,78,.30);border-left:3px solid #cda84e;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"padding:13px 18px 5px;font-family:'Cormorant Garamond',Georgia,serif;font-size:19px;letter-spacing:.5px;color:#cda84e\">❖ $1</div><div style=\"padding:4px 18px 16px;font-size:15px;line-height:1.62\">$2</div></div>",
+    "target": [
+      "display"
+    ],
+    "disabled": false,
+    "sort_order": 10
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-card-letter",
+    "name": "VELLUM II ✧ Card: Letter",
+    "description": "Renders [LETTER|from|body] as a handwritten missive (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[LETTER\\|([^|\\]]*)\\|([^\\]]*)\\]",
+    "replace_string": "<div style=\"max-width:520px;margin:14px auto;padding:18px 20px;border:1px solid rgba(205,168,78,.30);border-radius:6px;background:linear-gradient(170deg,rgba(40,34,24,.96),rgba(30,26,19,.97));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.7;font-style:italic;color:#e8dcc0\"><div style=\"white-space:pre-wrap\">$2</div><div style=\"margin-top:12px;text-align:right;color:#cda84e;font-size:16px\">— $1</div></div>",
+    "target": [
+      "display"
+    ],
+    "disabled": false,
+    "sort_order": 11
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-card-decree",
+    "name": "VELLUM II ✧ Card: Decree",
+    "description": "Renders [DECREE|title|body] as an official proclamation (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[DECREE\\|([^|\\]]*)\\|([^\\]]*)\\]",
+    "replace_string": "<div style=\"max-width:560px;margin:14px auto;border:2px double rgba(205,168,78,.30);border-radius:4px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"padding:14px 18px 6px;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:20px;letter-spacing:2px;text-transform:uppercase;color:#cda84e\">$1</div><div style=\"height:1px;background:rgba(205,168,78,.30);margin:0 18px\"></div><div style=\"padding:12px 22px 18px;font-size:15px;line-height:1.62;text-align:center\">$2</div></div>",
+    "target": [
+      "display"
+    ],
+    "disabled": false,
+    "sort_order": 12
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-card-portrait",
+    "name": "VELLUM II ✧ Card: Portrait",
+    "description": "Renders [PORTRAIT|name|description] as an illuminated character plate (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[PORTRAIT\\|([^|\\]]*)\\|([^\\]]*)\\]",
+    "replace_string": "<div style=\"max-width:420px;margin:14px auto;display:flex;align-items:center;gap:14px;padding:14px 18px;border:1px solid rgba(205,168,78,.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"flex:0 0 46px;height:46px;border-radius:50%;border:1px solid #cda84e;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#cda84e\">$1</div><div><div style=\"font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;color:#cda84e\">$1</div><div style=\"font-size:14px;line-height:1.5;color:#b9ad92\">$2</div></div></div>",
+    "target": [
+      "display"
+    ],
+    "disabled": false,
+    "sort_order": 13
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-card-broadsheet",
+    "name": "VELLUM II ✧ Spectacle: Broadsheet",
+    "description": "Renders [BROADSHEET|body] as a period news-sheet of offscreen events (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[BROADSHEET\\|([^\\]]*)\\]",
+    "replace_string": "<div style=\"max-width:560px;margin:14px auto;padding:16px 20px;border:1px solid rgba(205,168,78,.30);border-radius:3px;background:linear-gradient(180deg,rgba(38,33,24,.97),rgba(28,24,18,.97));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;letter-spacing:3px;text-transform:uppercase;color:#cda84e;border-bottom:2px solid rgba(205,168,78,.30);padding-bottom:6px;margin-bottom:10px\">The Chronicle</div><div style=\"font-size:14px;line-height:1.6;column-gap:22px\">$1</div></div>",
+    "target": [
+      "display"
+    ],
+    "disabled": false,
+    "sort_order": 14
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-card-tarot",
+    "name": "VELLUM II ✧ Spectacle: Tarot",
+    "description": "Renders [TAROT|card|reading] as a single drawn card (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[TAROT\\|([^|\\]]*)\\|([^\\]]*)\\]",
+    "replace_string": "<div style=\"max-width:360px;margin:14px auto;padding:16px;border:1px solid #cda84e;border-radius:14px;text-align:center;background:radial-gradient(120% 100% at 50% 0%,rgba(45,38,28,.97),rgba(22,19,14,.98));box-shadow:0 6px 22px rgba(0,0,0,.4);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"font-size:13px;letter-spacing:3px;color:#b9ad92;text-transform:uppercase\">the draw</div><div style=\"font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#cda84e;margin:6px 0 10px\">$1</div><div style=\"font-size:14px;line-height:1.6;font-style:italic\">$2</div></div>",
+    "target": [
+      "display"
+    ],
+    "disabled": false,
+    "sort_order": 15
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-card-dramatis",
+    "name": "VELLUM II ✧ Spectacle: Dramatis",
+    "description": "Renders [DRAMATIS|cast] as an illuminated playbill (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[DRAMATIS\\|([^\\]]*)\\]",
+    "replace_string": "<div style=\"max-width:480px;margin:14px auto;padding:16px 20px;border:1px solid rgba(205,168,78,.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:15px;letter-spacing:3px;text-transform:uppercase;color:#cda84e;margin-bottom:8px\">Dramatis Personae</div><div style=\"font-size:15px;line-height:1.7;text-align:center\">$1</div></div>",
+    "target": [
+      "display"
+    ],
+    "disabled": false,
+    "sort_order": 16
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-cards-context-strip",
+    "name": "VELLUM II ✧ Cards (context strip)",
+    "description": "Strips every VTK card/spectacle tag ([CODEX]/[LETTER]/[DECREE]/[PORTRAIT]/[BROADSHEET]/[TAROT]/[DRAMATIS]) from the context sent to the model on later turns. The card still renders in chat; this only keeps the tag out of the prompt.",
+    "find_regex": "\\s*\\[(?:CODEX|LETTER|DECREE|PORTRAIT|BROADSHEET|TAROT|DRAMATIS)\\|[^\\]]*\\]\\s*",
+    "replace_string": "",
+    "target": [
+      "prompt"
+    ],
+    "disabled": false,
+    "sort_order": 17
+  },
+  {
+    "folder": "VELLUM II",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "metadata": {},
+    "script_id": "vellum2-slop-mark",
+    "name": "VELLUM II ✧ Slop Proofreader (display)",
+    "description": "Optional, disabled by default. Flags a few stubborn cliches in the DISPLAYED message with a faint marginal mark so you can see them — never touches the prompt or the stored message the engine reads. Pair with the Anti-Slop \"Slop Proofreader\" toggle.",
+    "find_regex": "\\b(ozone|shiver(?:ed|s)? down (?:his|her|their|my) spine|breath (?:he|she|they|I) (?:didn't|did not) know (?:he|she|they|I) (?:was|were) holding|knuckles white|sent shivers|barely above a whisper)\\b",
+    "replace_string": "$1<span style=\"color:#9a7d4e;font-size:.8em;opacity:.7\" title=\"VELLUM proofreader: stock phrasing\"> ✎</span>",
+    "target": [
+      "display"
+    ],
+    "disabled": true,
+    "sort_order": 18
   }
 ]
