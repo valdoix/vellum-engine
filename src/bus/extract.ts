@@ -72,6 +72,9 @@ function bad(name: string): boolean {
  *   - pure hallucination (the model invents "Aegon" who isn't in the text)
  *   - misattribution to an off-scene cast member (writes "Rhaegar" for a Daeron
  *     scene — Rhaegar isn't in this prose, so it's dropped)
+ *   - same-surname misfiling (writes "Tywin Lannister" when only "Cersei
+ *     Lannister" is in the prose — a trailing SHARED token like "lannister" must
+ *     not admit Tywin; require the given name, or a surname unique to one cast)
  * OBJECT slots (about / secret `from` / faction name) are NOT gated here: you can
  * learn a fact ABOUT someone absent. `proseTokens` is the lowercased word set of
  * the turn's narration. */
@@ -80,13 +83,26 @@ function buildProseTokens(prose: string): Set<string> {
   for (const w of String(prose || '').toLowerCase().match(/[a-z][a-z'-]{1,}/g) ?? []) set.add(w);
   return set;
 }
-function inProse(name: string, prose: Set<string>, userCanon: string, charCanon: string): boolean {
+const ARTICLE = new Set(['the', 'a', 'an']);
+function inProse(name: string, prose: Set<string>, userCanon: string, charCanon: string, cast?: Record<string, { id: string }>): boolean {
   const id = canonId(name);
   if (!id) return false;
   if (id === userCanon || id === charCanon) return true; // persona always counts
-  // any token of the name present in the prose ("Aegon" matches "Aegon Targaryen"
-  // and vice-versa; a multi-word name needs only one token to land).
-  return id.split('_').some((tok) => tok.length > 1 && prose.has(tok));
+  const toks = id.split('_').filter((t) => t.length > 1 && !ARTICLE.has(t));
+  if (!toks.length) return false;
+  const hit = toks.filter((t) => prose.has(t));
+  if (!hit.length) return false;
+  // the GIVEN name (first significant token) present = a confident match
+  // ("Daeron" lands "Daeron Targaryen"; "Cersei" lands "Cersei Lannister").
+  if (prose.has(toks[0]!)) return true;
+  // otherwise ONLY a trailing token matched — typically a shared SURNAME. That is
+  // the misattribution trap: "lannister" (from Cersei in the prose) must not admit
+  // an off-scene "Tywin Lannister". Accept a surname-only match ONLY when no OTHER
+  // cast member shares that token (so "Baelish" alone is fine, but a contested
+  // surname is rejected and the entry is dropped rather than misfiled).
+  if (!cast) return true; // no cast supplied (older callers/tests) → keep lenient
+  const contested = Object.values(cast).some((c) => c.id !== id && hit.some((t) => c.id.split('_').includes(t)));
+  return !contested;
 }
 
 /**
@@ -108,7 +124,7 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   // When no prose is supplied (older callers/tests), the gate is a no-op so
   // behaviour is unchanged. OBJECT names (about/from/faction) bypass it.
   const tokens = prose ? buildProseTokens(prose) : null;
-  const present = (name: string): boolean => !tokens || inProse(name, tokens, userCanon, charCanon);
+  const present = (name: string): boolean => !tokens || inProse(name, tokens, userCanon, charCanon, state?.cast);
 
   for (const k of Array.isArray(obj.knowledge) ? obj.knowledge : []) {
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
