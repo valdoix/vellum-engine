@@ -9,7 +9,7 @@ import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
 import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.js';
-import { planChapterFrom } from './domain/memory.js';
+import { planChapterFrom, planArc, planArcFrom } from './domain/memory.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -767,12 +767,17 @@ const dispatch: Record<string, Handler> = {
     if (chatId) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); }
   },
   vellum_rebuild: async (p, uid) => {
-    // RECOVER: rebuild the whole chronicle from the chat transcript (the true
-    // source). Clears the derived log, then re-folds every assistant turn Ã¢â‚¬â€ so a
-    // wiped/corrupt chronicle can be reconstructed (cast/relations/knowledge/
-    // journal) from the messages, which were never lost.
+    // RECOVER: rebuild from the chat transcript (the true source). Clears the
+    // derived log, then re-folds every assistant turn. Two modes:
+    //   full (default)  — reconstruct cast/relations/knowledge/journal + the
+    //                      per-turn memories (the state block drives this).
+    //   messagesOnly    — capture ONLY the per-turn message memories (no
+    //                      knowledge/secrets/journal/cast extraction). Fast, and
+    //                      gives a clean turn list to summarize without the model
+    //                      re-deriving (possibly noisy) chronicle data.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    const messagesOnly = !!p?.messagesOnly;
     try {
       const msgs = await allTurnContents(chatId);
       await clearLog(chatId);
@@ -786,21 +791,29 @@ const dispatch: Record<string, Handler> = {
       for (let turnNo = 1; turnNo <= msgs.length; turnNo++) {
         const content = (msgs[turnNo - 1] ?? '').trim();
         if (!content) continue;
-        const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
-        const evs: VellumEvent[] = [...events];
-        if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
+        const sig = sigOf(content);
+        // messagesOnly: skip block folding (cast/relations/knowledge/journal) and
+        // record just the turn marker + the full-turn memory.
+        const evs: VellumEvent[] = messagesOnly
+          ? [{ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent]
+          : (() => {
+            const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
+            const out: VellumEvent[] = [...events];
+            if (!out.some((e) => e.kind === 'turn.fold')) out.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
+            return out;
+          })();
         const gist = turnGist(content, names);
         if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
         prior = await append(chatId, evs);
         turns++;
-        // optional deep extraction per turn (knowledge/secrets/journal) when asked
-        if (p?.deep && gist) { try { const xe = await extractFromProse(gist, turnNo, prior.day || 0, names, uid, prior, tone); if (xe.length) prior = await append(chatId, xe); } catch { /* best effort */ } }
+        // optional deep extraction per turn — never in messagesOnly mode
+        if (!messagesOnly && p?.deep && gist) { try { const xe = await extractFromProse(gist, turnNo, prior.day || 0, names, uid, prior, tone); if (xe.length) prior = await append(chatId, xe); } catch { /* best effort */ } }
       }
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
       void maybeChapterVault(chatId, uid); // reconcile vault chapter entries after a full rebuild
-      spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: true, turns }, uid);
-      spindle.log?.info?.('[vellum_engine] rebuilt chronicle from transcript: ' + turns + ' turns');
+      spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: true, turns, messagesOnly }, uid);
+      spindle.log?.info?.('[vellum_engine] rebuilt chronicle from transcript: ' + turns + ' turns' + (messagesOnly ? ' (messages only)' : ''));
     } catch (e) {
       spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: (e as Error)?.message ?? 'error' }, uid);
     }
@@ -913,6 +926,27 @@ const dispatch: Record<string, Handler> = {
     await broadcastState(chatId, uid);
     const vault = await maybeChapterVault(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds: events.length ? 1 : 0, tokens, picked: plan.sourceIds.length, vault }, uid);
+  },
+  vellum_arc: async (p, uid) => {
+    // Fold CHAPTERS into an ARC. Manual pick (p.ids = chapter ids) or auto (the
+    // oldest run of chapters, keeping recent ones un-bound). Reuses the same
+    // record/drop machinery, so deleting the arc restores its chapters.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'no_generation' }, uid); return; }
+    const cfg = await summarizerCfg(chatId);
+    const state = await loadState(chatId);
+    const ids: string[] = Array.isArray(p?.ids) ? p.ids.map(String) : [];
+    const plan = ids.length
+      ? planArcFrom(state, ids, 2)
+      : planArc(state, Math.max(2, cfg.minWindow), 4);
+    if (!plan) { spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'too_few' }, uid); return; }
+    const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'arc');
+    if (events.length) await append(chatId, events);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    const vault = await maybeChapterVault(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: true, rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length, vault }, uid);
   },
   vellum_clear: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

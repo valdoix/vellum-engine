@@ -21,8 +21,10 @@ let _view: CView = 'world';
 // Timeline filters: by kind (all/memory/knew/secret/journal) and by day (all/<n>).
 let _tlKind = 'all';
 let _tlDay = 'all';
-// Manual turn-pick: selection mode + chosen turn-memory ids (+ shift-range anchor).
+// Manual pick: selection mode, the tier being picked ('turn'→chapter, 'chapter'
+// →arc), the chosen ids, and a shift-range anchor.
 let _pickMode = false;
+let _pickTier: 'turn' | 'chapter' = 'turn';
 const _picked = new Set<string>();
 let _pickAnchor: string | null = null;
 
@@ -39,7 +41,7 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_picked.size}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_picked.size}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length };
@@ -65,12 +67,16 @@ export const chronicleTab: Component<ChronicleState> = {
       if (tk) { _tlKind = tk.getAttribute('data-tl-kind')!; refreshUI(); return; }
       const td = t.closest('[data-tl-day]');
       if (td) { _tlDay = td.getAttribute('data-tl-day')!; refreshUI(); return; }
-      // --- manual turn-pick ---
-      if (t.closest('[data-pick-toggle]')) { _pickMode = !_pickMode; if (!_pickMode) { _picked.clear(); _pickAnchor = null; } refreshUI(); return; }
+      // --- manual pick: turns→chapter, chapters→arc ---
+      const ptg = t.closest('[data-pick-toggle]');
+      if (ptg) {
+        const tier = (ptg.getAttribute('data-pick-toggle') === 'chapter' ? 'chapter' : 'turn') as 'turn' | 'chapter';
+        if (_pickMode && _pickTier === tier) { _pickMode = false; } else { _pickMode = true; _pickTier = tier; }
+        _picked.clear(); _pickAnchor = null; refreshUI(); return;
+      }
       const pk = t.closest('[data-pick-id]');
       if (pk) {
         const id = pk.getAttribute('data-pick-id')!;
-        // pickable ids, in displayed order, read from the DOM (the rendered rows)
         const ids = Array.from(host.querySelectorAll('[data-pick-id]')).map((el) => el.getAttribute('data-pick-id')!).filter(Boolean);
         if ((e as MouseEvent).shiftKey && _pickAnchor && ids.includes(_pickAnchor) && ids.includes(id)) {
           const a = ids.indexOf(_pickAnchor), b = ids.indexOf(id);
@@ -82,7 +88,11 @@ export const chronicleTab: Component<ChronicleState> = {
         refreshUI(); return;
       }
       if (t.closest('[data-pick-fold]')) {
-        if (_picked.size >= 2) { send({ type: 'vellum_summarize_pick', ids: Array.from(_picked) }); _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI(); }
+        if (_picked.size >= 2) {
+          const ids = Array.from(_picked);
+          send(_pickTier === 'chapter' ? { type: 'vellum_arc', ids } : { type: 'vellum_summarize_pick', ids });
+          _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI();
+        }
         return;
       }
       if (t.closest('[data-mem-add]')) { formModal('New Memory', [
@@ -224,12 +234,13 @@ function timeline(s: ChronicleState): string {
 
 function memories(s: ChronicleState): string {
   const turnCount = s.memories.filter((m) => m.tier === 'turn').length;
-  const pickBtn = turnCount >= 2
-    ? `<button class="vle-add sm" data-pick-toggle title="Select turns to fold into a chapter">${_pickMode ? '\u2715 cancel' : '\u2748 pick'}</button>`
-    : '';
-  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: pickBtn + '<button class="vle-add sm" data-mem-add>+</button>' });
+  const chapCount = s.memories.filter((m) => m.tier === 'chapter').length;
+  // pick controls: fold turns→chapter (needs 2+ turns) and/or chapters→arc (2+ chapters)
+  const pickTurns = turnCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="turn" title="Select turns to fold into a chapter">${_pickMode && _pickTier === 'turn' ? '\u2715 cancel' : '\u2748 fold turns'}</button>` : '';
+  const pickChaps = chapCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="chapter" title="Select chapters to fold into an arc">${_pickMode && _pickTier === 'chapter' ? '\u2715 cancel' : '\u2748 fold chapters'}</button>` : '';
+  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: pickTurns + pickChaps + '<button class="vle-add sm" data-mem-add>+</button>' });
   if (!s.memories.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
-  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: turnCount, chapter: s.memories.filter((m) => m.tier === 'chapter').length, arc: s.memories.filter((m) => m.tier === 'arc').length } });
+  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: turnCount, chapter: chapCount, arc: s.memories.filter((m) => m.tier === 'arc').length } });
   const filtered = applyFilter('memories', s.memories, { cat: (m) => m.tier });
   const { slice, page, pages } = paginate('memories', filtered);
   const rows = slice.map((m: Memory) => {
@@ -238,7 +249,7 @@ function memories(s: ChronicleState): string {
     // chapters/arcs are already concise gists, shown whole.
     const shown = isTurn ? oneLine(m.text) : m.text;
     const titleAttr = isTurn ? ` title="${esc(m.text).slice(0, 1000)}"` : '';
-    const pickable = _pickMode && isTurn;
+    const pickable = _pickMode && m.tier === _pickTier;
     const checked = _picked.has(m.id) ? ' checked' : '';
     const box = pickable ? `<input type="checkbox" class="vle-mem-pick" data-pick-id="${esc(m.id)}"${checked}>` : '';
     return '<div class="vle-mem' + (pickable ? ' pickable' : '') + '">' + box
@@ -247,9 +258,11 @@ function memories(s: ChronicleState): string {
       + `<span class="vle-mem-ctl"><button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit summary">\u270E</button>`
       + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
   }).join('');
+  const foldLabel = _pickTier === 'chapter' ? 'Fold into arc' : 'Fold into chapter';
+  const unit = _pickTier === 'chapter' ? 'chapter' : 'turn';
   const footer = _pickMode
-    ? `<div class="vle-pickbar"><span>${_picked.size} turn${_picked.size === 1 ? '' : 's'} selected</span>`
-      + `<button class="vle-add sm" data-pick-fold${_picked.size < 2 ? ' disabled' : ''}>Fold into chapter</button></div>`
+    ? `<div class="vle-pickbar"><span>${_picked.size} ${unit}${_picked.size === 1 ? '' : 's'} selected</span>`
+      + `<button class="vle-add sm" data-pick-fold${_picked.size < 2 ? ' disabled' : ''}>${foldLabel}</button></div>`
     : '';
   if (!slice.length) return head + bar + emptyState('No memories match this filter.');
   return head + bar + footer + rows + pagerHtml('memories', page, pages);

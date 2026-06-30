@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, resolvePrompt, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT } from '../src/domain/summarizer-config.js';
-import { planChapterFrom, planChapter } from '../src/domain/memory.js';
+import { planChapterFrom, planChapter, planArc, planArcFrom, arcEvents } from '../src/domain/memory.js';
+import { reduce } from '../src/core/reduce.js';
 import { freshState } from '../src/domain/types.js';
 import type { Memory } from '../src/domain/types.js';
 
@@ -92,3 +93,59 @@ describe('planChapterFrom (manual turn-pick)', () => {
     expect(plan!.covers).toEqual([1, 4]);
   });
 });
+
+function withChapters(n: number): ReturnType<typeof freshState> {
+  const s = freshState();
+  for (let i = 1; i <= n; i++) {
+    const lo = (i - 1) * 5 + 1, hi = i * 5;
+    s.memories.push({ id: 'chap_' + i, tier: 'chapter', text: `Chapter ${i} gist.`, detail: `Chapter ${i} detail.`, keys: ['k' + i], turn: hi, covers: [lo, hi] } as Memory);
+  }
+  s.turns = n * 5;
+  return s;
+}
+
+describe('planArc / planArcFrom (chapters → arc)', () => {
+  it('auto planArc takes the oldest chapters, keeping a lag of recent ones', () => {
+    const s = withChapters(8);
+    const plan = planArc(s, 3, 4); // 8 chapters, keep last 4 → 4 eligible
+    expect(plan).not.toBeNull();
+    expect(plan!.sourceIds.length).toBeGreaterThanOrEqual(3);
+    expect(plan!.source.every((x) => x.tier === 'chapter')).toBe(true);
+    expect(plan!.covers[0]).toBe(1); // starts at the oldest chapter's span
+  });
+
+  it('planArc returns null when too few old chapters', () => {
+    const s = withChapters(4);
+    expect(planArc(s, 3, 4)).toBeNull(); // all 4 are within the lag
+  });
+
+  it('planArcFrom folds an explicit chapter set with the true span', () => {
+    const s = withChapters(6);
+    const plan = planArcFrom(s, ['chap_2', 'chap_4'], 2);
+    expect(plan).not.toBeNull();
+    expect(plan!.sourceIds).toEqual(['chap_2', 'chap_4']);
+    expect(plan!.covers).toEqual([6, 20]); // chap_2 covers 6-10, chap_4 covers 16-20
+  });
+
+  it('arcEvents records an arc and dropping it RESTORES the chapters', () => {
+    const s = withChapters(4);
+    const plan = planArcFrom(s, ['chap_1', 'chap_2'], 2)!;
+    const evs = arcEvents(plan, { gist: 'Arc gist.', detail: 'Arc detail.', keys: ['a'] }, 20, 0, (() => { let n = 0; return () => ++n; })());
+    const folded = reduce([...baseMemEvents(s), ...evs]);
+    expect(folded.memories.find((m) => m.tier === 'arc')).toBeDefined();
+    expect(folded.memories.filter((m) => m.tier === 'chapter').map((m) => m.id).sort()).toEqual(['chap_3', 'chap_4']); // 1&2 folded away
+    // now drop the arc → chapters 1 & 2 come back with their detail/covers
+    const arcId = folded.memories.find((m) => m.tier === 'arc')!.id;
+    const after = reduce([...baseMemEvents(s), ...evs, { seq: 999, turn: 20, day: 0, src: 'user', kind: 'memory.drop', id: arcId } as any]);
+    const restored = after.memories.filter((m) => m.tier === 'chapter').map((m) => m.id).sort();
+    expect(restored).toEqual(['chap_1', 'chap_2', 'chap_3', 'chap_4']);
+    const c1 = after.memories.find((m) => m.id === 'chap_1')!;
+    expect(c1.detail).toBe('Chapter 1 detail.');
+    expect(c1.covers).toEqual([1, 5]);
+  });
+});
+
+// seed memory.record events so reduce() has the chapters present before folding
+function baseMemEvents(s: ReturnType<typeof freshState>): any[] {
+  return s.memories.map((m, i) => ({ seq: i + 1, turn: m.turn, day: 0, src: 'system', kind: 'memory.record', id: m.id, tier: m.tier, text: m.text, detail: m.detail, keys: m.keys ?? [], covers: m.covers }));
+}

@@ -392,7 +392,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'summarize') { setQolBusy('summarize', true); ctx.sendToBackend({ type: 'vellum_summarize' }); notify(ctx, 'info', 'Summarizing older turns\u2026'); }
   else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); notify(ctx, 'info', 'Rescanning the latest turn\u2026'); }
   else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
-  else if (id === 'rebuild') { confirmModal('Rebuild the entire chronicle from this chat\u2019s transcript? This replaces the current chronicle by re-reading every turn (use this to recover after data loss). Deep extraction (knowledge/secrets/journal) runs too.', () => { setQolBusy('rebuild', true); ctx.sendToBackend({ type: 'vellum_rebuild', deep: true }); notify(ctx, 'info', 'Rebuilding chronicle from transcript\u2026 this may take a moment.'); }); }
+  else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'traverse') {
@@ -445,6 +445,20 @@ function openToneModal(ctx: Ctx): void {
     ctx.sendToBackend({ type: 'vellum_set_tone', romance: out.romance, disposition: out.disposition });
     ctx.sendToBackend({ type: 'vellum_set_tidy', enabled: out.tidy === 'on' });
     ctx.sendToBackend({ type: 'vellum_set_chaptervault', mode: out.chaptervault });
+  });
+}
+
+function openRebuildModal(ctx: Ctx): void {
+  formModal('Rebuild from transcript', [
+    { key: 'mode', label: 'What to rebuild', type: 'select', value: 'full', options: [
+      { value: 'full', label: 'Full \u2014 cast, relations, knowledge, journal + messages' },
+      { value: 'messages', label: 'Messages only \u2014 just capture per-turn memories' },
+    ] },
+  ], (out) => {
+    const messagesOnly = out.mode === 'messages';
+    setQolBusy('rebuild', true);
+    ctx.sendToBackend({ type: 'vellum_rebuild', deep: !messagesOnly, messagesOnly });
+    notify(ctx, 'info', messagesOnly ? 'Capturing messages from transcript\u2026' : 'Rebuilding full chronicle from transcript\u2026 this may take a moment.');
   });
 }
 
@@ -611,6 +625,11 @@ export function setup(ctx: Ctx): () => void {
         } else if (v && (v.created || v.updated)) {
           notify(ctx, 'success', `Vault: ${v.created} chapter${v.created === 1 ? '' : 's'} saved${v.updated ? `, ${v.updated} updated` : ''}.`);
         }
+      } else if (p?.type === 'vellum_arc_done') {
+        const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
+        if (p.ok === false && p.reason === 'too_few') notify(ctx, 'warning', 'Need at least 2 chapters to fold into an arc.');
+        else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Folding to an arc needs the generation permission.');
+        else notify(ctx, 'success', p.rounds ? `Folded ${p.bound ?? 0} chapters into an arc${tok}.` : 'No chapters old enough to fold yet.');
       } else if (p?.type === 'vellum_resummarize_done') {
         setQolBusy('resummarize', false);
         if (!p.ok) notify(ctx, 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : 'Re-summarize failed.');
@@ -640,7 +659,8 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
       } else if (p?.type === 'vellum_rebuild_done') {
         setQolBusy('rebuild', false);
-        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Chronicle rebuilt from ${p.turns ?? 0} turn(s).` : `Rebuild failed: ${p.reason ?? 'error'}`);
+        const what = p.messagesOnly ? 'Messages captured' : 'Chronicle rebuilt';
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `${what} from ${p.turns ?? 0} turn(s).` : `Rebuild failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_hide_done') {
         setQolBusy('hide', false);
         _hideOn = !!p.enabled;

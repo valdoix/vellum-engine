@@ -106,7 +106,7 @@ export const EvSecretDrop = z.object({ ...base, kind: z.literal('secret.drop'), 
 // lists, keep the richer text on `into`; the `from` ids are removed.
 export const EvSecretMerge = z.object({ ...base, kind: z.literal('secret.merge'), into: z.string(), from: z.array(z.string()) });
 
-const SubsumedMem = z.object({ id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]) });
+const SubsumedMem = z.object({ id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]), tier: MemoryTier.optional(), detail: z.string().optional(), covers: z.tuple([z.number(), z.number()]).optional() });
 export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), detail: z.string().optional(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional() });
 // Links a chapter/arc memory to its detailed VAULT projection (world-book entry).
 // Append-only so the log stays the source of truth; reduce sets vaultEntryId.

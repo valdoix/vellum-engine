@@ -114,7 +114,7 @@ export interface Memory {
   keys: string[];
   vaultEntryId?: string; // world-book entry holding `detail` (the hybrid-memory projection)
   covers?: [number, number];
-  subsumed?: Array<{ id: string; turn: number; text: string; keys: string[] }>;
+  subsumed?: Array<{ id: string; turn: number; text: string; keys: string[]; tier?: 'turn' | 'chapter' | 'arc'; detail?: string; covers?: [number, number] }>;
   turn: number;
 }
 

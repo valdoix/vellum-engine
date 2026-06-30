@@ -16,10 +16,11 @@ import { hashStr } from '../core/ids.js';
  */
 
 export interface CompressPlan {
-  /** turn-tier memory ids to fold into one chapter */
+  /** source memory ids to fold (turn-tier for a chapter, chapter-tier for an arc) */
   sourceIds: string[];
-  /** the full source memories, kept so deletion can restore them */
-  source: Array<{ id: string; turn: number; text: string; keys: string[] }>;
+  /** the full source memories, kept so deletion can restore them. tier/detail/
+   * covers are carried for chapter sources (so an arc can restore real chapters). */
+  source: Array<{ id: string; turn: number; text: string; keys: string[]; tier?: 'turn' | 'chapter' | 'arc'; detail?: string; covers?: [number, number] }>;
   /** inclusive turn range covered */
   covers: [number, number];
 }
@@ -75,6 +76,63 @@ export function chapterEvents(
   const id = 'chap_' + hashStr(plan.sourceIds.join(',')).slice(0, 8);
   const events: VellumEvent[] = [
     { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
+  ];
+  for (const sid of plan.sourceIds) {
+    events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid });
+  }
+  return events;
+}
+
+/** Snapshot a chapter memory as a restorable arc-source entry. */
+function chapterSource(m: { id: string; turn: number; text: string; keys?: string[]; detail?: string; covers?: [number, number] }): CompressPlan['source'][number] {
+  return { id: m.id, turn: m.covers ? m.covers[1] : m.turn, text: m.text, keys: m.keys ?? [], tier: 'chapter', ...(m.detail ? { detail: m.detail } : {}), ...(m.covers ? { covers: m.covers } : {}) };
+}
+
+/**
+ * Decide which CHAPTER memories to consolidate into an arc: the oldest
+ * contiguous run of >= `minChapters` chapters, keeping the most recent
+ * `lagChapters` un-bound (so recent chapters stay individually visible). Returns
+ * null when there aren't enough old chapters yet.
+ */
+export function planArc(state: ChronicleState, minChapters = 3, lagChapters = 4): CompressPlan | null {
+  const chapters = state.memories.filter((m) => m.tier === 'chapter').sort((a, b) => (a.covers ? a.covers[1] : a.turn) - (b.covers ? b.covers[1] : b.turn));
+  const eligible = Math.max(0, chapters.length - Math.max(0, lagChapters));
+  if (eligible < Math.max(2, minChapters)) return null;
+  const window = chapters.slice(0, Math.min(eligible, Math.max(minChapters, eligible)));
+  return arcPlanFrom(window);
+}
+
+/** Plan an arc from an EXPLICIT set of chapter-memory ids (a manual pick). */
+export function planArcFrom(state: ChronicleState, ids: readonly string[], minChapters = 2): CompressPlan | null {
+  const want = new Set(ids.map(String));
+  const picked = state.memories
+    .filter((m) => m.tier === 'chapter' && want.has(m.id))
+    .sort((a, b) => (a.covers ? a.covers[1] : a.turn) - (b.covers ? b.covers[1] : b.turn));
+  if (picked.length < Math.max(2, minChapters)) return null;
+  return arcPlanFrom(picked);
+}
+
+function arcPlanFrom(chapters: Array<{ id: string; turn: number; text: string; keys?: string[]; detail?: string; covers?: [number, number] }>): CompressPlan {
+  const lo = Math.min(...chapters.map((m) => m.covers ? m.covers[0] : m.turn));
+  const hi = Math.max(...chapters.map((m) => m.covers ? m.covers[1] : m.turn));
+  return { sourceIds: chapters.map((m) => m.id), source: chapters.map(chapterSource), covers: [lo, hi] };
+}
+
+/**
+ * Build the events for a completed ARC consolidation: record the arc memory and
+ * drop the source chapters it subsumes (restored on the arc's deletion, since
+ * `subsumed` carries each chapter's tier/detail/covers).
+ */
+export function arcEvents(
+  plan: CompressPlan,
+  summary: { gist: string; detail: string; keys: string[] },
+  turn: number,
+  day: number,
+  seq: () => number,
+): VellumEvent[] {
+  const id = 'arc_' + hashStr(plan.sourceIds.join(',')).slice(0, 8);
+  const events: VellumEvent[] = [
+    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'arc', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
   ];
   for (const sid of plan.sourceIds) {
     events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid });

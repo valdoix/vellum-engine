@@ -1,6 +1,6 @@
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
-import { planChapter, chapterEvents, type CompressPlan } from '../domain/memory.js';
+import { planChapter, chapterEvents, arcEvents, type CompressPlan } from '../domain/memory.js';
 import { internalGenerate } from '../host/generation.js';
 import { nextSeq } from '../core/ids.js';
 import { DEFAULT_CFG, resolvePrompt, type SummarizerCfg } from '../domain/summarizer-config.js';
@@ -37,7 +37,12 @@ function sourceText(state: ChronicleState, ids: string[], names?: { user: string
     if (names?.char) s = s.replace(/\{\{\s*char\s*\}\}/gi, names.char);
     return s;
   };
-  return ids.map((id) => byId.get(id)).filter(Boolean).map((m) => `- (turn ${m!.turn}) ${fix(m!.text)}`).join('\n');
+  return ids.map((id) => byId.get(id)).filter(Boolean).map((m) => {
+    // for chapter/arc sources (an arc fold), feed the richer DETAIL; for turns, the text.
+    const body = (m!.tier === 'chapter' || m!.tier === 'arc') ? (m!.detail || m!.text) : m!.text;
+    const label = m!.covers ? `turns ${m!.covers[0]}\u2013${m!.covers[1]}` : `turn ${m!.turn}`;
+    return `- (${label}) ${fix(body)}`;
+  }).join('\n');
 }
 
 /**
@@ -108,7 +113,8 @@ export async function summarizeFromPlan(
     if (fromDetail.length >= 24 && /^[A-Z0-9"'\u201c]/.test(fromDetail)) finalGist = fromDetail;
   }
 
-  const events = chapterEvents(
+  const build = kind === 'arc' ? arcEvents : chapterEvents;
+  const events = build(
     plan,
     { gist: capText(finalGist || gist, cfg.gistCap), detail: capText(detail, cfg.detailCap), keys },
     state.turns || plan.covers[1], state.day || 0, nextSeq,

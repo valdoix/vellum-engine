@@ -318,13 +318,18 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'memory.drop': {
-      // deleting a CHAPTER restores the turn-memories it subsumed (so a user can
-      // undo a compression and get the per-turn detail back); other drops just remove.
+      // deleting a compressed memory RESTORES what it subsumed, so a user can undo
+      // a compression: a CHAPTER restores its turn-memories; an ARC restores its
+      // chapter-memories (with their detail/covers preserved). Other drops just
+      // remove. The subsumed entries carry their own tier (default 'turn' for
+      // back-compat with chapters written before arcs existed).
       const target = s.memories.find((m) => m.id === e.id);
       s.memories = s.memories.filter((m) => m.id !== e.id);
-      if (target?.tier === 'chapter' && target.subsumed?.length) {
+      if ((target?.tier === 'chapter' || target?.tier === 'arc') && target.subsumed?.length) {
         for (const sm of target.subsumed) {
-          if (!s.memories.find((m) => m.id === sm.id)) s.memories.push({ id: sm.id, tier: 'turn', text: sm.text, keys: sm.keys ?? [], turn: sm.turn });
+          if (!s.memories.find((m) => m.id === sm.id)) {
+            s.memories.push({ id: sm.id, tier: sm.tier ?? 'turn', text: sm.text, keys: sm.keys ?? [], turn: sm.turn, ...(sm.detail ? { detail: sm.detail } : {}), ...(sm.covers ? { covers: sm.covers } : {}) });
+          }
         }
       }
       break;
