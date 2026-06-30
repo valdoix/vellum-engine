@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeSummarizerCfg, DEFAULT_CFG, resolvePrompt, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT } from '../src/domain/summarizer-config.js';
+import { sanitizeSummarizerCfg, DEFAULT_CFG, resolvePrompt, DEFAULT_CHAPTER_PROMPT, DEFAULT_GIST_PROMPT } from '../src/domain/summarizer-config.js';
 import { planChapterFrom, planChapter, planArc, planArcFrom, arcEvents } from '../src/domain/memory.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState } from '../src/domain/types.js';
@@ -62,6 +62,24 @@ describe('resolvePrompt', () => {
 
   it('selects the arc prompt for the arc kind', () => {
     expect(resolvePrompt('arc', DEFAULT_CFG).startsWith('You are a story archivist consolidating')).toBe(true);
+  });
+
+  it('chapter/arc prompts produce DETAIL+KEYS only (no GIST section)', () => {
+    const chap = resolvePrompt('chapter', DEFAULT_CFG);
+    expect(chap).toContain('DETAIL:');
+    expect(chap).toContain('KEYS:');
+    expect(chap).not.toContain('GIST:');
+    const arc = resolvePrompt('arc', DEFAULT_CFG);
+    expect(arc).toContain('DETAIL:');
+    expect(arc).not.toContain('GIST:');
+  });
+
+  it('resolves a dedicated GIST prompt, customizable independently', () => {
+    expect(resolvePrompt('gist', DEFAULT_CFG)).toBe(DEFAULT_GIST_PROMPT.replace(/\{\{[^}]*\}\}/g, (m) => m.includes('detailWords') ? String(Math.round(DEFAULT_CFG.detailCap / 6)) : m.includes('gistCap') ? String(DEFAULT_CFG.gistCap) : m.includes('detailCap') ? String(DEFAULT_CFG.detailCap) : m));
+    const custom = sanitizeSummarizerCfg({ useCustom: true, gistPrompt: 'MY GIST RULE' });
+    expect(resolvePrompt('gist', custom)).toContain('MY GIST RULE');
+    // custom gist does not bleed into chapter/arc
+    expect(resolvePrompt('chapter', custom)).toContain('story archivist');
   });
 });
 

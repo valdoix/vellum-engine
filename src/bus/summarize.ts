@@ -61,9 +61,15 @@ export async function summarizeWindow(state: ChronicleState, userId: string | nu
 }
 
 /**
- * Compress an explicit plan (auto window OR a manual pick) into a chapter,
- * honoring the config's caps + prompt. PURE of the planning decision — the
- * caller decides WHAT to fold. Returns the events and a token estimate.
+ * Compress an explicit plan (auto window OR a manual pick) into a chapter/arc.
+ *
+ * TWO-PASS pipeline:
+ *   1. DETAIL+KEYS — write the dense vault record from the source turns/chapters.
+ *   2. GIST — condense the finished DETAIL into the lean chronicle line.
+ * The gist is a summary of the clean detail (not the raw turns), so the two
+ * layers can never disagree, and each call gets full attention + budget for one
+ * job. Falls back to deriving the gist from the detail if the 2nd call fails,
+ * and to a structural digest if generation is unavailable.
  */
 export async function summarizeFromPlan(
   state: ChronicleState,
@@ -74,39 +80,51 @@ export async function summarizeFromPlan(
   kind: 'chapter' | 'arc' = 'chapter',
 ): Promise<SummaryResult> {
   const src = sourceText(state, plan.sourceIds, names);
-  let gist = '';
   let detail = '';
   let keys: string[] = [];
+  let gist = '';
   let tokens = 0;
 
-  const system = resolvePrompt(kind, cfg, names);
-  // CONTINUITY: feed the recent chapter gists so this chapter flows on from them.
-  const soFar = storySoFar(state, plan);
-  const userMsg = soFar ? `STORY SO FAR (for continuity — do not repeat):\n${soFar}\n\n---\nNEW TURNS TO SUMMARIZE:\n${src}` : src;
-  const gen = await internalGenerate(
-    [{ role: 'system', content: system }, { role: 'user', content: userMsg }],
+  // --- pass 1: DETAIL + KEYS (the dense record) ---
+  const detailSys = resolvePrompt(kind, cfg, names);
+  const gen1 = await internalGenerate(
+    [{ role: 'system', content: detailSys }, { role: 'user', content: src }],
     { temperature: cfg.temperature, max_tokens: cfg.genMaxTokens },
     userId,
     { reasoningOff: true },
   );
-  if (gen.ok && gen.value.trim()) {
-    const parsed = parseSummary(gen.value);
+  tokens += approxTokens(detailSys.length + src.length + (gen1.ok ? gen1.value.length : 0));
+  if (gen1.ok && gen1.value.trim()) {
+    const parsed = parseDetailKeys(gen1.value);
     detail = parsed.detail;
-    gist = parsed.gist;
     keys = parsed.keys;
-    tokens = approxTokens(system.length + userMsg.length + gen.value.length);
-  } else {
-    tokens = approxTokens(system.length + userMsg.length); // input-only estimate
   }
-  // fallback (LLM unavailable, or parse produced nothing usable): a compact
-  // structural digest as the gist; no detail → no vault entry worth writing.
-  if (!gist && !detail) gist = fallbackDigest(state, plan, cfg.gistCap);
-  if (!gist) gist = capText(detail, 200); // detail came through but no explicit gist
-  if (!detail) detail = gist; // fallback path: chronicle-only chapter
 
-  // final guard: if the cleaned gist is still a low-quality fragment (starts
-  // lowercase, or too short to be a real recap), derive it from the DETAIL,
-  // whose first sentences are clean event prose. Never surface a "ered…" tail.
+  // --- pass 2: GIST (condensed FROM the finished detail) ---
+  if (detail.trim()) {
+    const gistSys = resolvePrompt('gist', cfg, names);
+    const soFar = storySoFar(state, plan); // continuity belongs on the gist call
+    const gistUser = (soFar ? `STORY SO FAR (for continuity — do not repeat):\n${soFar}\n\n---\n` : '')
+      + `RECORD TO CONDENSE:\n${detail}`;
+    // a gist is a short paragraph — cap output tight to save tokens/latency.
+    const gistBudget = Math.min(cfg.genMaxTokens, Math.max(256, Math.ceil(cfg.gistCap / 3)));
+    const gen2 = await internalGenerate(
+      [{ role: 'system', content: gistSys }, { role: 'user', content: gistUser }],
+      { temperature: cfg.temperature, max_tokens: gistBudget },
+      userId,
+      { reasoningOff: true },
+    );
+    tokens += approxTokens(gistSys.length + gistUser.length + (gen2.ok ? gen2.value.length : 0));
+    if (gen2.ok && gen2.value.trim()) gist = stripToProse(gen2.value);
+  }
+
+  // fallbacks: no detail at all (generation down) → structural digest as gist;
+  // detail but the gist call failed → derive the gist from the detail.
+  if (!gist && !detail) gist = fallbackDigest(state, plan, cfg.gistCap);
+  if (!gist && detail) gist = cleanGist(detail);
+  if (!detail) detail = gist; // chronicle-only chapter (no vault body)
+
+  // final guard: never surface a headless fragment as the gist.
   let finalGist = cleanGist(gist);
   if (!finalGist || finalGist.length < 24 || /^[a-z]/.test(finalGist)) {
     const fromDetail = cleanGist(detail);
@@ -155,6 +173,34 @@ export function parseSummary(raw: string): { detail: string; gist: string; keys:
   if (!detail && !gist && !keysRaw) detail = body;
   const keys = keysRaw.split(/[,\n]/).map((s) => s.replace(/^[-*\u2022\s]+/, '').trim()).filter(Boolean).slice(0, 16);
   return { detail, gist, keys };
+}
+
+/** Parse a DETAIL+KEYS response (the pass-1 output). Tolerant of a missing KEYS
+ * section, leaked thinking, fences, and an unlabeled body (treated as detail). */
+export function parseDetailKeys(raw: string): { detail: string; keys: string[] } {
+  let body = raw.replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
+  body = dropLeadingFragment(body);
+  const section = (label: string): string => {
+    const re = new RegExp(label + '\\s*:?\\s*\\n?([\\s\\S]*?)(?=\\n\\s*(?:DETAIL|GIST|KEYS)\\s*:|$)', 'i');
+    const m = body.match(re);
+    return m ? dropLeadingFragment(m[1]!.trim()) : '';
+  };
+  let detail = section('DETAIL');
+  const keysRaw = section('KEYS');
+  if (!detail && !keysRaw) detail = body; // unlabeled → whole body is the detail
+  const keys = keysRaw.split(/[,\n]/).map((s) => s.replace(/^[-*\u2022\s]+/, '').trim()).filter(Boolean).slice(0, 16);
+  return { detail, keys };
+}
+
+/** Strip a gist response down to clean prose: remove leaked thinking, fences,
+ * and a stray "GIST:"/"RECAP:" label the model may prepend. The deeper
+ * list/meta cleanup is done by cleanGist downstream. */
+export function stripToProse(raw: string): string {
+  return raw
+    .replace(/<think[\s\S]*?<\/think>/gi, '')
+    .replace(/```[a-z]*\n?|```/gi, '')
+    .replace(/^\s*(?:GIST|RECAP|SUMMARY)\s*:?\s*/i, '')
+    .trim();
 }
 
 /** If text begins mid-word / mid-sentence (a streamed-output cut), drop the

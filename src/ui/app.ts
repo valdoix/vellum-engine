@@ -189,7 +189,7 @@ let _tone = { romance: 'medium', disposition: 'fair' };
 let _tidyOn = false;
 let _chapterVault = 'keyed';
 let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
-let _summarizerDefaults: { chapter: string; arc: string } = { chapter: '', arc: '' };
+let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
 
 // Transient "running" indication for one-shot QOL actions. Set busy when the
@@ -464,41 +464,73 @@ function openRebuildModal(ctx: Ctx): void {
 
 function openSummarizerModal(ctx: Ctx): void {
   const c = _summarizerCfg ?? {};
-  const num = (k: string, d: number): string => String(typeof c[k] === 'number' ? c[k] : d);
-  const useCustom = !!c.useCustom;
+  const numv = (k: string, d: number): string => String(typeof c[k] === 'number' ? c[k] : d);
   formModal('Summarizer Settings', [
     { key: 'auto', label: 'Automatic summarizing', type: 'select', value: c.auto === false ? 'off' : 'on', options: [
       { value: 'on', label: 'On (fold older turns as you play)' },
       { value: 'off', label: 'Off (only summarize manually)' },
     ] },
-    { key: 'genMaxTokens', label: 'Max summary tokens (model output budget, 500\u201332000)', type: 'text', value: num('genMaxTokens', 4000) },
-    { key: 'detailCap', label: 'Detail size cap \u2014 vault richness (chars, 1000\u201320000)', type: 'text', value: num('detailCap', 6000) },
-    { key: 'gistCap', label: 'Gist size cap \u2014 chronicle line (chars, 200\u20134000)', type: 'text', value: num('gistCap', 800) },
-    { key: 'autoWindow', label: 'Auto window \u2014 turns per chapter (2\u201350)', type: 'text', value: num('autoWindow', 8) },
-    { key: 'minWindow', label: 'Min window \u2014 smallest fold (2\u201350)', type: 'text', value: num('minWindow', 3) },
-    { key: 'temperature', label: 'Temperature (0\u20131)', type: 'text', value: num('temperature', 0.2) },
-    { key: 'useCustom', label: 'Summary prompts', type: 'select', value: useCustom ? 'custom' : 'default', options: [
+    { key: 'genMaxTokens', label: 'Max summary tokens', type: 'number', min: 500, max: 32000, step: 100, value: numv('genMaxTokens', 4000), hint: 'Model output budget for the detail pass (500\u201332000).' },
+    { key: 'detailCap', label: 'Detail size cap', type: 'number', min: 1000, max: 20000, step: 250, value: numv('detailCap', 6000), hint: 'How rich a vault entry can get, in characters (1000\u201320000).' },
+    { key: 'gistCap', label: 'Gist size cap', type: 'number', min: 200, max: 4000, step: 50, value: numv('gistCap', 800), hint: 'The chronicle one-liner length, in characters (200\u20134000).' },
+    { key: 'autoWindow', label: 'Auto window', type: 'number', min: 2, max: 50, step: 1, value: numv('autoWindow', 8), hint: 'Turns folded into each chapter automatically (2\u201350).' },
+    { key: 'minWindow', label: 'Min window', type: 'number', min: 2, max: 50, step: 1, value: numv('minWindow', 3), hint: 'Smallest manual/auto fold (2\u201350).' },
+    { key: 'temperature', label: 'Temperature', type: 'number', min: 0, max: 1, step: 0.05, value: numv('temperature', 0.2), hint: '0 = deterministic, 1 = loose. 0 is allowed.' },
+    { key: 'useCustom', label: 'Summary prompts', type: 'select', value: c.useCustom ? 'custom' : 'default', options: [
       { value: 'default', label: 'Use built-in defaults' },
-      { value: 'custom', label: 'Use my custom prompts (below)' },
-    ] },
-    { key: 'chapterPrompt', label: 'Custom CHAPTER prompt (gist + detail + keys)', type: 'textarea', big: true, value: String(c.chapterPrompt || _summarizerDefaults.chapter || '') },
-    { key: 'arcPrompt', label: 'Custom ARC prompt', type: 'textarea', big: true, value: String(c.arcPrompt || _summarizerDefaults.arc || '') },
+      { value: 'custom', label: 'Use my custom prompts' },
+    ], hint: 'Edit the three prompts with the buttons below. Empty = built-in default.' },
   ], (out) => {
-    const cfg = {
+    // numeric fields: empty/NaN -> fall back to default, EXCEPT temperature where 0
+    // is a valid value (so we must not use the `|| default` idiom for it).
+    const n = (v: string | undefined, d: number): number => { const s = (v ?? '').trim(); const x = Number(s); return s !== '' && isFinite(x) ? x : d; };
+    const cfg: Record<string, unknown> = {
+      ...(_summarizerCfg ?? {}), // preserve the (separately-edited) prompt strings
       auto: out.auto === 'on',
-      genMaxTokens: Number(out.genMaxTokens) || 4000,
-      detailCap: Number(out.detailCap) || 6000,
-      gistCap: Number(out.gistCap) || 800,
-      autoWindow: Number(out.autoWindow) || 8,
-      minWindow: Number(out.minWindow) || 3,
-      temperature: Number(out.temperature) || 0.2,
+      genMaxTokens: n(out.genMaxTokens, 4000),
+      detailCap: n(out.detailCap, 6000),
+      gistCap: n(out.gistCap, 800),
+      autoWindow: n(out.autoWindow, 8),
+      minWindow: n(out.minWindow, 3),
+      temperature: n(out.temperature, 0.2),
       useCustom: out.useCustom === 'custom',
-      chapterPrompt: out.chapterPrompt ?? '',
-      arcPrompt: out.arcPrompt ?? '',
     };
+    _summarizerCfg = cfg; // keep local copy in sync
     ctx.sendToBackend({ type: 'vellum_set_summarizer', cfg });
     notify(ctx, 'success', 'Summarizer settings saved.');
-  }, { large: true });
+  }, { actions: [
+    { label: '\u270E Gist prompt', onClick: () => openPromptEditor(ctx, 'gist') },
+    { label: '\u270E Chapter prompt', onClick: () => openPromptEditor(ctx, 'chapter') },
+    { label: '\u270E Arc prompt', onClick: () => openPromptEditor(ctx, 'arc') },
+  ] });
+}
+
+/** Edit ONE summary prompt (gist | chapter | arc) in its own big editor. The box
+ * shows the user's custom text only; the built-in default is the placeholder
+ * (greyed, never saved). Empty = use the live default forever. */
+function openPromptEditor(ctx: Ctx, kind: 'gist' | 'chapter' | 'arc'): void {
+  const c = _summarizerCfg ?? {};
+  const key = kind === 'gist' ? 'gistPrompt' : kind === 'arc' ? 'arcPrompt' : 'chapterPrompt';
+  const def = _summarizerDefaults[kind] || '';
+  const title = kind === 'gist' ? 'Gist Prompt (chronicle line)' : kind === 'arc' ? 'Arc Prompt (detail)' : 'Chapter Prompt (detail)';
+  const desc = kind === 'gist'
+    ? 'Condenses a finished record into the short chronicle paragraph.'
+    : kind === 'arc'
+      ? 'Writes the dense ARC record (detail + keys) from several chapters.'
+      : 'Writes the dense CHAPTER record (detail + keys) from the turns.';
+  formModal(title, [
+    { key: 'prompt', label: desc, type: 'textarea', big: true, value: String(c[key] ?? ''), placeholder: def },
+  ], (out) => {
+    // empty (or whitespace) clears the custom prompt → the live default is used.
+    const text = (out.prompt ?? '').trim();
+    const cfg: Record<string, unknown> = { ...(_summarizerCfg ?? {}), [key]: text };
+    if (text && !cfg.useCustom) cfg.useCustom = true; // writing a prompt implies "use custom"
+    _summarizerCfg = cfg;
+    ctx.sendToBackend({ type: 'vellum_set_summarizer', cfg });
+    notify(ctx, 'success', text ? `${title} saved.` : `${title} reset to the built-in default.`);
+  }, { large: true, saveLabel: 'Save prompt', actions: [
+    { label: '\u21BA Reset to default', onClick: (setField) => setField('prompt', '') },
+  ] });
 }
 
 function triggerImport(ctx: Ctx): void {
@@ -637,7 +669,7 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_summarizer_state') {
         // backend handed us the current config + built-in default prompts → open the editor
         _summarizerCfg = (p.cfg && typeof p.cfg === 'object') ? p.cfg as Record<string, unknown> : {};
-        if (p.defaults && typeof p.defaults === 'object') _summarizerDefaults = { chapter: String((p.defaults as any).chapter || ''), arc: String((p.defaults as any).arc || '') };
+        if (p.defaults && typeof p.defaults === 'object') _summarizerDefaults = { chapter: String((p.defaults as any).chapter || ''), arc: String((p.defaults as any).arc || ''), gist: String((p.defaults as any).gist || '') };
         if (_ctxRef) openSummarizerModal(_ctxRef);
       } else if (p?.type === 'vellum_summarizer_done') {
         if (p.ok && p.cfg && typeof p.cfg === 'object') _summarizerCfg = p.cfg as Record<string, unknown>;

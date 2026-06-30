@@ -11,7 +11,7 @@
  * time so a custom prompt can reference the active caps and the real names.
  */
 
-export type PromptKind = 'chapter' | 'arc';
+export type PromptKind = 'chapter' | 'arc' | 'gist';
 
 export interface SummarizerCfg {
   // --- token caps (generous defaults) ---
@@ -25,8 +25,9 @@ export interface SummarizerCfg {
   temperature: number;    // summary determinism
   // --- prompts ---
   useCustom: boolean;     // false = built-in defaults; true = the custom prompts below
-  chapterPrompt: string;  // custom CHAPTER system prompt (used only when useCustom)
-  arcPrompt: string;      // custom ARC system prompt (used only when useCustom)
+  chapterPrompt: string;  // custom CHAPTER detail prompt (used only when useCustom)
+  arcPrompt: string;      // custom ARC detail prompt (used only when useCustom)
+  gistPrompt: string;     // custom GIST prompt (condense a detail into a chronicle line)
 }
 
 // Generous, sane-ceilinged defaults. (Previously hard-coded: gen 2000, detail
@@ -42,6 +43,7 @@ export const DEFAULT_CFG: SummarizerCfg = {
   useCustom: false,
   chapterPrompt: '',
   arcPrompt: '',
+  gistPrompt: '',
 };
 
 const RANGES = {
@@ -80,12 +82,15 @@ export function sanitizeSummarizerCfg(raw: unknown): SummarizerCfg {
     useCustom: !!o.useCustom,
     chapterPrompt: str(o.chapterPrompt),
     arcPrompt: str(o.arcPrompt),
+    gistPrompt: str(o.gistPrompt),
   };
 }
 
 // --- the built-in default prompts (centralized so the UI can show + reset to
-// them). The CHAPTER prompt is VELLUM's tuned hybrid DETAIL/GIST/KEYS archivist;
-// the ARC prompt compresses several chapters into one broader span. ------------
+// them). The pipeline is TWO calls: first DETAIL+KEYS (the dense vault record),
+// then GIST (a chronicle line condensed FROM that detail). So the chapter/arc
+// prompts produce DETAIL+KEYS only; the gist prompt turns a finished detail into
+// the lean chronicle sentence. -------------------------------------------------
 
 export const DEFAULT_CHAPTER_PROMPT =
   'You are a story archivist. Compress the roleplay excerpt into a CHAPTER record for long-term memory. '
@@ -103,13 +108,6 @@ export const DEFAULT_CHAPTER_PROMPT =
   + 'has COMMITTED to, and any unresolved thread left open. Be comprehensive but compact: concrete nouns over '
   + 'adjectives, one idea per sentence, no purple prose, no [OOC]/meta. Aim for up to ~{{detailWords}} words. '
   + 'This replaces reading the full scene, so lose nothing that future continuity needs.>\n'
-  + 'GIST:\n'
-  + '<2-4 flowing past-tense sentences of plain prose that recap WHAT HAPPENED this chapter in chronological order, '
-  + 'continuing smoothly from the STORY SO FAR if one is given (do not repeat it; carry it forward). State the concrete '
-  + 'events and their outcome \u2014 who did what, what was decided/revealed/changed, where it left things. Write it as a '
-  + 'connected paragraph a reader skims to follow the plot. HARD RULES: no bullet points or dashes, no labels, no '
-  + 'meta-commentary ("the thread left open", "she now knows", "the unresolved thread", "this chapter"), no analysis of '
-  + 'feelings or themes \u2014 only events. Every sentence is complete and ends with a full stop.>\n'
   + 'KEYS:\n'
   + '<8-16 comma-separated retrieval keywords: CONCRETE and scene-specific \u2014 places, objects, proper nouns, distinctive '
   + 'actions, unique phrases a later scene might echo. One concept each. NOT abstract themes (love, trust, betrayal), '
@@ -126,14 +124,23 @@ export const DEFAULT_ARC_PROMPT =
   + '<a compact past-tense, third-person account of the arc using real names: the major movements in order, what '
   + 'changed and why, and the state things are left in. Up to ~{{detailWords}} words; concrete over abstract, '
   + 'one idea per sentence, no meta.>\n'
-  + 'GIST:\n'
-  + '<2-3 flowing past-tense sentences naming the arc\'s throughline and outcome \u2014 events only, no analysis, no '
-  + 'labels, each sentence ending in a full stop.>\n'
   + 'KEYS:\n'
   + '<8-16 comma-separated concrete retrieval keywords; one concept each; no abstract themes, no bare names.>\n'
   + 'Use real character names throughout; never write {{user}}/{{char}}/"you".';
 
-/** Resolve the SYSTEM prompt for a summary kind: the custom one when enabled and
+export const DEFAULT_GIST_PROMPT =
+  'You are a story archivist writing the one-paragraph chronicle line for a record that has already been written. '
+  + 'You are given that record (the DETAIL) and, if available, the STORY SO FAR for continuity. Condense the DETAIL into '
+  + 'a short factual recap a reader skims to follow the plot. '
+  + 'Output ONLY the recap \u2014 no labels, no preamble, nothing else. '
+  + 'Write 2-4 flowing past-tense sentences in plain prose, continuing smoothly from the STORY SO FAR if given (do not '
+  + 'repeat it; carry it forward). State the concrete events and their outcome \u2014 who did what, what was '
+  + 'decided/revealed/changed, where it left things. HARD RULES: no bullet points or dashes, no labels, no '
+  + 'meta-commentary ("the thread left open", "she now knows", "this chapter"), no analysis of feelings or themes \u2014 '
+  + 'only events. Every sentence is complete and ends with a full stop. Use real character names; never write '
+  + '{{user}}/{{char}}/"you".';
+
+/** Resolve the SYSTEM prompt for a call: the custom one when enabled and
  * non-empty, else the built-in default. Placeholders are then substituted:
  *   {{detailCap}}  -> the detail char cap (number)
  *   {{detailWords}}-> ~detailCap/6 (a rough word budget)
@@ -141,8 +148,9 @@ export const DEFAULT_ARC_PROMPT =
  *   {{names}}      -> a one-line "player X / focal Y" hint (or '')
  * Unknown placeholders are left untouched. */
 export function resolvePrompt(kind: PromptKind, cfg: SummarizerCfg, names?: { user: string; char: string }): string {
-  const custom = kind === 'arc' ? cfg.arcPrompt : cfg.chapterPrompt;
-  const base = (cfg.useCustom && custom.trim()) ? custom : (kind === 'arc' ? DEFAULT_ARC_PROMPT : DEFAULT_CHAPTER_PROMPT);
+  const custom = kind === 'arc' ? cfg.arcPrompt : kind === 'gist' ? cfg.gistPrompt : cfg.chapterPrompt;
+  const def = kind === 'arc' ? DEFAULT_ARC_PROMPT : kind === 'gist' ? DEFAULT_GIST_PROMPT : DEFAULT_CHAPTER_PROMPT;
+  const base = (cfg.useCustom && custom.trim()) ? custom : def;
   const nameHint = (names && (names.user || names.char))
     ? `The player is "${names.user || '(unnamed)'}"; the focal character is "${names.char || '(unnamed)'}". Use these real names; never write {{user}}/{{char}}/"you".`
     : '';

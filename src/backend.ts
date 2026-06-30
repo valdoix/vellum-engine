@@ -10,7 +10,7 @@ import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.js';
 import { planChapterFrom, planArc, planArcFrom } from './domain/memory.js';
-import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
+import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
 import type { CallModel } from './retrieval/traverse.js';
@@ -901,7 +901,7 @@ const dispatch: Record<string, Handler> = {
     // editor can show them and offer a one-click reset).
     const chatId = p?.chatId || (await activeChatId(uid));
     const cfg = chatId ? await summarizerCfg(chatId) : DEFAULT_CFG;
-    spindle.sendToFrontend?.({ type: 'vellum_summarizer_state', cfg, defaults: { chapter: DEFAULT_CHAPTER_PROMPT, arc: DEFAULT_ARC_PROMPT } }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_summarizer_state', cfg, defaults: { chapter: DEFAULT_CHAPTER_PROMPT, arc: DEFAULT_ARC_PROMPT, gist: DEFAULT_GIST_PROMPT } }, uid);
   },
   vellum_set_summarizer: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
