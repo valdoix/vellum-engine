@@ -115,4 +115,22 @@ describe('command layer (CRUD → events)', () => {
     expect(s.journal[0]!.memory).toBe('revised');
     expect(s.journal[0]!.weight).toBe('defining');
   });
+
+  it('memory_delete_many drops several summaries and restores what they folded', () => {
+    // two chapters, each subsuming a turn; bulk-delete both -> turns come back
+    let s = reduce([
+      { seq: 1, turn: 5, day: 0, src: 'system', kind: 'memory.record', id: 'chap_a', tier: 'chapter', text: 'A', keys: [], covers: [1, 2], subsumed: [{ id: 't1', turn: 1, text: 'turn one', keys: [], tier: 'turn' }] },
+      { seq: 2, turn: 5, day: 0, src: 'system', kind: 'memory.record', id: 'chap_b', tier: 'chapter', text: 'B', keys: [], covers: [3, 4], subsumed: [{ id: 't2', turn: 3, text: 'turn two', keys: [], tier: 'turn' }] },
+    ] as any);
+    expect(s.memories.filter((m) => m.tier === 'chapter')).toHaveLength(2);
+    const evs = cmdEvents('memory_delete_many', { ids: ['chap_a', 'chap_b'] }, s, ctx);
+    expect(evs).toHaveLength(2);
+    s = reduce([...s.memories.map((m, i) => ({ seq: 100 + i, turn: 5, day: 0, src: 'system', kind: 'memory.record', id: m.id, tier: m.tier, text: m.text, keys: m.keys, covers: m.covers, subsumed: m.subsumed })) as any, ...evs]);
+    expect(s.memories.filter((m) => m.tier === 'chapter')).toHaveLength(0);
+    expect(s.memories.filter((m) => m.tier === 'turn').map((m) => m.id).sort()).toEqual(['t1', 't2']);
+  });
+
+  it('memory_delete_many with no ids is a no-op', () => {
+    expect(cmdEvents('memory_delete_many', { ids: [] }, seed(), ctx)).toEqual([]);
+  });
 });

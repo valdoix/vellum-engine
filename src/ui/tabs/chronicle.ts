@@ -31,8 +31,10 @@ let _tlDay = 'all';
 // →arc), the chosen ids, and a shift-range anchor.
 let _pickMode = false;
 let _pickTier: 'turn' | 'chapter' = 'turn';
+let _pickAction: 'fold' | 'delete' = 'fold'; // fold = combine; delete = remove (delete mode picks any tier)
 const _picked = new Set<string>();
 let _pickAnchor: string | null = null;
+let _summaryIds: string[] = []; // all chapter/arc memory ids (set each render), for select-all / delete-all
 // Story-beat suggestions, filled by the vellum_beat_suggestions broadcast.
 let _beatSuggest: Array<{ turn: number; day?: number; text: string }> = [];
 export function setBeatSuggestions(items: unknown): void { _beatSuggest = Array.isArray(items) ? items as typeof _beatSuggest : []; }
@@ -50,7 +52,7 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
@@ -89,7 +91,11 @@ export const chronicleTab: Component<ChronicleState> = {
       const ptg = t.closest('[data-pick-toggle]');
       if (ptg) {
         const tier = (ptg.getAttribute('data-pick-toggle') === 'chapter' ? 'chapter' : 'turn') as 'turn' | 'chapter';
-        if (_pickMode && _pickTier === tier) { _pickMode = false; } else { _pickMode = true; _pickTier = tier; }
+        if (_pickMode && _pickAction === 'fold' && _pickTier === tier) { _pickMode = false; } else { _pickMode = true; _pickAction = 'fold'; _pickTier = tier; }
+        _picked.clear(); _pickAnchor = null; refreshUI(); return;
+      }
+      if (t.closest('[data-pick-del]')) {
+        if (_pickMode && _pickAction === 'delete') { _pickMode = false; } else { _pickMode = true; _pickAction = 'delete'; }
         _picked.clear(); _pickAnchor = null; refreshUI(); return;
       }
       const pk = t.closest('[data-pick-id]');
@@ -111,6 +117,17 @@ export const chronicleTab: Component<ChronicleState> = {
           send(_pickTier === 'chapter' ? { type: 'vellum_arc', ids } : { type: 'vellum_summarize_pick', ids });
           _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI();
         }
+        return;
+      }
+      if (t.closest('[data-pick-selall]')) { for (const id of _summaryIds) _picked.add(id); refreshUI(); return; }
+      if (t.closest('[data-pick-delete]')) {
+        const ids = Array.from(_picked);
+        if (ids.length) confirmModal(`Delete ${ids.length} selected summar${ids.length === 1 ? 'y' : 'ies'}? The turns/chapters they folded are restored.`, () => { cmd('memory_delete_many', { ids }); _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI(); });
+        return;
+      }
+      if (t.closest('[data-pick-delall]')) {
+        const ids = _summaryIds.slice();
+        if (ids.length) confirmModal(`Delete ALL ${ids.length} chapter/arc summaries? Everything they folded is restored to the chronicle. (Turn memories are kept.)`, () => { cmd('memory_delete_many', { ids }); _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI(); });
         return;
       }
       if (t.closest('[data-beat-add]')) { formModal('New Story Beat', [
@@ -340,21 +357,27 @@ function beatsView(s: ChronicleState): string {
 function memories(s: ChronicleState): string {
   const turnCount = s.memories.filter((m) => m.tier === 'turn').length;
   const chapCount = s.memories.filter((m) => m.tier === 'chapter').length;
-  // pick controls: fold turns→chapter (needs 2+ turns) and/or chapters→arc (2+ chapters)
-  const pickTurns = turnCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="turn" title="Select turns to fold into a chapter">${_pickMode && _pickTier === 'turn' ? '\u2715 cancel' : '\u2748 fold turns'}</button>` : '';
-  const pickChaps = chapCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="chapter" title="Select chapters to fold into an arc">${_pickMode && _pickTier === 'chapter' ? '\u2715 cancel' : '\u2748 fold chapters'}</button>` : '';
-  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: pickTurns + pickChaps + '<button class="vle-add sm" data-mem-add>+</button>' });
+  // pick controls: fold turns→chapter (2+ turns), fold chapters→arc (2+ chapters),
+  // and DELETE (select any summaries to remove). Delete restores what was folded.
+  const summaryCount = s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc').length;
+  _summaryIds = s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc').map((m) => m.id);
+  const inFold = _pickMode && _pickAction === 'fold';
+  const inDel = _pickMode && _pickAction === 'delete';
+  const pickTurns = turnCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="turn" title="Select turns to fold into a chapter">${inFold && _pickTier === 'turn' ? '\u2715 cancel' : '\u2748 fold turns'}</button>` : '';
+  const pickChaps = chapCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="chapter" title="Select chapters to fold into an arc">${inFold && _pickTier === 'chapter' ? '\u2715 cancel' : '\u2748 fold chapters'}</button>` : '';
+  const pickDel = summaryCount >= 1 ? `<button class="vle-add sm" data-pick-del title="Select summaries to delete (restores what they folded)">${inDel ? '\u2715 cancel' : '\u2717 delete'}</button>` : '';
+  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: pickTurns + pickChaps + pickDel + '<button class="vle-add sm" data-mem-add>+</button>' });
   if (!s.memories.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
   const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: turnCount, chapter: chapCount, arc: s.memories.filter((m) => m.tier === 'arc').length } });
   const filtered = applyFilter('memories', s.memories.filter((m) => m.tier !== 'beat'), { cat: (m) => m.tier });
   const { slice, page, pages } = paginate('memories', filtered);
   const rows = slice.map((m: Memory) => {
     const isTurn = m.tier === 'turn';
-    // turns are stored in full but shown as one line (full text in the title);
-    // chapters/arcs are already concise gists, shown whole.
     const shown = isTurn ? oneLine(m.text) : m.text;
     const titleAttr = isTurn ? ` title="${esc(m.text).slice(0, 1000)}"` : '';
-    const pickable = _pickMode && m.tier === _pickTier;
+    // fold mode: only the matching tier is pickable. delete mode: any summary
+    // (chapter/arc) is pickable; turns are not (use fold/their own delete).
+    const pickable = inFold ? m.tier === _pickTier : inDel ? (m.tier === 'chapter' || m.tier === 'arc') : false;
     const checked = _picked.has(m.id) ? ' checked' : '';
     const box = pickable ? `<input type="checkbox" class="vle-mem-pick" data-pick-id="${esc(m.id)}"${checked}>` : '';
     return '<div class="vle-mem' + (pickable ? ' pickable' : '') + '">' + box
@@ -364,11 +387,18 @@ function memories(s: ChronicleState): string {
       + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
   }).join('');
   const foldLabel = _pickTier === 'chapter' ? 'Fold into arc' : 'Fold into chapter';
-  const unit = _pickTier === 'chapter' ? 'chapter' : 'turn';
-  const footer = _pickMode
-    ? `<div class="vle-pickbar"><span>${_picked.size} ${unit}${_picked.size === 1 ? '' : 's'} selected</span>`
-      + `<button class="vle-add sm" data-pick-fold${_picked.size < 2 ? ' disabled' : ''}>${foldLabel}</button></div>`
-    : '';
+  const unit = inDel ? 'summary' : (_pickTier === 'chapter' ? 'chapter' : 'turn');
+  const unitPl = inDel ? 'summaries' : unit + 's';
+  let footer = '';
+  if (inFold) {
+    footer = `<div class="vle-pickbar"><span>${_picked.size} ${_picked.size === 1 ? unit : unitPl} selected</span>`
+      + `<button class="vle-add sm" data-pick-fold${_picked.size < 2 ? ' disabled' : ''}>${foldLabel}</button></div>`;
+  } else if (inDel) {
+    footer = `<div class="vle-pickbar"><span>${_picked.size} ${_picked.size === 1 ? unit : unitPl} selected</span>`
+      + `<button class="vle-add sm" data-pick-selall>Select all</button>`
+      + `<button class="vle-add sm danger" data-pick-delete${_picked.size < 1 ? ' disabled' : ''}>Delete selected</button>`
+      + `<button class="vle-add sm danger" data-pick-delall>Delete all summaries</button></div>`;
+  }
   if (!slice.length) return head + bar + emptyState('No memories match this filter.');
   return head + bar + footer + rows + pagerHtml('memories', page, pages);
 }
