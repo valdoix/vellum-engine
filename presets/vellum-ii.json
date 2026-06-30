@@ -575,7 +575,7 @@
       "position": "post_history",
       "enabled": false,
       "group": "v2-cat-variance",
-      "content": "{{if::{{var::scribes}}}}{{.scribe = {{pick::{{var::scribe_pool}}}}}}[THE SCRIBE AT THE DESK] This turn, write in a different hand: {{.scribe}}. Let it govern diction and cadence on top of the prose register - it refines the Doctrine, never overrides the craft rules or the limited-knowledge law. Do NOT reuse the last hand ({{getchatvar::vl_last_scribe}}). This is a private instruction to YOU about HOW to write - the hand's name and description must NEVER appear in the prose. Never write 'the clinician', 'the ironist', etc., never name or refer to a 'scribe', 'hand', 'observer', or narrator persona; just write the scene in that style. One internal taste of the cadence, then write.{{setchatvar::vl_last_scribe::{{.scribe}}}}{{/if}}",
+      "content": "{{if::{{var::scribes}}}}{{.scribe = {{pick::{{var::scribe_pool}}}}}}[VOICE THIS TURN] Color the narration's diction and cadence with this quality, on top of the prose register (it refines the Doctrine, never overrides the craft rules or the limited-knowledge law): {{.scribe}}. Do NOT reuse last turn's quality ({{getchatvar::vl_last_scribe}}). This is a private instruction about HOW to write - never name or describe it on the page, never write 'the elegist'/'the ironist'/'the clinician' or refer to a scribe, hand, voice, observer, or narrator persona; just let it shape the style. One internal taste of the cadence, then write.{{setchatvar::vl_last_scribe::{{.scribe}}}}{{/if}}",
       "variables": [
         {
           "id": "var_scribes",
@@ -597,32 +597,32 @@
             {
               "id": "miniaturist",
               "label": "The Miniaturist",
-              "value": "the miniaturist - small true gestures, the telling object, restraint that implies the rest"
+              "value": "small true gestures, the telling object, restraint that implies the rest"
             },
             {
               "id": "ironist",
               "label": "The Ironist",
-              "value": "the ironist - dry wit that wounds or reveals, the gap between what's said and meant"
+              "value": "dry wit that wounds or reveals, the gap between what is said and what is meant"
             },
             {
               "id": "elegist",
               "label": "The Elegist",
-              "value": "the elegist - aching lyricism, loss braided through the present, beauty that hurts a little"
+              "value": "aching lyricism, loss braided through the present, beauty that hurts a little"
             },
             {
               "id": "brawler",
               "label": "The Brawler",
-              "value": "the brawler - short hard sentences, strong verbs, feeling buried under understatement"
+              "value": "short hard sentences, strong verbs, feeling buried under understatement"
             },
             {
               "id": "fabulist",
               "label": "The Fabulist",
-              "value": "the fabulist - lush sensory maximalism, controlled excess, the world thick and strange"
+              "value": "lush sensory maximalism, controlled excess, the world rendered thick and strange"
             },
             {
               "id": "clinician",
               "label": "The Clinician",
-              "value": "the clinician - cool exact observation, the unflinching eye, emotion implied by precision"
+              "value": "cool exact observation, the unflinching eye, emotion implied by precision"
             }
           ]
         }
