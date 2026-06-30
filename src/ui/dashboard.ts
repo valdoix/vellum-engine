@@ -1,5 +1,5 @@
 import type { ChronicleState, PresentChar, Relation } from '../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml, barTwin } from './format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml, bondMeter, initials } from './format.js';
 
 /**
  * The floating-window DASHBOARD — a single at-a-glance scene panel (distinct
@@ -125,25 +125,51 @@ function tensionBar(s: ChronicleState): string {
 function presentBlock(s: ChronicleState): string {
   const detail = s.scene.detail?.length ? s.scene.detail : s.scene.present.map((id) => ({ id } as PresentChar));
   if (!detail.length) return '';
-  const rows = detail.map((d) => {
-    const tags = [d.mood ? `<span class="vld-mood">${esc(d.mood)}</span>` : '', d.condition ? `<span class="vld-cond">${esc(d.condition)}</span>` : ''].filter(Boolean).join('');
-    const doing = d.doing ? `<div class="vld-doing">${esc(d.doing)}</div>` : '';
-    const thought = d.thought ? `<div class="vld-thought">\u300C${esc(d.thought)}\u300D</div>` : '';
-    return `<div class="vld-pc"><div class="vld-pc-top"><span class="vld-pc-n">${nameHtml(s, d.id)}</span>${tags}</div>${doing}${thought}</div>`;
-  }).join('');
+  const rows = detail.map((d) => presentCard(s, d)).join('');
   return `<div class="vld-sec"><div class="vld-h">Present <span class="vld-n">${detail.length}</span></div>${rows}</div>`;
+}
+
+/**
+ * One present-character card (mockup 09), shared by the drawer Now tab AND the
+ * float (container-query reflow via .vld-pc). Portrait medallion + presence dot,
+ * sentence-case sentiment mood/condition, doing, and the inner THOUGHT as the
+ * focal quoted block. Theme skins live in styles.ts under [data-vle-chrome].
+ */
+function presentCard(s: ChronicleState, d: PresentChar): string {
+  const name = nameOf(s, d.id);
+  const status = [
+    d.mood ? `<span class="vld-pc-mood">${esc(d.mood)}</span>` : '',
+    d.condition ? `<span class="vld-pc-cond">${esc(d.condition)}</span>` : '',
+  ].filter(Boolean).join('<span class="vld-pc-sep">\u00b7</span>');
+  const doing = d.doing ? `<div class="vld-doing">${esc(d.doing)}</div>` : '';
+  const thought = d.thought
+    ? `<div class="vld-thought"><span class="vld-thought-k">thinking</span><span class="vld-thought-q">\u201C${esc(d.thought)}\u201D</span></div>`
+    : '';
+  return `<div class="vld-pc${d.thought ? ' has-thought' : ''}">`
+    + `<span class="vld-pc-av">${esc(initials(name))}<span class="vld-pc-dot"></span></span>`
+    + `<div class="vld-pc-body">`
+    + `<div class="vld-pc-top"><span class="vld-pc-n">${nameHtml(s, d.id)}</span>${status ? `<span class="vld-pc-status">${status}</span>` : ''}</div>`
+    + `${doing}${thought}`
+    + `</div></div>`;
 }
 
 function relationsBlock(s: ChronicleState): string {
   if (!s.relations.length) return '';
   const present = new Set(s.scene.present);
-  const rels = s.relations.filter((r) => !present.size || present.has(r.a) || present.has(r.b)).sort(byRecent).slice(0, 6);
+  const rels = s.relations.filter((r) => !present.size || present.has(r.a) || present.has(r.b)).sort(byRecent);
   if (!rels.length) return '';
-  const rows = rels.map((r) => {
-    const cats = catsOf(r).map((c) => `<span class="vld-cat" style="--c:${CAT_COLORS[c] || '#888'}">${esc(c)}</span>`).join('');
-    // surface the engine's two-axis bond: affection + trust as compact meters
-    const meters = `<div class="vld-rel-meters">${barTwin('aff', r.affection, 'aff')}${barTwin('tru', r.trust, 'trust')}</div>`;
-    return `<div class="vld-rel"><span class="vld-rel-p">${nameHtml(s, r.a)} \u2192 ${nameHtml(s, r.b)}</span>${cats}<span class="vld-rel-s">${esc(SENT_LABEL[r.sentiment] || r.sentiment)}</span></div>${meters}`;
+  // group directed edges into unordered pairs so both directions share one meter
+  const pairs = new Map<string, typeof rels>();
+  for (const r of rels) {
+    const key = r.a <= r.b ? r.a + '\u0000' + r.b : r.b + '\u0000' + r.a;
+    (pairs.get(key) ?? pairs.set(key, []).get(key)!).push(r);
+  }
+  const rows = Array.from(pairs.values()).slice(0, 5).map((group) => {
+    const lead = group[0]!;
+    const [pa, pb] = lead.a <= lead.b ? [lead.a, lead.b] : [lead.b, lead.a];
+    const cats = catsOf(lead).map((c) => `<span class="vld-cat" style="--c:${CAT_COLORS[c] || '#888'}">${esc(c)}</span>`).join('');
+    const meter = bondMeter(group, (id) => nameOf(s, id));
+    return `<div class="vld-rel"><span class="vld-rel-p">${nameHtml(s, pa)} \u2194 ${nameHtml(s, pb)}</span>${cats}<span class="vld-rel-s">${esc(SENT_LABEL[lead.sentiment] || lead.sentiment)}</span></div>${meter}`;
   }).join('');
   return `<div class="vld-sec"><div class="vld-h">Relations</div>${rows}</div>`;
 }

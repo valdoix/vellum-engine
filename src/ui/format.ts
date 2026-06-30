@@ -157,16 +157,39 @@ export function bar(label: string, v: number): string {
     + '<span class="vle-bar-v ' + (pos ? 'pos' : 'neg') + '">' + (n > 0 ? '+' : '') + n + '</span></div>';
 }
 
-/** A compact diverging meter sized by --vt-meta; affection uses --v-pos, trust
- * uses --v-info. Both directions can stack. Pure HTML reusing .vle-tw* classes. */
-export function barTwin(label: string, v: number, axis: 'aff' | 'trust'): string {
+/** One diverging row inside a bondMeter: a short caption + a bar from a shared
+ * center zero. axis picks the fill color (aff=--v-pos, trust=--v-info). */
+function bondRow(caption: string, v: number, axis: 'aff' | 'trust'): string {
   const n = Math.max(-100, Math.min(100, v || 0));
   const pct = Math.abs(n) / 2; const pos = n >= 0;
   const fill = axis === 'aff' ? 'tw-aff' : 'tw-trust';
-  return '<div class="vle-tw"><span class="vle-tw-l">' + esc(label) + '</span>'
+  return '<div class="vle-bm-row"><span class="vle-bm-cap">' + esc(caption) + '</span>'
     + '<span class="vle-tw-t"><span class="vle-tw-mid"></span>'
     + '<span class="vle-tw-f ' + fill + (pos ? '' : ' neg') + '" style="' + (pos ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%') + '"></span></span>'
     + '<span class="vle-tw-v">' + (n > 0 ? '+' : '') + n + '</span></div>';
+}
+
+/**
+ * The shared bond meter (mockup 06): BOTH directions of a pair interleaved per
+ * axis against one visible center zero, so asymmetry (she mistrusts, he trusts)
+ * reads at a glance. `dirs` is 1–2 directed edges (A→B and/or B→A). `lead` is the
+ * stable first endpoint id so captions read consistently. Pure HTML; theme skins
+ * (radar/shield) replace this in their renderers, defaults/modern use it. */
+export function bondMeter(dirs: { a: string; b: string; affection: number; trust: number }[], nameFor: (id: string) => string): string {
+  if (!dirs.length) return '';
+  const cap = (d: { a: string; b: string }): string => abbr(nameFor(d.a)) + '\u2192' + abbr(nameFor(d.b));
+  const aff = dirs.map((d) => bondRow(cap(d), d.affection, 'aff')).join('');
+  const tru = dirs.map((d) => bondRow(cap(d), d.trust, 'trust')).join('');
+  return '<div class="vle-bm">'
+    + '<div class="vle-bm-axis"><span class="vle-bm-axl">affection</span>' + aff + '</div>'
+    + '<div class="vle-bm-axis"><span class="vle-bm-axl">trust</span>' + tru + '</div>'
+    + '</div>';
+}
+
+/** Short caption form of a name (first token, capped) for tight meter rows. */
+function abbr(name: string): string {
+  const first = (name || '').trim().split(/\s+/)[0] || name || '?';
+  return first.length > 8 ? first.slice(0, 7) + '\u2026' : first;
 }
 
 export function castByStatus(state: ChronicleState): { present: CastCard[]; active: CastCard[]; mentioned: CastCard[]; added: CastCard[] } {

@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, CastCard, Faction } from '../../domain/types.js';
-import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, autoNameMode, setAutoNameMode } from '../format.js';
+import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, nameOf, autoNameMode, setAutoNameMode } from '../format.js';
 import { cmd, paginate, pagerHtml, send, setPage, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -31,6 +31,10 @@ const SORT_LABEL: Record<Sort, string> = { presence: '\u25C9 presence', new: '\u
 // per-side UI state (which status filter + sort). 'all' shows every status.
 const _st = { cast: 'all', fac: 'all' };
 const _sort = { cast: 'presence' as Sort, fac: 'presence' as Sort };
+// density: 'cards' = full cards (unfoldable), 'strip' = one line per character.
+let _density: 'cards' | 'strip' = 'cards';
+// ids of cards the user has unfolded (expanded). Only meaningful in 'cards' mode.
+const _expanded = new Set<string>();
 // latest rendered state, so click handlers (memberForm) can read the cast list.
 let _state: ChronicleState | null = null;
 
@@ -57,7 +61,7 @@ export const castTab: Component<ChronicleState> = {
     const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${(c.aka ?? []).join(',')}|${c.lastTurn}|${c.color ?? ''}|${c.colorTo ?? ''}`).join(';');
     const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}`).join(';');
     const mv = s.memberships.map((m) => `${m.char}>${m.faction}:${m.role ?? ''}`).join(',');
-    return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode();
+    return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode() + '#' + _density + '#' + Array.from(_expanded).sort().join(',');
   },
   render(s) {
     _state = s;
@@ -72,6 +76,10 @@ export const castTab: Component<ChronicleState> = {
       if (cs) { const [side, v] = cs.getAttribute('data-cstatus')!.split(':') as ['cast' | 'fac', string]; _st[side] = v; setPage((side === 'cast' ? 'cast' : 'fac') + '-list', 0); return; }
       const so = t.closest('[data-csort]');
       if (so) { const [side, v] = so.getAttribute('data-csort')!.split(':') as ['cast' | 'fac', Sort]; _sort[side] = v; setPage((side === 'cast' ? 'cast' : 'fac') + '-list', 0); return; }
+      const dn = t.closest('[data-cdensity]');
+      if (dn) { _density = dn.getAttribute('data-cdensity') as 'cards' | 'strip'; refreshUI(); return; }
+      const uf = t.closest('[data-cast-unfold]');
+      if (uf) { const id = uf.getAttribute('data-id')!; _expanded.has(id) ? _expanded.delete(id) : _expanded.add(id); refreshUI(); return; }
       const pr = t.closest('[data-cast-promote]');
       if (pr) { send({ type: 'vellum_vault_promote', kind: 'cast', id: pr.getAttribute('data-id') }); const b = pr as HTMLElement; const o = b.textContent; b.textContent = '\u2713'; setTimeout(() => { b.textContent = o; }, 1800); return; }
       if (t.closest('[data-cast-add]')) { castForm('New Character', {}); return; }
@@ -118,7 +126,11 @@ function castSection(s: ChronicleState): string {
   const autoCtl = '<span class="vle-autoc">auto color: '
     + (['off', 'solid', 'gradient'] as const).map((m) => `<button class="vle-autoc-b${auto === m ? ' on' : ''}" data-autoname="${m}">${m}</button>`).join('')
     + '</span>';
-  const header = sectionHeader('Characters', { action: autoCtl + '<button class="vle-add" data-cast-add>+ Character</button>' });
+  // density toggle: full cards vs compact strip (for large casts)
+  const densityCtl = '<span class="vle-dens">'
+    + (['cards', 'strip'] as const).map((m) => `<button class="vle-dens-b${_density === m ? ' on' : ''}" data-cdensity="${m}" title="${m === 'cards' ? 'Full cards' : 'Compact one-line rows'}">${m === 'cards' ? '\u25A4 cards' : '\u2630 strip'}</button>`).join('')
+    + '</span>';
+  const header = sectionHeader('Characters', { action: densityCtl + autoCtl + '<button class="vle-add" data-cast-add>+ Character</button>' });
   if (!all.length) return header + emptyState('No characters yet.', 'They appear as the story introduces them.');
   const counts: Record<string, number> = {};
   for (const c of all) counts[c.status] = (counts[c.status] ?? 0) + 1;
@@ -127,7 +139,10 @@ function castSection(s: ChronicleState): string {
   const { slice, page, pages } = paginate('cast-list', sorted);
   const bar = filterBar('cast', counts, all.length);
   if (!slice.length) return header + bar + emptyState('No characters match this filter.');
-  return header + bar + '<div class="vle-cards">' + slice.map((c) => card(c)).join('') + '</div>' + pagerHtml('cast-list', page, pages);
+  const body = _density === 'strip'
+    ? '<div class="vle-strips">' + slice.map((c) => strip(s, c)).join('') + '</div>'
+    : '<div class="vle-cards">' + slice.map((c) => card(s, c)).join('') + '</div>';
+  return header + bar + body + pagerHtml('cast-list', page, pages);
 }
 
 function castForm(title: string, v: Record<string, string>): void {
@@ -147,21 +162,67 @@ function castForm(title: string, v: Record<string, string>): void {
   });
 }
 
-function card(c: CastCard): string {
+/** Inline bond chips for a character (ally/rival/etc), used in expanded cards
+ * and strips. Reads relations from the rendered state. Capped for tidiness. */
+function bondChips(s: ChronicleState, id: string): string {
+  const rels = s.relations.filter((r) => r.a === id).slice(0, 4);
+  if (!rels.length) return '';
+  return rels.map((r) => {
+    const cat = (r.categories[0] || r.category || 'neutral');
+    const tone = r.affection < -15 ? 'neg' : r.affection > 15 ? 'pos' : 'info';
+    return `<span class="vle-bondchip vle-bondchip--${tone}">${esc(nameOf(s, r.b))} \u00b7 ${esc(cat)}</span>`;
+  }).join('');
+}
+
+function card(s: ChronicleState, c: CastCard): string {
   const A = (x: unknown): string => esc(x);
   // sentence-case "role, age" line; presence shown by avatar dot + card spine
   const meta = [c.role, c.age].filter(Boolean).map(esc).join(', ');
-  const st = STATUS.find((s) => s.id === c.status);
+  const st = STATUS.find((x) => x.id === c.status);
   const where = c.status === 'present' ? 'present' : (st?.label.toLowerCase() ?? c.status);
   const sub = [where, meta].filter(Boolean).join(' \u00b7 ');
-  return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + '">'
-    + '<span class="vle-av" title="' + esc(c.status) + '">' + esc(initials(c.name)) + '<span class="vle-av-dot"></span></span>'
+  const open = _expanded.has(c.id);
+  const aka = (c.aka ?? []).filter(Boolean);
+  // expanded-only detail: appearance, aka, inline bonds, note
+  const detail = open
+    ? '<div class="vle-card-detail">'
+      + (c.appearance ? `<div class="vle-card-app2">${esc(c.appearance)}</div>` : '')
+      + (aka.length ? `<div class="vle-card-aka"><span class="vle-card-aka-k">aka</span> ${esc(aka.join(', '))}</div>` : '')
+      + (() => { const ch = bondChips(s, c.id); return ch ? `<div class="vle-card-bonds">${ch}</div>` : ''; })()
+      + (c.note ? `<div class="vle-card-note">${esc(c.note)}</div>` : '')
+      + '</div>'
+    : '';
+  return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + (open ? ' is-open' : '') + '">'
+    + '<button class="vle-av" data-cast-unfold data-id="' + A(c.id) + '" title="' + esc(c.status) + ' \u00b7 expand">' + esc(initials(c.name)) + '<span class="vle-av-dot"></span></button>'
     + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (sub ? '<span class="vle-card-sub">' + sub + '</span>' : '')
-    + (c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')
+    + (!open && c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')
+    + detail
     + '</span>'
     + '<span class="vle-card-ctl">'
+    + `<button class="vle-mini" data-cast-unfold data-id="${A(c.id)}" title="${open ? 'Collapse' : 'Expand'}">${open ? '\u2303' : '\u2304'}</button>`
     + `<button class="vle-mini" data-cast-promote data-id="${A(c.id)}" title="Promote to Vault lore">\u2934</button>`
+    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" title="Edit">\u270E</button>`
+    + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
+    + '</span></div>';
+}
+
+/** Compact one-line row for big casts: dot + name + status + role + bond dots. */
+function strip(s: ChronicleState, c: CastCard): string {
+  const A = (x: unknown): string => esc(x);
+  const st = STATUS.find((x) => x.id === c.status);
+  const where = c.status === 'present' ? 'present' : (st?.label.toLowerCase() ?? c.status);
+  const dots = s.relations.filter((r) => r.a === c.id).slice(0, 5).map((r) => {
+    const tone = r.affection < -15 ? 'neg' : r.affection > 15 ? 'pos' : 'info';
+    return `<span class="vle-strip-dot vle-strip-dot--${tone}" title="${esc(nameOf(s, r.b))}"></span>`;
+  }).join('');
+  return '<div class="vle-strip vle-card--' + esc(c.status) + '">'
+    + '<span class="vle-strip-av">' + esc(initials(c.name)) + '</span>'
+    + '<span class="vle-strip-n">' + nameHtmlCard(c) + '</span>'
+    + '<span class="vle-strip-st">' + esc(where) + '</span>'
+    + (c.role ? '<span class="vle-strip-role">' + esc(c.role) + '</span>' : '')
+    + (dots ? '<span class="vle-strip-bonds">' + dots + '</span>' : '')
+    + '<span class="vle-card-ctl">'
     + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
     + '</span></div>';

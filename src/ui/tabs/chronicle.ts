@@ -266,12 +266,30 @@ function timeline(s: ChronicleState): string {
   if (_tlDay !== 'all') shown = shown.filter((r) => String(r.day ?? '') === _tlDay);
   shown = shown.slice().sort((a, b) => b.turn - a.turn); // newest first
   if (!shown.length) return head + kindBar + dayBar + emptyState('Nothing matches this filter.');
-  const items = shown.slice(0, 80).map((r) => {
+
+  // "The Spine" (mockup 10): a central river. Beats sit centered ON the spine;
+  // every other record branches left/right as a card with its per-type color
+  // spine. Day changes drop a node; act changes drop a divider band. Degrades to
+  // a flat list if anything is off — each row is independently rendered.
+  const beatAct = new Map<number, string>();
+  for (const m of s.memories) if (m.tier === 'beat' && m.act) beatAct.set(m.turn, m.act);
+  let lastDay: number | undefined; let lastAct: string | undefined; let side = 0;
+  const parts: string[] = [];
+  for (const r of shown.slice(0, 80)) {
+    const act = beatAct.get(r.turn);
+    if (act && act !== lastAct) { parts.push(`<div class="vle-spine-act">${esc(act)}</div>`); lastAct = act; }
+    if (r.day !== undefined && r.day !== lastDay) { parts.push(`<div class="vle-spine-day"><span>D${esc(r.day)}</span></div>`); lastDay = r.day; }
     const label = r.span ? `t${r.span[0]}\u2013${r.span[1]}` : `t${r.turn}`;
-    const day = r.day ? `<span class="vle-tl-day">d${r.day}</span>` : '';
-    return `<div class="vle-tl-row"><span class="vle-tl-t">${esc(label)}</span><span class="vle-tl-dot vle-tl-${esc(r.kind)}"></span><div class="vle-tl-body"><span class="vle-tl-k">${esc(r.kind)}</span>${day}<span class="vle-tl-x">${esc(r.text)}</span></div></div>`;
-  }).join('');
-  return head + kindBar + dayBar + `<div class="vle-tl">${items}</div>`;
+    if (r.kind === 'beat') {
+      parts.push(`<div class="vle-spine-beat"><span class="vle-spine-beat-k">\u2691 beat</span><span class="vle-spine-beat-x">${esc(r.text)}</span></div>`);
+      continue;
+    }
+    const s2 = side++ % 2 === 0 ? 'l' : 'r';
+    parts.push(`<div class="vle-spine-row vle-spine-${s2}"><div class="vle-spine-card vle-spine-${esc(r.kind)}">`
+      + `<span class="vle-spine-meta"><span class="vle-spine-kind">${esc(r.kind)}</span><span class="vle-spine-t">${esc(label)}</span></span>`
+      + `<span class="vle-spine-x">${esc(r.text)}</span></div></div>`);
+  }
+  return head + kindBar + dayBar + `<div class="vle-spine">${parts.join('')}</div>`;
 }
 
 /** Story Beats — the author-curated landmark layer + recall spine. Sorted by

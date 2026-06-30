@@ -69,14 +69,14 @@ const nowTab: Component<ChronicleState> = {
 };
 
 const TABS = [
-  { id: 'now', label: 'Now', comp: nowTab, group: 'primary' },
-  { id: 'chronicle', label: 'Chronicle', comp: chronicleTab, group: 'primary' },
-  { id: 'cast', label: 'Cast', comp: castTab, group: 'primary' },
-  { id: 'relations', label: 'Bonds', comp: relationsTab, group: 'primary' },
-  { id: 'journal', label: 'Journal', comp: journalTab, group: 'primary' },
-  { id: 'graph', label: 'Graph', comp: graphTab, group: 'primary' },
-  { id: 'vault', label: 'Vault', comp: vaultTab, group: 'tools' },
-  { id: 'injection', label: 'Context', comp: injectionTab, group: 'tools' },
+  { id: 'now', label: 'Now', icon: '\u25C9', comp: nowTab, group: 'primary' },
+  { id: 'cast', label: 'Cast', icon: '\u263B', comp: castTab, group: 'primary' },
+  { id: 'relations', label: 'Bonds', icon: '\u269A', comp: relationsTab, group: 'primary' },
+  { id: 'chronicle', label: 'Chronicle', icon: '\u2637', comp: chronicleTab, group: 'primary' },
+  { id: 'journal', label: 'Journal', icon: '\u270E', comp: journalTab, group: 'tools' },
+  { id: 'graph', label: 'Graph', icon: '\u26B9', comp: graphTab, group: 'tools' },
+  { id: 'vault', label: 'Vault', icon: '\u2756', comp: vaultTab, group: 'tools' },
+  { id: 'injection', label: 'Context', icon: '\u29C9', comp: injectionTab, group: 'tools' },
 ] as const;
 
 // QOL actions, grouped. 'inline' stays on the toolbar; the rest live in the
@@ -125,12 +125,15 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const primary = TABS.filter((t) => t.group === 'primary');
   const tools = TABS.filter((t) => t.group === 'tools');
   const tabBtn = (t: typeof TABS[number], on: boolean): string => `<button class="vle-tabbtn${on ? ' on' : ''}" data-tab="${t.id}">${t.label}</button>`;
+  // tools render as compact icon buttons (Journal/Graph/Vault/Context) so the
+  // four primary tabs (Now/Cast/Bonds/Chronicle) lead, per mockup 05A.
+  const toolBtn = (t: typeof TABS[number]): string => `<button class="vle-tabicon" data-tab="${t.id}" title="${t.label}" aria-label="${t.label}">${(t as { icon?: string }).icon ?? t.label[0]}</button>`;
   root.innerHTML = '<div class="vle-head"><span class="vle-mark">\u2756</span> VELLUM <span class="vle-ver">II</span>'
     + '<span class="vle-stats" data-stats></span></div>'
     + '<div class="vle-tabbar" data-tabbar>'
       + primary.map((t, i) => tabBtn(t, i === 0)).join('')
       + '<span class="vle-tabbar-sep"></span>'
-      + tools.map((t) => tabBtn(t, false)).join('')
+      + tools.map((t) => toolBtn(t)).join('')
     + '</div>'
     + '<div class="vle-toolbar" data-toolbar>'
       + '<button class="vle-qol" data-search title="Search the chronicle (cast, bonds, journal, knowledge)">\u2315 Search</button>'
@@ -150,7 +153,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const showTab = (id: string): void => {
     if (active !== id) _scroll.set(active, bodyEl.scrollTop); // stash before leaving
     active = id;
-    tabbar.querySelectorAll('.vle-tabbtn').forEach((b) => b.classList.toggle('on', b.getAttribute('data-tab') === id));
+    tabbar.querySelectorAll('.vle-tabbtn,.vle-tabicon').forEach((b) => b.classList.toggle('on', b.getAttribute('data-tab') === id));
     if (mounted) { mounted.destroy(); mounted = null; }
     bodyEl.innerHTML = '';
     const def = TABS.find((t) => t.id === id) ?? TABS[0]!;

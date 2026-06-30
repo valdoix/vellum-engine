@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Relation } from '../../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bar, emptyState, sectionHeader, nameHtml } from '../format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bondMeter, emptyState, sectionHeader, nameHtml } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { getTheme } from '../theme.js';
@@ -143,7 +143,6 @@ function card(s: ChronicleState, group: Relation[]): string {
       + '</span></div>'
       + (r.label ? '<div class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</div>' : '')
       + '<div class="vle-cats">' + chips + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '') + '</div>'
-      + '<div class="vle-bars">' + bar('Aff', r.affection) + bar('Trust', r.trust) + '</div>'
       + historyHtml(r)
       + '</div>';
   };
@@ -151,15 +150,17 @@ function card(s: ChronicleState, group: Relation[]): string {
   const reverseMissing = dirs.length === 1
     ? `<div class="vle-rel-onesided">no reciprocal bond from ${esc(nameOf(s, dirs[0]!.b))} yet</div>`
     : '';
-  // futuristic chrome: a dual-axis radar leads the card (boundary-safe; '' falls
-  // back to the per-direction bars below).
-  const radar = getTheme().chrome === 'futuristic' ? renderBondRadar(s, group) : '';
+  // bond visualization: futuristic = radar; everyone else = the shared diverging
+  // bondMeter (both directions per axis vs one zero). Boundary-safe; '' degrades.
+  const viz = getTheme().chrome === 'futuristic'
+    ? renderBondRadar(s, group)
+    : bondMeter(dirs, (id) => nameOf(s, id));
   return '<div class="vle-rel-card">'
     + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, pa) + ' \u2194 ' + nameHtml(s, pb) + '</span>'
     + '<span class="vle-rel-ctl">' + lockBadge
     + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(pa)}" data-b="${A(pb)}" data-an="${A(nameOf(s, pa))}" data-bn="${A(nameOf(s, pb))}" title="Plot Director lock">\uD83D\uDD12</button>`
     + '</span></div>'
-    + radar
+    + viz
     + dirs.map(dirRow).join('')
     + reverseMissing
     + '</div>';

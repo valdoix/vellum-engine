@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1080" viewBox="0 0 1280 1080" font-family="Georgia, serif">
+  <defs>
+    <linearGradient id="bgc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#181410"/><stop offset="1" stop-color="#0c0a07"/></linearGradient>
+    <linearGradient id="secc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#221d15"/><stop offset="1" stop-color="#16130d"/></linearGradient>
+  </defs>
+  <rect width="1280" height="1080" fill="url(#bgc)"/>
+  <text x="40" y="48" fill="#cda84e" font-size="25" letter-spacing="2">CHRONICLE TAB — redesign</text>
+  <text x="40" y="72" fill="#9a8f78" font-size="14" font-style="italic">8 sub-views (World/Timeline/Beats/Memory/Knowledge/Secrets/Scars/Codex) reorganized into a story-spine layout.</text>
+
+  <!-- ===== CURRENT problems (left strip) ===== -->
+  <text x="40" y="112" fill="#ff8a8a" font-family="monospace" font-size="12" letter-spacing="1">TODAY</text>
+  <g font-family="monospace" font-size="10.5" fill="#d8a0a0">
+    <text x="40" y="134">· 8 flat sub-tabs, equal weight</text>
+    <text x="40" y="152">· Timeline = a thin one-line rail</text>
+    <text x="40" y="170">· every record type looks the same</text>
+    <text x="40" y="188">· no sense of the story's SHAPE</text>
+    <text x="40" y="206">· acts/days exist but aren't felt</text>
+  </g>
+
+  <!-- ===== REDESIGN: the spine timeline ===== -->
+  <text x="330" y="112" fill="#9fd08a" font-family="monospace" font-size="13" letter-spacing="1">REDESIGN — "The Spine": a vertical story river with grouped sub-nav</text>
+
+  <!-- grouped sub-nav -->
+  <g font-family="Georgia" font-size="12.5">
+    <text x="330" y="140" fill="#6f6655" font-family="monospace" font-size="9" letter-spacing="1">THE WORLD</text>
+    <rect x="330" y="148" width="96" height="28" rx="8" fill="#cda84e" fill-opacity="0.16" stroke="#cda84e" stroke-opacity="0.4"/><text x="344" y="167" fill="#e7d6ad">⊹ Timeline</text>
+    <rect x="434" y="148" width="78" height="28" rx="8" fill="#1c1813"/><text x="448" y="167" fill="#9a8f78">⚑ Beats</text>
+    <rect x="520" y="148" width="92" height="28" rx="8" fill="#1c1813"/><text x="534" y="167" fill="#9a8f78">◷ Memory</text>
+    <text x="640" y="140" fill="#6f6655" font-family="monospace" font-size="9" letter-spacing="1">KNOWN &amp; KEPT</text>
+    <rect x="640" y="148" width="104" height="28" rx="8" fill="#1c1813"/><text x="654" y="167" fill="#9a8f78">◈ Knowledge</text>
+    <rect x="752" y="148" width="84" height="28" rx="8" fill="#1c1813"/><text x="766" y="167" fill="#9a8f78">⚀ Secrets</text>
+    <rect x="844" y="148" width="74" height="28" rx="8" fill="#1c1813"/><text x="858" y="167" fill="#9a8f78">☠ Scars</text>
+    <rect x="926" y="148" width="78" height="28" rx="8" fill="#1c1813"/><text x="940" y="167" fill="#9a8f78">❖ Codex</text>
+  </g>
+
+  <!-- ACT divider -->
+  <g>
+    <rect x="330" y="196" width="674" height="30" rx="8" fill="#cda84e" fill-opacity="0.08"/>
+    <text x="346" y="216" fill="#cda84e" font-size="13" letter-spacing="3" font-style="italic">ACT II — THE DROWNED CHAPEL</text>
+    <text x="990" y="216" fill="#8a8071" font-family="monospace" font-size="9" text-anchor="end">days 9–12 · t120–147</text>
+  </g>
+
+  <!-- the river: a thick central rail with alternating event cards + day nodes -->
+  <line x1="420" y1="240" x2="420" y2="900" stroke="#cda84e" stroke-opacity="0.25" stroke-width="2"/>
+
+  <!-- day node -->
+  <g><circle cx="420" cy="262" r="14" fill="#1a1610" stroke="#cda84e" stroke-opacity="0.6"/><text x="420" y="266" fill="#cda84e" font-size="9" text-anchor="middle" font-family="monospace">D12</text></g>
+
+  <!-- beat (landmark) — centered, emphasized, on the spine -->
+  <g>
+    <rect x="300" y="282" width="240" height="48" rx="10" fill="#2a2214" stroke="#cda84e" stroke-opacity="0.5"/>
+    <text x="316" y="302" fill="#cda84e" font-size="11" font-family="monospace">⚑ BEAT</text>
+    <text x="316" y="320" fill="#f2e4bd" font-size="12.5" font-style="italic">Aveline refuses to kneel.</text>
+    <line x1="540" y1="306" x2="406" y2="306" stroke="#cda84e" stroke-opacity="0.3"/>
+  </g>
+
+  <!-- left side: a memory cover-span -->
+  <g>
+    <rect x="120" y="346" width="288" height="58" rx="10" fill="url(#secc)" stroke="#cda84e" stroke-opacity="0.14"/>
+    <rect x="120" y="346" width="3" height="58" fill="#cda84e"/>
+    <text x="136" y="366" fill="#cda84e" font-size="9" font-family="monospace">◷ CHAPTER · t120–134</text>
+    <text x="136" y="386" fill="#cdbfa0" font-size="12">The siege broke at dawn; she slipped the cordon</text>
+    <text x="136" y="400" fill="#cdbfa0" font-size="12">and went down into the flooded nave.</text>
+    <line x1="408" y1="375" x2="420" y2="375" stroke="#cda84e" stroke-opacity="0.3"/>
+    <circle cx="420" cy="375" r="5" fill="#cda84e"/>
+  </g>
+
+  <!-- right side: a secret (red spine) -->
+  <g>
+    <rect x="432" y="420" width="288" height="52" rx="10" fill="url(#secc)" stroke="#c96a6a" stroke-opacity="0.3"/>
+    <rect x="717" y="420" width="3" height="52" fill="#c96a6a"/>
+    <text x="448" y="440" fill="#e09090" font-size="9" font-family="monospace">⚀ SECRET · Aveline keeps from Coren</text>
+    <text x="448" y="460" fill="#cdbfa0" font-size="12">She carries the Vicar's seal.</text>
+    <line x1="432" y1="446" x2="420" y2="446" stroke="#c96a6a" stroke-opacity="0.3"/>
+    <circle cx="420" cy="446" r="5" fill="#c96a6a"/>
+  </g>
+
+  <!-- left: knowledge w/ irony flag (blue) -->
+  <g>
+    <rect x="120" y="488" width="288" height="58" rx="10" fill="url(#secc)" stroke="#9bc0e6" stroke-opacity="0.3"/>
+    <rect x="120" y="488" width="3" height="58" fill="#9bc0e6"/>
+    <text x="136" y="508" fill="#9bc0e6" font-size="9" font-family="monospace">◈ KNOWLEDGE · Coren believes</text>
+    <text x="136" y="528" fill="#cdbfa0" font-size="12">the Vicar is dead —</text>
+    <text x="136" y="528" fill="#cdbfa0" font-size="12"></text>
+    <text x="220" y="528" fill="#e09090" font-size="11" font-family="monospace">✗ false</text>
+    <text x="136" y="542" fill="#8a8071" font-size="10" font-style="italic">dramatic irony in play</text>
+    <line x1="408" y1="517" x2="420" y2="517" stroke="#9bc0e6" stroke-opacity="0.3"/>
+    <circle cx="420" cy="517" r="5" fill="#9bc0e6"/>
+  </g>
+
+  <!-- day node 2 -->
+  <g><circle cx="420" cy="568" r="14" fill="#1a1610" stroke="#cda84e" stroke-opacity="0.6"/><text x="420" y="572" fill="#cda84e" font-size="9" text-anchor="middle" font-family="monospace">D11</text></g>
+
+  <!-- right: journal (sage) -->
+  <g>
+    <rect x="432" y="588" width="288" height="52" rx="10" fill="url(#secc)" stroke="#8fa67e" stroke-opacity="0.3"/>
+    <rect x="717" y="588" width="3" height="52" fill="#8fa67e"/>
+    <text x="448" y="608" fill="#a9c089" font-size="9" font-family="monospace">✎ JOURNAL · Aveline</text>
+    <text x="448" y="628" fill="#cdbfa0" font-size="12" font-style="italic">"I will not kneel to him again."</text>
+    <line x1="432" y1="614" x2="420" y2="614" stroke="#8fa67e" stroke-opacity="0.3"/>
+    <circle cx="420" cy="614" r="5" fill="#8fa67e"/>
+  </g>
+
+  <!-- left: scar (violet, struck) -->
+  <g>
+    <rect x="120" y="656" width="288" height="52" rx="10" fill="url(#secc)" stroke="#b48ed0" stroke-opacity="0.3"/>
+    <rect x="120" y="656" width="3" height="52" fill="#b48ed0"/>
+    <text x="136" y="676" fill="#c79ae0" font-size="9" font-family="monospace">☠ SCAR · Aveline (healed)</text>
+    <text x="136" y="696" fill="#9a8f78" font-size="12" text-decoration="line-through">that Coren had betrayed her</text>
+    <line x1="408" y1="682" x2="420" y2="682" stroke="#b48ed0" stroke-opacity="0.3"/>
+    <circle cx="420" cy="682" r="5" fill="#b48ed0"/>
+  </g>
+
+  <!-- ACT I divider lower -->
+  <g>
+    <rect x="300" y="726" width="240" height="26" rx="8" fill="#cda84e" fill-opacity="0.06"/>
+    <text x="316" y="744" fill="#9a8f78" font-size="11" letter-spacing="2" font-style="italic">ACT I — THE SIEGE</text>
+  </g>
+  <g><circle cx="420" cy="784" r="14" fill="#1a1610" stroke="#cda84e" stroke-opacity="0.4"/><text x="420" y="788" fill="#9a8f78" font-size="9" text-anchor="middle" font-family="monospace">D8</text></g>
+  <g>
+    <rect x="120" y="808" width="288" height="48" rx="10" fill="url(#secc)" stroke="#cda84e" stroke-opacity="0.12"/>
+    <rect x="120" y="808" width="3" height="48" fill="#cda84e" opacity="0.5"/>
+    <text x="136" y="828" fill="#cda84e" font-size="9" font-family="monospace">❖ CODEX · canon</text>
+    <text x="136" y="846" fill="#cdbfa0" font-size="12">The Salt Guild brands initiates on the wrist.</text>
+    <line x1="408" y1="832" x2="420" y2="832" stroke="#cda84e" stroke-opacity="0.2"/>
+    <circle cx="420" cy="832" r="4" fill="#cda84e" opacity="0.5"/>
+  </g>
+
+  <!-- annotations right column -->
+  <g font-family="monospace" font-size="12" fill="#9fd08a">
+    <text x="760" y="262">A. ONE story river, not a flat list.</text>
+    <text x="780" y="280" fill="#bcd9ad">Days are nodes on the spine; Acts are</text>
+    <text x="780" y="298" fill="#bcd9ad">divider bands — the story's SHAPE is felt.</text>
+
+    <text x="760" y="340">B. Beats sit centered ON the spine</text>
+    <text x="780" y="358" fill="#bcd9ad">(they're the landmarks); everything</text>
+    <text x="780" y="376" fill="#bcd9ad">else branches left/right as cards.</text>
+
+    <text x="760" y="418">C. Each record type keeps its color</text>
+    <text x="780" y="436" fill="#bcd9ad">spine + grammar from the earlier</text>
+    <text x="780" y="454" fill="#bcd9ad">redesign — knowledge shows ✗ irony,</text>
+    <text x="780" y="472" fill="#bcd9ad">scars strike through, secrets "keeps from".</text>
+
+    <text x="760" y="514">D. The 8 sub-views become FILTERS</text>
+    <text x="780" y="532" fill="#bcd9ad">over the one river (grouped nav up top);</text>
+    <text x="780" y="550" fill="#bcd9ad">"Timeline" = all, others = focus one type.</text>
+
+    <text x="760" y="592">E. Same data, zero schema change:</text>
+    <text x="780" y="610" fill="#bcd9ad">turn = spine position, covers = span,</text>
+    <text x="780" y="628" fill="#bcd9ad">beatDay → day nodes, act → dividers.</text>
+
+    <text x="760" y="672" fill="#cda84e">F. Float (narrow): the river collapses</text>
+    <text x="780" y="690" fill="#bcd9ad">to a single left-aligned column — same</text>
+    <text x="780" y="708" fill="#bcd9ad">cards, spine slides to the edge.</text>
+  </g>
+
+  <!-- mini float preview -->
+  <g>
+    <rect x="760" y="740" width="220" height="180" rx="12" fill="#15120c" stroke="#cda84e" stroke-opacity="0.35"/>
+    <text x="776" y="762" fill="#cda84e" font-size="11">✦ Timeline</text>
+    <line x1="788" y1="776" x2="788" y2="908" stroke="#cda84e" stroke-opacity="0.25" stroke-width="1.5"/>
+    <circle cx="788" cy="788" r="9" fill="#1a1610" stroke="#cda84e" stroke-opacity="0.5"/><text x="788" y="791" fill="#cda84e" font-size="6" text-anchor="middle" font-family="monospace">D12</text>
+    <rect x="802" y="800" width="160" height="26" rx="6" fill="#221d15"/><rect x="802" y="800" width="3" height="26" fill="#cda84e"/><text x="812" y="817" fill="#cdbfa0" font-size="9">⚑ Aveline refuses to kneel</text>
+    <rect x="802" y="832" width="160" height="26" rx="6" fill="#221d15"/><rect x="802" y="832" width="3" height="26" fill="#c96a6a"/><text x="812" y="849" fill="#cdbfa0" font-size="9">⚀ carries the seal</text>
+    <rect x="802" y="864" width="160" height="26" rx="6" fill="#221d15"/><rect x="802" y="864" width="3" height="26" fill="#8fa67e"/><text x="812" y="881" fill="#cdbfa0" font-size="9">✎ "I will not kneel"</text>
+  </g>
+  <text x="760" y="940" fill="#6f6655" font-size="10" font-family="monospace">float: single-column river</text>
+
+  <text x="40" y="1060" fill="#cda84e" font-size="12" font-style="italic" opacity="0.75">Concept art. The Spine turns Chronicle from a filing cabinet into a readable story-shape; sub-views become filters. Reuses turn/covers/beatDay/act. No schema change.</text>
+</svg>

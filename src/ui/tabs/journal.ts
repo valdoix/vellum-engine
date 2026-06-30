@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, JournalEntry } from '../../domain/types.js';
-import { esc, nameOf, emptyState, sectionHeader, nameHtml } from '../format.js';
+import { esc, nameOf, emptyState, sectionHeader, nameHtml, initials } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -35,6 +35,14 @@ function jCounts(s: ChronicleState, key: (j: ChronicleState['journal'][number]) 
   return out;
 }
 
+/** The most common sentiment across a set of entries → SENT_CLS class. */
+function dominantSentiment(entries: JournalEntry[]): string {
+  const tally: Record<string, number> = {};
+  for (const e of entries) tally[e.sentiment] = (tally[e.sentiment] ?? 0) + 1;
+  const top = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'neutral';
+  return SENT_CLS[top] ?? 'neu';
+}
+
 export const journalTab: Component<ChronicleState> = {
   version: (s) => s.journal.length + ':' + Object.keys(s.cast).length + ':' + (_openBook ?? ''),
   render(s) {
@@ -42,11 +50,19 @@ export const journalTab: Component<ChronicleState> = {
     const header = sectionHeader('', { action: '<button class="vle-add" data-jr-add>+ Memory</button>' });
     if (!s.journal.length) return header + emptyState('No journal entries yet.', 'Characters remember moments as the story unfolds.');
     const whos = Array.from(new Set(s.journal.map((j) => j.who))).map((id) => ({ id, name: nameOf(s, id) }));
-    // a "shelf" of per-character books to open
-    const shelf = '<div class="vle-shelf">' + whos.map((w) => {
-      const n = s.journal.filter((j) => j.who === w.id).length;
-      return `<button class="vle-book" data-jr-book="${esc(w.id)}">${esc(w.name)} <span class="vle-book-n">${n}</span></button>`;
-    }).join('') + '</div>';
+    // a "shelf" of per-character books: spine height ∝ entry count, the foot band
+    // = dominant sentiment, a portrait medallion on the spine (mockup 11A).
+    const maxN = Math.max(1, ...whos.map((w) => s.journal.filter((j) => j.who === w.id).length));
+    const spines = whos.map((w) => {
+      const entries = s.journal.filter((j) => j.who === w.id);
+      const h = Math.round(150 + 60 * (entries.length / maxN)); // 150–210px
+      const sc = dominantSentiment(entries);
+      return `<button class="vle-jspine vle-jspine--${sc}" data-jr-book="${esc(w.id)}" style="height:${h}px" title="${esc(w.name)} \u00b7 ${entries.length}">`
+        + `<span class="vle-jspine-av">${esc(initials(w.name))}</span>`
+        + `<span class="vle-jspine-name">${esc(w.name)}</span>`
+        + `<span class="vle-jspine-n">${entries.length}</span></button>`;
+    }).join('');
+    const shelf = `<div class="vle-shelf-wrap"><div class="vle-shelf">${spines}</div><div class="vle-shelf-plank"></div></div>`;
     const bar = filterBar('journal', { cats: KIND_OPTS.map((k) => k.value), whos, counts: jCounts(s, (j) => j.kind), whoCounts: jCounts(s, (j) => j.who) });
     const filtered = applyFilter('journal', s.journal, { cat: (j) => j.kind, who: (j) => j.who });
     if (!filtered.length) return header + shelf + bar + emptyState('No entries match the filter.');
@@ -75,16 +91,38 @@ export const journalTab: Component<ChronicleState> = {
   },
 };
 
-/** One character's full journal as its own page. */
+/** One character's journal as an open two-page diary (mockup 11B): entries are
+ * dated handwritten leaves, sentiment-colored ink, split L/R by recency. */
 function bookView(s: ChronicleState, who: string): string {
   const entries = s.journal.filter((j) => j.who === who);
   const bar = filterBar('journal-book', { cats: KIND_OPTS.map((k) => k.value) });
-  const filtered = applyFilter('journal-book', entries, { cat: (j) => j.kind });
-  const head = `<div class="vle-book-head"><button class="vle-mini" data-jr-close title="Back">\u2039</button>`
+  const filtered = applyFilter('journal-book', entries, { cat: (j) => j.kind })
+    .slice().sort((a, b) => (b.day ?? 0) - (a.day ?? 0) || b.turn - a.turn);
+  const head = `<div class="vle-diary-head"><button class="vle-mini" data-jr-close title="Back">\u2039</button>`
+    + `<span class="vle-diary-av">${esc(initials(nameOf(s, who)))}</span>`
     + `<span class="vle-book-title">${nameHtml(s, who)}\u2019s Journal</span>`
     + `<span class="vle-n">${entries.length}</span></div>`;
-  const body = filtered.length ? '<div class="vle-jr-grid">' + filtered.map((j) => card(s, j)).join('') + '</div>' : emptyState('No entries match.');
+  if (!filtered.length) return head + bar + emptyState('No entries match.');
+  // split into two facing pages (left = more recent, right = older)
+  const half = Math.ceil(filtered.length / 2);
+  const left = filtered.slice(0, half).map((j) => leaf(s, j)).join('');
+  const right = filtered.slice(half).map((j) => leaf(s, j)).join('');
+  const body = `<div class="vle-diary"><div class="vle-diary-page">${left}</div>`
+    + `<div class="vle-diary-page">${right}<button class="vle-diary-add" data-jr-add>+ add a memory\u2026</button></div></div>`;
   return head + bar + body;
+}
+
+/** One diary leaf: a dated, kind-tagged, sentiment-inked handwritten entry. */
+function leaf(s: ChronicleState, j: JournalEntry): string {
+  const sc = SENT_CLS[j.sentiment] ?? 'neu';
+  const A = (x: unknown): string => esc(x);
+  const about = j.about ? ' \u2192 ' + nameOf(s, j.about) : '';
+  const anchor = (j.day ? 'Day ' + j.day + ' \u00b7 ' : '') + (KIND_GLYPH[j.kind] ?? '\u25C9') + ' ' + j.kind + ' \u00b7 ' + j.weight;
+  return `<div class="vle-leaf vle-leaf--${sc}">`
+    + `<div class="vle-leaf-meta">${esc(anchor)}${esc(about)}`
+    + `<span class="vle-leaf-ctl"><button class="vle-mini" data-jr-edit data-id="${A(j.id)}" data-who="${A(nameOf(s, j.who))}" data-about="${A(j.about ? nameOf(s, j.about) : '')}" data-mem="${A(j.memory)}" data-kind="${A(j.kind)}" data-weight="${A(j.weight)}" data-sent="${A(j.sentiment)}" title="Edit">\u270E</button>`
+    + `<button class="vle-mini del" data-jr-del data-id="${A(j.id)}" title="Delete">\u2715</button></span></div>`
+    + `<div class="vle-leaf-mem">\u201C${esc(j.memory)}\u201D</div></div>`;
 }
 
 function jrForm(title: string, v: Record<string, string>): void {
