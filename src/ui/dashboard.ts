@@ -145,11 +145,16 @@ function presentCard(s: ChronicleState, d: PresentChar): string {
   const thought = d.thought
     ? `<div class="vld-thought"><span class="vld-thought-k">thinking</span><span class="vld-thought-q">\u201C${esc(d.thought)}\u201D</span></div>`
     : '';
+  // carried-items echo: a capped, read-only chip strip of what this character holds
+  const carried = (s.items ?? []).filter((it) => it.who === d.id && !it.scene);
+  const itemsStrip = carried.length
+    ? `<div class="vld-pc-items">${carried.slice(0, 3).map((it) => `<span class="vld-pc-item">${esc(it.item)}</span>`).join('')}${carried.length > 3 ? `<span class="vld-pc-item">+${carried.length - 3}</span>` : ''}</div>`
+    : '';
   return `<div class="vld-pc${d.thought ? ' has-thought' : ''}">`
     + `<span class="vld-pc-av">${esc(initials(name))}<span class="vld-pc-dot"></span></span>`
     + `<div class="vld-pc-body">`
     + `<div class="vld-pc-top"><span class="vld-pc-n">${nameHtml(s, d.id)}</span>${status ? `<span class="vld-pc-status">${status}</span>` : ''}</div>`
-    + `${doing}${thought}`
+    + `${doing}${thought}${itemsStrip}`
     + `</div></div>`;
 }
 

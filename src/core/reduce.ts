@@ -161,6 +161,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       s.secrets = s.secrets.filter((x) => x.keeper !== e.id && !(x.from ?? []).includes(e.id));
       s.journal = s.journal.filter((j) => j.who !== e.id && j.about !== e.id);
       s.scars = s.scars.filter((x) => x.who !== e.id && x.about !== e.id);
+      s.items = s.items.filter((x) => x.who !== e.id);
       break;
     }
     case 'faction.seen': {
@@ -424,6 +425,34 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'lore.drop': {
       s.lore = s.lore.filter((x) => x.id !== e.id);
+      break;
+    }
+    case 'item.change': {
+      const norm = (x: string): string => x.trim().toLowerCase();
+      const findItem = (who: string, item: string) => s.items.find((x) => x.who === who && norm(x.item) === norm(item));
+      if (e.op === 'gain' || e.op === 'scene') {
+        if (e.who !== 'world') ensureCast(s, e.who, e.turn);
+        const dup = findItem(e.who, e.item);
+        if (dup) { if (e.note) dup.note = e.note; }
+        else s.items.push({ id: e.id, who: e.who, item: e.item, ...(e.note ? { note: e.note } : {}), ...(e.op === 'scene' || e.who === 'world' ? { scene: true } : {}), turn: e.turn });
+      } else if (e.op === 'lose' || e.op === 'give') {
+        const cur = findItem(e.who, e.item);
+        if (cur) s.items = s.items.filter((x) => x !== cur);
+        if (e.op === 'give' && e.to && e.to !== 'world') {
+          ensureCast(s, e.to, e.turn);
+          if (!findItem(e.to, e.item)) s.items.push({ id: e.id, who: e.to, item: e.item, ...(e.note ? { note: e.note } : {}), turn: e.turn });
+        } else if (e.op === 'give' && e.to === 'world') {
+          if (!findItem('world', e.item)) s.items.push({ id: e.id, who: 'world', item: e.item, scene: true, ...(e.note ? { note: e.note } : {}), turn: e.turn });
+        }
+      } else if (e.op === 'note') {
+        const cur = findItem(e.who, e.item);
+        if (cur) { if (e.note) cur.note = e.note; }
+        else { if (e.who !== 'world') ensureCast(s, e.who, e.turn); s.items.push({ id: e.id, who: e.who, item: e.item, ...(e.note ? { note: e.note } : {}), ...(e.who === 'world' ? { scene: true } : {}), turn: e.turn }); }
+      }
+      break;
+    }
+    case 'item.drop': {
+      s.items = s.items.filter((x) => x.id !== e.id);
       break;
     }
     default: {

@@ -964,6 +964,46 @@ const dispatch: Record<string, Handler> = {
     const vault = await maybeChapterVault(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: true, rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length, vault }, uid);
   },
+  vellum_item_add: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const item = String(p?.item ?? '').trim();
+    if (!item) return;
+    const sceneItem = !!p?.scene || !String(p?.who ?? '').trim();
+    const who = sceneItem ? 'world' : canonId(String(p.who));
+    if (!who) return;
+    const state = await loadState(chatId);
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'item.change', id: 'item_u' + nextSeqLocal(), who, item, op: sceneItem ? 'scene' : 'gain', ...(p?.note ? { note: String(p.note).slice(0, 200) } : {}) } as VellumEvent]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_item_done', ok: true }, uid);
+  },
+  vellum_item_edit: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const state = await loadState(chatId);
+    const cur = state.items.find((x) => x.id === String(p.id));
+    if (!cur) return;
+    const item = String(p?.item ?? cur.item).trim();
+    if (!item) return;
+    const who = p?.who !== undefined ? (String(p.who).trim() ? canonId(String(p.who)) : 'world') : cur.who;
+    // edit = drop old + re-add (item.change dedups by who+item, so drop first)
+    await append(chatId, [
+      { seq: nextSeqLocal(), turn: cur.turn, day: 0, src: 'user', kind: 'item.drop', id: cur.id } as VellumEvent,
+      { seq: nextSeqLocal(), turn: cur.turn, day: state.day || 0, src: 'user', kind: 'item.change', id: cur.id, who: who || 'world', item, op: (who === 'world' || !who) ? 'scene' : 'gain', ...(p?.note !== undefined ? { note: String(p.note).slice(0, 200) } : (cur.note ? { note: cur.note } : {})) } as VellumEvent,
+    ]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_item_done', ok: true }, uid);
+  },
+  vellum_item_delete: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'item.drop', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_item_done', ok: true }, uid);
+  },
   vellum_beat_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;

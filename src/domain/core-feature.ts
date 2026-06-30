@@ -53,11 +53,24 @@ export const coreFeature: Feature = {
     const present = (parsed.present ?? [])
       .map(presentId)
       .filter(Boolean);
+    // {{user}} must be in `present` whenever the scene is active — presence is a
+    // FACT (who is in the scene), NOT authoring them. The preset habitually drops
+    // the player because every present field (mood/thought/doing) is something it
+    // may not author for {{user}}; defensively re-include the persona id here with
+    // NO inner fields, so the dashboard/relations/items never lose the player.
+    const uCanon = ctx.userCanon ?? '';
+    const sceneActive = !!(parsed.scene || present.length);
+    const userExplicitlyPresent = (parsed.present ?? []).some((p) => canonId(presentName(p)) === uCanon);
+    const userInScene = sceneActive && uCanon && !userExplicitlyPresent;
+    if (userInScene) present.unshift(uCanon); // player leads the present list
     if (parsed.scene || present.length) {
       const detail = (parsed.present ?? []).map((p) => {
         const id = presentId(p);
+        // never store authored interiority for {{user}} even if the model emitted it
+        if (id && id === uCanon) return { id };
         return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(p.condition ? { condition: p.condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
       }).filter(Boolean);
+      if (userInScene) (detail as Array<{ id: string }>).unshift({ id: uCanon }); // presence only, no inner fields
       out.push({
         ...base(), kind: 'scene.set',
         ...(parsed.scene?.loc ? { location: parsed.scene.loc } : {}),
@@ -218,7 +231,7 @@ export const coreFeature: Feature = {
     }
 
     // ext: engine-reserved blocks the preset emits outside `delta`.
-    const ext = (parsed.ext ?? {}) as { scars?: Array<{ who?: string; was?: string; about?: string }>; codex?: Array<{ fact?: string; tag?: string } | string> };
+    const ext = (parsed.ext ?? {}) as { scars?: Array<{ who?: string; was?: string; about?: string }>; codex?: Array<{ fact?: string; tag?: string } | string>; inventory?: Array<{ who?: string; item?: string; op?: string; to?: string; note?: string }> };
     // Palimpsest scars — a belief proven wrong, held by a real character. Same
     // rid()/notAName gate as everything else, so scar attribution inherits the
     // same-surname misattribution protection.
@@ -236,6 +249,24 @@ export const coreFeature: Feature = {
       if (!fact) continue;
       const tag = typeof c === 'string' ? undefined : (c?.tag ? String(c.tag) : undefined);
       out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_x' + (ci++), fact, ...(tag ? { tag } : {}) } as VellumEvent);
+    }
+
+    // Possession tracker — named items the model reports gained/lost/given/scene.
+    // `who` goes through the same badName gate; a canon-sentinel owner ('world')
+    // is a SCENE item, not a character (never mints a cast card).
+    let ii = 0;
+    for (const it of Array.isArray(ext.inventory) ? ext.inventory : []) {
+      const item = String(it?.item || '').trim();
+      const opRaw = String(it?.op || 'gain').trim().toLowerCase();
+      const op = (['gain', 'lose', 'give', 'scene', 'note'].includes(opRaw) ? opRaw : 'gain') as 'gain' | 'lose' | 'give' | 'scene' | 'note';
+      if (!item) continue;
+      const rawWho = String(it?.who ?? '').trim();
+      // resolve owner: world/canon-sentinel or empty → scene item ('world')
+      const who = (op === 'scene' || !rawWho || isCanonSentinel(rawWho)) ? 'world' : (badName(rawWho) ? '' : rid(rawWho));
+      if (!who) continue; // a mash/pronoun owner that isn't 'world' → drop
+      const effOp = (who === 'world' && (op === 'gain' || op === 'note')) ? 'scene' : op;
+      const to = it?.to ? (isCanonSentinel(it.to) ? 'world' : (badName(it.to) ? undefined : rid(it.to))) : undefined;
+      out.push({ ...base(), kind: 'item.change', id: 'item_' + ctx.turn + '_' + (ii++), who, item, op: effOp, ...(to ? { to } : {}), ...(it?.note ? { note: String(it.note).slice(0, 200) } : {}) } as VellumEvent);
     }
 
     return out;

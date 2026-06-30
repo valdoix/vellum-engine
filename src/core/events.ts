@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 8 as const;
+export const SCHEMA_VERSION = 9 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -68,6 +68,13 @@ export const EvScarDrop = z.object({ ...base, kind: z.literal('scar.drop'), id: 
 // legacy who:"world" knowledge path is rerouted here).
 export const EvLoreNote = z.object({ ...base, kind: z.literal('lore.note'), id: z.string(), fact: z.string(), tag: z.string().optional() });
 export const EvLoreDrop = z.object({ ...base, kind: z.literal('lore.drop'), id: z.string() });
+
+// --- Possession tracker: a NARRATIVE record of who carries what (named, notable
+// possessions + scene/location items), never a quantity/weight ledger. `who` is
+// a cast id or the 'world' sentinel (scene items). op gain/scene adds, lose/give
+// removes (give re-adds under `to`), note updates. Carried in `ext.inventory`.
+export const EvItemChange = z.object({ ...base, kind: z.literal('item.change'), id: z.string(), who: z.string(), item: z.string(), op: z.enum(['gain', 'lose', 'give', 'scene', 'note']), to: z.string().optional(), note: z.string().optional(), scene: z.boolean().optional() });
+export const EvItemDrop = z.object({ ...base, kind: z.literal('item.drop'), id: z.string() });
 
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
 export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional() });
@@ -140,6 +147,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvThread, EvArc, EvThreadMerge, EvArcMerge,
   EvJournal, EvJournalDrop, EvJournalEdit,
   EvScarForm, EvScarDrop, EvLoreNote, EvLoreDrop,
+  EvItemChange, EvItemDrop,
   EvParallel, EvOffscreen,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;

@@ -69,6 +69,12 @@ export function migrate(raw: unknown): unknown {
     version = 8;
   }
 
+  // v8 → v9: possession tracker (item.* events / state.items). Additive — old
+  // logs have no items and reduce to an empty collection.
+  if (version < 9) {
+    version = 9;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

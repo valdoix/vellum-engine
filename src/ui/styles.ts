@@ -88,6 +88,22 @@ export const STYLES = [
   ".vle-beat-sug-chip{flex:0 0 auto;white-space:nowrap;font:500 11px/1 var(--vmono);color:var(--vi2);background:color-mix(in srgb,var(--vle-gold) 8%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 30%,transparent);border-radius:999px;padding:5px 10px;cursor:pointer}",
   ".vle-beat-sug-chip:hover{background:color-mix(in srgb,var(--vle-gold) 18%,transparent);color:var(--vle-gold)}",
   ".vle-scar-was{text-decoration:line-through;text-decoration-color:var(--v-neg);opacity:.85}",
+  // ---- Items (possession tracker) — built on theme vars so it adapts per chrome ----
+  ".vle-item-grp{margin:0 0 10px}",
+  ".vle-item-grp-h{font:600 11px/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vle-gold);opacity:.8;margin:0 0 5px;padding-bottom:3px;border-bottom:1px solid rgba(var(--vg-rgb),.16)}",
+  ".vle-item-row{display:flex;align-items:baseline;gap:8px;padding:5px 2px}",
+  ".vle-item-name{font-family:var(--vserif);font-size:calc(14px * var(--vscale));color:var(--vi)}",
+  ".vle-item-note{flex:1 1 auto;min-width:0;font-size:calc(12px * var(--vscale));color:var(--vi2);opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+  // present-card carried-items chip strip (echo on the Now card)
+  ".vld-pc-items{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}",
+  ".vld-pc-item{font:500 10px/1.4 var(--vmono);color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 10%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 28%,transparent);border-radius:999px;padding:2px 7px;white-space:nowrap}",
+  // FUTURISTIC chrome: square, mono, accent edge — match the diary/HUD treatment
+  "html[data-vle-chrome='futuristic'] .vle-item-grp-h{font-family:var(--vmono);color:var(--vg)}",
+  "html[data-vle-chrome='futuristic'] .vle-item-name{font-family:var(--vmono);font-style:normal}",
+  "html[data-vle-chrome='futuristic'] .vld-pc-item{border-radius:2px;background:rgba(var(--vg-rgb),.12)}",
+  // MODERN chrome: flat, quieter accent, no manuscript gilt emphasis
+  "html[data-vle-chrome='modern'] .vle-item-grp-h{color:var(--vi2);opacity:.6}",
+  "html[data-vle-chrome='modern'] .vld-pc-item{border-radius:6px;color:var(--vi);background:color-mix(in srgb,var(--vi) 6%,transparent);border-color:rgba(var(--vg-rgb),.2)}",
   ".vle-mem.pickable{cursor:pointer}.vle-mem-pick{margin-right:6px;accent-color:var(--vle-gold);cursor:pointer}",
   ".vle-pickbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;margin:4px 0 8px;border:1px solid color-mix(in srgb,var(--vle-gold) 35%,transparent);border-radius:8px;background:color-mix(in srgb,var(--vle-gold) 8%,transparent);font-size:12px}",
   ".vle-tl-body{flex:1;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;font-size:12px;line-height:1.5}",

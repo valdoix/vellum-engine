@@ -342,6 +342,8 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
   const secrets = s.secrets.map((x) => ({ ...x, keeper: map(x.keeper), from: x.from.map(map), revealedTo: x.revealedTo.map(map) }));
   const journal = s.journal.map((j) => ({ ...j, who: map(j.who), ...(j.about ? { about: map(j.about) } : {}) }));
   const scars = s.scars.map((x) => ({ ...x, who: map(x.who), ...(x.about ? { about: map(x.about) } : {}) }));
+  // items reference a cast id on `who` (or 'world' for scene items — map leaves it)
+  const items = s.items.map((x) => ({ ...x, who: x.who === 'world' ? x.who : map(x.who) }));
   const parallel = s.parallel.map((p) => ({ ...p, ...(p.who ? { who: map(p.who) } : {}) }));
   const present = Array.from(new Set(s.scene.present.map(map)));
   const detail = s.scene.detail.map((d) => ({ ...d, id: map(d.id) })).filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
@@ -356,6 +358,7 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
     secrets,
     journal,
     scars,
+    items,
     parallel,
     memberships,
     scene: { ...s.scene, present, detail },

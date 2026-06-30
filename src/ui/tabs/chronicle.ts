@@ -11,7 +11,7 @@ import { formModal, confirmModal } from '../modal.js';
  * through the bridge → vellum_cmd.
  */
 
-type CView = 'world' | 'timeline' | 'beats' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex';
+type CView = 'world' | 'timeline' | 'beats' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex' | 'items';
 const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'world', label: 'World' },
   { id: 'timeline', label: 'Timeline' },
@@ -21,6 +21,7 @@ const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'secrets', label: 'Secrets' },
   { id: 'scars', label: 'Scars' },
   { id: 'codex', label: 'Codex' },
+  { id: 'items', label: 'Items' },
 ];
 let _view: CView = 'world';
 // Timeline filters: by kind (all/memory/knew/secret/journal) and by day (all/<n>).
@@ -49,10 +50,10 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
-    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length };
+    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
     const btn = (v: { id: CView; label: string }): string =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`;
     // two soft groups give the 8 views meaning as a set (mockup 05B)
@@ -70,7 +71,8 @@ export const chronicleTab: Component<ChronicleState> = {
     else if (_view === 'knowledge') body = knowledge(s);
     else if (_view === 'secrets') body = secrets(s);
     else if (_view === 'scars') body = scars(s);
-    else body = codex(s);
+    else if (_view === 'codex') body = codex(s);
+    else body = itemsView(s);
     if (_view === 'world' && !s.scene.location && !s.scene.tension && !s.arcs.length && !s.threads.length && !(s.offscreen ?? []).length && !(s.parallel ?? []).length) body = emptyState('No world state yet.', 'Scene, arcs, and threads fill in as the story unfolds.');
     return nav + body;
   },
@@ -190,6 +192,19 @@ export const chronicleTab: Component<ChronicleState> = {
       if (scd) { confirmModal('Delete this scar?', () => cmd('scar_delete', { id: scd.getAttribute('data-id') })); return; }
       const ld = t.closest('[data-lore-del]');
       if (ld) { confirmModal('Delete this codex note?', () => cmd('lore_delete', { id: ld.getAttribute('data-id') })); return; }
+      if (t.closest('[data-item-add]')) { formModal('New Item', [
+        { key: 'item', label: 'Item', type: 'text', placeholder: 'the forged letter' },
+        { key: 'who', label: 'Held by (blank = a scene/world item)', type: 'text', placeholder: 'Cersei' },
+        { key: 'note', label: 'Note (optional)', type: 'text', placeholder: 'taken from the desk' },
+      ], (o) => { if (o.item?.trim()) send({ type: 'vellum_item_add', item: o.item, who: o.who || '', scene: !o.who?.trim(), note: o.note || undefined }); }); return; }
+      const ie = t.closest('[data-item-edit]');
+      if (ie) { formModal('Edit Item', [
+        { key: 'item', label: 'Item', type: 'text', value: ie.getAttribute('data-item') || '' },
+        { key: 'who', label: 'Held by (blank = a scene/world item)', type: 'text', value: ie.getAttribute('data-who') || '' },
+        { key: 'note', label: 'Note (optional)', type: 'text', value: ie.getAttribute('data-note') || '' },
+      ], (o) => { if (o.item?.trim()) send({ type: 'vellum_item_edit', id: ie.getAttribute('data-id'), item: o.item, who: o.who ?? '', note: o.note ?? '' }); }); return; }
+      const idl = t.closest('[data-item-del]');
+      if (idl) { confirmModal('Delete this item?', () => send({ type: 'vellum_item_delete', id: idl.getAttribute('data-id') })); return; }
     });
   },
 };
@@ -426,4 +441,33 @@ function codex(s: ChronicleState): string {
     + '<span class="vle-mem-t">' + esc(x.fact) + '</span>'
     + `<button class="vle-mini del" data-lore-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
   return head + rows;
+}
+
+/** Items \u2014 the possession tracker. Named, notable possessions grouped by owner
+ * (present characters first, then absent, then a Scene group for world items). */
+function itemsView(s: ChronicleState): string {
+  const list = s.items ?? [];
+  const head = sectionHeader('\u2726 Items', { sub: true, count: list.length, action: '<button class="vle-add sm" data-item-add>+</button>' });
+  if (!list.length) return head + emptyState('No items tracked.', 'Notable possessions (a letter, a blade, a key) and scene objects are recorded here. Enable the Inventory block in the preset to track them automatically.');
+  const present = new Set(s.scene.present);
+  // group: scene (world) last; characters split present vs absent, present first
+  const groups = new Map<string, typeof list>();
+  for (const it of list) {
+    const key = it.who === 'world' ? '\u0000scene' : it.who;
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(it);
+  }
+  const charKeys = [...groups.keys()].filter((k) => k !== '\u0000scene')
+    .sort((a, b) => (present.has(b) ? 1 : 0) - (present.has(a) ? 1 : 0) || nameOf(s, a).localeCompare(nameOf(s, b)));
+  const order = [...charKeys, ...(groups.has('\u0000scene') ? ['\u0000scene'] : [])];
+  const body = order.map((key) => {
+    const label = key === '\u0000scene' ? 'Scene' : nameOf(s, key) + (present.has(key) ? ' \u00b7 present' : '');
+    const rows = groups.get(key)!.map((it) =>
+      '<div class="vle-item-row"><span class="vle-item-name">' + esc(it.item) + '</span>'
+      + (it.note ? `<span class="vle-item-note">${esc(it.note)}</span>` : '')
+      + `<span class="vle-mem-ctl"><button class="vle-mini" data-item-edit data-id="${esc(it.id)}" data-item="${esc(it.item)}" data-who="${esc(it.who === 'world' ? '' : nameOf(s, it.who))}" data-note="${esc(it.note ?? '')}" title="Edit">\u270E</button>`
+      + `<button class="vle-mini del" data-item-del data-id="${esc(it.id)}" title="Delete">\u2715</button></span></div>`
+    ).join('');
+    return `<div class="vle-item-grp"><div class="vle-item-grp-h">${esc(label)}</div>${rows}</div>`;
+  }).join('');
+  return head + body;
 }

@@ -195,6 +195,18 @@ export interface LoreNote {
   turn: number;
 }
 
+/** A possession: a named, notable item held by a character (`who` = cast id) or
+ * present in the scene (`scene: true`, `who` = 'world'). Narrative, not a
+ * quantity ledger — no counts, weight, or slots. */
+export interface Item {
+  id: string;
+  who: string;   // cast id, or 'world' for scene/location items
+  item: string;  // the named possession ("the forged letter")
+  note?: string;
+  scene?: boolean; // true = a scene/location item, not carried by a person
+  turn: number;
+}
+
 export interface ChronicleState {
   cast: Record<string, CastCard>;
   factions: Record<string, Faction>;
@@ -206,6 +218,7 @@ export interface ChronicleState {
   journal: JournalEntry[];
   scars: Scar[];
   lore: LoreNote[];
+  items: Item[];
   threads: Track[];
   arcs: Track[];
   parallel: ParallelEvent[];
@@ -241,6 +254,7 @@ export function freshState(): ChronicleState {
     journal: [],
     scars: [],
     lore: [],
+    items: [],
     threads: [],
     arcs: [],
     parallel: [],

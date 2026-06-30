@@ -104,7 +104,7 @@ describe('migration v7 → v8', () => {
   it('advances version and leaves events intact; reduce yields empty scars/lore', () => {
     const log = migrate({ version: 7, chatId: 'c', events: [], createdAt: 1, updatedAt: 1 }) as any;
     expect(log.version).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(8);
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(8); // scars/lore landed in v8
     const s = reduce([]);
     expect(s.scars).toEqual([]);
     expect(s.lore).toEqual([]);
