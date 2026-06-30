@@ -354,6 +354,25 @@
       ]
     },
     {
+      "id": "v2-time",
+      "name": "Time Continuity",
+      "role": "system",
+      "position": "pre_history",
+      "enabled": true,
+      "group": "v2-cat-world",
+      "content": "{{if::{{var::time_continuity}}}}[TIME] The clock is real and it only moves forward. Track it in the <vellum> block's scene.time (and day when it rolls over); never reset or contradict it. If it was dusk last turn it is later than dusk now — night doesn't un-fall, a wound doesn't un-heal, a journey half-walked isn't back at the start.\n- ADVANCE BY ACTION, NOT BY TURN: let elapsed time match what was actually done. A line of dialogue or a held glance spends minutes; a careful search or a tense negotiation, the better part of an hour; travel, training, a meal, a ritual, hours; sleep or a long road, skip to the next moment that matters. Default to the SHORT end — a single charged exchange is not an afternoon — and let stacked actions add up.\n- TIME-OF-DAY HAS WEIGHT: light, temperature, noise, who is awake, what is open, how bodies feel (hunger, fatigue, the cold of late night) all follow the hour. Meals, sleep, shifts, tides, and weather drift across HOURS, not messages — don't let it stay golden afternoon for ten turns of conversation.\n- TIME SKIPS, GOVERNED: when an action would eat real time (a night's sleep, a day's ride, a long wait), you may resolve the skip and open on the other side of it — UNLESS the interval holds a choice {{user}} would want, a moment another character could seize, or a beat worth playing. When unsure, stop on the threshold (\"the hours stretch ahead — anything before you set out?\") and hand control back rather than fast-forwarding through {{user}}'s agency.\n- OFF-SCREEN TIME RUNS TOO: the same hours pass for everyone. Absent characters in scene.parallel act, travel, rest, scheme, and heal on their own clock; an errand begun two scenes ago can be finished when you next cut to them, and news travels at a believable speed. Nothing off-screen freezes while {{user}} isn't looking.\n- NO TELEPORTING IN TIME OR SPACE: distance still costs minutes and a body can't be in two places without crossing the gap. Don't collapse a journey to nothing or stretch a heartbeat into an hour; let duration stay honest to the world.{{/if}}",
+      "variables": [
+        {
+          "id": "var_time_continuity",
+          "name": "time_continuity",
+          "type": "switch",
+          "label": "Time Continuity",
+          "description": "Track the clock rigorously: time only moves forward, elapsed time matches the action, governed time-skips, and off-screen time advances for everyone. Recorded in scene.time/day.",
+          "defaultValue": 1
+        }
+      ]
+    },
+    {
       "id": "v2-codex",
       "name": "The Codex (provisional canon)",
       "role": "system",
@@ -658,12 +677,12 @@
             {
               "id": "standard",
               "label": "Standard",
-              "value": "Four quick notes: SCENE (what just changed) | STATES (each present character's goal + emotional truth now) | LIMITS (what limited-knowledge forbids this turn) | PLAN (one line, obeying the lots above)."
+              "value": "Four quick notes: SCENE (what just changed; the hour now and how much time this beat spends) | STATES (each present character's goal + emotional truth now) | LIMITS (what limited-knowledge forbids this turn) | PLAN (one line, obeying the lots above)."
             },
             {
               "id": "deep",
               "label": "Deep",
-              "value": "Full pass: SCENE (what just changed + the unspoken pressure) | STATES (each present character's goal, fear, and the wrong-impulse they'll feel first) | LIMITS (what each character cannot know; where dramatic irony lives) | PARALLEL (what moves off-screen this turn) | RHYTHM (the shape - where the short sentence lands) | PLAN (the one beat to resolve in line with the lots, then yield)."
+              "value": "Full pass: SCENE (what just changed + the unspoken pressure; the current hour and how much time elapses this beat) | STATES (each present character's goal, fear, and the wrong-impulse they'll feel first) | LIMITS (what each character cannot know; where dramatic irony lives) | PARALLEL (what moves off-screen this turn, and how their clock advanced) | RHYTHM (the shape - where the short sentence lands) | PLAN (the one beat to resolve in line with the lots, then yield)."
             }
           ]
         }
@@ -676,7 +695,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-engine",
-      "content": "{{if::{{var::state_on}}}}[VELLUM STATE] After the prose, on a new line, append ONE fenced <vellum>...</vellum> block (the display layer hides it). Valid JSON, DELTAS ONLY - omit anything that didn't change this turn. Fields:\n{ turn:int, day:int, scene:{loc,time,tension 0-10,weather}, present:[{id,mood,condition,doing,thought}], delta:{ bonds:[{a,b,aff -100..100,trust,cat:[familial|romantic|alliance|rivalry|social],why}], threads:[{op:new|advance|stall|resolve,name,note}], parallel:[{who,where,activity,note}], journal:[{who,about,memory,kind:interaction|promise|betrayal|gift|shared|wound|observation,weight:trivial|minor|significant|defining,sentiment:positive|negative|neutral|complex}], knowledge:[{who,fact,about,reliability:knows|believes|suspects|wrong|unaware,truth:true|false|unknown,source}], secrets:[{keeper,secret,from}], factions:[{name,kind,members:[],standing -40..40}] }, ext:{scars:[{who,was,turn}], codex:[{fact}]} }\nKEYS: real names both sides of a bond; aff/trust are SIGNED this-turn deltas, omit an axis that didn't move; `cat` ADDS a facet, omit unless the bond's nature changed; scene time/weather only when they shift; present.thought = genuine inner voice under limited knowledge; parallel per Living World (skip on Off/Minimal); journal only for a moment a character would truly carry; knowledge carries the dramatic irony via reliability+truth; ext.scars = a belief proven wrong that left a mark; ext.codex = a world-fact the Codex just minted (canon, not a character's belief). Emit only what changed.{{if::{{eq::{{var::state_verbosity}}::full}}}}\nEXAMPLE:\n<vellum>\n{ \"turn\":41, \"day\":3, \"scene\":{\"loc\":\"the solar\",\"tension\":7}, \"present\":[{\"id\":\"Aldous\",\"mood\":\"guarded\",\"doing\":\"not looking up from the ledger\",\"thought\":\"If she knew what I signed, she'd be gone by morning.\"}], \"delta\":{ \"bonds\":[{\"a\":\"Aldous\",\"b\":\"Mira\",\"aff\":-6,\"trust\":-10,\"cat\":[\"romantic\"],\"why\":\"the lie she half-heard\"}], \"knowledge\":[{\"who\":\"Mira\",\"fact\":\"Aldous hid a letter\",\"reliability\":\"suspects\",\"truth\":\"true\"}] } }\n</vellum>{{/if}}\nFALLBACK: if JSON is impractical, one terse line still parses - `rel Aldous -> Mira: aff -6, trust -10 cat:romantic (the lie)`. Keep the block tight (~200 tokens; thought + parallel may grow it when the scene earns it). Always close the </vellum> tag.{{/if}}",
+      "content": "{{if::{{var::state_on}}}}[VELLUM STATE] After the prose, on a new line, append ONE fenced <vellum>...</vellum> block (the display layer hides it). Valid JSON, DELTAS ONLY - omit anything that didn't change this turn. Fields:\n{ turn:int, day:int, scene:{loc,time,tension 0-10,weather}, present:[{id,mood,condition,doing,thought}], delta:{ bonds:[{a,b,aff -100..100,trust,cat:[familial|romantic|alliance|rivalry|social],why}], threads:[{op:new|advance|stall|resolve,name,note}], parallel:[{who,where,activity,note}], journal:[{who,about,memory,kind:interaction|promise|betrayal|gift|shared|wound|observation,weight:trivial|minor|significant|defining,sentiment:positive|negative|neutral|complex}], knowledge:[{who,fact,about,reliability:knows|believes|suspects|wrong|unaware,truth:true|false|unknown,source}], secrets:[{keeper,secret,from}], factions:[{name,kind,members:[],standing -40..40}] }, ext:{scars:[{who,was,turn}], codex:[{fact}]} }\nKEYS: real names both sides of a bond; aff/trust are SIGNED this-turn deltas, omit an axis that didn't move; `cat` ADDS a facet, omit unless the bond's nature changed; scene.time MUST advance forward to match the elapsed time of this turn's action (and day rolls over past midnight) - never reset or repeat the prior clock; weather only when it shifts; present.thought = genuine inner voice under limited knowledge; parallel per Living World (skip on Off/Minimal); journal only for a moment a character would truly carry; knowledge carries the dramatic irony via reliability+truth; ext.scars = a belief proven wrong that left a mark; ext.codex = a world-fact the Codex just minted (canon, not a character's belief). Emit only what changed.{{if::{{eq::{{var::state_verbosity}}::full}}}}\nEXAMPLE:\n<vellum>\n{ \"turn\":41, \"day\":3, \"scene\":{\"loc\":\"the solar\",\"tension\":7}, \"present\":[{\"id\":\"Aldous\",\"mood\":\"guarded\",\"doing\":\"not looking up from the ledger\",\"thought\":\"If she knew what I signed, she'd be gone by morning.\"}], \"delta\":{ \"bonds\":[{\"a\":\"Aldous\",\"b\":\"Mira\",\"aff\":-6,\"trust\":-10,\"cat\":[\"romantic\"],\"why\":\"the lie she half-heard\"}], \"knowledge\":[{\"who\":\"Mira\",\"fact\":\"Aldous hid a letter\",\"reliability\":\"suspects\",\"truth\":\"true\"}] } }\n</vellum>{{/if}}\nFALLBACK: if JSON is impractical, one terse line still parses - `rel Aldous -> Mira: aff -6, trust -10 cat:romantic (the lie)`. Keep the block tight (~200 tokens; thought + parallel may grow it when the scene earns it). Always close the </vellum> tag.{{/if}}",
       "variables": [
         {
           "id": "var_state",
