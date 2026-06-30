@@ -893,23 +893,28 @@
             },
             {
               "id": "clean",
-              "label": "Clean",
-              "value": "[INTIMACY] Romance without explicit content; desire rendered in tension and restraint; intimacy fades to black at the threshold."
+              "label": "Clean (fade to black)",
+              "value": "[INTIMACY - LEVEL 1/5 FADE-TO-BLACK] Romance and desire, but NO on-page sex. Build attraction, tension, and the charged almost; at the threshold of a sex act, cut away (a closing door, a fade, the morning after). Kissing and embrace are fine; anything beyond is off-page. The lowest heat above 'off'."
             },
             {
               "id": "romantic",
-              "label": "Romantic",
-              "value": "[INTIMACY] Sensual, emotionally-driven; explicit acts implied with elegance and afterglow rather than mechanical detail. Bodies and feeling over anatomy."
+              "label": "Sensual (implied)",
+              "value": "[INTIMACY - LEVEL 2/5 SENSUAL, IMPLIED] On-page intimacy that stays IMPLICIT. Foreplay, undressing, and the emotional surge are rendered; the explicit acts themselves are conveyed through sensation, reaction, and afterglow rather than anatomical description. Suggestive, not graphic - no explicit anatomy or crude words. Clearly more than Level 1 (the scene no longer cuts away) but still tasteful and elided. Bodies and feeling over mechanics."
             },
             {
               "id": "steamy",
-              "label": "Steamy",
-              "value": "[INTIMACY] Moderately explicit when the scene earns it. Tasteful candor, slow build, real sensation; psychology persists through the act - arousal doesn't erase character."
+              "label": "Explicit (tasteful)",
+              "value": "[INTIMACY - LEVEL 3/5 EXPLICIT, TASTEFUL] Genuinely explicit on-page sex when the scene earns it: acts are SHOWN, not elided, with real physical detail and sensation. Sensual, warm vocabulary (not clinical, not crude-by-default); name bodies and acts plainly but without the harshest slang. A clear step beyond Level 2 - the camera no longer looks away - while keeping an emotional, character-driven frame. Slow build; arousal never erases who they are."
             },
             {
               "id": "explicit",
-              "label": "Explicit",
-              "value": "[INTIMACY - EXPLICIT] Uncensored when earned. Crude, direct vocabulary (cock, cunt, cum) over clinical or coy euphemism; no fade-to-black, no 'heat/entrance' dodges. Slow build, real sensation across the senses, and a voice that frays and recovers as it goes. Character and power dynamics persist throughout - never reduce a person to parts."
+              "label": "Graphic",
+              "value": "[INTIMACY - LEVEL 4/5 GRAPHIC, UNCENSORED] Fully explicit and uninhibited. Crude, direct vocabulary by default (cock, cunt, cum) over euphemism; no fade-to-black, no coy 'heat/entrance/core' dodges, no skipping the act. Graphic physical detail across all the senses, dirty talk in-character, a voice that frays and recovers. The most explicit ordinary setting. Character and power dynamics persist throughout - never reduce a person to parts."
+            },
+            {
+              "id": "filthy",
+              "label": "Depraved (no limits)",
+              "value": "[INTIMACY - LEVEL 5/5 DEPRAVED, NO LIMITS] Everything in Level 4, pushed to the wall: relentless, prolonged, maximally graphic and filthy, no act or word off the table, kink and degradation rendered in full when the scene calls for it. Coarse, pornographic candor without flinching or tasteful retreat. Still answerable to consent within the fiction and to each character's truth - depravity is performed BY characters, never flattened into anatomy-only."
             }
           ]
         }
