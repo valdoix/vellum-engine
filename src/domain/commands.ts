@@ -173,6 +173,20 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       if (!Object.keys(patch).length) return [];
       return [{ ...base(ctx), kind: 'journal.edit', id: String(e.id), patch } as VellumEvent];
     }
+    case 'scar_add': {
+      const who = canonId(e.who ?? ''); const was = String(e.was ?? '').trim();
+      if (!who || !was) return [];
+      return [{ ...base(ctx), kind: 'scar.form', id: 'scar_' + nextSeq(), who, was, ...(e.about ? { about: canonId(e.about) } : {}) } as VellumEvent];
+    }
+    case 'scar_delete':
+      return e.id ? [{ ...base(ctx), kind: 'scar.drop', id: String(e.id) } as VellumEvent] : [];
+    case 'lore_add': {
+      const fact = String(e.fact ?? '').trim();
+      if (!fact) return [];
+      return [{ ...base(ctx), kind: 'lore.note', id: 'lore_' + nextSeq(), fact, ...(e.tag ? { tag: String(e.tag).trim() } : {}) } as VellumEvent];
+    }
+    case 'lore_delete':
+      return e.id ? [{ ...base(ctx), kind: 'lore.drop', id: String(e.id) } as VellumEvent] : [];
     case 'parallel_set':
       return [{ ...base(ctx), kind: 'parallel.set', items: (Array.isArray(e.items) ? e.items : []).map((it: any) => ({ ...(it.who ? { who: canonId(it.who) } : {}), ...(it.where ? { where: String(it.where) } : {}), activity: String(it.activity || '').trim(), ...(it.note ? { note: String(it.note) } : {}) })).filter((it: any) => it.activity) } as VellumEvent];
     default:
@@ -186,4 +200,5 @@ export const CMD_TYPES = new Set([
   'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
   'memory_add', 'memory_delete', 'memory_edit',
   'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set',
+  'scar_add', 'scar_delete', 'lore_add', 'lore_delete',
 ]);

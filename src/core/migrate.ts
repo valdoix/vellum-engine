@@ -62,6 +62,13 @@ export function migrate(raw: unknown): unknown {
     version = 7;
   }
 
+  // v7 → v8: Palimpsest scars (scar.* events / state.scars) + Codex lore
+  // (lore.* events / state.lore). Additive — old logs have neither and reduce to
+  // empty collections; nothing to rewrite.
+  if (version < 8) {
+    version = 8;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

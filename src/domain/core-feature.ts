@@ -11,6 +11,15 @@ import { findLock, applyLockToBond } from './relation-lock.js';
  * threads / arcs into events. This is also the reference implementation every
  * future Feature mirrors — keep it small and pure.
  */
+
+// canon sentinels: a knowledge `who` of "world"/"lore"/"codex"/"canon" is not a
+// character — it names a fact TRUE OF THE WORLD, which we store as a Codex lore
+// note instead of a person's belief (and never let it mint a pseudo-cast card).
+const CANON_SENTINEL = new Set(['world', 'lore', 'codex', 'canon', 'setting']);
+function isCanonSentinel(raw?: string): boolean {
+  return CANON_SENTINEL.has(canonId(raw ?? ''));
+}
+
 export const coreFeature: Feature = {
   id: 'core',
   extract(parsed: ParsedState, ctx: ExtractCtx): VellumEvent[] {
@@ -124,9 +133,18 @@ export const coreFeature: Feature = {
 
     // knowledge written inline in the block (deterministic; the prose extractor
     // is a separate best-effort backup). Reject pronoun/generic holders.
+    // A `who:"world"` (or other canon sentinel) is NOT a character — reroute it
+    // to a Codex lore note so canon never reads as someone's belief or mints a
+    // pseudo-cast card.
+    let li = 0;
     for (const k of parsed.delta?.knowledge ?? []) {
       const fact = String(k.fact || '').trim();
-      if (!fact || notAName(k.who)) continue;
+      if (!fact) continue;
+      if (isCanonSentinel(k.who)) {
+        out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_' + (li++), fact } as VellumEvent);
+        continue;
+      }
+      if (notAName(k.who)) continue;
       const who = rid(k.who);
       out.push({
         ...base(), kind: 'knowledge.learn', who, fact,
@@ -173,6 +191,27 @@ export const coreFeature: Feature = {
         ...base(), kind: 'parallel.set',
         items: par.map((p) => ({ ...(p.who ? { who: rid(p.who) } : {}), ...(p.where ? { where: p.where } : {}), activity: String(p.activity || '').trim(), ...(p.note ? { note: p.note } : {}) })).filter((p) => p.activity),
       } as VellumEvent);
+    }
+
+    // ext: engine-reserved blocks the preset emits outside `delta`.
+    const ext = (parsed.ext ?? {}) as { scars?: Array<{ who?: string; was?: string; about?: string }>; codex?: Array<{ fact?: string; tag?: string } | string> };
+    // Palimpsest scars — a belief proven wrong, held by a real character. Same
+    // rid()/notAName gate as everything else, so scar attribution inherits the
+    // same-surname misattribution protection.
+    let xi = 0;
+    for (const sc of Array.isArray(ext.scars) ? ext.scars : []) {
+      const was = String(sc?.was || '').trim();
+      if (!was || notAName(sc?.who ?? '')) continue;
+      const who = rid(String(sc!.who));
+      out.push({ ...base(), kind: 'scar.form', id: 'scar_' + who + '_' + ctx.turn + '_' + (xi++), who, was, ...(sc?.about && !notAName(sc.about) ? { about: rid(sc.about) } : {}) } as VellumEvent);
+    }
+    // Codex — minted canon (true of the world, not a belief). Stored as lore.
+    let ci = 0;
+    for (const c of Array.isArray(ext.codex) ? ext.codex : []) {
+      const fact = String((typeof c === 'string' ? c : c?.fact) || '').trim();
+      if (!fact) continue;
+      const tag = typeof c === 'string' ? undefined : (c?.tag ? String(c.tag) : undefined);
+      out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_x' + (ci++), fact, ...(tag ? { tag } : {}) } as VellumEvent);
     }
 
     return out;

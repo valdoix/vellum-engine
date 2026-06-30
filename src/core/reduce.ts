@@ -145,6 +145,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       s.knowledge = s.knowledge.filter((k) => k.who !== e.id && k.about !== e.id);
       s.secrets = s.secrets.filter((x) => x.keeper !== e.id && !(x.from ?? []).includes(e.id));
       s.journal = s.journal.filter((j) => j.who !== e.id && j.about !== e.id);
+      s.scars = s.scars.filter((x) => x.who !== e.id && x.about !== e.id);
       break;
     }
     case 'faction.seen': {
@@ -378,6 +379,29 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         if (p.weight !== undefined) j.weight = p.weight;
         if (p.sentiment !== undefined) j.sentiment = p.sentiment;
       }
+      break;
+    }
+    case 'scar.form': {
+      ensureCast(s, e.who, e.turn); if (e.about) ensureCast(s, e.about, e.turn);
+      // dedup: same holder + the same (or near-duplicate) superseded belief.
+      if (!s.scars.find((x) => x.id === e.id) && !s.scars.find((x) => x.who === e.who && similarFact(x.was, e.was))) {
+        s.scars.push({ id: e.id, who: e.who, was: e.was, ...(e.about ? { about: e.about } : {}), ...(e.knowledgeId ? { knowledgeId: e.knowledgeId } : {}), turn: e.turn });
+      }
+      break;
+    }
+    case 'scar.drop': {
+      s.scars = s.scars.filter((x) => x.id !== e.id);
+      break;
+    }
+    case 'lore.note': {
+      // dedup: a near-duplicate canon fact is one note (keep the richer wording).
+      const dup = s.lore.find((x) => x.id === e.id) ?? s.lore.find((x) => similarFact(x.fact, e.fact));
+      if (dup) { dup.fact = richer(dup.fact, e.fact); if (e.tag && !dup.tag) dup.tag = e.tag; }
+      else s.lore.push({ id: e.id, fact: e.fact, ...(e.tag ? { tag: e.tag } : {}), turn: e.turn });
+      break;
+    }
+    case 'lore.drop': {
+      s.lore = s.lore.filter((x) => x.id !== e.id);
       break;
     }
     default: {

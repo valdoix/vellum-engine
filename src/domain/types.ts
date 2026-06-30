@@ -164,6 +164,29 @@ export interface JournalEntry {
   day: number;
 }
 
+/** A Palimpsest scar: a belief a character once held that was proven wrong. The
+ * old belief is kept on purpose — it resurfaces under stress as doubt, never as
+ * fact. `who` is the holder; `knowledgeId` optionally links the knowledge row
+ * that superseded it. */
+export interface Scar {
+  id: string;
+  who: string; // canonical cast id
+  was: string; // the belief that was proven wrong
+  about?: string;
+  knowledgeId?: string;
+  turn: number;
+}
+
+/** A Codex/Lore note: a fact TRUE OF THE WORLD (canon), not a character's
+ * belief. Lives apart from knowledge so canon never reads as opinion and never
+ * mints a pseudo-character. */
+export interface LoreNote {
+  id: string;
+  fact: string;
+  tag?: string;
+  turn: number;
+}
+
 export interface ChronicleState {
   cast: Record<string, CastCard>;
   factions: Record<string, Faction>;
@@ -173,6 +196,8 @@ export interface ChronicleState {
   secrets: Secret[];
   memories: Memory[];
   journal: JournalEntry[];
+  scars: Scar[];
+  lore: LoreNote[];
   threads: Track[];
   arcs: Track[];
   parallel: ParallelEvent[];
@@ -206,6 +231,8 @@ export function freshState(): ChronicleState {
     secrets: [],
     memories: [],
     journal: [],
+    scars: [],
+    lore: [],
     threads: [],
     arcs: [],
     parallel: [],

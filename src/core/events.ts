@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 7 as const;
+export const SCHEMA_VERSION = 8 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -50,6 +50,21 @@ export const EvJournal = z.object({ ...base, kind: z.literal('journal.entry'), i
 export const EvJournalDrop = z.object({ ...base, kind: z.literal('journal.drop'), id: z.string() });
 export const JournalPatch = z.object({ memory: z.string().optional(), about: z.string().optional(), jkind: JournalKind.optional(), weight: JournalWeight.optional(), sentiment: JournalSentiment.optional() });
 export const EvJournalEdit = z.object({ ...base, kind: z.literal('journal.edit'), id: z.string(), patch: JournalPatch });
+
+// --- Palimpsest scars: a belief proven WRONG that left a mark. Held by a cast
+// member; resurfaces under stress as doubt, never as fact. Distinct from
+// knowledge (which is current belief) — a scar is a SUPERSEDED one, kept on
+// purpose. Carried in the <vellum> block's `ext.scars`.
+export const EvScarForm = z.object({ ...base, kind: z.literal('scar.form'), id: z.string(), who: z.string(), was: z.string(), about: z.string().optional(), knowledgeId: z.string().optional() });
+export const EvScarDrop = z.object({ ...base, kind: z.literal('scar.drop'), id: z.string() });
+
+// --- Codex / Lore: a fact that is TRUE OF THE WORLD, not a character's belief
+// (geography, custom, history the engine minted via the preset's Codex). Kept
+// separate from per-character knowledge so canon never reads as someone's
+// opinion and never mints a "World" cast card. Carried in `ext.codex` (and the
+// legacy who:"world" knowledge path is rerouted here).
+export const EvLoreNote = z.object({ ...base, kind: z.literal('lore.note'), id: z.string(), fact: z.string(), tag: z.string().optional() });
+export const EvLoreDrop = z.object({ ...base, kind: z.literal('lore.drop'), id: z.string() });
 
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
 export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional() });
@@ -121,6 +136,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvMemory, EvMemoryDrop, EvMemoryLink, EvMemoryEdit,
   EvThread, EvArc, EvThreadMerge, EvArcMerge,
   EvJournal, EvJournalDrop, EvJournalEdit,
+  EvScarForm, EvScarDrop, EvLoreNote, EvLoreDrop,
   EvParallel, EvOffscreen,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;

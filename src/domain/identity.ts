@@ -116,6 +116,9 @@ const META = new Set([
   'narrator', 'pov', 'protagonist', 'antagonist', 'character', 'char', 'player',
   'user', 'persona', 'speaker', 'narration', 'viewpoint', 'perspective', 'self',
   'unnamed', 'unknown', 'nobody', 'everyone', 'someone', 'anybody', 'main',
+  // canon/world sentinels — these name LORE (true of the world), never a person.
+  // Routing them through here stops a "World"/"Codex" pseudo-cast card.
+  'world', 'lore', 'codex', 'canon', 'setting',
 ]);
 
 // COLLECTIVE / GROUP nouns — these name a FACTION, not a character. A name whose
@@ -254,6 +257,7 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
   const knowledge = s.knowledge.map((k) => ({ ...k, who: map(k.who), ...(k.about ? { about: map(k.about) } : {}) }));
   const secrets = s.secrets.map((x) => ({ ...x, keeper: map(x.keeper), from: x.from.map(map), revealedTo: x.revealedTo.map(map) }));
   const journal = s.journal.map((j) => ({ ...j, who: map(j.who), ...(j.about ? { about: map(j.about) } : {}) }));
+  const scars = s.scars.map((x) => ({ ...x, who: map(x.who), ...(x.about ? { about: map(x.about) } : {}) }));
   const parallel = s.parallel.map((p) => ({ ...p, ...(p.who ? { who: map(p.who) } : {}) }));
   const present = Array.from(new Set(s.scene.present.map(map)));
   const detail = s.scene.detail.map((d) => ({ ...d, id: map(d.id) })).filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i);
@@ -267,6 +271,7 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
     knowledge,
     secrets,
     journal,
+    scars,
     parallel,
     memberships,
     scene: { ...s.scene, present, detail },

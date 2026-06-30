@@ -11,10 +11,11 @@ import { formModal, confirmModal } from '../modal.js';
  * through the bridge → vellum_cmd.
  */
 
-type CView = 'world' | 'timeline' | 'memory' | 'knowledge' | 'secrets';
+type CView = 'world' | 'timeline' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex';
 const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'world', label: 'World' }, { id: 'timeline', label: 'Timeline' }, { id: 'memory', label: 'Memory' },
   { id: 'knowledge', label: 'Knowledge' }, { id: 'secrets', label: 'Secrets' },
+  { id: 'scars', label: 'Scars' }, { id: 'codex', label: 'Codex' },
 ];
 let _view: CView = 'world';
 // Timeline filters: by kind (all/memory/knew/secret/journal) and by day (all/<n>).
@@ -22,10 +23,10 @@ let _tlKind = 'all';
 let _tlDay = 'all';
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
-    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length };
+    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length };
     const nav = '<div class="vle-subnav">' + VIEWS.map((v) =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`).join('') + '</div>';
     let body = '';
@@ -33,7 +34,9 @@ export const chronicleTab: Component<ChronicleState> = {
     else if (_view === 'timeline') body = timeline(s);
     else if (_view === 'memory') body = memories(s);
     else if (_view === 'knowledge') body = knowledge(s);
-    else body = secrets(s);
+    else if (_view === 'secrets') body = secrets(s);
+    else if (_view === 'scars') body = scars(s);
+    else body = codex(s);
     if (_view === 'world' && !s.scene.location && !s.scene.tension && !s.arcs.length && !s.threads.length && !(s.offscreen ?? []).length && !(s.parallel ?? []).length) body = emptyState('No world state yet.', 'Scene, arcs, and threads fill in as the story unfolds.');
     return nav + body;
   },
@@ -70,6 +73,15 @@ export const chronicleTab: Component<ChronicleState> = {
         { key: 'text', label: 'Secret', type: 'textarea' },
         { key: 'from', label: 'Hidden from (comma-separated)', type: 'text' },
       ], (o) => { if (o.keeper?.trim() && o.text?.trim()) cmd('secret_add', o); }); return; }
+      if (t.closest('[data-scar-add]')) { formModal('New Scar', [
+        { key: 'who', label: 'Who holds it', type: 'text', placeholder: 'Cersei' },
+        { key: 'was', label: 'The belief proven wrong', type: 'textarea', placeholder: 'believed Jaime had betrayed her' },
+        { key: 'about', label: 'About (optional)', type: 'text' },
+      ], (o) => { if (o.who?.trim() && o.was?.trim()) cmd('scar_add', o); }); return; }
+      if (t.closest('[data-lore-add]')) { formModal('New Codex Note', [
+        { key: 'fact', label: 'Canon fact', type: 'textarea', placeholder: 'The Salt Guild brands initiates on the wrist.' },
+        { key: 'tag', label: 'Tag (optional)', type: 'text', placeholder: 'custom / geography / history' },
+      ], (o) => { if (o.fact?.trim()) cmd('lore_add', o); }); return; }
       const md = t.closest('[data-mem-del]');
       if (md) { confirmModal('Delete this memory?', () => cmd('memory_delete', { id: md.getAttribute('data-id') })); return; }
       const me = t.closest('[data-mem-edit]');
@@ -87,6 +99,10 @@ export const chronicleTab: Component<ChronicleState> = {
       if (sd) { confirmModal('Delete this secret?', () => cmd('secret_delete', { id: sd.getAttribute('data-id') })); return; }
       const sr = t.closest('[data-sec-reveal]');
       if (sr) { cmd('secret_reveal', { id: sr.getAttribute('data-id'), to: [] }); return; }
+      const scd = t.closest('[data-scar-del]');
+      if (scd) { confirmModal('Delete this scar?', () => cmd('scar_delete', { id: scd.getAttribute('data-id') })); return; }
+      const ld = t.closest('[data-lore-del]');
+      if (ld) { confirmModal('Delete this codex note?', () => cmd('lore_delete', { id: ld.getAttribute('data-id') })); return; }
     });
   },
 };
@@ -143,10 +159,12 @@ function timeline(s: ChronicleState): string {
   for (const k of s.knowledge) rows.push({ turn: k.turn, kind: 'knew', group: 'knew', text: nameOf(s, k.who) + ': ' + k.fact });
   for (const sec of s.secrets) rows.push({ turn: sec.formedTurn, kind: 'secret', group: 'secret', text: nameOf(s, sec.keeper) + ': ' + sec.text });
   for (const j of s.journal) rows.push({ turn: j.turn, day: j.day, kind: 'journal', group: 'journal', text: nameOf(s, j.who) + ': ' + j.memory });
+  for (const x of s.scars ?? []) rows.push({ turn: x.turn, kind: 'scar', group: 'scar', text: nameOf(s, x.who) + ' (scar): ' + x.was });
+  for (const x of s.lore ?? []) rows.push({ turn: x.turn, kind: 'lore', group: 'lore', text: 'Codex: ' + x.fact });
   if (!rows.length) return head + emptyState('Nothing on the timeline yet.', 'Arcs, chapters, knowledge and secrets appear here as the story advances.');
 
   // filter bars: kind (group) + day. Days are sparse, so only offer ones present.
-  const KINDS: Array<[string, string]> = [['all', 'all'], ['memory', '\u25C9 memory'], ['knew', '\u25C8 knowledge'], ['secret', '\u26C0 secrets'], ['journal', '\u270E journal']];
+  const KINDS: Array<[string, string]> = [['all', 'all'], ['memory', '\u25C9 memory'], ['knew', '\u25C8 knowledge'], ['secret', '\u26C0 secrets'], ['journal', '\u270E journal'], ['scar', '\u2620 scars'], ['lore', '\u2756 codex']];
   const days = Array.from(new Set(rows.map((r) => r.day).filter((d): d is number => typeof d === 'number'))).sort((a, b) => a - b);
   const gCount = (g: string): number => g === 'all' ? rows.length : rows.filter((r) => r.group === g).length;
   const kindBar = '<div class="vle-fbar">' + KINDS.map(([v, l]) =>
@@ -221,4 +239,35 @@ function secrets(s: ChronicleState): string {
     + `<button class="vle-mini del" data-sec-del data-id="${esc(sec.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No secrets match this filter.');
   return head + bar + rows + pagerHtml('secrets', page, pages);
+}
+
+/** Palimpsest scars — beliefs once held, proven wrong, kept as a mark. The
+ * superseded belief renders struck through; grouped by holder via the filter. */
+function scars(s: ChronicleState): string {
+  const list = s.scars ?? [];
+  const head = sectionHeader('\u2620 Scars', { sub: true, count: list.length, action: '<button class="vle-add sm" data-scar-add>+</button>' });
+  if (!list.length) return head + emptyState('No scars yet.', 'When a belief is proven wrong, the old belief is kept here \u2014 it resurfaces under stress as doubt.');
+  const whos = Array.from(new Set(list.map((x) => x.who))).map((id) => ({ id, name: nameOf(s, id) }));
+  const whoCounts: Record<string, number> = {};
+  for (const x of list) whoCounts[x.who] = (whoCounts[x.who] ?? 0) + 1;
+  const bar = filterBar('scars', { whos, whoCounts });
+  const filtered = applyFilter('scars', list, { who: (x) => x.who });
+  const { slice, page, pages } = paginate('scars', filtered);
+  const rows = slice.map((x) => '<div class="vle-mem"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, x.who)) + '</span>'
+    + '<span class="vle-mem-t"><span class="vle-scar-was">' + esc(x.was) + '</span>' + (x.about ? ' <em>(about ' + esc(nameOf(s, x.about)) + ')</em>' : '') + '</span>'
+    + `<button class="vle-mini del" data-scar-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
+  if (!slice.length) return head + bar + emptyState('No scars match this filter.');
+  return head + bar + rows + pagerHtml('scars', page, pages);
+}
+
+/** Codex \u2014 minted canon (facts true of the world, not a character's belief). */
+function codex(s: ChronicleState): string {
+  const list = s.lore ?? [];
+  const head = sectionHeader('\u2756 Codex', { sub: true, count: list.length, action: '<button class="vle-add sm" data-lore-add>+</button>' });
+  if (!list.length) return head + emptyState('The Codex is empty.', 'World-facts the engine establishes (custom, geography, history) are recorded here as canon.');
+  const sorted = list.slice().sort((a, b) => b.turn - a.turn);
+  const rows = sorted.map((x) => '<div class="vle-mem"><span class="vle-mem-tier t-chapter">' + esc(x.tag || 'canon') + '</span>'
+    + '<span class="vle-mem-t">' + esc(x.fact) + '</span>'
+    + `<button class="vle-mini del" data-lore-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
+  return head + rows;
 }

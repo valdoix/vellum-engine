@@ -263,6 +263,8 @@ function buildSearchIndex(s: ChronicleState): SearchHit[] {
   for (const j of s.journal) hits.push({ tab: 'journal', kind: 'journal', label: nm(j.who), sub: j.memory });
   for (const k of s.knowledge) hits.push({ tab: 'chronicle', kind: 'knowledge', label: nm(k.who), sub: k.fact });
   for (const sec of s.secrets) hits.push({ tab: 'chronicle', kind: 'secret', label: nm(sec.keeper), sub: sec.text });
+  for (const x of s.scars ?? []) hits.push({ tab: 'chronicle', kind: 'scar', label: nm(x.who), sub: x.was });
+  for (const x of s.lore ?? []) hits.push({ tab: 'chronicle', kind: 'codex', label: x.tag || 'canon', sub: x.fact });
   return hits;
 }
 
