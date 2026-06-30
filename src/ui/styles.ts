@@ -401,7 +401,7 @@ export const STYLES = [
   "[data-vle-chrome='futuristic'] .vlf-grip{background:none;border:none;right:4px;bottom:4px;width:12px;height:12px;border-right:2px solid var(--vg);border-bottom:2px solid var(--vg);opacity:.7;border-radius:0}",
   "[data-vle-chrome='futuristic'] .vlf-launch{border-radius:0;border-width:1px 0 1px 1px}",
   // ---- CRUD controls + pagination ----
-  ".vle-sec-top{display:flex;justify-content:flex-end;margin-bottom:8px}",
+  ".vle-sec-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:8px}",
   ".vle-add{font:600 9px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);background:rgba(var(--vg-rgb),.14);border:1px solid rgba(var(--vg-rgb),.34);border-radius:7px;padding:5px 11px;cursor:pointer}",
   ".vle-add:hover{background:rgba(var(--vg-rgb),.28)}",
   ".vle-add.sm{margin-left:auto;padding:2px 8px;font-size:11px;line-height:1}",

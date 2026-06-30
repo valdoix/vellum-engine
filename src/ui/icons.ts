@@ -35,6 +35,7 @@ const PATHS: Record<string, string> = {
   rebuild: '<path d="M4 12a8 8 0 0 1 14-5l2 2"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M4 20v-5h5"/>',
   resummarize: '<path d="M5 12a7 7 0 0 1 12-4.5"/><path d="M17 5v3h-3" transform="translate(0,-0.5)"/><path d="M19 12a7 7 0 0 1-12 4.5"/><path d="M7 19v-3h3"/>',
   tidy: '<path d="M7 6l3 3M7 6l-2 2 9 9 2-2z"/><path d="M14 13l4 4-2 2-4-4" opacity=".8"/>',
+  tidyfacts: '<path d="M7 6l3 3M7 6l-2 2 9 9 2-2z"/><path d="M14 13l4 4-2 2-4-4" opacity=".8"/>',
   summarizer: '<circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6 6l1.5 1.5M16.5 16.5L18 18M18 6l-1.5 1.5M7.5 16.5L6 18"/>',
   hide: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 4l16 16" opacity=".8"/>',
   traverse: '<circle cx="12" cy="5" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M12 7v4M12 11l-5 5M12 11l5 5"/>',
