@@ -552,7 +552,7 @@ export const STYLES = [
   ".vld-thought-k{display:block;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--v-warn);opacity:.8;margin-bottom:2px}",
   ".vld-thought-q{font-family:var(--vserif);font-style:italic;font-size:calc(14.5px * var(--vscale));color:var(--vi2);line-height:1.5}",
   // narrow float reflow: smaller medallion, name+status share a line, thought truncates
-  "@container (max-width:360px){.vld-pc{gap:9px}.vld-pc-av{width:calc(30px * var(--vscale));height:calc(30px * var(--vscale));font-size:calc(12px * var(--vscale))}.vld-pc-n{font-size:calc(15px * var(--vscale))}.vld-thought-q{font-size:calc(13px * var(--vscale));display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}",
+  "@container (max-width:360px){.vld-pc{gap:9px}.vld-pc-av{width:calc(30px * var(--vscale));height:calc(30px * var(--vscale));font-size:calc(12px * var(--vscale))}.vld-pc-n{font-size:calc(15px * var(--vscale))}.vld-thought-q{font-size:calc(13px * var(--vscale))}}",
   ".vld-rel{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:calc(13px * var(--vscale));padding:5px 0;border-top:1px solid rgba(var(--vg-rgb),.08)}",
   ".vld-rel:first-child{border-top:none}",
   ".vld-rel-p{color:var(--vi)}.vld-rel-s{margin-left:auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);opacity:.6}",
