@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { freshState } from '../src/domain/types.js';
 import type { Memory, JournalEntry, Track } from '../src/domain/types.js';
-import { beatSpine, beatEvent, suggestBeats, sortedBeats, beatLabel } from '../src/domain/beats.js';
+import { beatSpine, beatEvent, beatEditEvents, suggestBeats, sortedBeats, beatLabel } from '../src/domain/beats.js';
 import { reduce } from '../src/core/reduce.js';
 
 function beatMem(o: Partial<Memory> & { id: string; text: string }): Memory {
@@ -83,6 +83,31 @@ describe('Story Beats — domain', () => {
     expect(sug.some((x) => x.text.includes('broke the vow'))).toBe(true);
     expect(sug.some((x) => x.text.includes('The Duel'))).toBe(true);
     expect(sug.some((x) => x.text === 'trivial')).toBe(false); // trivial excluded
+  });
+
+  it('beatEditEvents updates text/day/time/spine in place (same id)', () => {
+    let n = 0;
+    const seq = () => ++n;
+    const ev = beatEvent({ text: 'old text', day: 1, spine: true }, 4, seq);
+    let s = reduce([ev!]);
+    const id = s.memories[0]!.id;
+    const edits = beatEditEvents(s, id, { text: 'new text', day: 7, time: 'noon', spine: false }, seq);
+    expect(edits.length).toBe(2); // drop + record
+    s = reduce([ev!, ...edits]);
+    const beat = s.memories.filter((m) => m.tier === 'beat');
+    expect(beat).toHaveLength(1);
+    expect(beat[0]!.id).toBe(id); // same id preserved
+    expect(beat[0]!.text).toBe('new text');
+    expect(beat[0]!.beatDay).toBe(7);
+    expect(beat[0]!.beatTime).toBe('noon');
+    expect(beat[0]!.spine).toBeUndefined(); // moved off the spine
+  });
+
+  it('beatEditEvents returns [] for a missing id or empty text', () => {
+    const s = freshState();
+    expect(beatEditEvents(s, 'nope', { text: 'x' }, () => 1)).toEqual([]);
+    s.memories.push(beatMem({ id: 'b1', text: 'here' }));
+    expect(beatEditEvents(s, 'b1', { text: '  ' }, () => 1)).toEqual([]);
   });
 
   it('memory.drop removes a beat (delete path)', () => {

@@ -115,6 +115,18 @@ export const chronicleTab: Component<ChronicleState> = {
       if (bacc) { const x = _beatSuggest[Number(bacc.getAttribute('data-beat-accept'))]; if (x) { send({ type: 'vellum_beat_add', text: x.text, day: x.day, spine: true }); } return; }
       const bdel = t.closest('[data-beat-del]');
       if (bdel) { confirmModal('Delete this story beat?', () => send({ type: 'vellum_beat_delete', id: bdel.getAttribute('data-id') })); return; }
+      const bedit = t.closest('[data-beat-edit]');
+      if (bedit) {
+        const id = bedit.getAttribute('data-id');
+        const dayAttr = bedit.getAttribute('data-day') || '';
+        formModal('Edit Story Beat', [
+          { key: 'text', label: 'What happened (one line)', type: 'text', value: bedit.getAttribute('data-text') || '' },
+          { key: 'day', label: 'Day (optional)', type: 'number', min: 0, step: 1, value: dayAttr },
+          { key: 'time', label: 'Time (optional)', type: 'text', value: bedit.getAttribute('data-time') || '' },
+          { key: 'spine', label: 'Recall', type: 'select', value: bedit.getAttribute('data-spine') === '1' ? 'spine' : 'relevance', options: [{ value: 'spine', label: 'On the always-injected spine' }, { value: 'relevance', label: 'By relevance only' }] },
+        ], (o) => { if (o.text?.trim()) send({ type: 'vellum_beat_edit', id, text: o.text, day: o.day !== '' ? Number(o.day) : undefined, time: o.time || undefined, spine: o.spine !== 'relevance' }); });
+        return;
+      }
       if (t.closest('[data-mem-add]')) { formModal('New Memory', [
         { key: 'text', label: 'Memory', type: 'textarea', placeholder: 'What happened, in detail.' },
         { key: 'keys', label: 'Keywords (comma-separated)', type: 'text' },
@@ -261,16 +273,17 @@ function beatsView(s: ChronicleState): string {
   const head = sectionHeader('\u2691 Story Beats', { sub: true, count: list.length, action: '<button class="vle-add sm" data-beat-suggest title="Suggest beats from the story so far">\u2728 suggest</button><button class="vle-add sm" data-beat-add>+</button>' });
   const intro = '<div class="vle-cz-note">Landmark index cards you author - the story\u2019s through-line. Spine beats (\u2691) are injected into every prompt as ground truth; the rest surface by relevance.</div>';
   const sug = _beatSuggest.length
-    ? '<div class="vle-pickbar" style="flex-wrap:wrap"><span>Suggested from the story:</span>' + _beatSuggest.slice(0, 8).map((x, i) => `<button class="vle-mini" data-beat-accept="${i}" title="Add as a beat">+ ${esc((x.day ? 'D' + x.day + ' ' : '') + x.text).slice(0, 60)}</button>`).join('') + '</div>'
+    ? '<div class="vle-beat-sug-h"><span class="vle-beat-sug-lbl">Suggested:</span><div class="vle-beat-sug-row">' + _beatSuggest.slice(0, 12).map((x, i) => `<button class="vle-beat-sug-chip" data-beat-accept="${i}" title="Add as a beat: ${esc(x.text)}">+ ${esc((x.day ? 'D' + x.day + ' ' : '') + x.text).slice(0, 48)}</button>`).join('') + '</div></div>'
     : '';
   if (!list.length) return head + intro + sug + emptyState('No beats yet.', 'Mark a landmark: a duel, a betrayal, a vow. Or hit \u2728 suggest to pull candidates from what already happened.');
   const rows = list.map((m) => {
     const anchor = (m.beatDay !== undefined ? 'Day ' + m.beatDay : '') + (m.beatTime ? (m.beatDay !== undefined ? ', ' : '') + m.beatTime : '');
     const spine = m.spine ? '<span class="vle-mem-tier t-beat" title="On the always-injected spine">\u2691</span>' : '<span class="vle-mem-tier" title="Recalled by relevance only" style="opacity:.5">\u25CB</span>';
+    const edit = `<button class="vle-mini" data-beat-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-day="${m.beatDay ?? ''}" data-time="${esc(m.beatTime ?? '')}" data-spine="${m.spine ? '1' : '0'}" title="Edit">\u270E</button>`;
     return '<div class="vle-mem">' + spine
       + (anchor ? `<span class="vle-tl-day">${esc(anchor)}</span>` : '')
       + `<span class="vle-mem-t">${esc(m.text)}</span>`
-      + `<button class="vle-mini del" data-beat-del data-id="${esc(m.id)}" title="Delete">\u2715</button></div>`;
+      + `<span class="vle-mem-ctl">${edit}<button class="vle-mini del" data-beat-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
   }).join('');
   return head + intro + sug + rows;
 }

@@ -49,6 +49,31 @@ export function beatSpine(state: ChronicleState, cap = 14): string {
   return '[STORY SPINE — the author-marked landmarks of this story, in order. Treat as established ground truth; honor and build on them, never contradict or re-tell them as if new]\n' + lines.join('\n');
 }
 
+/**
+ * Edit an existing beat: emit a drop of the old id + a fresh record reusing the
+ * SAME id (memory.record dedups by id, so we must drop first). Returns [] when
+ * the beat doesn't exist or text is empty.
+ */
+export function beatEditEvents(
+  state: ChronicleState,
+  id: string,
+  o: { text: string; day?: number; time?: string; spine?: boolean; act?: string },
+  seq: () => number,
+): VellumEvent[] {
+  const cur = state.memories.find((m) => m.id === id && m.tier === 'beat');
+  if (!cur) return [];
+  const text = String(o.text || '').trim();
+  if (!text) return [];
+  const rec: VellumEvent = {
+    seq: seq(), turn: cur.turn, day: o.day ?? cur.beatDay ?? 0, src: 'user', kind: 'memory.record', id, tier: 'beat', text, keys: cur.keys ?? [],
+    ...(o.day !== undefined ? { beatDay: o.day } : (cur.beatDay !== undefined ? { beatDay: cur.beatDay } : {})),
+    ...(o.time !== undefined ? (o.time ? { beatTime: o.time } : {}) : (cur.beatTime ? { beatTime: cur.beatTime } : {})),
+    ...(o.spine !== false ? { spine: true } : {}),
+    ...(o.act ? { act: o.act } : (cur.act ? { act: cur.act } : {})),
+  } as VellumEvent;
+  return [{ seq: seq(), turn: cur.turn, day: 0, src: 'user', kind: 'memory.drop', id } as VellumEvent, rec];
+}
+
 /** Build a memory.record event for a user-authored beat. */
 export function beatEvent(
   o: { text: string; day?: number; time?: string; spine?: boolean; act?: string; keys?: string[] },
