@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MODES, SKINS, setMode, getTheme, patchTheme } from '../src/ui/theme.js';
+import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel } from '../src/ui/theme.js';
 import { renderBondRadar } from '../src/ui/theme-render.js';
 import { freshState } from '../src/domain/types.js';
 
@@ -51,6 +51,13 @@ describe('theme system', () => {
       expect(typeof s.theme.press, s.id).toBe('string');
       expect(typeof s.theme.pressInk, s.id).toBe('string');
     }
+  });
+
+  it('the Look tab shows theme cards + the size slider (two-tier customize)', () => {
+    const html = customizePanel('look');
+    expect(html).toContain('data-mode="modern"'); // theme cards present
+    expect(html).toContain('data-cz-num="scale"'); // interface-size slider present
+    expect(html).toContain('vle-czt-sep'); // the Advanced divider exists
   });
 });
 

@@ -1,0 +1,58 @@
+/**
+ * Inline-SVG icon set — one coherent monochrome family replacing the arbitrary
+ * Unicode glyph soup across tabs, toolbar, and the Actions menu. No runtime dep:
+ * each icon is a tiny stroked path on a 24×24 grid using `currentColor`, so it
+ * inherits color and themes for free. Boundary-safe strings (no framework).
+ *
+ * Usage: icon('cast')  → '<svg class="vi" ...>…</svg>'
+ *        icon('cast', { size: 18 })
+ */
+
+type IconOpts = { size?: number; cls?: string };
+
+// 24×24 path bodies (stroke-based; `currentColor`). Keep them simple + legible
+// at 14–18px. Add an entry here when a new tab/action needs an icon.
+const PATHS: Record<string, string> = {
+  // --- primary tabs ---
+  now: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/>',
+  cast: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 7.2a3 3 0 0 1 0 5.6"/><path d="M17.5 19c0-2.4-1-4.2-2.6-5.2"/>',
+  bonds: '<circle cx="7" cy="7" r="2.6"/><circle cx="17" cy="17" r="2.6"/><path d="M9 9l6 6"/><path d="M14.5 7.5l2 2M7.5 14.5l2 2" opacity=".55"/>',
+  chronicle: '<path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+  // --- tool tabs ---
+  journal: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 16h4"/>',
+  graph: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="9" cy="18" r="2"/><path d="M7.6 8.2l8.8.6M8.4 16.3l8.4-5.6M7.3 8.8l1.4 7.4" opacity=".7"/>',
+  vault: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 9.2v5.6"/>',
+  context: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M8 5v14" opacity=".6"/><path d="M11.5 9.5l2.5 2.5-2.5 2.5"/>',
+  // --- toolbar ---
+  search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.3-4.3"/>',
+  director: '<path d="M12 3l2.4 5 5.5.5-4.2 3.6 1.3 5.4L12 20l-5 2.5 1.3-5.4L4 13.5l5.5-.5z" transform="scale(.85) translate(2,1.5)"/>',
+  customize: '<path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/>',
+  actions: '<circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+  // --- action verbs ---
+  summarize: '<path d="M4 6h16M4 10h16M4 14h10M4 18h6"/>',
+  rescan: '<path d="M20 11a8 8 0 1 0-1 5"/><path d="M20 5v5h-5"/>',
+  undo: '<path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12h-1" transform="translate(0,-5)"/>',
+  rebuild: '<path d="M4 12a8 8 0 0 1 14-5l2 2"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M4 20v-5h5"/>',
+  resummarize: '<path d="M5 12a7 7 0 0 1 12-4.5"/><path d="M17 5v3h-3" transform="translate(0,-0.5)"/><path d="M19 12a7 7 0 0 1-12 4.5"/><path d="M7 19v-3h3"/>',
+  tidy: '<path d="M7 6l3 3M7 6l-2 2 9 9 2-2z"/><path d="M14 13l4 4-2 2-4-4" opacity=".8"/>',
+  summarizer: '<circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6 6l1.5 1.5M16.5 16.5L18 18M18 6l-1.5 1.5M7.5 16.5L6 18"/>',
+  hide: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 4l16 16" opacity=".8"/>',
+  traverse: '<circle cx="12" cy="5" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M12 7v4M12 11l-5 5M12 11l5 5"/>',
+  tone: '<path d="M12 20s-7-4.5-7-9.5A4 4 0 0 1 12 7a4 4 0 0 1 7 3.5C19 15.5 12 20 12 20z"/>',
+  offscreen: '<path d="M18 14a7 7 0 0 1-9-9 7 7 0 1 0 9 9z"/>',
+  export: '<path d="M12 4v10"/><path d="M8 8l4-4 4 4"/><path d="M5 16v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/>',
+  import: '<path d="M12 14V4"/><path d="M8 10l4 4 4-4"/><path d="M5 16v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/>',
+  recover: '<path d="M4 12a8 8 0 1 1 2.3 5.6"/><path d="M4 18v-4h4"/><path d="M12 8v4l3 2"/>',
+  clear: '<path d="M6 7h12"/><path d="M9 7V5h6v2"/><path d="M8 7l1 13h6l1-13"/>',
+};
+
+/** Render a named icon as an inline SVG string. Falls back to a dot if unknown. */
+export function icon(name: string, opts: IconOpts = {}): string {
+  const body = PATHS[name] ?? '<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>';
+  const size = opts.size ?? 18;
+  const cls = opts.cls ? ` ${opts.cls}` : '';
+  return `<svg class="vi${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
+/** True if a named icon exists (used by the completeness assert). */
+export function hasIcon(name: string): boolean { return name in PATHS; }

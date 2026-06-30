@@ -14,7 +14,7 @@ import { formModal, confirmModal } from '../modal.js';
 type CView = 'world' | 'timeline' | 'beats' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex' | 'items';
 const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'world', label: 'World' },
-  { id: 'timeline', label: 'Timeline' },
+  { id: 'timeline', label: 'Story' },
   { id: 'beats', label: 'Beats' },
   { id: 'memory', label: 'Memory' },
   { id: 'knowledge', label: 'Knowledge' },
@@ -23,7 +23,7 @@ const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'codex', label: 'Codex' },
   { id: 'items', label: 'Items' },
 ];
-let _view: CView = 'world';
+let _view: CView = 'timeline';
 // Timeline filters: by kind (all/memory/knew/secret/journal) and by day (all/<n>).
 let _tlKind = 'all';
 let _tlDay = 'all';
@@ -56,12 +56,12 @@ export const chronicleTab: Component<ChronicleState> = {
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
     const btn = (v: { id: CView; label: string }): string =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`;
-    // two soft groups give the 8 views meaning as a set (mockup 05B)
-    const G_WORLD: CView[] = ['world', 'timeline', 'beats'];
+    // Story (the Spine river) leads as the primary reading surface; World/Beats
+    // sit beside it; the editable record lists group under "Records".
     const inGroup = (ids: CView[]): string => VIEWS.filter((v) => ids.includes(v.id)).map(btn).join('');
     const nav = '<div class="vle-subnav">'
-      + '<span class="vle-subnav-g">The world</span>' + inGroup(G_WORLD)
-      + '<span class="vle-subnav-g">Known &amp; kept</span>' + inGroup(['memory', 'knowledge', 'secrets', 'scars', 'codex'])
+      + '<span class="vle-subnav-g">Story</span>' + inGroup(['timeline', 'world', 'beats'])
+      + '<span class="vle-subnav-g">Records</span>' + inGroup(['memory', 'knowledge', 'secrets', 'scars', 'codex', 'items'])
       + '</div>';
     let body = '';
     if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) + offscreenSection(s) || '';
@@ -382,7 +382,7 @@ function relChip(r: string): string {
 
 function knowledge(s: ChronicleState): string {
   const head = sectionHeader('\u25C8 Knowledge', { sub: true, count: s.knowledge.length, action: '<button class="vle-add sm" data-know-add>+</button>' });
-  if (!s.knowledge.length) return head + emptyState('Nothing known yet.', 'Who-knows-what fills in as the story reveals it.');
+  if (!s.knowledge.length) return head + emptyState('Nothing known yet.', 'Who-knows-what fills in as the story reveals it. Mark a belief false to track dramatic irony \u2014 when a character is sure of something untrue.');
   const whos = Array.from(new Set(s.knowledge.map((k) => k.who))).map((id) => ({ id, name: nameOf(s, id) }));
   const whoCounts: Record<string, number> = {};
   for (const k of s.knowledge) whoCounts[k.who] = (whoCounts[k.who] ?? 0) + 1;

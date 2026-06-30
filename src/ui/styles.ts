@@ -7,6 +7,16 @@ export const STYLES = [
   // --- theme tokens (overridden at runtime by theme.ts) ---------------------
   // --vg accent (hex) + --vg-rgb its r,g,b ; --vi primary ink, --vi2 muted ink ;
   // --vserif/--vmono fonts ; --vscale chrome size multiplier ; --vsurf-* panel bg.
+  //
+  // SEMANTIC COLOR CONTRACT (one meaning each — do not overload):
+  //   --vg     gold   = brand / accent / interactive (tabs, links, focus). NOT a status.
+  //   --v-pos  sage   = positive / affection / kept memory (journal).
+  //   --v-info blue   = knowledge / trust / information.
+  //   --v-press amber = pressure / tension / a bond shifting. (Freed from red.)
+  //   --v-neg  red    = harm / danger / destructive / "wrong" belief (irony).
+  //   --v-warn violet = the INTERNAL/AMBIGUOUS register ONLY: inner thoughts,
+  //                     scars, complex sentiment, romance. If a new use isn't
+  //                     "internal/ambiguous", pick another token — don't add to violet.
   ":root{--vg:#cda84e;--vg-rgb:205,168,78;--vi:#e7d6ad;--vi2:#cdbfa0;--vserif:'Cormorant Garamond',Georgia,serif;--vmono:'JetBrains Mono',ui-monospace,monospace;--vscale:1;--vsurf-1:rgba(28,25,20,.5);--vsurf-2:rgba(18,16,12,.4);--vle-gold:var(--vg);--vle-gold-soft:rgba(var(--vg-rgb),.16);--vle-ink:var(--vi);--vle-bg:rgba(20,18,14,.55);--vg2:#9bc0e6;--vg2-rgb:155,192,230;--vai:1;--vdscale:1;--vdensity:1;--vopacity:1;--vblur:8px;--vradius:18px;--vborder:1px;--vink-e:1;--v1:4px;--v2:8px;--v3:12px;--v4:16px;--v5:20px;--v6:24px;--vr1:6px;--vr2:9px;--vr3:13px;--rpill:20px;--v-pos:#8fa67e;--v-pos-i:#a9c089;--v-neg:#c96a6a;--v-neg-i:#e09090;--v-info:#9bc0e6;--v-warn:#b48ed0;--v-press:#c8923e;--v-press-i:#dcad62;--vt-display:calc(24px * var(--vscale));--vt-title:calc(18px * var(--vscale));--vt-body:calc(14px * var(--vscale));--vt-meta:calc(11px * var(--vdscale));--vt-eyebrow:calc(10px * var(--vscale))}",
   // launcher edge + reduced-motion (set on document by theme.ts)
   "html[data-vle-launch='left'] .vlf-launch{right:auto;left:0;border-radius:0 13px 13px 0;border-right:1px solid rgba(var(--vg-rgb),.5);border-left:none;writing-mode:vertical-rl;transform:rotate(180deg)}",
@@ -37,6 +47,21 @@ export const STYLES = [
   ".vle-tabicon{flex:none;width:calc(30px * var(--vscale));height:calc(30px * var(--vscale));display:grid;place-items:center;font-size:calc(14px * var(--vscale));color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:9px;cursor:pointer;opacity:.6;transition:opacity .15s,background .15s,color .15s}",
   ".vle-tabicon:hover{opacity:1;background:rgba(var(--vg-rgb),.08)}",
   ".vle-tabicon.on{opacity:1;background:rgba(var(--vg-rgb),.2);border-color:rgba(var(--vg-rgb),.45);color:var(--vle-gold)}",
+  // inline-SVG icon family (icons.ts): inherits color, sized per call
+  ".vi{display:inline-block;vertical-align:-0.18em;flex:none}",
+  ".vle-tabbtn{display:inline-flex;align-items:center;gap:6px}",
+  ".vle-tabbtn .vi{opacity:.85}",
+  ".vle-qol{display:inline-flex;align-items:center;gap:6px}",
+  // float mini-app tab strip (4 primary tabs mounted into the float body)
+  ".vlf-tabs{display:flex;gap:3px;padding:calc(8px * var(--vscale)) calc(10px * var(--vscale)) 0;flex:none}",
+  ".vlf-tab{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;font:600 calc(10.5px * var(--vscale))/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:9px 9px 0 0;padding:7px 6px;cursor:pointer;opacity:.65;transition:opacity .15s,background .15s,color .15s}",
+  ".vlf-tab:hover{opacity:1;background:rgba(var(--vg-rgb),.08)}",
+  ".vlf-tab.on{opacity:1;color:var(--vle-gold);background:rgba(var(--vg-rgb),.14);border-color:rgba(var(--vg-rgb),.3);border-bottom-color:transparent}",
+  ".vlf-tab .vi{opacity:.85}",
+  // hide labels when the float is very narrow (icons only)
+  "@container (max-width:320px){.vlf-tab-l{display:none}}",
+  ".vlf-tabbody{flex:1;min-height:0;overflow-y:auto;padding:calc(12px * var(--vscale)) calc(14px * var(--vscale)) calc(16px * var(--vscale))}",
+  ".vlf-tabbody .vlm-comp{display:block}",
   // chronicle sub-nav (segmented in-tab views)
   ".vle-subnav{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 calc(11px * var(--vscale))}",
   // soft group label between sub-nav clusters (forces a wrap to its own line)
@@ -123,6 +148,8 @@ export const STYLES = [
   ".vle-act-grp{display:flex;flex-direction:column;gap:4px}",
   ".vle-act-h{font:600 calc(9px * var(--vscale))/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--vg);opacity:.7;margin-bottom:2px}",
   ".vle-act-item{display:flex;align-items:center;justify-content:space-between;gap:10px;font:600 calc(11px * var(--vscale))/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);background:rgba(var(--vg-rgb),.06);border:1px solid var(--vle-gold-soft);border-radius:8px;padding:9px 12px;cursor:pointer;transition:background .15s,color .15s;text-align:left;width:100%}",
+  ".vle-act-item .vi{opacity:.8;margin-right:-2px}",
+  ".vle-act-item .vle-act-l{flex:1}",
   ".vle-act-item:hover{background:rgba(var(--vg-rgb),.18);color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.4)}",
   ".vle-act-item.busy{cursor:progress;opacity:.8}",
   ".vle-act-st{font:600 calc(9px * var(--vscale))/1 var(--vmono);letter-spacing:.3px;text-transform:none;color:var(--vg);opacity:.85}",
@@ -349,7 +376,7 @@ export const STYLES = [
   ".vlf-act:hover{background:rgba(var(--vg-rgb),.26);color:var(--vle-gold)}",
   ".vlf-x{width:calc(26px * var(--vscale));height:calc(26px * var(--vscale));display:grid;place-items:center;border-radius:8px;color:var(--vi2);background:transparent;border:1px solid transparent;cursor:pointer;font-size:calc(14px * var(--vscale))}",
   ".vlf-x:hover{color:#e09090;border-color:rgba(201,106,106,.4);background:rgba(201,106,106,.1)}",
-  ".vlf-body{flex:1;overflow-y:auto;padding:calc(16px * var(--vscale)) calc(18px * var(--vscale)) calc(20px * var(--vscale));scrollbar-width:thin;scrollbar-color:rgba(var(--vg-rgb),.4) transparent}",
+  ".vlf-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:0;scrollbar-width:thin;scrollbar-color:rgba(var(--vg-rgb),.4) transparent}",
   ".vlf-body::-webkit-scrollbar{width:9px}.vlf-body::-webkit-scrollbar-thumb{background:rgba(var(--vg-rgb),.3);border-radius:5px;border:2px solid transparent;background-clip:padding-box}",
   ".vlf-grip{position:absolute;right:3px;bottom:3px;width:18px;height:18px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 45%,rgba(var(--vg-rgb),.5) 45%,rgba(var(--vg-rgb),.5) 55%,transparent 55%,transparent 70%,rgba(var(--vg-rgb),.5) 70%,rgba(var(--vg-rgb),.5) 80%,transparent 80%);border-bottom-right-radius:12px}",
   // persistent launcher tab
@@ -690,7 +717,7 @@ export const STYLES = [
   ".vld-inner[data-cols='2']{display:block;column-count:2;column-gap:calc(14px * var(--vscale))}",
   ".vld-inner[data-cols='2'] .vld-sec,.vld-inner[data-cols='2'] .vld-fold{break-inside:avoid;margin-bottom:calc(14px * var(--vscale));display:inline-block;width:100%}",
   "@container (max-width:380px){.vld-inner[data-cols='2']{column-count:1}}",
-  ".vld-stage,.vlf-body{container-type:inline-size}",
+  ".vld-stage,.vlf-body,.vlf-tabbody{container-type:inline-size}",
   // collapsed sections (accordion)
   ".vld-fold{border:1px solid rgba(var(--vg-rgb),.14);border-radius:var(--vr3);background:linear-gradient(168deg,var(--vsurf-1),var(--vsurf-2));overflow:hidden}",
   ".vld-fold>summary{cursor:pointer;list-style:none;padding:calc(9px * var(--vscale)) calc(13px * var(--vscale));font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vg);opacity:.85}",
@@ -743,6 +770,8 @@ export const STYLES = [
   ".vle-czt-bar{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:10px;border-bottom:1px solid rgba(var(--vg-rgb),.18);padding-bottom:8px}",
   ".vle-czt{font:600 9.5px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:7px;padding:6px 10px;cursor:pointer;opacity:.7}",
   ".vle-czt:hover{opacity:1}.vle-czt.on{opacity:1;color:var(--vg);background:rgba(var(--vg-rgb),.14);border-color:rgba(var(--vg-rgb),.35)}",
+  // 'advanced' divider in the customize tab strip (separates Look from the cockpit)
+  ".vle-czt-sep{align-self:center;font:600 8px/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vi2);opacity:.4;padding:0 4px 0 8px;margin-left:4px;border-left:1px solid rgba(var(--vg-rgb),.2)}",
   ".vle-cz-rst{margin-left:auto;cursor:pointer;opacity:.5;font-size:13px}.vle-cz-rst:hover{opacity:1;color:var(--vg)}",
   ".vle-cz-h{display:flex;align-items:center}",
   ".vle-cz-btn{font:600 9.5px/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);background:rgba(var(--vg-rgb),.08);border:1px solid rgba(var(--vg-rgb),.24);border-radius:8px;padding:7px 11px;cursor:pointer}",
@@ -809,18 +838,43 @@ export const STYLES = [
   "html[data-vle-chrome='modern'] .vle-tabbtn.on{background:color-mix(in srgb,var(--vg) 16%,transparent);border-color:transparent;position:relative}",
   "html[data-vle-chrome='modern'] .vle-tabbtn.on::after{content:'';position:absolute;left:18%;right:18%;bottom:-3px;height:2px;border-radius:2px;background:var(--vg);transition:left .2s,right .2s}",
   // cards → soft, rounded, flat shadow (no gold hairline shouting)
-  "html[data-vle-chrome='modern'] .vle-card,html[data-vle-chrome='modern'] .vld-sec,html[data-vle-chrome='modern'] .vle-rel-card{border-color:color-mix(in srgb,var(--vg) 10%,transparent);border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,.25)}",
+  "html[data-vle-chrome='modern'] .vle-card,html[data-vle-chrome='modern'] .vle-rel-card{border-color:color-mix(in srgb,var(--vg) 10%,transparent);border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,.25)}",
   // hero scene + soft top glow (recolor the bloom to the cool accent)
   "html[data-vle-chrome='modern'] .vlf-frame::after{background:radial-gradient(120% 80% at 50% -20%,rgba(var(--vg-rgb),.16),transparent 70%)}",
-  "html[data-vle-chrome='modern'] .vld-hero{font-weight:700;letter-spacing:-.3px}",
-  // tension → rounded amber pill instead of dots row
-  "html[data-vle-chrome='modern'] .vld-dots{gap:5px}html[data-vle-chrome='modern'] .vld-dot{width:7px;height:7px}",
+  // === MODERN = a continuous card-app scroll (no chopped one-section switch) ===
+  // sections are TRANSPARENT groups; the label floats above; only the items are
+  // cards. This is what fixes the 'disjointed boxes' look.
+  "html[data-vle-chrome='modern'] .vld{gap:calc(20px * var(--vscale))}",
+  "html[data-vle-chrome='modern'] .vld-inner{display:flex;flex-direction:column;gap:calc(20px * var(--vscale))}",
+  "html[data-vle-chrome='modern'] .vld-sec{border:none!important;background:none!important;box-shadow:none!important;padding:0!important;gap:calc(10px * var(--vscale))}",
+  // section label = a quiet heading above the group (not a chip inside a box)
+  "html[data-vle-chrome='modern'] .vld-h{font:700 calc(16px * var(--vscale))/1.2 var(--vserif);letter-spacing:0;text-transform:none;color:var(--vi);opacity:1;padding:0 calc(4px * var(--vscale));margin-bottom:calc(2px * var(--vscale))}",
+  "html[data-vle-chrome='modern'] .vld-h::before{display:none!important}",
+  "html[data-vle-chrome='modern'] .vld-n{font:700 calc(13px * var(--vscale))/1 var(--vserif);color:var(--vg);background:none;padding:0;margin-left:6px}",
+  // the HERO is itself a real card (the only section that is a box)
+  "html[data-vle-chrome='modern'] .vld-sec--hero{position:relative;background:linear-gradient(180deg,color-mix(in srgb,var(--vi) 6%,transparent),color-mix(in srgb,var(--vi) 3%,transparent))!important;border:1px solid color-mix(in srgb,var(--vg) 12%,transparent)!important;border-radius:22px!important;box-shadow:0 1px 3px rgba(0,0,0,.25)!important;padding:calc(16px * var(--vscale)) calc(18px * var(--vscale))!important}",
+  "html[data-vle-chrome='modern'] .vld-hero-eyebrow{font:700 calc(10.5px * var(--vscale))/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vi2);opacity:.7;margin-bottom:calc(8px * var(--vscale))}",
+  "html[data-vle-chrome='modern'] .vld-sec--hero .vld-hero{font-weight:700;letter-spacing:-.3px;font-size:calc(23px * var(--vscale))}",
+  "html[data-vle-chrome='modern'] .vld-sec--hero .vld-hero::before{display:none}",
+  "html[data-vle-chrome='modern'] .vld-meta{margin-top:calc(6px * var(--vscale));opacity:.8}",
+  // tension pill, top-right of the hero card
+  "html[data-vle-chrome='modern'] .vld-hero-tension{position:absolute;top:calc(16px * var(--vscale));right:calc(16px * var(--vscale));display:inline-flex;align-items:center;gap:6px;font:600 calc(12px * var(--vscale))/1 var(--vserif);color:var(--v-press-i);background:color-mix(in srgb,var(--v-press) 16%,transparent);border-radius:var(--rpill);padding:6px 11px}",
+  "html[data-vle-chrome='modern'] .vld-hero-tdot{width:6px;height:6px;border-radius:50%;background:var(--v-press)}",
   // present cast → notification cards; avatars fully round with presence ring
-  "html[data-vle-chrome='modern'] .vld-pc{border:none;border-radius:16px;background:color-mix(in srgb,var(--vi) 4%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.22);padding:calc(11px * var(--vscale)) calc(13px * var(--vscale))}",
-  // activity feed "Latest" → timeline nodes on the colored spines (reuse --rec)
-  "html[data-vle-chrome='modern'] .vld-rec{position:relative;margin-left:6px;padding-left:16px;border-left-width:2px}",
-  "html[data-vle-chrome='modern'] .vld-rec::before{content:'';position:absolute;left:-5px;top:9px;width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.85}",
+  "html[data-vle-chrome='modern'] .vld-pc{border:none;border-radius:18px;background:color-mix(in srgb,var(--vi) 5%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.22);padding:calc(13px * var(--vscale)) calc(15px * var(--vscale))}",
+  "html[data-vle-chrome='modern'] .vld-pc+.vld-pc{margin-top:calc(10px * var(--vscale))}",
+  // relation 'spotlight' rows → a rounded card each
+  "html[data-vle-chrome='modern'] .vld-rel{border-radius:18px;background:color-mix(in srgb,var(--vi) 5%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.22);padding:calc(13px * var(--vscale)) calc(15px * var(--vscale));margin:0}",
+  "html[data-vle-chrome='modern'] .vld-rel+.vle-bm{margin:calc(-4px * var(--vscale)) 0 calc(10px * var(--vscale));padding:0 calc(15px * var(--vscale))}",
+  // threads + parallel → soft pill rows
+  "html[data-vle-chrome='modern'] .vld-thread,html[data-vle-chrome='modern'] .vld-par{border-radius:14px;background:color-mix(in srgb,var(--vi) 4%,transparent);padding:calc(10px * var(--vscale)) calc(13px * var(--vscale));margin-bottom:calc(7px * var(--vscale))}",
+  // 'Latest' → a real activity feed: a connector line + colored nodes
+  "html[data-vle-chrome='modern'] .vld-sec--recent,html[data-vle-chrome='modern'] .vld-rec{position:relative}",
+  "html[data-vle-chrome='modern'] .vld-rec{margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(12px * var(--vscale)) calc(18px * var(--vscale));border-left:2px solid color-mix(in srgb,var(--vg) 18%,transparent)}",
+  "html[data-vle-chrome='modern'] .vld-rec:last-child{border-left-color:transparent;padding-bottom:0}",
+  "html[data-vle-chrome='modern'] .vld-rec::before{content:'';position:absolute;left:-6px;top:calc(3px * var(--vscale));width:10px;height:10px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px var(--vsurf-1)}",
   "html[data-vle-chrome='modern'] .vld-rec--journal::before{color:var(--v-pos-i)}html[data-vle-chrome='modern'] .vld-rec--knew::before{color:var(--v-info)}html[data-vle-chrome='modern'] .vld-rec--secret::before{color:var(--v-neg-i)}html[data-vle-chrome='modern'] .vld-rec--shift::before{color:var(--v-press-i)}",
+  "html[data-vle-chrome='modern'] .vld-rec-k{display:block;font:700 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vi2);opacity:.7;margin-bottom:3px}",
   // twin meters fully rounded + a touch taller in modern
   "html[data-vle-chrome='modern'] .vle-tw-t{height:9px;border-radius:6px}",
   // float frame already flat (existing rules); round the drawer launcher too
@@ -859,6 +913,8 @@ export const STYLES = [
   // --- drawer 'binding': a gilt top rule + parchment already via texture default ---
   "html[data-vle-chrome='illuminated'] .vlf-title{font-family:var(--vserif);font-style:italic;letter-spacing:1px}",
   "html[data-vle-chrome='illuminated'] .vle-head{border-bottom:2px solid rgba(var(--vg-rgb),.3);box-shadow:0 1px 0 rgba(var(--vg-rgb),.15);font-family:var(--vserif);font-style:italic}",
+  "html[data-vle-chrome='illuminated'] .vle-stats{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1px;text-transform:lowercase;opacity:.7}",
+  "html[data-vle-chrome='modern'] .vle-stats{font-family:var(--vserif);font-weight:600;letter-spacing:0;opacity:.65}",
   // --- ribbon-bookmark tabs (both surfaces' nav): notched bottom ---
   "html[data-vle-chrome='illuminated'] .vle-tabbtn.on{border-radius:3px 3px 0 0;position:relative}",
   "html[data-vle-chrome='illuminated'] .vle-tabbtn.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:0;border-left:5px solid transparent;border-right:5px solid transparent}",
@@ -896,6 +952,11 @@ export const STYLES = [
   // scanline shimmer over the float body (motion-gated by the global kill-switch)
   "html[data-vle-chrome='futuristic'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(var(--vg-rgb),.025) 3px 4px);z-index:2}",
   "html[data-vle-chrome='futuristic'] .vlf-body{position:relative}",
+  // Phase 5.1: the HUD signature also asserts on the DRAWER (surface-independent,
+  // skin-independent) — scanlines over the body so 'Futuristic' always reads HUD.
+  "html[data-vle-chrome='futuristic'] .vle-body{position:relative}",
+  "html[data-vle-chrome='futuristic'] .vle-body::after{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(var(--vg-rgb),.022) 3px 4px);z-index:0}",
+  "html[data-vle-chrome='futuristic'] .vle-body>*{position:relative;z-index:1}",
   // bond radar block
   ".vle-radar{display:block;margin:8px auto 4px;max-width:240px}",
   ".vle-radar-ring{fill:none;stroke:rgba(var(--vg-rgb),.2)}",

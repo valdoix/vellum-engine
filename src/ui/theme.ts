@@ -58,7 +58,7 @@ export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<
 export const MODES: Mode[] = [
   { id: 'default', name: 'Default', blurb: 'Calm &amp; legible \u2014 hierarchy first, quiet gold, the refined baseline.', patch: { chrome: 'default', radius: 14, border: 1, texture: '', serif: F_SERIF }, form: 'dashboard', skin: 'illuminated' },
   { id: 'illuminated', name: 'Fantasy', blurb: 'An open codex \u2014 warm parchment, brown ink, rubric headers, a wax seal.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: 'parchment', serif: F_SERIF }, form: 'codex', skin: 'parchment' },
-  { id: 'modern', name: 'Modern', blurb: 'A device \u2014 flat, sans, calm cards, a bottom dock that swaps panels.', patch: { chrome: 'modern', radius: 16, border: 1, texture: '', serif: F_SANS }, form: 'phone', skin: 'moonlit' },
+  { id: 'modern', name: 'Modern', blurb: 'A calm card app \u2014 flat, sans, one smooth scroll of rounded cards.', patch: { chrome: 'modern', radius: 16, border: 1, texture: '', serif: F_SANS }, form: 'dashboard', skin: 'moonlit' },
   { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 cyan telemetry, reticle avatars, a live bond radar.', patch: { chrome: 'futuristic', radius: 2, border: 1, texture: 'grid', serif: F_HUD, accent: '#28e0d8', accent2: '#7a5cff' }, form: 'hud', skin: 'noir' },
 ];
 
@@ -189,7 +189,7 @@ export function importTheme(json: string): boolean { try { const t = JSON.parse(
 export { FONT_CHOICES, TEXTURES };
 
 // --- tabbed Customize panel ---------------------------------------------
-type CzTab = 'skin' | 'mode' | 'layout' | 'color' | 'type' | 'window' | 'sections';
+type CzTab = 'look' | 'skin' | 'mode' | 'layout' | 'color' | 'type' | 'window' | 'sections';
 
 const slider = (key: string, label: string, min: number, max: number, step: number, val: number, fmt: (v: number) => string): string =>
   `<div class="vle-cz-h">${label} <span class="vle-cz-rst" data-cz-reset="${key}" title="Reset">\u21BA</span></div><div class="vle-cz-row">`
@@ -198,27 +198,38 @@ const slider = (key: string, label: string, min: number, max: number, step: numb
 
 const pct = (v: number): string => Math.round(v * 100) + '%';
 
-export function customizePanel(tab: CzTab = 'skin'): string {
+export function customizePanel(tab: CzTab = 'look'): string {
   const t = _theme;
-  const tabs = (['skin', 'mode', 'layout', 'color', 'type', 'window', 'sections'] as CzTab[])
-    .map((id) => `<button class="vle-czt${tab === id ? ' on' : ''}" data-cz-tab="${id}">${id}</button>`).join('');
+  // two-tier: a "Look" front tab (themes + size — the 90% case) and an Advanced
+  // cluster (the full cockpit) set off by a divider so it doesn't overwhelm.
+  const front: CzTab[] = ['look'];
+  const advanced: CzTab[] = ['skin', 'mode', 'layout', 'color', 'type', 'window', 'sections'];
+  const tabBtn = (id: CzTab): string => `<button class="vle-czt${tab === id ? ' on' : ''}" data-cz-tab="${id}">${id === 'look' ? 'Look' : id}</button>`;
+  const tabs = front.map(tabBtn).join('')
+    + '<span class="vle-czt-sep" title="Advanced">advanced</span>'
+    + advanced.map(tabBtn).join('');
+  // theme gallery sketch markup (shared by Look + the mode tab)
+  const sketch: Record<Chrome, string> = {
+    default: '<span class="vle-mode-sk sk-default"><i></i><i></i><i></i></span>',
+    illuminated: '<span class="vle-mode-sk sk-codex"><i></i><i></i></span>',
+    modern: '<span class="vle-mode-sk sk-phone"><i></i><i></i><i></i></span>',
+    futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
+  };
+  const themeCards = MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
+    + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('');
   let body = '';
-  if (tab === 'skin') {
+  if (tab === 'look') {
+    // the approachable front: pick a theme + set size. Everything else is Advanced.
+    body = '<div class="vle-cz-h">Theme</div><div class="vle-modes">' + themeCards + '</div>'
+      + slider('scale', 'Interface size', 0.85, 1.5, 0.05, t.scale, pct)
+      + '<div class="vle-cz-note">Pick a look and size \u2014 that\u2019s usually all you need. For palettes, fonts, layout and window controls, open <b>Advanced</b> above.</div>';
+  } else if (tab === 'skin') {
     body = '<div class="vle-cz-h">Skins</div><div class="vle-skins">'
       + SKINS.map((s) => `<button class="vle-skin${t.skin === s.id ? ' on' : ''}" data-skin="${s.id}" title="${s.blurb}" style="--sw:${s.theme.accent}"><span class="vle-skin-sw"></span><span class="vle-skin-n">${s.name}</span></button>`).join('')
       + '</div>'
       + '<div class="vle-cz-h">Theme</div><div class="vle-cz-row"><button class="vle-cz-btn" data-cz-export>\u2913 Export</button><button class="vle-cz-btn" data-cz-import>\u2912 Import</button><button class="vle-cz-btn danger" data-cz-resetall>\u21BA Reset all</button></div>';
   } else if (tab === 'mode') {
-    // theme gallery: a tiny wireframe sketch per chrome + name + blurb
-    const sketch: Record<Chrome, string> = {
-      default: '<span class="vle-mode-sk sk-default"><i></i><i></i><i></i></span>',
-      illuminated: '<span class="vle-mode-sk sk-codex"><i></i><i></i></span>',
-      modern: '<span class="vle-mode-sk sk-phone"><i></i><i></i><i></i></span>',
-      futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
-    };
-    body = '<div class="vle-cz-h">Theme</div><div class="vle-modes">'
-      + MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
-        + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('')
+    body = '<div class="vle-cz-h">Theme</div><div class="vle-modes">' + themeCards
       + '</div><div class="vle-cz-note">A one-click starting point \u2014 sets chrome, palette, layout &amp; font together, then composes with any skin. Fine-tune everything in the other tabs.</div>';
   } else if (tab === 'layout') {
     body = layoutPanel() + customLayoutEditor();
@@ -262,7 +273,7 @@ export function customizePanel(tab: CzTab = 'skin'): string {
 /** Wire all customize controls. rerender(tab) rebuilds the panel; reapply themes. */
 export function wireCustomize(host: HTMLElement, onChange: () => void, rerender: (tab: CzTab) => void): void {
   const reapply = (): void => { applyTheme(host.closest('.vle-root, .vlf, .vlfm, body') as HTMLElement); onChange(); };
-  const curTab = (): CzTab => (host.querySelector('[data-cz-tab-body]')?.getAttribute('data-tab') as CzTab) || 'skin';
+  const curTab = (): CzTab => (host.querySelector('[data-cz-tab-body]')?.getAttribute('data-tab') as CzTab) || 'look';
 
   host.addEventListener('input', (e) => {
     const el = e.target as HTMLInputElement;

@@ -13,6 +13,7 @@ import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize } from './theme.js';
 import { dashboardHtml, setPhoneSection, setSysInfo } from './dashboard.js';
 import { esc } from './format.js';
+import { icon, hasIcon } from './icons.js';
 import type { Component } from './component.js';
 import { wireBridge, wirePagers, wireFilters, refreshUI, send } from './bridge.js';
 import { confirmModal, formModal } from './modal.js';
@@ -69,14 +70,14 @@ const nowTab: Component<ChronicleState> = {
 };
 
 const TABS = [
-  { id: 'now', label: 'Now', icon: '\u25C9', comp: nowTab, group: 'primary' },
-  { id: 'cast', label: 'Cast', icon: '\u263B', comp: castTab, group: 'primary' },
-  { id: 'relations', label: 'Bonds', icon: '\u269A', comp: relationsTab, group: 'primary' },
-  { id: 'chronicle', label: 'Chronicle', icon: '\u2637', comp: chronicleTab, group: 'primary' },
-  { id: 'journal', label: 'Journal', icon: '\u270E', comp: journalTab, group: 'tools' },
-  { id: 'graph', label: 'Graph', icon: '\u26B9', comp: graphTab, group: 'tools' },
-  { id: 'vault', label: 'Vault', icon: '\u2756', comp: vaultTab, group: 'tools' },
-  { id: 'injection', label: 'Context', icon: '\u29C9', comp: injectionTab, group: 'tools' },
+  { id: 'now', label: 'Now', icon: 'now', comp: nowTab, group: 'primary' },
+  { id: 'cast', label: 'Cast', icon: 'cast', comp: castTab, group: 'primary' },
+  { id: 'relations', label: 'Bonds', icon: 'bonds', comp: relationsTab, group: 'primary' },
+  { id: 'chronicle', label: 'Chronicle', icon: 'chronicle', comp: chronicleTab, group: 'primary' },
+  { id: 'journal', label: 'Journal', icon: 'journal', comp: journalTab, group: 'tools' },
+  { id: 'graph', label: 'Graph', icon: 'graph', comp: graphTab, group: 'tools' },
+  { id: 'vault', label: 'Vault', icon: 'vault', comp: vaultTab, group: 'tools' },
+  { id: 'injection', label: 'Context', icon: 'context', comp: injectionTab, group: 'tools' },
 ] as const;
 
 // QOL actions, grouped. 'inline' stays on the toolbar; the rest live in the
@@ -90,12 +91,12 @@ const QOL = [
   { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)', group: 'maint' },
   { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)', group: 'maint' },
   { id: 'tidyfacts', label: '\u2702 Tidy lore', title: 'Fold near-duplicate knowledge & secrets now (needs generation permission)', group: 'maint' },
-  { id: 'resummarize', label: '\u27F3 Re-summarize all', title: 'Rebuild every chapter summary from scratch with the current pipeline (needs generation permission)', group: 'maint' },
+  { id: 'resummarize', label: '\u27F2 Re-summarize all', title: 'Rebuild every chapter summary from scratch with the current pipeline (needs generation permission)', group: 'maint' },
   { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc prompts', group: 'maint' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
-  { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world disposition: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
-  { id: 'offscreen', label: '\u2748 Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
+  { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
+  { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON', group: 'data' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON', group: 'data' },
   { id: 'recover', label: '\u21BA Recover', title: 'Restore this chat from its automatic backup if data was lost', group: 'data' },
@@ -107,7 +108,7 @@ function openCustomize(onChange: () => void): void {
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
   ov.innerHTML = '<div class="vlfm vle-root" style="width:min(440px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Customize</div>'
-    + '<div class="vlfm-body" data-cz-host>' + customizePanel('skin') + '</div>'
+    + '<div class="vlfm-body" data-cz-host>' + customizePanel('look') + '</div>'
     + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-save" data-close>Done</button></div></div>';
   document.body.appendChild(ov);
   const host = ov.querySelector('[data-cz-host]') as HTMLElement;
@@ -124,10 +125,10 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   root.className = 'vle-root';
   const primary = TABS.filter((t) => t.group === 'primary');
   const tools = TABS.filter((t) => t.group === 'tools');
-  const tabBtn = (t: typeof TABS[number], on: boolean): string => `<button class="vle-tabbtn${on ? ' on' : ''}" data-tab="${t.id}">${t.label}</button>`;
+  const tabBtn = (t: typeof TABS[number], on: boolean): string => `<button class="vle-tabbtn${on ? ' on' : ''}" data-tab="${t.id}">${icon(t.icon, { size: 15 })}<span class="vle-tabbtn-l">${t.label}</span></button>`;
   // tools render as compact icon buttons (Journal/Graph/Vault/Context) so the
   // four primary tabs (Now/Cast/Bonds/Chronicle) lead, per mockup 05A.
-  const toolBtn = (t: typeof TABS[number]): string => `<button class="vle-tabicon" data-tab="${t.id}" title="${t.label}" aria-label="${t.label}">${(t as { icon?: string }).icon ?? t.label[0]}</button>`;
+  const toolBtn = (t: typeof TABS[number]): string => `<button class="vle-tabicon" data-tab="${t.id}" title="${t.label}" aria-label="${t.label}">${icon(t.icon)}</button>`;
   root.innerHTML = '<div class="vle-head"><span class="vle-mark">\u2756</span> VELLUM <span class="vle-ver">II</span>'
     + '<span class="vle-stats" data-stats></span></div>'
     + '<div class="vle-tabbar" data-tabbar>'
@@ -136,10 +137,10 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
       + tools.map((t) => toolBtn(t)).join('')
     + '</div>'
     + '<div class="vle-toolbar" data-toolbar>'
-      + '<button class="vle-qol" data-search title="Search the chronicle (cast, bonds, journal, knowledge)">\u2315 Search</button>'
-      + '<button class="vle-qol" data-director title="Plot Director: steer the next scene">\u2691 Director</button>'
-      + '<button class="vle-qol" data-qol="customize" title="Theme: color, font, size & skins">\u25C8 Customize</button>'
-      + '<button class="vle-qol vle-qol-menu" data-actions title="Chronicle actions">\u22EF Actions</button>'
+      + `<button class="vle-qol" data-search title="Search the chronicle (cast, bonds, journal, knowledge)">${icon('search', { size: 15 })}<span>Search</span></button>`
+      + `<button class="vle-qol" data-director title="Plot Director: steer the next scene">${icon('director', { size: 15 })}<span>Director</span></button>`
+      + `<button class="vle-qol" data-qol="customize" title="Theme: color, font, size & skins">${icon('customize', { size: 15 })}<span>Customize</span></button>`
+      + `<button class="vle-qol vle-qol-menu" data-actions title="Chronicle actions">${icon('actions', { size: 15 })}<span>Actions</span></button>`
     + '</div>'
     + '<div class="vle-body" data-body></div>';
 
@@ -231,7 +232,10 @@ function openActions(ctx: Ctx): void {
       const rows = items.map((q) => {
         const st = toggleState[q.id];
         const stHtml = g === 'toggle' ? `<span class="vle-act-st">${esc(st ?? '')}</span>` : '';
-        return `<button class="vle-act-item${g === 'danger' ? ' danger' : ''}" data-qol="${q.id}" title="${esc(q.title)}"><span class="vle-act-l">${q.label}</span>${stHtml}</button>`;
+        // strip the legacy leading glyph from the label; the SVG icon replaces it
+        const text = q.label.replace(/^[^\sA-Za-z]+\s*/, '');
+        const ico = hasIcon(q.id) ? icon(q.id, { size: 15 }) : '';
+        return `<button class="vle-act-item${g === 'danger' ? ' danger' : ''}" data-qol="${q.id}" title="${esc(q.title)}">${ico}<span class="vle-act-l">${esc(text)}</span>${stHtml}</button>`;
       }).join('');
       return `<div class="vle-act-grp"><div class="vle-act-h">${label}</div>${rows}</div>`;
     }).join('');
@@ -429,7 +433,7 @@ function openToneModal(ctx: Ctx): void {
       { value: 'fast', label: 'Fast-Paced' },
       { value: 'erotic', label: 'Erotic' },
     ] },
-    { key: 'disposition', label: 'World Disposition', type: 'select', value: _tone.disposition, options: [
+    { key: 'disposition', label: 'World bias (toward you)', type: 'select', value: _tone.disposition, options: [
       { value: 'kind', label: 'Kind (everybody warms to you)' },
       { value: 'warm', label: 'Warm' },
       { value: 'fair', label: 'Fair (neutral)' },
@@ -583,13 +587,50 @@ export function setup(ctx: Ctx): () => void {
   wireBridge((payload) => ctx.sendToBackend(payload), (force?: boolean) => { drawer.update(force); float.refresh(); });
 
   // beautiful floating window ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a live scene DASHBOARD with a refresh button
+  const FLOAT_TABS = TABS.filter((t) => t.group === 'primary');
+  const FLOAT_TAB_KEY = 'vellum2.float.tab';
+  let floatTab = ((): string => { try { return localStorage.getItem(FLOAT_TAB_KEY) || 'now'; } catch { return 'now'; } })();
+  let floatMounted: Mounted<ChronicleState> | null = null;
+  let floatMountedId: string | null = null;
+  const floatTabStrip = (): string => FLOAT_TABS.map((t) =>
+    `<button class="vlf-tab${t.id === floatTab ? ' on' : ''}" data-vlf-tab="${t.id}" title="${t.label}" aria-label="${t.label}">${icon(t.icon, { size: 16 })}<span class="vlf-tab-l">${t.label}</span></button>`).join('');
   const float: FloatWindow = createFloatWindow({
     title: 'VELLUM',
     actions: [{ id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' }],
     onAction: (id) => { if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); notify(ctx, 'info', 'Refreshing the tracker\u2026'); } },
     render: (host) => {
-      try { host.innerHTML = `<div class="vld">${dashboardHtml(getState())}</div>`; } catch (e) { try { console.warn('[vellum] dashboard render failed:', e); } catch { /* ignore */ } host.innerHTML = '<div class="vld"><div class="vle-empty sm">Dashboard hit an error. Hit refresh.</div></div>'; }
-      if (!host.hasAttribute('data-phone-wired')) { host.setAttribute('data-phone-wired', '1'); host.addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-phone-sec]'); if (d) { setPhoneSection(d.getAttribute('data-phone-sec')!); refreshUI(); } }); }
+      // a mini-app: 4 primary tabs (Now/Cast/Bonds/Chronicle) mount into the body.
+      let tabsEl = host.querySelector('[data-vlf-tabs]') as HTMLElement | null;
+      let bodyEl = host.querySelector('[data-vlf-tabbody]') as HTMLElement | null;
+      if (!tabsEl || !bodyEl) {
+        host.innerHTML = '<div class="vlf-tabs" data-vlf-tabs></div><div class="vlf-tabbody" data-vlf-tabbody></div>';
+        tabsEl = host.querySelector('[data-vlf-tabs]') as HTMLElement;
+        bodyEl = host.querySelector('[data-vlf-tabbody]') as HTMLElement;
+        floatMounted = null; floatMountedId = null;
+        tabsEl.addEventListener('click', (e) => {
+          const b = (e.target as HTMLElement).closest('[data-vlf-tab]');
+          if (!b) return;
+          floatTab = b.getAttribute('data-vlf-tab')!;
+          try { localStorage.setItem(FLOAT_TAB_KEY, floatTab); } catch { /* ignore */ }
+          float.refresh();
+        });
+      }
+      tabsEl.innerHTML = floatTabStrip();
+      const def = FLOAT_TABS.find((t) => t.id === floatTab) ?? FLOAT_TABS[0]!;
+      try {
+        if (!floatMounted || floatMountedId !== def.id) {
+          if (floatMounted) floatMounted.destroy();
+          bodyEl.innerHTML = '';
+          floatMounted = mount(bodyEl, def.comp as Component<ChronicleState>, getState(), 'float-' + def.id);
+          floatMountedId = def.id;
+        } else {
+          floatMounted.update(getState());
+        }
+      } catch (e) {
+        try { console.warn('[vellum] float tab render failed:', e); } catch { /* ignore */ }
+        bodyEl.innerHTML = '<div class="vle-empty sm">This view hit an error. Hit refresh.</div>';
+        floatMounted = null; floatMountedId = null;
+      }
     },
   });
   let floatShell: ReturnType<typeof createShell> | null = null;

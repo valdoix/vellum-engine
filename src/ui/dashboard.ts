@@ -105,12 +105,23 @@ function statusBar(s: ChronicleState): string {
   const loc = s.scene.location
     ? `<div class="vld-loc vld-hero">${esc(s.scene.location)}</div>`
     : '<div class="vld-loc vld-hero vld-loc--none">\u2014</div>';
-  return `<div class="vld-sec vld-sec--hero">${loc}<div class="vld-meta">${meta}</div></div>`;
+  // Modern "app" hero: an eyebrow label + an inline tension pill (top-right),
+  // so the hero reads as the mockup's scene card. Other chromes ignore these.
+  let eyebrow = '', pill = '';
+  if (getTheme().chrome === 'modern') {
+    eyebrow = '<div class="vld-hero-eyebrow">Current scene</div>';
+    const t = Math.max(0, Math.min(10, s.scene.tension || 0));
+    if (t) pill = `<span class="vld-hero-tension"><span class="vld-hero-tdot"></span>Tension ${t}</span>`;
+  }
+  return `<div class="vld-sec vld-sec--hero">${pill}${eyebrow}${loc}<div class="vld-meta">${meta}</div></div>`;
 }
 
 function tensionBar(s: ChronicleState): string {
   const t = Math.max(0, Math.min(10, s.scene.tension || 0));
   if (!t) return '';
+  // Modern folds tension into the hero pill (see statusBar) — skip the standalone
+  // section so the scroll isn't broken by a near-empty card.
+  if (getTheme().chrome === 'modern') return '';
   const style = getTheme().tensionStyle;
   // amber dot-meter (--v-press): tension no longer borrows danger-red
   const dots = Array.from({ length: 10 }, (_, i) =>
@@ -119,7 +130,7 @@ function tensionBar(s: ChronicleState): string {
   const num = `<span class="vld-tension-n">${t}/10</span>`;
   const inner = style === 'num' ? `<span class="vld-tension-n" style="min-width:auto">${t}/10</span>`
     : style === 'bar' ? meter : meter + num;
-  return `<div class="vld-sec"><div class="vld-h">Tension</div><div class="vld-tension-row">${inner}</div></div>`;
+  return `<div class="vld-sec vld-sec--tension"><div class="vld-h">Tension</div><div class="vld-tension-row">${inner}</div></div>`;
 }
 
 function presentBlock(s: ChronicleState): string {
