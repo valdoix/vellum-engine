@@ -161,7 +161,11 @@ function locationsView(s: ChronicleState): string {
 function nextSceneView(s: ChronicleState): string {
   const head = sectionHeader('\u2192 Next Scene', { sub: true, action: '<button class="vle-add sm" data-ns-set>Set</button>' });
   const intro = '<div class="vle-cz-note">Set where and when the upcoming turn opens. It injects as a strong steer for ONE turn, then clears \u2014 it frames the opening, never teleports characters who\u2019d be elsewhere.</div>';
-  if (!_nextScene) return head + intro + emptyState('No next-scene set.', 'The story flows naturally. Set one to open the next turn at a specific place/time.');
+  // the Director tab is the hub for steering the next turn — link the related
+  // dial that lives in the Actions menu (Tone) so it's discoverable from here.
+  const steer = '<div class="vle-ns-steer">Also steers the next turn: '
+    + '<button class="vle-link" data-qol="tone">\u2665 Tone &amp; world bias</button></div>';
+  if (!_nextScene) return head + intro + emptyState('No next-scene set.', 'The story flows naturally. Set one to open the next turn at a specific place/time.') + steer;
   const ns = _nextScene;
   const when = [ns.day !== undefined ? 'Day ' + ns.day : '', ns.time || ''].filter(Boolean).join(', ');
   const card = `<div class="vle-nextscene">`
@@ -169,7 +173,7 @@ function nextSceneView(s: ChronicleState): string {
     + (when ? `<div class="vle-ns-row"><span class="vle-ns-k">when</span><span class="vle-ns-v">${esc(when)}</span></div>` : '')
     + (ns.note ? `<div class="vle-ns-row"><span class="vle-ns-k">note</span><span class="vle-ns-v">${esc(ns.note)}</span></div>` : '')
     + `<div class="vle-ns-ctl"><button class="vle-add sm" data-ns-set>Edit</button><button class="vle-add sm danger" data-ns-clear>Clear</button></div></div>`;
-  return head + intro + card;
+  return head + intro + card + steer;
 }
 
 function logView(s: ChronicleState): string {

@@ -75,9 +75,9 @@ const TABS = [
   { id: 'cast', label: 'Cast', icon: 'cast', comp: castTab, group: 'primary' },
   { id: 'relations', label: 'Bonds', icon: 'bonds', comp: relationsTab, group: 'primary' },
   { id: 'chronicle', label: 'Chronicle', icon: 'chronicle', comp: chronicleTab, group: 'primary' },
+  { id: 'director', label: 'Director', icon: 'director', comp: directorTab, group: 'primary' },
   { id: 'journal', label: 'Journal', icon: 'journal', comp: journalTab, group: 'tools' },
   { id: 'graph', label: 'Graph', icon: 'graph', comp: graphTab, group: 'tools' },
-  { id: 'director', label: 'Director', icon: 'director', comp: directorTab, group: 'tools' },
   { id: 'vault', label: 'Vault', icon: 'vault', comp: vaultTab, group: 'tools' },
   { id: 'injection', label: 'Context', icon: 'context', comp: injectionTab, group: 'tools' },
 ] as const;
@@ -128,9 +128,11 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const primary = TABS.filter((t) => t.group === 'primary');
   const tools = TABS.filter((t) => t.group === 'tools');
   const tabBtn = (t: typeof TABS[number], on: boolean): string => `<button class="vle-tabbtn${on ? ' on' : ''}" data-tab="${t.id}">${icon(t.icon, { size: 15 })}<span class="vle-tabbtn-l">${t.label}</span></button>`;
-  // tools render as compact icon buttons (Journal/Graph/Vault/Context) so the
-  // four primary tabs (Now/Cast/Bonds/Chronicle) lead, per mockup 05A.
-  const toolBtn = (t: typeof TABS[number]): string => `<button class="vle-tabicon" data-tab="${t.id}" title="${t.label}" aria-label="${t.label}">${icon(t.icon)}</button>`;
+  // five primary tabs (Now/Cast/Bonds/Chronicle/Director) lead; the rest are a
+  // labeled secondary "dock" (Journal/Graph/Vault/Context) — icon + label, so
+  // the tools read as a real tier, not cryptic afterthoughts. Labels hide when
+  // the width is tight (see .vle-tabicon-l in styles.ts).
+  const toolBtn = (t: typeof TABS[number]): string => `<button class="vle-tabicon" data-tab="${t.id}" title="${t.label}" aria-label="${t.label}">${icon(t.icon)}<span class="vle-tabicon-l">${t.label}</span></button>`;
   root.innerHTML = '<div class="vle-head"><span class="vle-mark">\u2756</span> VELLUM <span class="vle-ver">II</span>'
     + '<span class="vle-stats" data-stats></span></div>'
     + '<div class="vle-tabbar" data-tabbar>'
@@ -173,6 +175,12 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
     const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) { onQol(ctx, b.getAttribute('data-qol')!); return; }
     if ((e.target as HTMLElement).closest('[data-search]')) openSearch(getState, showTab);
     if ((e.target as HTMLElement).closest('[data-actions]')) openActions(ctx);
+  });
+  // tab bodies may surface cross-links to Actions-menu modals (e.g. the Director
+  // tab links to Tone/Genre as the "next-turn steering" hub). Delegate those.
+  bodyEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('[data-qol]');
+    if (b) { onQol(ctx, b.getAttribute('data-qol')!); }
   });
   wirePagers(bodyEl); // delegated pager clicks for any paginated list
   wireFilters(bodyEl); // delegated filter-bar controls
@@ -309,91 +317,6 @@ function openSearch(getState: () => ChronicleState, go: (tab: string) => void): 
   });
   render();
   setTimeout(() => input.focus(), 30);
-}
-
-// Plot Director directives mirrored from the backend broadcast.
-interface UIDirective { id: string; kind: string; text: string; target?: string; status: string; ttl: number; whenTurn?: number; whenDay?: number }
-let _directives: UIDirective[] = [];
-function setDirectives(d: UIDirective[]): void { _directives = Array.isArray(d) ? d : []; }
-
-const DIR_KIND_LABEL: Record<string, string> = {
-  reveal_secret: 'reveal secret', reveal_knowledge: 'act on knowledge', advance_thread: 'advance thread', note: 'note',
-};
-
-/** Plot Director panel: armed/done directives + add a new one. Directives are
- * gentle nudges injected next turn; they self-clear when the fold sees them done. */
-function openDirector(getState: () => ChronicleState): void {
-  const s = getState();
-  const ov = document.createElement('div');
-  ov.className = 'vlfm-overlay';
-  const active = _directives.filter((d) => d.status === 'armed' || d.status === 'dormant');
-  const row = (d: UIDirective): string => {
-    const when = d.status === 'dormant' ? `<span class="vle-dir-when">\u29D6 ${d.whenTurn !== undefined ? 't' + d.whenTurn : ''}${d.whenDay !== undefined ? (d.whenTurn !== undefined ? '/' : '') + 'd' + d.whenDay : ''}</span>` : '';
-    return `<div class="vle-dir-row${d.status === 'dormant' ? ' dormant' : ''}"><span class="vle-dir-k">${esc(DIR_KIND_LABEL[d.kind] ?? d.kind)}</span><span class="vle-dir-t">${esc(d.text)}</span>${when}<button class="vle-mini del" data-dir-del="${esc(d.id)}" title="Remove">\u2715</button></div>`;
-  };
-  const list = active.length
-    ? active.map(row).join('')
-    : '<div class="vle-empty sm">No active directives. Add one to steer the next scene.</div>';
-  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(480px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2691</span>Plot Director</div>'
-    + `<div class="vlfm-body"><div class="vle-cz-h">Active intent</div><div class="vle-dir-list">${list}</div>`
-    + '<div class="vle-cz-row"><button class="vle-cz-btn" data-dir-add>+ Add directive</button></div>'
-    + '<div class="vle-cz-note">Directives inject as gentle guidance next scene and self-clear when fulfilled. They suggest \u2014 they don\u2019t force.</div></div>'
-    + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-close>Close</button></div></div>';
-  document.body.appendChild(ov);
-  applyTheme(ov.querySelector('.vlfm') as HTMLElement);
-  const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
-  const push = (next: UIDirective[]): void => { send({ type: 'vellum_set_directives', directives: next }); close(); };
-  ov.addEventListener('click', (e) => {
-    const t = e.target as HTMLElement;
-    if (t.closest('[data-close]')) { close(); return; }
-    const del = t.closest('[data-dir-del]');
-    if (del) { push(_directives.filter((d) => d.id !== del.getAttribute('data-dir-del'))); return; }
-    if (t.closest('[data-dir-add]')) { close(); addDirective(s); }
-  });
-}
-
-/** Add-directive form: pick a kind + target (an existing secret/thread/character)
- * or a note, optionally SCHEDULED for a future turn/day (dormant until reached).
- * Agendas (standing per-character goals, ttl 0) and scene beats (next-turn-only,
- * ttl 1) are just note directives with a preset TTL Ã¢â‚¬â€ no new backend. */
-function addDirective(s: ChronicleState): void {
-  const secrets = s.secrets.filter((x) => !x.revealed).map((x) => ({ value: 'reveal_secret|' + x.id, label: 'reveal: ' + x.text.slice(0, 50) }));
-  const threads = s.threads.filter((t) => t.status !== 'resolved').map((t) => ({ value: 'advance_thread|' + t.name, label: 'advance: ' + t.name }));
-  const agendas = Object.values(s.cast).filter((c) => c.status === 'present' || c.status === 'active').map((c) => ({ value: 'agenda|' + c.id, label: 'agenda: ' + c.name }));
-  const opts = [...secrets, ...threads, ...agendas, { value: 'beat|', label: 'scene beat (next turn only)' }, { value: 'note|', label: 'free note (custom)' }];
-  if (!opts.length) return;
-  formModal('New directive', [
-    { key: 'pick', label: 'What should happen?', type: 'select', value: opts[0]!.value, options: opts },
-    { key: 'note', label: 'Detail (required for beat / note / agenda)', type: 'text', value: '' },
-    { key: 'whenTurn', label: 'Schedule for turn (blank = next scene)', type: 'text', value: '' },
-    { key: 'whenDay', label: 'or schedule for day (blank = none)', type: 'text', value: '' },
-    { key: 'ttl', label: 'Expire after N turns once active (0 = never)', type: 'text', value: '6' },
-  ], (out) => {
-    const parts = (out.pick ?? 'note|').split('|');
-    const pick = parts[0] || 'note';
-    const target = parts[1] || '';
-    const note = out.note?.trim() ?? '';
-    const wt = parseInt(out.whenTurn ?? '', 10);
-    const wd = parseInt(out.whenDay ?? '', 10);
-    const scheduled = Number.isFinite(wt) || Number.isFinite(wd);
-    // agenda = standing per-character goal (ttl 0 = until cleared); beat = next
-    // turn only (ttl 1). Both are 'note' directives with a preset TTL.
-    let kind = pick; let ttl = Math.max(0, Math.min(50, parseInt(out.ttl ?? '6', 10) || 0));
-    let text = note;
-    if (pick === 'agenda') { kind = 'note'; ttl = 0; const c = s.cast[target]; if (!note) return; text = `${c?.name ?? target}'s standing goal: ${note}`; }
-    else if (pick === 'beat') { kind = 'note'; ttl = 1; if (!note) return; text = `Next-scene beat: ${note}`; }
-    else if (!text) {
-      const sec = s.secrets.find((x) => x.id === target);
-      const thr = s.threads.find((t) => t.name === target);
-      text = pick === 'reveal_secret' && sec ? `Reveal the secret: ${sec.text}` : pick === 'advance_thread' && thr ? `Advance the thread: ${thr.name}` : 'Director note';
-    }
-    const dir: UIDirective = {
-      id: 'd' + Date.now().toString(36), kind, text, ...(target && kind !== 'note' ? { target } : {}),
-      status: scheduled ? 'dormant' : 'armed', ttl,
-      ...(Number.isFinite(wt) ? { whenTurn: wt } : {}), ...(Number.isFinite(wd) ? { whenDay: wd } : {}),
-    };
-    send({ type: 'vellum_set_directives', directives: [..._directives.filter((d) => d.status === 'armed' || d.status === 'dormant'), dir] });
-  });
 }
 
 function onQol(ctx: Ctx, id: string): void {
@@ -600,7 +523,7 @@ export function setup(ctx: Ctx): () => void {
     actions: [{ id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' }],
     onAction: (id) => { if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); notify(ctx, 'info', 'Refreshing the tracker\u2026'); } },
     render: (host) => {
-      // a mini-app: 4 primary tabs (Now/Cast/Bonds/Chronicle) mount into the body.
+      // a mini-app: the primary tabs (Now/Cast/Bonds/Chronicle/Director) mount into the body.
       let tabsEl = host.querySelector('[data-vlf-tabs]') as HTMLElement | null;
       let bodyEl = host.querySelector('[data-vlf-tabbody]') as HTMLElement | null;
       if (!tabsEl || !bodyEl) {
@@ -655,7 +578,7 @@ export function setup(ctx: Ctx): () => void {
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
-        if (Array.isArray(p.directives)) { setDirectives(p.directives); setDirectorDirectives(p.directives); }
+        if (Array.isArray(p.directives)) { setDirectorDirectives(p.directives); }
         if ('nextScene' in p) setDirectorNextScene(p.nextScene);
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;

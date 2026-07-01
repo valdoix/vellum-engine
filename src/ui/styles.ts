@@ -44,10 +44,15 @@ export const STYLES = [
   ".vle-tabbtn:hover{opacity:1;background:rgba(var(--vg-rgb),.08)}",
   ".vle-tabbtn.on{opacity:1;background:rgba(var(--vg-rgb),.2);border-color:rgba(var(--vg-rgb),.45);color:var(--vle-gold)}",
   ".vle-tabbar-sep{flex:none;width:1px;align-self:stretch;margin:2px 4px;background:rgba(var(--vg-rgb),.22)}",
-  // tool tabs as compact icon buttons (Journal/Graph/Vault/Context)
-  ".vle-tabicon{flex:none;width:calc(30px * var(--vscale));height:calc(30px * var(--vscale));display:grid;place-items:center;font-size:calc(14px * var(--vscale));color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:9px;cursor:pointer;opacity:.6;transition:opacity .15s,background .15s,color .15s}",
+  // labeled tool dock (Journal/Graph/Vault/Context) — icon + label chip, a real
+  // second tier. Labels hide when the dock is tight (see the container query below).
+  ".vle-tabicon{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;height:calc(30px * var(--vscale));padding:0 calc(11px * var(--vscale));font:600 calc(10.5px * var(--vscale))/1 var(--vmono);letter-spacing:.4px;color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:9px;cursor:pointer;opacity:.62;transition:opacity .15s,background .15s,color .15s}",
   ".vle-tabicon:hover{opacity:1;background:rgba(var(--vg-rgb),.08)}",
   ".vle-tabicon.on{opacity:1;background:rgba(var(--vg-rgb),.2);border-color:rgba(var(--vg-rgb),.45);color:var(--vle-gold)}",
+  ".vle-tabicon .vi{opacity:.85}",
+  ".vle-tabicon-l{white-space:nowrap}",
+  // when the shell is narrow, the dock collapses to icon-only (labels hidden)
+  "@media (max-width:440px){.vle-tabicon{padding:0;width:calc(30px * var(--vscale));justify-content:center}.vle-tabicon-l{display:none}.vle-tabbtn{padding:calc(8px * var(--vscale)) calc(10px * var(--vscale))}.vle-tabbtn-l{display:none}}",
   // inline-SVG icon family (icons.ts): inherits color, sized per call
   ".vi{display:inline-block;vertical-align:-0.18em;flex:none}",
   ".vle-tabbtn{display:inline-flex;align-items:center;gap:6px}",
@@ -158,6 +163,10 @@ export const STYLES = [
   ".vle-ns-k{flex:0 0 48px;font:600 10px/1.5 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);opacity:.75}",
   ".vle-ns-v{flex:1 1 auto;font-family:var(--vserif);font-size:calc(14px * var(--vscale));color:var(--vi)}",
   ".vle-ns-ctl{display:flex;gap:6px;margin-top:8px}",
+  // next-turn steering cross-link (Director tab → Tone modal)
+  ".vle-ns-steer{margin-top:12px;padding-top:10px;border-top:1px solid rgba(var(--vg-rgb),.14);font-size:calc(12px * var(--vscale));color:var(--vi2);opacity:.85}",
+  ".vle-link{background:none;border:none;cursor:pointer;font:inherit;color:var(--vle-gold);padding:0 2px;text-decoration:underline;text-decoration-color:rgba(var(--vg-rgb),.4)}",
+  ".vle-link:hover{text-decoration-color:var(--vle-gold)}",
   ".vle-dir-log-row{display:flex;align-items:baseline;gap:8px;padding:5px 2px;border-bottom:1px solid rgba(var(--vg-rgb),.08)}",
   ".vle-dir-log-mark{flex:0 0 auto}",
   ".vle-dir-log-flag .vle-dir-log-mark{color:var(--v-neg)}",
