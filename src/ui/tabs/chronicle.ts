@@ -55,7 +55,8 @@ export const chronicleTab: Component<ChronicleState> = {
   version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
-    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: s.memories.length, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
+    const memCount = s.memories.filter((m) => m.tier !== 'beat').length; // Memory view excludes beats (own tab)
+    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: memCount, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
     const btn = (v: { id: CView; label: string }): string =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`;
     // Story (the Spine river) leads as the primary reading surface; World/Beats
@@ -366,10 +367,11 @@ function memories(s: ChronicleState): string {
   const pickTurns = turnCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="turn" title="Select turns to fold into a chapter">${inFold && _pickTier === 'turn' ? '\u2715 cancel' : '\u2748 fold turns'}</button>` : '';
   const pickChaps = chapCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="chapter" title="Select chapters to fold into an arc">${inFold && _pickTier === 'chapter' ? '\u2715 cancel' : '\u2748 fold chapters'}</button>` : '';
   const pickDel = summaryCount >= 1 ? `<button class="vle-add sm" data-pick-del title="Select summaries to delete (restores what they folded)">${inDel ? '\u2715 cancel' : '\u2717 delete'}</button>` : '';
-  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: s.memories.length, action: pickTurns + pickChaps + pickDel + '<button class="vle-add sm" data-mem-add>+</button>' });
-  if (!s.memories.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
+  const nonBeat = s.memories.filter((m) => m.tier !== 'beat'); // Memory view excludes beats (own tab)
+  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: nonBeat.length, action: pickTurns + pickChaps + pickDel + '<button class="vle-add sm" data-mem-add>+</button>' });
+  if (!nonBeat.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
   const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: turnCount, chapter: chapCount, arc: s.memories.filter((m) => m.tier === 'arc').length } });
-  const filtered = applyFilter('memories', s.memories.filter((m) => m.tier !== 'beat'), { cat: (m) => m.tier });
+  const filtered = applyFilter('memories', nonBeat, { cat: (m) => m.tier });
   const { slice, page, pages } = paginate('memories', filtered);
   const rows = slice.map((m: Memory) => {
     const isTurn = m.tier === 'turn';
