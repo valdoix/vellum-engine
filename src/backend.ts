@@ -1,11 +1,11 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar } from './host/chats.js';
-import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs, recoverFromBackup, loadLog } from './store/chronicle.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar, invalidateChatVars } from './host/chats.js';
+import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
-import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
+import { buildInjectionHybrid, invalidateIndex, sharedIndex } from './retrieval/recall.js';
 import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.js';
@@ -15,7 +15,7 @@ import { locationList } from './domain/locations.js';
 import { driftInjection } from './domain/drift.js';
 import { turnLog } from './domain/turnlog.js';
 import { toMarkdown } from './domain/markdown.js';
-import { moodInjection } from './domain/mood.js';
+import { moodInjectionCached, invalidateMood } from './domain/mood.js';
 import { plantsInjection } from './domain/plants.js';
 import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
@@ -104,20 +104,25 @@ function recordInjection(chatId: string, turn: number, text: string, recallIds: 
 
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
   const state = await loadState(chatId);
-  const tone = await readTone(chatId, userId);
-  let tidy = false;
-  try { tidy = !!(await getChatVar(chatId, 'vellum_tidy_threads')); } catch { /* best effort */ }
-  let offscreen = false;
-  try { offscreen = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
-  const chapterVault = await readChapterVaultMode(chatId);
-  let traversalMode = 'off';
-  try { if (await getChatVar(chatId, 'vellum_traversal')) traversalMode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat'; } catch { /* best effort */ }
-  const traversalAxis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
-  const relationLocks = await readLocks(chatId);
-  const directives = await readDirectives(chatId);
-  const nextScene = await readNextScene(chatId);
-  const hardLimits = await readHardLimits(chatId);
-  const calendar = await readCalendar(chatId);
+  // independent reads run in parallel (chat vars are cached, but this also cuts
+  // first-read host round-trips and any awaited derivations).
+  const [tone, tidyRaw, offscreenRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar] = await Promise.all([
+    readTone(chatId, userId),
+    getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
+    getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
+    readChapterVaultMode(chatId),
+    getChatVar(chatId, 'vellum_traversal').catch(() => ''),
+    getChatVar(chatId, 'vellum_traversal_mode').catch(() => ''),
+    getChatVar(chatId, 'vellum_traversal_axis').then(readAxis).catch(() => 'temporal' as const),
+    readLocks(chatId),
+    readDirectives(chatId),
+    readNextScene(chatId),
+    readHardLimits(chatId),
+    readCalendar(chatId),
+  ]);
+  const tidy = !!tidyRaw;
+  const offscreen = !!offscreenRaw;
+  const traversalMode = travOn ? (travModeRaw === 'tree' ? 'tree' : 'flat') : 'off';
   spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar }, userId ?? currentUser());
 }
 
@@ -163,11 +168,12 @@ function turnGist(content: string, names?: { user: string; char: string }): stri
  * or the new turn count if messages were deleted Ã¢â‚¬â€ i.e. the turn to roll BACK
  * to (return = keep turns Ã¢â€°Â¤ N). Returns null when nothing earlier diverged.
  */
-async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number, asstMsgs?: string[]): Promise<number | null> {
+async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number, asstMsgs?: () => Promise<string[]>): Promise<number | null> {
   if (foldedTurns <= 0) return null;
   // messages deleted: fewer assistant turns than we folded → roll back to the new count
   if (msgs.length < foldedTurns) return msgs.length;
   const sigs = await turnSigs(chatId);
+  let asst: string[] | null = null; // fetched LAZILY, only if a sig mismatches
   for (let turnNo = 1; turnNo <= foldedTurns; turnNo++) {
     const stored = sigs.get(turnNo);
     if (stored === undefined) continue; // turn had no fold marker — skip
@@ -179,8 +185,12 @@ async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number,
     // BASIS-SHIFT SAFETY: chronicles folded before user-messages were included
     // stored an ASSISTANT-ONLY signature. Don't treat that basis change as an
     // edit (which would roll back and wipe chapters) — also accept a match on the
-    // assistant-only signature for this turn.
-    if (asstMsgs && sigOf((asstMsgs[turnNo - 1] ?? '').trim()) === stored) continue;
+    // assistant-only signature for this turn. The assistant-only transcript is an
+    // extra host fetch, so pull it only NOW (first mismatch), not every fold.
+    if (asstMsgs) {
+      if (asst === null) { try { asst = await asstMsgs(); } catch { asst = []; } }
+      if (sigOf((asst[turnNo - 1] ?? '').trim()) === stored) continue;
+    }
     return turnNo - 1; // keep up to the turn before the change
   }
   return null;
@@ -269,21 +279,27 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   if (hint && hint.trim() && (!msgs.length || msgs[msgs.length - 1] !== hint)) msgs.push(hint);
   if (!msgs.length) return;
   let prior = await loadState(chatId);
-  // tone dials + canonical {{user}} id, resolved once per fold pass
-  const tone = await readTone(chatId, userId);
-  const names = await chatNames(chatId, userId);
+  // tone dials + canonical {{user}} id + locks, resolved once per fold pass (in
+  // parallel; chat vars are cached but this also overlaps the name derivation).
+  const [tone, names, locks] = await Promise.all([
+    readTone(chatId, userId),
+    chatNames(chatId, userId),
+    readLocks(chatId),
+  ]);
   const userCanon = names.user ? canonId(names.user) : '';
-  const locks = await readLocks(chatId);
   // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
   // message count, so the forward-only fold below would never revisit it and the
   // chronicle would keep the STALE turn's deltas. Compare each already-folded
   // turn's stored content signature to the message's current signature; at the
   // first divergence (or if messages were deleted), roll the log back to just
   // before it so the loop re-folds the new content. (Swipes are out of scope.)
-  const rollbackTo = await divergedTurn(chatId, msgs, prior.turns ?? 0, await allAssistantContents(chatId));
+  // The assistant-only transcript (basis-shift safety) is fetched LAZILY — only
+  // if a signature actually mismatches — so the common no-edit fold skips it.
+  const rollbackTo = await divergedTurn(chatId, msgs, prior.turns ?? 0, () => allAssistantContents(chatId));
   if (rollbackTo !== null && rollbackTo < (prior.turns ?? 0)) {
     prior = await truncateAfterTurn(chatId, rollbackTo);
     invalidateIndex(chatId);
+    invalidateMood(chatId);
     spindle.log?.info?.(`[vellum_engine] reconcile: turn ${rollbackTo + 1} changed (regenerate/edit) \u2014 rolled back to turn ${rollbackTo}, re-folding.`);
   }
   let added = 0;
@@ -295,13 +311,15 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
-    const { events, source } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
+    const { events, source, sig } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
     const evs: VellumEvent[] = [...events];
-    if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: sigOf(content) } as VellumEvent);
+    // reuse foldTurn's already-computed content signature (same hashStr of the
+    // first 4000 chars) instead of recomputing sigOf(content) here.
+    if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
     const gist = turnGist(content, names);
     if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
     foldedEvents.push(...evs);
-    prior = await append(chatId, evs);
+    prior = await appendDeferred(chatId, evs);
     added += evs.length;
     // prose-driven extraction: knowledge / secrets / journal / bonds (incl. the
     // player) the model didn't hand-write in a <vellum> block. When the turn had
@@ -312,7 +330,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     if (gist) {
       try {
         const xevs = await extractFromProse(gist, turnNo, prior.day || 0, names, userId, prior, tone);
-        if (xevs.length) { prior = await append(chatId, xevs); added += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal/bond)${hadBlock ? '' : ' [FALLBACK: no <vellum> block]'} from turn ${turnNo}`); }
+        if (xevs.length) { prior = await appendDeferred(chatId, xevs); added += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal/bond)${hadBlock ? '' : ' [FALLBACK: no <vellum> block]'} from turn ${turnNo}`); }
         else if (!hadBlock) spindle.log?.warn?.(`[vellum_engine] turn ${turnNo} had no <vellum> block and prose extraction yielded nothing`);
       } catch (e) { spindle.log?.warn?.('[vellum_engine] extract: ' + ((e as Error)?.message ?? e)); }
     }
@@ -343,9 +361,13 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
       spindle.sendToFrontend?.({ type: 'vellum_continuity', chatId, warnings }, userId ?? currentUser());
       // persist as a small ring-buffer log so the Director tab can show them
       const flagTurn = (await loadState(chatId)).turns || 0;
-      await append(chatId, warnings.map((w) => ({ seq: nextSeqLocal(), turn: flagTurn, day: 0, src: 'system', kind: 'continuity.flag', code: w.kind, detail: w.text } as VellumEvent)));
+      await appendDeferred(chatId, warnings.map((w) => ({ seq: nextSeqLocal(), turn: flagTurn, day: 0, src: 'system', kind: 'continuity.flag', code: w.kind, detail: w.text } as VellumEvent)));
     }
   } catch { /* best effort */ }
+  // Single durable write for the whole fold pass: all the appends above were
+  // deferred (in-memory), so this collapses N full-log stringify+write cycles
+  // into ONE — the largest per-turn I/O win on a long chronicle.
+  await flush(chatId);
   invalidateIndex(chatId);
   await broadcastState(chatId, userId);
   void maybeAutoSummarize(chatId, userId);
@@ -735,8 +757,9 @@ async function precomputeTree(chatId: string, userId: string | null): Promise<vo
   try {
     const version = logVersion(chatId);
     const state = await loadState(chatId);
-    const { buildIndex, collectItems } = await import('./retrieval/invindex.js');
-    const index = buildIndex(collectItems(state));
+    // reuse the interceptor's shared (tokenized) index instead of building a
+    // parallel one — same postings, honoring the version/content cache gate.
+    const index = sharedIndex(chatId, state, version);
     const axis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
     const result = await traverseTree(index, state, controller, { axis });
     if (result) _treeCache.set(chatId, { version, result });
@@ -769,22 +792,36 @@ async function wireCapabilities(): Promise<void> {
           if (!chatId) return out;
           const state = await loadState(chatId);
           if (!state.turns && !Object.keys(state.cast).length) return out;
+          const present = state.scene.present ?? [];
+          const nameOf = (id: string): string => state.cast[id]?.name ?? id;
+          const version = logVersion(chatId);
+          // Fetch every INDEPENDENT per-chat input in parallel (chat vars are
+          // cached, but this also removes serialized await-chains on the hot
+          // pre-response path). The traversal-mode read gates the controller/
+          // precompute choice, so it's awaited first; everything else overlaps.
+          const [tmodeRaw, caps, directives, locks, calText, nextSceneText, limitsText, logEvents] = await Promise.all([
+            getChatVar(chatId, 'vellum_traversal_mode').catch(() => ''),
+            budgetCaps(chatId),
+            readDirectives(chatId),
+            readLocks(chatId),
+            calendarInjection(chatId, state.day || 0),
+            nextSceneInjection(chatId),
+            hardLimitsInjection(chatId),
+            loadLog(chatId).then((l) => l.events).catch(() => [] as VellumEvent[]),
+          ]);
+          const tmode = tmodeRaw === 'tree' ? 'tree' : 'flat';
           // Controller-guided traversal (variant A), opt-in per chat. Builds a
           // CallModel backed by a cheap, timeout-bounded controller generation;
           // buildInjectionHybrid falls back to the deterministic path on any miss.
-          const tmode = (await getChatVar(chatId, 'vellum_traversal_mode')) === 'tree' ? 'tree' : 'flat';
           // PR2: prefer a fresh precomputed tree ranking (warmed after the last
-          // turn) Ã¢â‚¬â€ zero prompt-path latency. Else drill live, tightening each of
+          // turn) — zero prompt-path latency. Else drill live, tightening each of
           // the up-to-4 calls so the inline budget stays bounded (~3.2s).
           const pre = tmode === 'tree' ? getPrecomputedTree(chatId) : null;
           const controller = pre ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
-          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller, tmode, pre);
-          const caps = await budgetCaps(chatId); // per-chat injection budget
-          const present = state.scene.present ?? [];
-          const nameOf = (id: string): string => state.cast[id]?.name ?? id;
+          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, version, controller, tmode, pre);
           // Plot Director: append armed directives as gentle guidance (suggestive,
           // not a hard block — they self-clear at the fold when fulfilled).
-          const dirText = directiveInjection(await readDirectives(chatId));
+          const dirText = directiveInjection(directives);
           // Story Beats: the author-curated chronological spine — always-on, cheap.
           const spineText = beatSpine(state, caps.spine);
           // Locations gazetteer — canonical place names so the model doesn't hallucinate.
@@ -792,21 +829,14 @@ async function wireCapabilities(): Promise<void> {
           // Personality drift — arc summaries for present characters (write them in motion).
           const driftText = caps.drift ? driftInjection(state, present, caps.drift) : '';
           // Mood recency — persistent emotional weather for present characters.
-          const moodText = caps.mood ? moodInjection((await loadLog(chatId)).events, present, nameOf, caps.mood) : '';
+          const moodText = caps.mood ? moodInjectionCached(chatId, logEvents, version, present, nameOf, caps.mood) : '';
           // Foreshadow plants — unresolved seeded details that still hang.
           const plantText = caps.plants ? plantsInjection(state, state.turns || 0, caps.plants) : '';
           // Off-screen convergence — threads ripe to walk back into the scene.
           const offText = caps.offscreen ? offscreenInjection(state, caps.offscreen) : '';
-          // World calendar — named epoch/season for the current day, when set.
-          const calText = await calendarInjection(chatId, state.day || 0);
-          // Next-scene setter — the author's where/when for THIS turn (clears after).
-          const nextSceneText = await nextSceneInjection(chatId);
           // Relationship guardrails — locks for pairs PRESENT this turn, phrased
           // positively (prevention half; the fold strip is the hard guarantee).
-          const lockText = lockInjection(await readLocks(chatId), present, nameOf, caps.locks);
-          // Hard limits — absolute content boundaries, injected FIRST (highest
-          // salience) so they outrank everything. Per-chat override of the preset var.
-          const limitsText = await hardLimitsInjection(chatId);
+          const lockText = lockInjection(locks, present, nameOf, caps.locks);
           const injText = [limitsText, inj.text, locText, driftText, moodText, offText, lockText, plantText, calText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
@@ -846,7 +876,7 @@ async function wireCapabilities(): Promise<void> {
 // Always-safe events (no special permission to subscribe).
 try {
   spindle.on?.('PERMISSION_CHANGED', () => { invalidatePermissions(); void wireCapabilities(); });
-  spindle.on?.('CHAT_SWITCHED', (p: any) => { rememberUser(p?.userId); invalidateChatCaps(); if (p?.chatId) invalidate(); });
+  spindle.on?.('CHAT_SWITCHED', (p: any) => { rememberUser(p?.userId); invalidateChatCaps(); invalidateChatVars(); if (p?.chatId) invalidate(); });
 } catch { /* events optional */ }
 
 // --- frontend dispatch table ---------------------------------------------
@@ -867,6 +897,8 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_recover_done', ok: false, reason: 'no_active_chat' }, uid); return; }
     invalidate(chatId);
+    invalidateIndex(chatId);
+    invalidateMood(chatId);
     const recovered = await recoverFromBackup(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_recover_done', ok: !!recovered, events: recovered ? (await loadState(chatId)) && logVersion(chatId) : 0 }, uid);
@@ -889,7 +921,7 @@ const dispatch: Record<string, Handler> = {
     const messagesOnly = !!p?.messagesOnly;
     try {
       const msgs = await allTurnContents(chatId);
-      if (!messagesOnly) { await clearLog(chatId); lastSigByChat.delete(chatId); }
+      if (!messagesOnly) { await clearLog(chatId); lastSigByChat.delete(chatId); invalidateMood(chatId); }
       let prior = await loadState(chatId);
       const tone = await readTone(chatId, uid);
       const names = await chatNames(chatId, uid);
@@ -1301,6 +1333,7 @@ const dispatch: Record<string, Handler> = {
     if (!chatId) return;
     await clearLog(chatId);
     invalidateIndex(chatId);
+    invalidateMood(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_cleared', ok: true }, uid);
   },
@@ -1440,6 +1473,7 @@ const dispatch: Record<string, Handler> = {
     if (maxTurn <= 0) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); spindle.sendToFrontend?.({ type: 'vellum_refresh_done', ok: true, refolded: 0 }, uid); return; }
     try {
       await truncateAfterTurn(chatId, maxTurn - 1); // drop the latest turn's events
+      invalidateMood(chatId);                        // count may regrow to the same → force a mood rebuild
       lastSigByChat.delete(chatId);                  // clear the dedupe sig so it re-folds
       await foldChat(chatId, uid);                   // re-fold the latest turn cleanly
       spindle.sendToFrontend?.({ type: 'vellum_refresh_done', ok: true, refolded: maxTurn }, uid);
@@ -1569,6 +1603,7 @@ const dispatch: Record<string, Handler> = {
     if (!v.success) { spindle.sendToFrontend?.({ type: 'vellum_import_done', ok: false, reason: 'invalid' }, uid); return; }
     await importLog(chatId, v.data);
     invalidateIndex(chatId);
+    invalidateMood(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_import_done', ok: true, events: v.data.events.length }, uid);
   },
@@ -1582,6 +1617,7 @@ const dispatch: Record<string, Handler> = {
     if (maxTurn <= 0) { spindle.sendToFrontend?.({ type: 'vellum_undo_done', ok: false, reason: 'nothing_to_undo' }, uid); return; }
     await truncateAfterTurn(chatId, maxTurn - 1);
     invalidateIndex(chatId);
+    invalidateMood(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_undo_done', ok: true, undoneTurn: maxTurn }, uid);
   },

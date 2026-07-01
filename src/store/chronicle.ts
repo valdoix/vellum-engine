@@ -20,7 +20,25 @@ declare const spindle: any;
 const path = (chatId: string): string => `vellum/log-${chatId}.json`;
 const bakPath = (chatId: string): string => `vellum/log-${chatId}.bak.json`;
 
-interface CacheEntry { log: EventLog; state: ChronicleState; reduced: number; readonly: boolean }
+interface CacheEntry {
+  log: EventLog;
+  state: ChronicleState;
+  reduced: number;
+  readonly: boolean;
+  /** true when in-memory events differ from what's on disk (needs a flush). */
+  dirty?: boolean;
+  /** exact JSON last written to (or read from) the MAIN log file — used as the
+   * ".bak" source so the shrink-guard never re-reads/re-parses the file. */
+  serialized?: string;
+  /** event count matching `serialized` (the previous on-disk length). */
+  persistedCount?: number;
+  /** event count currently in the .bak file (lazily probed once per session). */
+  bakCount?: number;
+  /** signature of the identity dimensions (cast ids + faction ids + memberships)
+   * as of the last mergeDuplicates pass — lets loadState skip the O(n²) self-heal
+   * merge on folds that didn't touch any of them. undefined ⇒ must merge. */
+  mergeSig?: string;
+}
 const _cache = new Map<string, CacheEntry>();
 
 /** Validate an envelope leniently: keep events that parse, drop only bad ones.
@@ -69,6 +87,12 @@ export async function loadLog(chatId: string): Promise<EventLog> {
     }
     return { raw: null as string | null, existed: false };
   });
+  // exact on-disk JSON + its raw event count, so persist()'s backup shrink-guard
+  // never has to re-read/re-parse the file (the per-turn quadratic I/O). Sourced
+  // from the ORIGINAL raw string so a bak write preserves even dropped/malformed
+  // events, exactly as the previous re-read path did.
+  let serialized: string | undefined;
+  let persistedCount = 0;
   if (r.ok && r.value.existed && typeof r.value.raw === 'string') {
     // a file EXISTS — parse leniently; on total failure, go read-only (never wipe)
     let parsed: unknown = null;
@@ -79,15 +103,30 @@ export async function loadLog(chatId: string): Promise<EventLog> {
     } else {
       const { log: ll, dropped, usable } = lenientLog(parsed, chatId);
       if (!usable) { readonly = true; spindle.log?.warn?.('[vellum_engine] log shape unrecognized for ' + chatId + ' — READ-ONLY.'); }
-      else { log = ll; if (dropped) spindle.log?.warn?.('[vellum_engine] dropped ' + dropped + ' malformed event(s) for ' + chatId + ' (kept ' + log.events.length + ').'); }
+      else {
+        log = ll; if (dropped) spindle.log?.warn?.('[vellum_engine] dropped ' + dropped + ' malformed event(s) for ' + chatId + ' (kept ' + log.events.length + ').');
+        serialized = r.value.raw; persistedCount = eventCount(r.value.raw);
+      }
     }
   } else if (!r.ok) {
     // read threw (host error) — do NOT treat as empty; read-only this session
     readonly = true;
     spindle.log?.warn?.('[vellum_engine] log read failed for ' + chatId + ' — READ-ONLY this session.');
   }
-  _cache.set(chatId, { log, state: mergeDuplicates(reduce(log.events)), reduced: log.events.length, readonly });
+  _cache.set(chatId, { log, state: mergeDuplicates(reduce(log.events)), reduced: log.events.length, readonly, dirty: false, ...(serialized !== undefined ? { serialized, persistedCount } : {}) });
   return log;
+}
+
+/** Signature over the identity dimensions mergeDuplicates() reconciles: cast
+ * ids, faction ids, and memberships. When this is unchanged since the last
+ * merge, re-running the O(n²) self-heal can't find anything new, so loadState
+ * skips it. Sorted so ordering never spuriously changes the sig. Cheap: ids
+ * only, no text. */
+function identitySig(s: ChronicleState): string {
+  const cast = Object.keys(s.cast).sort().join(',');
+  const fac = Object.keys(s.factions).sort().join(',');
+  const mem = s.memberships.map((m) => m.char + '>' + m.faction).sort().join(',');
+  return cast + '|' + fac + '|' + mem;
 }
 
 /** Derived state for a chat (incrementally folded, cached). */
@@ -97,9 +136,17 @@ export async function loadState(chatId: string): Promise<ChronicleState> {
   if (c.reduced < c.log.events.length) {
     c.state = reduce(c.log.events, c.state, c.reduced); // fold only new events
     c.reduced = c.log.events.length;
-    // self-heal split cast nodes (cersei + cersei_lannister) into the canonical
-    // id and remap all references. Idempotent; runs only when new events folded.
-    c.state = mergeDuplicates(c.state);
+    // self-heal split cast/faction nodes (cersei + cersei_lannister) into the
+    // canonical id and remap all references. Idempotent, but O(n²) over cast +
+    // factions — so only run it when the identity dimensions ACTUALLY changed
+    // this fold (a new/removed cast or faction id, or a membership edit). Most
+    // turns only move scores/scene/knowledge and can safely skip it.
+    const sig = identitySig(c.state);
+    if (sig !== c.mergeSig) {
+      c.state = mergeDuplicates(c.state);
+      // recompute from the MERGED state so the stored sig reflects post-merge ids
+      c.mergeSig = identitySig(c.state);
+    }
   }
   return c.state;
 }
@@ -110,25 +157,69 @@ async function persist(chatId: string): Promise<void> {
   if (c.readonly) { spindle.log?.warn?.('[vellum_engine] refusing to persist ' + chatId + ' (read-only — would risk overwriting recoverable data).'); return; }
   c.log.updatedAt = Date.now();
   c.log.version = SCHEMA_VERSION;
+  const next = JSON.stringify(c.log);
   await tryCatchAsync(async () => {
-    if (!spindle.storage?.write) return;
+    if (!spindle.storage?.write) { c.dirty = false; return; }
     // Backup the last good on-disk log before overwriting — but NEVER let a
     // SHORTER log clobber a LONGER backup. A rollback/truncation that shrinks the
     // log must not destroy the only copy of the fuller history (the wipe vector).
+    //
+    // The previous on-disk content + its event count are held in memory
+    // (c.serialized / c.persistedCount), so this guard no longer re-reads and
+    // re-parses the (unbounded) log file on every write — the per-turn quadratic
+    // I/O. We still probe the .bak's length once (lazily) and then track it.
     try {
-      if (spindle.storage.exists && (await spindle.storage.exists(path(chatId)))) {
-        const prev = await spindle.storage.read(path(chatId));
-        if (prev) {
-          const prevLen = eventCount(prev);
+      const prev = c.serialized;
+      const prevLen = c.persistedCount ?? -1;
+      if (prev !== undefined && prevLen >= 0) {
+        // HOT PATH: previous on-disk content is known in memory — no re-read.
+        if (c.bakCount === undefined) {
+          c.bakCount = (spindle.storage.exists && (await spindle.storage.exists(bakPath(chatId)))) ? eventCount(await spindle.storage.read(bakPath(chatId))) : -1;
+        }
+        // keep whichever is LONGER as the backup (the fullest history we've seen)
+        if (prevLen >= (c.bakCount ?? -1)) { await spindle.storage.write(bakPath(chatId), prev); c.bakCount = prevLen; }
+        // else: current write is shorter than the bak — leave the bak as the prior longest
+      } else if (spindle.storage.exists && (await spindle.storage.exists(path(chatId)))) {
+        // COLD PATH (clear/import/recover replaced the cache entry without a
+        // snapshot): fall back to the original read-from-disk guard so the
+        // shrink-protection semantics are byte-for-byte unchanged.
+        const diskPrev = await spindle.storage.read(path(chatId));
+        if (diskPrev) {
+          const prevLen2 = eventCount(diskPrev);
           const bakLen = (spindle.storage.exists && (await spindle.storage.exists(bakPath(chatId)))) ? eventCount(await spindle.storage.read(bakPath(chatId))) : -1;
-          // keep whichever is LONGER as the backup (the fullest history we've seen)
-          if (prevLen >= bakLen) await spindle.storage.write(bakPath(chatId), prev);
-          else if (c.log.events.length > bakLen) { /* current write is the longest — leave the bak as the prior longest */ }
+          if (prevLen2 >= bakLen) { await spindle.storage.write(bakPath(chatId), diskPrev); c.bakCount = prevLen2; }
         }
       }
     } catch { /* best effort */ }
-    await spindle.storage.write(path(chatId), JSON.stringify(c.log));
+    await spindle.storage.write(path(chatId), next);
+    // this write is now the on-disk truth: remember it for the next backup guard
+    c.serialized = next;
+    c.persistedCount = c.log.events.length;
+    c.dirty = false;
   });
+}
+
+/**
+ * Batched append: accumulate events in memory and mark the cache dirty WITHOUT
+ * writing to disk. A single fold appends several times (turn events, prose
+ * extraction, continuity flags); coalescing those into ONE flush at the end of
+ * the pass turns N full-log stringify+write cycles into 1. Callers that must be
+ * durable immediately still use append() (which flushes).
+ */
+export async function appendDeferred(chatId: string, events: VellumEvent[]): Promise<ChronicleState> {
+  if (!events.length) return loadState(chatId);
+  await loadLog(chatId);
+  const c = _cache.get(chatId)!;
+  if (c.readonly) { spindle.log?.warn?.('[vellum_engine] not appending to read-only ' + chatId); return loadState(chatId); }
+  c.log.events.push(...events);
+  c.dirty = true;
+  return loadState(chatId);
+}
+
+/** Flush any deferred (in-memory) appends for a chat to disk. No-op when clean. */
+export async function flush(chatId: string): Promise<void> {
+  const c = _cache.get(chatId);
+  if (c && c.dirty) await persist(chatId);
 }
 
 /** Count events in a raw stored envelope without full validation (for the
@@ -215,6 +306,7 @@ export async function truncateAfterTurn(chatId: string, turn: number): Promise<C
   c.log.events = kept;
   c.state = mergeDuplicates(reduce(kept)); // full re-reduce: truncation isn't a forward fold
   c.reduced = kept.length;
+  c.mergeSig = undefined; // force a re-merge on the next fold (state changed shape)
   await persist(chatId);
   return c.state;
 }

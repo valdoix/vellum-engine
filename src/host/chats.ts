@@ -3,6 +3,31 @@ import { type Result, Ok, Err, tryCatchAsync } from '../core/result.js';
 declare const spindle: any;
 
 /**
+ * Raw message fetch with IN-FLIGHT COALESCING. allTurnContents /
+ * allAssistantContents / chatNames each read the transcript via
+ * spindle.chat.getMessages; when they run concurrently (e.g. under Promise.all
+ * in a fold pass) this returns the SAME in-flight promise instead of issuing
+ * duplicate host round-trips. It deliberately does NOT cache the completed
+ * result: retry paths (latestAssistantContentRetry) must be able to re-read a
+ * freshly-committed message, so once a fetch settles the slot is cleared and the
+ * next call fetches anew. Retries are sequential (awaited with delays) so they
+ * never overlap and always get a fresh read — the commit-race fix is preserved.
+ */
+const _inflight = new Map<string, Promise<any[]>>();
+export function getRawMessages(chatId: string): Promise<any[]> {
+  const pending = _inflight.get(chatId);
+  if (pending) return pending;
+  const p = (async () => {
+    const msgs = await spindle.chat?.getMessages?.(chatId);
+    return Array.isArray(msgs) ? msgs : [];
+  })();
+  _inflight.set(chatId, p);
+  // clear the slot once settled so a later (post-commit) read isn't served stale
+  p.then(() => _inflight.delete(chatId), () => _inflight.delete(chatId));
+  return p;
+}
+
+/**
  * Chat + message host access. The regex-proof read path: stored message content
  * keeps the ‹vellum› block even when display regex hides it from the reader.
  */
@@ -55,7 +80,7 @@ export async function latestAssistantContentRetry(chatId: string, tries = 5, del
  * reconcile-folding: fold any assistant turns not yet captured. */
 export async function allAssistantContents(chatId: string): Promise<string[]> {
   try {
-    const msgs = await spindle.chat?.getMessages?.(chatId);
+    const msgs = await getRawMessages(chatId);
     if (!Array.isArray(msgs)) return [];
     const out: string[] = [];
     for (const m of msgs) {
@@ -88,7 +113,7 @@ export async function allAssistantContents(chatId: string): Promise<string[]> {
  */
 export async function allTurnContents(chatId: string): Promise<string[]> {
   try {
-    const msgs = await spindle.chat?.getMessages?.(chatId);
+    const msgs = await getRawMessages(chatId);
     if (!Array.isArray(msgs)) return [];
     const pickContent = (m: any): string => {
       let content = typeof m.content === 'string' ? m.content : '';
@@ -130,11 +155,44 @@ export function isPermDenied(e: unknown): boolean {
  * exposes these via `spindle.variables.chat` (the @-prefixed macro family),
  * which survives regens/swipes/edits — NOT `spindle.chats.getVar` (which does
  * not exist; calling it silently no-ops, which is why toggles reset each turn).
+ *
+ * WRITE-THROUGH CACHE: these vars are written ONLY by this extension's own
+ * dispatch handlers (every mutation goes through setChatVar below), so a
+ * write-through in-memory cache stays authoritative without a host round-trip on
+ * reads. The interceptor + broadcastState read ~10 vars each per turn; serving
+ * those from memory removes ~20 serialized host IPCs per turn. A short TTL is a
+ * safety net in case a future host path mutates them out-of-band, and the cache
+ * is cleared on CHAT_SWITCHED (see invalidateChatVars).
  */
+interface VarEntry { value: string; at: number }
+const _varCache = new Map<string, VarEntry>();
+const VAR_TTL = 30_000; // ms; re-probe the host at most this often per key
+function _vk(chatId: string, key: string): string { return chatId + '\u0000' + key; }
+
+/** Clear cached chat vars (all, or one chat). Call on CHAT_SWITCHED. */
+export function invalidateChatVars(chatId?: string): void {
+  if (!chatId) { _varCache.clear(); return; }
+  const prefix = chatId + '\u0000';
+  for (const k of _varCache.keys()) if (k.startsWith(prefix)) _varCache.delete(k);
+}
+
 export async function getChatVar(chatId: string, key: string): Promise<string> {
-  try { return String((await spindle.variables?.chat?.get?.(chatId, key)) ?? ''); } catch { return ''; }
+  const ck = _vk(chatId, key);
+  const hit = _varCache.get(ck);
+  if (hit && Date.now() - hit.at < VAR_TTL) return hit.value;
+  try {
+    const v = String((await spindle.variables?.chat?.get?.(chatId, key)) ?? '');
+    _varCache.set(ck, { value: v, at: Date.now() });
+    return v;
+  } catch {
+    // on a read error, prefer a (possibly stale) cached value over empty
+    return hit?.value ?? '';
+  }
 }
 export async function setChatVar(chatId: string, key: string, value: string): Promise<void> {
+  // write-through: update the cache immediately so subsequent reads this turn
+  // (and until the TTL) reflect the new value without a host round-trip.
+  _varCache.set(_vk(chatId, key), { value, at: Date.now() });
   try { await spindle.variables?.chat?.set?.(chatId, key, value); } catch { /* best effort */ }
 }
 
@@ -149,7 +207,7 @@ export async function chatNames(chatId: string, userId: string | null): Promise<
     out.char = String(chat?.character?.name || chat?.characterName || chat?.char_name || chat?.metadata?.character_name || chat?.name || '').trim();
     // fallback: last USER message author / first ASSISTANT author
     if (!out.user || !out.char) {
-      const msgs = await spindle.chat?.getMessages?.(chatId);
+      const msgs = await getRawMessages(chatId);
       if (Array.isArray(msgs)) {
         if (!out.user) { const um = [...msgs].reverse().find((m) => m?.role === 'user' && m?.name); out.user = String(um?.name || '').trim(); }
         if (!out.char) { const am = msgs.find((m) => m?.role === 'assistant' && m?.name); out.char = String(am?.name || '').trim(); }

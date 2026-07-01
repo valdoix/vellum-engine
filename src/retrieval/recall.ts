@@ -39,7 +39,7 @@ const CAPS = { structured: 1800, recall: 2600 };
 const TOTAL = 4400;
 
 // cache the index per chat so we don't rebuild every interceptor call
-interface IndexCache { sig: string; index: InvertedIndex }
+interface IndexCache { sig: string; version?: number; index: InvertedIndex }
 const _idx = new Map<string, IndexCache>();
 
 /**
@@ -48,29 +48,62 @@ const _idx = new Map<string, IndexCache>();
  * When the caller knows the log length it passes `version` (monotonic, bumps on
  * any append/edit); otherwise we fall back to a cheap content signature over the
  * items' ids + text lengths.
+ *
+ * Two-level gate (perf): the monotonic `version` is checked FIRST as an O(1)
+ * short-circuit — most turns hit it and skip collectItems entirely. When the
+ * version advanced we recompute the item-content signature (id + full text) and
+ * only rebuild the (tokenized) index if that ACTUALLY changed. Many appends are
+ * non-retrievable events (turn.fold / scene.set / bond.delta / continuity.flag)
+ * that bump the version without touching any retrievable item, so this avoids a
+ * needless re-tokenize while staying correctness-safe: the signature still moves
+ * on any knowledge/secret/memory/journal add, drop, OR in-place text edit.
  */
 function indexFor(chatId: string, state: ChronicleState, version?: number): InvertedIndex {
   const cached = _idx.get(chatId);
-  // hot path: a known log version → O(1) sig, skip re-tokenizing on a cache hit.
   if (version !== undefined) {
-    const sig = 'v' + version;
-    if (cached && cached.sig === sig) return cached.index;
-    const index = buildIndex(collectItems(state));
-    _idx.set(chatId, { sig, index });
+    // hot path: version unchanged since the last build → reuse, no work at all.
+    if (cached && cached.version === version) return cached.index;
+    // version advanced: does the retrievable-item content actually differ?
+    const items = collectItems(state);
+    const sig = itemsSig(items);
+    if (cached && cached.sig === sig) { cached.version = version; return cached.index; }
+    const index = buildIndex(items);
+    _idx.set(chatId, { sig, version, index });
     return index;
   }
   // fallback (no version, e.g. tests): cheap content signature over id+length.
   const items = collectItems(state);
-  const sig = hashStr(items.map((i) => i.id + ':' + i.text.length).join('|'));
+  const sig = itemsSig(items);
   if (cached && cached.sig === sig) return cached.index;
   const index = buildIndex(items);
   _idx.set(chatId, { sig, index });
   return index;
 }
 
+/** Content signature over retrievable items: id + FULL text. Moves on any
+ * add/drop/reorder AND on any in-place text edit — including one that keeps the
+ * same length — so it's exactly as safe as the previous "rebuild on every
+ * version bump" behavior (never a stale index), while still letting us skip the
+ * postings rebuild when nothing retrievable actually changed. */
+function itemsSig(items: Array<{ id: string; text: string }>): string {
+  let acc = '';
+  for (const i of items) acc += i.id + '\u0000' + i.text + '\u0001';
+  return hashStr(acc);
+}
+
 export function invalidateIndex(chatId?: string): void {
   if (chatId) _idx.delete(chatId);
   else _idx.clear();
+}
+
+/**
+ * Shared inverted index for a chat — the SAME cache the interceptor's recall
+ * uses. Exposed so background jobs (e.g. tree precompute) reuse the built,
+ * tokenized postings instead of constructing a parallel index per call. Honors
+ * the two-level version/content gate, so a warm cache is returned with no work.
+ */
+export function sharedIndex(chatId: string, state: ChronicleState, version?: number): InvertedIndex {
+  return indexFor(chatId, state, version);
 }
 
 /** Authoritative structured block: present/active cast + their bonds, verbatim. */
@@ -245,10 +278,23 @@ export async function buildInjectionHybrid(
     }
   }
 
+  // Map a host-embedding hit's text back to our item id. Preserves the ORIGINAL
+  // first-match semantics exactly (equality on the trimmed lowercase text, OR a
+  // prefix-substring on the full lowercase text; first item in index order wins)
+  // but normalizes each item's text ONCE (lazily, on the first hit) rather than
+  // re-lowercasing every item for each of the ~20 vector hits (the old
+  // O(hits × items × strlen) cost). Lazy so the common embeddings-OFF path — where
+  // vectorSearch never calls this — pays nothing.
+  let normItems: Array<{ id: string; eq: string; low: string }> | null = null;
   const contentToId = (text: string): string | null => {
+    if (!normItems) {
+      normItems = [];
+      for (const it of index.byId.values()) { const low = it.text.toLowerCase(); normItems.push({ id: it.id, eq: low.trim(), low }); }
+    }
     const t = text.trim().toLowerCase();
-    for (const it of index.byId.values()) {
-      if (it.text.trim().toLowerCase() === t || it.text.toLowerCase().includes(t.slice(0, 40))) return it.id;
+    const prefix = t.slice(0, 40);
+    for (const it of normItems) {
+      if (it.eq === t || it.low.includes(prefix)) return it.id;
     }
     return null;
   };
