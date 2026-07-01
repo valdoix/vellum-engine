@@ -215,7 +215,7 @@ async function readCalendar(chatId: string): Promise<string> {
 async function calendarInjection(chatId: string, day: number): Promise<string> {
   const cal = await readCalendar(chatId);
   if (!cal) return '';
-  return `[CALENDAR] The current day (Day ${day}) falls within: ${cal}. Reflect the season/occasion in the world where it fits; never narrate the calendar as a mechanic.`;
+  return `[CALENDAR] The current day (Day ${day}) falls within: ${cal}. Reflect the season/occasion (and year, if named) in the world where it fits; never narrate the calendar as a mechanic.`;
 }
 
 // --- Hard limits: absolute per-chat content boundaries. Injected FIRST (highest

@@ -32,7 +32,7 @@
       "role": "system",
       "position": "pre_history",
       "enabled": true,
-      "content": "[VELLUM — SESSION] Hold every response: POV {{var::pov}} | Length {{var::length}} | Tense {{var::tense}} | Stakes {{var::stakes}} | Genre {{var::genre}} | Distance {{var::distance}} | Pacing {{var::pacing}} | Dialogue {{var::dialogue}} | Romance {{var::romance}} | World {{var::disposition}}. Agency: {{var::agency}}",
+      "content": "[VELLUM — SESSION] Hold every response: POV {{var::pov}} | Length {{var::length}} | Tense {{var::tense}} | Stakes {{var::stakes}} | Genre {{var::genre}}{{if::{{eq::{{var::genre2}}::none}}}}{{else}}+{{var::genre2}}{{/if}} | Distance {{var::distance}} | Pacing {{var::pacing}} | Dialogue {{var::dialogue}} | Romance {{var::romance}} | World {{var::disposition}}. Agency: {{var::agency}}",
       "variables": [
         {
           "id": "var_pov",
@@ -341,6 +341,11 @@
               "id": "panoramic",
               "label": "Panoramic",
               "value": "PANORAMIC - a wide, scene-scale lens; the moment set against the larger place and moment, sweeping rather than tight. Use sparingly for scope."
+            },
+            {
+              "id": "adaptive",
+              "label": "Adaptive",
+              "value": "ADAPTIVE - match the camera to the beat: close and intimate for interiority and quiet turns, wider and more cinematic for action or spectacle. Let the moment decide the distance."
             }
           ]
         },
@@ -366,6 +371,71 @@
               "id": "propulsive",
               "label": "Propulsive",
               "value": "PROPULSIVE - momentum first; cut hard between beats, skip the dead transitions, keep the scene moving. Never at the cost of clarity."
+            },
+            {
+              "id": "adaptive",
+              "label": "Adaptive",
+              "value": "ADAPTIVE - match the rhythm to the beat: linger and slow on the charged, sensory, or emotional moment; cut hard and propel through routine, travel, and connective tissue. Let the scene set its own tempo."
+            }
+          ]
+        },
+        {
+          "id": "var_genre2",
+          "name": "genre2",
+          "type": "select",
+          "label": "Secondary Genre",
+          "description": "A lighter genre inflection layered UNDER the primary (e.g. romantic + horror). Off = none. It colors; it never co-drives.",
+          "defaultValue": "off",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off (character drama)",
+              "value": "none"
+            },
+            {
+              "id": "romance",
+              "label": "Romance",
+              "value": "ROMANCE - the relationship IS the plot. Salience: attraction, obstacle, the gap between what's felt and what's said, the cost of closeness. Pacing: push and pull, advance and retreat, earned beats not instant ones. Promise the reader emotional payoff; deny the easy version of it."
+            },
+            {
+              "id": "mystery",
+              "label": "Mystery",
+              "value": "MYSTERY / DETECTIVE - a question demanding an answer, played fair. Salience: clues, inconsistencies, alibis, what's present and what's conspicuously absent; plant the truth in plain sight, weighted no more than the red herrings. Pacing: question -> complication -> partial reveal -> turn. Promise a solution that was always solvable; never cheat it with withheld evidence."
+            },
+            {
+              "id": "horror",
+              "label": "Horror",
+              "value": "HORROR - dread is the engine and the threat is REAL. Salience: wrongness, thresholds, the body, the thing half-seen, the violation of what should be safe. Pacing: tension coils, releases, coils tighter; the quiet before is part of the scare. Promise that the fear pays off - never a fake-out that costs nothing. Restraint and implication frighten more than gore (use NSFL for the graphic end)."
+            },
+            {
+              "id": "thriller",
+              "label": "Thriller",
+              "value": "THRILLER / ACTION - momentum and a tightening clock. Salience: stakes, time pressure, competence under strain, the next move and its risk. Pacing: escalate, complicate, rarely let the reader breathe; cut on action. Promise consequence to every choice and a threat that keeps closing."
+            },
+            {
+              "id": "fantasy",
+              "label": "Fantasy",
+              "value": "FANTASY - the marvelous is real and lawful. Salience: how magic/the world WORKS and what it COSTS, the texture of a different order of things, wonder grounded in rules. Pacing: discovery braided with consequence. Promise internal consistency; never deus-ex a problem the rules can't support."
+            },
+            {
+              "id": "scifi",
+              "label": "Sci-Fi",
+              "value": "SCIENCE FICTION - one big idea, followed honestly to its consequences. Salience: the novum (the new thing) and how it reshapes people and society, plausible extrapolation, the human cost of the change. Pacing: implication unfolding. Promise rigor - the idea has rules and follows them."
+            },
+            {
+              "id": "slice",
+              "label": "Slice-of-Life",
+              "value": "SLICE-OF-LIFE - texture over plot; the small and the true. Salience: ordinary moments rendered precisely, routine, the quiet weight of the everyday, character revealed through the mundane. Pacing: unhurried, low-stakes, no manufactured crisis. Promise authenticity, not events."
+            },
+            {
+              "id": "adventure",
+              "label": "Adventure",
+              "value": "ADVENTURE / QUEST - journey, discovery, escalating obstacle. Salience: the goal and the road to it, new places and faces, ingenuity against the next barrier, momentum forward. Pacing: setpiece to setpiece with breath between. Promise forward motion and earned discovery."
+            },
+            {
+              "id": "comedy",
+              "label": "Comedy",
+              "value": "COMEDY - timing, escalation, the deflating turn. Salience: incongruity, the gap between dignity and reality, misunderstanding compounding, the perfect wrong moment. Pacing: setup -> escalation -> payoff/deflation; let a bit build then puncture it. Promise the laugh through situation and character, not winking at the reader."
             }
           ]
         }
@@ -423,7 +493,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-core",
-      "content": "{{if::{{eq::{{var::genre}}::none}}}}{{else}}[GENRE] This story's grammar - the conventions it honors, what the narration should NOTICE and weight, and its pacing shape. Layer it on top of everything else: it sets emphasis and convention, and NEVER overrides character truth, the limited-knowledge law, stakes, disposition, romance pace, or {{user}}'s agency. Honor the genre's promises to the reader. Use its furniture and tropes FRESHLY - earn them through character; subvert the tired beats; never let a trope stand in for a real choice, and never perform the genre as pastiche or wink at it. The genre shows in what happens and what's emphasized, never in narration naming it.\n{{var::genre}}{{/if}}",
+      "content": "{{if::{{eq::{{var::genre}}::none}}}}{{else}}[GENRE] This story's grammar - the conventions it honors, what the narration should NOTICE and weight, and its pacing shape. Layer it on top of everything else: it sets emphasis and convention, and NEVER overrides character truth, the limited-knowledge law, stakes, disposition, romance pace, or {{user}}'s agency. Honor the genre's promises to the reader. Use its furniture and tropes FRESHLY - earn them through character; subvert the tired beats; never let a trope stand in for a real choice, and never perform the genre as pastiche or wink at it. The genre shows in what happens and what's emphasized, never in narration naming it.\n{{var::genre}}{{if::{{eq::{{var::genre2}}::none}}}}{{else}}{{if::{{eq::{{var::genre2}}::{{var::genre}}}}}}{{else}}\nSECONDARY GENRE (a lighter inflection layered UNDER the primary - it colors mood and detail, never co-drives the plot or equals the primary's weight): {{var::genre2}}{{/if}}{{/if}}{{/if}}",
       "variables": []
     },
     {
@@ -573,7 +643,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-world",
-      "content": "{{if::{{var::time_continuity}}}}[TIME] The clock is real and it only moves forward. Track it in the <vellum> block's scene.time (and day when it rolls over); never reset or contradict it. If it was dusk last turn it is later than dusk now — night doesn't un-fall, a wound doesn't un-heal, a journey half-walked isn't back at the start.\n- ADVANCE BY ACTION, NOT BY TURN: let elapsed time match what was actually done. A line of dialogue or a held glance spends minutes; a careful search or a tense negotiation, the better part of an hour; travel, training, a meal, a ritual, hours; sleep or a long road, skip to the next moment that matters. Default to the SHORT end — a single charged exchange is not an afternoon — and let stacked actions add up.\n- TIME-OF-DAY HAS WEIGHT: light, temperature, noise, who is awake, what is open, how bodies feel (hunger, fatigue, the cold of late night) all follow the hour. Meals, sleep, shifts, tides, and weather drift across HOURS, not messages — don't let it stay golden afternoon for ten turns of conversation.\n- TIME SKIPS, GOVERNED: when an action would eat real time (a night's sleep, a day's ride, a long wait), you may resolve the skip and open on the other side of it — UNLESS the interval holds a choice {{user}} would want, a moment another character could seize, or a beat worth playing. When unsure whether {{user}} would want to act in the gap, do not skip - end before it and let them decide, rather than fast-forwarding through their agency.\n- OFF-SCREEN TIME RUNS TOO: the same hours pass for everyone. Absent characters in scene.parallel act, travel, rest, scheme, and heal on their own clock; an errand begun two scenes ago can be finished when you next cut to them, and news travels at a believable speed. Nothing off-screen freezes while {{user}} isn't looking.\n- NO TELEPORTING IN TIME OR SPACE: distance still costs minutes and a body can't be in two places without crossing the gap. Don't collapse a journey to nothing or stretch a heartbeat into an hour; let duration stay honest to the world.{{/if}}",
+      "content": "{{if::{{var::time_continuity}}}}[TIME - INVIOLABLE] The clock is real and it only moves forward; this is a hard rule, never overridden by pacing or drama. Never contradict an established day or time-of-day - if it was night, it stays night until hours genuinely pass, and the day never resets or runs backward. Track it in the <vellum> block's scene.time (and day when it rolls over); never reset or contradict it. If it was dusk last turn it is later than dusk now — night doesn't un-fall, a wound doesn't un-heal, a journey half-walked isn't back at the start.\n- ADVANCE BY ACTION, NOT BY TURN: let elapsed time match what was actually done. A line of dialogue or a held glance spends minutes; a careful search or a tense negotiation, the better part of an hour; travel, training, a meal, a ritual, hours; sleep or a long road, skip to the next moment that matters. Default to the SHORT end — a single charged exchange is not an afternoon — and let stacked actions add up.\n- TIME-OF-DAY HAS WEIGHT: light, temperature, noise, who is awake, what is open, how bodies feel (hunger, fatigue, the cold of late night) all follow the hour. Meals, sleep, shifts, tides, and weather drift across HOURS, not messages — don't let it stay golden afternoon for ten turns of conversation.\n- TIME SKIPS, GOVERNED: when an action would eat real time (a night's sleep, a day's ride, a long wait), you may resolve the skip and open on the other side of it — UNLESS the interval holds a choice {{user}} would want, a moment another character could seize, or a beat worth playing. When unsure whether {{user}} would want to act in the gap, do not skip - end before it and let them decide, rather than fast-forwarding through their agency.\n- OFF-SCREEN TIME RUNS TOO: the same hours pass for everyone. Absent characters in scene.parallel act, travel, rest, scheme, and heal on their own clock; an errand begun two scenes ago can be finished when you next cut to them, and news travels at a believable speed. Nothing off-screen freezes while {{user}} isn't looking.\n- NO TELEPORTING IN TIME OR SPACE: distance still costs minutes and a body can't be in two places without crossing the gap. Don't collapse a journey to nothing or stretch a heartbeat into an hour; let duration stay honest to the world.{{/if}}",
       "variables": [
         {
           "id": "var_time_continuity",
@@ -859,7 +929,7 @@
       "position": "post_history",
       "enabled": true,
       "group": "v2-cat-engine",
-      "content": "{{if::{{var::reverie}}}}[REVERIE — DO THIS FIRST] Begin your reply with a <reverie>...</reverie> block, then the prose. The reverie is hidden from the reader and never re-enters context, so think freely here and nowhere else.\n[CONFIG] {{getvar::vl_active}} | phase {{switch::true::{{lt::{{messageCount}}::16}}::OPENING (establish, low pressure)::{{lt::{{messageCount}}::51}}::RISING (let threads build)::{{lt::{{messageCount}}::151}}::CRUISING (pay things off, complicate)::{{lt::{{messageCount}}::500}}::MARATHON (escalate, honor long arcs)::true::ENDURANCE (deep continuity, no resets)}}{{if::{{var::augury}}}}\n[AUGURY — roll the lots, then obey them silently] {{.pressure = {{roll::1d20}}}}{{.shape = {{roll::1d10}}}}{{.cost = {{roll::1d8}}}}{{.omen = {{roll::1d100}}}}\n- PRESSURE {{.pressure}}/20: {{switch::{{ceil::{{calc::{{.pressure}}/5}}}}::1::STILL — withhold event, let the beat breathe::2::TURNING — one quiet pivot::3::CHARGED — pressure surfaces now::4::ECLIPSED — something breaks, arrives, or is taken}}{{if::{{and::{{gte::{{.pressure}}::18}}::{{gt::{{getchatvar::vl_cd_eclipse}}::0}}}}}} (eclipse cooling down → play it as CHARGED instead){{/if}}\n- SHAPE {{.shape}}/10: open {{switch::{{.shape}}::1::on a body deciding before it speaks::2::on a threshold narrowing::3::mid-gesture, no preamble::4::on a sound out of place::5::in the middle of an argument already lost::6::on what someone is hiding with their hands::7::on the cost of the last beat still settling::8::on an absence noticed::9::on a small ugly true detail::10::wherever the silence is loudest}}\n- COST {{.cost}}/8: this beat SPENDS {{switch::{{.cost}}::1::time::2::trust::3::safety::4::a truth that can't be unsaid::5::leverage::6::face::7::a door that won't reopen::8::nothing — a gift, and gifts are suspicious}}\n- OMEN: {{if::{{gte::{{.omen}}::92}}}}⚠ {{pick::a forgotten name returns with teeth::an object refuses to stay lost::someone arrives a scene too early::an old debt is called in::the plan meets weather it didn't account for}}{{else}}none this turn{{/if}}{{if::{{gte::{{.pressure}}::18}}}}{{setchatvar::vl_cd_eclipse::3}}{{else}}{{if::{{gt::{{getchatvar::vl_cd_eclipse}}::0}}}}{{decchatvar::vl_cd_eclipse}}{{/if}}{{/if}}{{/if}}{{if::{{var::marginalia}}}}\n[MARGINALIA — doodle three, keep one] anchors: {{pick::spindle::alidade::tallow::brine::hinge::gilt::ledger::ash::quill::salt::rushlight::vellum-scrap::iron::thread}} / {{pick::an unpaid debt::a wrong name kept::a habit that won't heal::a borrowed coat::a letter never sent::a promise going stale}} / {{pick::too-bright::off-key::a beat too slow::scoured::overripe::askew}}. Sketch three directions for this beat that each use all three; take the one that serves the scene's truth; bin the other two. The anchors never appear literally — they only push you off your first instinct.{{/if}}{{if::{{var::palimpsest}}}}\n[PALIMPSEST] When a character's belief is proven wrong this turn, the old belief doesn't vanish - it scars. Log it in ext.scars and let it resurface later as doubt or flinch under stress, never as fact. Honor any scar already on record in the chronicle.{{/if}}\n{{var::reverie_depth}}\nREGISTER WALL: reverie is your private workshop and speaks workshop language; the prose speaks none of it. Nothing named in here may surface as narration - not the lots, the pressure states (still/turning/charged/eclipsed), the shape/cost/omen labels or the cost-words (trust/leverage/face as bookkeeping), not the wrong first reaction, goal/fear, dramatic irony, scars, or PLAN. Spend the cost by showing it in the scene, never by naming it. Plan in craft terms; write in story terms only. ANTI-DRAFT: reverie is NOTES, never prose - no drafted lines, no 'Option A/B', no writing the scene twice. LENGTH GATE: if the beat would land under ~85% of the {{var::length}} target, expand the SAME moment with more texture; never fast-forward to fill space. Plan once, close the tag, write the scene once. PLAN THE STATE (plain notes only): the FINAL line inside your <reverie> is `STATE: ` followed by the deltas you intend (turn number, plus any scene/bond/knowledge/present change - or just the turn). This is a PLAIN-TEXT NOTE, never a fenced block - do NOT write a <vellum> tag or a code fence inside the reverie. The real <vellum> block is emitted ONCE, AFTER the prose, by turning that note into fenced JSON. A <vellum> block placed inside the reverie is WRONG and does NOT count - it must come after the prose or the turn is incomplete. Your turn has THREE required parts in order: this <reverie> (ending in the STATE line), then the prose, then the <vellum> block. Your reply MUST open with the literal characters '<reverie>' and MUST end with a closed </vellum> block.{{/if}}",
+      "content": "{{if::{{var::reverie}}}}[REVERIE — DO THIS FIRST] Begin your reply with a <reverie>...</reverie> block, then the prose. The reverie is hidden from the reader and never re-enters context, so think freely here and nowhere else.\n[CONFIG] {{getvar::vl_active}} | phase {{switch::true::{{lt::{{messageCount}}::16}}::OPENING (establish, low pressure)::{{lt::{{messageCount}}::51}}::RISING (let threads build)::{{lt::{{messageCount}}::151}}::CRUISING (pay things off, complicate)::{{lt::{{messageCount}}::500}}::MARATHON (escalate, honor long arcs)::true::ENDURANCE (deep continuity, no resets)}}{{if::{{var::augury}}}}\n[AUGURY — roll the lots, then obey them silently] {{.pressure = {{roll::1d20}}}}{{.shape = {{roll::1d10}}}}{{.cost = {{roll::1d8}}}}{{.omen = {{roll::1d100}}}}\n- PRESSURE {{.pressure}}/20: {{switch::{{ceil::{{calc::{{.pressure}}/5}}}}::1::STILL — withhold event, let the beat breathe::2::TURNING — one quiet pivot::3::CHARGED — pressure surfaces now::4::ECLIPSED — something breaks, arrives, or is taken}}{{if::{{and::{{gte::{{.pressure}}::18}}::{{gt::{{getchatvar::vl_cd_eclipse}}::0}}}}}} (eclipse cooling down → play it as CHARGED instead){{/if}}\n- SHAPE {{.shape}}/10: open {{switch::{{.shape}}::1::on a body deciding before it speaks::2::on a threshold narrowing::3::mid-gesture, no preamble::4::on a sound out of place::5::in the middle of an argument already lost::6::on what someone is hiding with their hands::7::on the cost of the last beat still settling::8::on an absence noticed::9::on a small ugly true detail::10::wherever the silence is loudest}}\n- COST {{.cost}}/8: this beat SPENDS {{switch::{{.cost}}::1::time::2::trust::3::safety::4::a truth that can't be unsaid::5::leverage::6::face::7::a door that won't reopen::8::nothing — a gift, and gifts are suspicious}}\n- OMEN: {{if::{{gte::{{.omen}}::92}}}}⚠ {{pick::a forgotten name returns with teeth::an object refuses to stay lost::someone arrives a scene too early::an old debt is called in::the plan meets weather it didn't account for}}{{else}}none this turn{{/if}}{{if::{{gte::{{.pressure}}::18}}}}{{setchatvar::vl_cd_eclipse::3}}{{else}}{{if::{{gt::{{getchatvar::vl_cd_eclipse}}::0}}}}{{decchatvar::vl_cd_eclipse}}{{/if}}{{/if}}{{/if}}{{if::{{var::marginalia}}}}\n[MARGINALIA — doodle three, keep one] anchors: {{pick::spindle::alidade::tallow::brine::hinge::gilt::ledger::ash::quill::salt::rushlight::vellum-scrap::iron::thread}} / {{pick::an unpaid debt::a wrong name kept::a habit that won't heal::a borrowed coat::a letter never sent::a promise going stale}} / {{pick::too-bright::off-key::a beat too slow::scoured::overripe::askew}}. Sketch three directions for this beat that each use all three; take the one that serves the scene's truth; bin the other two. The anchors never appear literally — they only push you off your first instinct.{{/if}}{{if::{{var::palimpsest}}}}\n[PALIMPSEST] When a character's belief is proven wrong this turn, the old belief doesn't vanish - it scars. Log it in ext.scars and let it resurface later as doubt or flinch under stress, never as fact. Honor any scar already on record in the chronicle.{{/if}}\n{{var::reverie_depth}}\nREGISTER WALL: reverie is your private workshop and speaks workshop language; the prose speaks none of it. Nothing named in here may surface as narration - not the lots, the pressure states (still/turning/charged/eclipsed), the shape/cost/omen labels or the cost-words (trust/leverage/face as bookkeeping), not the wrong first reaction, goal/fear, dramatic irony, scars, or PLAN. Spend the cost by showing it in the scene, never by naming it. Plan in craft terms; write in story terms only. CLOCK: note the current day + time-of-day and how much time this beat plausibly spans; advance scene.time/day accordingly and never reset them. ANTI-DRAFT: reverie is NOTES, never prose - no drafted lines, no 'Option A/B', no writing the scene twice. LENGTH GATE: if the beat would land under ~85% of the {{var::length}} target, expand the SAME moment with more texture; never fast-forward to fill space. Plan once, close the tag, write the scene once. PLAN THE STATE (plain notes only): the FINAL line inside your <reverie> is `STATE: ` followed by the deltas you intend (turn number, plus any scene/bond/knowledge/present change - or just the turn). This is a PLAIN-TEXT NOTE, never a fenced block - do NOT write a <vellum> tag or a code fence inside the reverie. The real <vellum> block is emitted ONCE, AFTER the prose, by turning that note into fenced JSON. A <vellum> block placed inside the reverie is WRONG and does NOT count - it must come after the prose or the turn is incomplete. Your turn has THREE required parts in order: this <reverie> (ending in the STATE line), then the prose, then the <vellum> block. Your reply MUST open with the literal characters '<reverie>' and MUST end with a closed </vellum> block.{{/if}}",
       "variables": [
         {
           "id": "var_reverie",
@@ -1138,6 +1208,25 @@
           "type": "switch",
           "label": "VTK Spectacle (broadsheet / tarot / playbill)",
           "description": "Allow rare diegetic spectacle cards for delight (needs the card library on)",
+          "defaultValue": 0
+        }
+      ]
+    },
+    {
+      "id": "v2-dialogue-color",
+      "name": "Colored Dialogue (visual)",
+      "role": "system",
+      "position": "pre_history",
+      "enabled": false,
+      "group": "v2-cat-visual",
+      "content": "{{if::{{var::dialogue_color}}}}[COLORED DIALOGUE] Wrap each character's SPOKEN lines in a speaker tag so the display can tint them: [spk=Name]\"their spoken line\"[/spk]. Tag only actual dialogue (not narration or thought), use the character's real name in the tag, and keep the quotes inside. Each distinct speaker renders in a distinct color, so conversations are easy to follow. If the render can't color it, the tag is stripped and the line reads normally.{{/if}}",
+      "variables": [
+        {
+          "id": "var_dialogue_color",
+          "name": "dialogue_color",
+          "type": "switch",
+          "label": "Colored dialogue",
+          "description": "Tint each speaker’s dialogue a distinct color (needs the matching display regex; HTML-render targets only). Off by default.",
           "defaultValue": 0
         }
       ]
@@ -1807,6 +1896,56 @@
         ],
         "disabled": true,
         "sort_order": 18
+      },
+      {
+        "folder": "VELLUM II",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "metadata": {},
+        "script_id": "vellum2-spk-display",
+        "name": "VELLUM II ✧ Colored dialogue (display)",
+        "description": "Renders [spk=Name]\"...\"[/spk] dialogue tags as color-tinted speech (display only). Off unless the Colored Dialogue block is on.",
+        "find_regex": "\\[spk=([^\\]]{0,40})\\]([\\s\\S]*?)\\[/spk\\]",
+        "replace_string": "<span class=\"vll-spk vll-spk-$1\" title=\"$1\">$2</span>",
+        "target": [
+          "display"
+        ],
+        "disabled": true,
+        "sort_order": 30
+      },
+      {
+        "folder": "VELLUM II",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "metadata": {},
+        "script_id": "vellum2-spk-strip",
+        "name": "VELLUM II ✧ Colored dialogue (context strip)",
+        "description": "Strips [spk=...] / [/spk] dialogue tags from the context sent to the model (keeps the quoted line).",
+        "find_regex": "\\[/?spk(?:=[^\\]]{0,40})?\\]",
+        "replace_string": "",
+        "target": [
+          "prompt"
+        ],
+        "disabled": true,
+        "sort_order": 31
       }
     ]
   }

@@ -111,7 +111,7 @@ const QOL = [
 /** Open the Customize (theme) panel as a modal-style overlay. */
 function openCalendarModal(ctx: Ctx): void {
   formModal('World Calendar', [
-    { key: 'calendar', label: 'Current epoch / season / occasion (blank = none)', type: 'text', value: _calendar, placeholder: 'the third day of the harvest festival' },
+    { key: 'calendar', label: 'Current epoch / season / occasion (blank = none)', type: 'text', value: _calendar, placeholder: 'the third day of the harvest festival, year 312' },
   ], (o) => {
     _calendar = (o.calendar ?? '').trim();
     ctx.sendToBackend({ type: 'vellum_set_calendar', calendar: _calendar });

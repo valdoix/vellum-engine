@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, CastCard, Faction } from '../../domain/types.js';
-import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, nameOf, autoNameMode, setAutoNameMode } from '../format.js';
+import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, nameOf, autoNameMode, setAutoNameMode, warmCastColors } from '../format.js';
 import { cmd, paginate, pagerHtml, send, setPage, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { traitArc, dormantTraits } from '../../domain/drift.js';
@@ -66,6 +66,7 @@ export const castTab: Component<ChronicleState> = {
   },
   render(s) {
     _state = s;
+    warmCastColors(Object.keys(s.cast));
     return castSection(s) + factionSection(s);
   },
   mount(host) {
