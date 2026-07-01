@@ -156,6 +156,16 @@
               "id": "contemporary",
               "label": "Contemporary",
               "value": "CLEAN CONTEMPORARY. Transparent, immediate, grounded prose; minimal ornament; a natural modern voice and rhythm. Emotional clarity without flourish. The plain right word over the fancy one, always."
+            },
+            {
+              "id": "random",
+              "label": "Random (per turn)",
+              "value": "RANDOM REGISTER (a different house style this turn - commit to it fully): {{pick::LITERARY FICTION. Measured, controlled sentences of deliberately varied length; deep psychological interiority; metaphor used sparingly and only when earned. Favor the precise concrete image over abstraction - the intelligence is in what gets noticed and what's left out.::GOTHIC-ROMANTIC. Long, sinuous, brooding sentences; the setting saturated with dread and desire, architecture and weather pressing in on the body; ornate diction with an archaic tinge, held under control. Beauty and decay in the same breath; the line between longing and fear kept thin.::WILDEAN. Polished, epigrammatic, paradoxical - the surface gleams. Dialogue is a duel of wit; the narration deals in elegant irony and the cutting aside; every line could be quoted. Economy and poise above all. Wit must wound or reveal, never merely decorate.::HARDBOILED NOIR. Short, blunt, declarative sentences. Concrete sensory grit; dry understatement; cynicism worn like a coat. NEVER name the feeling - let the gesture, the object, or the wisecrack carry it. Dialogue clipped and loaded. When in doubt, cut the sentence in half.::SPARE MINIMALISM (Hemingway / Carver). Extreme economy: short plain declaratives, common words, almost no metaphor. The weight sits in the white space and the omission - what's left unsaid is the point. Resist every adjective you don't need. Trust the reader completely.::LUSH MAXIMALISM. Long flowing cadences, dense sensory layering, opulent imagery, rhythm that rolls and gathers. Sensual and immersive - and yet every ornament earns its place. Rich, never purple: control the excess, prune the dead flourish.::CLEAN CONTEMPORARY. Transparent, immediate, grounded prose; minimal ornament; a natural modern voice and rhythm. Emotional clarity without flourish. The plain right word over the fancy one, always.}}"
+            },
+            {
+              "id": "loom",
+              "label": "Loom Style only",
+              "value": ""
             }
           ]
         },
@@ -329,7 +339,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-core",
-      "content": "[PROSE REGISTER] This is the HOUSE STYLE for every sentence you write. COMMIT to it fully and hold it the whole scene - a reader should be able to name the style from the first two sentences, and it must never relax into a generic 'nice prose' default. It governs voice, sentence shape, punctuation, vocabulary, and how much ornament is allowed. It refines the craft floor above (it never overrides show-don't-tell, the anti-slop tells, or the limited-knowledge law), and a character's own dialogue voice still overrides it in their speech.\nWrite in this register now:\n{{var::prose}}\nENACT it, never describe it. Never narrate your own prose-making or name your own devices (don't write 'three adverbs stacked', 'the wit assembles itself', 'an epigram formed', 'the metaphor', 'the irony of'), and never gesture at a line instead of writing it ('something about how...', 'something epigrammatic and perfectly designed to...') - if a witty or cutting line belongs there, WRITE the actual line. The style shows in the sentences themselves, never in commentary about them.",
+      "content": "{{if::{{eq::{{var::prose}}::}}}}{{else}}[PROSE REGISTER] This is the HOUSE STYLE for every sentence you write. COMMIT to it fully and hold it the whole scene - a reader should be able to name the style from the first two sentences, and it must never relax into a generic 'nice prose' default. It governs voice, sentence shape, punctuation, vocabulary, and how much ornament is allowed. It refines the craft floor above (it never overrides show-don't-tell, the anti-slop tells, or the limited-knowledge law), and a character's own dialogue voice still overrides it in their speech.\nWrite in this register now:\n{{var::prose}}\nENACT it, never describe it. Never narrate your own prose-making or name your own devices (don't write 'three adverbs stacked', 'the wit assembles itself', 'an epigram formed', 'the metaphor', 'the irony of'), and never gesture at a line instead of writing it ('something about how...', 'something epigrammatic and perfectly designed to...') - if a witty or cutting line belongs there, WRITE the actual line. The style shows in the sentences themselves, never in commentary about them.{{/if}}",
       "variables": []
     },
     {

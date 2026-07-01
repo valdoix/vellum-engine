@@ -670,6 +670,10 @@ export function setup(ctx: Ctx): () => void {
         setQolBusy('rebuild', false);
         const what = p.messagesOnly ? (p.turns ? `Captured ${p.turns} missing message memor${p.turns === 1 ? 'y' : 'ies'}` : 'No missing message memories \u2014 nothing to capture') : `Chronicle rebuilt from ${p.turns ?? 0} turn(s)`;
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `${what}.` : `Rebuild failed: ${p.reason ?? 'error'}`);
+      } else if (p?.type === 'vellum_next_scene_done' || p?.type === 'vellum_next_scene_state') {
+        setDirectorNextScene('next' in p ? p.next : null);
+        try { refreshUI(); } catch { /* best effort */ }
+        if (p.type === 'vellum_next_scene_done') notify(ctx, 'success', p.next ? 'Next scene set.' : 'Next scene cleared.');
       } else if (p?.type === 'vellum_hide_done') {
         setQolBusy('hide', false);
         _hideOn = !!p.enabled;
