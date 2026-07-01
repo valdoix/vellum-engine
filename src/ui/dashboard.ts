@@ -1,5 +1,6 @@
 import type { ChronicleState, PresentChar, Relation } from '../domain/types.js';
 import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml, bondMeter, initials } from './format.js';
+import { storyStats } from '../domain/stats.js';
 
 /**
  * The floating-window DASHBOARD — a single at-a-glance scene panel (distinct
@@ -22,17 +23,18 @@ const SECTIONS: Record<SectionId, (s: ChronicleState) => string> = {
   threads: threadsBlock,
   parallel: parallelBlock,
   recent: recentBlock,
+  stats: statsBlock,
 };
 
 const SECTION_LABEL: Record<SectionId, string> = {
   status: 'Status', present: 'Present', tension: 'Tension', relations: 'Relations',
-  threads: 'Threads', parallel: 'Parallel', recent: 'Latest',
+  threads: 'Threads', parallel: 'Parallel', recent: 'Latest', stats: 'Stats',
 };
 
 // dock glyphs for the phone 'switch' layout (one section at a time)
 const SECTION_GLYPH: Record<SectionId, string> = {
   status: '\u2630', present: '\u25C9', tension: '\u25D0', relations: '\u269C',
-  threads: '\u22C8', parallel: '\u2748', recent: '\u2606',
+  threads: '\u22C8', parallel: '\u2748', recent: '\u2606', stats: '\u2211',
 };
 // HUD telemetry footer text (recall mode + last injection size), set by app.ts.
 // Rendered always but CSS-hidden unless futuristic chrome — keeps dashboard pure.
@@ -222,6 +224,16 @@ function recentBlock(s: ChronicleState): string {
   if (ch) parts.push(`<div class="vld-rec vld-rec--shift"><span class="vld-rec-k">shift</span>${ch}</div>`);
   if (!parts.length) return '';
   return `<div class="vld-sec"><div class="vld-h">Latest</div>${parts.join('')}</div>`;
+}
+
+/** Story stats — a light "story so far" readout (opt-in section). */
+function statsBlock(s: ChronicleState): string {
+  const st = storyStats(s);
+  const chip = (label: string, val: string | number): string => `<span class="vld-stat"><span class="vld-stat-v">${esc(String(val))}</span><span class="vld-stat-k">${esc(label)}</span></span>`;
+  let body = `<div class="vld-stats">${chip('turns', st.turns)}${chip('days', st.days)}${chip('cast', st.cast)}${chip('bonds', st.bonds)}${chip('chapters', st.chapters)}</div>`;
+  if (st.topCharacters.length) body += `<div class="vld-stat-row"><span class="vld-stat-lbl">most connected</span> ${st.topCharacters.map((c) => `${esc(c.name)} (${c.bonds})`).join(', ')}</div>`;
+  if (st.biggestSwings.length) body += `<div class="vld-stat-row"><span class="vld-stat-lbl">biggest swings</span> ${st.biggestSwings.slice(0, 3).map((x) => `${esc(x.pair)} (${x.delta})`).join(', ')}</div>`;
+  return `<div class="vld-sec"><div class="vld-h">Story so far</div>${body}</div>`;
 }
 
 /** Fix 23: newest by turn, not array tail (folds can append out of turn order). */

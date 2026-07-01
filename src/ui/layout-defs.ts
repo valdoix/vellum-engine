@@ -5,7 +5,7 @@
  * section functions by id.
  */
 
-export type SectionId = 'status' | 'present' | 'tension' | 'relations' | 'threads' | 'parallel' | 'recent';
+export type SectionId = 'status' | 'present' | 'tension' | 'relations' | 'threads' | 'parallel' | 'recent' | 'stats';
 export type Density = 'compact' | 'comfortable' | 'roomy';
 
 export interface LayoutDef {
@@ -21,7 +21,7 @@ export interface LayoutDef {
   mode?: 'stack' | 'switch'; // 'stack' (default) = vertical sections; 'switch' = one section + a dock (phone)
 }
 
-const ALL: SectionId[] = ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent'];
+const ALL: SectionId[] = ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent', 'stats'];
 
 export const LAYOUTS: LayoutDef[] = [
   {
@@ -78,7 +78,7 @@ void ALL;
 const CUSTOM_KEY = 'vellum2.layout.custom';
 const SECTION_LABEL: Record<SectionId, string> = {
   status: 'Status', present: 'Present', tension: 'Tension', relations: 'Relations',
-  threads: 'Threads', parallel: 'Parallel', recent: 'Latest',
+  threads: 'Threads', parallel: 'Parallel', recent: 'Latest', stats: 'Stats',
 };
 
 function loadCustom(): LayoutDef {

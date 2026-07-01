@@ -88,6 +88,7 @@ const TABS = [
 const QOL = [
   { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins', group: 'inline' },
   { id: 'boundaries', label: '\u26D4 Boundaries', title: 'Hard limits: content this story will never depict (outranks every other setting)', group: 'maint' },
+  { id: 'calendar', label: '\u2637 Calendar', title: 'Name the current epoch/season so "Day 47" reads as an occasion', group: 'maint' },
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'maint' },
   { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message', group: 'maint' },
   { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)', group: 'maint' },
@@ -108,6 +109,16 @@ const QOL = [
 ] as const;
 
 /** Open the Customize (theme) panel as a modal-style overlay. */
+function openCalendarModal(ctx: Ctx): void {
+  formModal('World Calendar', [
+    { key: 'calendar', label: 'Current epoch / season / occasion (blank = none)', type: 'text', value: _calendar, placeholder: 'the third day of the harvest festival' },
+  ], (o) => {
+    _calendar = (o.calendar ?? '').trim();
+    ctx.sendToBackend({ type: 'vellum_set_calendar', calendar: _calendar });
+    notify(ctx, 'success', _calendar ? 'Calendar set.' : 'Calendar cleared.');
+  });
+}
+
 function openBoundaries(ctx: Ctx): void {
   formModal('Content Boundaries', [
     { key: 'limits', label: 'Hard limits \u2014 never depict (outranks every other setting, incl. NSFW/NSFL and the Mandate)', type: 'textarea', big: true, value: _hardLimits, placeholder: 'e.g. any sexualization of minors; ... (comma- or line-separated)' },
@@ -215,6 +226,7 @@ let _tone = { romance: 'medium', disposition: 'fair' };
 let _tidyOn = false;
 let _chapterVault = 'keyed';
 let _hardLimits = ''; // last-known hard-limits chat var (mirrored from broadcasts)
+let _calendar = ''; // last-known world-calendar chat var
 let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
 let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
@@ -335,6 +347,7 @@ function openSearch(getState: () => ChronicleState, go: (tab: string) => void): 
 function onQol(ctx: Ctx, id: string): void {
   if (id === 'customize') { openCustomize(() => _retheme()); }
   else if (id === 'boundaries') { openBoundaries(ctx); }
+  else if (id === 'calendar') { openCalendarModal(ctx); }
   else if (id === 'summarize') { setQolBusy('summarize', true); ctx.sendToBackend({ type: 'vellum_summarize' }); notify(ctx, 'info', 'Summarizing older turns\u2026'); }
   else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); notify(ctx, 'info', 'Rescanning the latest turn\u2026'); }
   else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
@@ -605,6 +618,7 @@ export function setup(ctx: Ctx): () => void {
         if (Array.isArray(p.directives)) { setDirectorDirectives(p.directives); }
         if ('nextScene' in p) setDirectorNextScene(p.nextScene);
         if (typeof p.hardLimits === 'string') _hardLimits = p.hardLimits;
+        if (typeof p.calendar === 'string') _calendar = p.calendar;
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;
@@ -708,6 +722,8 @@ export function setup(ctx: Ctx): () => void {
         try { refreshUI(); } catch { /* best effort */ }
       } else if (p?.type === 'vellum_limits_done' || p?.type === 'vellum_limits_state') {
         if (typeof p.limits === 'string') _hardLimits = p.limits;
+      } else if (p?.type === 'vellum_calendar_done') {
+        if (typeof p.calendar === 'string') _calendar = p.calendar;
       } else if (p?.type === 'vellum_hide_done') {
         setQolBusy('hide', false);
         _hideOn = !!p.enabled;

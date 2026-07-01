@@ -130,6 +130,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         // empty color string = clear → drop the key so it's truly absent (default ink)
         if (safe.color === '') delete c.color;
         if (safe.colorTo === '') delete c.colorTo;
+        if (safe.imageUrl === '') delete c.imageUrl;
         // empty disposition string = clear; empty traits array = clear
         if (safe.disposition === '') delete c.disposition;
         if (Array.isArray(c.traits)) {

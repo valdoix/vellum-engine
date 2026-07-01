@@ -23,6 +23,7 @@ export interface CastCard {
   userEdited: boolean;
   color?: string;   // optional name color (#hex); absent = inherited skin ink
   colorTo?: string; // optional gradient end (#hex); absent = solid `color`
+  imageUrl?: string; // optional portrait image URL; absent = initials avatar
 }
 
 /** A group/organization — "cast for groups". Standing is the group's regard

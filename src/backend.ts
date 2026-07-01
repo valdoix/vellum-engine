@@ -16,6 +16,7 @@ import { driftInjection } from './domain/drift.js';
 import { turnLog } from './domain/turnlog.js';
 import { toMarkdown } from './domain/markdown.js';
 import { moodInjection } from './domain/mood.js';
+import { plantsInjection } from './domain/plants.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -115,7 +116,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const directives = await readDirectives(chatId);
   const nextScene = await readNextScene(chatId);
   const hardLimits = await readHardLimits(chatId);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits }, userId ?? currentUser());
+  const calendar = await readCalendar(chatId);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ events ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ append ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ broadcast. */
@@ -203,6 +205,17 @@ async function readDirectives(chatId: string): Promise<Directive[]> {
 }
 async function writeDirectives(chatId: string, d: Directive[]): Promise<void> {
   try { await setChatVar(chatId, 'vellum_directives', JSON.stringify(d)); } catch { /* best effort */ }
+}
+
+// --- World calendar: an optional named epoch so "Day 47" reads as "the third
+// day of the harvest festival". Per-chat chat var; injected when set. Empty -> silent.
+async function readCalendar(chatId: string): Promise<string> {
+  try { return String((await getChatVar(chatId, 'vellum_calendar')) ?? '').trim(); } catch { return ''; }
+}
+async function calendarInjection(chatId: string, day: number): Promise<string> {
+  const cal = await readCalendar(chatId);
+  if (!cal) return '';
+  return `[CALENDAR] The current day (Day ${day}) falls within: ${cal}. Reflect the season/occasion in the world where it fits; never narrate the calendar as a mechanic.`;
 }
 
 // --- Hard limits: absolute per-chat content boundaries. Injected FIRST (highest
@@ -758,6 +771,10 @@ async function wireCapabilities(): Promise<void> {
           const driftText = driftInjection(state, state.scene.present ?? []);
           // Mood recency — persistent emotional weather for present characters.
           const moodText = moodInjection((await loadLog(chatId)).events, state.scene.present ?? [], (id) => state.cast[id]?.name ?? id);
+          // Foreshadow plants — unresolved seeded details that still hang.
+          const plantText = plantsInjection(state, state.turns || 0);
+          // World calendar — named epoch/season for the current day, when set.
+          const calText = await calendarInjection(chatId, state.day || 0);
           // Next-scene setter — the author's where/when for THIS turn (clears after).
           const nextSceneText = await nextSceneInjection(chatId);
           // Relationship guardrails — locks for pairs PRESENT this turn, phrased
@@ -766,7 +783,7 @@ async function wireCapabilities(): Promise<void> {
           // Hard limits — absolute content boundaries, injected FIRST (highest
           // salience) so they outrank everything. Per-chat override of the preset var.
           const limitsText = await hardLimitsInjection(chatId);
-          const injText = [limitsText, inj.text, locText, driftText, moodText, lockText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, locText, driftText, moodText, lockText, plantText, calText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 Ã¢â‚¬â€ live retrieval feed: push the record so the Injection tab
@@ -1104,6 +1121,31 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     spindle.sendToFrontend?.({ type: 'vellum_next_scene_state', next: chatId ? await readNextScene(chatId) : null }, uid);
   },
+  vellum_plant_add: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const what = String(p?.what ?? '').trim();
+    if (!what) return;
+    const state = await loadState(chatId);
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'plant.set', id: 'plant_u' + nextSeqLocal(), what } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_plant_done', ok: true }, uid);
+  },
+  vellum_plant_pay: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const state = await loadState(chatId);
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'plant.pay', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_plant_done', ok: true }, uid);
+  },
+  vellum_plant_drop: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'plant.drop', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_plant_done', ok: true }, uid);
+  },
   vellum_set_limits: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
@@ -1114,6 +1156,13 @@ const dispatch: Record<string, Handler> = {
   vellum_get_limits: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     spindle.sendToFrontend?.({ type: 'vellum_limits_state', limits: chatId ? await readHardLimits(chatId) : '' }, uid);
+  },
+  vellum_set_calendar: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const text = String(p?.calendar ?? '').trim().slice(0, 400);
+    try { await setChatVar(chatId, 'vellum_calendar', text); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_calendar_done', ok: true, calendar: text }, uid);
   },
   vellum_beat_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
