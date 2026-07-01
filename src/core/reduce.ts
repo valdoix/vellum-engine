@@ -162,6 +162,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       s.journal = s.journal.filter((j) => j.who !== e.id && j.about !== e.id);
       s.scars = s.scars.filter((x) => x.who !== e.id && x.about !== e.id);
       s.items = s.items.filter((x) => x.who !== e.id);
+      s.traitHistory = s.traitHistory.filter((x) => x.who !== e.id);
       break;
     }
     case 'faction.seen': {
@@ -476,6 +477,11 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'continuity.flag': {
       s.continuityFlags.push({ turn: e.turn, code: e.code, detail: e.detail });
       if (s.continuityFlags.length > 50) s.continuityFlags = s.continuityFlags.slice(-50); // ring buffer
+      break;
+    }
+    case 'trait.drift': {
+      s.traitHistory.push({ who: e.who, trait: e.trait, op: e.op, ...(e.from ? { from: e.from } : {}), ...(e.cause ? { cause: e.cause } : {}), ...(e.causeId ? { causeId: e.causeId } : {}), turn: e.turn });
+      if (s.traitHistory.length > 400) s.traitHistory = s.traitHistory.slice(-400); // ring buffer
       break;
     }
     default: {

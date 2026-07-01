@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 10 as const;
+export const SCHEMA_VERSION = 11 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -86,6 +86,12 @@ export const EvLocationDrop = z.object({ ...base, kind: z.literal('location.drop
 // small ring buffer so the Director Log can show them (never blocks anything).
 export const EvContinuityFlag = z.object({ ...base, kind: z.literal('continuity.flag'), code: z.string(), detail: z.string() });
 
+// --- Personality drift: a versioned, cause-linked record of how a character's
+// TRAITS change over time (self memory). The model only emits trait tags; the
+// engine DERIVES the op by diffing the trait set, so this is deterministic.
+// causeId links the driving journal/scar/bond; `from` is the trait it replaced.
+export const EvTraitDrift = z.object({ ...base, kind: z.literal('trait.drift'), who: z.string(), trait: z.string(), op: z.enum(['emerge', 'fade', 'reverse', 'resurface', 'harden']), from: z.string().optional(), cause: z.string().optional(), causeId: z.string().optional() });
+
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
 export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional() });
 export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: CastPatch });
@@ -159,6 +165,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvScarForm, EvScarDrop, EvLoreNote, EvLoreDrop,
   EvItemChange, EvItemDrop,
   EvLocationSet, EvLocationDrop, EvContinuityFlag,
+  EvTraitDrift,
   EvParallel, EvOffscreen,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;

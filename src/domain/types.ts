@@ -217,6 +217,19 @@ export interface ContinuityFlag {
   detail: string;
 }
 
+/** One entry in a character's personality-drift ledger — how a trait changed,
+ * when, and why. `op` is derived deterministically by the engine (the model only
+ * emits trait tags). `causeId` links the driving journal/scar. */
+export interface TraitEvent {
+  who: string;
+  trait: string;
+  op: 'emerge' | 'fade' | 'reverse' | 'resurface' | 'harden';
+  from?: string;    // the trait this replaced (on reverse)
+  cause?: string;   // short human reason
+  causeId?: string; // linked journal/scar id
+  turn: number;
+}
+
 export interface Item {
   id: string;
   who: string;   // cast id, or 'world' for scene/location items
@@ -240,6 +253,7 @@ export interface ChronicleState {
   items: Item[];
   locations: Location[];
   continuityFlags: ContinuityFlag[];
+  traitHistory: TraitEvent[];
   threads: Track[];
   arcs: Track[];
   parallel: ParallelEvent[];
@@ -278,6 +292,7 @@ export function freshState(): ChronicleState {
     items: [],
     locations: [],
     continuityFlags: [],
+    traitHistory: [],
     threads: [],
     arcs: [],
     parallel: [],

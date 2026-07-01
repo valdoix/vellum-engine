@@ -82,6 +82,12 @@ export function migrate(raw: unknown): unknown {
     version = 10;
   }
 
+  // v10 → v11: personality drift ledger (trait.drift / state.traitHistory).
+  // Additive — old logs get an empty ledger and seed drift as traits next change.
+  if (version < 11) {
+    version = 11;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

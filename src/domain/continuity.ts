@@ -17,7 +17,7 @@ import type { VellumEvent } from '../core/events.js';
  */
 
 export interface ContinuityWarning {
-  kind: 'unknown_secret' | 'already_revealed' | 'redundant_knowledge';
+  kind: 'unknown_secret' | 'already_revealed' | 'redundant_knowledge' | 'trait_reversal';
   text: string;
 }
 
@@ -36,6 +36,14 @@ export function checkContinuity(events: readonly VellumEvent[], prior: Chronicle
       const f = k.fact.trim().toLowerCase();
       if (prior.knowledge.some((x) => x.who === k.who && x.fact.trim().toLowerCase() === f)) {
         warnings.push({ kind: 'redundant_knowledge', text: `${name(k.who)} "learned" something already known: "${k.fact.slice(0, 60)}".` });
+      }
+    } else if (e.kind === 'trait.drift') {
+      // anti-flip-flop: a trait that was HARDENED (defining) reversing/fading is
+      // a big deal — surface it so the author notices a possible unearned revert.
+      const d = e as { who: string; trait: string; op: string };
+      if (d.op === 'reverse' || d.op === 'fade') {
+        const wasHardened = prior.traitHistory.some((x) => x.who === d.who && x.trait.trim().toLowerCase() === d.trait.trim().toLowerCase() && x.op === 'harden');
+        if (wasHardened) warnings.push({ kind: 'trait_reversal', text: `${name(d.who)}'s defining trait "${d.trait}" is reversing \u2014 earned, or a slip?` });
       }
     }
   }

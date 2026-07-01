@@ -67,7 +67,7 @@ describe('migration v9 → v10', () => {
   it('advances version; reduce yields empty locations/flags', () => {
     const log = migrate({ version: 9, chatId: 'c', events: [], createdAt: 1, updatedAt: 1 }) as any;
     expect(log.version).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(10);
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(10); // locations/flags landed in v10
     const s = reduce([]);
     expect(s.locations).toEqual([]);
     expect(s.continuityFlags).toEqual([]);

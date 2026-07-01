@@ -12,6 +12,7 @@ import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.
 import { planChapterFrom, planArc, planArcFrom } from './domain/memory.js';
 import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats } from './domain/beats.js';
 import { locationList } from './domain/locations.js';
+import { driftInjection } from './domain/drift.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -738,9 +739,11 @@ async function wireCapabilities(): Promise<void> {
           const spineText = beatSpine(state);
           // Locations gazetteer — canonical place names so the model doesn't hallucinate.
           const locText = locationList(state);
+          // Personality drift — arc summaries for present characters (write them in motion).
+          const driftText = driftInjection(state, state.scene.present ?? []);
           // Next-scene setter — the author's where/when for THIS turn (clears after).
           const nextSceneText = await nextSceneInjection(chatId);
-          const injText = [inj.text, locText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
+          const injText = [inj.text, locText, driftText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 Ã¢â‚¬â€ live retrieval feed: push the record so the Injection tab

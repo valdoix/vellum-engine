@@ -3,6 +3,7 @@ import type { ChronicleState, CastCard, Faction } from '../../domain/types.js';
 import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, nameOf, autoNameMode, setAutoNameMode } from '../format.js';
 import { cmd, paginate, pagerHtml, send, setPage, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
+import { traitArc, dormantTraits } from '../../domain/drift.js';
 
 /**
  * Cast tab — two sections: CHARACTERS (individuals) and FACTIONS (groups).
@@ -61,7 +62,7 @@ export const castTab: Component<ChronicleState> = {
     const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${c.disposition ?? ''}|${(c.traits ?? []).join(',')}|${(c.aka ?? []).join(',')}|${c.lastTurn}|${c.color ?? ''}|${c.colorTo ?? ''}`).join(';');
     const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}`).join(';');
     const mv = s.memberships.map((m) => `${m.char}>${m.faction}:${m.role ?? ''}`).join(',');
-    return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode() + '#' + _density + '#' + Array.from(_expanded).sort().join(',');
+    return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode() + '#' + _density + '#' + Array.from(_expanded).sort().join(',') + '#' + (s.traitHistory ?? []).length;
   },
   render(s) {
     _state = s;
@@ -184,6 +185,35 @@ function traitChips(c: CastCard): string {
   return traits.map((t) => `<span class="vle-traitchip">${esc(t)}</span>`).join('');
 }
 
+const DRIFT_GLYPH: Record<string, string> = { emerge: '\u2726', reverse: '\u21C4', resurface: '\u21BA', harden: '\u25C6', fade: '\u00b7' };
+
+/** Personality-drift lane on an expanded card: a one-line arc (the glance) + a
+ * turn-stamped timeline of how/when/why each trait changed (the dive). Each node
+ * shows its cause on hover. Only rendered when the character has actually drifted. */
+function driftSection(s: ChronicleState, id: string): string {
+  const arcs = traitArc(s, id);
+  const dormant = dormantTraits(s, id);
+  const events = (s.traitHistory ?? []).filter((e) => e.who === id);
+  const drifted = events.some((e) => e.op !== 'emerge') || events.length > 1;
+  if (!drifted) return '';
+  // glance: the arc line
+  const active = arcs.map((a) => `<span class="vle-drift-t vle-drift-${a.momentum}">${esc(a.trait)}</span>`).join('<span class="vle-drift-arrow">\u2192</span>');
+  const dormantChips = dormant.length ? `<span class="vle-drift-dormant-lbl">was</span> ${dormant.map((t) => `<span class="vle-drift-t vle-drift-gone">${esc(t)}</span>`).join(' ')}` : '';
+  // dive: the timeline, chronological
+  const rows = events.slice().sort((a, b) => a.turn - b.turn).map((e) => {
+    const label = e.op === 'reverse' && e.from ? `${esc(e.from)} \u2192 ${esc(e.trait)}` : esc(e.trait);
+    const cause = e.cause ? ` title="${esc(e.cause)}"` : '';
+    return `<div class="vle-drift-node vle-drift-${e.op}"${cause}><span class="vle-drift-mark">${DRIFT_GLYPH[e.op] ?? '\u00b7'}</span>`
+      + `<span class="vle-drift-op">${e.op}</span><span class="vle-drift-lab">${label}</span>`
+      + (e.cause ? `<span class="vle-drift-cause">${esc(e.cause)}</span>` : '')
+      + `<span class="vle-drift-turn">t${e.turn}</span></div>`;
+  }).join('');
+  return '<div class="vle-drift">'
+    + `<div class="vle-drift-arc"><span class="vle-drift-k">drift</span>${active}${dormantChips ? ' \u00b7 ' + dormantChips : ''}</div>`
+    + `<div class="vle-drift-timeline">${rows}</div>`
+    + '</div>';
+}
+
 function card(s: ChronicleState, c: CastCard): string {
   const A = (x: unknown): string => esc(x);
   // sentence-case "role, age" line; presence shown by avatar dot + card spine
@@ -199,6 +229,7 @@ function card(s: ChronicleState, c: CastCard): string {
       + (c.appearance ? `<div class="vle-card-app2">${esc(c.appearance)}</div>` : '')
       + (c.disposition ? `<div class="vle-card-disp">${esc(c.disposition)}</div>` : '')
       + (() => { const tr = traitChips(c); return tr ? `<div class="vle-card-traits">${tr}</div>` : ''; })()
+      + driftSection(s, c.id)
       + (aka.length ? `<div class="vle-card-aka"><span class="vle-card-aka-k">aka</span> ${esc(aka.join(', '))}</div>` : '')
       + (() => { const ch = bondChips(s, c.id); return ch ? `<div class="vle-card-bonds">${ch}</div>` : ''; })()
       + (c.note ? `<div class="vle-card-note">${esc(c.note)}</div>` : '')

@@ -20,6 +20,66 @@ function isCanonSentinel(raw?: string): boolean {
   return CANON_SENTINEL.has(canonId(raw ?? ''));
 }
 
+/** Derive personality-drift events by diffing a character's NEW trait set against
+ * their prior traits. The model never classifies the op — this is deterministic.
+ * Gated so drift is rare + earned: a drift only logs when a CAUSE exists for this
+ * character this turn (a scar, a significant/defining journal, or a bond shift),
+ * and INERTIA suppresses fading a long-held trait without a defining cause. */
+function deriveDrift(id: string, newTraits: string[], ctx: ExtractCtx, parsed: ParsedState): VellumEvent[] {
+  const prior = (ctx.state.cast[id]?.traits ?? []).map((t) => String(t));
+  if (!prior.length && !ctx.state.cast[id]) {
+    // brand-new character: seed each trait as an emergence (no cause needed)
+    return newTraits.map((t) => ({ seq: ctx.seq(), turn: ctx.turn, day: ctx.day, src: 'model', kind: 'trait.drift', who: id, trait: t, op: 'emerge' } as VellumEvent));
+  }
+  const norm = (x: string): string => x.trim().toLowerCase();
+  const priorSet = new Set(prior.map(norm));
+  const nowSet = new Set(newTraits.map(norm));
+  const added = newTraits.filter((t) => !priorSet.has(norm(t)));
+  const removed = prior.filter((t) => !nowSet.has(norm(t)));
+  if (!added.length && !removed.length) return [];
+
+  // is there a CAUSE for this character this turn?
+  const jr = (parsed.delta?.journal ?? []).filter((j) => canonId(String(j.who ?? '')) === id || canonId(String(j.about ?? '')) === id);
+  const heavyJournal = jr.find((j) => j.weight === 'defining') ?? jr.find((j) => j.weight === 'significant');
+  const scar = (Array.isArray((parsed.ext as { scars?: Array<{ who?: string; was?: string }> } | undefined)?.scars) ? (parsed.ext as { scars: Array<{ who?: string; was?: string }> }).scars : []).find((sc) => canonId(String(sc?.who ?? '')) === id);
+  const bondShift = (parsed.delta?.bonds ?? []).some((b) => canonId(String(b.a ?? '')) === id || canonId(String(b.b ?? '')) === id);
+  const hasCause = !!(heavyJournal || scar || bondShift);
+  if (!hasCause) return []; // no cause → treat as trait-noise; current set still updates, but no drift logged
+
+  const cause = scar ? `belief proven wrong: ${String(scar.was ?? '').slice(0, 60)}` : heavyJournal ? String(heavyJournal.memory ?? '').slice(0, 80) : 'a shift in a key bond';
+  const causeId = heavyJournal ? undefined : undefined; // journal/scar ids are assigned downstream; link by turn in the UI
+
+  // INERTIA: a trait held a long time resists fading without a DEFINING cause.
+  const heldTurns = (t: string): number => {
+    const emerged = ctx.state.traitHistory.filter((x) => x.who === id && norm(x.trait) === norm(t) && (x.op === 'emerge' || x.op === 'resurface')).map((x) => x.turn).sort((a, b) => b - a)[0];
+    return emerged !== undefined ? Math.max(0, ctx.turn - emerged) : (ctx.state.cast[id] ? 12 : 0); // pre-ledger traits assumed moderately held
+  };
+  const defining = !!scar || !!(heavyJournal && heavyJournal.weight === 'defining');
+  const everSeen = (t: string): boolean => ctx.state.traitHistory.some((x) => x.who === id && norm(x.trait) === norm(t));
+
+  const out: VellumEvent[] = [];
+  const mk = (trait: string, op: 'emerge' | 'fade' | 'reverse' | 'resurface' | 'harden', from?: string): void => {
+    out.push({ seq: ctx.seq(), turn: ctx.turn, day: ctx.day, src: 'model', kind: 'trait.drift', who: id, trait, op, ...(from ? { from } : {}), cause, ...(causeId ? { causeId } : {}) } as VellumEvent);
+  };
+  // pair the first removed with the first added as a REVERSE (X hardened into Y);
+  // remaining are plain fades/emerges. A returning trait is a RESURFACE.
+  const rev = removed.length && added.length;
+  if (rev) {
+    const from = removed[0]!;
+    if (heldTurns(from) > 25 && !defining) {
+      // heavy trait can't flip without a defining cause → suppress, no drift
+    } else {
+      mk(added[0]!, 'reverse', from);
+    }
+  }
+  for (let i = rev ? 1 : 0; i < added.length; i++) mk(added[i]!, everSeen(added[i]!) ? 'resurface' : 'emerge');
+  for (let i = rev ? 1 : 0; i < removed.length; i++) {
+    if (heldTurns(removed[i]!) > 25 && !defining) continue; // inertia suppresses
+    mk(removed[i]!, 'fade');
+  }
+  return out;
+}
+
 export const coreFeature: Feature = {
   id: 'core',
   extract(parsed: ParsedState, ctx: ExtractCtx): VellumEvent[] {
@@ -107,7 +167,16 @@ export const coreFeature: Feature = {
           seen.add(k); traits.push(v);
           if (traits.length >= 6) break;
         }
-        if (traits.length) out.push({ ...base(), kind: 'cast.edit', id, patch: { traits } } as VellumEvent);
+        if (traits.length) {
+          out.push({ ...base(), kind: 'cast.edit', id, patch: { traits } } as VellumEvent);
+          // DERIVE personality drift by diffing the new trait set against the
+          // character's prior traits. The model never classifies the op — we do,
+          // deterministically. Gated so drift is RARE + EARNED: only log when a
+          // CAUSE exists this turn (a scar, a significant/defining journal, or a
+          // bond shift for this character), and honor INERTIA (a heavy trait
+          // resists fading without a strong cause).
+          for (const d of deriveDrift(id, traits, ctx, parsed)) out.push(d);
+        }
       }
     }
 
