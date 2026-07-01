@@ -14,6 +14,8 @@ import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats }
 import { locationList } from './domain/locations.js';
 import { driftInjection } from './domain/drift.js';
 import { turnLog } from './domain/turnlog.js';
+import { toMarkdown } from './domain/markdown.js';
+import { moodInjection } from './domain/mood.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -754,6 +756,8 @@ async function wireCapabilities(): Promise<void> {
           const locText = locationList(state);
           // Personality drift — arc summaries for present characters (write them in motion).
           const driftText = driftInjection(state, state.scene.present ?? []);
+          // Mood recency — persistent emotional weather for present characters.
+          const moodText = moodInjection((await loadLog(chatId)).events, state.scene.present ?? [], (id) => state.cast[id]?.name ?? id);
           // Next-scene setter — the author's where/when for THIS turn (clears after).
           const nextSceneText = await nextSceneInjection(chatId);
           // Relationship guardrails — locks for pairs PRESENT this turn, phrased
@@ -762,7 +766,7 @@ async function wireCapabilities(): Promise<void> {
           // Hard limits — absolute content boundaries, injected FIRST (highest
           // salience) so they outrank everything. Per-chat override of the preset var.
           const limitsText = await hardLimitsInjection(chatId);
-          const injText = [limitsText, inj.text, locText, driftText, lockText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, locText, driftText, moodText, lockText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 Ã¢â‚¬â€ live retrieval feed: push the record so the Injection tab
@@ -1183,6 +1187,13 @@ const dispatch: Record<string, Handler> = {
     if (!chatId) return;
     const log = await exportLog(chatId);
     spindle.sendToFrontend?.({ type: 'vellum_export', chatId, log }, uid);
+  },
+  vellum_export_markdown: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const state = await loadState(chatId);
+    const md = toMarkdown(state, 'VELLUM Chronicle');
+    spindle.sendToFrontend?.({ type: 'vellum_export_markdown', chatId, markdown: md }, uid);
   },
   vellum_get_injection: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

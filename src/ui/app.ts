@@ -101,6 +101,7 @@ const QOL = [
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON', group: 'data' },
+  { id: 'exportmd', label: '\u2913 Export Markdown', title: 'Download the story as readable Markdown (story-so-far, cast, bonds, codex)', group: 'data' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON', group: 'data' },
   { id: 'recover', label: '\u21BA Recover', title: 'Restore this chat from its automatic backup if data was lost', group: 'data' },
   { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat', group: 'danger' },
@@ -356,6 +357,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'resummarize') { setQolBusy('resummarize', true); ctx.sendToBackend({ type: 'vellum_resummarize' }); notify(ctx, 'info', 'Rebuilding all chapter summaries\u2026'); }
   else if (id === 'summarizer') { ctx.sendToBackend({ type: 'vellum_get_summarizer' }); /* modal opens when state arrives */ }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
+  else if (id === 'exportmd') { setQolBusy('exportmd', true); ctx.sendToBackend({ type: 'vellum_export_markdown' }); }
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'recover') { ctx.sendToBackend({ type: 'vellum_recover' }); notify(ctx, 'info', 'Checking backup\u2026'); }
   else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => { setQolBusy('clear', true); ctx.sendToBackend({ type: 'vellum_clear' }); }); }
@@ -501,6 +503,15 @@ function downloadJson(name: string, data: unknown): void {
   } catch { /* ignore */ }
 }
 
+function downloadText(name: string, text: string, mime = 'text/plain'): void {
+  try {
+    const blob = new Blob([text], { type: mime + ';charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch { /* ignore */ }
+}
+
 export function setup(ctx: Ctx): () => void {
   _ctxRef = ctx;
   const style = ctx.dom.addStyle(FONT_FACES + '\n' + STYLES);
@@ -623,6 +634,10 @@ export function setup(ctx: Ctx): () => void {
         setQolBusy('export', false);
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
         notify(ctx, 'success', 'Chronicle exported.');
+      } else if (p?.type === 'vellum_export_markdown' && typeof p.markdown === 'string') {
+        setQolBusy('exportmd', false);
+        downloadText(`vellum-${p.chatId ?? 'chronicle'}.md`, p.markdown, 'text/markdown');
+        notify(ctx, 'success', 'Story exported as Markdown.');
       } else if (p?.type === 'vellum_summarize_progress') {
         // live count + running token usage as each window is summarized.
         const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
