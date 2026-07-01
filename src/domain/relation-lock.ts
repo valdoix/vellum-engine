@@ -76,3 +76,51 @@ export function sanitizeLocks(raw: unknown): RelationLock[] {
   }
   return out;
 }
+
+// how a pinned category reads as a positive "keep them ___" phrase
+const PIN_PHRASE: Record<string, string> = {
+  familial: 'family', romantic: 'romantically bonded', alliance: 'allied',
+  rivalry: 'rivals', social: 'social acquaintances', neutral: 'on neutral terms',
+};
+// how a forbidden category reads as a positive nature-statement (never raw "NEVER
+// romantic" — that primes the banned token; state what the bond IS/stays instead)
+const FORBID_PHRASE: Record<string, string> = {
+  romantic: 'stays platonic and does not turn romantic',
+  familial: 'is not family and is not treated as kin',
+  alliance: 'does not become a true alliance',
+  rivalry: 'does not curdle into rivalry',
+  social: 'does not become a social/friendly tie',
+  neutral: 'does not settle into indifference',
+};
+
+/**
+ * Injectable guidance for relation locks (Plot Director). PURE. This is the
+ * PREVENTION half of a lock — it steers the PROSE away from a forbidden/pinned
+ * dynamic up front, while the fold's strip stays as the hard guarantee. Only
+ * locks whose BOTH endpoints are PRESENT this turn are injected (off-scene pairs
+ * are noise), capped, and phrased POSITIVELY to dodge negation-priming.
+ * `nameOf` resolves an id → display name. Returns '' when nothing to say.
+ */
+export function lockInjection(
+  locks: readonly RelationLock[] | undefined,
+  presentIds: readonly string[],
+  nameOf: (id: string) => string,
+  cap = 6,
+): string {
+  if (!locks?.length || !presentIds.length) return '';
+  const present = new Set(presentIds);
+  const lines: string[] = [];
+  for (const l of locks) {
+    if (!present.has(l.a) || !present.has(l.b)) continue; // both endpoints on-scene
+    const pair = `${nameOf(l.a)} and ${nameOf(l.b)}`;
+    const clauses: string[] = [];
+    if (l.pin.length) clauses.push('keep them ' + l.pin.map((c) => PIN_PHRASE[c] ?? c).join(' and '));
+    for (const f of l.forbid) clauses.push('their bond ' + (FORBID_PHRASE[f] ?? ('does not become ' + f)));
+    if (!clauses.length) continue;
+    lines.push(`- ${pair}: ${clauses.join('; ')}.`);
+    if (lines.length >= cap) break;
+  }
+  if (!lines.length) return '';
+  return '[RELATIONSHIP GUARDRAILS \u2014 hold these bonds to their set nature; steer the scene accordingly. Do not narrate these as rules]\n' + lines.join('\n');
+}
+

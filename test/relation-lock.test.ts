@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lockKey, findLock, applyLockToBond, sanitizeLocks, type RelationLock } from '../src/domain/relation-lock.js';
+import { lockKey, findLock, applyLockToBond, sanitizeLocks, lockInjection, type RelationLock } from '../src/domain/relation-lock.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
 import { registerFeature } from '../src/bus/registry.js';
 import { coreFeature } from '../src/domain/core-feature.js';
@@ -66,5 +66,36 @@ describe('relation-lock — fold enforcement', () => {
     const r = foldTurn(block('[{"a":"Cersei","b":"Jaime","cat":["romantic"]}]'), freshState(), 1, { locks });
     const bond = r.events.find((e: any) => e.kind === 'bond.delta');
     expect(bond).toBeUndefined(); // nothing left to record
+  });
+});
+
+describe('lockInjection (prevention half)', () => {
+  const nm = (id: string): string => (({ jaime: 'Jaime', cersei: 'Cersei', tywin: 'Tywin' }) as Record<string, string>)[id] ?? id;
+  const L = (a: string, b: string, forbid: string[], pin: string[]): RelationLock => ({ key: lockKey(a, b), a, b, forbid: forbid as never, pin: pin as never });
+
+  it('empty when no locks, no present, or no on-scene pair', () => {
+    expect(lockInjection([], ['jaime', 'cersei'], nm)).toBe('');
+    expect(lockInjection([L('jaime', 'cersei', ['romantic'], [])], [], nm)).toBe('');
+    expect(lockInjection([L('jaime', 'cersei', ['romantic'], [])], ['jaime'], nm)).toBe(''); // only one endpoint present
+  });
+
+  it('forbid renders as a positive nature-statement (no raw NEVER)', () => {
+    const out = lockInjection([L('jaime', 'cersei', ['romantic'], [])], ['jaime', 'cersei'], nm);
+    expect(out).toContain('GUARDRAILS');
+    expect(out).toContain('Jaime and Cersei');
+    expect(out.toLowerCase()).toContain('platonic');
+    expect(out).not.toContain('NEVER');
+  });
+
+  it('pin renders as a positive keep-them clause', () => {
+    const out = lockInjection([L('jaime', 'tywin', [], ['familial'])], ['jaime', 'tywin'], nm);
+    expect(out.toLowerCase()).toContain('keep them family');
+  });
+
+  it('present-gates: only pairs with BOTH endpoints on-scene', () => {
+    const locks = [L('jaime', 'cersei', ['romantic'], []), L('jaime', 'tywin', ['alliance'], [])];
+    const out = lockInjection(locks, ['jaime', 'cersei'], nm); // tywin absent
+    expect(out).toContain('Cersei');
+    expect(out).not.toContain('Tywin');
   });
 });

@@ -34,7 +34,7 @@ import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from
 import { reconcileFactionEntries } from './domain/faction-vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
 import { parseTone, type Tone } from './domain/tone.js';
-import { sanitizeLocks, lockKey, type RelationLock } from './domain/relation-lock.js';
+import { sanitizeLocks, lockKey, lockInjection, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
 import { checkContinuity } from './domain/continuity.js';
 import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS } from './domain/offscreen.js';
@@ -743,7 +743,10 @@ async function wireCapabilities(): Promise<void> {
           const driftText = driftInjection(state, state.scene.present ?? []);
           // Next-scene setter — the author's where/when for THIS turn (clears after).
           const nextSceneText = await nextSceneInjection(chatId);
-          const injText = [inj.text, locText, driftText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
+          // Relationship guardrails — locks for pairs PRESENT this turn, phrased
+          // positively (prevention half; the fold strip is the hard guarantee).
+          const lockText = lockInjection(await readLocks(chatId), state.scene.present ?? [], (id) => state.cast[id]?.name ?? id);
+          const injText = [inj.text, locText, driftText, lockText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 Ã¢â‚¬â€ live retrieval feed: push the record so the Injection tab
