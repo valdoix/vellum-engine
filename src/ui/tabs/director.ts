@@ -3,13 +3,17 @@ import type { ChronicleState } from '../../domain/types.js';
 import { esc, nameOf, emptyState, sectionHeader } from '../format.js';
 import { send, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
+import { readyToIntersect } from '../../domain/offscreen.js';
 
 /**
- * Director tab — the "next-scene control panel". Four sub-views:
+ * Director tab — the "next-scene control panel". Sub-views:
  *   Directives — the Plot Director lifecycle board (scheduled/active/done) + CRUD
  *   Locations  — the gazetteer (auto-collected + pinned), injected to stop
  *                location hallucination
  *   Next Scene — set where/when the UPCOMING turn opens (clears after one turn)
+ *   Off-screen — every parallel subplot (active + resolved) with per-thread
+ *                advance / edit / delete / resolve / reopen
+ *   Planted    — foreshadow / Chekhov plants awaiting payoff
  *   Log        — continuity flags + secret reveals (read-only feed)
  *
  * Directives + next-scene aren't on ChronicleState (chat vars), so app.ts mirrors
@@ -17,7 +21,7 @@ import { formModal, confirmModal } from '../modal.js';
  * overrides (illuminated default / modern / futuristic) like the other tabs.
  */
 
-type DView = 'directives' | 'locations' | 'nextscene' | 'plants' | 'log';
+type DView = 'directives' | 'locations' | 'nextscene' | 'offscreen' | 'plants' | 'log';
 let _view: DView = 'directives';
 
 interface UIDirective { id: string; kind: string; text: string; target?: string; status: string; ttl: number; whenTurn?: number; whenDay?: number }
@@ -30,6 +34,7 @@ const VIEWS: Array<{ id: DView; label: string }> = [
   { id: 'directives', label: 'Directives' },
   { id: 'locations', label: 'Locations' },
   { id: 'nextscene', label: 'Next Scene' },
+  { id: 'offscreen', label: 'Off-screen' },
   { id: 'plants', label: 'Planted' },
   { id: 'log', label: 'Log' },
 ];
@@ -39,12 +44,13 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn).join(',')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
   render(s) {
     const counts: Record<DView, number> = {
       directives: _directives.filter((d) => d.status !== 'done').length,
       locations: (s.locations ?? []).length,
       nextscene: _nextScene ? 1 : 0,
+      offscreen: (s.offscreen ?? []).filter((o) => o.status === 'active').length,
       plants: (s.plants ?? []).filter((x) => x.status === 'planted').length,
       log: (s.continuityFlags ?? []).length,
     };
@@ -54,6 +60,7 @@ export const directorTab: Component<ChronicleState> = {
     if (_view === 'directives') body = directivesView();
     else if (_view === 'locations') body = locationsView(s);
     else if (_view === 'nextscene') body = nextSceneView(s);
+    else if (_view === 'offscreen') body = offscreenView(s);
     else if (_view === 'plants') body = plantsView(s);
     else body = logView(s);
     return `<div class="vle-director">${nav}${body}</div>`;
@@ -109,6 +116,36 @@ export const directorTab: Component<ChronicleState> = {
       if (pp) { send({ type: 'vellum_plant_pay', id: pp.getAttribute('data-id') }); return; }
       const pd = t.closest('[data-plant-del]');
       if (pd) { confirmModal('Delete this plant?', () => send({ type: 'vellum_plant_drop', id: pd.getAttribute('data-id') })); return; }
+
+      // --- off-screen threads (re-homed from Chronicle→World) ---
+      if (t.closest('[data-off-simall]')) { send({ type: 'vellum_offthread_advance' }); return; } // whole-world AI tick
+      if (t.closest('[data-off-add]')) {
+        formModal('New Off-screen Thread', [
+          { key: 'name', label: 'Subplot name', type: 'text', placeholder: 'The harbor strike' },
+          { key: 'who', label: 'Character (optional)', type: 'text' },
+          { key: 'where', label: 'Where (optional)', type: 'text' },
+          { key: 'gist', label: 'What\u2019s happening now', type: 'text', placeholder: 'dockhands walk off the job' },
+        ], (o) => { if (o.name?.trim()) send({ type: 'vellum_offthread_set', name: o.name, who: o.who || undefined, where: o.where || undefined, gist: o.gist || undefined }); });
+        return;
+      }
+      const oadv = t.closest('[data-off-adv]');
+      if (oadv) { send({ type: 'vellum_offthread_advance', id: oadv.getAttribute('data-id') }); return; } // per-thread AI beat
+      const oedit = t.closest('[data-off-edit]');
+      if (oedit) {
+        formModal('Edit Off-screen Thread', [
+          { key: 'name', label: 'Subplot name', type: 'text', value: oedit.getAttribute('data-name') || '' },
+          { key: 'who', label: 'Character (optional)', type: 'text', value: oedit.getAttribute('data-who') || '' },
+          { key: 'where', label: 'Where (optional)', type: 'text', value: oedit.getAttribute('data-where') || '' },
+          { key: 'gist', label: 'Latest beat / gist', type: 'text', value: oedit.getAttribute('data-gist') || '' },
+        ], (o) => { send({ type: 'vellum_offthread_set', id: oedit.getAttribute('data-id'), name: o.name, who: o.who || undefined, where: o.where || undefined, gist: o.gist || undefined }); });
+        return;
+      }
+      const ores = t.closest('[data-off-resolve]');
+      if (ores) { send({ type: 'vellum_offthread_resolve', id: ores.getAttribute('data-id') }); return; }
+      const oreopen = t.closest('[data-off-reopen]');
+      if (oreopen) { send({ type: 'vellum_offthread_set', id: oreopen.getAttribute('data-id'), name: oreopen.getAttribute('data-name') || '' }); return; }
+      const odel = t.closest('[data-off-del]');
+      if (odel) { confirmModal('Delete this off-screen thread?', () => send({ type: 'vellum_offthread_drop', id: odel.getAttribute('data-id') })); return; }
     });
   },
 };
@@ -205,6 +242,39 @@ function plantsView(s: ChronicleState): string {
   }).join('');
   return head + intro + rows;
 }
+
+function offscreenView(s: ChronicleState): string {
+  const all = (s.offscreen ?? []).slice();
+  const active = all.filter((o) => o.status === 'active').sort(byRecentOff);
+  const resolved = all.filter((o) => o.status === 'resolved').sort(byRecentOff);
+  const head = sectionHeader('\u2748 Off-screen', { sub: true, count: active.length, action: '<button class="vle-add sm" data-off-simall title="Advance the whole off-screen world one AI tick (needs generation)">\u2748 simulate all</button><button class="vle-add sm" data-off-add>+</button>' });
+  const intro = '<div class="vle-cz-note">Subplots unfolding away from the scene. Each has its own controls: \u25B8 advance (one AI beat for THIS thread), \u270E edit, \u2713 resolve, \u2715 delete. Auto-simulation is the Off-screen toggle in Actions.</div>';
+  if (!all.length) return head + intro + emptyState('No off-screen threads.', 'Add one by hand, or enable Off-screen in Actions to let subplots auto-simulate every few turns.');
+  const now = s.turns || 0;
+  const A = (x: unknown): string => esc(x);
+  const row = (o: ChronicleState['offscreen'][number]): string => {
+    const done = o.status === 'resolved';
+    const who = o.who ? esc(s.cast[o.who]?.name ?? o.who) : '';
+    const where = o.where ? ` <span class="vle-os-w">@${esc(o.where)}</span>` : '';
+    const stale = now - o.lastTurn;
+    const ripe = !done && readyToIntersect(s, o) ? '<span class="vle-os-ripe" title="Ready to walk into the scene">\u25C6 ripe</span>' : '';
+    const staleMark = !done && stale >= 6 ? `<span class="vle-os-stale">${stale}t idle</span>` : '';
+    const hist = o.beats.length > 1 ? `<details class="vle-os-h"><summary>${o.beats.length} beats</summary>${o.beats.map((b) => '<div>\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
+    const editBtn = `<button class="vle-mini" data-off-edit data-id="${A(o.id)}" data-name="${A(o.name)}" data-who="${A(o.who ? (s.cast[o.who]?.name ?? o.who) : '')}" data-where="${A(o.where ?? '')}" data-gist="${A(o.gist ?? '')}" title="Edit">\u270E</button>`;
+    const advBtn = done ? '' : `<button class="vle-mini" data-off-adv data-id="${A(o.id)}" title="Advance this thread one AI beat (needs generation)">\u25B8</button>`;
+    const stBtn = done
+      ? `<button class="vle-mini" data-off-reopen data-id="${A(o.id)}" data-name="${A(o.name)}" title="Reopen">\u21BA</button>`
+      : `<button class="vle-mini" data-off-resolve data-id="${A(o.id)}" title="Resolve">\u2713</button>`;
+    const ctl = `<span class="vle-mem-ctl">${advBtn}${editBtn}${stBtn}<button class="vle-mini del" data-off-del data-id="${A(o.id)}" title="Delete">\u2715</button></span>`;
+    return `<div class="vle-os${done ? ' vle-os--done' : ''}"><div class="vle-os-top"><span class="vle-os-n">${esc(o.name)}</span>${who ? `<span class="vle-os-who">${who}</span>` : ''}${where}${ripe}${staleMark}${ctl}</div><div class="vle-os-gist">${esc(o.gist || o.beats[o.beats.length - 1] || '')}</div>${hist}</div>`;
+  };
+  let html = head + intro;
+  if (active.length) html += '<div class="vle-subnav-g">Active</div>' + active.map(row).join('');
+  if (resolved.length) html += '<div class="vle-subnav-g">Resolved</div>' + resolved.map(row).join('');
+  return html;
+}
+
+function byRecentOff(a: { lastTurn: number }, b: { lastTurn: number }): number { return b.lastTurn - a.lastTurn; }
 
 function logView(s: ChronicleState): string {
   const head = sectionHeader('\u2261 Director Log', { sub: true });

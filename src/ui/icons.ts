@@ -45,6 +45,7 @@ const PATHS: Record<string, string> = {
   exportmd: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M8.5 16v-4l1.8 2 1.8-2v4" opacity=".9"/><path d="M14.5 12v4M14.5 16l-1.3-1.4M14.5 16l1.3-1.4"/>',
   boundaries: '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" opacity=".85"/>',
   calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16"/><path d="M8 3v4M16 3v4"/><path d="M8 13h2M12 13h2M8 16.5h2M12 16.5h2" opacity=".8"/>',
+  budget: '<path d="M12 3v3M12 3a5 3 0 0 0 0 6a5 3 0 0 1 0 6"/><path d="M5 9l7 3 7-3"/><path d="M4 20h16"/><path d="M6 20v-4M18 20v-4"/>',
   import: '<path d="M12 14V4"/><path d="M8 10l4 4 4-4"/><path d="M5 16v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/>',
   recover: '<path d="M4 12a8 8 0 1 1 2.3 5.6"/><path d="M4 18v-4h4"/><path d="M12 8v4l3 2"/>',
   clear: '<path d="M6 7h12"/><path d="M9 7V5h6v2"/><path d="M8 7l1 13h6l1-13"/>',

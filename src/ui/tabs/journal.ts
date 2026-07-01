@@ -57,8 +57,12 @@ export const journalTab: Component<ChronicleState> = {
       const entries = s.journal.filter((j) => j.who === w.id);
       const h = Math.round(150 + 60 * (entries.length / maxN)); // 150–210px
       const sc = dominantSentiment(entries);
+      const img = s.cast[w.id]?.imageUrl;
+      const av = img
+        ? `<span class="vle-jspine-av has-img" style="background-image:url(${esc(JSON.stringify(img))})"></span>`
+        : `<span class="vle-jspine-av">${esc(initials(w.name))}</span>`;
       return `<button class="vle-jspine vle-jspine--${sc}" data-jr-book="${esc(w.id)}" style="height:${h}px" title="${esc(w.name)} \u00b7 ${entries.length}">`
-        + `<span class="vle-jspine-av">${esc(initials(w.name))}</span>`
+        + av
         + `<span class="vle-jspine-name">${esc(w.name)}</span>`
         + `<span class="vle-jspine-n">${entries.length}</span></button>`;
     }).join('');

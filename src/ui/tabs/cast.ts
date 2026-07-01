@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, CastCard, Faction } from '../../domain/types.js';
-import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, nameOf, autoNameMode, setAutoNameMode, warmCastColors } from '../format.js';
+import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, nameOf, autoNameMode, setAutoNameMode, warmCastColors, avatarParts } from '../format.js';
 import { cmd, paginate, pagerHtml, send, setPage, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { traitArc, dormantTraits } from '../../domain/drift.js';
@@ -262,8 +262,9 @@ function strip(s: ChronicleState, c: CastCard): string {
     const tone = r.affection < -15 ? 'neg' : r.affection > 15 ? 'pos' : 'info';
     return `<span class="vle-strip-dot vle-strip-dot--${tone}" title="${esc(nameOf(s, r.b))}"></span>`;
   }).join('');
+  const sav = avatarParts(c.name, c.imageUrl);
   return '<div class="vle-strip vle-card--' + esc(c.status) + '">'
-    + '<span class="vle-strip-av">' + esc(initials(c.name)) + '</span>'
+    + '<span class="vle-strip-av' + sav.cls + '"' + sav.style + '>' + sav.inner + '</span>'
     + '<span class="vle-strip-n">' + nameHtmlCard(c) + '</span>'
     + '<span class="vle-strip-st">' + esc(where) + '</span>'
     + (c.role ? '<span class="vle-strip-role">' + esc(c.role) + '</span>' : '')

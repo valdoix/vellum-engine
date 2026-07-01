@@ -36,6 +36,19 @@ describe('buildSimPrompt', () => {
     expect(p).toContain('FORBIDDEN');
     expect(p).toContain('harsh');
   });
+
+  it('focusId narrows the prompt to a single subplot (per-thread advance)', () => {
+    const s = state();
+    s.offscreen = [
+      { id: 'jaime_doubt', name: 'Jaime weighs loyalty', status: 'active', gist: 'pacing the yard', beats: ['pacing the yard'], firstTurn: 8, lastTurn: 10 },
+      { id: 'tyrion_plot', name: 'Tyrion schemes', status: 'active', gist: 'reading letters', beats: ['reading letters'], firstTurn: 9, lastTurn: 11 },
+    ] as any;
+    const p = buildSimPrompt(s, offscreenCast(s), { focusId: 'jaime_doubt' });
+    expect(p).toContain('ADVANCE THIS ONE OFF-SCREEN SUBPLOT');
+    expect(p).toContain('jaime_doubt');
+    expect(p).not.toContain('tyrion_plot'); // only the focused thread is in the prompt
+    expect(p).toContain('exactly one entry');
+  });
 });
 
 describe('parseSim', () => {

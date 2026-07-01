@@ -456,28 +456,33 @@ const SIM_CADENCE = 3; // tick the off-screen world every Nth turn (cost control
  * armed directives, and tone. Fail/timeout/empty Ã¢â€ â€™ no-op. Beats are tagged
  * src:'sim' so the UI distinguishes them; the append-only log makes them undoable.
  */
-async function simulateOffscreen(chatId: string, userId: string | null): Promise<void> {
+async function simulateOffscreen(chatId: string, userId: string | null, focusId?: string): Promise<void> {
   if (_simulating.has(chatId)) return;
   if (!(await has('generation'))) return;
   _simulating.add(chatId);
   try {
     const state = await loadState(chatId);
     const cast = offscreenCast(state);
-    if (cast.length < 1) return; // nobody plausibly off-screen
+    // per-thread advance can run even with nobody plausibly off-screen (the
+    // subplot itself carries the context); the world-wide tick needs a cast.
+    if (!focusId && cast.length < 1) return;
     const tone = await readTone(chatId, userId);
     const locks = await readLocks(chatId);
     const directives = await readDirectives(chatId);
-    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition } });
+    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition }, ...(focusId ? { focusId } : {}) });
     const res = await controllerGenerate([{ role: 'system', content: SIM_SYS }, { role: 'user', content: prompt }], userId, 3000);
     if (!res.ok) return;
     const parsed = parseSim(res.value);
     if (!parsed) return;
-    const evs = simEvents(parsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal());
+    // when focused, keep only the beat for that subplot (guard against drift)
+    const useParsed = focusId ? { offscreen: parsed.offscreen.filter((p) => p.id === focusId).slice(0, 1) } : parsed;
+    if (!useParsed.offscreen.length) return;
+    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal());
     if (!evs.length) return;
     await append(chatId, evs);
     invalidateIndex(chatId);
     await broadcastState(chatId, userId);
-    spindle.log?.info?.(`[vellum_engine] off-screen sim: ${parsed.offscreen.length} subplot beat(s)`);
+    spindle.log?.info?.(`[vellum_engine] off-screen sim${focusId ? ` (focus ${focusId})` : ''}: ${useParsed.offscreen.length} subplot beat(s)`);
   } catch (e) { spindle.log?.warn?.('[vellum_engine] simulateOffscreen: ' + ((e as Error)?.message ?? e)); }
   finally { _simulating.delete(chatId); }
 }
@@ -1168,11 +1173,12 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true }, uid);
   },
   vellum_offthread_advance: async (p, uid) => {
-    // run one off-screen sim tick NOW (needs generation permission)
+    // run one off-screen sim tick NOW (needs generation permission). With an id,
+    // advance ONLY that subplot (per-thread); without, the whole off-screen world.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: false, reason: 'no_generation' }, uid); return; }
-    await simulateOffscreen(chatId, uid);
+    await simulateOffscreen(chatId, uid, p?.id ? String(p.id) : undefined);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true, advanced: true }, uid);
   },

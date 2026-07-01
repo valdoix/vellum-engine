@@ -1,5 +1,5 @@
 import type { ChronicleState, PresentChar, Relation } from '../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml, bondMeter, initials } from './format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml, bondMeter, initials, avatarParts } from './format.js';
 import { storyStats } from '../domain/stats.js';
 
 /**
@@ -40,6 +40,9 @@ const SECTION_GLYPH: Record<SectionId, string> = {
 // Rendered always but CSS-hidden unless futuristic chrome — keeps dashboard pure.
 let _sysInfo = { recall: 'off', injChars: 0 };
 export function setSysInfo(info: Partial<{ recall: string; injChars: number }>): void { _sysInfo = { ..._sysInfo, ...info }; }
+// world-calendar epoch/season string (set via Actions), surfaced in the hero meta line
+let _calendar = '';
+export function setDashCalendar(cal: string): void { _calendar = cal || ''; }
 function sysFooter(): string {
   const inj = _sysInfo.injChars ? ` &middot; inj=${_sysInfo.injChars}ch` : '';
   return `<div class="vld-sysfoot">SYS: recall=${esc(_sysInfo.recall)}${inj}</div>`;
@@ -115,7 +118,9 @@ function statusBar(s: ChronicleState): string {
     const t = Math.max(0, Math.min(10, s.scene.tension || 0));
     if (t) pill = `<span class="vld-hero-tension"><span class="vld-hero-tdot"></span>Tension ${t}</span>`;
   }
-  return `<div class="vld-sec vld-sec--hero">${pill}${eyebrow}${loc}<div class="vld-meta">${meta}</div></div>`;
+  // world-calendar epoch: makes "Day 47" read as an occasion (e.g. ✦ Feast of Ash)
+  const epoch = _calendar ? `<div class="vld-epoch">\u2726 ${esc(_calendar)}</div>` : '';
+  return `<div class="vld-sec vld-sec--hero">${pill}${eyebrow}${loc}<div class="vld-meta">${meta}</div>${epoch}</div>`;
 }
 
 function tensionBar(s: ChronicleState): string {
@@ -163,8 +168,9 @@ function presentCard(s: ChronicleState, d: PresentChar): string {
   const itemsStrip = carried.length
     ? `<div class="vld-pc-items">${carried.slice(0, 3).map((it) => `<span class="vld-pc-item">${esc(it.item)}</span>`).join('')}${carried.length > 3 ? `<span class="vld-pc-item">+${carried.length - 3}</span>` : ''}</div>`
     : '';
+  const av = avatarParts(name, s.cast[d.id]?.imageUrl);
   return `<div class="vld-pc${d.thought ? ' has-thought' : ''}">`
-    + `<span class="vld-pc-av">${esc(initials(name))}<span class="vld-pc-dot"></span></span>`
+    + `<span class="vld-pc-av${av.cls}"${av.style}>${av.inner}<span class="vld-pc-dot"></span></span>`
     + `<div class="vld-pc-body">`
     + `<div class="vld-pc-top"><span class="vld-pc-n">${nameHtml(s, d.id)}</span>${status ? `<span class="vld-pc-status">${status}</span>` : ''}</div>`
     + `${doing}${thought}${itemsStrip}`

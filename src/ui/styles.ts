@@ -131,6 +131,8 @@ export const STYLES = [
   ".vle-os-ripe{font:600 9px/1.4 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vle-gold);margin-left:6px}",
   ".vle-os-stale{font:500 9px/1.4 var(--vmono);color:var(--vi2);opacity:.55;margin-left:6px}",
   ".vle-av.has-img{background-size:cover;background-position:center}.vle-av.has-img>.vle-av-dot{}",
+  // shared portrait convention: any medallion with .has-img shows the image (cover) + hides initials text
+  ".vld-pc-av.has-img,.vle-strip-av.has-img,.vle-jspine-av.has-img{background-size:cover!important;background-position:center;color:transparent;font-size:0}",
   ".vld-stats{display:flex;flex-wrap:wrap;gap:10px;margin:2px 0 6px}",
   ".vld-stat{display:flex;flex-direction:column;align-items:center;min-width:44px}",
   ".vld-stat-v{font-family:var(--vserif);font-size:calc(18px * var(--vscale));color:var(--vle-gold);line-height:1}",
@@ -540,6 +542,10 @@ export const STYLES = [
   ".vlfm-mark{color:var(--vle-gold)}",
   ".vlfm-body{padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:11px}",
   ".vlfm-l{display:flex;flex-direction:column;gap:5px;font:600 9px/1.3 var(--vmono);letter-spacing:.5px;text-transform:uppercase;opacity:.78}",
+  ".vlfm-section{margin:12px 0 2px;font:600 9px/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vg);opacity:.7;padding-bottom:4px;border-bottom:1px solid rgba(var(--vg-rgb),.16)}",
+  ".vlfm-adv{margin-top:10px;border-top:1px solid rgba(var(--vg-rgb),.16);padding-top:4px}",
+  ".vlfm-adv>summary{font:600 10px/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--vg);opacity:.75;cursor:pointer;padding:5px 0}",
+  ".vlfm-adv[open]>summary{margin-bottom:6px}",
   ".vlfm-in{font-family:var(--vserif);font-size:15px;letter-spacing:0;text-transform:none;color:var(--vle-ink);background:rgba(12,10,8,.7);border:1px solid rgba(var(--vg-rgb),.26);border-radius:8px;padding:8px 10px;outline:none}",
   ".vlfm-in:focus{border-color:var(--vle-gold);box-shadow:0 0 0 2px rgba(var(--vg-rgb),.16)}",
   ".vlfm-ta{min-height:84px;resize:vertical;line-height:1.5}",
@@ -669,6 +675,10 @@ export const STYLES = [
   ".vld-hero:not(.vld-loc--none)::before{content:'\\25C8 ';color:var(--vg);opacity:.7;font-style:normal}",
   ".vld-loc--none{opacity:.5}",
   ".vld-meta{font:600 var(--vt-meta)/1.4 var(--vmono);letter-spacing:.5px;color:var(--vi2);opacity:.7}",
+  // world-calendar epoch token — reads as an occasion under the meta line
+  ".vld-epoch{margin-top:calc(4px * var(--vscale));font-family:var(--vserif);font-style:italic;font-size:calc(14px * var(--vscale));color:var(--v-press-i);letter-spacing:.3px}",
+  "html[data-vle-chrome='illuminated'] .vld-epoch{color:var(--v-neg-i);font-variant:small-caps;letter-spacing:1px}",
+  "html[data-vle-chrome='futuristic'] .vld-epoch{font-family:var(--vmono);font-style:normal;text-transform:uppercase;letter-spacing:1.5px;font-size:calc(11px * var(--vscale))}",
   // amber tension dot-meter (semantic --v-press, no longer danger-red)
   ".vld-dots{display:flex;gap:4px;align-items:center;flex:1}",
   ".vld-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.1)}",

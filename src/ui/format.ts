@@ -35,6 +35,15 @@ export function initials(name: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
+/** One portrait convention for every avatar medallion (cast card + strip, present
+ * card, journal spine). When imageUrl is set: adds ` has-img`, a background-image
+ * style, and empty inner (CSS hides initials via .has-img). Otherwise: initials.
+ * Returns the three fragments the caller splices into its own element. */
+export function avatarParts(name: string, imageUrl?: string): { cls: string; style: string; inner: string } {
+  if (imageUrl) return { cls: ' has-img', style: ' style="background-image:url(' + esc(JSON.stringify(imageUrl)) + ')"', inner: '' };
+  return { cls: '', style: '', inner: esc(initials(name)) };
+}
+
 export const CAT_COLORS: Record<string, string> = {
   familial: '#cda84e', romantic: '#c97a9a', alliance: '#8fa67e',
   rivalry: '#c96a6a', social: '#7ea6b0', neutral: '#8c8478',

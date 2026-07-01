@@ -26,17 +26,17 @@ const ALL: SectionId[] = ['status', 'present', 'tension', 'relations', 'threads'
 export const LAYOUTS: LayoutDef[] = [
   {
     id: 'dashboard', name: 'Dashboard', blurb: 'Everything, comfortably — the default.', glyph: '\u2637',
-    order: ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent'],
+    order: ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent', 'stats'],
     hidden: [], collapsed: [], density: 'comfortable', columns: 1,
   },
   {
     id: 'scene', name: 'Scene Focus', blurb: 'The living moment — present cast & tension up top, the rest tucked away.', glyph: '\u25C9',
-    order: ['present', 'tension', 'status', 'relations', 'parallel', 'recent', 'threads'],
-    hidden: [], collapsed: ['parallel', 'recent', 'threads'], density: 'comfortable', columns: 1,
+    order: ['present', 'tension', 'status', 'relations', 'parallel', 'recent', 'threads', 'stats'],
+    hidden: [], collapsed: ['parallel', 'recent', 'threads', 'stats'], density: 'comfortable', columns: 1,
   },
   {
     id: 'director', name: 'Director', blurb: 'Plot at a glance — threads & off-screen beside the cast (2-col when wide).', glyph: '\u2630',
-    order: ['status', 'threads', 'parallel', 'present', 'relations', 'recent'],
+    order: ['status', 'threads', 'parallel', 'present', 'relations', 'recent', 'stats'],
     hidden: [], collapsed: [], density: 'comfortable', columns: 2,
   },
   {
@@ -46,7 +46,7 @@ export const LAYOUTS: LayoutDef[] = [
   },
   {
     id: 'ledger', name: 'Ledger', blurb: 'A tall reading column — prose-first, journal-like.', glyph: '\u2261',
-    order: ['status', 'present', 'recent', 'relations', 'threads', 'parallel', 'tension'],
+    order: ['status', 'present', 'recent', 'relations', 'threads', 'parallel', 'tension', 'stats'],
     hidden: [], collapsed: [], density: 'roomy', columns: 1,
   },
   {
@@ -57,12 +57,12 @@ export const LAYOUTS: LayoutDef[] = [
   // --- form layouts: pair with a chrome to make the float an OBJECT ---
   {
     id: 'codex', name: 'Codex', blurb: 'An open book \u2014 two facing pages (illuminated chrome).', glyph: '\uD83D\uDCD6',
-    order: ['present', 'tension', 'status', 'threads', 'parallel', 'relations', 'recent'],
+    order: ['present', 'tension', 'status', 'threads', 'parallel', 'relations', 'recent', 'stats'],
     hidden: [], collapsed: [], density: 'comfortable', columns: 2,
   },
   {
     id: 'scroll', name: 'Scroll', blurb: 'A single unfurled parchment \u2014 one tall column.', glyph: '\u07F7',
-    order: ['status', 'present', 'tension', 'threads', 'relations', 'parallel', 'recent'],
+    order: ['status', 'present', 'tension', 'threads', 'relations', 'parallel', 'recent', 'stats'],
     hidden: [], collapsed: [], density: 'roomy', columns: 1,
   },
   {

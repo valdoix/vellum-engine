@@ -32,6 +32,7 @@ export interface SimCtx {
   locks?: readonly RelationLock[];
   directives?: readonly Directive[];
   tone?: { disposition: string };
+  focusId?: string; // when set, advance ONLY this subplot (per-thread advance)
 }
 
 export const SIM_SYS = [
@@ -47,6 +48,17 @@ export const SIM_SYS = [
  * + world guardrails (locks, armed directives, tone). */
 export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name: string; role?: string }>, ctx: SimCtx = {}): string {
   const lines: string[] = [];
+  // per-thread advance: narrow the whole prompt to the one focused subplot
+  const focus = ctx.focusId ? (state.offscreen ?? []).find((o) => o.id === ctx.focusId && o.status === 'active') : undefined;
+  if (focus) {
+    lines.push('ADVANCE THIS ONE OFF-SCREEN SUBPLOT by a single small beat (reuse its id):');
+    lines.push(`- [${focus.id}] ${focus.name}${focus.who ? ` (${focus.who})` : ''}${focus.where ? ` @${focus.where}` : ''}: ${focus.gist || focus.beats[focus.beats.length - 1] || ''}`);
+    if (focus.beats.length) { lines.push('', 'RECENT BEATS:'); for (const b of focus.beats.slice(-4)) lines.push(`- ${b}`); }
+    lines.push('', 'Reply with exactly one entry: op "advance" (or "resolve" if it has run its course), same id.');
+    if (ctx.tone?.disposition && ctx.tone.disposition !== 'fair') lines.push('', `WORLD TONE: ${ctx.tone.disposition}.`);
+    lines.push('', `Current scene: ${state.scene.location || 'unknown'}${state.scene.time ? ', ' + state.scene.time : ''}.`);
+    return lines.join('\n');
+  }
   lines.push('OFF-SCREEN CHARACTERS:');
   for (const c of cast) lines.push(`- ${c.name}${c.role ? ` (${c.role})` : ''}`);
   const open = (state.offscreen ?? []).filter((o) => o.status === 'active').slice(0, 8);

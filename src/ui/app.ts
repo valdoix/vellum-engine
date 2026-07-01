@@ -12,7 +12,7 @@ import { injectionTab, setInjectionLog, pushInjectionRecord } from './tabs/injec
 import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize } from './theme.js';
-import { dashboardHtml, setPhoneSection, setSysInfo } from './dashboard.js';
+import { dashboardHtml, setPhoneSection, setSysInfo, setDashCalendar } from './dashboard.js';
 import { esc } from './format.js';
 import { icon, hasIcon } from './icons.js';
 import type { Component } from './component.js';
@@ -87,21 +87,24 @@ const TABS = [
 // their current state; the destructive Clear is quarantined in its own group.
 const QOL = [
   { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins', group: 'inline' },
-  { id: 'boundaries', label: '\u26D4 Boundaries', title: 'Hard limits: content this story will never depict (outranks every other setting)', group: 'maint' },
-  { id: 'calendar', label: '\u2637 Calendar', title: 'Name the current epoch/season so "Day 47" reads as an occasion', group: 'maint' },
-  { id: 'budget', label: '\u2696 Context budget', title: 'How much VELLUM injects per turn: master dial + per-injector caps + off-screen/summary cadence', group: 'maint' },
-  { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'maint' },
-  { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message', group: 'maint' },
-  { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)', group: 'maint' },
-  { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)', group: 'maint' },
-  { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)', group: 'maint' },
-  { id: 'tidyfacts', label: '\u2702 Tidy lore', title: 'Fold near-duplicate knowledge & secrets now (needs generation permission)', group: 'maint' },
-  { id: 'resummarize', label: '\u27F2 Re-summarize all', title: 'Rebuild every chapter summary from scratch with the current pipeline (needs generation permission)', group: 'maint' },
-  { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc prompts', group: 'maint' },
+  // settings = persistent configuration
+  { id: 'boundaries', label: '\u26D4 Boundaries', title: 'Hard limits: content this story will never depict (outranks every other setting)', group: 'settings' },
+  { id: 'calendar', label: '\u2637 Calendar', title: 'Name the current epoch/season so "Day 47" reads as an occasion', group: 'settings' },
+  { id: 'budget', label: '\u2696 Context budget', title: 'How much VELLUM injects per turn: master dial + per-injector caps + off-screen/summary cadence', group: 'settings' },
+  { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'settings' },
+  { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc prompts', group: 'settings' },
+  // toggles = persistent on/off state
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
-  { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
+  // run = one-shot verbs
+  { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'run' },
+  { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message', group: 'run' },
+  { id: 'rebuild', label: '\u27F3 Rebuild', title: 'Reconstruct the whole chronicle from the chat transcript (recovery)', group: 'run' },
+  { id: 'tidy', label: '\u2702 Tidy threads', title: 'Merge near-duplicate plot threads now (needs generation permission)', group: 'run' },
+  { id: 'tidyfacts', label: '\u2702 Tidy lore', title: 'Fold near-duplicate knowledge & secrets now (needs generation permission)', group: 'run' },
+  { id: 'resummarize', label: '\u27F2 Re-summarize all', title: 'Rebuild every chapter summary from scratch with the current pipeline (needs generation permission)', group: 'run' },
+  // data
   { id: 'export', label: '\u2913 Export', title: 'Download the chronicle as JSON', group: 'data' },
   { id: 'exportmd', label: '\u2913 Export Markdown', title: 'Download the story as readable Markdown (story-so-far, cast, bonds, codex)', group: 'data' },
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON', group: 'data' },
@@ -121,16 +124,19 @@ function openBudgetModal(ctx: Ctx): void {
       { value: 'rich', label: 'Rich (large-context models)' },
       { value: 'custom', label: 'Custom (advanced fields below)' },
     ], hint: 'Lean/Balanced/Rich scale every injector together. Custom uses the caps below (0 = disable an injector).' },
-    { key: 'simInterval', label: 'Off-screen sim interval (turns; 0 = never)', type: 'number', min: 0, max: 20, step: 1, value: n('simInterval', 4) },
-    { key: 'autoSummaryAt', label: 'Auto-summarize after N turn-memories', type: 'number', min: 4, max: 100, step: 1, value: n('autoSummaryAt', 16) },
-    { key: 'spine', label: 'Advanced \u00b7 beat spine cap', type: 'number', min: 0, max: 40, step: 1, value: n('spine', 14) },
-    { key: 'locations', label: 'locations cap (0 = off)', type: 'number', min: 0, max: 40, step: 1, value: n('locations', 12) },
-    { key: 'drift', label: 'personality drift cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('drift', 6) },
-    { key: 'mood', label: 'mood cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('mood', 5) },
-    { key: 'locks', label: 'relationship-lock cap', type: 'number', min: 0, max: 20, step: 1, value: n('locks', 6) },
-    { key: 'plants', label: 'foreshadow-plants cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('plants', 6) },
-    { key: 'offscreen', label: 'off-screen convergence cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('offscreen', 3) },
-    { key: 'recallDepth', label: 'recall depth (memories injected)', type: 'number', min: 0, max: 40, step: 1, value: n('recallDepth', 12) },
+    { key: '_s1', label: 'Cadence', type: 'section', adv: true },
+    { key: 'simInterval', label: 'Off-screen sim interval (turns; 0 = never)', type: 'number', min: 0, max: 20, step: 1, value: n('simInterval', 4), adv: true },
+    { key: 'autoSummaryAt', label: 'Auto-summarize after N turn-memories', type: 'number', min: 4, max: 100, step: 1, value: n('autoSummaryAt', 16), adv: true },
+    { key: '_s2', label: 'Retrieval', type: 'section', adv: true },
+    { key: 'recallDepth', label: 'recall depth (memories injected)', type: 'number', min: 0, max: 40, step: 1, value: n('recallDepth', 12), adv: true },
+    { key: 'spine', label: 'beat spine cap', type: 'number', min: 0, max: 40, step: 1, value: n('spine', 14), adv: true },
+    { key: 'locations', label: 'locations cap (0 = off)', type: 'number', min: 0, max: 40, step: 1, value: n('locations', 12), adv: true },
+    { key: '_s3', label: 'Characters & plot', type: 'section', adv: true },
+    { key: 'drift', label: 'personality drift cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('drift', 6), adv: true },
+    { key: 'mood', label: 'mood cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('mood', 5), adv: true },
+    { key: 'locks', label: 'relationship-lock cap', type: 'number', min: 0, max: 20, step: 1, value: n('locks', 6), adv: true },
+    { key: 'plants', label: 'foreshadow-plants cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('plants', 6), adv: true },
+    { key: 'offscreen', label: 'off-screen convergence cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('offscreen', 3), adv: true },
   ], (out) => {
     const num = (v: string | undefined, d: number): number => { const s = (v ?? '').trim(); const x = Number(s); return s !== '' && isFinite(x) ? x : d; };
     const budget: Record<string, unknown> = {
@@ -152,6 +158,7 @@ function openCalendarModal(ctx: Ctx): void {
     { key: 'calendar', label: 'Current epoch / season / occasion (blank = none)', type: 'text', value: _calendar, placeholder: 'the third day of the harvest festival, year 312' },
   ], (o) => {
     _calendar = (o.calendar ?? '').trim();
+    setDashCalendar(_calendar);
     ctx.sendToBackend({ type: 'vellum_set_calendar', calendar: _calendar });
     notify(ctx, 'success', _calendar ? 'Calendar set.' : 'Calendar cleared.');
   });
@@ -291,7 +298,7 @@ function setQolBusy(id: string, busy: boolean, timeoutMs = 30000): void {
 function openActions(ctx: Ctx): void {
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
-  const groups: Array<[string, string]> = [['maint', 'Maintenance'], ['toggle', 'Toggles'], ['data', 'Data'], ['danger', 'Danger']];
+  const groups: Array<[string, string]> = [['settings', 'Settings'], ['toggle', 'Toggles'], ['run', 'Run'], ['data', 'Data'], ['danger', 'Danger']];
   const bodyHtml = (): string => {
     const toggleState: Record<string, string> = {
       hide: _hideOn ? 'on' : 'off',
@@ -390,7 +397,6 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'budget') { ctx.sendToBackend({ type: 'vellum_get_budget' }); /* modal opens when state arrives */ }
   else if (id === 'summarize') { setQolBusy('summarize', true); ctx.sendToBackend({ type: 'vellum_summarize' }); notify(ctx, 'info', 'Summarizing older turns\u2026'); }
   else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); notify(ctx, 'info', 'Rescanning the latest turn\u2026'); }
-  else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
@@ -658,7 +664,7 @@ export function setup(ctx: Ctx): () => void {
         if (Array.isArray(p.directives)) { setDirectorDirectives(p.directives); }
         if ('nextScene' in p) setDirectorNextScene(p.nextScene);
         if (typeof p.hardLimits === 'string') _hardLimits = p.hardLimits;
-        if (typeof p.calendar === 'string') _calendar = p.calendar;
+        if (typeof p.calendar === 'string') { _calendar = p.calendar; setDashCalendar(_calendar); }
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;
@@ -768,7 +774,7 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_budget_done') {
         if (p.budget && typeof p.budget === 'object') _budget = p.budget as Record<string, unknown>;
       } else if (p?.type === 'vellum_calendar_done') {
-        if (typeof p.calendar === 'string') _calendar = p.calendar;
+        if (typeof p.calendar === 'string') { _calendar = p.calendar; setDashCalendar(_calendar); }
       } else if (p?.type === 'vellum_hide_done') {
         setQolBusy('hide', false);
         _hideOn = !!p.enabled;

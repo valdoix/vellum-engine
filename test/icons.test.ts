@@ -6,8 +6,8 @@ import { icon, hasIcon } from '../src/ui/icons.js';
 describe('icon set', () => {
   const TAB_IDS = ['now', 'cast', 'bonds', 'chronicle', 'journal', 'graph', 'vault', 'context'];
   const TOOLBAR = ['search', 'director', 'customize', 'actions'];
-  // action ids that opt into icons (toggles + maintenance + data + danger that have art)
-  const ACTIONS = ['summarize', 'rescan', 'undo', 'rebuild', 'resummarize', 'tidy', 'tidyfacts', 'summarizer', 'hide', 'traverse', 'tone', 'offscreen', 'export', 'import', 'recover', 'clear'];
+  // action ids that opt into icons (settings + toggles + run + data + danger)
+  const ACTIONS = ['boundaries', 'calendar', 'budget', 'tone', 'summarizer', 'hide', 'traverse', 'offscreen', 'summarize', 'rescan', 'rebuild', 'resummarize', 'tidy', 'tidyfacts', 'export', 'exportmd', 'import', 'recover', 'clear'];
 
   it('has an icon for every tab', () => {
     for (const id of TAB_IDS) expect(hasIcon(id), id).toBe(true);

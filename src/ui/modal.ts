@@ -8,7 +8,7 @@
 export interface Field {
   key: string;
   label: string;
-  type: 'text' | 'textarea' | 'select' | 'checks' | 'color' | 'number';
+  type: 'text' | 'textarea' | 'select' | 'checks' | 'color' | 'number' | 'section';
   value?: string | string[];
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
@@ -17,6 +17,7 @@ export interface Field {
   max?: number;
   step?: number;
   hint?: string; // small helper line under the field
+  adv?: boolean; // group into a collapsed "Advanced" <details> fold
 }
 
 export interface FormModalOpts {
@@ -32,8 +33,9 @@ const esc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => (
 export function formModal(title: string, fields: Field[], onSave: (values: Record<string, string>) => void, opts?: FormModalOpts): void {
   const overlay = document.createElement('div');
   overlay.className = 'vlfm-overlay';
-  const fieldHtml = fields.map((f) => {
+  const renderField = (f: Field): string => {
     const hint = f.hint ? `<span class="vlfm-hint">${esc(f.hint)}</span>` : '';
+    if (f.type === 'section') return `<div class="vlfm-section">${esc(f.label)}${hint}</div>`;
     if (f.type === 'textarea') return `<label class="vlfm-l${f.big ? ' vlfm-l-grow' : ''}">${esc(f.label)}${hint}<textarea class="vlfm-in vlfm-ta${f.big ? ' vlfm-ta-big' : ''}" data-f="${f.key}" placeholder="${esc(f.placeholder ?? '')}">${esc(f.value ?? '')}</textarea></label>`;
     if (f.type === 'number') {
       const attrs = `${f.min !== undefined ? ` min="${f.min}"` : ''}${f.max !== undefined ? ` max="${f.max}"` : ''}${f.step !== undefined ? ` step="${f.step}"` : ''}`;
@@ -49,15 +51,18 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
       return `<div class="vlfm-l" data-fchecks="${f.key}">${esc(f.label)}${hint}<div class="vlfm-chkrow">${boxes}</div></div>`;
     }
     if (f.type === 'color') {
-      // a color input + a "none" checkbox so the user can clear back to default ink.
-      // Empty value (none checked) is collected as '' → upsert clears the color.
       const v = String(f.value ?? '');
       return `<div class="vlfm-l" data-fcolor="${f.key}">${esc(f.label)}${hint}<div class="vlfm-colrow">`
         + `<input type="color" class="vlfm-col" data-fcol="${f.key}" value="${esc(v || '#cda84e')}">`
         + `<label class="vlfm-chk"><input type="checkbox" data-fcolnone="${f.key}"${v ? '' : ' checked'}> none</label></div></div>`;
     }
     return `<label class="vlfm-l">${esc(f.label)}${hint}<input class="vlfm-in" data-f="${f.key}" value="${esc(f.value ?? '')}" placeholder="${esc(f.placeholder ?? '')}"></label>`;
-  }).join('');
+  };
+  // fields flagged adv:true collapse into one "Advanced" <details> fold at the end
+  const mainFields = fields.filter((f) => !f.adv);
+  const advFields = fields.filter((f) => f.adv);
+  const fieldHtml = mainFields.map(renderField).join('')
+    + (advFields.length ? `<details class="vlfm-adv"><summary>Advanced</summary>${advFields.map(renderField).join('')}</details>` : '');
   const actionBtns = (opts?.actions ?? []).map((a, i) => `<button class="vlfm-btn vlfm-act" data-act="${i}">${esc(a.label)}</button>`).join('');
   overlay.innerHTML = `<div class="vlfm${opts?.large ? ' vlfm-large' : ''}"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>${esc(title)}</div>`
     + `<div class="vlfm-body">${fieldHtml}</div>`
