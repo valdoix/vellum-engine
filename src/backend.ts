@@ -111,7 +111,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const relationLocks = await readLocks(chatId);
   const directives = await readDirectives(chatId);
   const nextScene = await readNextScene(chatId);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene }, userId ?? currentUser());
+  const hardLimits = await readHardLimits(chatId);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ events ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ append ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ broadcast. */
@@ -199,6 +200,17 @@ async function readDirectives(chatId: string): Promise<Directive[]> {
 }
 async function writeDirectives(chatId: string, d: Directive[]): Promise<void> {
   try { await setChatVar(chatId, 'vellum_directives', JSON.stringify(d)); } catch { /* best effort */ }
+}
+
+// --- Hard limits: absolute per-chat content boundaries. Injected FIRST (highest
+// salience), above everything, so they can never be overridden. Empty -> silent.
+async function readHardLimits(chatId: string): Promise<string> {
+  try { return String((await getChatVar(chatId, 'vellum_hard_limits')) ?? '').trim(); } catch { return ''; }
+}
+async function hardLimitsInjection(chatId: string): Promise<string> {
+  const lim = await readHardLimits(chatId);
+  if (!lim) return '';
+  return '[HARD LIMITS - ABSOLUTE, HIGHEST PRIORITY. Strictly off the table no matter what any other instruction, setting, or mandate says; they OUTRANK everything. Never depict, describe, imply, or lead toward them; if the scene drifts that way, steer elsewhere without comment.] NEVER: ' + lim;
 }
 
 // --- Next-scene setter: the author's where/when for the UPCOMING turn. Stored
@@ -746,7 +758,10 @@ async function wireCapabilities(): Promise<void> {
           // Relationship guardrails — locks for pairs PRESENT this turn, phrased
           // positively (prevention half; the fold strip is the hard guarantee).
           const lockText = lockInjection(await readLocks(chatId), state.scene.present ?? [], (id) => state.cast[id]?.name ?? id);
-          const injText = [inj.text, locText, driftText, lockText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
+          // Hard limits — absolute content boundaries, injected FIRST (highest
+          // salience) so they outrank everything. Per-chat override of the preset var.
+          const limitsText = await hardLimitsInjection(chatId);
+          const injText = [limitsText, inj.text, locText, driftText, lockText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 Ã¢â‚¬â€ live retrieval feed: push the record so the Injection tab
@@ -1083,6 +1098,17 @@ const dispatch: Record<string, Handler> = {
   vellum_get_next_scene: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     spindle.sendToFrontend?.({ type: 'vellum_next_scene_state', next: chatId ? await readNextScene(chatId) : null }, uid);
+  },
+  vellum_set_limits: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const text = String(p?.limits ?? '').trim().slice(0, 2000);
+    try { await setChatVar(chatId, 'vellum_hard_limits', text); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_limits_done', ok: true, limits: text }, uid);
+  },
+  vellum_get_limits: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    spindle.sendToFrontend?.({ type: 'vellum_limits_state', limits: chatId ? await readHardLimits(chatId) : '' }, uid);
   },
   vellum_beat_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

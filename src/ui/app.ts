@@ -87,6 +87,7 @@ const TABS = [
 // their current state; the destructive Clear is quarantined in its own group.
 const QOL = [
   { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins', group: 'inline' },
+  { id: 'boundaries', label: '\u26D4 Boundaries', title: 'Hard limits: content this story will never depict (outranks every other setting)', group: 'maint' },
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'maint' },
   { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message', group: 'maint' },
   { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)', group: 'maint' },
@@ -106,6 +107,16 @@ const QOL = [
 ] as const;
 
 /** Open the Customize (theme) panel as a modal-style overlay. */
+function openBoundaries(ctx: Ctx): void {
+  formModal('Content Boundaries', [
+    { key: 'limits', label: 'Hard limits \u2014 never depict (outranks every other setting, incl. NSFW/NSFL and the Mandate)', type: 'textarea', big: true, value: _hardLimits, placeholder: 'e.g. any sexualization of minors; ... (comma- or line-separated)' },
+  ], (o) => {
+    _hardLimits = (o.limits ?? '').trim();
+    ctx.sendToBackend({ type: 'vellum_set_limits', limits: _hardLimits });
+    notify(ctx, 'success', _hardLimits ? 'Boundaries saved (absolute).' : 'Boundaries cleared.');
+  }, { large: true });
+}
+
 function openCustomize(onChange: () => void): void {
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
@@ -202,6 +213,7 @@ const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === '
 let _tone = { romance: 'medium', disposition: 'fair' };
 let _tidyOn = false;
 let _chapterVault = 'keyed';
+let _hardLimits = ''; // last-known hard-limits chat var (mirrored from broadcasts)
 let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
 let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
@@ -321,6 +333,7 @@ function openSearch(getState: () => ChronicleState, go: (tab: string) => void): 
 
 function onQol(ctx: Ctx, id: string): void {
   if (id === 'customize') { openCustomize(() => _retheme()); }
+  else if (id === 'boundaries') { openBoundaries(ctx); }
   else if (id === 'summarize') { setQolBusy('summarize', true); ctx.sendToBackend({ type: 'vellum_summarize' }); notify(ctx, 'info', 'Summarizing older turns\u2026'); }
   else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); notify(ctx, 'info', 'Rescanning the latest turn\u2026'); }
   else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
@@ -580,6 +593,7 @@ export function setup(ctx: Ctx): () => void {
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
         if (Array.isArray(p.directives)) { setDirectorDirectives(p.directives); }
         if ('nextScene' in p) setDirectorNextScene(p.nextScene);
+        if (typeof p.hardLimits === 'string') _hardLimits = p.hardLimits;
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;
@@ -674,6 +688,8 @@ export function setup(ctx: Ctx): () => void {
         setDirectorNextScene('next' in p ? p.next : null);
         try { refreshUI(); } catch { /* best effort */ }
         if (p.type === 'vellum_next_scene_done') notify(ctx, 'success', p.next ? 'Next scene set.' : 'Next scene cleared.');
+      } else if (p?.type === 'vellum_limits_done' || p?.type === 'vellum_limits_state') {
+        if (typeof p.limits === 'string') _hardLimits = p.limits;
       } else if (p?.type === 'vellum_hide_done') {
         setQolBusy('hide', false);
         _hideOn = !!p.enabled;
