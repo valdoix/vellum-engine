@@ -11,10 +11,11 @@ import { formModal, confirmModal } from '../modal.js';
  * through the bridge → vellum_cmd.
  */
 
-type CView = 'world' | 'timeline' | 'beats' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex' | 'items';
+type CView = 'world' | 'timeline' | 'turns' | 'beats' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex' | 'items';
 const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'world', label: 'World' },
-  { id: 'timeline', label: 'Story' },
+  { id: 'timeline', label: 'Timeline' },
+  { id: 'turns', label: 'Turns' },
   { id: 'beats', label: 'Beats' },
   { id: 'memory', label: 'Memory' },
   { id: 'knowledge', label: 'Knowledge' },
@@ -38,6 +39,10 @@ let _summaryIds: string[] = []; // all chapter/arc memory ids (set each render),
 // Story-beat suggestions, filled by the vellum_beat_suggestions broadcast.
 let _beatSuggest: Array<{ turn: number; day?: number; text: string }> = [];
 export function setBeatSuggestions(items: unknown): void { _beatSuggest = Array.isArray(items) ? items as typeof _beatSuggest : []; }
+// Turn Inspector data (per-turn change digests), filled by the vellum_turnlog broadcast.
+let _turnLog: Array<{ turn: number; changes: Array<{ icon: string; text: string }> }> = [];
+let _turnMax = 0;
+export function setTurnLog(turns: unknown, maxTurn: unknown): void { _turnLog = Array.isArray(turns) ? turns as typeof _turnLog : []; _turnMax = typeof maxTurn === 'number' ? maxTurn : 0; }
 
 /** First-sentence preview of a (possibly very long) stored turn text. We store
  * turns in FULL now; the chronicle shows only one line + an ellipsis, with the
@@ -52,11 +57,11 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_beatSuggest.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_beatSuggest.length}:${_turnLog.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const memCount = s.memories.filter((m) => m.tier !== 'beat').length; // Memory view excludes beats (own tab)
-    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: memCount, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
+    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, turns: _turnMax, beats: s.memories.filter((m) => m.tier === 'beat').length, memory: memCount, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
     const btn = (v: { id: CView; label: string }): string =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`;
     // Story (the Spine river) leads as the primary reading surface; World/Beats
@@ -69,6 +74,7 @@ export const chronicleTab: Component<ChronicleState> = {
     let body = '';
     if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) + offscreenSection(s) || '';
     else if (_view === 'timeline') body = timeline(s);
+    else if (_view === 'turns') body = turnsView(s);
     else if (_view === 'beats') body = beatsView(s);
     else if (_view === 'memory') body = memories(s);
     else if (_view === 'knowledge') body = knowledge(s);
@@ -83,7 +89,9 @@ export const chronicleTab: Component<ChronicleState> = {
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       const nv = t.closest('[data-cview]');
-      if (nv) { _view = nv.getAttribute('data-cview') as CView; refreshUI(); return; }
+      if (nv) { _view = nv.getAttribute('data-cview') as CView; if (_view === 'turns') send({ type: 'vellum_get_turnlog' }); refreshUI(); return; }
+      const tu = t.closest('[data-turn-undo]');
+      if (tu) { confirmModal('Undo this turn? Its chronicle changes are dropped (the chat message stays).', () => { send({ type: 'vellum_undo' }); setTimeout(() => send({ type: 'vellum_get_turnlog' }), 400); }); return; }
       const tk = t.closest('[data-tl-kind]');
       if (tk) { _tlKind = tk.getAttribute('data-tl-kind')!; refreshUI(); return; }
       const td = t.closest('[data-tl-day]');
@@ -327,6 +335,18 @@ function timeline(s: ChronicleState): string {
 
 /** Story Beats — the author-curated landmark layer + recall spine. Sorted by
  * day then turn; spine-flagged beats carry a marker (always-injected). */
+function turnsView(s: ChronicleState): string {
+  const head = sectionHeader('\u21BA Turns', { sub: true, count: _turnLog.length });
+  const intro = '<div class="vle-cz-note">What each turn changed in the chronicle. Read-only; the most recent turn can be undone (its chat message is untouched).</div>';
+  if (!_turnLog.length) return head + intro + emptyState('No tracked changes yet.', 'As you play, each turn\u2019s bond/knowledge/trait changes appear here.');
+  const rows = _turnLog.map((t) => {
+    const undo = t.turn === _turnMax && _turnMax > 0 ? `<button class="vle-mini del" data-turn-undo data-turn="${t.turn}" title="Undo this turn">\u21A9</button>` : '';
+    const changes = t.changes.map((c) => `<div class="vle-turn-change"><span class="vle-turn-ico">${esc(c.icon)}</span><span class="vle-turn-tx">${esc(c.text)}</span></div>`).join('');
+    return `<div class="vle-turn"><div class="vle-turn-h"><span class="vle-turn-n">turn ${t.turn}</span><span class="vle-turn-count">${t.changes.length} change${t.changes.length === 1 ? '' : 's'}</span>${undo}</div>${changes}</div>`;
+  }).join('');
+  return head + intro + rows;
+}
+
 function beatsView(s: ChronicleState): string {
   const list = s.memories.filter((m) => m.tier === 'beat')
     .sort((a, b) => {

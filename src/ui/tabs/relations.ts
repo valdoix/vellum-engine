@@ -171,6 +171,7 @@ function historyHtml(r: Relation): string {
   const cat = (r.categoryHistory ?? []).filter((h) => h.op === 'add' || h.op === 'remove');
   const scores = (r.history ?? []);
   if (cat.length < 1 && scores.length < 2) return '';
+  const spark = scores.length >= 2 ? arcSparkline(scores) : '';
   const catRows = cat.slice(-8).map((h) => {
     const sign = h.op === 'remove' ? '\u2212' : '+';
     const cls = h.op === 'remove' ? 'rm' : 'add';
@@ -181,7 +182,28 @@ function historyHtml(r: Relation): string {
     return `<div class="vle-hist-row"><span class="vle-hist-t">t${s.turn}</span><span class="vle-hist-sc">aff ${aff} \u00b7 trust ${tr}</span>${s.reason ? `<span class="vle-hist-why">${esc(s.reason)}</span>` : ''}</div>`;
   }).join('');
   return '<details class="vle-hist"><summary>change history</summary>'
+    + spark
     + (catRows ? '<div class="vle-hist-sec">bond shifts</div>' + catRows : '')
     + (scoreRows ? '<div class="vle-hist-sec">score trail</div>' + scoreRows : '')
     + '</details>';
+}
+
+/** A dual aff/trust sparkline over the relationship's score samples — the arc of
+ * the bond at a glance. Pure SVG on theme vars; nodes carry their reason on hover. */
+function arcSparkline(scores: Array<{ turn: number; affection: number; trust: number; reason?: string }>): string {
+  const pts = scores.slice(-40); // cap the series width
+  const n = pts.length;
+  const W = 240, H = 46, padX = 3, padY = 4;
+  const x = (i: number): number => padX + (n <= 1 ? 0 : (i * (W - 2 * padX)) / (n - 1));
+  const y = (v: number): number => padY + ((100 - v) / 200) * (H - 2 * padY); // +100 top, -100 bottom
+  const path = (key: 'affection' | 'trust'): string => pts.map((s, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(s[key]).toFixed(1)).join(' ');
+  const dots = (key: 'affection' | 'trust', color: string): string => pts.map((s, i) =>
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(s[key]).toFixed(1)}" r="2" fill="${color}"><title>t${s.turn} \u00b7 ${key} ${s[key] > 0 ? '+' : ''}${s[key]}${s.reason ? ' \u2014 ' + esc(s.reason) : ''}</title></circle>`).join('');
+  const zeroY = y(0).toFixed(1);
+  return '<div class="vle-arc"><svg viewBox="0 0 ' + W + ' ' + H + '" class="vle-arc-svg" preserveAspectRatio="none">'
+    + `<line x1="${padX}" y1="${zeroY}" x2="${W - padX}" y2="${zeroY}" class="vle-arc-zero"/>`
+    + `<path d="${path('affection')}" class="vle-arc-aff" fill="none"/>`
+    + `<path d="${path('trust')}" class="vle-arc-trust" fill="none"/>`
+    + dots('affection', 'var(--v-pos)') + dots('trust', 'var(--vg)')
+    + '</svg><div class="vle-arc-key"><span class="vle-arc-k-aff">\u2014 affection</span><span class="vle-arc-k-tr">\u2014 trust</span></div></div>';
 }

@@ -2,7 +2,7 @@ import { STYLES } from './styles.js';
 import { FONT_FACES } from './fonts.js';
 import { mount, type Mounted } from './component.js';
 import { freshState, type ChronicleState } from '../domain/types.js';
-import { chronicleTab, setBeatSuggestions } from './tabs/chronicle.js';
+import { chronicleTab, setBeatSuggestions, setTurnLog } from './tabs/chronicle.js';
 import { directorTab, setDirectorDirectives, setDirectorNextScene } from './tabs/director.js';
 import { castTab } from './tabs/cast.js';
 import { relationsTab, setRelationLocks } from './tabs/relations.js';
@@ -688,6 +688,9 @@ export function setup(ctx: Ctx): () => void {
         setDirectorNextScene('next' in p ? p.next : null);
         try { refreshUI(); } catch { /* best effort */ }
         if (p.type === 'vellum_next_scene_done') notify(ctx, 'success', p.next ? 'Next scene set.' : 'Next scene cleared.');
+      } else if (p?.type === 'vellum_turnlog') {
+        setTurnLog(p.turns, p.maxTurn);
+        try { refreshUI(); } catch { /* best effort */ }
       } else if (p?.type === 'vellum_limits_done' || p?.type === 'vellum_limits_state') {
         if (typeof p.limits === 'string') _hardLimits = p.limits;
       } else if (p?.type === 'vellum_hide_done') {

@@ -1,7 +1,7 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar } from './host/chats.js';
-import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs, recoverFromBackup } from './store/chronicle.js';
+import { loadState, append, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
@@ -13,6 +13,7 @@ import { planChapterFrom, planArc, planArcFrom } from './domain/memory.js';
 import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats } from './domain/beats.js';
 import { locationList } from './domain/locations.js';
 import { driftInjection } from './domain/drift.js';
+import { turnLog } from './domain/turnlog.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -1450,6 +1451,14 @@ const dispatch: Record<string, Handler> = {
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_undo_done', ok: true, undoneTurn: maxTurn }, uid);
+  },
+  vellum_get_turnlog: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_turnlog', turns: [], maxTurn: 0 }, uid); return; }
+    const state = await loadState(chatId);
+    const log = await loadLog(chatId);
+    const nameOf = (id: string): string => state.cast[id]?.name ?? id;
+    spindle.sendToFrontend?.({ type: 'vellum_turnlog', turns: turnLog(log.events, nameOf), maxTurn: state.turns || 0 }, uid);
   },
 };
 
