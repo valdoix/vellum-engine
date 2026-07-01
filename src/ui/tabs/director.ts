@@ -177,7 +177,7 @@ function logView(s: ChronicleState): string {
   type Row = { turn: number; kind: 'flag' | 'reveal'; text: string };
   const rows: Row[] = [];
   for (const f of s.continuityFlags ?? []) rows.push({ turn: f.turn, kind: 'flag', text: f.detail });
-  for (const sec of s.secrets) if (sec.revealed) rows.push({ turn: sec.formedTurn ?? 0, kind: 'reveal', text: 'Revealed: ' + sec.text.slice(0, 80) + (sec.keeper ? ' (' + nameOf(s, sec.keeper) + ')' : '') });
+  for (const sec of s.secrets) if (sec.revealed) rows.push({ turn: sec.formedTurn ?? 0, kind: 'reveal', text: 'Revealed: ' + sec.text + (sec.keeper ? ' (' + nameOf(s, sec.keeper) + ')' : '') });
   if (!rows.length) return head + emptyState('Log is empty.', 'Continuity warnings and secret reveals will appear here as the story runs.');
   rows.sort((a, b) => b.turn - a.turn);
   const body = rows.slice(0, 60).map((r) =>

@@ -38,7 +38,8 @@ export const STYLES = [
   ".vle-ver{font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;opacity:.6;color:var(--vle-gold)}",
   ".vle-stats{margin-left:auto;font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;opacity:.6}",
   // tab bar
-  ".vle-tabbar{display:flex;align-items:center;gap:5px;margin:calc(11px * var(--vscale)) 0;flex-wrap:wrap}",
+  ".vle-tabbar{display:flex;align-items:center;gap:5px;margin:calc(11px * var(--vscale)) 0 calc(5px * var(--vscale));flex-wrap:wrap}",
+  ".vle-tabicons{display:flex;align-items:center;gap:5px;margin:0 0 calc(9px * var(--vscale));flex-wrap:wrap;padding-top:calc(6px * var(--vscale));border-top:1px solid rgba(var(--vg-rgb),.14)}",
   ".vle-tabbtn{font:600 calc(11px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:9px;padding:calc(8px * var(--vscale)) calc(13px * var(--vscale));cursor:pointer;opacity:.7;transition:opacity .15s,background .15s,color .15s}",
   ".vle-tabbtn:hover{opacity:1;background:rgba(var(--vg-rgb),.08)}",
   ".vle-tabbtn.on{opacity:1;background:rgba(var(--vg-rgb),.2);border-color:rgba(var(--vg-rgb),.45);color:var(--vle-gold)}",

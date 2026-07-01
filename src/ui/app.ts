@@ -135,12 +135,12 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
     + '<span class="vle-stats" data-stats></span></div>'
     + '<div class="vle-tabbar" data-tabbar>'
       + primary.map((t, i) => tabBtn(t, i === 0)).join('')
-      + '<span class="vle-tabbar-sep"></span>'
+    + '</div>'
+    + '<div class="vle-tabicons">'
       + tools.map((t) => toolBtn(t)).join('')
     + '</div>'
     + '<div class="vle-toolbar" data-toolbar>'
       + `<button class="vle-qol" data-search title="Search the chronicle (cast, bonds, journal, knowledge)">${icon('search', { size: 15 })}<span>Search</span></button>`
-      + `<button class="vle-qol" data-director title="Plot Director: steer the next scene">${icon('director', { size: 15 })}<span>Director</span></button>`
       + `<button class="vle-qol" data-qol="customize" title="Theme: color, font, size & skins">${icon('customize', { size: 15 })}<span>Customize</span></button>`
       + `<button class="vle-qol vle-qol-menu" data-actions title="Chronicle actions">${icon('actions', { size: 15 })}<span>Actions</span></button>`
     + '</div>'
@@ -156,7 +156,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const showTab = (id: string): void => {
     if (active !== id) _scroll.set(active, bodyEl.scrollTop); // stash before leaving
     active = id;
-    tabbar.querySelectorAll('.vle-tabbtn,.vle-tabicon').forEach((b) => b.classList.toggle('on', b.getAttribute('data-tab') === id));
+    root.querySelectorAll('.vle-tabbtn,.vle-tabicon').forEach((b) => b.classList.toggle('on', b.getAttribute('data-tab') === id));
     if (mounted) { mounted.destroy(); mounted = null; }
     bodyEl.innerHTML = '';
     const def = TABS.find((t) => t.id === id) ?? TABS[0]!;
@@ -168,11 +168,10 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
     const w = s.scene.weather ? ` \u00b7 \u2601 ${s.scene.weather}` : '';
     statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 D${s.day ?? 0} \u00b7 ${Object.keys(s.cast).length} cast \u00b7 ${s.relations.length} bonds${w}`;
   };
-  tabbar.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('[data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
+  root.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.vle-tabbar [data-tab],.vle-tabicons [data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) { onQol(ctx, b.getAttribute('data-qol')!); return; }
     if ((e.target as HTMLElement).closest('[data-search]')) openSearch(getState, showTab);
-    if ((e.target as HTMLElement).closest('[data-director]')) showTab('director');
     if ((e.target as HTMLElement).closest('[data-actions]')) openActions(ctx);
   });
   wirePagers(bodyEl); // delegated pager clicks for any paginated list
