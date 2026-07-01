@@ -210,6 +210,17 @@ export interface Location {
   lastTurn: number;
 }
 
+/** A foreshadow/Chekhov plant: a detail seeded now that should pay off later.
+ * Stays 'planted' until resolved; surfaced in the Director so it never vanishes. */
+export interface Plant {
+  id: string;
+  what: string;
+  status: 'planted' | 'paid';
+  plantedTurn: number;
+  paidTurn?: number;
+  payNote?: string;
+}
+
 /** A persisted continuity-alarm finding (advisory; shown in the Director Log). */
 export interface ContinuityFlag {
   turn: number;
@@ -254,6 +265,7 @@ export interface ChronicleState {
   locations: Location[];
   continuityFlags: ContinuityFlag[];
   traitHistory: TraitEvent[];
+  plants: Plant[];
   threads: Track[];
   arcs: Track[];
   parallel: ParallelEvent[];
@@ -293,6 +305,7 @@ export function freshState(): ChronicleState {
     locations: [],
     continuityFlags: [],
     traitHistory: [],
+    plants: [],
     threads: [],
     arcs: [],
     parallel: [],

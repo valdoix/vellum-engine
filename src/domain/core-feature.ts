@@ -307,7 +307,7 @@ export const coreFeature: Feature = {
     }
 
     // ext: engine-reserved blocks the preset emits outside `delta`.
-    const ext = (parsed.ext ?? {}) as { scars?: Array<{ who?: string; was?: string; about?: string }>; codex?: Array<{ fact?: string; tag?: string } | string>; inventory?: Array<{ who?: string; item?: string; op?: string; to?: string; note?: string }> };
+    const ext = (parsed.ext ?? {}) as { scars?: Array<{ who?: string; was?: string; about?: string }>; codex?: Array<{ fact?: string; tag?: string } | string>; inventory?: Array<{ who?: string; item?: string; op?: string; to?: string; note?: string }>; plant?: Array<{ what?: string } | string>; payoff?: Array<{ what?: string } | string> };
     // Palimpsest scars — a belief proven wrong, held by a real character. Same
     // rid()/notAName gate as everything else, so scar attribution inherits the
     // same-surname misattribution protection.
@@ -343,6 +343,18 @@ export const coreFeature: Feature = {
       const effOp = (who === 'world' && (op === 'gain' || op === 'note')) ? 'scene' : op;
       const to = it?.to ? (isCanonSentinel(it.to) ? 'world' : (badName(it.to) ? undefined : rid(it.to))) : undefined;
       out.push({ ...base(), kind: 'item.change', id: 'item_' + ctx.turn + '_' + (ii++), who, item, op: effOp, ...(to ? { to } : {}), ...(it?.note ? { note: String(it.note).slice(0, 200) } : {}) } as VellumEvent);
+    }
+
+    // Foreshadow plants — details seeded this turn (ext.plant) and any paid off
+    // this turn (ext.payoff). Dedup + pay-matching live in the reducer.
+    let pi = 0;
+    for (const pl of Array.isArray(ext.plant) ? ext.plant : []) {
+      const what = String((typeof pl === 'string' ? pl : pl?.what) || '').trim();
+      if (what) out.push({ ...base(), kind: 'plant.set', id: 'plant_' + ctx.turn + '_' + (pi++), what } as VellumEvent);
+    }
+    for (const po of Array.isArray(ext.payoff) ? ext.payoff : []) {
+      const what = String((typeof po === 'string' ? po : po?.what) || '').trim();
+      if (what) out.push({ ...base(), kind: 'plant.pay', id: 'payoff_ref', what } as VellumEvent);
     }
 
     return out;

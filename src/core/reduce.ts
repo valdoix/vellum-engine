@@ -484,6 +484,22 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (s.traitHistory.length > 400) s.traitHistory = s.traitHistory.slice(-400); // ring buffer
       break;
     }
+    case 'plant.set': {
+      const norm = (x: string): string => x.trim().toLowerCase();
+      if (!s.plants.find((p) => p.id === e.id) && !s.plants.find((p) => norm(p.what) === norm(e.what) && p.status === 'planted')) {
+        s.plants.push({ id: e.id, what: e.what, status: 'planted', plantedTurn: e.turn });
+      }
+      break;
+    }
+    case 'plant.pay': {
+      const p = s.plants.find((x) => x.id === e.id) ?? s.plants.find((x) => x.status === 'planted' && x.what.trim().toLowerCase() === (e as { what?: string }).what?.trim().toLowerCase());
+      if (p) { p.status = 'paid'; p.paidTurn = e.turn; if (e.note) p.payNote = e.note; }
+      break;
+    }
+    case 'plant.drop': {
+      s.plants = s.plants.filter((x) => x.id !== e.id);
+      break;
+    }
     default: {
       // exhaustiveness guard — a new event kind must be handled here
       const _never: never = e;

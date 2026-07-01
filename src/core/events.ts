@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 11 as const;
+export const SCHEMA_VERSION = 12 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -92,6 +92,13 @@ export const EvContinuityFlag = z.object({ ...base, kind: z.literal('continuity.
 // causeId links the driving journal/scar/bond; `from` is the trait it replaced.
 export const EvTraitDrift = z.object({ ...base, kind: z.literal('trait.drift'), who: z.string(), trait: z.string(), op: z.enum(['emerge', 'fade', 'reverse', 'resurface', 'harden']), from: z.string().optional(), cause: z.string().optional(), causeId: z.string().optional() });
 
+// --- Foreshadow / Chekhov plants: a detail seeded now that should pay off later
+// (a locked drawer, an omen, a stranger's ring). Stays 'planted' until resolved;
+// surfaced in the Director so it never quietly vanishes. Model emits via ext.plant.
+export const EvPlantSet = z.object({ ...base, kind: z.literal('plant.set'), id: z.string(), what: z.string() });
+export const EvPlantPay = z.object({ ...base, kind: z.literal('plant.pay'), id: z.string(), note: z.string().optional() });
+export const EvPlantDrop = z.object({ ...base, kind: z.literal('plant.drop'), id: z.string() });
+
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
 export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional() });
 export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: CastPatch });
@@ -166,6 +173,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvItemChange, EvItemDrop,
   EvLocationSet, EvLocationDrop, EvContinuityFlag,
   EvTraitDrift,
+  EvPlantSet, EvPlantPay, EvPlantDrop,
   EvParallel, EvOffscreen,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;

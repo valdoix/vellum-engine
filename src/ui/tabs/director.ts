@@ -17,7 +17,7 @@ import { formModal, confirmModal } from '../modal.js';
  * overrides (illuminated default / modern / futuristic) like the other tabs.
  */
 
-type DView = 'directives' | 'locations' | 'nextscene' | 'log';
+type DView = 'directives' | 'locations' | 'nextscene' | 'plants' | 'log';
 let _view: DView = 'directives';
 
 interface UIDirective { id: string; kind: string; text: string; target?: string; status: string; ttl: number; whenTurn?: number; whenDay?: number }
@@ -30,6 +30,7 @@ const VIEWS: Array<{ id: DView; label: string }> = [
   { id: 'directives', label: 'Directives' },
   { id: 'locations', label: 'Locations' },
   { id: 'nextscene', label: 'Next Scene' },
+  { id: 'plants', label: 'Planted' },
   { id: 'log', label: 'Log' },
 ];
 
@@ -38,12 +39,13 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn).join(',')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn).join(',')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
   render(s) {
     const counts: Record<DView, number> = {
       directives: _directives.filter((d) => d.status !== 'done').length,
       locations: (s.locations ?? []).length,
       nextscene: _nextScene ? 1 : 0,
+      plants: (s.plants ?? []).filter((x) => x.status === 'planted').length,
       log: (s.continuityFlags ?? []).length,
     };
     const nav = '<div class="vle-subnav">' + VIEWS.map((v) =>
@@ -52,6 +54,7 @@ export const directorTab: Component<ChronicleState> = {
     if (_view === 'directives') body = directivesView();
     else if (_view === 'locations') body = locationsView(s);
     else if (_view === 'nextscene') body = nextSceneView(s);
+    else if (_view === 'plants') body = plantsView(s);
     else body = logView(s);
     return `<div class="vle-director">${nav}${body}</div>`;
   },
@@ -97,6 +100,15 @@ export const directorTab: Component<ChronicleState> = {
         return;
       }
       if (t.closest('[data-ns-clear]')) { send({ type: 'vellum_set_next_scene', clear: true }); return; }
+      // --- plants ---
+      if (t.closest('[data-plant-add]')) {
+        formModal('New Plant', [{ key: 'what', label: 'What is being seeded (pays off later)', type: 'text', placeholder: 'a locked drawer nobody opened' }], (o) => { if (o.what?.trim()) send({ type: 'vellum_plant_add', what: o.what }); });
+        return;
+      }
+      const pp = t.closest('[data-plant-pay]');
+      if (pp) { send({ type: 'vellum_plant_pay', id: pp.getAttribute('data-id') }); return; }
+      const pd = t.closest('[data-plant-del]');
+      if (pd) { confirmModal('Delete this plant?', () => send({ type: 'vellum_plant_drop', id: pd.getAttribute('data-id') })); return; }
     });
   },
 };
@@ -174,6 +186,24 @@ function nextSceneView(s: ChronicleState): string {
     + (ns.note ? `<div class="vle-ns-row"><span class="vle-ns-k">note</span><span class="vle-ns-v">${esc(ns.note)}</span></div>` : '')
     + `<div class="vle-ns-ctl"><button class="vle-add sm" data-ns-set>Edit</button><button class="vle-add sm danger" data-ns-clear>Clear</button></div></div>`;
   return head + intro + card + steer;
+}
+
+function plantsView(s: ChronicleState): string {
+  const list = (s.plants ?? []).slice().sort((a, b) => (a.status === b.status ? a.plantedTurn - b.plantedTurn : a.status === 'planted' ? -1 : 1));
+  const head = sectionHeader('\u2698 Planted', { sub: true, count: list.filter((p) => p.status === 'planted').length, action: '<button class="vle-add sm" data-plant-add>+</button>' });
+  const intro = '<div class="vle-cz-note">Details seeded to pay off later (a locked drawer, an omen). Open plants are injected so they never quietly vanish; mark one paid when it lands.</div>';
+  if (!list.length) return head + intro + emptyState('Nothing planted.', 'Seed a Chekhov detail here (or let the story plant one via ext.plant); it stays on the board until it pays off.');
+  const now = s.turns || 0;
+  const rows = list.map((p) => {
+    const paid = p.status === 'paid';
+    const age = Math.max(0, now - p.plantedTurn);
+    const meta = paid ? `paid t${p.paidTurn ?? '?'}` : `planted t${p.plantedTurn}${age >= 15 ? ' \u00b7 overdue' : ''}`;
+    const payBtn = paid ? '' : `<button class="vle-mini" data-plant-pay data-id="${esc(p.id)}" title="Mark paid off">\u2713</button>`;
+    return `<div class="vle-plant${paid ? ' paid' : ''}"><span class="vle-plant-mark">${paid ? '\u2713' : '\u2698'}</span>`
+      + `<span class="vle-plant-what">${esc(p.what)}</span><span class="vle-plant-meta">${meta}</span>`
+      + `<span class="vle-mem-ctl">${payBtn}<button class="vle-mini del" data-plant-del data-id="${esc(p.id)}" title="Delete">\u2715</button></span></div>`;
+  }).join('');
+  return head + intro + rows;
 }
 
 function logView(s: ChronicleState): string {

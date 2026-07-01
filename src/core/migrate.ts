@@ -88,6 +88,12 @@ export function migrate(raw: unknown): unknown {
     version = 11;
   }
 
+  // v11 → v12: foreshadow plants (plant.* / state.plants). Additive — old logs
+  // reduce to an empty plants list.
+  if (version < 12) {
+    version = 12;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }
