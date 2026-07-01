@@ -112,3 +112,23 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     return { seq: seq(), turn, day, src: 'system', kind: 'offscreen.op', op, id: p.id, ...(p.name ? { name: p.name } : {}), ...(p.who ? { who: resolve(p.who) } : {}), ...(p.where ? { where: p.where } : {}), ...(p.gist ? { gist: p.gist } : {}) } as VellumEvent;
   });
 }
+
+/** An off-screen thread is "ripe to intersect" when it has built enough (>= 3
+ * beats) OR its `where` matches the current scene location — i.e. it's ready to
+ * walk back on-stage. PURE. */
+export function readyToIntersect(state: ChronicleState, o: ChronicleState['offscreen'][number]): boolean {
+  if (o.status !== 'active') return false;
+  if ((o.beats?.length ?? 0) >= 3) return true;
+  const loc = (state.scene.location ?? '').trim().toLowerCase();
+  return !!loc && !!o.where && o.where.trim().toLowerCase() === loc;
+}
+
+/** Convergence injection: the top ripe off-screen threads, nudged to re-enter the
+ * scene when the moment fits. Capped; empty when none are ripe. */
+export function offscreenInjection(state: ChronicleState, cap = 3): string {
+  const ripe = (state.offscreen ?? []).filter((o) => readyToIntersect(state, o))
+    .sort((a, b) => (b.beats?.length ?? 0) - (a.beats?.length ?? 0)).slice(0, cap);
+  if (!ripe.length) return '';
+  const lines = ripe.map((o) => `- ${o.name}${o.who ? ` (${o.who})` : ''}: ${o.gist || o.beats[o.beats.length - 1] || ''} — ready to intersect the scene.`);
+  return '[OFF-SCREEN — these subplots have built off-stage and are ready to walk into the scene when the moment fits; let one surface naturally, never force it]\n' + lines.join('\n');
+}

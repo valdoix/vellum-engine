@@ -17,6 +17,7 @@ import { turnLog } from './domain/turnlog.js';
 import { toMarkdown } from './domain/markdown.js';
 import { moodInjection } from './domain/mood.js';
 import { plantsInjection } from './domain/plants.js';
+import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate } from './host/generation.js';
@@ -41,7 +42,7 @@ import { parseTone, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, lockInjection, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
 import { checkContinuity } from './domain/continuity.js';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS } from './domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, offscreenInjection, readyToIntersect } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
@@ -205,6 +206,17 @@ async function readDirectives(chatId: string): Promise<Directive[]> {
 }
 async function writeDirectives(chatId: string, d: Directive[]): Promise<void> {
   try { await setChatVar(chatId, 'vellum_directives', JSON.stringify(d)); } catch { /* best effort */ }
+}
+
+// --- Context budget: how much VELLUM injects per turn (per-chat). One chat var
+// resolved to concrete caps read by every injector + the sim/summary cadence.
+async function budgetCaps(chatId: string): Promise<ResolvedCaps> {
+  try { const raw = await getChatVar(chatId, 'vellum_budget'); return resolveBudget(raw ? sanitizeBudget(JSON.parse(raw)) : DEFAULT_BUDGET); }
+  catch { return resolveBudget(DEFAULT_BUDGET); }
+}
+async function budgetRaw(chatId: string): Promise<ContextBudget> {
+  try { const raw = await getChatVar(chatId, 'vellum_budget'); return raw ? sanitizeBudget(JSON.parse(raw)) : DEFAULT_BUDGET; }
+  catch { return DEFAULT_BUDGET; }
 }
 
 // --- World calendar: an optional named epoch so "Day 47" reads as "the third
@@ -476,7 +488,8 @@ async function maybeSimulate(chatId: string, userId: string | null): Promise<voi
   try { on = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
   if (!on) return;
   const state = await loadState(chatId);
-  if ((state.turns || 0) % SIM_CADENCE !== 0) return; // cadence guard
+  const interval = (await budgetCaps(chatId)).simInterval || SIM_CADENCE; // 0 → treat as default
+  if (interval <= 0 || (state.turns || 0) % interval !== 0) return; // cadence guard (user-tunable)
   await simulateOffscreen(chatId, userId);
 }
 
@@ -635,7 +648,8 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
   if (!cfg.auto) return; // user disabled automatic summarization
   const state = await loadState(chatId);
   const turnMems = state.memories.filter((m) => m.tier === 'turn').length;
-  if (turnMems < AUTO_SUMMARY_AT) return; // threshold; keeps recent turns verbatim
+  const threshold = (await budgetCaps(chatId)).autoSummaryAt || AUTO_SUMMARY_AT;
+  if (turnMems < threshold) return; // threshold (user-tunable); keeps recent turns verbatim
   _summarizing.add(chatId);
   try {
     const evs = await summarizeOnce(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg);
@@ -760,30 +774,35 @@ async function wireCapabilities(): Promise<void> {
           const pre = tmode === 'tree' ? getPrecomputedTree(chatId) : null;
           const controller = pre ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
           const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, logVersion(chatId), controller, tmode, pre);
+          const caps = await budgetCaps(chatId); // per-chat injection budget
+          const present = state.scene.present ?? [];
+          const nameOf = (id: string): string => state.cast[id]?.name ?? id;
           // Plot Director: append armed directives as gentle guidance (suggestive,
           // not a hard block — they self-clear at the fold when fulfilled).
           const dirText = directiveInjection(await readDirectives(chatId));
           // Story Beats: the author-curated chronological spine — always-on, cheap.
-          const spineText = beatSpine(state);
+          const spineText = beatSpine(state, caps.spine);
           // Locations gazetteer — canonical place names so the model doesn't hallucinate.
-          const locText = locationList(state);
+          const locText = caps.locations ? locationList(state, caps.locations) : '';
           // Personality drift — arc summaries for present characters (write them in motion).
-          const driftText = driftInjection(state, state.scene.present ?? []);
+          const driftText = caps.drift ? driftInjection(state, present, caps.drift) : '';
           // Mood recency — persistent emotional weather for present characters.
-          const moodText = moodInjection((await loadLog(chatId)).events, state.scene.present ?? [], (id) => state.cast[id]?.name ?? id);
+          const moodText = caps.mood ? moodInjection((await loadLog(chatId)).events, present, nameOf, caps.mood) : '';
           // Foreshadow plants — unresolved seeded details that still hang.
-          const plantText = plantsInjection(state, state.turns || 0);
+          const plantText = caps.plants ? plantsInjection(state, state.turns || 0, caps.plants) : '';
+          // Off-screen convergence — threads ripe to walk back into the scene.
+          const offText = caps.offscreen ? offscreenInjection(state, caps.offscreen) : '';
           // World calendar — named epoch/season for the current day, when set.
           const calText = await calendarInjection(chatId, state.day || 0);
           // Next-scene setter — the author's where/when for THIS turn (clears after).
           const nextSceneText = await nextSceneInjection(chatId);
           // Relationship guardrails — locks for pairs PRESENT this turn, phrased
           // positively (prevention half; the fold strip is the hard guarantee).
-          const lockText = lockInjection(await readLocks(chatId), state.scene.present ?? [], (id) => state.cast[id]?.name ?? id);
+          const lockText = lockInjection(await readLocks(chatId), present, nameOf, caps.locks);
           // Hard limits — absolute content boundaries, injected FIRST (highest
           // salience) so they outrank everything. Per-chat override of the preset var.
           const limitsText = await hardLimitsInjection(chatId);
-          const injText = [limitsText, inj.text, locText, driftText, moodText, lockText, plantText, calText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, lockText, plantText, calText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 Ã¢â‚¬â€ live retrieval feed: push the record so the Injection tab
@@ -1121,6 +1140,42 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     spindle.sendToFrontend?.({ type: 'vellum_next_scene_state', next: chatId ? await readNextScene(chatId) : null }, uid);
   },
+  vellum_offthread_set: async (p, uid) => {
+    // add or edit an off-screen subplot (manual)
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const name = String(p?.name ?? '').trim();
+    if (!name && !p?.id) return;
+    const state = await loadState(chatId);
+    const id = p?.id ? String(p.id) : 'off_u' + nextSeqLocal();
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'offscreen.op', op: p?.id ? 'advance' : 'new', id, ...(name ? { name } : {}), ...(p?.who ? { who: canonId(String(p.who)) } : {}), ...(p?.where ? { where: String(p.where) } : {}), ...(p?.gist ? { gist: String(p.gist).slice(0, 200) } : {}) } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true }, uid);
+  },
+  vellum_offthread_resolve: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const state = await loadState(chatId);
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'offscreen.op', op: 'resolve', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true }, uid);
+  },
+  vellum_offthread_drop: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'offscreen.drop', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true }, uid);
+  },
+  vellum_offthread_advance: async (p, uid) => {
+    // run one off-screen sim tick NOW (needs generation permission)
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: false, reason: 'no_generation' }, uid); return; }
+    await simulateOffscreen(chatId, uid);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true, advanced: true }, uid);
+  },
   vellum_plant_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
@@ -1163,6 +1218,18 @@ const dispatch: Record<string, Handler> = {
     const text = String(p?.calendar ?? '').trim().slice(0, 400);
     try { await setChatVar(chatId, 'vellum_calendar', text); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_calendar_done', ok: true, calendar: text }, uid);
+  },
+  vellum_set_budget: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const cfg = sanitizeBudget(p?.budget);
+    try { await setChatVar(chatId, 'vellum_budget', JSON.stringify(cfg)); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_budget_done', ok: true, budget: cfg }, uid);
+  },
+  vellum_get_budget: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    const cfg = chatId ? await budgetRaw(chatId) : DEFAULT_BUDGET;
+    spindle.sendToFrontend?.({ type: 'vellum_budget_state', budget: cfg }, uid);
   },
   vellum_beat_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

@@ -128,6 +128,8 @@ export const STYLES = [
   ".vle-plant-what{flex:1 1 auto;font-family:var(--vserif);font-size:calc(14px * var(--vscale));color:var(--vi)}",
   ".vle-plant.paid .vle-plant-what{text-decoration:line-through;text-decoration-color:rgba(var(--vg-rgb),.4)}",
   ".vle-plant-meta{flex:0 0 auto;font:500 10px/1.4 var(--vmono);color:var(--vi2);opacity:.6}",
+  ".vle-os-ripe{font:600 9px/1.4 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vle-gold);margin-left:6px}",
+  ".vle-os-stale{font:500 9px/1.4 var(--vmono);color:var(--vi2);opacity:.55;margin-left:6px}",
   ".vle-av.has-img{background-size:cover;background-position:center}.vle-av.has-img>.vle-av-dot{}",
   ".vld-stats{display:flex;flex-wrap:wrap;gap:10px;margin:2px 0 6px}",
   ".vld-stat{display:flex;flex-direction:column;align-items:center;min-width:44px}",

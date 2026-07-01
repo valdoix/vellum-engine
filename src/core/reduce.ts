@@ -380,6 +380,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.op === 'resolve') ot.status = 'resolved';
       break;
     }
+    case 'offscreen.drop': {
+      s.offscreen = s.offscreen.filter((o) => o.id !== e.id);
+      break;
+    }
     case 'journal.entry': {
       if (!s.journal.find((j) => j.id === e.id)) {
         // dedupe identical memory text for the same holder

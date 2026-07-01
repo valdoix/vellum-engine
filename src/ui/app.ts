@@ -89,6 +89,7 @@ const QOL = [
   { id: 'customize', label: '\u25C8 Customize', title: 'Theme: color, font, size & skins', group: 'inline' },
   { id: 'boundaries', label: '\u26D4 Boundaries', title: 'Hard limits: content this story will never depict (outranks every other setting)', group: 'maint' },
   { id: 'calendar', label: '\u2637 Calendar', title: 'Name the current epoch/season so "Day 47" reads as an occasion', group: 'maint' },
+  { id: 'budget', label: '\u2696 Context budget', title: 'How much VELLUM injects per turn: master dial + per-injector caps + off-screen/summary cadence', group: 'maint' },
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'maint' },
   { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message', group: 'maint' },
   { id: 'undo', label: '\u21A9 Undo turn', title: 'Drop the most recent turn\u2019s events (event-log undo)', group: 'maint' },
@@ -109,6 +110,43 @@ const QOL = [
 ] as const;
 
 /** Open the Customize (theme) panel as a modal-style overlay. */
+function openBudgetModal(ctx: Ctx): void {
+  const b = _budget ?? {};
+  const n = (k: string, d: number): string => String(typeof b[k] === 'number' ? b[k] : d);
+  const preset = String(b.preset ?? 'balanced');
+  formModal('Context Budget', [
+    { key: 'preset', label: 'How much to inject each turn', type: 'select', value: preset, options: [
+      { value: 'lean', label: 'Lean (small-context models)' },
+      { value: 'balanced', label: 'Balanced (default)' },
+      { value: 'rich', label: 'Rich (large-context models)' },
+      { value: 'custom', label: 'Custom (advanced fields below)' },
+    ], hint: 'Lean/Balanced/Rich scale every injector together. Custom uses the caps below (0 = disable an injector).' },
+    { key: 'simInterval', label: 'Off-screen sim interval (turns; 0 = never)', type: 'number', min: 0, max: 20, step: 1, value: n('simInterval', 4) },
+    { key: 'autoSummaryAt', label: 'Auto-summarize after N turn-memories', type: 'number', min: 4, max: 100, step: 1, value: n('autoSummaryAt', 16) },
+    { key: 'spine', label: 'Advanced \u00b7 beat spine cap', type: 'number', min: 0, max: 40, step: 1, value: n('spine', 14) },
+    { key: 'locations', label: 'locations cap (0 = off)', type: 'number', min: 0, max: 40, step: 1, value: n('locations', 12) },
+    { key: 'drift', label: 'personality drift cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('drift', 6) },
+    { key: 'mood', label: 'mood cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('mood', 5) },
+    { key: 'locks', label: 'relationship-lock cap', type: 'number', min: 0, max: 20, step: 1, value: n('locks', 6) },
+    { key: 'plants', label: 'foreshadow-plants cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('plants', 6) },
+    { key: 'offscreen', label: 'off-screen convergence cap (0 = off)', type: 'number', min: 0, max: 20, step: 1, value: n('offscreen', 3) },
+    { key: 'recallDepth', label: 'recall depth (memories injected)', type: 'number', min: 0, max: 40, step: 1, value: n('recallDepth', 12) },
+  ], (out) => {
+    const num = (v: string | undefined, d: number): number => { const s = (v ?? '').trim(); const x = Number(s); return s !== '' && isFinite(x) ? x : d; };
+    const budget: Record<string, unknown> = {
+      preset: out.preset || 'balanced',
+      simInterval: num(out.simInterval, 4), autoSummaryAt: num(out.autoSummaryAt, 16),
+      spine: num(out.spine, 14), locations: num(out.locations, 12), drift: num(out.drift, 6), mood: num(out.mood, 5),
+      locks: num(out.locks, 6), plants: num(out.plants, 6), offscreen: num(out.offscreen, 3), recallDepth: num(out.recallDepth, 12),
+      injectDrift: num(out.drift, 6) > 0, injectMood: num(out.mood, 5) > 0, injectPlants: num(out.plants, 6) > 0,
+      injectLocations: num(out.locations, 12) > 0, injectOffscreen: num(out.offscreen, 3) > 0,
+    };
+    _budget = budget;
+    ctx.sendToBackend({ type: 'vellum_set_budget', budget });
+    notify(ctx, 'success', `Context budget: ${budget.preset}.`);
+  }, { large: true });
+}
+
 function openCalendarModal(ctx: Ctx): void {
   formModal('World Calendar', [
     { key: 'calendar', label: 'Current epoch / season / occasion (blank = none)', type: 'text', value: _calendar, placeholder: 'the third day of the harvest festival, year 312' },
@@ -227,6 +265,7 @@ let _tidyOn = false;
 let _chapterVault = 'keyed';
 let _hardLimits = ''; // last-known hard-limits chat var (mirrored from broadcasts)
 let _calendar = ''; // last-known world-calendar chat var
+let _budget: Record<string, unknown> | null = null; // last-known context-budget cfg
 let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
 let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
@@ -348,6 +387,7 @@ function onQol(ctx: Ctx, id: string): void {
   if (id === 'customize') { openCustomize(() => _retheme()); }
   else if (id === 'boundaries') { openBoundaries(ctx); }
   else if (id === 'calendar') { openCalendarModal(ctx); }
+  else if (id === 'budget') { ctx.sendToBackend({ type: 'vellum_get_budget' }); /* modal opens when state arrives */ }
   else if (id === 'summarize') { setQolBusy('summarize', true); ctx.sendToBackend({ type: 'vellum_summarize' }); notify(ctx, 'info', 'Summarizing older turns\u2026'); }
   else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); notify(ctx, 'info', 'Rescanning the latest turn\u2026'); }
   else if (id === 'undo') { confirmModal('Undo the most recent turn? This drops that turn\u2019s chronicle events (the chat messages are untouched).', () => { setQolBusy('undo', true); ctx.sendToBackend({ type: 'vellum_undo' }); }); }
@@ -722,6 +762,11 @@ export function setup(ctx: Ctx): () => void {
         try { refreshUI(); } catch { /* best effort */ }
       } else if (p?.type === 'vellum_limits_done' || p?.type === 'vellum_limits_state') {
         if (typeof p.limits === 'string') _hardLimits = p.limits;
+      } else if (p?.type === 'vellum_budget_state') {
+        _budget = (p.budget && typeof p.budget === 'object') ? p.budget as Record<string, unknown> : {};
+        if (_ctxRef) openBudgetModal(_ctxRef);
+      } else if (p?.type === 'vellum_budget_done') {
+        if (p.budget && typeof p.budget === 'object') _budget = p.budget as Record<string, unknown>;
       } else if (p?.type === 'vellum_calendar_done') {
         if (typeof p.calendar === 'string') _calendar = p.calendar;
       } else if (p?.type === 'vellum_hide_done') {

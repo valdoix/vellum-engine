@@ -3,6 +3,7 @@ import type { ChronicleState, Memory } from '../../domain/types.js';
 import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
+import { readyToIntersect } from '../../domain/offscreen.js';
 
 /**
  * Chronicle tab. Split into sub-views so it stops being a 6-deep heterogeneous
@@ -218,6 +219,18 @@ export const chronicleTab: Component<ChronicleState> = {
       if (scd) { confirmModal('Delete this scar?', () => cmd('scar_delete', { id: scd.getAttribute('data-id') })); return; }
       const ld = t.closest('[data-lore-del]');
       if (ld) { confirmModal('Delete this codex note?', () => cmd('lore_delete', { id: ld.getAttribute('data-id') })); return; }
+      // --- off-screen threads ---
+      if (t.closest('[data-off-advance]')) { send({ type: 'vellum_offthread_advance' }); return; }
+      if (t.closest('[data-off-add]')) { formModal('New Off-screen Thread', [
+        { key: 'name', label: 'Subplot name', type: 'text', placeholder: 'Jaime\u2019s march north' },
+        { key: 'who', label: 'Who (optional)', type: 'text' },
+        { key: 'where', label: 'Where (optional)', type: 'text' },
+        { key: 'gist', label: 'What\u2019s happening', type: 'text' },
+      ], (o) => { if (o.name?.trim()) send({ type: 'vellum_offthread_set', name: o.name, who: o.who || undefined, where: o.where || undefined, gist: o.gist || undefined }); }); return; }
+      const ofr = t.closest('[data-off-resolve]');
+      if (ofr) { send({ type: 'vellum_offthread_resolve', id: ofr.getAttribute('data-id') }); return; }
+      const ofd = t.closest('[data-off-del]');
+      if (ofd) { confirmModal('Delete this off-screen thread?', () => send({ type: 'vellum_offthread_drop', id: ofd.getAttribute('data-id') })); return; }
       if (t.closest('[data-item-add]')) { formModal('New Item', [
         { key: 'item', label: 'Item', type: 'text', placeholder: 'the forged letter' },
         { key: 'who', label: 'Held by (blank = a scene/world item)', type: 'text', placeholder: 'Cersei' },
@@ -254,14 +267,20 @@ function tracks(title: string, list: ChronicleState['arcs']): string {
 function offscreenSection(s: ChronicleState): string {
   const open = (s.offscreen ?? []).filter((o) => o.status === 'active').sort(byRecent);
   const narrated = (s.parallel ?? []).filter((p) => p.src !== 'sim'); // model-written meanwhile
-  if (!open.length && !narrated.length) return '';
   const shownNarr = narrated.slice(0, 4);
-  let html = sectionHeader('\u2748 Off-screen', { sub: true, count: open.length + shownNarr.length });
+  const now = s.turns || 0;
+  const acts = '<button class="vle-add sm" data-off-advance title="Advance the off-screen world now (one sim tick; needs generation)">\u2748 advance</button><button class="vle-add sm" data-off-add>+</button>';
+  let html = sectionHeader('\u2748 Off-screen', { sub: true, count: open.length + shownNarr.length, action: acts });
+  if (!open.length && !shownNarr.length) return html + emptyState('No off-screen threads.', 'Subplots unfolding away from the scene appear here \u2014 auto-simulated (toggle Off-screen in Actions) or added by hand.');
   html += open.map((o) => {
     const who = o.who ? esc(s.cast[o.who]?.name ?? o.who) : '';
     const where = o.where ? ` <span class="vle-os-w">@${esc(o.where)}</span>` : '';
+    const stale = now - o.lastTurn;
+    const ripe = readyToIntersect(s, o) ? '<span class="vle-os-ripe" title="Ready to walk into the scene">\u25C6 ripe</span>' : '';
+    const staleMark = stale >= 6 ? `<span class="vle-os-stale">${stale}t idle</span>` : '';
     const hist = o.beats.length > 1 ? `<details class="vle-os-h"><summary>${o.beats.length} beats</summary>${o.beats.map((b) => '<div>\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
-    return `<div class="vle-os"><div class="vle-os-top"><span class="vle-os-n">${esc(o.name)}</span>${who ? `<span class="vle-os-who">${who}</span>` : ''}${where}</div><div class="vle-os-gist">${esc(o.gist || o.beats[o.beats.length - 1] || '')}</div>${hist}</div>`;
+    const ctl = `<span class="vle-mem-ctl"><button class="vle-mini" data-off-resolve data-id="${esc(o.id)}" title="Resolve">\u2713</button><button class="vle-mini del" data-off-del data-id="${esc(o.id)}" title="Delete">\u2715</button></span>`;
+    return `<div class="vle-os"><div class="vle-os-top"><span class="vle-os-n">${esc(o.name)}</span>${who ? `<span class="vle-os-who">${who}</span>` : ''}${where}${ripe}${staleMark}${ctl}</div><div class="vle-os-gist">${esc(o.gist || o.beats[o.beats.length - 1] || '')}</div>${hist}</div>`;
   }).join('');
   if (shownNarr.length) {
     html += shownNarr.map((p) => `<div class="vle-os vle-os--narr"><div class="vle-os-gist">${p.who ? '<b>' + esc(s.cast[p.who]?.name ?? p.who) + '</b>: ' : ''}${esc(p.activity)}${p.where ? ` <span class="vle-os-w">@${esc(p.where)}</span>` : ''}</div></div>`).join('');
