@@ -929,7 +929,7 @@
       "position": "post_history",
       "enabled": true,
       "group": "v2-cat-engine",
-      "content": "{{if::{{var::reverie}}}}[REVERIE — DO THIS FIRST] Begin your reply with a <reverie>...</reverie> block, then the prose. The reverie is hidden from the reader and never re-enters context, so think freely here and nowhere else.\n[CONFIG] {{getvar::vl_active}} | phase {{switch::true::{{lt::{{messageCount}}::16}}::OPENING (establish, low pressure)::{{lt::{{messageCount}}::51}}::RISING (let threads build)::{{lt::{{messageCount}}::151}}::CRUISING (pay things off, complicate)::{{lt::{{messageCount}}::500}}::MARATHON (escalate, honor long arcs)::true::ENDURANCE (deep continuity, no resets)}}{{if::{{var::augury}}}}\n[AUGURY — roll the lots, then obey them silently] {{.pressure = {{roll::1d20}}}}{{.shape = {{roll::1d10}}}}{{.cost = {{roll::1d8}}}}{{.omen = {{roll::1d100}}}}\n- PRESSURE {{.pressure}}/20: {{switch::{{ceil::{{calc::{{.pressure}}/5}}}}::1::STILL — withhold event, let the beat breathe::2::TURNING — one quiet pivot::3::CHARGED — pressure surfaces now::4::ECLIPSED — something breaks, arrives, or is taken}}{{if::{{and::{{gte::{{.pressure}}::18}}::{{gt::{{getchatvar::vl_cd_eclipse}}::0}}}}}} (eclipse cooling down → play it as CHARGED instead){{/if}}\n- SHAPE {{.shape}}/10: open {{switch::{{.shape}}::1::on a body deciding before it speaks::2::on a threshold narrowing::3::mid-gesture, no preamble::4::on a sound out of place::5::in the middle of an argument already lost::6::on what someone is hiding with their hands::7::on the cost of the last beat still settling::8::on an absence noticed::9::on a small ugly true detail::10::wherever the silence is loudest}}\n- COST {{.cost}}/8: this beat SPENDS {{switch::{{.cost}}::1::time::2::trust::3::safety::4::a truth that can't be unsaid::5::leverage::6::face::7::a door that won't reopen::8::nothing — a gift, and gifts are suspicious}}\n- OMEN: {{if::{{gte::{{.omen}}::92}}}}⚠ {{pick::a forgotten name returns with teeth::an object refuses to stay lost::someone arrives a scene too early::an old debt is called in::the plan meets weather it didn't account for}}{{else}}none this turn{{/if}}{{if::{{gte::{{.pressure}}::18}}}}{{setchatvar::vl_cd_eclipse::3}}{{else}}{{if::{{gt::{{getchatvar::vl_cd_eclipse}}::0}}}}{{decchatvar::vl_cd_eclipse}}{{/if}}{{/if}}{{/if}}{{if::{{var::marginalia}}}}\n[MARGINALIA — doodle three, keep one] anchors: {{pick::spindle::alidade::tallow::brine::hinge::gilt::ledger::ash::quill::salt::rushlight::vellum-scrap::iron::thread}} / {{pick::an unpaid debt::a wrong name kept::a habit that won't heal::a borrowed coat::a letter never sent::a promise going stale}} / {{pick::too-bright::off-key::a beat too slow::scoured::overripe::askew}}. Sketch three directions for this beat that each use all three; take the one that serves the scene's truth; bin the other two. The anchors never appear literally — they only push you off your first instinct.{{/if}}{{if::{{var::palimpsest}}}}\n[PALIMPSEST] When a character's belief is proven wrong this turn, the old belief doesn't vanish - it scars. Log it in ext.scars and let it resurface later as doubt or flinch under stress, never as fact. Honor any scar already on record in the chronicle.{{/if}}\n{{var::reverie_depth}}\nREGISTER WALL: reverie is your private workshop and speaks workshop language; the prose speaks none of it. Nothing named in here may surface as narration - not the lots, the pressure states (still/turning/charged/eclipsed), the shape/cost/omen labels or the cost-words (trust/leverage/face as bookkeeping), not the wrong first reaction, goal/fear, dramatic irony, scars, or PLAN. Spend the cost by showing it in the scene, never by naming it. Plan in craft terms; write in story terms only. CLOCK: note the current day + time-of-day and how much time this beat plausibly spans; advance scene.time/day accordingly and never reset them. ANTI-DRAFT: reverie is NOTES, never prose - no drafted lines, no 'Option A/B', no writing the scene twice. LENGTH GATE: if the beat would land under ~85% of the {{var::length}} target, expand the SAME moment with more texture; never fast-forward to fill space. Plan once, close the tag, write the scene once. PLAN THE STATE (plain notes only): the FINAL line inside your <reverie> is `STATE: ` followed by the deltas you intend (turn number, plus any scene/bond/knowledge/present change - or just the turn). This is a PLAIN-TEXT NOTE, never a fenced block - do NOT write a <vellum> tag or a code fence inside the reverie. The real <vellum> block is emitted ONCE, AFTER the prose, by turning that note into fenced JSON. A <vellum> block placed inside the reverie is WRONG and does NOT count - it must come after the prose or the turn is incomplete. Your turn has THREE required parts in order: this <reverie> (ending in the STATE line), then the prose, then the <vellum> block. Your reply MUST open with the literal characters '<reverie>' and MUST end with a closed </vellum> block.{{/if}}",
+      "content": "{{if::{{var::reverie}}}}[REVERIE — DO THIS FIRST] Begin your reply with a <reverie>...</reverie> block, then the prose. The reverie is hidden from the reader and never re-enters context, so think freely here and nowhere else.\n[CONFIG] {{getvar::vl_active}} | phase {{switch::true::{{lt::{{messageCount}}::16}}::OPENING (establish, low pressure)::{{lt::{{messageCount}}::51}}::RISING (let threads build)::{{lt::{{messageCount}}::151}}::CRUISING (pay things off, complicate)::{{lt::{{messageCount}}::500}}::MARATHON (escalate, honor long arcs)::true::ENDURANCE (deep continuity, no resets)}}{{if::{{var::augury}}}}\n[AUGURY — roll the lots, then obey them silently] {{.pressure = {{roll::1d20}}}}{{.shape = {{roll::1d10}}}}{{.cost = {{roll::1d8}}}}{{.omen = {{roll::1d100}}}}\n- PRESSURE {{.pressure}}/20: {{switch::{{ceil::{{calc::{{.pressure}}/5}}}}::1::STILL — withhold event, let the beat breathe::2::TURNING — one quiet pivot::3::CHARGED — pressure surfaces now::4::ECLIPSED — something breaks, arrives, or is taken}}{{if::{{and::{{gte::{{.pressure}}::18}}::{{gt::{{getchatvar::vl_cd_eclipse}}::0}}}}}} (eclipse cooling down → play it as CHARGED instead){{/if}}\n- SHAPE {{.shape}}/10: open {{switch::{{.shape}}::1::on a body deciding before it speaks::2::on a threshold narrowing::3::mid-gesture, no preamble::4::on a sound out of place::5::in the middle of an argument already lost::6::on what someone is hiding with their hands::7::on the cost of the last beat still settling::8::on an absence noticed::9::on a small ugly true detail::10::wherever the silence is loudest}}\n- COST {{.cost}}/8: this beat SPENDS {{switch::{{.cost}}::1::time::2::trust::3::safety::4::a truth that can't be unsaid::5::leverage::6::face::7::a door that won't reopen::8::nothing — a gift, and gifts are suspicious}}\n- OMEN: {{if::{{gte::{{.omen}}::92}}}}⚠ {{pick::a forgotten name returns with teeth::an object refuses to stay lost::someone arrives a scene too early::an old debt is called in::the plan meets weather it didn't account for}}{{else}}none this turn{{/if}}{{if::{{gte::{{.pressure}}::18}}}}{{setchatvar::vl_cd_eclipse::3}}{{else}}{{if::{{gt::{{getchatvar::vl_cd_eclipse}}::0}}}}{{decchatvar::vl_cd_eclipse}}{{/if}}{{/if}}{{/if}}{{if::{{var::marginalia}}}}\n[MARGINALIA — doodle three, keep one] anchors: {{pick::spindle::alidade::tallow::brine::hinge::gilt::ledger::ash::quill::salt::rushlight::vellum-scrap::iron::thread}} / {{pick::an unpaid debt::a wrong name kept::a habit that won't heal::a borrowed coat::a letter never sent::a promise going stale}} / {{pick::too-bright::off-key::a beat too slow::scoured::overripe::askew}}. Sketch three directions for this beat that each use all three; take the one that serves the scene's truth; bin the other two. The anchors never appear literally — they only push you off your first instinct.{{/if}}{{if::{{var::palimpsest}}}}\n[PALIMPSEST] When a character's belief is proven wrong this turn, the old belief doesn't vanish - it scars. Log it in ext.scars and let it resurface later as doubt or flinch under stress, never as fact. Honor any scar already on record in the chronicle.{{/if}}\n{{var::reverie_depth}}\nREGISTER WALL: reverie is your private workshop and speaks workshop language; the prose speaks none of it. Nothing named in here may surface as narration - not the lots, the pressure states (still/turning/charged/eclipsed), the shape/cost/omen labels or the cost-words (trust/leverage/face as bookkeeping), not the wrong first reaction, goal/fear, dramatic irony, scars, or PLAN. Spend the cost by showing it in the scene, never by naming it. Plan in craft terms; write in story terms only. CLOCK: note the current day + time-of-day and how much time this beat plausibly spans; advance scene.time/day accordingly and never reset them. ANTI-DRAFT: reverie is NOTES, never prose. Keep it brief and focused on the scene's truth. LENGTH GATE: if the beat would land under ~85% of the {{var::length}} target, expand the SAME moment with more texture; never fast-forward to fill space. Plan once, close the tag, write the scene once. STATE is a plain note inside the reverie: `STATE: ` followed by your JSON deltas. The real <vellum> block is emitted ONCE, AFTER the prose, by turning that note into fenced JSON. Your turn has THREE required parts: this <reverie> (ending in the STATE line), then the prose, then the <vellum> block. Your reply MUST open with the literal characters '<reverie>' and MUST end with a closed </vellum> block.{{/if}}",
       "variables": [
         {
           "id": "var_reverie",
@@ -974,17 +974,17 @@
             {
               "id": "vibes",
               "label": "Vibes (lean)",
-              "value": "One line only: the single most important thing this beat must do. Then write. End with a one-line STATE: the <vellum> deltas to emit this turn."
+              "value": "One line only: the single most important thing this beat must do. STATE: the <vellum> deltas to emit this turn. Then close </reverie>."
             },
             {
               "id": "standard",
               "label": "Standard",
-              "value": "Four quick notes: SCENE (what just changed; the hour now and how much time this beat spends) | STATES (each present character's goal + emotional truth now; who carries this beat in words, and is anyone who'd speak being left silent) | LIMITS (what limited-knowledge forbids this turn) | PLAN (one line, obeying the lots above) | STATE: the exact <vellum> deltas to emit (decide them now)."
+              "value": "Four quick notes: SCENE (what just changed; the hour now and how much time this beat spends) | STATES (each present character's goal + emotional truth now; who carries this beat in words, and is anyone who'd speak being left silent) | LIMITS (what limited-knowledge forbids this turn) | PLAN (one line, obeying the lots above) | STATE: the exact <vellum> deltas to emit (decide them now). Then close </reverie>."
             },
             {
               "id": "deep",
               "label": "Deep",
-              "value": "Full pass: SCENE (what just changed + the unspoken pressure; the current hour and how much time elapses this beat) | STATES (each present character's goal, fear, the ugly first reaction; and VOICE - who talks this beat, at what volume, is a naturally talkative character wrongly going quiet; present always includes {{user}} when on-screen, their inner fields left empty) | LIMITS (what each character cannot know; where dramatic irony lives) | PARALLEL (what moves off-screen this turn, and how their clock advanced) | ITEMS (what changed hands or appeared, if anything) | RHYTHM (the shape - where the short sentence lands; if a genre is set, what does it want from this beat) | PLAN (the one beat to resolve in line with the lots, then yield) | STATE: the exact <vellum> deltas to emit (decide them now)."
+              "value": "Full pass: SCENE (what just changed + the unspoken pressure; the current hour and how much time elapses this beat) | STATES (each present character's goal, fear, the ugly first reaction; and VOICE - who talks this beat, at what volume, is a naturally talkative character wrongly going quiet; present always includes {{user}} when on-screen, their inner fields left empty) | LIMITS (what each character cannot know; where dramatic irony lives) | PARALLEL (what moves off-screen this turn, and how their clock advanced) | ITEMS (what changed hands or appeared, if anything) | RHYTHM (the shape - where the short sentence lands; if a genre is set, what does it want from this beat) | PLAN (the one beat to resolve in line with the lots, then yield) | STATE: the exact <vellum> deltas to emit (decide them now). Then close </reverie>."
             }
           ]
         }
@@ -1012,7 +1012,7 @@
           "name": "state_verbosity",
           "type": "select",
           "label": "State Spec Verbosity",
-          "description": "Lean = compact field list every turn (default, token-saving). Full = also ship a worked example (use on a model's first runs, then switch to lean).",
+          "description": "Lean = compact field list every turn (default, token-saving); a short one-turn worked example is always shown regardless. Full = also ship the expanded schema commentary + an in-spec JSON example (use on a model's first runs, then switch to lean).",
           "defaultValue": "lean",
           "options": [
             {
@@ -1028,6 +1028,15 @@
           ]
         }
       ]
+    },
+    {
+      "id": "v2-turn-example",
+      "name": "Turn Structure Example",
+      "role": "system",
+      "position": "pre_history",
+      "enabled": true,
+      "group": "v2-cat-engine",
+      "content": "{{if::{{var::state_on}}}}{{if::{{var::reverie}}}}[EXAMPLE — one complete turn, showing all three parts]\n\u003creverie\u003e\nSCENE: Night garden, ~10pm, a few minutes pass. Lira wary, testing. One exchange, then stop.\nSTATE: turn 5, scene.time late evening, present Lira guarded\n\u003c/reverie\u003e\n\nShe set the cup down without drinking. \"You're stalling.\"\n\n\u003cvellum\u003e\n{ \"turn\": 5, \"scene\": { \"time\": \"late evening\" }, \"present\": [{ \"id\": \"{{user}}\", \"mood\": \"\", \"doing\": \"\" }, { \"id\": \"Lira\", \"mood\": \"guarded\", \"doing\": \"set her cup down\" }] }\n\u003c/vellum\u003e\n(Your turn follows this exact shape: \u003creverie\u003e first, prose second, \u003cvellum\u003e last. The STATE: line inside the reverie becomes the \u003cvellum\u003e block — decide it there, copy it here.){{/if}}{{/if}}"
     },
     {
       "id": "v2-cat-mature",
@@ -1340,6 +1349,11 @@
               "id": "glm",
               "label": "GLM",
               "value": "[ERRATA — GLM] You tend to under-plan, rush, and then stop after the prose - omitting the trailing <vellum> block. That block is mandatory EVERY turn; the prose is only part two of three (reverie -> prose -> block). DECIDE the block's contents as the last line of your reverie (a `STATE:` line) so emitting it after the prose is just transcription, not new work - that is the reliable cure for dropping it. Actually use the reverie: note the ugly first reaction, what limited-knowledge forbids, and the one beat to resolve before writing - then render them, never name them. Don't collapse the scene into summary; stay in the moment."
+            },
+            {
+              "id": "reasoning",
+              "label": "Reasoning model (native CoT)",
+              "value": "[ERRATA — REASONING MODEL] You have a native thinking channel, and it will tempt you to plan there and skip the visible tags. Don't. The <reverie> and <vellum> blocks are OUTPUT, not thought - they must appear in the actual reply, not in your hidden reasoning. Whatever you work out internally, your visible reply MUST still literally begin with the characters '<reverie>', carry a trailing `STATE:` line, and END with a closed </vellum> block after the prose. Do not merge planning into the thinking channel and leave the reply as bare prose - that drops both blocks the engine needs. Emit all three parts, every turn, as literal text."
             }
           ]
         }
@@ -1412,9 +1426,18 @@
       "position": "post_history",
       "enabled": true,
       "group": "v2-cat-engine",
-      "content": "{{if::{{var::state_on}}}}[OUTPUT FORMAT - REQUIRED] Your reply MUST end with the fenced <vellum>...</vellum> block - the LAST thing in the reply, AFTER the prose. Turn the plain `STATE:` note from your <reverie> into fenced JSON here (the note inside the reverie is NOT the block and does not count). A reply without a closing </vellum> after the prose is INCOMPLETE - exactly as hard a rule as opening with <reverie>. The display layer hides it, so it never disturbs the prose. Keep it light: deltas only, and if little changed a single terse line - `rel A -> B: aff +n, trust -n cat:x (why)` - or even a bare { \"turn\": <n> } fully satisfies the requirement. Never skip it; you already decided its contents, so a minimal block always beats none.{{/if}}",
+      "content": "{{if::{{var::state_on}}}}[STATE BLOCK — MANDATORY, TRANSCRIBE DON'T COMPOSE] The last line of your reverie is `STATE: {…deltas…}`. You have ALREADY decided the block there. After the prose, your ONLY remaining job is to COPY that JSON verbatim into a fenced <vellum>…</vellum> block — no new thinking, no re-deriving, just transcription. This split (decide before the prose, copy after) is what stops the block being forgotten once the prose feels finished. Even a bare <vellum>{ \"turn\": N }</vellum> satisfies the contract; an empty or absent block does not. A reply that does not END with a closed </vellum> is INCOMPLETE and fails the turn.{{/if}}",
       "categoryMode": null,
       "injectionTrigger": []
+    },
+    {
+      "id": "v2-output-format",
+      "name": "Output Format Contract (post-history)",
+      "role": "system",
+      "position": "post_history",
+      "enabled": true,
+      "group": "v2-cat-engine",
+      "content": "{{if::{{var::state_on}}}}{{if::{{var::reverie}}}}[OUTPUT FORMAT — THREE PARTS, IN ORDER, EVERY TURN]\n1. Open with \u003creverie\u003e. Plan. End with a plain STATE: line. Close \u003c/reverie\u003e.\n2. Write the prose.\n3. End with \u003cvellum\u003e { JSON deltas } \u003c/vellum\u003e. Always close the tag.\nYour reply starts with \"\u003creverie\u003e\" and ends with \"\u003c/vellum\u003e\". No exceptions.{{else}}[OUTPUT FORMAT — EVERY TURN]\nAfter your prose, end with \u003cvellum\u003e { JSON deltas } \u003c/vellum\u003e. Always close the tag.{{/if}}{{/if}}"
     },
     {
       "id": "v2-sovhand",
@@ -1433,6 +1456,15 @@
       "enabled": true,
       "group": "v2-cat-override",
       "content": "{{if::{{loomRetrofits}}}}[LOOM RETROFITS - final user overrides, HIGHEST AUTHORITY. Apply these over ANY conflicting instruction above, including the Sovereign Mandate:]\n{{loomRetrofits}}{{/if}}"
+    },
+    {
+      "id": "v2-reverie-prefill",
+      "name": "Reverie Prefill (assistant)",
+      "role": "assistant",
+      "position": "post_history",
+      "enabled": true,
+      "group": "v2-cat-engine",
+      "content": "{{if::{{var::reverie}}}}<reverie>\n{{/if}}"
     },
     {
       "id": "v2-cat-context",
@@ -1547,19 +1579,18 @@
   "extensions": {
     "regex_scripts": [
       {
-        "script_id": "vellum2-state-strip",
-        "name": "VELLUM II ✧ State Block (hide)",
+        "script_id": "vellum2-state-card",
+        "name": "VELLUM II ✧ State Block (display)",
         "folder": "VELLUM II",
-        "description": "Removes the <vellum>...</vellum> JSON state block from the visible chat AND from the context sent to the model on later turns. The tracker reads it from the raw stored message regardless, so stripping it here keeps the prose clean and the context lean.",
-        "find_regex": "\\s*(?:‹vellum›|<vellum>)[\\s\\S]*?(?:‹\\/vellum›|<\\/vellum>)\\s*",
-        "replace_string": "",
+        "description": "Renders the <vellum> JSON state block as a collapsed dim marginal card in the chat (mirroring the Reverie card) instead of deleting it. The tracker still reads the block from the raw stored message. Accepts every fence spelling the parser tolerates (<vellum>, ‹vellum›, ```vellum, [VELLUM]) so a block never leaks as raw text if the model drifts. Display-only; disable to hide the block completely.",
+        "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+        "replace_string": "<style>.v2s{max-width:780px;margin:12px auto;font-family:'JetBrains Mono',ui-monospace,monospace}.v2s-card{border:1px solid rgba(126,166,176,.28);border-left:3px solid #7ea6b0;border-radius:10px;overflow:hidden;background:linear-gradient(165deg,rgba(16,22,24,.96),rgba(20,28,30,.95))}.v2s-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Cormorant Garamond',Georgia,serif;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:#a8c4cc}.v2s-card>summary::-webkit-details-marker{display:none}.v2s-card>summary::before{content:'▤ ';color:#7ea6b0}.v2s-in{padding:6px 17px 15px;font-size:11px;line-height:1.55;color:#9fb4b8;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(126,166,176,.16)}</style><details class='v2s v2s-card'><summary>State — the engine’s ledger</summary><div class='v2s-in'>$1</div></details>",
         "flags": "gi",
         "placement": [
           "ai_output"
         ],
         "target": [
-          "display",
-          "prompt"
+          "display"
         ],
         "scope": "global",
         "scope_id": null,
@@ -1573,11 +1604,36 @@
         "metadata": {}
       },
       {
+        "script_id": "vellum2-state-context-strip",
+        "name": "VELLUM II ✧ State Block (context strip)",
+        "folder": "VELLUM II",
+        "description": "Strips the <vellum> block from the context sent to the model on LATER turns, keeping the prompt lean. min_depth 1 deliberately KEEPS the most recent turn's block in context: it is the model's own correctly-formatted example and re-showing it every turn is the single strongest cure for the block being dropped or malformed over a long chat. Accepts every fence spelling. OPTIONS: to keep ALL turns' blocks in context (maximum format reinforcement, higher token cost) set disabled:true on THIS script; to strip EVERY turn including the latest (legacy lean behavior, no reinforcement) set min_depth:null.",
+        "find_regex": "\\s*(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])[\\s\\S]*?(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)\\s*",
+        "replace_string": "",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "prompt"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": 1,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 0,
+        "metadata": {}
+      },
+      {
         "script_id": "vellum2-reverie-card",
         "name": "VELLUM II ✧ Reverie (display)",
         "folder": "VELLUM II",
-        "description": "Renders the <reverie> planning block as a collapsed dim marginal card in the chat, and strips it entirely from the context sent on later turns. Display-only; disable to hide reasoning completely.",
-        "find_regex": "<reverie>([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+        "description": "Renders the <reverie> planning block as a collapsed dim marginal card in the chat, and strips it from the context sent on later turns. The opening <reverie> tag is optional so a host that doesn't echo the assistant prefill (leaving the reply starting mid-plan) still gets its planning collapsed instead of leaked. Display-only; disable to hide reasoning completely.",
+        "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
         "replace_string": "<style>.v2r{max-width:780px;margin:12px auto;font-family:'JetBrains Mono',ui-monospace,monospace}.v2r-card{border:1px solid rgba(205,168,78,.28);border-left:3px solid #cda84e;border-radius:10px;overflow:hidden;background:linear-gradient(165deg,rgba(24,21,16,.96),rgba(30,26,20,.95))}.v2r-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Cormorant Garamond',Georgia,serif;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:#cdbfa0}.v2r-card>summary::-webkit-details-marker{display:none}.v2r-card>summary::before{content:'❖ ';color:#cda84e}.v2r-in{padding:6px 17px 15px;font-size:11.5px;line-height:1.6;color:#bcb29c;white-space:pre-wrap;border-top:1px solid rgba(205,168,78,.16)}</style><details class='v2r v2r-card'><summary>Reverie — the writer’s notebook</summary><div class='v2r-in'>$1</div></details>",
         "flags": "gi",
         "placement": [
@@ -1601,8 +1657,8 @@
         "script_id": "vellum2-reverie-context-strip",
         "name": "VELLUM II ✧ Reverie (context strip)",
         "folder": "VELLUM II",
-        "description": "Strips <reverie> from the context sent to the model on later turns so planning never re-enters the prompt (display card above stays visible).",
-        "find_regex": "\\s*<reverie>[\\s\\S]*?<\\/\\s*rever[a-z]*\\s*>\\s*",
+        "description": "Strips <reverie> from the context sent to the model on LATER turns so planning never re-enters the prompt (display card above stays visible). min_depth 1 KEEPS the latest turn's reverie in context — its trailing STATE: line is the model's own worked example of the block it must emit, and re-showing it is a strong cure for format drift. Open tag optional so a non-echoed prefill is still stripped. OPTIONS: keep ALL reveries in context → set disabled:true; strip EVERY turn incl. latest → set min_depth:null.",
+        "find_regex": "\\s*(?:<reverie>)?[\\s\\S]*?<\\/\\s*rever[a-z]*\\s*>\\s*",
         "replace_string": "",
         "flags": "gi",
         "placement": [
@@ -1613,7 +1669,7 @@
         ],
         "scope": "global",
         "scope_id": null,
-        "min_depth": null,
+        "min_depth": 1,
         "max_depth": null,
         "trim_strings": [],
         "run_on_edit": true,
