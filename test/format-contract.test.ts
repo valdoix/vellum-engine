@@ -70,3 +70,43 @@ describe('format contract — fences the preset/strips must all agree on', () =>
     expect(r.state?.scene?.tension).toBe(7);
   });
 });
+
+describe('regression — real message that broke the extension', () => {
+  // The reverie speaks the same backstage words ("SCENE:", "STATE:", "PLAN:") as
+  // the terse fallback grammar. Combined with a `"weather": null` in the block,
+  // this shipped as: block rejected → fallback runs on the whole message → the
+  // reverie's "SCENE: Private dining room…" sentence lands in scene.loc.
+  const reverie =
+    '<reverie>\n' +
+    'SCENE: Private dining room, Harrenhal, early evening of Day 4. Post-sex glow. Jaime returned holding cooking oil.\n' +
+    'STATES: Cersei — goal: recover dignity. Jaime — survive dinner.\n' +
+    'PLAN: Cersei laughs and hits Daeron.\n' +
+    'STATE: turn advance, day 4, scene loc "Private Dining Room", time "early evening", tension low ~2.\n' +
+    '</reverie>';
+  const block =
+    '<vellum>\n{ "turn": 52, "day": 4, "scene": { "loc": "Private Dining Room — Harrenhal", "time": "early evening", "tension": 2, "weather": null }, "present": [{ "id": "Cersei Lannister", "mood": "warm" }] }\n</vellum>';
+
+  it('accepts a block with "weather": null (null coerced, not a hard failure)', () => {
+    const r = parseState(`${reverie}\n\nHe set the bread down.\n\n${block}`);
+    expect(r.source).toBe('json');
+    expect(r.state?.turn).toBe(52);
+    expect(r.state?.scene?.loc).toBe('Private Dining Room — Harrenhal');
+    expect(r.state?.scene?.weather).toBeUndefined();
+  });
+
+  it('never leaks the reverie SCENE: line into scene.loc via the fallback', () => {
+    // even with NO block at all, the fallback must ignore the reverie entirely
+    const r = parseState(`${reverie}\n\nHe set the bread down and said nothing.`);
+    // reverie is the only structured text → nothing real to parse → none
+    expect(r.source).toBe('none');
+    expect(r.state?.scene?.loc ?? '').not.toContain('Post-sex glow');
+  });
+
+  it('null coerces to undefined for every scene scalar', () => {
+    const r = parseState('<vellum>{ "turn": 3, "scene": { "loc": null, "time": null, "tension": null, "weather": null } }</vellum>');
+    expect(r.source).toBe('json');
+    expect(r.state?.turn).toBe(3);
+    expect(r.state?.scene?.loc).toBeUndefined();
+    expect(r.state?.scene?.tension).toBeUndefined();
+  });
+});

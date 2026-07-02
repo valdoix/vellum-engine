@@ -250,7 +250,15 @@ export function parseState(content: string): ParseResult {
     }
   }
 
-  const fb = parseFallback(content);
+  // The regex fallback scans line-oriented directives (scene/present/rel/…). The
+  // <reverie> plan speaks the SAME words ("SCENE:", "STATE:", …) as backstage
+  // notes, so feeding it the reverie makes the fallback mistake planning prose
+  // for real state (e.g. dumping the reverie's SCENE sentence into scene.loc).
+  // Strip the reverie first so the fallback only sees post-prose ledger text.
+  // Open tag optional: a host that doesn't echo the "<reverie>" prefill leaves a
+  // reply that opens mid-plan and only has the closing tag — still strip it.
+  const withoutReverie = content.replace(/(?:<reverie>)?[\s\S]*?<\/\s*rever[a-z]*\s*>/i, ' ');
+  const fb = parseFallback(withoutReverie);
   if (fb) return { state: fb, source: 'regex' };
 
   return { state: null, source: 'none' };

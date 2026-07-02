@@ -89,7 +89,10 @@ export const ParsedState = z.object({
   v: z.number().optional(),
   turn: z.number().optional(),
   day: z.number().optional(),
-  scene: z.object({ loc: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional().catch(undefined), weather: z.string().optional() }).optional(),
+  // Every scalar tolerates an explicit JSON `null` (models emit "weather": null
+  // for "no change") by coercing it to undefined via `.catch` — a stray null
+  // must never fail the whole block's validation and force the regex fallback.
+  scene: z.object({ loc: z.string().optional().catch(undefined), time: z.string().optional().catch(undefined), tension: z.number().min(0).max(10).optional().catch(undefined), weather: z.string().optional().catch(undefined) }).optional().catch(undefined),
   present: z.array(ParsedPresent).optional(),
   delta: z.object({
     bonds: z.array(ParsedBond).optional(),
