@@ -1679,6 +1679,156 @@
         "metadata": {}
       },
       {
+        "script_id": "vellum2-state-card-fantasy",
+        "name": "VELLUM II ✧ State Block — Fantasy theme (display)",
+        "folder": "VELLUM II",
+        "description": "Fantasy-theme variant of the <vellum> state card: rubric-red ink on light parchment, Cormorant serif. Disabled by default. Enable this + the Fantasy Reverie card and DISABLE the Default 'State Block (display)' / 'Reverie (display)' so only one styling matches per block.",
+        "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+        "replace_string": "<style>.v2sF{max-width:780px;margin:12px auto;font-family:'Cormorant Garamond',Georgia,serif}.v2sF-card{border:1px solid rgba(125,43,39,.35);border-left:3px solid #7d2b27;border-radius:8px;overflow:hidden;background:linear-gradient(168deg,#efe2c0,#e3d2a6)}.v2sF-card>summary{cursor:pointer;list-style:none;padding:9px 16px;font-family:'Cormorant Garamond',Georgia,serif;font-size:14px;letter-spacing:1.5px;text-transform:uppercase;color:#5a4524}.v2sF-card>summary::-webkit-details-marker{display:none}.v2sF-card>summary::before{content:'▤ ';color:#7d2b27}.v2sF-in{padding:6px 18px 15px;font-size:12px;line-height:1.55;color:#4a3820;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(125,43,39,.22)}</style><details class='v2sF v2sF-card'><summary>State — the engine’s ledger</summary><div class='v2sF-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 20,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-reverie-card-fantasy",
+        "name": "VELLUM II ✧ Reverie — Fantasy theme (display)",
+        "folder": "VELLUM II",
+        "description": "Fantasy-theme variant of the <reverie> planning card: brown ink on light parchment, Cormorant serif. Disabled by default. Enable alongside the Fantasy State card and disable the Default pair.",
+        "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+        "replace_string": "<style>.v2rF{max-width:780px;margin:12px auto;font-family:'Cormorant Garamond',Georgia,serif}.v2rF-card{border:1px solid rgba(154,111,30,.35);border-left:3px solid #9a6f1e;border-radius:8px;overflow:hidden;background:linear-gradient(168deg,#efe2c0,#e3d2a6)}.v2rF-card>summary{cursor:pointer;list-style:none;padding:9px 16px;font-family:'Cormorant Garamond',Georgia,serif;font-size:14px;letter-spacing:1.5px;text-transform:uppercase;color:#5a4524}.v2rF-card>summary::-webkit-details-marker{display:none}.v2rF-card>summary::before{content:'❖ ';color:#9a6f1e}.v2rF-in{padding:6px 18px 15px;font-size:13px;line-height:1.65;color:#3a2c14;white-space:pre-wrap;border-top:1px solid rgba(154,111,30,.25)}</style><details class='v2rF v2rF-card'><summary>Reverie — the writer’s notebook</summary><div class='v2rF-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 21,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-state-card-modern",
+        "name": "VELLUM II ✧ State Block — Modern theme (display)",
+        "folder": "VELLUM II",
+        "description": "Modern-theme variant of the <vellum> state card: flat dark card, silver-cyan accent, Inter sans, rounded. Disabled by default. Enable alongside the Modern Reverie card and disable the Default pair.",
+        "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+        "replace_string": "<style>.v2sM{max-width:780px;margin:12px auto;font-family:'Inter',system-ui,sans-serif}.v2sM-card{border:1px solid rgba(134,208,224,.24);border-radius:14px;overflow:hidden;background:rgba(16,22,26,.96)}.v2sM-card>summary{cursor:pointer;list-style:none;padding:11px 16px;font-family:'Inter',system-ui,sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.3px;color:#cfe6ee}.v2sM-card>summary::-webkit-details-marker{display:none}.v2sM-card>summary::before{content:'▤ ';color:#86d0e0}.v2sM-in{padding:4px 16px 14px;font-size:12px;line-height:1.55;color:#9fb9c2;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(134,208,224,.14)}</style><details class='v2sM v2sM-card'><summary>State — the engine’s ledger</summary><div class='v2sM-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 22,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-reverie-card-modern",
+        "name": "VELLUM II ✧ Reverie — Modern theme (display)",
+        "folder": "VELLUM II",
+        "description": "Modern-theme variant of the <reverie> planning card: flat dark card, moonlit-blue accent, Inter sans, rounded. Disabled by default. Enable alongside the Modern State card and disable the Default pair.",
+        "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+        "replace_string": "<style>.v2rM{max-width:780px;margin:12px auto;font-family:'Inter',system-ui,sans-serif}.v2rM-card{border:1px solid rgba(155,192,230,.24);border-radius:14px;overflow:hidden;background:rgba(18,24,32,.96)}.v2rM-card>summary{cursor:pointer;list-style:none;padding:11px 16px;font-family:'Inter',system-ui,sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.3px;color:#d8e3f0}.v2rM-card>summary::-webkit-details-marker{display:none}.v2rM-card>summary::before{content:'❖ ';color:#9bc0e6}.v2rM-in{padding:4px 16px 14px;font-size:12.5px;line-height:1.6;color:#a9bdd2;white-space:pre-wrap;border-top:1px solid rgba(155,192,230,.14)}</style><details class='v2rM v2rM-card'><summary>Reverie — the writer’s notebook</summary><div class='v2rM-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 23,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-state-card-futuristic",
+        "name": "VELLUM II ✧ State Block — Futuristic theme (display)",
+        "folder": "VELLUM II",
+        "description": "Futuristic-theme variant of the <vellum> state card: sharp-edged HUD panel, violet accent, Orbitron header + mono body. Disabled by default. Enable alongside the Futuristic Reverie card and disable the Default pair.",
+        "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+        "replace_string": "<style>.v2sX{max-width:780px;margin:12px auto;font-family:'JetBrains Mono',ui-monospace,monospace}.v2sX-card{border:1px solid rgba(122,92,255,.35);border-left:2px solid #7a5cff;border-radius:2px;overflow:hidden;background:rgba(12,10,20,.97)}.v2sX-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Orbitron','JetBrains Mono',monospace;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#b3a6ff}.v2sX-card>summary::-webkit-details-marker{display:none}.v2sX-card>summary::before{content:'▤ ';color:#7a5cff}.v2sX-in{padding:6px 16px 14px;font-size:11px;line-height:1.55;color:#a89fc9;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(122,92,255,.18)}</style><details class='v2sX v2sX-card'><summary>State // engine.ledger</summary><div class='v2sX-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 24,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-reverie-card-futuristic",
+        "name": "VELLUM II ✧ Reverie — Futuristic theme (display)",
+        "folder": "VELLUM II",
+        "description": "Futuristic-theme variant of the <reverie> planning card: sharp-edged HUD panel, cyan accent, Orbitron header + mono body. Disabled by default. Enable alongside the Futuristic State card and disable the Default pair.",
+        "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+        "replace_string": "<style>.v2rX{max-width:780px;margin:12px auto;font-family:'JetBrains Mono',ui-monospace,monospace}.v2rX-card{border:1px solid rgba(40,224,216,.35);border-left:2px solid #28e0d8;border-radius:2px;overflow:hidden;background:rgba(10,16,18,.97)}.v2rX-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Orbitron','JetBrains Mono',monospace;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#7fece6}.v2rX-card>summary::-webkit-details-marker{display:none}.v2rX-card>summary::before{content:'❖ ';color:#28e0d8}.v2rX-in{padding:6px 16px 14px;font-size:11px;line-height:1.6;color:#8fbfbd;white-space:pre-wrap;border-top:1px solid rgba(40,224,216,.18)}</style><details class='v2rX v2rX-card'><summary>Reverie // writer.log</summary><div class='v2rX-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 25,
+        "metadata": {}
+      },
+      {
         "script_id": "vellum2-vtk-context-strip",
         "name": "VELLUM II ✧ Visual Toolkit (context strip)",
         "folder": "VELLUM II",
