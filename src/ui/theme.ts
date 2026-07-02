@@ -78,6 +78,9 @@ export const SKINS: Skin[] = [
   // Light pastel garden — blush paper, rosewood ink, sage & pink semantics. The
   // recommended palette for the Bloom chrome (works standalone on any chrome too).
   { id: 'blush', name: 'Blush Garden', blurb: 'Pressed-flower pastels — blush paper, sage & rose, soft and cozy.', theme: { accent: '#d98cab', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(255,241,246,.9)', surf2: 'rgba(246,232,240,.9)', ink: '#5c3a4a', ink2: '#9a7686', glass: 'linear-gradient(168deg,#fff4f8,#f3e4ec)', ...SEM, pos: '#7fa86a', posInk: '#688f54', neg: '#d06b7e', negInk: '#b8556a', info: '#8aa8c8', warn: '#c090c8', press: '#d99a5a', pressInk: '#c07f3e' } },
+  // Dark twin of Blush — the cozy garden after dusk. Deep plum-charcoal paper,
+  // moonlit rose ink, pastel pink & sage that glow on dark. Bloom's dark mode.
+  { id: 'blush-noir', name: 'Moonlit Bloom', blurb: 'The garden after dusk — plum-charcoal paper, glowing rose & sage pastels.', theme: { accent: '#e6a3c0', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(38,28,40,.6)', surf2: 'rgba(26,18,28,.55)', ink: '#f2dce7', ink2: '#c7a9ba', glass: 'linear-gradient(168deg,rgba(34,24,36,.97),rgba(20,14,22,.985))', ...SEM, pos: '#a6c98c', posInk: '#c0dfa4', neg: '#e08298', negInk: '#f0a6b8', info: '#a0bfe0', warn: '#d0a8e0', press: '#e0b070', pressInk: '#f0c890' } },
 ];
 
 const FONT_CHOICES: Array<{ label: string; stack: string }> = [
