@@ -506,6 +506,14 @@ export const STYLES = [
   "[data-vle-chrome='futuristic'] .vlf-frame::after{content:'';position:absolute;z-index:1;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--vg) 0 14px,transparent 14px) 0 0/100% 2px no-repeat,linear-gradient(90deg,var(--vg) 0 14px,transparent 14px) 100% 100%/100% 2px no-repeat;opacity:.55}",
   "[data-vle-chrome='futuristic'] .vlf-grip{background:none;border:none;right:4px;bottom:4px;width:12px;height:12px;border-right:2px solid var(--vg);border-bottom:2px solid var(--vg);opacity:.7;border-radius:0}",
   "[data-vle-chrome='futuristic'] .vlf-launch{border-radius:0;border-width:1px 0 1px 1px}",
+  // BLOOM — soft pastel garden: pillowy rounded frame, blush glow, lace edge, script title
+  "[data-vle-chrome='bloom'] .vlf-frame{border-radius:calc(var(--vradius) + 8px);border-color:color-mix(in srgb,var(--vg) 40%,transparent);box-shadow:0 10px 40px rgba(180,120,150,.28),0 0 0 6px rgba(var(--vg-rgb),.06),inset 0 0 0 1px rgba(255,255,255,.35)}",
+  "[data-vle-chrome='bloom'] .vlf-bar{background:linear-gradient(180deg,rgba(var(--vg-rgb),.14),transparent);border-bottom:1px solid color-mix(in srgb,var(--vg) 22%,transparent)}",
+  "[data-vle-chrome='bloom'] .vlf-title{font-family:var(--vserif);font-style:italic;font-weight:600;font-size:calc(18px * var(--vscale));letter-spacing:.5px;text-transform:none}",
+  // scalloped-lace inner edge (dotted pastel arcs) hugging the frame
+  "[data-vle-chrome='bloom'] .vlf-frame::before{content:'';position:absolute;z-index:1;inset:7px;border-radius:calc(var(--vradius) + 2px);border:1.5px dotted color-mix(in srgb,var(--vg) 35%,transparent);pointer-events:none}",
+  "[data-vle-chrome='bloom'] .vlf-grip{background:none;border:none;right:7px;bottom:7px;width:12px;height:12px;border-right:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-bottom:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-radius:0 0 8px 0}",
+  "[data-vle-chrome='bloom'] .vlf-launch{border-radius:16px 0 0 16px}",
   // ---- CRUD controls + pagination ----
   ".vle-sec-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:8px}",
   ".vle-add{font:600 9px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);background:rgba(var(--vg-rgb),.14);border:1px solid rgba(var(--vg-rgb),.34);border-radius:7px;padding:5px 11px;cursor:pointer}",
@@ -811,6 +819,7 @@ export const STYLES = [
   ".vle-mode-sk.sk-codex i{flex:1}.vle-mode-sk.sk-codex i:first-child{border-right:1px solid rgba(var(--vg-rgb),.5)}",
   ".vle-mode-sk.sk-phone{flex-direction:column;gap:4px}.vle-mode-sk.sk-phone i{height:7px}.vle-mode-sk.sk-phone i:last-child{margin-top:auto;height:9px}",
   ".vle-mode-sk.sk-hud{flex-direction:column;gap:4px}.vle-mode-sk.sk-hud i{height:5px;width:70%}.vle-mode-sk.sk-hud i:last-child{width:45%}",
+  ".vle-mode-sk.sk-bloom{flex-direction:column;gap:5px;background:linear-gradient(160deg,#fff4f8,#f0e2ea)}.vle-mode-sk.sk-bloom i{height:8px;border-radius:9px;background:linear-gradient(90deg,rgba(217,140,171,.5),rgba(143,191,127,.45))}.vle-mode-sk.sk-bloom i:first-child{height:11px}",
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
   // ---- layout picker + dashboard layout modes ----
@@ -1081,4 +1090,55 @@ export const STYLES = [
   ".vle-radar-dot{fill:var(--vi)}",
   ".vle-radar-leg{display:flex;justify-content:center;gap:14px;font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}",
   ".vle-radar-leg i{font-style:normal;opacity:.7}",
+
+  // ================= THEME: BLOOM ("Pressed-Flower Garden") — float + drawer =================
+  // A soft, cozy, romantic pastel look (blush pink + sage). Light surfaces, rounded
+  // everything, dashed lace rules, fleuron dividers, petal accents. All chrome-scoped
+  // so it re-skins BOTH the floating window (.vlf) and the drawer (.vle-root).
+  // --- shared: warm the whole surface with a faint blush→sage wash + petals ---
+  "html[data-vle-chrome='bloom'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(120% 90% at 0% 0%,rgba(var(--vg-rgb),.08),transparent 55%),radial-gradient(120% 90% at 100% 100%,rgba(var(--vg2-rgb),.08),transparent 55%)}",
+  "html[data-vle-chrome='bloom'] .vlf-body{background-image:radial-gradient(120% 80% at 0% 0%,rgba(var(--vg-rgb),.06),transparent 55%),radial-gradient(120% 80% at 100% 100%,rgba(var(--vg2-rgb),.06),transparent 55%)}",
+  // --- drawer head → a lace-hemmed garland with a script title + bloom mark ---
+  "html[data-vle-chrome='bloom'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.5px;border-bottom:1.5px dashed color-mix(in srgb,var(--vg) 34%,transparent)}",
+  "html[data-vle-chrome='bloom'] .vle-mark{text-shadow:0 0 10px rgba(var(--vg-rgb),.45)}",
+  "html[data-vle-chrome='bloom'] .vle-mark::after{content:'\\2740';margin-left:6px;color:var(--vg2);opacity:.7;font-size:.8em}",
+  "html[data-vle-chrome='bloom'] .vle-stats{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1px;text-transform:lowercase;opacity:.7}",
+  // --- tab bar → soft rounded petal-pills with a two-tone active bloom ---
+  "html[data-vle-chrome='bloom'] .vle-tabbtn{border-radius:var(--rpill);text-transform:none;letter-spacing:.3px;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-weight:600}",
+  "html[data-vle-chrome='bloom'] .vle-tabbtn:hover{background:color-mix(in srgb,var(--vg) 10%,transparent)}",
+  "html[data-vle-chrome='bloom'] .vle-tabbtn.on{color:var(--vg);border-color:transparent;background:linear-gradient(120deg,color-mix(in srgb,var(--vg) 18%,transparent),color-mix(in srgb,var(--vg2) 16%,transparent))}",
+  "html[data-vle-chrome='bloom'] .vle-tabicon.on{color:var(--vg);border-color:color-mix(in srgb,var(--vg) 40%,transparent);background:color-mix(in srgb,var(--vg) 14%,transparent)}",
+  // --- cards → pillowy, light, softly shadowed; hairlines become blush ---
+  "html[data-vle-chrome='bloom'] .vle-card,html[data-vle-chrome='bloom'] .vle-rel-card,html[data-vle-chrome='bloom'] .vld-sec,html[data-vle-chrome='bloom'] .vld-pc{border-radius:18px;border-color:color-mix(in srgb,var(--vg) 20%,transparent);box-shadow:0 2px 10px rgba(180,120,150,.14)}",
+  // --- section eyebrows → romantic script small-caps with a fleuron ---
+  "html[data-vle-chrome='bloom'] .vld-h,html[data-vle-chrome='bloom'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1.5px;color:var(--vg);text-transform:none}",
+  "html[data-vle-chrome='bloom'] .vld-h::before,html[data-vle-chrome='bloom'] .vle-sec-h::before{content:'\\2740 ';color:var(--vg2);opacity:.75}",
+  // --- hero scene line → dreamy italic serif with a soft rosy glow ---
+  "html[data-vle-chrome='bloom'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.2px;text-shadow:0 1px 10px rgba(var(--vg-rgb),.3)}",
+  "html[data-vle-chrome='bloom'] .vld-hero::before{content:'\\275B ';color:var(--vg2);opacity:.6;font-style:normal}",
+  "html[data-vle-chrome='bloom'] .vld-sec--hero{background:linear-gradient(160deg,color-mix(in srgb,var(--vg) 10%,transparent),color-mix(in srgb,var(--vg2) 8%,transparent))!important;border-color:color-mix(in srgb,var(--vg) 22%,transparent)!important;border-radius:22px!important}",
+  // --- tension → soft rounded pink→sage dots (calm, not alarming) ---
+  "html[data-vle-chrome='bloom'] .vld-dot{border-radius:50%}",
+  "html[data-vle-chrome='bloom'] .vld-dot.on{background:linear-gradient(120deg,var(--vg),var(--vg2));box-shadow:0 0 6px rgba(var(--vg-rgb),.4)}",
+  // --- avatars → soft-ringed flower medallions with a petal halo when present ---
+  "html[data-vle-chrome='bloom'] .vle-av,html[data-vle-chrome='bloom'] .vld-pc-av{border-radius:50%;background:radial-gradient(60% 55% at 40% 35%,color-mix(in srgb,var(--vg) 30%,transparent),color-mix(in srgb,var(--vg2) 22%,transparent));border:2px solid color-mix(in srgb,var(--vg) 45%,transparent);color:var(--vi)}",
+  "html[data-vle-chrome='bloom'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.22),0 0 12px rgba(var(--vg-rgb),.4)}",
+  // --- twin bond meters → fully rounded, pink (affection) & sage (trust) ---
+  "html[data-vle-chrome='bloom'] .vle-tw-t{height:9px;border-radius:6px}",
+  "html[data-vle-chrome='bloom'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 55%,transparent),var(--vg))}",
+  "html[data-vle-chrome='bloom'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 55%,transparent),var(--vg2))}",
+  // --- 'Latest' feed → a garland: dashed blush stem with petal nodes ---
+  "html[data-vle-chrome='bloom'] .vld-rec{position:relative;margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(11px * var(--vscale)) calc(18px * var(--vscale));border-left:2px dashed color-mix(in srgb,var(--vg) 26%,transparent)}",
+  "html[data-vle-chrome='bloom'] .vld-rec:last-child{border-left-color:transparent}",
+  "html[data-vle-chrome='bloom'] .vld-rec::before{content:'\\2740';position:absolute;left:-8px;top:calc(1px * var(--vscale));font-size:11px;color:var(--vg2)}",
+  "html[data-vle-chrome='bloom'] .vld-rec--journal::before{color:var(--v-pos-i)}html[data-vle-chrome='bloom'] .vld-rec--knew::before{color:var(--v-info)}html[data-vle-chrome='bloom'] .vld-rec--secret::before{color:var(--v-neg-i)}html[data-vle-chrome='bloom'] .vld-rec--shift::before{color:var(--v-press-i)}",
+  // --- chips soften to fully-rounded pastel lozenges ---
+  "html[data-vle-chrome='bloom'] .v-chip{border-radius:var(--rpill)}",
+  // --- modal + toasts pick up the rounded pastel treatment (read document attr) ---
+  "html[data-vle-chrome='bloom'] .vlfm{border-radius:22px;border-color:color-mix(in srgb,var(--vg) 34%,transparent);box-shadow:0 24px 70px rgba(180,120,150,.35)}",
+  "html[data-vle-chrome='bloom'] .vlfm-head{font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:.5px;border-bottom:1.5px dashed color-mix(in srgb,var(--vg) 30%,transparent)}",
+  // --- float-only: petal 'confetti' close button + fleuron flanking the title ---
+  "html[data-vle-chrome='bloom'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,var(--vg),color-mix(in srgb,var(--vg) 60%,#fff));border:1px solid color-mix(in srgb,var(--vg) 55%,transparent);color:#fff;box-shadow:0 2px 6px rgba(180,120,150,.4)}",
+  "html[data-vle-chrome='bloom'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,var(--vg2),color-mix(in srgb,var(--vg2) 60%,#fff));border-color:color-mix(in srgb,var(--vg2) 55%,transparent);color:#fff}",
+  "html[data-vle-chrome='bloom'] .vlf-bar::before{content:'\\2740';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg2);opacity:.55;font-size:12px;pointer-events:none}",
 ].join('\n');

@@ -29,7 +29,7 @@ export interface Theme {
   texture: string;     // '' | bundled id | data/https url (scrimmed)
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
-  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic'; // window ornamentation, orthogonal to skin
+  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom'; // window ornamentation, orthogonal to skin
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
   // skin-derived (overridden by skin pick)
@@ -47,7 +47,7 @@ const F_SANS = "'Inter',system-ui,-apple-system,\"Segoe UI\",sans-serif";
 const F_DISPLAY = "'Cinzel','Cormorant Garamond',Georgia,serif"; // Fantasy display
 const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom';
 
 /**
  * A "mode" is a one-click preset over existing axes — chrome (window ornament) plus
@@ -60,6 +60,7 @@ export const MODES: Mode[] = [
   { id: 'illuminated', name: 'Fantasy', blurb: 'An open codex \u2014 warm parchment, brown ink, rubric headers, a wax seal.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: 'parchment', serif: F_SERIF }, form: 'codex', skin: 'parchment' },
   { id: 'modern', name: 'Modern', blurb: 'A calm card app \u2014 flat, sans, one smooth scroll of rounded cards.', patch: { chrome: 'modern', radius: 16, border: 1, texture: '', serif: F_SANS }, form: 'dashboard', skin: 'moonlit' },
   { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 cyan telemetry, reticle avatars, a live bond radar.', patch: { chrome: 'futuristic', radius: 2, border: 1, texture: 'grid', serif: F_HUD, accent: '#28e0d8', accent2: '#7a5cff' }, form: 'hud', skin: 'noir' },
+  { id: 'bloom', name: 'Bloom', blurb: 'A pressed-flower garden \u2014 blush pink &amp; sage, petals, lace, a cozy romance.', patch: { chrome: 'bloom', radius: 20, border: 1, texture: 'petals', serif: F_SERIF, accent: '#d98cab', accent2: '#8fbf7f' }, form: 'dashboard', skin: 'blush' },
 ];
 
 // base semantic palette, reused by every skin (skins override clash-prone ones)
@@ -74,6 +75,9 @@ export const SKINS: Skin[] = [
   { id: 'verdant', name: 'Verdant Grove', blurb: 'Mossy sage and bark — pastoral, warm, alive.', theme: { accent: '#8fa67e', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(22,28,20,.55)', surf2: 'rgba(13,17,12,.5)', ink: '#dde6d2', ink2: '#aebfa0', glass: 'linear-gradient(168deg,rgba(20,26,18,.97),rgba(11,15,10,.985))', ...SEM, pos: '#a8c089', posInk: '#c2db9f' } },
   { id: 'noir', name: 'Onyx Terminal', blurb: 'High-contrast mono, amber phosphor — hardboiled/sci-fi.', theme: { accent: '#e0a44e', serif: F_MONO, mono: F_MONO, surf1: 'rgba(18,18,18,.6)', surf2: 'rgba(9,9,9,.55)', ink: '#e6dcc8', ink2: '#b8ad96', glass: 'linear-gradient(168deg,rgba(16,16,16,.98),rgba(7,7,7,.99))', ...SEM } },
   { id: 'orchid', name: 'Orchid Dusk', blurb: 'Violet and rose-gold — dreamlike, romantic, soft.', theme: { accent: '#b48ed0', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(28,22,34,.55)', surf2: 'rgba(17,13,22,.5)', ink: '#e6d6ee', ink2: '#c2afce', glass: 'linear-gradient(168deg,rgba(26,20,32,.97),rgba(15,11,20,.985))', ...SEM, warn: '#c79ae0' } },
+  // Light pastel garden — blush paper, rosewood ink, sage & pink semantics. The
+  // recommended palette for the Bloom chrome (works standalone on any chrome too).
+  { id: 'blush', name: 'Blush Garden', blurb: 'Pressed-flower pastels — blush paper, sage & rose, soft and cozy.', theme: { accent: '#d98cab', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(255,241,246,.9)', surf2: 'rgba(246,232,240,.9)', ink: '#5c3a4a', ink2: '#9a7686', glass: 'linear-gradient(168deg,#fff4f8,#f3e4ec)', ...SEM, pos: '#7fa86a', posInk: '#688f54', neg: '#d06b7e', negInk: '#b8556a', info: '#8aa8c8', warn: '#c090c8', press: '#d99a5a', pressInk: '#c07f3e' } },
 ];
 
 const FONT_CHOICES: Array<{ label: string; stack: string }> = [
@@ -94,6 +98,8 @@ const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   { id: 'parchment', label: 'Parchment', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E\")" },
   { id: 'grid', label: 'Grid', css: 'linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px)' },
   { id: 'dots', label: 'Dots', css: 'radial-gradient(rgba(255,255,255,.06) 1px,transparent 1px)' },
+  // scattered pressed petals — soft blush + sage blooms, tiled SVG (no network)
+  { id: 'petals', label: 'Petals', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cg fill='%23d98cab' fill-opacity='0.12'%3E%3Cpath d='M30 22c6-10 14-10 20 0-6 6-14 6-20 0z'/%3E%3Cpath d='M104 96c6-10 14-10 20 0-6 6-14 6-20 0z'/%3E%3Cpath d='M18 104c10 4 12 12 4 18-4-6-6-14-4-18z'/%3E%3C/g%3E%3Cg fill='%238fbf7f' fill-opacity='0.12'%3E%3Cpath d='M96 20c10 4 12 12 4 18-4-6-6-14-4-18z'/%3E%3Cpath d='M56 70c8-6 16-2 16 8-8 0-14-2-16-8z'/%3E%3C/g%3E%3C/svg%3E\")" },
 ];
 
 const KEY = 'vellum2.theme';
@@ -123,7 +129,7 @@ function sanitize(t: Theme): Theme {
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
-    chrome: (['default', 'illuminated', 'modern', 'futuristic'] as const).includes(t.chrome) ? t.chrome : 'default',
+    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom'] as const).includes(t.chrome) ? t.chrome : 'default',
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -214,6 +220,7 @@ export function customizePanel(tab: CzTab = 'look'): string {
     illuminated: '<span class="vle-mode-sk sk-codex"><i></i><i></i></span>',
     modern: '<span class="vle-mode-sk sk-phone"><i></i><i></i><i></i></span>',
     futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
+    bloom: '<span class="vle-mode-sk sk-bloom"><i></i><i></i><i></i></span>',
   };
   const themeCards = MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
     + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('');
