@@ -8,7 +8,7 @@ declare const spindle: any;
  * arrive in the reasoning / reasoning_details channel instead of `content`.
  * Mirrors legacy extractGenContent — without this, summaries come back empty or
  * truncated when the model reasons. */
-function extractGenContent(r: any): string {
+export function extractGenContent(r: any): string {
   if (!r) return '';
   if (typeof r === 'string') return r;
   const pick = (v: unknown): string => (typeof v === 'string' && v.trim() ? v : '');
@@ -86,18 +86,21 @@ export async function controllerGenerate(
   messages: GenMsg[],
   userId: string | null,
   timeoutMs = 1500,
+  maxTokens = 200,
 ): Promise<Result<string, string>> {
   if (!(await has('generation'))) return Err('no_generation_permission');
   if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
   const connId = await defaultConnectionId(userId); // run on the user's own model
-  const req = { messages, parameters: { max_tokens: 200, temperature: 0 }, reasoning: { source: 'off' as const }, userId, ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}) };
+  const req = { messages, parameters: { max_tokens: maxTokens, temperature: 0 }, reasoning: { source: 'off' as const }, userId, ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}) };
   return tryCatchAsync(async () => {
     const r = spindle.generate.quiet
       ? await spindle.generate.quiet(req)
       : await spindle.generate.raw(req);
-    const text = typeof r === 'string' ? r : (r?.content ?? r?.text ?? r?.message?.content ?? '');
-    return String(text || '');
+    // Read reasoning channels too: on providers that ignore `reasoning: off`, the
+    // reply lands in reasoning/reasoning_details, not content — a content-only
+    // read here silently no-ops the off-screen sim (parseSim('') → null).
+    return extractGenContent(r);
   });
 }
 

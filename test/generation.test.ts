@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { internalGenerate } from '../src/host/generation.js';
+import { internalGenerate, controllerGenerate, extractGenContent } from '../src/host/generation.js';
+import { invalidatePermissions } from '../src/host/capability.js';
 
 // internalGenerate calls the host via globalThis.spindle — stub it to capture
 // the outgoing request and assert response_format / reasoning are forwarded.
 let lastReq: any = null;
 beforeEach(() => {
+  invalidatePermissions();
   (globalThis as any).spindle = {
     permissions: { has: async () => true },
     has: async () => true,
@@ -12,7 +14,7 @@ beforeEach(() => {
   };
   // capability.has reads spindle.permissions?.has or spindle.has — cover both
 });
-afterEach(() => { lastReq = null; });
+afterEach(() => { lastReq = null; invalidatePermissions(); });
 
 describe('internalGenerate — response_format forwarding', () => {
   it('injects response_format when given, and reasoning:off by default', async () => {
@@ -31,5 +33,30 @@ describe('internalGenerate — response_format forwarding', () => {
   it('omits response_format when not requested', async () => {
     await internalGenerate([{ role: 'user', content: 'x' }], {}, null);
     expect(lastReq.parameters.response_format).toBeUndefined();
+  });
+});
+
+describe('extractGenContent — recovers text from reasoning channels', () => {
+  it('reads reasoning_details when content is empty', () => {
+    const r = { content: '', reasoning_details: [{ text: '{"offscreen":[]}' }] };
+    expect(extractGenContent(r)).toBe('{"offscreen":[]}');
+  });
+  it('prefers content when present', () => {
+    expect(extractGenContent({ content: 'real', reasoning: 'thinking' })).toBe('real');
+  });
+});
+
+describe('controllerGenerate — reasoning-channel + maxTokens', () => {
+  it('recovers a reply that landed in reasoning, not content', async () => {
+    (globalThis as any).spindle.generate.raw = async (req: any) => { lastReq = req; return { content: '', reasoning: '{"offscreen":[{"op":"new","id":"x","gist":"y"}]}' }; };
+    const r = await controllerGenerate([{ role: 'user', content: 'x' }], null, 3000, 600);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toContain('offscreen');
+    // forwarded the caller's token budget, not the hard-coded 200
+    expect(lastReq.parameters.max_tokens).toBe(600);
+  });
+  it('defaults max_tokens to 200 (latency-sensitive callers unchanged)', async () => {
+    await controllerGenerate([{ role: 'user', content: 'x' }], null);
+    expect(lastReq.parameters.max_tokens).toBe(200);
   });
 });

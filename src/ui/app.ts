@@ -809,6 +809,13 @@ export function setup(ctx: Ctx): () => void {
         _offscreenOn = !!p.enabled;
         if (p.enabled && !p.available) notify(ctx, 'warning', 'Off-screen sim needs the generation permission to run.');
         else notify(ctx, 'success', p.enabled ? 'Off-screen simulation on \u2014 the world ticks every few turns.' : 'Off-screen simulation off.');
+      } else if (p?.type === 'vellum_offthread_done') {
+        // only the manual advance/simulate-all path reports a reason; the CRUD
+        // ops send a bare ok:true (nothing to announce).
+        if (p.reason === 'no_generation') notify(ctx, 'warning', 'Off-screen sim needs the generation permission to run.');
+        else if (p.reason === 'no_cast') notify(ctx, 'info', 'Nobody off-screen to simulate right now.');
+        else if (p.reason === 'empty_reply') notify(ctx, 'warning', 'The model returned no off-screen beat \u2014 try again.');
+        else if (p.advanced) notify(ctx, 'success', 'Advanced the off-screen world.');
       } else if (p?.type === 'vellum_chaptervault_done') {
         _chapterVault = p.mode ?? 'keyed';
         if (p.mode !== 'off' && !p.available) notify(ctx, 'warning', 'Chapter-vault needs the world_books permission \u2014 keeping chronicle gist only.');

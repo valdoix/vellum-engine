@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { summarizeOnce, parseSummary, cleanGist } from '../src/bus/summarize.js';
+import { invalidatePermissions } from '../src/host/capability.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
 // In tests there's no `spindle`, so internalGenerate returns an error and
@@ -84,5 +85,36 @@ describe('cleanGist — strips bullets, meta, fragments into flowing prose', () 
   });
   it('drops only the partial first word when a fragment has no later sentence', () => {
     expect(cleanGist('ered the quality of the renovation and stared at his forearms')).toBe('the quality of the renovation and stared at his forearms.');
+  });
+});
+
+describe('summarize pass-1 retry (reasoning-model empty first call)', () => {
+  afterEach(() => { delete (globalThis as any).spindle; invalidatePermissions(); });
+
+  it('retries once when the first detail call is empty, then uses the LLM gist (not the digest)', async () => {
+    let calls = 0;
+    (globalThis as any).spindle = {
+      permissions: { has: async () => true },
+      has: async () => true,
+      log: { warn: () => {}, info: () => {} },
+      generate: {
+        raw: async () => {
+          calls++;
+          // pass-1 attempt 1: empty (thinking ate the budget); attempt 2: real detail;
+          // pass-2 (gist): real gist.
+          if (calls === 1) return { content: '' };
+          if (calls === 2) return { content: 'DETAIL:\nCersei arrived at Harrenhal and took the golden rose.\nKEYS:\nHarrenhal, golden rose' };
+          return { content: 'Cersei arrived at Harrenhal and accepted the golden rose from Daeron.' };
+        },
+      },
+    };
+    invalidatePermissions();
+    const evs = await summarizeOnce(stateWithTurnMemories(8), null, 8);
+    const chapter = evs.find((e: any) => e.kind === 'memory.record') as any;
+    expect(chapter).toBeTruthy();
+    // not the structural first-sentence digest
+    expect(chapter.text.startsWith('Chapter (turns')).toBe(false);
+    expect(chapter.text).toContain('Cersei');
+    expect(calls).toBeGreaterThanOrEqual(2); // proves the retry fired
   });
 });

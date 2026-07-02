@@ -87,12 +87,23 @@ export async function summarizeFromPlan(
 
   // --- pass 1: DETAIL + KEYS (the dense record) ---
   const detailSys = resolvePrompt(kind, cfg, names);
-  const gen1 = await internalGenerate(
+  let gen1 = await internalGenerate(
     [{ role: 'system', content: detailSys }, { role: 'user', content: src }],
     { temperature: cfg.temperature, max_tokens: cfg.genMaxTokens },
     userId,
     { reasoningOff: true },
   );
+  // one bounded retry: on a reasoning model the first call sometimes spends the
+  // whole token budget on hidden thinking and comes back empty, which drops us to
+  // the structural first-sentence digest. Retrying targets that intermittency.
+  if (!(gen1.ok && gen1.value.trim())) {
+    gen1 = await internalGenerate(
+      [{ role: 'system', content: detailSys }, { role: 'user', content: src }],
+      { temperature: cfg.temperature, max_tokens: cfg.genMaxTokens },
+      userId,
+      { reasoningOff: true },
+    );
+  }
   tokens += approxTokens(detailSys.length + src.length + (gen1.ok ? gen1.value.length : 0));
   if (gen1.ok && gen1.value.trim()) {
     const parsed = parseDetailKeys(gen1.value);
@@ -120,7 +131,12 @@ export async function summarizeFromPlan(
 
   // fallbacks: no detail at all (generation down) → structural digest as gist;
   // detail but the gist call failed → derive the gist from the detail.
-  if (!gist && !detail) gist = fallbackDigest(state, plan, cfg.gistCap);
+  if (!gist && !detail) {
+    // both generation passes came back empty — we surface the first-sentence
+    // structural digest. Log it so this is diagnosable, not a mystery "bad summary".
+    if (typeof spindle !== 'undefined') spindle.log?.warn?.('[vellum_engine] summarize: generation returned no detail after retry; using structural digest');
+    gist = fallbackDigest(state, plan, cfg.gistCap);
+  }
   if (!gist && detail) gist = cleanGist(detail);
   if (!detail) detail = gist; // chronicle-only chapter (no vault body)
 

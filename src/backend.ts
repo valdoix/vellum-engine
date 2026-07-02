@@ -478,34 +478,41 @@ const SIM_CADENCE = 3; // tick the off-screen world every Nth turn (cost control
  * armed directives, and tone. Fail/timeout/empty Ã¢â€ â€™ no-op. Beats are tagged
  * src:'sim' so the UI distinguishes them; the append-only log makes them undoable.
  */
-async function simulateOffscreen(chatId: string, userId: string | null, focusId?: string): Promise<void> {
-  if (_simulating.has(chatId)) return;
-  if (!(await has('generation'))) return;
+/** Outcome of one sim tick, so callers (the manual button) can report WHY a tick
+ * produced nothing instead of silently claiming success. */
+type SimResult = { beats: number; reason?: 'no_generation' | 'no_cast' | 'empty_reply' };
+
+async function simulateOffscreen(chatId: string, userId: string | null, focusId?: string): Promise<SimResult> {
+  if (_simulating.has(chatId)) return { beats: 0, reason: 'empty_reply' };
+  if (!(await has('generation'))) return { beats: 0, reason: 'no_generation' };
   _simulating.add(chatId);
   try {
     const state = await loadState(chatId);
     const cast = offscreenCast(state);
     // per-thread advance can run even with nobody plausibly off-screen (the
     // subplot itself carries the context); the world-wide tick needs a cast.
-    if (!focusId && cast.length < 1) return;
+    if (!focusId && cast.length < 1) return { beats: 0, reason: 'no_cast' };
     const tone = await readTone(chatId, userId);
     const locks = await readLocks(chatId);
     const directives = await readDirectives(chatId);
     const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition }, ...(focusId ? { focusId } : {}) });
-    const res = await controllerGenerate([{ role: 'system', content: SIM_SYS }, { role: 'user', content: prompt }], userId, 3000);
-    if (!res.ok) return;
+    // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
+    // truncated it (unparseable JSON → silent no-op) on reasoning models.
+    const res = await controllerGenerate([{ role: 'system', content: SIM_SYS }, { role: 'user', content: prompt }], userId, 3000, 600);
+    if (!res.ok) return { beats: 0, reason: 'empty_reply' };
     const parsed = parseSim(res.value);
-    if (!parsed) return;
+    if (!parsed) return { beats: 0, reason: 'empty_reply' };
     // when focused, keep only the beat for that subplot (guard against drift)
     const useParsed = focusId ? { offscreen: parsed.offscreen.filter((p) => p.id === focusId).slice(0, 1) } : parsed;
-    if (!useParsed.offscreen.length) return;
+    if (!useParsed.offscreen.length) return { beats: 0, reason: 'empty_reply' };
     const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal());
-    if (!evs.length) return;
+    if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
     invalidateIndex(chatId);
     await broadcastState(chatId, userId);
     spindle.log?.info?.(`[vellum_engine] off-screen sim${focusId ? ` (focus ${focusId})` : ''}: ${useParsed.offscreen.length} subplot beat(s)`);
-  } catch (e) { spindle.log?.warn?.('[vellum_engine] simulateOffscreen: ' + ((e as Error)?.message ?? e)); }
+    return { beats: evs.length };
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] simulateOffscreen: ' + ((e as Error)?.message ?? e)); return { beats: 0, reason: 'empty_reply' }; }
   finally { _simulating.delete(chatId); }
 }
 
@@ -1210,9 +1217,9 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: false, reason: 'no_generation' }, uid); return; }
-    await simulateOffscreen(chatId, uid, p?.id ? String(p.id) : undefined);
+    const r = await simulateOffscreen(chatId, uid, p?.id ? String(p.id) : undefined);
     await broadcastState(chatId, uid);
-    spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true, advanced: true }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: r.beats > 0, ...(r.reason ? { reason: r.reason } : {}), advanced: r.beats > 0 }, uid);
   },
   vellum_plant_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
