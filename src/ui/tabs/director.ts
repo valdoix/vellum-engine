@@ -44,13 +44,13 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
   render(s) {
     const counts: Record<DView, number> = {
       directives: _directives.filter((d) => d.status !== 'done').length,
       locations: (s.locations ?? []).length,
       nextscene: _nextScene ? 1 : 0,
-      offscreen: (s.offscreen ?? []).filter((o) => o.status === 'active').length,
+      offscreen: (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).length,
       plants: (s.plants ?? []).filter((x) => x.status === 'planted').length,
       log: (s.continuityFlags ?? []).length,
     };
@@ -247,9 +247,10 @@ function offscreenView(s: ChronicleState): string {
   const all = (s.offscreen ?? []).slice();
   const active = all.filter((o) => o.status === 'active').sort(byRecentOff);
   const resolved = all.filter((o) => o.status === 'resolved').sort(byRecentOff);
+  const par = (s.parallel ?? []).slice();
   const head = sectionHeader('\u2748 Off-screen', { sub: true, count: active.length, action: '<button class="vle-add sm" data-off-simall title="Advance the whole off-screen world one AI tick (needs generation)">\u2748 simulate all</button><button class="vle-add sm" data-off-add>+</button>' });
   const intro = '<div class="vle-cz-note">Subplots unfolding away from the scene. Each has its own controls: \u25B8 advance (one AI beat for THIS thread), \u270E edit, \u2713 resolve, \u2715 delete. Auto-simulation is the Off-screen toggle in Actions.</div>';
-  if (!all.length) return head + intro + emptyState('No off-screen threads.', 'Add one by hand, or enable Off-screen in Actions to let subplots auto-simulate every few turns.');
+  if (!all.length && !par.length) return head + intro + emptyState('No off-screen threads.', 'Add one by hand, or enable Off-screen in Actions to let subplots auto-simulate every few turns.');
   const now = s.turns || 0;
   const A = (x: unknown): string => esc(x);
   const row = (o: ChronicleState['offscreen'][number]): string => {
@@ -271,6 +272,18 @@ function offscreenView(s: ChronicleState): string {
   let html = head + intro;
   if (active.length) html += '<div class="vle-subnav-g">Active</div>' + active.map(row).join('');
   if (resolved.length) html += '<div class="vle-subnav-g">Resolved</div>' + resolved.map(row).join('');
+  // Model-narrated "meanwhile" lines (s.parallel) — the per-turn off-stage life
+  // the preset emits (also shown in the float/dashboard). Read-only: it's a
+  // rolling snapshot, not a first-class thread with its own controls.
+  if (par.length) {
+    const prow = (p: ChronicleState['parallel'][number]): string => {
+      const who = p.who ? `<span class="vle-os-who">${esc(s.cast[p.who]?.name ?? p.who)}</span>` : '';
+      const where = p.where ? ` <span class="vle-os-w">@${esc(p.where)}</span>` : '';
+      const sim = p.src === 'sim' ? ' <span class="vle-os-ripe" title="Off-screen simulation">auto</span>' : '';
+      return `<div class="vle-os"><div class="vle-os-top">${who}${where}${sim}<span class="vle-os-stale">t${p.turn}</span></div><div class="vle-os-gist">${esc(p.activity)}${p.note ? ` <em>${esc(p.note)}</em>` : ''}</div></div>`;
+    };
+    html += '<div class="vle-subnav-g">Meanwhile (narrated)</div>' + par.slice().sort((a, b) => b.turn - a.turn).map(prow).join('');
+  }
   return html;
 }
 
