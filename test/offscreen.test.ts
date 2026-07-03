@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS } from '../src/domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys } from '../src/domain/offscreen.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
@@ -92,9 +92,55 @@ describe('simEvents + reduce round-trip', () => {
   });
 });
 
-describe('SIM_SYS', () => {
+describe('SIM_SYS / simSys', () => {
   it('instructs subplot ops + strict JSON', () => {
     expect(SIM_SYS).toContain('STRICT JSON');
     expect(SIM_SYS.toLowerCase()).toContain('advance');
+  });
+  it('off/reactive ban relationship changes; living/autonomous open the bonds channel', () => {
+    expect(simSys('off')).toContain('Do NOT change any relationships');
+    expect(simSys('reactive')).toContain('only shift in scenes the player witnesses');
+    expect(simSys('living')).toContain('bonds');
+    expect(simSys('living')).toContain('Do NOT start a new romance');
+    expect(simSys('autonomous')).toContain('friendship/rivalry');
+    // the JSON schema advertises a bonds array only when the level allows it
+    expect(simSys('autonomous')).toContain('"bonds"');
+    expect(simSys('off')).not.toContain('"bonds"');
+  });
+});
+
+describe('simEvents — off-screen NPC↔NPC bonds (Social autonomy)', () => {
+  const bonds = { offscreen: [], bonds: [{ a: 'Jaime', b: 'Tyrion', aff: 40, trust: 40, cat: 'social', why: 'a long night of wine' }] };
+  it('off / reactive emit NO bond events', () => {
+    for (const social of ['off', 'reactive'] as const) {
+      const evs = simEvents(bonds as any, state(), 12, 1, (() => { let n = 0; return () => ++n; })(), { social });
+      expect(evs.filter((e: any) => e.kind === 'bond.delta')).toHaveLength(0);
+    }
+  });
+  it('living clamps aff/trust to ±6 and never adds a category; emits a companion off-screen beat', () => {
+    const evs = simEvents(bonds as any, state(), 12, 1, (() => { let n = 0; return () => ++n; })(), { social: 'living' });
+    const bd = evs.find((e: any) => e.kind === 'bond.delta') as any;
+    expect(bd).toBeTruthy();
+    expect(bd.aff).toBe(6); expect(bd.trust).toBe(6); // clamped from 40
+    expect(bd.addCats).toBeUndefined();               // no category flips at living
+    expect(evs.some((e: any) => e.kind === 'offscreen.op' && e.id.startsWith('bond_'))).toBe(true); // surfaced as news
+  });
+  it('autonomous clamps to ±15 and allows a category', () => {
+    const evs = simEvents(bonds as any, state(), 12, 1, (() => { let n = 0; return () => ++n; })(), { social: 'autonomous' });
+    const bd = evs.find((e: any) => e.kind === 'bond.delta') as any;
+    expect(bd.aff).toBe(15); expect(bd.addCats).toEqual(['social']);
+  });
+  it('a relation lock strips the forbidden category off-screen, exactly like the on-screen fold', () => {
+    const locked = { offscreen: [], bonds: [{ a: 'Jaime', b: 'Tyrion', cat: 'social', why: 'x' }] };
+    const evs = simEvents(locked as any, state(), 12, 1, (() => { let n = 0; return () => ++n; })(),
+      { social: 'autonomous', locks: [{ key: 'jaime|tyrion', a: 'jaime', b: 'tyrion', forbid: ['social'], pin: [] }] });
+    // the only content was a forbidden social cat → stripped → no bond survives
+    expect(evs.filter((e: any) => e.kind === 'bond.delta')).toHaveLength(0);
+  });
+  it('never authors a bond involving {{user}}', () => {
+    const withUser = { offscreen: [], bonds: [{ a: 'Jaime', b: 'You', aff: 10 }] };
+    const s = state(); s.cast.you = { id: 'you', name: 'You', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 12, userEdited: false } as any;
+    const evs = simEvents(withUser as any, s, 12, 1, (() => { let n = 0; return () => ++n; })(), { social: 'autonomous', userId: 'you' });
+    expect(evs.filter((e: any) => e.kind === 'bond.delta')).toHaveLength(0);
   });
 });

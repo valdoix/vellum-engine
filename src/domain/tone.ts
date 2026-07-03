@@ -8,18 +8,37 @@
 
 export type Romance = 'off' | 'slow_burn' | 'medium' | 'fast' | 'erotic';
 export type Disposition = 'kind' | 'warm' | 'fair' | 'harsh' | 'brutal';
-export interface Tone { romance: Romance; disposition: Disposition }
+// Social autonomy: how much NPC↔NPC relationships evolve on their own.
+//  off       — only user-driven; off-screen sim never touches bonds (today's behavior)
+//  reactive  — NPC↔NPC bonds evolve freely IN witnessed scenes; nothing off-screen
+//  living    — + bounded off-screen drift (small aff/trust nudges, NO category flips)
+//  autonomous— + off-screen bonds may form/strain/cool (small category steps allowed)
+export type Social = 'off' | 'reactive' | 'living' | 'autonomous';
+export interface Tone { romance: Romance; disposition: Disposition; social: Social }
 
-export const DEFAULT_TONE: Tone = { romance: 'medium', disposition: 'fair' };
+export const DEFAULT_TONE: Tone = { romance: 'medium', disposition: 'fair', social: 'living' };
 
 const ROMANCES = new Set<Romance>(['off', 'slow_burn', 'medium', 'fast', 'erotic']);
 const DISPOSITIONS = new Set<Disposition>(['kind', 'warm', 'fair', 'harsh', 'brutal']);
+const SOCIALS = new Set<Social>(['off', 'reactive', 'living', 'autonomous']);
 
 // per-turn |aff| ceiling for a ROMANTIC bond. medium ≈ unconstrained in practice
 // (model rarely exceeds), slow_burn bites hard, fast/erotic open it up.
 const ROMANCE_CLAMP: Record<Romance, number> = { off: 0, slow_burn: 4, medium: 12, fast: 25, erotic: 40 };
 // one-time opening lean added to a NEW {{user}}↔cast bond's first aff delta.
 const DISP_SEED: Record<Disposition, number> = { kind: 15, warm: 7, fair: 0, harsh: -10, brutal: -25 };
+// per-interval |aff|/|trust| ceiling for an OFF-SCREEN NPC↔NPC bond drift. off/reactive
+// forbid it entirely (0); living nudges gently; autonomous allows a real step.
+const OFFSCREEN_BOND_CLAMP: Record<Social, number> = { off: 0, reactive: 0, living: 6, autonomous: 15 };
+
+/** Off-screen NPC↔NPC relationship policy for the given level. PURE — the sim
+ * uses `maxDelta` to clamp aff/trust and `allowCategory` to gate new facets
+ * (never romantic off-screen unless already established). `enabled` false = the
+ * sim must not emit ANY bond (off/reactive reproduce today's blanket ban). */
+export function offscreenBondPolicy(social: Social): { enabled: boolean; maxDelta: number; allowCategory: boolean } {
+  const maxDelta = OFFSCREEN_BOND_CLAMP[social] ?? 0;
+  return { enabled: maxDelta > 0, maxDelta, allowCategory: social === 'autonomous' };
+}
 
 /** A new faction's opening standing toward {{user}}, seeded by World Disposition
  * — the per-group granular version of the global dial. 0 for fair. */
@@ -27,14 +46,15 @@ export function seedFactionStanding(tone: Tone): number {
   return DISP_SEED[tone.disposition] ?? 0;
 }
 
-export function parseTone(romance?: string | null, disposition?: string | null): Tone {
+export function parseTone(romance?: string | null, disposition?: string | null, social?: string | null): Tone {
   const r = (romance && ROMANCES.has(romance as Romance)) ? romance as Romance : DEFAULT_TONE.romance;
   const d = (disposition && DISPOSITIONS.has(disposition as Disposition)) ? disposition as Disposition : DEFAULT_TONE.disposition;
-  return { romance: r, disposition: d };
+  const s = (social && SOCIALS.has(social as Social)) ? social as Social : DEFAULT_TONE.social;
+  return { romance: r, disposition: d, social: s };
 }
 
 export function isDefaultTone(t: Tone): boolean {
-  return t.romance === DEFAULT_TONE.romance && t.disposition === DEFAULT_TONE.disposition;
+  return t.romance === DEFAULT_TONE.romance && t.disposition === DEFAULT_TONE.disposition && t.social === DEFAULT_TONE.social;
 }
 
 export interface BondInput { a: string; b: string; aff?: number; trust?: number; addCats?: string[] }

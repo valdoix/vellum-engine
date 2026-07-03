@@ -1,7 +1,8 @@
 import type { ChronicleState } from './types.js';
-import type { VellumEvent } from '../core/events.js';
-import type { RelationLock } from './relation-lock.js';
+import type { VellumEvent, Category } from '../core/events.js';
+import { type RelationLock, findLock, applyLockToBond } from './relation-lock.js';
 import type { Directive } from './directive.js';
+import { type Social, offscreenBondPolicy } from './tone.js';
 import { canonId } from '../core/ids.js';
 
 /**
@@ -31,18 +32,39 @@ export function offscreenCast(state: ChronicleState): ChronicleState['cast'][str
 export interface SimCtx {
   locks?: readonly RelationLock[];
   directives?: readonly Directive[];
-  tone?: { disposition: string };
+  tone?: { disposition: string; social?: Social };
   focusId?: string; // when set, advance ONLY this subplot (per-thread advance)
 }
 
-export const SIM_SYS = [
+const SIM_SYS_BASE = [
   'You advance OFF-SCREEN life in a roleplay world: small subplots unfolding elsewhere while the main scene plays out.',
   'You are given OFF-SCREEN CHARACTERS (not in the current scene) and the CURRENT OFF-SCREEN SUBPLOTS already in motion.',
   'For each, decide a small next beat: ADVANCE an existing subplot (reuse its id), RESOLVE one that has run its course, or open a NEW one.',
-  'Keep beats SMALL and plausible (a clause, not a plot twist). Do NOT kill anyone, resolve a major on-screen arc, or change relationships/secrets.',
-  'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened"}]}',
-  'Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most 4 entries.',
-].join(' ');
+  'Keep beats SMALL and plausible (a clause, not a plot twist). Do NOT kill anyone or resolve a major on-screen arc.',
+];
+// what the sim may do to NPC↔NPC relationships, by Social autonomy level.
+const SIM_SOCIAL_RULE: Record<Social, string> = {
+  off: 'Do NOT change any relationships or secrets.',
+  reactive: 'Do NOT change any relationships or secrets off-screen (relationships only shift in scenes the player witnesses).',
+  living: 'Two off-screen characters MAY grow a little closer or a little more strained through their subplot — report it as a small "bonds" entry (a gentle aff/trust nudge). Do NOT start a new romance, marry, break up, or otherwise flip the KIND of a relationship off-screen. Never change a relationship the FORBIDDEN list rules out.',
+  autonomous: 'Two off-screen characters MAY meaningfully shift their bond — grow close, drift apart, fall out, reconcile, or begin a friendship/rivalry — reported as a "bonds" entry with a small aff/trust step and optionally a new cat (friendship=social, rivalry). Take SMALL steps (no instant marriages). Never form a romance the FORBIDDEN list rules out, and never change a relationship any FORBIDDEN entry rules out.',
+};
+const SIM_JSON_BONDS = ' You MAY also include a "bonds" array of NPC↔NPC relationship shifts: [{"a":"Name","b":"Name","aff":small +/- int,"trust":small +/- int,"cat":"social|rivalry|alliance or omit","why":"one clause"}]. Never involve the player in a bond.';
+const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened"}]BONDS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most 4 offscreen entries.';
+
+/** Build the sim system prompt for a given Social level. `off`/`reactive` keep the
+ * historical blanket "no relationship changes" ban; `living`/`autonomous` open a
+ * bounded, lock-respecting NPC↔NPC bond channel. */
+export function simSys(social: Social = 'off'): string {
+  const rule = SIM_SOCIAL_RULE[social] ?? SIM_SOCIAL_RULE.off;
+  const wantsBonds = offscreenBondPolicy(social).enabled;
+  const json = SIM_JSON.replace('BONDS', wantsBonds ? SIM_JSON_BONDS : '');
+  return [...SIM_SYS_BASE, rule, json].join(' ');
+}
+
+/** Back-compat default (off = today's behavior) for callers/tests that want the
+ * constant form. */
+export const SIM_SYS = simSys('off');
 
 /** Build the user prompt: off-screen cast + the OPEN subplots to advance/resolve
  * + world guardrails (locks, armed directives, tone). */
@@ -79,7 +101,11 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
   return lines.join('\n');
 }
 
-export interface ParsedSim { offscreen: Array<{ op: 'new' | 'advance' | 'resolve'; id: string; name?: string; who?: string; where?: string; gist?: string }> }
+export interface ParsedSimBond { a: string; b: string; aff?: number; trust?: number; cat?: string; why?: string }
+export interface ParsedSim {
+  offscreen: Array<{ op: 'new' | 'advance' | 'resolve'; id: string; name?: string; who?: string; where?: string; gist?: string }>;
+  bonds?: ParsedSimBond[];
+}
 
 /** Tolerant parse of the controller reply. Returns null on garbage / nothing. */
 export function parseSim(text: string): ParsedSim | null {
@@ -102,8 +128,19 @@ export function parseSim(text: string): ParsedSim | null {
     })
     .filter((p) => p.id && (p.gist || p.op === 'resolve'))
     .slice(0, 4);
-  if (!offscreen.length) return null;
-  return { offscreen };
+  const num = (v: unknown): number | undefined => { const n = Number(v); return Number.isFinite(n) ? n : undefined; };
+  const bonds = (Array.isArray(o.bonds) ? o.bonds : [])
+    .map((p) => (p && typeof p === 'object') ? p as Record<string, unknown> : {})
+    .map((p) => {
+      const a = String(p.a ?? '').trim(); const b = String(p.b ?? '').trim();
+      const cat = p.cat ? String(p.cat).trim().toLowerCase() : '';
+      const why = String(p.why ?? '').trim();
+      return { a, b, ...(num(p.aff) !== undefined ? { aff: num(p.aff) } : {}), ...(num(p.trust) !== undefined ? { trust: num(p.trust) } : {}), ...(cat ? { cat } : {}), ...(why ? { why } : {}) } as ParsedSimBond;
+    })
+    .filter((p) => p.a && p.b && p.a.toLowerCase() !== p.b.toLowerCase() && (p.aff !== undefined || p.trust !== undefined || p.cat))
+    .slice(0, 4);
+  if (!offscreen.length && !bonds.length) return null;
+  return { offscreen, ...(bonds.length ? { bonds } : {}) };
 }
 
 /**
@@ -113,16 +150,59 @@ export function parseSim(text: string): ParsedSim | null {
  * else stays as the raw name (an off-screen subplot may name a not-present
  * character without minting a scene presence). Still NO bond/secret mutation.
  */
-export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number, day: number, seq: () => number): VellumEvent[] {
+export interface SimEventsOpts {
+  /** relation locks — off-screen bonds pass the SAME filter as on-screen ones */
+  locks?: readonly RelationLock[];
+  /** Social autonomy level — gates & clamps the off-screen bond channel */
+  social?: Social;
+  /** canonical {{user}} id — so the sim never authors a bond involving the player */
+  userId?: string;
+}
+
+// map a loose sim `cat` string to a real bond Category (only the ones a sim may
+// form off-screen; romantic/familial are never minted off-screen).
+const SIM_CAT: Record<string, Category> = { social: 'social', friendship: 'social', friend: 'social', rivalry: 'rivalry', rival: 'rivalry', alliance: 'alliance', ally: 'alliance' };
+
+export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number, day: number, seq: () => number, opts: SimEventsOpts = {}): VellumEvent[] {
   const castByName = new Map(Object.values(state.cast).map((c) => [c.name.toLowerCase(), c.id]));
   const resolve = (who?: string): string | undefined => who ? (castByName.get(who.toLowerCase()) ?? canonId(who)) : undefined;
   const known = new Set((state.offscreen ?? []).map((o) => o.id));
-  return parsed.offscreen.map((p) => {
+  const events: VellumEvent[] = parsed.offscreen.map((p) => {
     // a "new" that collides with a known id becomes an advance; an "advance" on
     // an unknown id becomes a new — so the model can't fork or orphan a subplot.
     const op = p.op === 'resolve' ? 'resolve' : (known.has(p.id) ? 'advance' : 'new');
     return { seq: seq(), turn, day, src: 'system', kind: 'offscreen.op', op, id: p.id, ...(p.name ? { name: p.name } : {}), ...(p.who ? { who: resolve(p.who) } : {}), ...(p.where ? { where: p.where } : {}), ...(p.gist ? { gist: p.gist } : {}) } as VellumEvent;
   });
+
+  // Off-screen NPC↔NPC bond channel (Social autonomy). Gated by level, clamped by
+  // magnitude, category-limited, and — crucially — run through the SAME relation-
+  // lock filter as the on-screen bond chokepoint, so a user's forbid can never be
+  // rewritten off-screen. Each surviving bond also emits a companion offscreen.op
+  // beat so the change surfaces as NEWS on re-entry, not silently in the graph.
+  const policy = offscreenBondPolicy(opts.social ?? 'off');
+  if (policy.enabled && parsed.bonds?.length) {
+    const clamp = (n?: number): number | undefined => (typeof n === 'number' && n !== 0) ? Math.max(-policy.maxDelta, Math.min(policy.maxDelta, Math.round(n))) : undefined;
+    const userId = opts.userId || '';
+    for (const bd of parsed.bonds) {
+      const a = resolve(bd.a); const b = resolve(bd.b);
+      if (!a || !b || a === b) continue;
+      if (userId && (a === userId || b === userId)) continue; // never author a user bond off-screen
+      const aff = clamp(bd.aff); const trust = clamp(bd.trust);
+      const rawCat = policy.allowCategory && bd.cat ? SIM_CAT[bd.cat] : undefined;
+      // apply the relation lock exactly as the fold does: strip forbidden addCats
+      const locked = applyLockToBond({ ...(rawCat ? { addCats: [rawCat] } : {}) }, findLock(opts.locks, a, b));
+      const addCats = locked.addCats;
+      if (aff === undefined && trust === undefined && !addCats?.length) continue; // nothing survived
+      events.push({ seq: seq(), turn, day, src: 'system', kind: 'bond.delta', a, b,
+        ...(aff !== undefined ? { aff } : {}), ...(trust !== undefined ? { trust } : {}),
+        ...(addCats?.length ? { addCats } : {}), ...(bd.why ? { why: bd.why } : {}) } as VellumEvent);
+      // surface it as off-screen news so re-entry shows the shift
+      const nm = (id: string): string => state.cast[id]?.name ?? id;
+      const gist = bd.why || `${nm(a)} and ${nm(b)} ${aff !== undefined && aff < 0 ? 'have grown apart' : 'have grown closer'} off-screen`;
+      events.push({ seq: seq(), turn, day, src: 'system', kind: 'offscreen.op', op: 'new', id: `bond_${a}_${b}`.slice(0, 40), name: `${nm(a)} & ${nm(b)}`, gist } as VellumEvent);
+    }
+  }
+  return events;
 }
 
 /** An off-screen thread is "ripe to intersect" when it has built enough (>= 3

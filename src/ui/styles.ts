@@ -226,7 +226,7 @@ export const STYLES = [
   ".vle-item-note{flex:1 1 auto;min-width:0;font-size:calc(12px * var(--vscale));color:var(--vi2);opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
   // present-card carried-items chip strip (echo on the Now card)
   ".vld-pc-items{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}",
-  ".vld-pc-item{font:500 10px/1.4 var(--vmono);color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 10%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 28%,transparent);border-radius:999px;padding:2px 7px;white-space:nowrap}",
+  ".vld-pc-item{font:500 10px/1.4 var(--vmono);color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 10%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 28%,transparent);border-radius:12px;padding:2px 7px;max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word}",
   // FUTURISTIC chrome: square, mono, accent edge — match the diary/HUD treatment
   "html[data-vle-chrome='futuristic'] .vle-item-grp-h{font-family:var(--vmono);color:var(--vg)}",
   "html[data-vle-chrome='futuristic'] .vle-item-name{font-family:var(--vmono);font-style:normal}",
@@ -546,6 +546,10 @@ export const STYLES = [
   ".vle-toast--warning{border-color:color-mix(in srgb,var(--v-warn) 60%,transparent)}",
   ".vle-toast--info{border-color:rgba(var(--vg-rgb),.45)}",
   ".vlfm{width:min(440px,92vw);max-height:86vh;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;color:var(--vle-ink);background:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1));border:1px solid rgba(var(--vg-rgb),.5);box-shadow:0 28px 80px rgba(0,0,0,.7)}",
+  // Search / Customize / Actions carry .vle-root (to scope theme vars); the chrome
+  // `.vle-root{background-image:...}` rules would otherwise beat .vlfm's opaque fill
+  // and let the chat show through. Pin an opaque surface for these panels on every chrome.
+  "html[data-vle-chrome] .vlfm.vle-root{background-color:#14110b;background-image:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1))}",
   ".vlfm-head{display:flex;align-items:center;gap:8px;padding:13px 16px;font-family:var(--vserif);font-size:18px;letter-spacing:1.5px;text-transform:uppercase;color:var(--vi);border-bottom:1px solid rgba(var(--vg-rgb),.22)}",
   ".vlfm-mark{color:var(--vle-gold)}",
   ".vlfm-body{padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:11px}",

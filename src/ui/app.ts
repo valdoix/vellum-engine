@@ -267,7 +267,7 @@ let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
 let _traverseMode = 'off'; // off | flat | tree
 let _traverseAxis = 'temporal'; // temporal | character | hybrid (tree only)
 const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === 'hybrid' ? 'by char+time' : 'by time';
-let _tone = { romance: 'medium', disposition: 'fair' };
+let _tone = { romance: 'medium', disposition: 'fair', social: 'living' };
 let _tidyOn = false;
 let _chapterVault = 'keyed';
 let _hardLimits = ''; // last-known hard-limits chat var (mirrored from broadcasts)
@@ -304,7 +304,7 @@ function openActions(ctx: Ctx): void {
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
       traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
-      tone: (_tone.romance === 'medium' && _tone.disposition === 'fair') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition}`,
+      tone: (_tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition} \u00b7 ${_tone.social}`,
     };
     return groups.map(([g, label]) => {
       const items = QOL.filter((q) => q.group === g);
@@ -438,6 +438,12 @@ function openToneModal(ctx: Ctx): void {
       { value: 'harsh', label: 'Harsh' },
       { value: 'brutal', label: 'Brutal (the world is against you)' },
     ] },
+    { key: 'social', label: 'NPC social autonomy', type: 'select', value: _tone.social, options: [
+      { value: 'off', label: 'Off (only you drive relationships)' },
+      { value: 'reactive', label: 'Reactive (NPCs bond in scenes you see)' },
+      { value: 'living', label: 'Living (+ they drift off-screen too)' },
+      { value: 'autonomous', label: 'Autonomous (they date, fall out, reconcile on their own)' },
+    ] },
     { key: 'tidy', label: 'Auto-tidy plot threads', type: 'select', value: _tidyOn ? 'on' : 'off', options: [
       { value: 'off', label: 'Off' },
       { value: 'on', label: 'On (merge duplicate threads as you play)' },
@@ -448,7 +454,7 @@ function openToneModal(ctx: Ctx): void {
       { value: 'off', label: 'Off (chronicle gist only)' },
     ] },
   ], (out) => {
-    ctx.sendToBackend({ type: 'vellum_set_tone', romance: out.romance, disposition: out.disposition });
+    ctx.sendToBackend({ type: 'vellum_set_tone', romance: out.romance, disposition: out.disposition, social: out.social });
     ctx.sendToBackend({ type: 'vellum_set_tidy', enabled: out.tidy === 'on' });
     ctx.sendToBackend({ type: 'vellum_set_chaptervault', mode: out.chaptervault });
   });
@@ -653,8 +659,8 @@ export function setup(ctx: Ctx): () => void {
       if (p?.type === 'vellum_state') {
         state = p.state ?? freshState();
         if (p.tone) {
-          _tone = { romance: p.tone.romance ?? 'medium', disposition: p.tone.disposition ?? 'fair' };
-          const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair';
+        _tone = { romance: p.tone.romance ?? 'medium', disposition: p.tone.disposition ?? 'fair', social: p.tone.social ?? 'living' };
+        const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living';
           document.querySelectorAll('[data-qol=\'tone\']').forEach((b) => b.classList.toggle('on', !isDefault));
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
@@ -789,10 +795,10 @@ export function setup(ctx: Ctx): () => void {
         else if (_traverseMode === 'tree') notify(ctx, 'success', `Controller retrieval: tree drill (${_traverseAxis === 'character' ? 'by character' : _traverseAxis === 'hybrid' ? 'by character + timeline' : 'by timeline'}).`);
         else notify(ctx, 'success', _traverseMode === 'flat' ? 'Controller retrieval: flat (one-shot).' : 'Controller retrieval off.');
       } else if (p?.type === 'vellum_tone_done') {
-        _tone = { romance: p.romance ?? 'medium', disposition: p.disposition ?? 'fair' };
-        const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair';
+        _tone = { romance: p.romance ?? 'medium', disposition: p.disposition ?? 'fair', social: p.social ?? 'living' };
+        const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living';
         document.querySelectorAll('[data-qol=\'tone\']').forEach((b) => b.classList.toggle('on', !isDefault));
-        notify(ctx, 'success', `Tone set \u2014 romance: ${_tone.romance.replace('_', ' ')}, world: ${_tone.disposition}.`);
+        notify(ctx, 'success', `Tone set \u2014 romance: ${_tone.romance.replace('_', ' ')}, world: ${_tone.disposition}, social: ${_tone.social}.`);
       } else if (p?.type === 'vellum_tidy_done') {
         setQolBusy('tidy', false);
         if (!p.ok) notify(ctx, 'warning', p.reason === 'no_generation' ? 'Tidy threads needs the generation permission.' : 'Tidy threads failed.');

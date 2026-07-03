@@ -447,7 +447,7 @@
       "role": "system",
       "position": "pre_history",
       "enabled": true,
-      "content": "{{setvar::vl_active::POV {{var::pov}} | len {{var::length}} | stakes {{var::stakes}} | world {{var::disposition}} | romance {{var::romance}} | NSFW {{var::nsfw_level}} | agency {{var::agency}} | reader {{var::epistemic}}{{if::{{var::nsfl}}}} | NSFL{{/if}}{{if::{{eq::{{var::era}}::none}}}}{{else}} | ERA-IDIOM (hold it: {{var::era_strictness}}){{/if}}{{if::{{eq::{{var::cast}}::none}}}}{{else}} | TONAL-CAST (keep the wavelength){{/if}}}}{{noop}}"
+      "content": "{{setvar::vl_active::POV {{var::pov}} | len {{var::length}} | stakes {{var::stakes}} | world {{var::disposition}} | romance {{var::romance}} | NSFW {{var::nsfw_level}} | agency {{var::agency}} | reader {{var::epistemic}}{{if::{{var::nsfl}}}} | NSFL{{/if}}{{if::{{eq::{{var::era}}::none}}}}{{else}} | ERA-IDIOM (hold it: {{var::era_strictness}}){{/if}}{{if::{{eq::{{var::cast}}::none}}}}{{else}} | TONAL-CAST (keep the wavelength){{/if}}{{if::{{eq::{{var::social}}::off}}}}{{else}} | SOCIAL {{var::social}} (NPCs bond each other){{/if}}}}{{noop}}"
     },
     {
       "id": "v2-doctrine",
@@ -1085,6 +1085,47 @@
               "id": "brutal",
               "label": "Brutal",
               "value": "[DISPOSITION — BRUTAL] The default stance toward a stranger is wary, predatory, or hostile — people exploit, betray, and discard to survive. Apparent warmth is a mask or a trap until proven otherwise; real kindness is the rare exception that costs the giver something. Survival, not affection, is the currency."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-social",
+      "name": "Social Autonomy (NPC↔NPC)",
+      "role": "system",
+      "position": "pre_history",
+      "enabled": true,
+      "group": "v2-cat-tone",
+      "content": "{{setchatvar::vellum_social::{{var::social}}}}{{setchatvar::vellum_romance::{{var::romance}}}}{{setchatvar::vellum_disposition::{{var::disposition}}}}{{if::{{eq::{{var::social}}::off}}}}{{else}}[SOCIAL AUTONOMY] Characters have their own social lives that do not run through {{user}}. NPCs form, deepen, strain, and break their bonds WITH EACH OTHER - a flirtation, a friendship curdling into rivalry, a falling-out, a reconciliation, two of them drawn together. Record these as NPC↔NPC entries in the <vellum> block's delta.bonds (both endpoints NPCs, never {{user}}) exactly as you would a bond to {{user}}. They change slowly and unevenly (honor the Character Engine's 'people change slowly' law) - one charged moment doesn't marry two people.\nRELATIONSHIP GUARDRAILS ARE SOURCE OF TRUTH, and they are a SCALPEL, not a wall: a guardrail on one pair fixes ONLY that one kind of bond for ONLY that one pair. 'A and B never romantic' does NOT stop A and B becoming friends or rivals, and does NOT touch B and C at all. Honor every guardrail as the settled nature of its exact pair-and-axis; everywhere else, let bonds move freely.\n{{var::social}}{{/if}}",
+      "variables": [
+        {
+          "id": "var_social",
+          "name": "social",
+          "type": "select",
+          "label": "NPC Social Autonomy",
+          "description": "How much NPCs form and change relationships WITH EACH OTHER on their own (dating, feuding, reconciling), independent of {{user}}. Pairs with the engine dial (auto-synced): off/reactive keep it to witnessed scenes; living/autonomous let it also happen off-screen. Relationship guardrails (locks) are always respected per-pair, per-axis.",
+          "defaultValue": "living",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off (you drive relationships)",
+              "value": "none"
+            },
+            {
+              "id": "reactive",
+              "label": "Reactive (on-screen only)",
+              "value": "[SOCIAL — REACTIVE] NPC↔NPC bonds evolve only in scenes {{user}} witnesses; nothing shifts between characters off-screen. What you don't see stays as it was."
+            },
+            {
+              "id": "living",
+              "label": "Living (default)",
+              "value": "[SOCIAL — LIVING] Beyond witnessed scenes, absent characters' feelings toward each other drift a little on their own - a bond warming or cooling while {{user}} is away - surfacing as news or a changed dynamic on re-entry. Off-screen drift stays SMALL and never flips the kind of a relationship (no off-screen weddings or new romances); the big turns still happen on-page."
+            },
+            {
+              "id": "autonomous",
+              "label": "Autonomous (full lives)",
+              "value": "[SOCIAL — AUTONOMOUS] NPCs live full social lives without {{user}}: off-screen they can grow close, drift apart, fall out, reconcile, or begin a friendship or rivalry, and {{user}} learns of it by consequence - a couple formed while they were away, a feud that flared. Steps stay believable (no instant marriages), the world's disposition colors which way things tend, and every relationship guardrail still holds absolutely for its pair."
             }
           ]
         }

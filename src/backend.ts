@@ -42,7 +42,7 @@ import { parseTone, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, lockInjection, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
 import { checkContinuity } from './domain/continuity.js';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, offscreenInjection, readyToIntersect } from './domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenInjection, readyToIntersect } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
@@ -202,7 +202,8 @@ async function readTone(chatId: string, userId: string | null): Promise<Tone> {
   void userId;
   const r = await getChatVar(chatId, 'vellum_romance');
   const d = await getChatVar(chatId, 'vellum_disposition');
-  return parseTone(r, d);
+  const s = await getChatVar(chatId, 'vellum_social');
+  return parseTone(r, d, s);
 }
 
 /** Read + sanitize the per-chat relation locks (Plot Director). */
@@ -495,13 +496,13 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     const tone = await readTone(chatId, userId);
     const locks = await readLocks(chatId);
     const directives = await readDirectives(chatId);
-    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition }, ...(focusId ? { focusId } : {}) });
+    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}) });
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
     // 30s timeout: this runs detached (background tick or manual button), NOT on
     // the prompt-assembly path — a reasoning model needs far more than the old 3s
     // to think + emit JSON, which was aborting every tick ("Generation aborted").
-    const res = await controllerGenerate([{ role: 'system', content: SIM_SYS }, { role: 'user', content: prompt }], userId, 30000, 600);
+    const res = await controllerGenerate([{ role: 'system', content: simSys(tone.social) }, { role: 'user', content: prompt }], userId, 30000, 600);
     if (!res.ok) {
       spindle.log?.warn?.(`[vellum_engine] off-screen sim: generation failed (${res.error})`);
       return { beats: 0, reason: 'empty_reply' };
@@ -528,7 +529,9 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
       spindle.log?.warn?.('[vellum_engine] off-screen sim: parsed reply had zero usable beats. Raw reply: ' + JSON.stringify((res.value || '').slice(0, 400)));
       return { beats: 0, reason: 'empty_reply' };
     }
-    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal());
+    const simNames = await chatNames(chatId, userId);
+    const simUserCanon = simNames.user ? canonId(simNames.user) : '';
+    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, social: tone.social, userId: simUserCanon });
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
     invalidateIndex(chatId);
@@ -1543,10 +1546,11 @@ const dispatch: Record<string, Handler> = {
     // clamp/strip) and the preset prose. Validated via parseTone (neutral default).
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
-    const tone = parseTone(p?.romance, p?.disposition);
+    const tone = parseTone(p?.romance, p?.disposition, p?.social);
     try { await setChatVar(chatId, 'vellum_romance', tone.romance); } catch { /* best effort */ }
     try { await setChatVar(chatId, 'vellum_disposition', tone.disposition); } catch { /* best effort */ }
-    spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition }, uid);
+    try { await setChatVar(chatId, 'vellum_social', tone.social); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition, social: tone.social }, uid);
   },
   vellum_set_locks: async (p, uid) => {
     // Plot Director relation locks: persist the per-pair forbid/pin list. On
