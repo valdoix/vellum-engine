@@ -29,7 +29,7 @@ export interface Theme {
   texture: string;     // '' | bundled id | data/https url (scrimmed)
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
-  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember'; // window ornamentation, orthogonal to skin
+  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne'; // window ornamentation, orthogonal to skin
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
   // skin-derived (overridden by skin pick)
@@ -48,7 +48,7 @@ const F_DISPLAY = "'Cinzel','Cormorant Garamond',Georgia,serif"; // Fantasy disp
 const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
 const F_ETHEREAL = "'Cormorant Garamond','Quicksand',Georgia,serif"; // Ember display — airy serif with a dreamy italic lean
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne';
 
 /**
  * A "mode" is a one-click preset over existing axes — chrome (window ornament) plus
@@ -67,6 +67,7 @@ export const MODES: Mode[] = [
   // Distinct from Bloom (light/cozy) and Futuristic (hard/telemetry): Ember is
   // dark, soft, ethereal, and animated — pastels that glow on a midnight field.
   { id: 'ember', name: 'Ember', blurb: 'A starlit night dreaming \u2014 indigo void, fireflies, rising bubbles, pastel starlight.', patch: { chrome: 'ember', radius: 22, border: 1, texture: 'starfall', serif: F_ETHEREAL, accent: '#b8a9ff', accent2: '#8fd6c8', opacity: 0.92, blur: 12 }, form: 'dashboard', skin: 'starfall' },
+  { id: 'nocturne', name: 'Nocturne', blurb: 'A midnight botanical salon \u2014 silver lace, blue lilies, constellations, and inlaid panels.', patch: { chrome: 'nocturne', radius: 8, border: 1.5, texture: 'midnight-lace', serif: F_DISPLAY, accent: '#b9cfee', accent2: '#466da8', opacity: 0.97, blur: 10 }, form: 'salon', skin: 'nocturne' },
 ];
 
 // base semantic palette, reused by every skin (skins override clash-prone ones)
@@ -91,6 +92,7 @@ export const SKINS: Skin[] = [
   // pastel ink (lilac & mint), pastel starlight semantics that glow against the
   // void. The recommended skin for the Ember chrome; composes with any chrome.
   { id: 'starfall', name: 'Ember Sky', blurb: 'A starlit indigo void — pastel lilac & mint starlight, fireflies, soft glow.', theme: { accent: '#b8a9ff', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(24,24,40,.62)', surf2: 'rgba(15,15,28,.58)', ink: '#e6e0f5', ink2: '#b0a8d0', glass: 'linear-gradient(168deg,rgba(20,20,36,.97),rgba(12,12,24,.985))', ...SEM, pos: '#9cd6a8', posInk: '#c0e8cc', neg: '#f0a8b8', negInk: '#f8c4d0', info: '#9bc8e8', warn: '#d8b0e8', press: '#f0c878', pressInk: '#f8dc9a' } },
+  { id: 'nocturne', name: 'Nocturne Blue', blurb: 'Ink-black navy with porcelain blue, tarnished silver, and botanical shadows.', theme: { accent: '#b9cfee', serif: F_DISPLAY, mono: F_MONO, surf1: 'rgba(8,18,39,.84)', surf2: 'rgba(3,9,23,.9)', ink: '#e8f0fb', ink2: '#9eb2ce', glass: 'linear-gradient(145deg,rgba(9,22,48,.985),rgba(2,8,22,.995))', ...SEM, pos: '#82afaa', posInk: '#a7d3ce', neg: '#bb7182', negInk: '#df9aaa', info: '#78a8de', warn: '#a49aca', press: '#bda46c', pressInk: '#dcc88f' } },
 ];
 
 const FONT_CHOICES: Array<{ label: string; stack: string }> = [
@@ -117,6 +119,7 @@ const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   // rose, butter). Static texture layer; the animated fireflies/bubbles live in
   // the ember chrome CSS block so they respect the motion kill-switch.
   { id: 'starfall', label: 'Starfall', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cg fill='%23b8a9ff' fill-opacity='0.14'%3E%3Cpath d='M24 30l2 6 6 2-6 2-2 6-2-6-6-2 6-2z'/%3E%3Cpath d='M120 110l1.5 4.5 4.5 1.5-4.5 1.5-1.5 4.5-1.5-4.5-4.5-1.5 4.5-1.5z'/%3E%3C/g%3E%3Cg fill='%238fd6c8' fill-opacity='0.12'%3E%3Cpath d='M96 40l1.5 4.5 4.5 1.5-4.5 1.5-1.5 4.5-1.5-4.5-4.5-1.5 4.5-1.5z'/%3E%3Cpath d='M40 120l1.2 3.6 3.6 1.2-3.6 1.2-1.2 3.6-1.2-3.6-3.6-1.2 3.6-1.2z'/%3E%3C/g%3E%3Cg fill='%23f0b8d0' fill-opacity='0.10'%3E%3Cpath d='M140 70l1 3 3 1-3 1-1 3-1-3-3-1 3-1z'/%3E%3C/g%3E%3Cg fill='%23f5d98a' fill-opacity='0.10'%3E%3Cpath d='M70 90l1 3 3 1-3 1-1 3-1-3-3-1 3-1z'/%3E%3C/g%3E%3C/svg%3E\")" },
+  { id: 'midnight-lace', label: 'Midnight Lace', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cg fill='none' stroke='%23b9cfee' stroke-opacity='.105'%3E%3Cpath d='M0 22Q22 0 44 22T88 22T132 22T176 22M0 158q22 22 44 0t44 0t44 0t44 0'/%3E%3Ccircle cx='18' cy='18' r='11'/%3E%3Ccircle cx='162' cy='162' r='11'/%3E%3Cpath d='M18 4v28M4 18h28M162 148v28m-14-14h28'/%3E%3C/g%3E%3Cg fill='%23466da8' fill-opacity='.1'%3E%3Cpath d='M52 72c18-16 30-3 20 15-14 3-22-3-20-15zm76 35c-18 16-30 3-20-15 14-3 22 3 20 15z'/%3E%3C/g%3E%3C/svg%3E\")" },
 ];
 
 const KEY = 'vellum2.theme';
@@ -146,7 +149,7 @@ function sanitize(t: Theme): Theme {
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
-    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember'] as const).includes(t.chrome) ? t.chrome : 'default',
+    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'nocturne'] as const).includes(t.chrome) ? t.chrome : 'default',
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -239,6 +242,7 @@ export function customizePanel(tab: CzTab = 'look'): string {
     futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
     bloom: '<span class="vle-mode-sk sk-bloom"><i></i><i></i><i></i></span>',
     ember: '<span class="vle-mode-sk sk-ember"><i></i><i></i><i></i></span>',
+    nocturne: '<span class="vle-mode-sk sk-nocturne"><i></i><i></i><i></i></span>',
   };
   const themeCards = MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
     + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('');

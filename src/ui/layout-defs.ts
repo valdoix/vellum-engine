@@ -70,6 +70,11 @@ export const LAYOUTS: LayoutDef[] = [
     order: ['present', 'status', 'tension', 'relations', 'threads', 'parallel', 'recent'],
     hidden: [], collapsed: [], density: 'comfortable', columns: 1, mode: 'switch',
   },
+  {
+    id: 'salon', name: 'Midnight Salon', blurb: 'A formal scene portrait with a narrow chronicle rail (Nocturne chrome).', glyph: '\u2725',
+    order: ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent', 'stats'],
+    hidden: [], collapsed: ['parallel', 'stats'], density: 'comfortable', columns: 2,
+  },
 ];
 
 void ALL;
