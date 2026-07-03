@@ -26,6 +26,8 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       const hex = (v: unknown): string | undefined => { const s = String(v ?? '').trim(); return s === '' ? '' : (/^#[0-9a-fA-F]{6}$/.test(s) ? s : undefined); };
       if (e.color !== undefined) { const c = hex(e.color); if (c !== undefined) patch.color = c; }
       if (e.colorTo !== undefined) { const c = hex(e.colorTo); if (c !== undefined) patch.colorTo = c; }
+      // deceased: form sends a string ('yes'/'no'); store a real boolean (false clears in reducer)
+      if (e.deceased !== undefined) patch.deceased = e.deceased === true || e.deceased === 'yes' || e.deceased === 'true';
       if (Array.isArray(e.aka)) patch.aka = e.aka;
       else if (typeof e.aka === 'string') patch.aka = e.aka.split(',').map((s: string) => s.trim()).filter(Boolean);
       // traits: array or comma-string → trimmed array (empty → [] clears in reducer)
@@ -44,7 +46,7 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       const id = e.id ? String(e.id) : (resolveFactionId(state, name) || ('fac:' + canonId(name)));
       if (!id) return [];
       const patch: Record<string, unknown> = {};
-      for (const k of ['name', 'kind', 'note']) if (e[k] !== undefined) patch[k] = e[k];
+      for (const k of ['name', 'kind', 'note', 'seat']) if (e[k] !== undefined) patch[k] = e[k];
       if (Array.isArray(e.aka)) patch.aka = e.aka;
       else if (typeof e.aka === 'string') patch.aka = e.aka.split(',').map((s: string) => s.trim()).filter(Boolean);
       const out: VellumEvent[] = [];
@@ -68,6 +70,23 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       const faction = e.faction ? String(e.faction) : resolveFactionId(state, e.factionName ?? '');
       if (!faction) return [];
       return [{ ...base(ctx), kind: 'faction.standing', faction, ...(e.standing !== undefined ? { standing: Number(e.standing) || 0 } : {}), ...(e.trust !== undefined ? { trust: Number(e.trust) || 0 } : {}), absolute: true } as VellumEvent];
+    }
+    case 'faction_relation_set': {
+      const a = e.a ? String(e.a) : resolveFactionId(state, e.aName ?? '');
+      const b = e.b ? String(e.b) : resolveFactionId(state, e.bName ?? '');
+      if (!a || !b || a === b) return [];
+      const kinds = ['alliance', 'rivalry', 'war', 'vassal', 'trade'];
+      const relkind = kinds.includes(String(e.kind)) ? e.kind : undefined;
+      const standing = e.standing !== undefined ? Number(e.standing) || 0 : undefined;
+      if (relkind === undefined && standing === undefined) return [];
+      // user edit sets the absolute standing (a chosen value, not a delta)
+      return [{ ...base(ctx), kind: 'factionrel.op', a, b, ...(relkind ? { relkind } : {}), ...(standing !== undefined ? { standing, absolute: true } : {}), ...(e.note !== undefined ? { note: String(e.note) } : {}) } as VellumEvent];
+    }
+    case 'faction_relation_delete': {
+      const a = e.a ? String(e.a) : resolveFactionId(state, e.aName ?? '');
+      const b = e.b ? String(e.b) : resolveFactionId(state, e.bName ?? '');
+      if (!a || !b) return [];
+      return [{ ...base(ctx), kind: 'factionrel.drop', a, b } as VellumEvent];
     }
     case 'relation_upsert': {
       const a = canonId(e.a ?? ''), b = canonId(e.b ?? '');
@@ -207,6 +226,7 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
 export const CMD_TYPES = new Set([
   'cast_upsert', 'cast_delete', 'relation_upsert', 'relation_delete',
   'faction_upsert', 'faction_delete', 'faction_member', 'faction_standing_set',
+  'faction_relation_set', 'faction_relation_delete',
   'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
   'memory_add', 'memory_delete', 'memory_edit', 'memory_delete_many',
   'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set',

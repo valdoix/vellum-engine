@@ -113,6 +113,9 @@ function structuredBlock(state: ChronicleState, budget: number): string {
     .filter((c) => present.has(c.id) || c.status === 'present' || c.status === 'active')
     .sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0));
   const castLines = cast.map((c) => {
+    // deceased is authoritative + orthogonal to presence: the model may remember or
+    // mention them, but they cannot act, speak, or appear except in flashback/vision.
+    if (c.deceased) return '- ' + c.name + ' (DECEASED \u2014 may be remembered or mentioned; cannot act, speak, or appear except in flashback/vision)';
     const bits = [c.role, c.age, c.appearance].filter(Boolean).join('; ');
     // append a capped personality clause (top 3 traits) so the model holds voice
     // consistent; fitLines clips the whole line if the shared budget is tight.
@@ -144,7 +147,11 @@ function structuredBlock(state: ChronicleState, budget: number): string {
     .filter((f) => f.status === 'present' || f.status === 'active')
     .sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0))
     .slice(0, 8)
-    .map((f) => '- ' + f.name + (f.kind ? ' (' + f.kind + ')' : '') + ': ' + standingWord(f.standing) + ' toward you (standing ' + f.standing + (f.trust ? '/trust ' + f.trust : '') + ')');
+    .map((f) => {
+      const facName = (id: string): string => state.factions[id]?.name ?? id.replace(/^fac:/, '');
+      const rels = (state.factionRelations ?? []).filter((r) => r.a === f.id).map((r) => r.kind + ' with ' + facName(r.b));
+      return '- ' + f.name + (f.kind ? ' (' + f.kind + ')' : '') + ': ' + standingWord(f.standing) + ' toward you (standing ' + f.standing + (f.trust ? '/trust ' + f.trust : '') + ')' + (rels.length ? '; ' + rels.join(', ') : '');
+    });
 
   // share ONE budget: reserve up to 40% for open threads/arcs, give the rest to
   // cast/bonds/factions — so the structured block never overshoots its allocation.

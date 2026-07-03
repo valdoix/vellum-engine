@@ -21,6 +21,10 @@ export function injectableLocations(state: ChronicleState, cap = 12): Location[]
 export function locationList(state: ChronicleState, cap = 12): string {
   const locs = injectableLocations(state, cap);
   if (!locs.length) return '';
-  const lines = locs.map((l) => '- ' + l.name + (l.note ? ' \u2014 ' + l.note : ''));
+  const byId = new Map((state.locations ?? []).map((l) => [l.id, l.name]));
+  const lines = locs.map((l) => {
+    const parent = l.parent ? (byId.get(l.parent) ?? '') : '';
+    return '- ' + l.name + (parent ? ' (in ' + parent + ')' : '') + (l.note ? ' \u2014 ' + l.note : '');
+  });
   return '[LOCATIONS \u2014 established places in this story. Use these exact names; do not invent a duplicate or rename one. Introduce a NEW place only when the scene genuinely goes somewhere new]\n' + lines.join('\n');
 }

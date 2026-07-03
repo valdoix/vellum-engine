@@ -131,6 +131,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         if (safe.color === '') delete c.color;
         if (safe.colorTo === '') delete c.colorTo;
         if (safe.imageUrl === '') delete c.imageUrl;
+        // deceased false = alive again → drop the flag so it's truly absent
+        if (safe.deceased === false) delete c.deceased;
         // empty disposition string = clear; empty traits array = clear
         if (safe.disposition === '') delete c.disposition;
         if (Array.isArray(c.traits)) {
@@ -193,6 +195,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'faction.drop': {
       delete s.factions[e.id];
       s.memberships = s.memberships.filter((m) => m.faction !== e.id);
+      s.factionRelations = s.factionRelations.filter((r) => r.a !== e.id && r.b !== e.id);
       break;
     }
     case 'faction.member': {
@@ -211,6 +214,26 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (typeof e.standing === 'number') f.standing = clamp(e.absolute ? e.standing : f.standing + e.standing);
       if (typeof e.trust === 'number') f.trust = clamp(e.absolute ? e.trust : f.trust + e.trust);
       f.lastTurn = Math.max(f.lastTurn, e.turn);
+      break;
+    }
+    case 'factionrel.op': {
+      if (!e.a || !e.b || e.a === e.b) break;
+      ensureFaction(s, e.a, e.turn); ensureFaction(s, e.b, e.turn);
+      const clamp = (n: number): number => Math.max(-100, Math.min(100, n));
+      let fr = s.factionRelations.find((r) => r.a === e.a && r.b === e.b);
+      if (!fr) {
+        fr = { a: e.a, b: e.b, kind: e.relkind ?? 'rivalry', standing: 0, firstTurn: e.turn, lastTurn: e.turn };
+        s.factionRelations.push(fr);
+      }
+      if (e.relkind) fr.kind = e.relkind;
+      if (typeof e.standing === 'number') fr.standing = clamp(e.absolute ? e.standing : fr.standing + e.standing);
+      if (e.note !== undefined) { if (e.note) fr.note = e.note; else delete fr.note; }
+      fr.lastTurn = Math.max(fr.lastTurn, e.turn);
+      break;
+    }
+    case 'factionrel.drop': {
+      if (e.both) s.factionRelations = s.factionRelations.filter((r) => !((r.a === e.a && r.b === e.b) || (r.a === e.b && r.b === e.a)));
+      else s.factionRelations = s.factionRelations.filter((r) => !(r.a === e.a && r.b === e.b));
       break;
     }
     case 'bond.delta': {
@@ -467,11 +490,12 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (cur) {
         cur.name = e.name;
         if (e.note !== undefined) cur.note = e.note;
+        if (e.parent !== undefined) { if (e.parent) cur.parent = e.parent; else delete cur.parent; } // '' clears
         // a user edit (auto:false) sticks; an auto refresh never downgrades it
         if (e.auto === false) cur.auto = false;
         cur.lastTurn = e.turn;
       } else {
-        s.locations.push({ id: e.id, name: e.name, ...(e.note ? { note: e.note } : {}), ...(e.auto !== undefined ? { auto: e.auto } : {}), firstTurn: e.turn, lastTurn: e.turn });
+        s.locations.push({ id: e.id, name: e.name, ...(e.note ? { note: e.note } : {}), ...(e.auto !== undefined ? { auto: e.auto } : {}), ...(e.parent ? { parent: e.parent } : {}), firstTurn: e.turn, lastTurn: e.turn });
       }
       break;
     }
@@ -492,13 +516,18 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'plant.set': {
       const norm = (x: string): string => x.trim().toLowerCase();
       if (!s.plants.find((p) => p.id === e.id) && !s.plants.find((p) => norm(p.what) === norm(e.what) && p.status === 'planted')) {
-        s.plants.push({ id: e.id, what: e.what, status: 'planted', plantedTurn: e.turn });
+        s.plants.push({ id: e.id, what: e.what, status: 'planted', ...(e.subject ? { subject: e.subject } : {}), plantedTurn: e.turn });
       }
       break;
     }
     case 'plant.pay': {
       const p = s.plants.find((x) => x.id === e.id) ?? s.plants.find((x) => x.status === 'planted' && x.what.trim().toLowerCase() === (e as { what?: string }).what?.trim().toLowerCase());
       if (p) { p.status = 'paid'; p.paidTurn = e.turn; if (e.note) p.payNote = e.note; }
+      break;
+    }
+    case 'plant.abandon': {
+      const p = s.plants.find((x) => x.id === e.id);
+      if (p) { p.status = 'abandoned'; if (e.note) p.payNote = e.note; }
       break;
     }
     case 'plant.drop': {

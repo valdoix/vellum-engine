@@ -14,13 +14,29 @@ export type Disposition = 'kind' | 'warm' | 'fair' | 'harsh' | 'brutal';
 //  living    — + bounded off-screen drift (small aff/trust nudges, NO category flips)
 //  autonomous— + off-screen bonds may form/strain/cool (small category steps allowed)
 export type Social = 'off' | 'reactive' | 'living' | 'autonomous';
-export interface Tone { romance: Romance; disposition: Disposition; social: Social }
+// Politics: how much FACTION↔FACTION relations evolve on their own off-screen.
+//  off        — factions never shift toward each other off-screen (today's behavior)
+//  living     — bounded off-screen standing drift (small nudges, no kind flips)
+//  autonomous — factions may form/break alliances, start rivalries/wars off-screen
+export type Politics = 'off' | 'living' | 'autonomous';
+export interface Tone { romance: Romance; disposition: Disposition; social: Social; politics: Politics }
 
-export const DEFAULT_TONE: Tone = { romance: 'medium', disposition: 'fair', social: 'living' };
+export const DEFAULT_TONE: Tone = { romance: 'medium', disposition: 'fair', social: 'living', politics: 'off' };
 
 const ROMANCES = new Set<Romance>(['off', 'slow_burn', 'medium', 'fast', 'erotic']);
 const DISPOSITIONS = new Set<Disposition>(['kind', 'warm', 'fair', 'harsh', 'brutal']);
 const SOCIALS = new Set<Social>(['off', 'reactive', 'living', 'autonomous']);
+const POLITICS = new Set<Politics>(['off', 'living', 'autonomous']);
+// per-tick |standing| ceiling for an off-screen faction-relation drift.
+const FACTION_REL_CLAMP: Record<Politics, number> = { off: 0, living: 6, autonomous: 15 };
+
+/** Off-screen faction-relation policy. Mirrors offscreenBondPolicy: `enabled`
+ * false = the sim must not emit ANY faction move (off reproduces today exactly);
+ * `allowKind` gates forming/flipping alliances/wars (autonomous only). PURE. */
+export function factionPolicy(politics: Politics): { enabled: boolean; maxDelta: number; allowKind: boolean } {
+  const maxDelta = FACTION_REL_CLAMP[politics] ?? 0;
+  return { enabled: maxDelta > 0, maxDelta, allowKind: politics === 'autonomous' };
+}
 
 // per-turn |aff| ceiling for a ROMANTIC bond. medium ≈ unconstrained in practice
 // (model rarely exceeds), slow_burn bites hard, fast/erotic open it up.
@@ -46,15 +62,16 @@ export function seedFactionStanding(tone: Tone): number {
   return DISP_SEED[tone.disposition] ?? 0;
 }
 
-export function parseTone(romance?: string | null, disposition?: string | null, social?: string | null): Tone {
+export function parseTone(romance?: string | null, disposition?: string | null, social?: string | null, politics?: string | null): Tone {
   const r = (romance && ROMANCES.has(romance as Romance)) ? romance as Romance : DEFAULT_TONE.romance;
   const d = (disposition && DISPOSITIONS.has(disposition as Disposition)) ? disposition as Disposition : DEFAULT_TONE.disposition;
   const s = (social && SOCIALS.has(social as Social)) ? social as Social : DEFAULT_TONE.social;
-  return { romance: r, disposition: d, social: s };
+  const p = (politics && POLITICS.has(politics as Politics)) ? politics as Politics : DEFAULT_TONE.politics;
+  return { romance: r, disposition: d, social: s, politics: p };
 }
 
 export function isDefaultTone(t: Tone): boolean {
-  return t.romance === DEFAULT_TONE.romance && t.disposition === DEFAULT_TONE.disposition && t.social === DEFAULT_TONE.social;
+  return t.romance === DEFAULT_TONE.romance && t.disposition === DEFAULT_TONE.disposition && t.social === DEFAULT_TONE.social && t.politics === DEFAULT_TONE.politics;
 }
 
 export interface BondInput { a: string; b: string; aff?: number; trust?: number; addCats?: string[] }

@@ -297,6 +297,16 @@ export const coreFeature: Feature = {
       }
     }
 
+    // inter-faction relations narrated on-screen (alliances, rivalries, wars).
+    // Unlike the off-screen Politics channel, on-page shifts always apply — the
+    // dial only gates AUTONOMOUS off-screen maneuvering.
+    for (const fr of parsed.delta?.factionRelations ?? []) {
+      const a = resolveFactionId(ctx.state, fr.a); const b = resolveFactionId(ctx.state, fr.b);
+      if (!a || !b || a === b) continue;
+      if (fr.kind === undefined && fr.standing === undefined) continue;
+      out.push({ ...base(), kind: 'factionrel.op', a, b, ...(fr.kind ? { relkind: fr.kind } : {}), ...(typeof fr.standing === 'number' ? { standing: fr.standing } : {}), ...(fr.absolute ? { absolute: true } : {}), ...(fr.why ? { why: fr.why } : {}) } as VellumEvent);
+    }
+
     // off-screen parallel events
     const par = parsed.delta?.parallel ?? [];
     if (par.length) {

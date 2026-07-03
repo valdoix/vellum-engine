@@ -27,6 +27,23 @@ let _view: DView = 'directives';
 interface UIDirective { id: string; kind: string; text: string; target?: string; status: string; ttl: number; whenTurn?: number; whenDay?: number }
 let _directives: UIDirective[] = [];
 let _nextScene: { location?: string; day?: number; time?: string; note?: string } | null = null;
+// latest rendered state, so click handlers (location/plant forms) can read lists.
+let _state: ChronicleState | null = null;
+
+/** Location options for a parent/seat picker: every location except `selfId`
+ * (a place can't contain itself). Leading blank = "none". */
+function parentOpts(s: ChronicleState | null, selfId: string): Array<{ value: string; label: string }> {
+  const locs = (s?.locations ?? []).filter((l) => l.id !== selfId).sort((a, b) => a.name.localeCompare(b.name));
+  return [{ value: '', label: '\u2014 none \u2014' }, ...locs.map((l) => ({ value: l.id, label: l.name }))];
+}
+
+/** Subject options for a plant: characters + locations (both id-keyed). Leading
+ * blank = "none". */
+function subjectOpts(s: ChronicleState | null): Array<{ value: string; label: string }> {
+  const cast = Object.values(s?.cast ?? {}).sort((a, b) => a.name.localeCompare(b.name)).map((c) => ({ value: c.id, label: c.name }));
+  const locs = (s?.locations ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)).map((l) => ({ value: l.id, label: l.name + ' (place)' }));
+  return [{ value: '', label: '\u2014 none \u2014' }, ...cast, ...locs];
+}
 export function setDirectorDirectives(d: unknown): void { _directives = Array.isArray(d) ? d as UIDirective[] : []; }
 export function setDirectorNextScene(n: unknown): void { _nextScene = (n && typeof n === 'object') ? n as typeof _nextScene : null; }
 
@@ -44,8 +61,9 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '')).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
   render(s) {
+    _state = s;
     const counts: Record<DView, number> = {
       directives: _directives.filter((d) => d.status !== 'done').length,
       locations: (s.locations ?? []).length,
@@ -81,15 +99,18 @@ export const directorTab: Component<ChronicleState> = {
         formModal('New Location', [
           { key: 'name', label: 'Place name', type: 'text', placeholder: 'The Salt Docks' },
           { key: 'note', label: 'Note (optional)', type: 'text', placeholder: 'working harbor, south quarter' },
-        ], (o) => { if (o.name?.trim()) send({ type: 'vellum_location_set', name: o.name, note: o.note || undefined }); });
+          { key: 'parent', label: 'Inside (containing place, optional)', type: 'select', value: '', options: parentOpts(_state, '') },
+        ], (o) => { if (o.name?.trim()) send({ type: 'vellum_location_set', name: o.name, note: o.note || undefined, parent: o.parent || '' }); });
         return;
       }
       const le = t.closest('[data-loc-edit]');
       if (le) {
+        const selfId = le.getAttribute('data-id') || '';
         formModal('Edit Location', [
           { key: 'name', label: 'Place name', type: 'text', value: le.getAttribute('data-name') || '' },
           { key: 'note', label: 'Note (optional)', type: 'text', value: le.getAttribute('data-note') || '' },
-        ], (o) => { if (o.name?.trim()) send({ type: 'vellum_location_set', id: le.getAttribute('data-id'), name: o.name, note: o.note ?? '' }); });
+          { key: 'parent', label: 'Inside (containing place, optional)', type: 'select', value: le.getAttribute('data-parent') || '', options: parentOpts(_state, selfId) },
+        ], (o) => { if (o.name?.trim()) send({ type: 'vellum_location_set', id: selfId, name: o.name, note: o.note ?? '', parent: o.parent ?? '' }); });
         return;
       }
       const ld = t.closest('[data-loc-del]');
@@ -109,11 +130,16 @@ export const directorTab: Component<ChronicleState> = {
       if (t.closest('[data-ns-clear]')) { send({ type: 'vellum_set_next_scene', clear: true }); return; }
       // --- plants ---
       if (t.closest('[data-plant-add]')) {
-        formModal('New Plant', [{ key: 'what', label: 'What is being seeded (pays off later)', type: 'text', placeholder: 'a locked drawer nobody opened' }], (o) => { if (o.what?.trim()) send({ type: 'vellum_plant_add', what: o.what }); });
+        formModal('New Plant', [
+          { key: 'what', label: 'What is being seeded (pays off later)', type: 'text', placeholder: 'a locked drawer nobody opened' },
+          { key: 'subject', label: 'Concerns (character or place, optional)', type: 'select', value: '', options: subjectOpts(_state) },
+        ], (o) => { if (o.what?.trim()) send({ type: 'vellum_plant_add', what: o.what, subject: o.subject || '' }); });
         return;
       }
       const pp = t.closest('[data-plant-pay]');
       if (pp) { send({ type: 'vellum_plant_pay', id: pp.getAttribute('data-id') }); return; }
+      const pab = t.closest('[data-plant-abandon]');
+      if (pab) { confirmModal('Abandon this plant? (kept on record as let-go, not deleted)', () => send({ type: 'vellum_plant_abandon', id: pab.getAttribute('data-id') })); return; }
       const pd = t.closest('[data-plant-del]');
       if (pd) { confirmModal('Delete this plant?', () => send({ type: 'vellum_plant_drop', id: pd.getAttribute('data-id') })); return; }
 
@@ -200,8 +226,9 @@ function locationsView(s: ChronicleState): string {
   const row = (l: typeof list[number]): string =>
     `<div class="vle-loc-row"><span class="vle-loc-mark" title="${l.auto ? 'auto-collected from a scene' : 'pinned by you'}">${l.auto ? '\u25CB' : '\u2691'}</span>`
     + `<span class="vle-loc-name">${esc(l.name)}</span>`
+    + (l.parent ? `<span class="vle-loc-note">in ${esc((s.locations ?? []).find((x) => x.id === l.parent)?.name ?? l.parent)}</span>` : '')
     + (l.note ? `<span class="vle-loc-note">${esc(l.note)}</span>` : '')
-    + `<span class="vle-mem-ctl"><button class="vle-mini" data-loc-edit data-id="${esc(l.id)}" data-name="${esc(l.name)}" data-note="${esc(l.note ?? '')}" title="Edit / pin">\u270E</button>`
+    + `<span class="vle-mem-ctl"><button class="vle-mini" data-loc-edit data-id="${esc(l.id)}" data-name="${esc(l.name)}" data-note="${esc(l.note ?? '')}" data-parent="${esc(l.parent ?? '')}" title="Edit / pin">\u270E</button>`
     + `<button class="vle-mini del" data-loc-del data-id="${esc(l.id)}" title="Delete">\u2715</button></span></div>`;
   const grp = (label: string, ls: typeof list): string => ls.length ? `<div class="vle-loc-grp"><div class="vle-loc-grp-h">${label}</div>${ls.map(row).join('')}</div>` : '';
   return head + intro + grp('Pinned', pinned) + grp('Visited', auto);
@@ -231,14 +258,18 @@ function plantsView(s: ChronicleState): string {
   const intro = '<div class="vle-cz-note">Details seeded to pay off later (a locked drawer, an omen). Open plants are injected so they never quietly vanish; mark one paid when it lands.</div>';
   if (!list.length) return head + intro + emptyState('Nothing planted.', 'Seed a Chekhov detail here (or let the story plant one via ext.plant); it stays on the board until it pays off.');
   const now = s.turns || 0;
+  const subjName = (id: string): string => s.cast[id]?.name ?? (s.locations ?? []).find((l) => l.id === id)?.name ?? id;
   const rows = list.map((p) => {
-    const paid = p.status === 'paid';
+    const done = p.status !== 'planted';
     const age = Math.max(0, now - p.plantedTurn);
-    const meta = paid ? `paid t${p.paidTurn ?? '?'}` : `planted t${p.plantedTurn}${age >= 15 ? ' \u00b7 overdue' : ''}`;
-    const payBtn = paid ? '' : `<button class="vle-mini" data-plant-pay data-id="${esc(p.id)}" title="Mark paid off">\u2713</button>`;
-    return `<div class="vle-plant${paid ? ' paid' : ''}"><span class="vle-plant-mark">${paid ? '\u2713' : '\u2698'}</span>`
-      + `<span class="vle-plant-what">${esc(p.what)}</span><span class="vle-plant-meta">${meta}</span>`
-      + `<span class="vle-mem-ctl">${payBtn}<button class="vle-mini del" data-plant-del data-id="${esc(p.id)}" title="Delete">\u2715</button></span></div>`;
+    const meta = p.status === 'paid' ? `paid t${p.paidTurn ?? '?'}` : p.status === 'abandoned' ? 'abandoned' : `planted t${p.plantedTurn}${age >= 15 ? ' \u00b7 overdue' : ''}`;
+    const mark = p.status === 'paid' ? '\u2713' : p.status === 'abandoned' ? '\u2717' : '\u2698';
+    const subj = p.subject ? `<span class="vle-plant-meta">${esc(subjName(p.subject))}</span>` : '';
+    const payBtn = done ? '' : `<button class="vle-mini" data-plant-pay data-id="${esc(p.id)}" title="Mark paid off">\u2713</button>`;
+    const abandonBtn = done ? '' : `<button class="vle-mini" data-plant-abandon data-id="${esc(p.id)}" title="Abandon (let it go, keep on record)">\u2717</button>`;
+    return `<div class="vle-plant${done ? ' paid' : ''}"><span class="vle-plant-mark">${mark}</span>`
+      + `<span class="vle-plant-what">${esc(p.what)}</span>${subj}<span class="vle-plant-meta">${meta}</span>`
+      + `<span class="vle-mem-ctl">${payBtn}${abandonBtn}<button class="vle-mini del" data-plant-del data-id="${esc(p.id)}" title="Delete">\u2715</button></span></div>`;
   }).join('');
   return head + intro + rows;
 }

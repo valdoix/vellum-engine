@@ -274,3 +274,64 @@ describe('reduce — incremental folding', () => {
     expect(incremental.relations[0]!.affection).toBe(full.relations[0]!.affection);
   });
 });
+
+describe('reduce — location containment', () => {
+  it('location.set carries + updates parent; empty clears it', () => {
+    const s = reduce([
+      ev({ kind: 'location.set', id: 'town', name: 'Thornfield' }),
+      ev({ kind: 'location.set', id: 'tavern', name: 'The Salt Docks', parent: 'town' }),
+    ]);
+    expect(s.locations.find((l) => l.id === 'tavern')!.parent).toBe('town');
+    const cleared = reduce([ev({ kind: 'location.set', id: 'tavern', name: 'The Salt Docks', parent: '' })], s, 0);
+    expect(cleared.locations.find((l) => l.id === 'tavern')!.parent).toBeUndefined();
+  });
+});
+
+describe('reduce — faction seat + relations', () => {
+  it('faction.edit seat persists via patch', () => {
+    const s = reduce([
+      ev({ kind: 'faction.seen', id: 'fac:stark', name: 'Stark', status: 'active' }),
+      ev({ kind: 'faction.edit', id: 'fac:stark', patch: { seat: 'winterfell' } }),
+    ]);
+    expect(s.factions['fac:stark']!.seat).toBe('winterfell');
+  });
+
+  it('factionrel.op upserts a directed edge, clamps, and auto-creates factions', () => {
+    const s = reduce([
+      ev({ kind: 'factionrel.op', a: 'fac:lannister', b: 'fac:stark', relkind: 'war', standing: -30 }),
+    ]);
+    expect(s.factions['fac:lannister']).toBeTruthy(); // ensureFaction ran
+    const fr = s.factionRelations.find((r) => r.a === 'fac:lannister' && r.b === 'fac:stark')!;
+    expect(fr.kind).toBe('war'); expect(fr.standing).toBe(-30);
+  });
+
+  it('faction.drop cascades to faction relations', () => {
+    const s = reduce([
+      ev({ kind: 'factionrel.op', a: 'fac:lannister', b: 'fac:stark', relkind: 'rivalry', standing: 10 }),
+      ev({ kind: 'faction.drop', id: 'fac:stark' }),
+    ]);
+    expect(s.factionRelations).toHaveLength(0);
+  });
+
+  it('factionrel.drop removes only the directed edge (both clears reciprocal)', () => {
+    const base: VellumEvent[] = [
+      ev({ kind: 'factionrel.op', a: 'fac:a', b: 'fac:b', standing: 5 }),
+      ev({ kind: 'factionrel.op', a: 'fac:b', b: 'fac:a', standing: 5 }),
+    ];
+    const one = reduce([...base, ev({ kind: 'factionrel.drop', a: 'fac:a', b: 'fac:b' })]);
+    expect(one.factionRelations).toHaveLength(1);
+    const both = reduce([...base, ev({ kind: 'factionrel.drop', a: 'fac:a', b: 'fac:b', both: true })]);
+    expect(both.factionRelations).toHaveLength(0);
+  });
+});
+
+describe('reduce — plant subject + abandon', () => {
+  it('plant.set carries subject; plant.abandon flips status and drops it from open', () => {
+    const s = reduce([
+      ev({ kind: 'plant.set', id: 'p1', what: 'a locked drawer', subject: 'cersei' }),
+      ev({ kind: 'plant.abandon', id: 'p1' }),
+    ]);
+    expect(s.plants[0]!.subject).toBe('cersei');
+    expect(s.plants[0]!.status).toBe('abandoned');
+  });
+});

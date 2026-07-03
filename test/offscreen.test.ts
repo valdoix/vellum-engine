@@ -143,4 +143,47 @@ describe('simEvents — off-screen NPC↔NPC bonds (Social autonomy)', () => {
     const evs = simEvents(withUser as any, s, 12, 1, (() => { let n = 0; return () => ++n; })(), { social: 'autonomous', userId: 'you' });
     expect(evs.filter((e: any) => e.kind === 'bond.delta')).toHaveLength(0);
   });
+  it('never authors a bond where either endpoint is deceased', () => {
+    const s = state(); s.cast.jaime!.deceased = true;
+    const evs = simEvents(bonds as any, s, 12, 1, (() => { let n = 0; return () => ++n; })(), { social: 'autonomous' });
+    expect(evs.filter((e: any) => e.kind === 'bond.delta')).toHaveLength(0);
+  });
+});
+
+describe('offscreenCast — deceased exclusion', () => {
+  it('a deceased active character is never selected as an off-screen actor', () => {
+    const s = state(); s.cast.jaime!.deceased = true;
+    const ids = offscreenCast(s).map((c) => c.id);
+    expect(ids).not.toContain('jaime');
+    expect(ids).toContain('tyrion'); // living, still eligible
+  });
+});
+
+describe('simEvents — off-screen faction relations (Politics autonomy)', () => {
+  function facState(): ChronicleState {
+    const s = state();
+    s.factions = {
+      'fac:lannister': { id: 'fac:lannister', name: 'Lannister', aka: [], status: 'active', standing: 0, trust: 0, source: 'auto', firstTurn: 1, lastTurn: 10, userEdited: false },
+      'fac:stark': { id: 'fac:stark', name: 'Stark', aka: [], status: 'active', standing: 0, trust: 0, source: 'auto', firstTurn: 1, lastTurn: 10, userEdited: false },
+    } as any;
+    return s;
+  }
+  const facs = { offscreen: [], factions: [{ a: 'Lannister', b: 'Stark', kind: 'war', standing: 40, why: 'a border raid' }] };
+  it('off emits NO faction events (parity with today)', () => {
+    const evs = simEvents(facs as any, facState(), 12, 1, (() => { let n = 0; return () => ++n; })(), { politics: 'off' });
+    expect(evs.filter((e: any) => e.kind === 'factionrel.op')).toHaveLength(0);
+  });
+  it('living clamps standing to ±6 and never flips the kind; emits a companion beat', () => {
+    const evs = simEvents(facs as any, facState(), 12, 1, (() => { let n = 0; return () => ++n; })(), { politics: 'living' });
+    const fr = evs.find((e: any) => e.kind === 'factionrel.op') as any;
+    expect(fr).toBeTruthy();
+    expect(fr.standing).toBe(6);      // clamped from 40
+    expect(fr.relkind).toBeUndefined(); // no kind flip at living
+    expect(evs.some((e: any) => e.kind === 'offscreen.op' && e.id.startsWith('facrel_'))).toBe(true);
+  });
+  it('autonomous clamps to ±15 and allows a kind', () => {
+    const evs = simEvents(facs as any, facState(), 12, 1, (() => { let n = 0; return () => ++n; })(), { politics: 'autonomous' });
+    const fr = evs.find((e: any) => e.kind === 'factionrel.op') as any;
+    expect(fr.standing).toBe(15); expect(fr.relkind).toBe('war');
+  });
 });

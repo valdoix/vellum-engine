@@ -17,7 +17,7 @@ import type { VellumEvent } from '../core/events.js';
  */
 
 export interface ContinuityWarning {
-  kind: 'unknown_secret' | 'already_revealed' | 'redundant_knowledge' | 'trait_reversal';
+  kind: 'unknown_secret' | 'already_revealed' | 'redundant_knowledge' | 'trait_reversal' | 'deceased_acting';
   text: string;
 }
 
@@ -26,7 +26,14 @@ export function checkContinuity(events: readonly VellumEvent[], prior: Chronicle
   const name = (id: string): string => prior.cast[id]?.name ?? id;
 
   for (const e of events) {
-    if (e.kind === 'secret.reveal') {
+    if (e.kind === 'scene.set') {
+      // physical-world guard: a character marked deceased narrated as on-stage.
+      // Advisory only (a flashback/vision is legitimate) — flag, never block.
+      const ids = new Set<string>([...(e.present ?? []), ...((e.detail ?? []).map((d) => d.id))]);
+      for (const id of ids) {
+        if (prior.cast[id]?.deceased) warnings.push({ kind: 'deceased_acting', text: `${name(id)} is deceased but appears on-stage \u2014 flashback, or a slip?` });
+      }
+    } else if (e.kind === 'secret.reveal') {
       const id = (e as { id: string }).id;
       const sec = prior.secrets.find((x) => x.id === id);
       if (!sec) warnings.push({ kind: 'unknown_secret', text: `Revealed a secret that isn't tracked (id ${id}).` });

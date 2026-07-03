@@ -2,7 +2,7 @@ import type { ChronicleState } from './types.js';
 import type { VellumEvent, Category } from '../core/events.js';
 import { type RelationLock, findLock, applyLockToBond } from './relation-lock.js';
 import type { Directive } from './directive.js';
-import { type Social, offscreenBondPolicy } from './tone.js';
+import { type Social, type Politics, offscreenBondPolicy, factionPolicy } from './tone.js';
 import { canonId } from '../core/ids.js';
 
 /**
@@ -24,7 +24,7 @@ export function offscreenCast(state: ChronicleState): ChronicleState['cast'][str
   const present = new Set(state.scene.present);
   const recent = (state.turns || 0) - 6;
   return Object.values(state.cast)
-    .filter((c) => !present.has(c.id) && (c.status === 'active' || (c.status === 'mentioned' && (c.lastTurn || 0) >= recent)))
+    .filter((c) => !c.deceased && !present.has(c.id) && (c.status === 'active' || (c.status === 'mentioned' && (c.lastTurn || 0) >= recent)))
     .sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0))
     .slice(0, 5);
 }
@@ -50,16 +50,27 @@ const SIM_SOCIAL_RULE: Record<Social, string> = {
   autonomous: 'Two off-screen characters MAY meaningfully shift their bond — grow close, drift apart, fall out, reconcile, or begin a friendship/rivalry — reported as a "bonds" entry with a small aff/trust step and optionally a new cat (friendship=social, rivalry). Take SMALL steps (no instant marriages). Never form a romance the FORBIDDEN list rules out, and never change a relationship any FORBIDDEN entry rules out.',
 };
 const SIM_JSON_BONDS = ' You MAY also include a "bonds" array of NPC↔NPC relationship shifts: [{"a":"Name","b":"Name","aff":small +/- int,"trust":small +/- int,"cat":"social|rivalry|alliance or omit","why":"one clause"}]. Never involve the player in a bond.';
-const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened"}]BONDS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most 4 offscreen entries.';
+const SIM_JSON_FACTIONS = ' You MAY also include a "factions" array of FACTION↔FACTION shifts: [{"a":"Faction","b":"Faction","kind":"alliance|rivalry|war|vassal|trade or omit","standing":small +/- int,"why":"one clause"}]. Never involve the player.';
+const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened"}]BONDSFACTIONS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most 4 offscreen entries.';
+// what the sim may do to FACTION↔FACTION relations, by Politics autonomy level.
+const SIM_POLITICS_RULE: Record<Politics, string> = {
+  off: '',
+  living: ' Two factions MAY drift a little in standing toward each other through events — report it as a small "factions" entry (a gentle standing nudge). Do NOT declare a new war, alliance, or otherwise flip the KIND of a faction relation off-screen.',
+  autonomous: ' Two factions MAY meaningfully shift — forge or break an alliance, open a rivalry, go to war, strike trade — reported as a "factions" entry with a small standing step and optionally a new kind. Take SMALL steps (no overnight empires).',
+};
 
 /** Build the sim system prompt for a given Social level. `off`/`reactive` keep the
  * historical blanket "no relationship changes" ban; `living`/`autonomous` open a
  * bounded, lock-respecting NPC↔NPC bond channel. */
-export function simSys(social: Social = 'off'): string {
+export function simSys(social: Social = 'off', politics: Politics = 'off'): string {
   const rule = SIM_SOCIAL_RULE[social] ?? SIM_SOCIAL_RULE.off;
   const wantsBonds = offscreenBondPolicy(social).enabled;
-  const json = SIM_JSON.replace('BONDS', wantsBonds ? SIM_JSON_BONDS : '');
-  return [...SIM_SYS_BASE, rule, json].join(' ');
+  const wantsFactions = factionPolicy(politics).enabled;
+  const json = SIM_JSON
+    .replace('BONDS', wantsBonds ? SIM_JSON_BONDS : '')
+    .replace('FACTIONS', wantsFactions ? SIM_JSON_FACTIONS : '');
+  const politicsRule = wantsFactions ? (SIM_POLITICS_RULE[politics] ?? '') : '';
+  return [...SIM_SYS_BASE, rule + politicsRule, json].join(' ');
 }
 
 /** Back-compat default (off = today's behavior) for callers/tests that want the
@@ -102,9 +113,11 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
 }
 
 export interface ParsedSimBond { a: string; b: string; aff?: number; trust?: number; cat?: string; why?: string }
+export interface ParsedSimFactionRel { a: string; b: string; kind?: string; standing?: number; why?: string }
 export interface ParsedSim {
   offscreen: Array<{ op: 'new' | 'advance' | 'resolve'; id: string; name?: string; who?: string; where?: string; gist?: string }>;
   bonds?: ParsedSimBond[];
+  factions?: ParsedSimFactionRel[];
 }
 
 /** Tolerant parse of the controller reply. Returns null on garbage / nothing. */
@@ -139,8 +152,18 @@ export function parseSim(text: string): ParsedSim | null {
     })
     .filter((p) => p.a && p.b && p.a.toLowerCase() !== p.b.toLowerCase() && (p.aff !== undefined || p.trust !== undefined || p.cat))
     .slice(0, 4);
-  if (!offscreen.length && !bonds.length) return null;
-  return { offscreen, ...(bonds.length ? { bonds } : {}) };
+  const factions = (Array.isArray(o.factions) ? o.factions : [])
+    .map((p) => (p && typeof p === 'object') ? p as Record<string, unknown> : {})
+    .map((p) => {
+      const a = String(p.a ?? '').trim(); const b = String(p.b ?? '').trim();
+      const kind = p.kind ? String(p.kind).trim().toLowerCase() : '';
+      const why = String(p.why ?? '').trim();
+      return { a, b, ...(num(p.standing) !== undefined ? { standing: num(p.standing) } : {}), ...(kind ? { kind } : {}), ...(why ? { why } : {}) } as ParsedSimFactionRel;
+    })
+    .filter((p) => p.a && p.b && p.a.toLowerCase() !== p.b.toLowerCase() && (p.standing !== undefined || p.kind))
+    .slice(0, 4);
+  if (!offscreen.length && !bonds.length && !factions.length) return null;
+  return { offscreen, ...(bonds.length ? { bonds } : {}), ...(factions.length ? { factions } : {}) };
 }
 
 /**
@@ -155,6 +178,8 @@ export interface SimEventsOpts {
   locks?: readonly RelationLock[];
   /** Social autonomy level — gates & clamps the off-screen bond channel */
   social?: Social;
+  /** Politics autonomy level — gates & clamps the off-screen faction-relation channel */
+  politics?: Politics;
   /** canonical {{user}} id — so the sim never authors a bond involving the player */
   userId?: string;
 }
@@ -162,6 +187,8 @@ export interface SimEventsOpts {
 // map a loose sim `cat` string to a real bond Category (only the ones a sim may
 // form off-screen; romantic/familial are never minted off-screen).
 const SIM_CAT: Record<string, Category> = { social: 'social', friendship: 'social', friend: 'social', rivalry: 'rivalry', rival: 'rivalry', alliance: 'alliance', ally: 'alliance' };
+// map a loose sim faction `kind` string to a real FactionRelation kind.
+const SIM_FACREL: Record<string, 'alliance' | 'rivalry' | 'war' | 'vassal' | 'trade'> = { alliance: 'alliance', ally: 'alliance', allied: 'alliance', rivalry: 'rivalry', rival: 'rivalry', war: 'war', vassal: 'vassal', trade: 'trade' };
 
 export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number, day: number, seq: () => number, opts: SimEventsOpts = {}): VellumEvent[] {
   const castByName = new Map(Object.values(state.cast).map((c) => [c.name.toLowerCase(), c.id]));
@@ -187,6 +214,7 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
       const a = resolve(bd.a); const b = resolve(bd.b);
       if (!a || !b || a === b) continue;
       if (userId && (a === userId || b === userId)) continue; // never author a user bond off-screen
+      if (state.cast[a]?.deceased || state.cast[b]?.deceased) continue; // the dead don't form bonds off-screen
       const aff = clamp(bd.aff); const trust = clamp(bd.trust);
       const rawCat = policy.allowCategory && bd.cat ? SIM_CAT[bd.cat] : undefined;
       // apply the relation lock exactly as the fold does: strip forbidden addCats
@@ -200,6 +228,29 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
       const nm = (id: string): string => state.cast[id]?.name ?? id;
       const gist = bd.why || `${nm(a)} and ${nm(b)} ${aff !== undefined && aff < 0 ? 'have grown apart' : 'have grown closer'} off-screen`;
       events.push({ seq: seq(), turn, day, src: 'system', kind: 'offscreen.op', op: 'new', id: `bond_${a}_${b}`.slice(0, 40), name: `${nm(a)} & ${nm(b)}`, gist } as VellumEvent);
+    }
+  }
+
+  // Off-screen FACTION↔FACTION channel (Politics autonomy). Same discipline as the
+  // bond channel: gated by level, clamped by magnitude, kind-limited (living may
+  // only nudge standing; autonomous may set/flip the kind). Each surviving move
+  // emits a companion offscreen.op beat so it surfaces as NEWS on re-entry.
+  const fpolicy = factionPolicy(opts.politics ?? 'off');
+  if (fpolicy.enabled && parsed.factions?.length) {
+    const facByName = new Map(Object.values(state.factions).map((f) => [f.name.toLowerCase(), f.id]));
+    const resolveFac = (nm2: string): string | undefined => nm2 ? (facByName.get(nm2.toLowerCase()) ?? ('fac:' + canonId(nm2))) : undefined;
+    const clampF = (n?: number): number | undefined => (typeof n === 'number' && n !== 0) ? Math.max(-fpolicy.maxDelta, Math.min(fpolicy.maxDelta, Math.round(n))) : undefined;
+    const facName = (id: string): string => state.factions[id]?.name ?? id.replace(/^fac:/, '');
+    for (const fr of parsed.factions) {
+      const a = resolveFac(fr.a); const b = resolveFac(fr.b);
+      if (!a || !b || a === b) continue;
+      const standing = clampF(fr.standing);
+      const relkind = fpolicy.allowKind && fr.kind ? SIM_FACREL[fr.kind] : undefined;
+      if (standing === undefined && !relkind) continue; // nothing survived the gate
+      events.push({ seq: seq(), turn, day, src: 'system', kind: 'factionrel.op', a, b,
+        ...(relkind ? { relkind } : {}), ...(standing !== undefined ? { standing } : {}), ...(fr.why ? { why: fr.why } : {}) } as VellumEvent);
+      const gist = fr.why || `${facName(a)} and ${facName(b)} ${standing !== undefined && standing < 0 ? 'are at odds' : 'draw closer'} off-screen`;
+      events.push({ seq: seq(), turn, day, src: 'system', kind: 'offscreen.op', op: 'new', id: `facrel_${a}_${b}`.slice(0, 40), name: `${facName(a)} & ${facName(b)}`, gist } as VellumEvent);
     }
   }
   return events;

@@ -59,9 +59,10 @@ function sortItems<T extends CastCard | Faction>(items: T[], sort: Sort): T[] {
 
 export const castTab: Component<ChronicleState> = {
   version: (s) => {
-    const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${c.disposition ?? ''}|${(c.traits ?? []).join(',')}|${(c.aka ?? []).join(',')}|${c.lastTurn}|${c.color ?? ''}|${c.colorTo ?? ''}`).join(';');
-    const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}`).join(';');
-    const mv = s.memberships.map((m) => `${m.char}>${m.faction}:${m.role ?? ''}`).join(',');
+    const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${c.disposition ?? ''}|${(c.traits ?? []).join(',')}|${(c.aka ?? []).join(',')}|${c.lastTurn}|${c.color ?? ''}|${c.colorTo ?? ''}|${c.deceased ? 'd' : ''}`).join(';');
+    const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}|${f.seat ?? ''}`).join(';');
+    const mv = s.memberships.map((m) => `${m.char}>${m.faction}:${m.role ?? ''}`).join(',')
+      + '~' + (s.factionRelations ?? []).map((r) => `${r.a}>${r.b}:${r.kind}:${r.standing}`).join(',');
     return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode() + '#' + _density + '#' + Array.from(_expanded).sort().join(',') + '#' + (s.traitHistory ?? []).length;
   },
   render(s) {
@@ -94,7 +95,7 @@ export const castTab: Component<ChronicleState> = {
           status: ed.getAttribute('data-status') ?? 'active', aka: ed.getAttribute('data-aka') ?? '',
           disposition: ed.getAttribute('data-disp') ?? '', traits: ed.getAttribute('data-traits') ?? '',
           color: ed.getAttribute('data-color') ?? '', colorTo: ed.getAttribute('data-colorto') ?? '',
-          imageUrl: ed.getAttribute('data-img') ?? '',
+          imageUrl: ed.getAttribute('data-img') ?? '', deceased: ed.getAttribute('data-deceased') ?? 'no',
         });
         return;
       }
@@ -109,7 +110,7 @@ export const castTab: Component<ChronicleState> = {
           id: fed.getAttribute('data-id') ?? '', name: fed.getAttribute('data-name') ?? '',
           kind: fed.getAttribute('data-kind') ?? '', note: fed.getAttribute('data-note') ?? '',
           status: fed.getAttribute('data-status') ?? 'active', standing: fed.getAttribute('data-standing') ?? '0',
-          trust: fed.getAttribute('data-trust') ?? '0',
+          trust: fed.getAttribute('data-trust') ?? '0', seat: fed.getAttribute('data-seat') ?? '',
         });
         return;
       }
@@ -119,6 +120,10 @@ export const castTab: Component<ChronicleState> = {
       if (mem) { memberForm(mem.getAttribute('data-id') ?? '', mem.getAttribute('data-name') ?? ''); return; }
       const mdel = t.closest('[data-fac-memdel]');
       if (mdel) { cmd('faction_member', { char: mdel.getAttribute('data-char'), faction: mdel.getAttribute('data-id'), op: 'remove' }); return; }
+      const frel = t.closest('[data-fac-rel]');
+      if (frel) { factionRelForm(frel.getAttribute('data-id') ?? '', frel.getAttribute('data-name') ?? ''); return; }
+      const freldel = t.closest('[data-fac-reldel]');
+      if (freldel) { cmd('faction_relation_delete', { a: freldel.getAttribute('data-a'), b: freldel.getAttribute('data-b') }); return; }
     });
   },
 };
@@ -160,6 +165,7 @@ function castForm(title: string, v: Record<string, string>): void {
     { key: 'disposition', label: 'Disposition (one-line temperament)', type: 'text', value: v.disposition },
     { key: 'traits', label: 'Personality traits (comma-separated)', type: 'text', value: v.traits },
     { key: 'note', label: 'Note', type: 'textarea', value: v.note },
+    { key: 'deceased', label: 'Life state', type: 'select', value: v.deceased ?? 'no', options: [{ value: 'no', label: 'Alive' }, { value: 'yes', label: 'Deceased' }] },
     { key: 'color', label: 'Name color', type: 'color', value: v.color },
     { key: 'colorTo', label: 'Gradient end (optional)', type: 'color', value: v.colorTo },
     { key: 'imageUrl', label: 'Portrait image URL (optional)', type: 'text', value: v.imageUrl, placeholder: 'https://\u2026' },
@@ -179,6 +185,11 @@ function bondChips(s: ChronicleState, id: string): string {
     const tone = r.affection < -15 ? 'neg' : r.affection > 15 ? 'pos' : 'info';
     return `<span class="vle-bondchip vle-bondchip--${tone}">${esc(nameOf(s, r.b))} \u00b7 ${esc(cat)}</span>`;
   }).join('');
+}
+
+/** A dagger suffix for deceased characters (empty for the living). */
+function deceasedMark(c: CastCard): string {
+  return c.deceased ? ' <span class="vle-deceased" title="deceased">\u2020</span>' : '';
 }
 
 /** Personality trait tags for a character, rendered as neutral chips. */
@@ -240,7 +251,7 @@ function card(s: ChronicleState, c: CastCard): string {
     : '';
   return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + (open ? ' is-open' : '') + '">'
     + '<button class="vle-av' + (c.imageUrl ? ' has-img' : '') + '" data-cast-unfold data-id="' + A(c.id) + '" title="' + esc(c.status) + ' \u00b7 expand"' + (c.imageUrl ? ' style="background-image:url(' + JSON.stringify(c.imageUrl) + ')"' : '') + '>' + (c.imageUrl ? '' : esc(initials(c.name))) + '<span class="vle-av-dot"></span></button>'
-    + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
+    + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + deceasedMark(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (sub ? '<span class="vle-card-sub">' + sub + '</span>' : '')
     + (!open && c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')
     + detail
@@ -248,7 +259,7 @@ function card(s: ChronicleState, c: CastCard): string {
     + '<span class="vle-card-ctl">'
     + `<button class="vle-mini" data-cast-unfold data-id="${A(c.id)}" title="${open ? 'Collapse' : 'Expand'}">${open ? '\u2303' : '\u2304'}</button>`
     + `<button class="vle-mini" data-cast-promote data-id="${A(c.id)}" title="Promote to Vault lore">\u2934</button>`
-    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-img="${A(c.imageUrl ?? '')}" title="Edit">\u270E</button>`
+    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-img="${A(c.imageUrl ?? '')}" data-deceased="${c.deceased ? 'yes' : 'no'}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
     + '</span></div>';
 }
@@ -265,12 +276,12 @@ function strip(s: ChronicleState, c: CastCard): string {
   const sav = avatarParts(c.name, c.imageUrl);
   return '<div class="vle-strip vle-card--' + esc(c.status) + '">'
     + '<span class="vle-strip-av' + sav.cls + '"' + sav.style + '>' + sav.inner + '</span>'
-    + '<span class="vle-strip-n">' + nameHtmlCard(c) + '</span>'
+    + '<span class="vle-strip-n">' + nameHtmlCard(c) + deceasedMark(c) + '</span>'
     + '<span class="vle-strip-st">' + esc(where) + '</span>'
     + (c.role ? '<span class="vle-strip-role">' + esc(c.role) + '</span>' : '')
     + (dots ? '<span class="vle-strip-bonds">' + dots + '</span>' : '')
     + '<span class="vle-card-ctl">'
-    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-img="${A(c.imageUrl ?? '')}" title="Edit">\u270E</button>`
+    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-img="${A(c.imageUrl ?? '')}" data-deceased="${c.deceased ? 'yes' : 'no'}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
     + '</span></div>';
 }
@@ -299,14 +310,42 @@ function factionCard(s: ChronicleState, f: Faction): string {
     + '<span class="vle-av vle-fac-av" title="' + esc(f.status) + '">' + esc(initials(f.name)) + '</span>'
     + '<span class="vle-card-main"><span class="vle-card-n">' + esc(f.name) + (f.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (f.kind ? '<span class="vle-card-meta">' + esc(f.kind) + '</span>' : '')
+    + (f.seat ? '<span class="vle-card-meta">seat: ' + esc(s.locations.find((l) => l.id === f.seat)?.name ?? f.seat) + '</span>' : '')
     + `<span class="vle-fac-standrow"><span class="vle-fac-stand ${stand.cls}">${stand.text}</span><span class="vle-fac-meter">` + bar('Standing', f.standing) + '</span></span>'
     + (members.length ? '<span class="vle-fac-mems">' + chips + (members.length > 8 ? ` <span class="vle-fac-more">+${members.length - 8}</span>` : '') + '</span>' : '<span class="vle-card-app vle-dim">no members</span>')
+    + relChips(s, f)
     + '</span>'
     + '<span class="vle-card-ctl">'
+    + `<button class="vle-mini" data-fac-rel data-id="${A(f.id)}" data-name="${A(f.name)}" title="Add faction relation">\u21C4</button>`
     + `<button class="vle-mini" data-fac-member data-id="${A(f.id)}" data-name="${A(f.name)}" title="Add member">\u002b</button>`
-    + `<button class="vle-mini" data-fac-edit data-id="${A(f.id)}" data-name="${A(f.name)}" data-kind="${A(f.kind)}" data-note="${A(f.note)}" data-status="${A(f.status)}" data-standing="${A(f.standing)}" data-trust="${A(f.trust)}" title="Edit">\u270E</button>`
+    + `<button class="vle-mini" data-fac-edit data-id="${A(f.id)}" data-name="${A(f.name)}" data-kind="${A(f.kind)}" data-note="${A(f.note)}" data-status="${A(f.status)}" data-standing="${A(f.standing)}" data-trust="${A(f.trust)}" data-seat="${A(f.seat ?? '')}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-fac-del data-id="${A(f.id)}" data-name="${A(f.name)}" title="Remove">\u2715</button>`
     + '</span></div>';
+}
+
+/** Inter-faction relation chips (a→b), rendered on the faction card. */
+function relChips(s: ChronicleState, f: Faction): string {
+  const rels = (s.factionRelations ?? []).filter((r) => r.a === f.id).slice(0, 6);
+  if (!rels.length) return '';
+  const nm = (id: string): string => s.factions[id]?.name ?? id.replace(/^fac:/, '');
+  const chips = rels.map((r) =>
+    `<span class="vle-fac-mem" title="${esc(r.kind)}${r.standing ? ' ' + r.standing : ''}">${esc(r.kind)} \u00b7 ${esc(nm(r.b))}`
+    + `<button class="vle-fac-x" data-fac-reldel data-a="${esc(r.a)}" data-b="${esc(r.b)}" title="Remove">\u00d7</button></span>`).join('');
+  return '<span class="vle-fac-mems">' + chips + '</span>';
+}
+
+function factionRelForm(factionId: string, factionName: string): void {
+  const facs = _state ? Object.values(_state.factions).filter((f) => f.id !== factionId) : [];
+  if (!facs.length) { formModal('Faction relation', [{ key: 'none', label: 'Add another faction first', type: 'text', value: '' }], () => {}); return; }
+  const opts = facs.sort((a, b) => a.name.localeCompare(b.name)).map((f) => ({ value: f.id, label: f.name }));
+  formModal('Relation from ' + factionName, [
+    { key: 'b', label: 'Toward faction', type: 'select', value: opts[0]!.value, options: opts },
+    { key: 'kind', label: 'Kind', type: 'select', value: 'rivalry', options: [
+      { value: 'alliance', label: 'Alliance' }, { value: 'rivalry', label: 'Rivalry' },
+      { value: 'war', label: 'War' }, { value: 'vassal', label: 'Vassal' }, { value: 'trade', label: 'Trade' },
+    ] },
+    { key: 'standing', label: 'Standing toward it (-100..100)', type: 'text', value: '0' },
+  ], (out) => { if (out.b) cmd('faction_relation_set', { a: factionId, b: out.b, kind: out.kind, standing: out.standing }); });
 }
 
 function standingLabel(n: number): { text: string; cls: string } {
@@ -318,11 +357,14 @@ function standingLabel(n: number): { text: string; cls: string } {
 }
 
 function factionForm(title: string, v: Record<string, string>): void {
+  const locs = (_state?.locations ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const seatOpts = [{ value: '', label: '\u2014 none \u2014' }, ...locs.map((l) => ({ value: l.id, label: l.name }))];
   formModal(title, [
     { key: 'name', label: 'Name', type: 'text', value: v.name, placeholder: 'Harrenhal Household Staff' },
     { key: 'kind', label: 'Kind', type: 'text', value: v.kind, placeholder: 'household / house / guild' },
     { key: 'status', label: 'Status', type: 'select', value: v.status ?? 'active', options: STATUS_OPTS },
     { key: 'standing', label: 'Standing toward you (-100..100)', type: 'text', value: v.standing ?? '0' },
+    { key: 'seat', label: 'Seat / territory (location)', type: 'select', value: v.seat ?? '', options: seatOpts },
     { key: 'note', label: 'Note', type: 'textarea', value: v.note },
   ], (out) => { if (out.name?.trim()) cmd('faction_upsert', { ...(v.id ? { id: v.id } : {}), ...out }); });
 }

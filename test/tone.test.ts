@@ -11,14 +11,14 @@ describe('parseTone', () => {
   it('defaults to medium/fair and rejects junk', () => {
     expect(parseTone(null, null)).toEqual(DEFAULT_TONE);
     expect(parseTone('bogus', 'nope')).toEqual(DEFAULT_TONE);
-    expect(parseTone('slow_burn', 'brutal')).toEqual({ romance: 'slow_burn', disposition: 'brutal', social: 'living' });
+    expect(parseTone('slow_burn', 'brutal')).toEqual({ romance: 'slow_burn', disposition: 'brutal', social: 'living', politics: 'off' });
     expect(parseTone('medium', 'fair', 'autonomous').social).toBe('autonomous');
     expect(parseTone('medium', 'fair', 'bogus').social).toBe('living'); // junk → default
   });
 });
 
 describe('adjustBond — romance pace', () => {
-  const T = (romance: Tone['romance']): Tone => ({ romance, disposition: 'fair', social: 'living' });
+  const T = (romance: Tone['romance']): Tone => ({ romance, disposition: 'fair', social: 'living', politics: 'off' });
 
   it('slow burn clamps a romantic aff delta to ±4', () => {
     const r = adjustBond({ a: 'x', b: 'y', aff: 30, addCats: ['romantic'] }, T('slow_burn'), facts({ romantic: true }));
@@ -46,7 +46,7 @@ describe('adjustBond — romance pace', () => {
 });
 
 describe('adjustBond — disposition seed (first impression)', () => {
-  const T = (disposition: Tone['disposition']): Tone => ({ romance: 'medium', disposition, social: 'living' });
+  const T = (disposition: Tone['disposition']): Tone => ({ romance: 'medium', disposition, social: 'living', politics: 'off' });
 
   it('brutal seeds -25 onto a NEW user bond', () => {
     const r = adjustBond({ a: 'anne', b: 'ned', aff: 5 }, T('brutal'), facts({ userId: 'anne', relExists: false }));
@@ -75,7 +75,7 @@ describe('fold integration — tone steers the graph', () => {
     const s = reduce(coreFeature.extract!({
       present: [{ name: 'Anne' }, { name: 'Ned' }],
       delta: { bonds: [{ a: 'Anne', b: 'Ned', aff: 4 }] },
-    } as any, ctx(freshState(), { romance: 'medium', disposition: 'brutal', social: 'living' }, 'anne')));
+    } as any, ctx(freshState(), { romance: 'medium', disposition: 'brutal', social: 'living', politics: 'off' }, 'anne')));
     expect(s.relations[0]!.affection).toBe(-21); // 4 - 25
   });
 
@@ -83,7 +83,7 @@ describe('fold integration — tone steers the graph', () => {
     const s = reduce(coreFeature.extract!({
       present: [{ name: 'Anne' }, { name: 'Ned' }],
       delta: { bonds: [{ a: 'Anne', b: 'Ned', cat: ['romantic'] }] },
-    } as any, ctx(freshState(), { romance: 'off', disposition: 'fair', social: 'living' }, 'anne')));
+    } as any, ctx(freshState(), { romance: 'off', disposition: 'fair', social: 'living', politics: 'off' }, 'anne')));
     expect(s.relations).toHaveLength(0);
   });
 
@@ -93,7 +93,7 @@ describe('fold integration — tone steers the graph', () => {
     const s = reduce(coreFeature.extract!({
       present: [{ name: 'Anne' }, { name: 'Ned' }],
       delta: { bonds: [{ a: 'Anne', b: 'Ned', aff: 50, absolute: true, cat: ['romantic'] }] },
-    } as any, ctx(freshState(), { romance: 'slow_burn', disposition: 'brutal', social: 'living' }, 'anne')));
+    } as any, ctx(freshState(), { romance: 'slow_burn', disposition: 'brutal', social: 'living', politics: 'off' }, 'anne')));
     expect(s.relations[0]!.affection).toBe(50);
   });
 });

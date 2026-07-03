@@ -79,7 +79,7 @@ export const EvItemDrop = z.object({ ...base, kind: z.literal('item.drop'), id: 
 // --- Locations: a canonical gazetteer of established places, so the model
 // reuses names instead of inventing/renaming. Auto-collected from visited
 // scenes (auto:true) or user-pinned. Dedupe by normalized name.
-export const EvLocationSet = z.object({ ...base, kind: z.literal('location.set'), id: z.string(), name: z.string(), note: z.string().optional(), auto: z.boolean().optional() });
+export const EvLocationSet = z.object({ ...base, kind: z.literal('location.set'), id: z.string(), name: z.string(), note: z.string().optional(), auto: z.boolean().optional(), parent: z.string().optional() });
 export const EvLocationDrop = z.object({ ...base, kind: z.literal('location.drop'), id: z.string() });
 
 // --- Continuity flags: the passive alarm's advisory findings, persisted as a
@@ -95,12 +95,15 @@ export const EvTraitDrift = z.object({ ...base, kind: z.literal('trait.drift'), 
 // --- Foreshadow / Chekhov plants: a detail seeded now that should pay off later
 // (a locked drawer, an omen, a stranger's ring). Stays 'planted' until resolved;
 // surfaced in the Director so it never quietly vanishes. Model emits via ext.plant.
-export const EvPlantSet = z.object({ ...base, kind: z.literal('plant.set'), id: z.string(), what: z.string() });
+export const EvPlantSet = z.object({ ...base, kind: z.literal('plant.set'), id: z.string(), what: z.string(), subject: z.string().optional() });
 export const EvPlantPay = z.object({ ...base, kind: z.literal('plant.pay'), id: z.string(), note: z.string().optional() });
+// abandon: the seed is deliberately let go (subverted/dropped) — distinct from pay
+// (it never lands) and from drop (which erases the record entirely).
+export const EvPlantAbandon = z.object({ ...base, kind: z.literal('plant.abandon'), id: z.string(), note: z.string().optional() });
 export const EvPlantDrop = z.object({ ...base, kind: z.literal('plant.drop'), id: z.string() });
 
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
-export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional(), imageUrl: z.string().optional() });
+export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional(), imageUrl: z.string().optional(), deceased: z.boolean().optional() });
 export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: CastPatch });
 export const EvCastDrop = z.object({ ...base, kind: z.literal('cast.drop'), id: z.string() });
 
@@ -108,11 +111,17 @@ export const EvCastDrop = z.object({ ...base, kind: z.literal('cast.drop'), id: 
 // and never cross the cast id-space. Membership is edges (faction.member), so a
 // character in many factions / a standalone faction are the same code path.
 export const EvFactionSeen = z.object({ ...base, kind: z.literal('faction.seen'), id: z.string(), name: z.string(), status: CastStatus });
-export const FactionPatch = z.object({ name: z.string().optional(), kind: z.string().optional(), note: z.string().optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional() });
+export const FactionPatch = z.object({ name: z.string().optional(), kind: z.string().optional(), note: z.string().optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), seat: z.string().optional() });
 export const EvFactionEdit = z.object({ ...base, kind: z.literal('faction.edit'), id: z.string(), patch: FactionPatch });
 export const EvFactionDrop = z.object({ ...base, kind: z.literal('faction.drop'), id: z.string() });
 export const EvFactionMember = z.object({ ...base, kind: z.literal('faction.member'), char: z.string(), faction: z.string(), op: z.enum(['add', 'remove']).default('add'), role: z.string().optional() });
 export const EvFactionStanding = z.object({ ...base, kind: z.literal('faction.standing'), faction: z.string(), standing: z.number().min(-100).max(100).optional(), trust: z.number().min(-100).max(100).optional(), absolute: z.boolean().optional(), why: z.string().optional() });
+// inter-faction relation (directed, a→b). `relkind` sets the group-relation
+// category; `standing` moves a's regard toward b (delta unless absolute).
+export const FactionRelKind = z.enum(['alliance', 'rivalry', 'war', 'vassal', 'trade']);
+export type FactionRelKind = z.infer<typeof FactionRelKind>;
+export const EvFactionRel = z.object({ ...base, kind: z.literal('factionrel.op'), a: z.string(), b: z.string(), relkind: FactionRelKind.optional(), standing: z.number().min(-100).max(100).optional(), absolute: z.boolean().optional(), note: z.string().optional(), why: z.string().optional() });
+export const EvFactionRelDrop = z.object({ ...base, kind: z.literal('factionrel.drop'), a: z.string(), b: z.string(), both: z.boolean().optional() });
 
 export const EvBondDelta = z.object({
   ...base, kind: z.literal('bond.delta'),
@@ -164,7 +173,7 @@ export const EvOffscreenDrop = z.object({ ...base, kind: z.literal('offscreen.dr
 export const VellumEvent = z.discriminatedUnion('kind', [
   EvTurnFold, EvSceneSet,
   EvCastSeen, EvCastEdit, EvCastDrop,
-  EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding,
+  EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding, EvFactionRel, EvFactionRelDrop,
   EvBondDelta, EvBondDrop,
   EvKnowledge, EvKnowledgeDrop, EvKnowledgeMerge, EvSecretForm, EvSecretReveal, EvSecretDrop, EvSecretMerge,
   EvMemory, EvMemoryDrop, EvMemoryLink, EvMemoryEdit,
@@ -174,7 +183,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvItemChange, EvItemDrop,
   EvLocationSet, EvLocationDrop, EvContinuityFlag,
   EvTraitDrift,
-  EvPlantSet, EvPlantPay, EvPlantDrop,
+  EvPlantSet, EvPlantPay, EvPlantAbandon, EvPlantDrop,
   EvParallel, EvOffscreen, EvOffscreenDrop,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;

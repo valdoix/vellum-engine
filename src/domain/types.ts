@@ -24,6 +24,8 @@ export interface CastCard {
   color?: string;   // optional name color (#hex); absent = inherited skin ink
   colorTo?: string; // optional gradient end (#hex); absent = solid `color`
   imageUrl?: string; // optional portrait image URL; absent = initials avatar
+  deceased?: boolean; // life-state; ORTHOGONAL to presence status (a dead character can still be
+                      // mentioned/present as a corpse/flashback). Excludes from off-screen life.
 }
 
 /** A group/organization — "cast for groups". Standing is the group's regard
@@ -35,6 +37,7 @@ export interface Faction {
   aka: string[];
   kind?: string; // household | house | guild | order | ...
   note?: string;
+  seat?: string; // id of a controlled/home Location (the group's territory)
   status: 'present' | 'active' | 'mentioned' | 'added';
   standing: number; // -100..100 toward {{user}}
   trust: number; // -100..100
@@ -48,6 +51,18 @@ export interface Membership {
   char: string; // cast id
   faction: string; // faction id
   role?: string;
+}
+
+/** A directed relation between two factions (the group analogue of Relation).
+ * `a`→`b` is distinct from `b`→`a`. `standing` is a's regard toward b. */
+export interface FactionRelation {
+  a: string; // faction id
+  b: string; // faction id
+  kind: 'alliance' | 'rivalry' | 'war' | 'vassal' | 'trade';
+  standing: number; // -100..100 (a toward b)
+  note?: string;
+  firstTurn: number;
+  lastTurn: number;
 }
 
 export interface CategoryStep {
@@ -207,6 +222,7 @@ export interface Location {
   name: string;
   note?: string;
   auto?: boolean;       // engine-collected from a visited scene (vs user-pinned)
+  parent?: string;      // id of the containing location (tavern ⊂ town ⊂ region)
   firstTurn: number;
   lastTurn: number;
 }
@@ -216,7 +232,8 @@ export interface Location {
 export interface Plant {
   id: string;
   what: string;
-  status: 'planted' | 'paid';
+  status: 'planted' | 'paid' | 'abandoned';
+  subject?: string; // optional cast/location/item id this plant concerns (scene-salience)
   plantedTurn: number;
   paidTurn?: number;
   payNote?: string;
@@ -255,6 +272,7 @@ export interface ChronicleState {
   cast: Record<string, CastCard>;
   factions: Record<string, Faction>;
   memberships: Membership[];
+  factionRelations: FactionRelation[];
   relations: Relation[];
   knowledge: KnowledgeFact[];
   secrets: Secret[];
@@ -295,6 +313,7 @@ export function freshState(): ChronicleState {
     cast: {},
     factions: {},
     memberships: [],
+    factionRelations: [],
     relations: [],
     knowledge: [],
     secrets: [],

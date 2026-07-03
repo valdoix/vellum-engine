@@ -203,7 +203,8 @@ async function readTone(chatId: string, userId: string | null): Promise<Tone> {
   const r = await getChatVar(chatId, 'vellum_romance');
   const d = await getChatVar(chatId, 'vellum_disposition');
   const s = await getChatVar(chatId, 'vellum_social');
-  return parseTone(r, d, s);
+  const p = await getChatVar(chatId, 'vellum_politics');
+  return parseTone(r, d, s, p);
 }
 
 /** Read + sanitize the per-chat relation locks (Plot Director). */
@@ -502,7 +503,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     // 30s timeout: this runs detached (background tick or manual button), NOT on
     // the prompt-assembly path — a reasoning model needs far more than the old 3s
     // to think + emit JSON, which was aborting every tick ("Generation aborted").
-    const res = await controllerGenerate([{ role: 'system', content: simSys(tone.social) }, { role: 'user', content: prompt }], userId, 30000, 600);
+    const res = await controllerGenerate([{ role: 'system', content: simSys(tone.social, tone.politics) }, { role: 'user', content: prompt }], userId, 30000, 600);
     if (!res.ok) {
       spindle.log?.warn?.(`[vellum_engine] off-screen sim: generation failed (${res.error})`);
       return { beats: 0, reason: 'empty_reply' };
@@ -531,7 +532,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     }
     const simNames = await chatNames(chatId, userId);
     const simUserCanon = simNames.user ? canonId(simNames.user) : '';
-    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, social: tone.social, userId: simUserCanon });
+    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, social: tone.social, politics: tone.politics, userId: simUserCanon });
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
     invalidateIndex(chatId);
@@ -1178,7 +1179,7 @@ const dispatch: Record<string, Handler> = {
     const state = await loadState(chatId);
     const id = p?.id ? String(p.id) : 'loc_' + canonId(name);
     // user create/edit: auto:false so it sticks and never gets downgraded by auto-collect
-    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'location.set', id, name, ...(p?.note !== undefined ? { note: String(p.note).slice(0, 200) } : {}), auto: false } as VellumEvent]);
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'location.set', id, name, ...(p?.note !== undefined ? { note: String(p.note).slice(0, 200) } : {}), ...(p?.parent !== undefined ? { parent: String(p.parent) } : {}), auto: false } as VellumEvent]);
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true }, uid);
@@ -1253,7 +1254,7 @@ const dispatch: Record<string, Handler> = {
     const what = String(p?.what ?? '').trim();
     if (!what) return;
     const state = await loadState(chatId);
-    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'plant.set', id: 'plant_u' + nextSeqLocal(), what } as VellumEvent]);
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'plant.set', id: 'plant_u' + nextSeqLocal(), what, ...(p?.subject ? { subject: String(p.subject) } : {}) } as VellumEvent]);
     invalidateIndex(chatId); await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_plant_done', ok: true }, uid);
   },
@@ -1262,6 +1263,14 @@ const dispatch: Record<string, Handler> = {
     if (!chatId || !p?.id) return;
     const state = await loadState(chatId);
     await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'plant.pay', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_plant_done', ok: true }, uid);
+  },
+  vellum_plant_abandon: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const state = await loadState(chatId);
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'plant.abandon', id: String(p.id) } as VellumEvent]);
     invalidateIndex(chatId); await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_plant_done', ok: true }, uid);
   },
@@ -1546,11 +1555,12 @@ const dispatch: Record<string, Handler> = {
     // clamp/strip) and the preset prose. Validated via parseTone (neutral default).
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
-    const tone = parseTone(p?.romance, p?.disposition, p?.social);
+    const tone = parseTone(p?.romance, p?.disposition, p?.social, p?.politics);
     try { await setChatVar(chatId, 'vellum_romance', tone.romance); } catch { /* best effort */ }
     try { await setChatVar(chatId, 'vellum_disposition', tone.disposition); } catch { /* best effort */ }
     try { await setChatVar(chatId, 'vellum_social', tone.social); } catch { /* best effort */ }
-    spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition, social: tone.social }, uid);
+    try { await setChatVar(chatId, 'vellum_politics', tone.politics); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition, social: tone.social, politics: tone.politics }, uid);
   },
   vellum_set_locks: async (p, uid) => {
     // Plot Director relation locks: persist the per-pair forbid/pin list. On

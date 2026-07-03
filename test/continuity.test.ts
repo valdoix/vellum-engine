@@ -37,4 +37,15 @@ describe('continuity alarm', () => {
     const w = checkContinuity([{ kind: 'knowledge.learn', who: 'cersei', fact: 'a new fact' }] as unknown as VellumEvent[], state());
     expect(w).toHaveLength(0);
   });
+
+  it('flags a deceased character narrated on-stage (resurrection guard)', () => {
+    const s = state(); s.cast.cersei!.deceased = true;
+    const w = checkContinuity([{ kind: 'scene.set', present: ['cersei'], detail: [] }] as unknown as VellumEvent[], s);
+    expect(w.some((x) => x.kind === 'deceased_acting')).toBe(true);
+  });
+
+  it('does not flag a living character on-stage', () => {
+    const w = checkContinuity([{ kind: 'scene.set', present: ['cersei'], detail: [] }] as unknown as VellumEvent[], state());
+    expect(w.filter((x) => x.kind === 'deceased_acting')).toHaveLength(0);
+  });
 });

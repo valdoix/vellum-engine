@@ -305,6 +305,7 @@ export const STYLES = [
   ".vle-name--grad{background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-background-clip:text;background-clip:text;color:transparent}",
   ".vle-name--lift{text-shadow:0 0 6px rgba(255,255,255,.35)}",
   ".vle-star{color:var(--vle-gold);font-size:calc(10px * var(--vscale))}",
+  ".vle-deceased{opacity:.55;font-size:calc(11px * var(--vscale))}",
   ".vle-card-meta{font:600 calc(10px * var(--vscale))/1.2 var(--vmono);opacity:.6}",
   // density toggle (cards vs strip)
   ".vle-dens{display:inline-flex;gap:2px;margin-right:8px}",

@@ -85,6 +85,15 @@ export const ParsedFaction = z.object({
   why: z.string().optional(),
 });
 
+export const ParsedFactionRel = z.object({
+  a: z.string(),
+  b: z.string(),
+  kind: z.enum(['alliance', 'rivalry', 'war', 'vassal', 'trade']).optional().catch(undefined),
+  standing: z.number().min(-100).max(100).optional().catch(undefined),
+  absolute: z.boolean().optional().catch(undefined),
+  why: z.string().optional(),
+});
+
 export const ParsedState = z.object({
   v: z.number().optional(),
   turn: z.number().optional(),
@@ -102,6 +111,7 @@ export const ParsedState = z.object({
     knowledge: z.array(ParsedKnowledge).optional(),
     secrets: z.array(ParsedSecret).optional(),
     factions: z.array(ParsedFaction).optional(),
+    factionRelations: z.array(ParsedFactionRel).optional(),
     parallel: z.array(ParsedParallel).optional(),
   }).optional(),
   // Open extension point: future blocks (e.g. inventory, factions) can land here

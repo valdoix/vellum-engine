@@ -41,18 +41,23 @@ export function planFactionEntry(state: ChronicleState, f: Faction): FactionEntr
   const members = state.memberships
     .filter((m) => m.faction === f.id)
     .map((m) => (state.cast[m.char]?.name ?? m.char) + (m.role ? ` (${m.role})` : ''));
+  const seatName = f.seat ? (state.locations.find((l) => l.id === f.seat)?.name ?? f.seat) : '';
+  const facName = (id: string): string => state.factions[id]?.name ?? id.replace(/^fac:/, '');
+  const rels = (state.factionRelations ?? []).filter((r) => r.a === f.id).map((r) => `${r.kind} with ${facName(r.b)}${r.standing ? ` (${r.standing})` : ''}`);
   const lines = [
     f.kind ? `Kind: ${f.kind}.` : '',
+    seatName ? `Seat: ${seatName}.` : '',
     `Standing toward the player: ${standingWord(f.standing)} (${f.standing}${f.trust ? `, trust ${f.trust}` : ''}).`,
+    rels.length ? `Relations: ${rels.join('; ')}.` : '',
     members.length ? `Members: ${members.join(', ')}.` : '',
     f.note ? f.note : '',
   ].filter(Boolean);
-  // keys: the name + aka + each member's name (so a scene mentioning a member
-  // can pull the group sheet too)
+  // keys: the name + aka + each member's name + the seat name (so a scene naming a
+  // member OR the seat location can pull the group sheet too)
   const memberNames = state.memberships.filter((m) => m.faction === f.id).map((m) => state.cast[m.char]?.name ?? m.char);
   return {
     link: 'faction:' + f.id,
-    key: dedupeKeys([f.name, ...(f.aka ?? []), ...memberNames]),
+    key: dedupeKeys([f.name, ...(f.aka ?? []), ...memberNames, ...(seatName ? [seatName] : [])]),
     content: lines.join(' ').trim(),
     comment: 'Faction \u00b7 ' + f.name,
     category: 'factions',

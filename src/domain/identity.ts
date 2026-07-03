@@ -317,6 +317,7 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
       keep.firstTurn = Math.min(keep.firstTurn, src.firstTurn);
       keep.lastTurn = Math.max(keep.lastTurn, src.lastTurn);
       keep.userEdited = keep.userEdited || src.userEdited;
+      if (src.deceased) keep.deceased = true; // death survives a dedup merge
     }
   }
 

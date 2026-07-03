@@ -1132,6 +1132,42 @@
       ]
     },
     {
+      "id": "v2-politics",
+      "name": "Faction Politics Autonomy (faction↔faction)",
+      "role": "system",
+      "position": "pre_history",
+      "enabled": true,
+      "group": "v2-cat-tone",
+      "content": "{{setchatvar::vellum_politics::{{var::politics}}}}{{if::{{eq::{{var::politics}}::off}}}}{{else}}[FACTION POLITICS] Factions (houses, guilds, orders) have their own standing WITH EACH OTHER, apart from {{user}} — alliances, rivalries, wars, vassalage, trade. Record shifts as faction↔faction entries in the <vellum> block's delta.factionRelations ([{\"a\":\"House X\",\"b\":\"House Y\",\"kind\":\"alliance|rivalry|war|vassal|trade\",\"standing\":small +/- int,\"why\":\"one clause\"}]). They move slowly — a treaty or a feud is a landmark, not a per-turn flip.\n{{var::politics}}{{/if}}",
+      "variables": [
+        {
+          "id": "var_politics",
+          "name": "politics",
+          "type": "select",
+          "label": "Faction Politics Autonomy",
+          "description": "How much factions form and change relationships WITH EACH OTHER on their own (alliances, rivalries, wars), independent of {{user}}. Pairs with the engine dial (auto-synced): off keeps faction standings put unless you or the story move them; living/autonomous let them also drift/shift off-screen.",
+          "defaultValue": "none",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off (you/the story drive faction politics)",
+              "value": "none"
+            },
+            {
+              "id": "living",
+              "label": "Living (standings drift off-screen)",
+              "value": "[POLITICS — LIVING] Between scenes, faction standings toward each other drift a little on their own — a wary alliance warming, an old rivalry cooling — surfacing as news on re-entry. Off-screen drift stays SMALL and never flips the KIND of a relation (no off-screen declarations of war or new alliances); the big turns still happen on-page."
+            },
+            {
+              "id": "autonomous",
+              "label": "Autonomous (factions maneuver)",
+              "value": "[POLITICS — AUTONOMOUS] Factions maneuver without {{user}}: off-screen they can forge or break alliances, open rivalries, go to war, or strike trade — learned by consequence (a border skirmish, a signed pact). Steps stay believable (no overnight empires), the world's disposition colors which way things tend."
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "v2-save",
       "name": "Emotional Save (interpretation dial)",
       "role": "system",
