@@ -250,6 +250,106 @@
     "metadata": {}
   },
   {
+    "script_id": "vellum2-state-card-bloom",
+    "name": "VELLUM II ✧ State Block — Bloom theme (display)",
+    "folder": "VELLUM II",
+    "description": "Bloom-theme variant of the <vellum> state card: blush-pink ink on pressed-flower paper, sage mark, lace (dashed) border, Cormorant italic. Disabled by default. Enable this + the Bloom Reverie card and DISABLE the Default 'State Block (display)' / 'Reverie (display)' so only one styling matches per block.",
+    "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+    "replace_string": "<style>.v2sB{max-width:780px;margin:12px auto;font-family:'Cormorant Garamond',Georgia,serif}.v2sB-card{border:1px solid rgba(217,140,171,.32);border-left:3px solid #d98cab;border-radius:18px;overflow:hidden;background:linear-gradient(168deg,#fff4f8,#f3e4ec);box-shadow:0 2px 10px rgba(180,120,150,.14)}.v2sB-card>summary{cursor:pointer;list-style:none;padding:9px 16px;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:14px;letter-spacing:1px;color:#5c3a4a}.v2sB-card>summary::-webkit-details-marker{display:none}.v2sB-card>summary::before{content:'▤ ';color:#8fbf7f}.v2sB-in{padding:6px 18px 15px;font-size:12px;line-height:1.55;color:#5c3a4a;white-space:pre-wrap;word-break:break-word;border-top:1px dashed rgba(217,140,171,.32)}</style><details class='v2sB v2sB-card'><summary>State — the engine’s ledger</summary><div class='v2sB-in'>$1</div></details>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": true,
+    "sort_order": 26,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-reverie-card-bloom",
+    "name": "VELLUM II ✧ Reverie — Bloom theme (display)",
+    "folder": "VELLUM II",
+    "description": "Bloom-theme variant of the <reverie> planning card: sage-green ink on pressed-flower paper, blush mark, lace (dashed) border, Cormorant italic. Disabled by default. Enable alongside the Bloom State card and disable the Default pair.",
+    "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+    "replace_string": "<style>.v2rB{max-width:780px;margin:12px auto;font-family:'Cormorant Garamond',Georgia,serif}.v2rB-card{border:1px solid rgba(143,191,127,.32);border-left:3px solid #8fbf7f;border-radius:18px;overflow:hidden;background:linear-gradient(168deg,#fff4f8,#f3e4ec);box-shadow:0 2px 10px rgba(140,170,120,.14)}.v2rB-card>summary{cursor:pointer;list-style:none;padding:9px 16px;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:14px;letter-spacing:1px;color:#4a6a3a}.v2rB-card>summary::-webkit-details-marker{display:none}.v2rB-card>summary::before{content:'❖ ';color:#d98cab}.v2rB-in{padding:6px 18px 15px;font-size:13px;line-height:1.65;color:#3f5233;white-space:pre-wrap;border-top:1px dashed rgba(143,191,127,.32)}</style><details class='v2rB v2rB-card'><summary>Reverie — the writer’s notebook</summary><div class='v2rB-in'>$1</div></details>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": true,
+    "sort_order": 27,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-state-card-ember",
+    "name": "VELLUM II ✧ State Block — Ember theme (display)",
+    "folder": "VELLUM II",
+    "description": "Ember-theme variant of the <vellum> state card: pastel lilac on an indigo void, mint mark, soft glow, generous radius, ethereal Cormorant. Disabled by default. Enable this + the Ember Reverie card and DISABLE the Default 'State Block (display)' / 'Reverie (display)' so only one styling matches per block.",
+    "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+    "replace_string": "<style>.v2sE{max-width:780px;margin:12px auto;font-family:'Cormorant Garamond','Quicksand',Georgia,serif}.v2sE-card{border:1px solid rgba(184,169,255,.3);border-left:3px solid #b8a9ff;border-radius:22px;overflow:hidden;background:linear-gradient(168deg,rgba(20,20,36,.97),rgba(12,12,24,.985));box-shadow:0 0 24px rgba(184,169,255,.14),0 8px 30px rgba(8,8,24,.5)}.v2sE-card>summary{cursor:pointer;list-style:none;padding:9px 16px;font-family:'Cormorant Garamond','Quicksand',Georgia,serif;font-style:italic;font-size:13.5px;letter-spacing:1px;color:#e6e0f5;text-shadow:0 0 12px rgba(184,169,255,.4)}.v2sE-card>summary::-webkit-details-marker{display:none}.v2sE-card>summary::before{content:'▤ ';color:#8fd6c8}.v2sE-in{padding:6px 18px 15px;font-size:11.5px;line-height:1.55;color:#b0a8d0;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(184,169,255,.18)}</style><details class='v2sE v2sE-card'><summary>State — the engine’s ledger</summary><div class='v2sE-in'>$1</div></details>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": true,
+    "sort_order": 28,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-reverie-card-ember",
+    "name": "VELLUM II ✧ Reverie — Ember theme (display)",
+    "folder": "VELLUM II",
+    "description": "Ember-theme variant of the <reverie> planning card: pastel mint on an indigo void, lilac mark, soft glow, generous radius, ethereal Cormorant. Disabled by default. Enable alongside the Ember State card and disable the Default pair.",
+    "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+    "replace_string": "<style>.v2rE{max-width:780px;margin:12px auto;font-family:'Cormorant Garamond','Quicksand',Georgia,serif}.v2rE-card{border:1px solid rgba(143,214,200,.3);border-left:3px solid #8fd6c8;border-radius:22px;overflow:hidden;background:linear-gradient(168deg,rgba(18,22,34,.97),rgba(11,14,24,.985));box-shadow:0 0 24px rgba(143,214,200,.12),0 8px 30px rgba(8,8,24,.5)}.v2rE-card>summary{cursor:pointer;list-style:none;padding:9px 16px;font-family:'Cormorant Garamond','Quicksand',Georgia,serif;font-style:italic;font-size:13.5px;letter-spacing:1px;color:#dff2ec;text-shadow:0 0 12px rgba(143,214,200,.4)}.v2rE-card>summary::-webkit-details-marker{display:none}.v2rE-card>summary::before{content:'❖ ';color:#b8a9ff}.v2rE-in{padding:6px 18px 15px;font-size:12px;line-height:1.65;color:#a8c8c0;white-space:pre-wrap;border-top:1px solid rgba(143,214,200,.18)}</style><details class='v2rE v2rE-card'><summary>Reverie — the writer’s notebook</summary><div class='v2rE-in'>$1</div></details>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": true,
+    "sort_order": 29,
+    "metadata": {}
+  },
+  {
     "script_id": "vellum2-vtk-context-strip",
     "name": "VELLUM II ✧ Visual Toolkit (context strip)",
     "folder": "VELLUM II",
