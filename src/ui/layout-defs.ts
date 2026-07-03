@@ -75,6 +75,14 @@ export const LAYOUTS: LayoutDef[] = [
     order: ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent', 'stats'],
     hidden: [], collapsed: ['parallel', 'stats'], density: 'comfortable', columns: 2,
   },
+  {
+    // A single wall of hung paintings — the hero scene reads as the gallery's
+    // centerpiece canvas, each section below is its own framed plate on the wall.
+    // One tall column by design (Atelier chrome). Roomy so the frames can breathe.
+    id: 'gallery', name: 'Gallery Wall', blurb: 'A hung wall of framed plates \u2014 the scene as centerpiece canvas (Atelier chrome).', glyph: '\u25A6',
+    order: ['status', 'present', 'tension', 'relations', 'recent', 'threads', 'parallel', 'stats'],
+    hidden: [], collapsed: ['parallel', 'stats'], density: 'roomy', columns: 1,
+  },
 ];
 
 void ALL;

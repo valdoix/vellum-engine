@@ -1260,4 +1260,102 @@ export const STYLES = [
   "html[data-vle-chrome='nocturne'] .vlfm-head{font-family:var(--vserif);font-variant:small-caps;letter-spacing:2px;border-bottom:3px double rgba(var(--vg-rgb),.3)}",
   "@media(max-width:620px){html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'][data-cols='2']{grid-template-columns:1fr}html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'][data-cols='2']::before{display:none}html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'] .vld-sec{grid-column:1!important}}",
 
+  // ================= THEME: ATELIER ("The Dark-Academia Gallery") — float + drawer =================
+  // A dim museum study at dusk hung with oil paintings. The float becomes a
+  // GILT-FRAMED CANVAS (carved gold picture frame + inner mat + hanging cord);
+  // headers are engraved BRASS PLACARDS; avatars sit in STATUE NICHES; the
+  // Latest feed is a shelf of BOOK SPINES; tension reads as warm GALLERY LIGHTS.
+  // Warm walnut/oxblood/olive/ochre — static & scholarly, only slow dust motes
+  // drifting in a shaft of light. Distinct from Bloom(pastel), Ember(indigo glow),
+  // Nocturne(cold navy). All chrome-scoped so BOTH surfaces re-skin.
+  // --- theme-gallery picker tile: a tiny gilt frame with two hung plates ---
+  ".vle-mode-sk.sk-atelier{flex-direction:column;gap:5px;padding:7px;background:linear-gradient(160deg,#2a2015,#160f09);box-shadow:inset 0 0 0 3px #6b4f22,inset 0 0 0 4px rgba(200,160,80,.6),inset 0 0 0 5px #2a2015}.vle-mode-sk.sk-atelier i{height:8px;border:1px solid rgba(176,136,64,.5);background:linear-gradient(90deg,rgba(164,80,63,.45),rgba(138,148,99,.4))}.vle-mode-sk.sk-atelier i:first-child{height:12px;background:linear-gradient(120deg,rgba(176,136,64,.5),rgba(125,59,46,.4))}",
+
+  // --- shared: dim walnut gallery wall with a soft raking light from top-left ---
+  "html[data-vle-chrome='atelier'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(120% 80% at 8% -5%,rgba(176,136,64,.1),transparent 46%),radial-gradient(130% 100% at 100% 110%,rgba(0,0,0,.34),transparent 55%),linear-gradient(180deg,rgba(50,38,26,.32),rgba(18,13,9,.5))}",
+  "html[data-vle-chrome='atelier'] .vlf-body{background-image:radial-gradient(120% 70% at 8% -5%,rgba(176,136,64,.08),transparent 46%),radial-gradient(130% 90% at 100% 110%,rgba(0,0,0,.3),transparent 55%)}",
+  // --- the signature FLOAT frame: a carved gilt picture frame around an oil canvas ---
+  "html[data-vle-chrome='atelier'] .vlf-frame{border:none;border-radius:3px;box-shadow:0 0 0 3px #120c07,0 0 0 10px #3a2a15,0 0 0 12px #6e5324,0 0 0 15px #c9a955,0 0 0 17px #7a5c28,0 0 0 19px #2a1e10,0 26px 70px rgba(0,0,0,.72),inset 0 0 60px rgba(0,0,0,.5),inset 0 0 0 1px rgba(200,160,80,.28)}",
+  // carved bead-and-reel highlight along the gilt (a bright inner bevel line)
+  "html[data-vle-chrome='atelier'] .vlf-frame::before{content:'';position:absolute;z-index:2;inset:5px;border-radius:2px;border:1px solid rgba(210,175,95,.4);box-shadow:inset 0 0 0 2px rgba(0,0,0,.45),inset 0 2px 14px rgba(0,0,0,.4);pointer-events:none}",
+  // engraved museum placard hung below the frame + a hanging cord to a nail above
+  "html[data-vle-chrome='atelier'] .vlf-frame::after{content:'A T E L I E R';position:absolute;z-index:3;left:50%;bottom:-2px;transform:translateX(-50%);font:600 7px/1 var(--vmono);letter-spacing:3px;color:#3a2c16;background:linear-gradient(180deg,#c9a955,#8a6a2c);border:1px solid #5f471f;border-radius:2px;padding:3px 10px;box-shadow:0 2px 5px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,235,180,.5);pointer-events:none;white-space:nowrap}",
+  // title bar = a dim brass nameplate rail
+  "html[data-vle-chrome='atelier'] .vlf-bar{background:linear-gradient(180deg,rgba(58,44,26,.6),rgba(30,22,14,.35));border-bottom:1px solid rgba(176,136,64,.35);box-shadow:inset 0 -1px 0 rgba(0,0,0,.4)}",
+  "html[data-vle-chrome='atelier'] .vlf-title{font-family:var(--vserif);font-weight:600;font-size:calc(16px * var(--vscale));letter-spacing:4px;text-transform:uppercase;color:var(--vi);text-shadow:0 1px 0 #000,0 0 1px rgba(200,160,80,.5)}",
+  "html[data-vle-chrome='atelier'] .vlf-mark{color:var(--vg);text-shadow:0 1px 0 #000}",
+  // a small carved rosette flanking the title
+  "html[data-vle-chrome='atelier'] .vlf-bar::before{content:'\\2766';position:absolute;left:calc(15px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg);opacity:.7;font-size:14px;text-shadow:0 1px 0 #000}",
+  // wax/brass close stud
+  "html[data-vle-chrome='atelier'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,#c9a955,#6e5324);border:1px solid #5f471f;color:#2a1e10;box-shadow:0 1px 3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,235,180,.5)}",
+  "html[data-vle-chrome='atelier'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,#c87a63,#7d3b2e);border-color:#4a2018;color:#160b08}",
+  "html[data-vle-chrome='atelier'] .vlf-grip{background:none;border:none;right:9px;bottom:9px;width:11px;height:11px;border-right:2px solid rgba(200,160,80,.6);border-bottom:2px solid rgba(200,160,80,.6);border-radius:0}",
+  "html[data-vle-chrome='atelier'] .vlf-launch{border-radius:0;border:1px solid #6e5324;border-right:none;box-shadow:-4px 4px 18px rgba(0,0,0,.5),inset 0 0 0 2px rgba(200,160,80,.35)}",
+
+  // --- slow drifting dust motes in a shaft of gallery light (motion-gated) ---
+  "html[data-vle-chrome='atelier'] .vle-body,html[data-vle-chrome='atelier'] .vlf-body{position:relative}",
+  "html[data-vle-chrome='atelier'] .vle-body::after,html[data-vle-chrome='atelier'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(1.5px 1.5px at 20% 30%,rgba(230,205,150,.5),transparent),radial-gradient(1px 1px at 66% 22%,rgba(230,205,150,.4),transparent),radial-gradient(1.5px 1.5px at 44% 74%,rgba(210,180,120,.4),transparent),radial-gradient(1px 1px at 82% 60%,rgba(230,205,150,.35),transparent);background-repeat:no-repeat;opacity:.5;animation:vle-atelier-dust 26s linear infinite}",
+  "html[data-vle-chrome='atelier'] .vle-body>*,html[data-vle-chrome='atelier'] .vlf-body>*{position:relative;z-index:1}",
+  "@keyframes vle-atelier-dust{0%{transform:translate(0,0);opacity:.5}50%{opacity:.28}100%{transform:translate(6px,-14px);opacity:.5}}",
+  "html[data-vle-chrome='atelier'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='atelier'][data-vle-motion='off'] .vlf-body::after{animation:none;opacity:.32}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='atelier'] .vle-body::after,html[data-vle-chrome='atelier'] .vlf-body::after{animation:none;opacity:.32}}",
+
+  // --- drawer head -> an engraved museum wall-text with a gilt underrule ---
+  "html[data-vle-chrome='atelier'] .vle-head{font-family:var(--vserif);font-weight:600;letter-spacing:3px;text-transform:uppercase;font-size:calc(20px * var(--vscale));border-bottom:1px solid rgba(176,136,64,.4);box-shadow:0 2px 0 rgba(176,136,64,.14);text-shadow:0 1px 0 #000}",
+  "html[data-vle-chrome='atelier'] .vle-mark{color:var(--vg);text-shadow:0 1px 0 #000}",
+  "html[data-vle-chrome='atelier'] .vle-mark::after{content:'\\2766';margin-left:8px;color:var(--vg2);opacity:.7;font-size:.72em}",
+  "html[data-vle-chrome='atelier'] .vle-stats{font-family:var(--vserif);font-variant:small-caps;letter-spacing:1.4px;text-transform:lowercase;opacity:.7}",
+
+  // --- tab bar -> incised brass gallery-room labels; active = a lit gilt plaque ---
+  "html[data-vle-chrome='atelier'] .vle-tabs{border-bottom:1px solid rgba(176,136,64,.22)}",
+  "html[data-vle-chrome='atelier'] .vle-tabbtn{border-radius:2px;font-family:var(--vserif);font-variant:small-caps;letter-spacing:1.2px;text-transform:none;font-size:calc(12.5px * var(--vscale))}",
+  "html[data-vle-chrome='atelier'] .vle-tabbtn:hover{background:rgba(176,136,64,.1);color:var(--vi)}",
+  "html[data-vle-chrome='atelier'] .vle-tabbtn.on{color:#2a1e10;border-color:#5f471f;background:linear-gradient(180deg,#c9a955,#9a7530);box-shadow:0 1px 3px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,235,180,.5);text-shadow:0 1px 0 rgba(255,235,180,.4)}",
+  "html[data-vle-chrome='atelier'] .vle-tabicon.on{color:var(--vg);border-color:rgba(176,136,64,.5);background:rgba(176,136,64,.16)}",
+  "html[data-vle-chrome='atelier'] .vlf-tab.on{color:var(--vg);background:rgba(176,136,64,.14);border-color:rgba(176,136,64,.4);border-bottom-color:transparent}",
+
+  // --- cards -> framed plates: a thin gilt liner on a canvas ground, hung with a top shadow ---
+  "html[data-vle-chrome='atelier'] .vle-card,html[data-vle-chrome='atelier'] .vle-rel-card,html[data-vle-chrome='atelier'] .vld-sec,html[data-vle-chrome='atelier'] .vld-pc{border-radius:2px;border:1px solid rgba(176,136,64,.45);background:linear-gradient(160deg,rgba(38,29,21,.9),rgba(24,18,12,.94));box-shadow:inset 0 0 0 2px rgba(20,14,9,.85),inset 0 0 0 3px rgba(176,136,64,.18),0 6px 16px rgba(0,0,0,.4)}",
+  "html[data-vle-chrome='atelier'] .vle-card:hover,html[data-vle-chrome='atelier'] .vle-rel-card:hover{border-color:rgba(200,160,80,.7);box-shadow:inset 0 0 0 2px rgba(20,14,9,.85),inset 0 0 0 3px rgba(200,160,80,.3),0 8px 20px rgba(0,0,0,.46)}",
+
+  // --- section eyebrows -> engraved brass placards (incised small-caps + a chisel mark) ---
+  "html[data-vle-chrome='atelier'] .vld-h,html[data-vle-chrome='atelier'] .vle-sec-h{font-family:var(--vserif);font-variant:small-caps;letter-spacing:2px;text-transform:none;color:var(--vg);border-bottom:1px solid rgba(176,136,64,.2);padding-bottom:calc(3px * var(--vscale));text-shadow:0 1px 0 #000}",
+  "html[data-vle-chrome='atelier'] .vld-h::before,html[data-vle-chrome='atelier'] .vle-sec-h::before{content:'\\29C9 ';color:var(--vg2);opacity:.75}",
+
+  // --- hero scene -> the centerpiece oil: a richly framed canvas, brushed serif title ---
+  "html[data-vle-chrome='atelier'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.2px;text-shadow:0 2px 4px rgba(0,0,0,.6)}",
+  "html[data-vle-chrome='atelier'] .vld-hero::first-letter{font-family:var(--vserif);font-weight:700;font-size:2.1em;line-height:.8;float:left;margin:2px 8px 0 0;color:var(--vg);text-shadow:0 2px 3px rgba(0,0,0,.7)}",
+  "html[data-vle-chrome='atelier'] .vld-sec--hero{border:none!important;border-radius:2px!important;background:radial-gradient(120% 150% at 30% 0%,rgba(70,52,30,.6),rgba(22,16,10,.96) 70%)!important;box-shadow:0 0 0 2px #120c07,0 0 0 7px #4a3717,0 0 0 9px #8a6a2c,0 0 0 11px #3a2a15,inset 0 0 40px rgba(0,0,0,.55)!important;padding:calc(18px * var(--vscale)) calc(20px * var(--vscale))!important;margin:calc(4px * var(--vscale)) 0 calc(10px * var(--vscale))!important}",
+
+  // --- tension -> a row of warm gallery picture-lights (unlit = dim bulbs) ---
+  "html[data-vle-chrome='atelier'] .vld-dot{border-radius:50% 50% 40% 40%;background:rgba(176,136,64,.12)}",
+  "html[data-vle-chrome='atelier'] .vld-dot.on{background:radial-gradient(circle at 50% 30%,#ffe6a6,var(--vg) 70%);box-shadow:0 0 8px rgba(200,160,80,.6),0 3px 5px rgba(0,0,0,.4)}",
+
+  // --- avatars -> marble busts in arched statue niches (double gilt ring when present) ---
+  "html[data-vle-chrome='atelier'] .vle-av,html[data-vle-chrome='atelier'] .vld-pc-av,html[data-vle-chrome='atelier'] .vle-strip-av{border-radius:50% 50% 46% 46%;background:radial-gradient(60% 55% at 40% 30%,rgba(236,224,200,.28),rgba(30,22,14,.9) 72%);border:1px solid rgba(176,136,64,.55);color:var(--vi);box-shadow:inset 0 -3px 8px rgba(0,0,0,.5),0 0 0 3px rgba(20,14,9,.8)}",
+  "html[data-vle-chrome='atelier'] .vle-card--present .vle-av{box-shadow:inset 0 -3px 8px rgba(0,0,0,.5),0 0 0 2px var(--vg),0 0 0 4px #2a1e10,0 0 0 6px rgba(176,136,64,.4)}",
+
+  // --- twin bond meters -> inlaid enamel strips (olive affection, slate-teal trust) ---
+  "html[data-vle-chrome='atelier'] .vle-tw-t{height:8px;border-radius:1px;background:rgba(0,0,0,.4);box-shadow:inset 0 0 0 1px rgba(176,136,64,.2)}",
+  "html[data-vle-chrome='atelier'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--v-pos) 60%,transparent),var(--v-pos-i))}",
+  "html[data-vle-chrome='atelier'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--v-info) 60%,transparent),var(--v-info))}",
+
+  // --- 'Latest' feed -> a shelf of leaning book spines (gilt-lettered, ribbon markers) ---
+  "html[data-vle-chrome='atelier'] .vld-rec{position:relative;margin-left:calc(6px * var(--vscale));padding:calc(4px * var(--vscale)) calc(4px * var(--vscale)) calc(10px * var(--vscale)) calc(18px * var(--vscale));border-left:5px solid var(--vg);border-top:none;box-shadow:inset 3px 0 0 rgba(20,14,9,.6),inset 8px 0 0 rgba(176,136,64,.28)}",
+  "html[data-vle-chrome='atelier'] .vld-rec::before{content:'';position:absolute;left:-5px;top:0;bottom:6px;width:5px;background:repeating-linear-gradient(180deg,transparent 0 5px,rgba(0,0,0,.25) 5px 6px)}",
+  "html[data-vle-chrome='atelier'] .vld-rec--journal{border-left-color:var(--v-pos)}html[data-vle-chrome='atelier'] .vld-rec--knew{border-left-color:var(--v-info)}html[data-vle-chrome='atelier'] .vld-rec--secret{border-left-color:var(--v-neg)}html[data-vle-chrome='atelier'] .vld-rec--shift{border-left-color:var(--v-press)}",
+
+  // --- chips -> incised brass tags (square, hairline gilt) ---
+  "html[data-vle-chrome='atelier'] .v-chip{border-radius:2px;background:rgba(176,136,64,.1);box-shadow:inset 0 0 0 1px rgba(0,0,0,.4)}",
+
+  // --- GALLERY layout: hung plates spaced on the wall; hero is the centerpiece ---
+  "html[data-vle-chrome='atelier'] .vld-inner[data-layout='gallery']{gap:calc(20px * var(--vscale))}",
+  "html[data-vle-chrome='atelier'] .vld-inner[data-layout='gallery'] .vld-sec{position:relative}",
+  // each plate wears a small brass hanging-nail above it (except the hero, which is self-framed)
+  "html[data-vle-chrome='atelier'] .vld-inner[data-layout='gallery'] .vld-sec:not(.vld-sec--hero)::before{content:'';position:absolute;top:-11px;left:50%;transform:translateX(-50%);width:6px;height:6px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#e6cd96,#7a5c28);box-shadow:0 1px 2px rgba(0,0,0,.6)}",
+
+  // --- modal + toasts pick up the framed brass treatment (read document attr) ---
+  "html[data-vle-chrome='atelier'] .vlfm{border-radius:3px;border:none;box-shadow:0 0 0 2px #120c07,0 0 0 8px #4a3717,0 0 0 10px #8a6a2c,0 0 0 12px #2a1e10,0 26px 80px rgba(0,0,0,.75)}",
+  "html[data-vle-chrome='atelier'] .vlfm-head{font-family:var(--vserif);font-variant:small-caps;letter-spacing:2px;text-transform:none;border-bottom:1px solid rgba(176,136,64,.3)}",
+
 ].join('\n');
