@@ -27,6 +27,9 @@ export interface Theme {
   border: number;      // border weight px 0.5–2.5
   inkEmphasis: number; // text strength 0.7–1.15
   texture: string;     // '' | bundled id | data/https url (scrimmed)
+  bg: string;          // '' = skin fill; else hex overriding the window/drawer background
+  surf1c: string;      // '' = skin surface; else hex overriding card surface 1
+  surf2c: string;      // '' = skin surface; else hex overriding card surface 2
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
   chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne'; // window ornamentation, orthogonal to skin
@@ -126,7 +129,7 @@ const KEY = 'vellum2.theme';
 const DEFAULT: Theme = {
   skin: 'illuminated', accent2: '#9bc0e6', accentIntensity: 1,
   scale: 1.12, dataScale: 1, density: 1,
-  opacity: 1, blur: 8, radius: 18, border: 1, inkEmphasis: 1, texture: '', motion: true,
+  opacity: 1, blur: 8, radius: 18, border: 1, inkEmphasis: 1, texture: '', bg: '', surf1c: '', surf2c: '', motion: true,
   launcher: 'right', chrome: 'default', tensionStyle: 'both',
   ...SKINS[0]!.theme,
 };
@@ -134,6 +137,7 @@ const DEFAULT: Theme = {
 const clamp = (v: number, lo: number, hi: number, d: number): number => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
 function hexToRgb(hex: string): string { const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim()); if (!m) return '205,168,78'; const n = parseInt(m[1]!, 16); return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`; }
 function safeFont(stack: string): string { const s = String(stack || '').replace(/[<>{}]/g, '').slice(0, 200); return s ? s + ',Georgia,serif' : F_SERIF; }
+function safeHexOpt(v: string): string { const s = String(v || '').trim(); return /^#[0-9a-fA-F]{6}$/.test(s) ? s : ''; } // '' = derive from skin
 function safeTexture(t: string): string {
   if (!t) return 'none';
   const preset = TEXTURES.find((x) => x.id === t); if (preset) return preset.css;
@@ -149,6 +153,7 @@ function sanitize(t: Theme): Theme {
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
+    bg: safeHexOpt(t.bg), surf1c: safeHexOpt(t.surf1c), surf2c: safeHexOpt(t.surf2c),
     chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'nocturne'] as const).includes(t.chrome) ? t.chrome : 'default',
   };
 }
@@ -178,9 +183,11 @@ export function applyTheme(scope: HTMLElement | null): void {
     el.style.setProperty('--vborder', t.border + 'px');
     el.style.setProperty('--vtexture', safeTexture(t.texture));
     el.style.setProperty('--vmotion', t.motion ? '1' : '0');
-    el.style.setProperty('--vsurf-1', t.surf1);
-    el.style.setProperty('--vsurf-2', t.surf2);
-    el.style.setProperty('--vglass', t.glass);
+    // custom fill overrides the skin surfaces when set; '' falls back to the skin
+    el.style.setProperty('--vsurf-1', t.surf1c || t.surf1);
+    el.style.setProperty('--vsurf-2', t.surf2c || t.surf2);
+    el.style.setProperty('--vglass', t.bg || t.glass);
+    el.style.setProperty('--vle-bg-custom', t.bg);
     el.style.setProperty('--v-pos', t.pos);
     el.style.setProperty('--v-pos-i', t.posInk);
     el.style.setProperty('--v-neg', t.neg);
@@ -194,6 +201,7 @@ export function applyTheme(scope: HTMLElement | null): void {
   set(document.documentElement);
   document.documentElement.setAttribute('data-vle-launch', t.launcher);
   document.documentElement.setAttribute('data-vle-chrome', t.chrome);
+  document.documentElement.toggleAttribute('data-vle-bg', !!t.bg);
   document.documentElement.setAttribute('data-vle-motion', t.motion ? 'on' : 'off');
 }
 
@@ -267,6 +275,11 @@ export function customizePanel(tab: CzTab = 'look'): string {
       + `<div class="vle-cz-h">Secondary accent</div><div class="vle-cz-row"><input type="color" class="vle-cz-color" data-cz-color2 value="${t.accent2}"><input type="text" class="vle-cz-hex" data-cz-hex2 value="${t.accent2}" maxlength="7" spellcheck="false"></div>`
       + slider('accentIntensity', 'Accent intensity', 0.5, 1.6, 0.05, t.accentIntensity, pct)
       + slider('inkEmphasis', 'Text emphasis', 0.7, 1.15, 0.05, t.inkEmphasis, pct)
+      // custom background + card surfaces. Empty = derive from the skin (the reset ↺ clears).
+      + `<div class="vle-cz-h">Background <span class="vle-cz-rst" data-cz-reset="bg" title="Reset to skin">\u21BA</span></div><div class="vle-cz-row"><input type="color" class="vle-cz-color" data-cz-bg value="${t.bg || '#141210'}"><input type="text" class="vle-cz-hex" data-cz-bghex value="${t.bg}" placeholder="skin default" maxlength="7" spellcheck="false"></div>`
+      + `<div class="vle-cz-h">Card surface 1 <span class="vle-cz-rst" data-cz-reset="surf1c" title="Reset to skin">\u21BA</span></div><div class="vle-cz-row"><input type="color" class="vle-cz-color" data-cz-surf1 value="${t.surf1c || '#1c1914'}"><input type="text" class="vle-cz-hex" data-cz-surf1hex value="${t.surf1c}" placeholder="skin default" maxlength="7" spellcheck="false"></div>`
+      + `<div class="vle-cz-h">Card surface 2 <span class="vle-cz-rst" data-cz-reset="surf2c" title="Reset to skin">\u21BA</span></div><div class="vle-cz-row"><input type="color" class="vle-cz-color" data-cz-surf2 value="${t.surf2c || '#12100b'}"><input type="text" class="vle-cz-hex" data-cz-surf2hex value="${t.surf2c}" placeholder="skin default" maxlength="7" spellcheck="false"></div>`
+      + '<div class="vle-cz-note">Leave blank to use the skin\u2019s colors. A background color composes with the current theme; the card surfaces are the panels behind cast &amp; record cards.</div>'
       + '<div class="vle-cz-h">Auto name color</div><div class="vle-fbar">'
       + (['off', 'solid', 'gradient'] as const).map((m) => `<button class="vle-fb-btn${autoNameMode() === m ? ' on' : ''}" data-cz-autoname="${m}">${m}</button>`).join('')
       + '</div><div class="vle-cz-note">Give every character a distinct auto color from their identity. A color set on a character in the Cast tab always wins.</div>';
@@ -312,6 +325,13 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
     else if (el.matches('[data-cz-hex]') && !el.matches('[data-cz-textureurl]')) { const v = el.value.trim(); if (/^#?[0-9a-fA-F]{6}$/.test(v)) { patchTheme({ accent: v.startsWith('#') ? v : '#' + v }); reapply(); } }
     else if (el.matches('[data-cz-hex2]')) { const v = el.value.trim(); if (/^#?[0-9a-fA-F]{6}$/.test(v)) { patchTheme({ accent2: v.startsWith('#') ? v : '#' + v }); reapply(); } }
     else if (el.matches('[data-cz-textureurl]')) { const v = el.value.trim(); patchTheme({ texture: v }); reapply(); }
+    // custom fill colors: color pickers (always valid hex) + hex fields (blank = reset to skin, sanitize clears)
+    else if (el.matches('[data-cz-bg]')) { patchTheme({ bg: el.value }); const hx = host.querySelector('[data-cz-bghex]') as HTMLInputElement | null; if (hx) hx.value = el.value; reapply(); }
+    else if (el.matches('[data-cz-surf1]')) { patchTheme({ surf1c: el.value }); const hx = host.querySelector('[data-cz-surf1hex]') as HTMLInputElement | null; if (hx) hx.value = el.value; reapply(); }
+    else if (el.matches('[data-cz-surf2]')) { patchTheme({ surf2c: el.value }); const hx = host.querySelector('[data-cz-surf2hex]') as HTMLInputElement | null; if (hx) hx.value = el.value; reapply(); }
+    else if (el.matches('[data-cz-bghex]')) { const v = el.value.trim(); if (v === '' || /^#[0-9a-fA-F]{6}$/.test(v)) { patchTheme({ bg: v }); reapply(); } }
+    else if (el.matches('[data-cz-surf1hex]')) { const v = el.value.trim(); if (v === '' || /^#[0-9a-fA-F]{6}$/.test(v)) { patchTheme({ surf1c: v }); reapply(); } }
+    else if (el.matches('[data-cz-surf2hex]')) { const v = el.value.trim(); if (v === '' || /^#[0-9a-fA-F]{6}$/.test(v)) { patchTheme({ surf2c: v }); reapply(); } }
   });
   host.addEventListener('change', (e) => {
     const el = e.target as HTMLInputElement;

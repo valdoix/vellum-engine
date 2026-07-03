@@ -12,7 +12,7 @@ import { freshState } from '../src/domain/types.js';
 const THEME_KEYS = new Set([
   'skin', 'accent', 'accent2', 'accentIntensity', 'serif', 'mono', 'scale', 'dataScale',
   'density', 'opacity', 'blur', 'radius', 'border', 'inkEmphasis', 'texture', 'motion',
-  'launcher', 'chrome', 'tensionStyle', 'surf1', 'surf2', 'ink', 'ink2', 'glass',
+  'launcher', 'chrome', 'tensionStyle', 'surf1', 'surf2', 'ink', 'ink2', 'glass', 'bg', 'surf1c', 'surf2c',
   'pos', 'posInk', 'neg', 'negInk', 'info', 'warn', 'press', 'pressInk',
 ]);
 
@@ -51,6 +51,21 @@ describe('theme system', () => {
       expect(typeof s.theme.press, s.id).toBe('string');
       expect(typeof s.theme.pressInk, s.id).toBe('string');
     }
+  });
+
+  it('custom background/surfaces: valid hex sticks, junk clears to skin default', () => {
+    patchTheme({ bg: '#123456', surf1c: '#abcdef', surf2c: '' });
+    let t = getTheme();
+    expect(t.bg).toBe('#123456');
+    expect(t.surf1c).toBe('#abcdef');
+    expect(t.surf2c).toBe(''); // blank = derive from skin
+    // invalid values are cleared, not stored — so the skin always shows through
+    patchTheme({ bg: 'not-a-color', surf1c: '#zzz' });
+    t = getTheme();
+    expect(t.bg).toBe('');
+    expect(t.surf1c).toBe('');
+    // the Color tab exposes the pickers
+    expect(customizePanel('color')).toContain('data-cz-bg');
   });
 
   it('the Look tab shows theme cards + the size slider (two-tier customize)', () => {

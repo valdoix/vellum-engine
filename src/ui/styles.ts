@@ -564,6 +564,9 @@ export const STYLES = [
   // `.vle-root{background-image:...}` rules would otherwise beat .vlfm's opaque fill
   // and let the chat show through. Pin an opaque surface for these panels on every chrome.
   "html[data-vle-chrome] .vlfm.vle-root{background-color:#14110b;background-image:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1))}",
+  // user custom background color: paints the drawer fill (float reads --vglass via .vlf-tex).
+  // Excludes .vlfm modals (they pin their own opaque surface) and clears chrome gradients so the color reads true.
+  "html[data-vle-bg] .vle-root:not(.vlfm){background-color:var(--vle-bg-custom);background-image:none}",
   ".vlfm-head{display:flex;align-items:center;gap:8px;padding:13px 16px;font-family:var(--vserif);font-size:18px;letter-spacing:1.5px;text-transform:uppercase;color:var(--vi);border-bottom:1px solid rgba(var(--vg-rgb),.22)}",
   ".vlfm-mark{color:var(--vle-gold)}",
   ".vlfm-body{padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:11px}",
