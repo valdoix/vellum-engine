@@ -499,12 +499,32 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
     const res = await controllerGenerate([{ role: 'system', content: SIM_SYS }, { role: 'user', content: prompt }], userId, 3000, 600);
-    if (!res.ok) return { beats: 0, reason: 'empty_reply' };
+    if (!res.ok) {
+      spindle.log?.warn?.(`[vellum_engine] off-screen sim: generation failed (${res.error})`);
+      return { beats: 0, reason: 'empty_reply' };
+    }
     const parsed = parseSim(res.value);
-    if (!parsed) return { beats: 0, reason: 'empty_reply' };
-    // when focused, keep only the beat for that subplot (guard against drift)
-    const useParsed = focusId ? { offscreen: parsed.offscreen.filter((p) => p.id === focusId).slice(0, 1) } : parsed;
-    if (!useParsed.offscreen.length) return { beats: 0, reason: 'empty_reply' };
+    if (!parsed) {
+      spindle.log?.warn?.('[vellum_engine] off-screen sim: reply did not parse. Raw reply: ' + JSON.stringify((res.value || '').slice(0, 400)));
+      return { beats: 0, reason: 'empty_reply' };
+    }
+    // when focused, keep only the beat for that subplot (guard against drift).
+    // the model may echo a fresh slug for the focused subplot instead of reusing
+    // its id, which used to filter to nothing → false "no beat". Fall back to the
+    // first parsed beat when the id doesn't match so a focused advance still lands.
+    let useParsed = parsed;
+    if (focusId) {
+      const exact = parsed.offscreen.filter((p) => p.id === focusId);
+      // reuse the exact-id beat when present; else take the first beat but force
+      // its id back to focusId so it ADVANCES the focused thread (not spawn a new
+      // one) even when the model echoed a fresh slug.
+      const one = (exact.length ? exact : parsed.offscreen).slice(0, 1).map((p) => ({ ...p, id: focusId }));
+      useParsed = { offscreen: one };
+    }
+    if (!useParsed.offscreen.length) {
+      spindle.log?.warn?.('[vellum_engine] off-screen sim: parsed reply had zero usable beats. Raw reply: ' + JSON.stringify((res.value || '').slice(0, 400)));
+      return { beats: 0, reason: 'empty_reply' };
+    }
     const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal());
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
