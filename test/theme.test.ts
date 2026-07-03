@@ -24,7 +24,7 @@ describe('theme system', () => {
   });
 
   it('MODES cover the default baseline + three world themes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['bloom', 'default', 'futuristic', 'illuminated', 'modern']);
+    expect(MODES.map((m) => m.id).sort()).toEqual(['bloom', 'default', 'ember', 'futuristic', 'illuminated', 'modern']);
   });
 
   it("each mode's recommended skin exists", () => {

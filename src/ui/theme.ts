@@ -29,7 +29,7 @@ export interface Theme {
   texture: string;     // '' | bundled id | data/https url (scrimmed)
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
-  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom'; // window ornamentation, orthogonal to skin
+  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember'; // window ornamentation, orthogonal to skin
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
   // skin-derived (overridden by skin pick)
@@ -46,8 +46,9 @@ const F_MONO = "'JetBrains Mono',ui-monospace,monospace";
 const F_SANS = "'Inter',system-ui,-apple-system,\"Segoe UI\",sans-serif";
 const F_DISPLAY = "'Cinzel','Cormorant Garamond',Georgia,serif"; // Fantasy display
 const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
+const F_ETHEREAL = "'Cormorant Garamond','Quicksand',Georgia,serif"; // Ember display — airy serif with a dreamy italic lean
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember';
 
 /**
  * A "mode" is a one-click preset over existing axes — chrome (window ornament) plus
@@ -61,6 +62,11 @@ export const MODES: Mode[] = [
   { id: 'modern', name: 'Modern', blurb: 'A calm card app \u2014 flat, sans, one smooth scroll of rounded cards.', patch: { chrome: 'modern', radius: 16, border: 1, texture: '', serif: F_SANS }, form: 'dashboard', skin: 'moonlit' },
   { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 cyan telemetry, reticle avatars, a live bond radar.', patch: { chrome: 'futuristic', radius: 2, border: 1, texture: 'grid', serif: F_HUD, accent: '#28e0d8', accent2: '#7a5cff' }, form: 'hud', skin: 'noir' },
   { id: 'bloom', name: 'Bloom', blurb: 'A pressed-flower garden \u2014 blush pink &amp; sage, petals, lace, a cozy romance.', patch: { chrome: 'bloom', radius: 20, border: 1, texture: 'petals', serif: F_SERIF, accent: '#d98cab', accent2: '#8fbf7f' }, form: 'dashboard', skin: 'blush' },
+  // EMBER — "the night sky dreaming": a deep indigo void, drifting fireflies &
+  // slow-rising bubbles, scattered pastel starlight, glowing soft-edged cards.
+  // Distinct from Bloom (light/cozy) and Futuristic (hard/telemetry): Ember is
+  // dark, soft, ethereal, and animated — pastels that glow on a midnight field.
+  { id: 'ember', name: 'Ember', blurb: 'A starlit night dreaming \u2014 indigo void, fireflies, rising bubbles, pastel starlight.', patch: { chrome: 'ember', radius: 22, border: 1, texture: 'starfall', serif: F_ETHEREAL, accent: '#b8a9ff', accent2: '#8fd6c8', opacity: 0.92, blur: 12 }, form: 'dashboard', skin: 'starfall' },
 ];
 
 // base semantic palette, reused by every skin (skins override clash-prone ones)
@@ -81,6 +87,10 @@ export const SKINS: Skin[] = [
   // Dark twin of Blush — the cozy garden after dusk. Deep plum-charcoal paper,
   // moonlit rose ink, pastel pink & sage that glow on dark. Bloom's dark mode.
   { id: 'blush-noir', name: 'Moonlit Bloom', blurb: 'The garden after dusk — plum-charcoal paper, glowing rose & sage pastels.', theme: { accent: '#e6a3c0', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(38,28,40,.6)', surf2: 'rgba(26,18,28,.55)', ink: '#f2dce7', ink2: '#c7a9ba', glass: 'linear-gradient(168deg,rgba(34,24,36,.97),rgba(20,14,22,.985))', ...SEM, pos: '#a6c98c', posInk: '#c0dfa4', neg: '#e08298', negInk: '#f0a6b8', info: '#a0bfe0', warn: '#d0a8e0', press: '#e0b070', pressInk: '#f0c890' } },
+  // Starfall — the ember night-sky palette. Deep indigo-charcoal paper, luminous
+  // pastel ink (lilac & mint), pastel starlight semantics that glow against the
+  // void. The recommended skin for the Ember chrome; composes with any chrome.
+  { id: 'starfall', name: 'Ember Sky', blurb: 'A starlit indigo void — pastel lilac & mint starlight, fireflies, soft glow.', theme: { accent: '#b8a9ff', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(24,24,40,.62)', surf2: 'rgba(15,15,28,.58)', ink: '#e6e0f5', ink2: '#b0a8d0', glass: 'linear-gradient(168deg,rgba(20,20,36,.97),rgba(12,12,24,.985))', ...SEM, pos: '#9cd6a8', posInk: '#c0e8cc', neg: '#f0a8b8', negInk: '#f8c4d0', info: '#9bc8e8', warn: '#d8b0e8', press: '#f0c878', pressInk: '#f8dc9a' } },
 ];
 
 const FONT_CHOICES: Array<{ label: string; stack: string }> = [
@@ -103,6 +113,10 @@ const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   { id: 'dots', label: 'Dots', css: 'radial-gradient(rgba(255,255,255,.06) 1px,transparent 1px)' },
   // scattered pressed petals — soft blush + sage blooms, tiled SVG (no network)
   { id: 'petals', label: 'Petals', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cg fill='%23d98cab' fill-opacity='0.12'%3E%3Cpath d='M30 22c6-10 14-10 20 0-6 6-14 6-20 0z'/%3E%3Cpath d='M104 96c6-10 14-10 20 0-6 6-14 6-20 0z'/%3E%3Cpath d='M18 104c10 4 12 12 4 18-4-6-6-14-4-18z'/%3E%3C/g%3E%3Cg fill='%238fbf7f' fill-opacity='0.12'%3E%3Cpath d='M96 20c10 4 12 12 4 18-4-6-6-14-4-18z'/%3E%3Cpath d='M56 70c8-6 16-2 16 8-8 0-14-2-16-8z'/%3E%3C/g%3E%3C/svg%3E\")" },
+  // scattered pastel stars on indigo — faint four-point sparkles (lilac, mint,
+  // rose, butter). Static texture layer; the animated fireflies/bubbles live in
+  // the ember chrome CSS block so they respect the motion kill-switch.
+  { id: 'starfall', label: 'Starfall', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cg fill='%23b8a9ff' fill-opacity='0.14'%3E%3Cpath d='M24 30l2 6 6 2-6 2-2 6-2-6-6-2 6-2z'/%3E%3Cpath d='M120 110l1.5 4.5 4.5 1.5-4.5 1.5-1.5 4.5-1.5-4.5-4.5-1.5 4.5-1.5z'/%3E%3C/g%3E%3Cg fill='%238fd6c8' fill-opacity='0.12'%3E%3Cpath d='M96 40l1.5 4.5 4.5 1.5-4.5 1.5-1.5 4.5-1.5-4.5-4.5-1.5 4.5-1.5z'/%3E%3Cpath d='M40 120l1.2 3.6 3.6 1.2-3.6 1.2-1.2 3.6-1.2-3.6-3.6-1.2 3.6-1.2z'/%3E%3C/g%3E%3Cg fill='%23f0b8d0' fill-opacity='0.10'%3E%3Cpath d='M140 70l1 3 3 1-3 1-1 3-1-3-3-1 3-1z'/%3E%3C/g%3E%3Cg fill='%23f5d98a' fill-opacity='0.10'%3E%3Cpath d='M70 90l1 3 3 1-3 1-1 3-1-3-3-1 3-1z'/%3E%3C/g%3E%3C/svg%3E\")" },
 ];
 
 const KEY = 'vellum2.theme';
@@ -132,7 +146,7 @@ function sanitize(t: Theme): Theme {
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
-    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom'] as const).includes(t.chrome) ? t.chrome : 'default',
+    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember'] as const).includes(t.chrome) ? t.chrome : 'default',
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -224,6 +238,7 @@ export function customizePanel(tab: CzTab = 'look'): string {
     modern: '<span class="vle-mode-sk sk-phone"><i></i><i></i><i></i></span>',
     futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
     bloom: '<span class="vle-mode-sk sk-bloom"><i></i><i></i><i></i></span>',
+    ember: '<span class="vle-mode-sk sk-ember"><i></i><i></i><i></i></span>',
   };
   const themeCards = MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
     + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('');

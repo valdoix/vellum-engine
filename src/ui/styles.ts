@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Themed CSS for the VELLUM shell + components. Illuminated-manuscript palette
  * via CSS variables so skins/host theme can override. Single string loaded via
  * spindle.dom.addStyle.
@@ -515,6 +515,19 @@ export const STYLES = [
   "[data-vle-chrome='bloom'] .vlf-frame::before{content:'';position:absolute;z-index:1;inset:7px;border-radius:calc(var(--vradius) + 2px);border:1.5px dotted color-mix(in srgb,var(--vg) 35%,transparent);pointer-events:none}",
   "[data-vle-chrome='bloom'] .vlf-grip{background:none;border:none;right:7px;bottom:7px;width:12px;height:12px;border-right:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-bottom:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-radius:0 0 8px 0}",
   "[data-vle-chrome='bloom'] .vlf-launch{border-radius:16px 0 0 16px}",
+  // EMBER (float frame) - starlit void: a rounded aurora frame with a soft
+  // pastel edge-glow and an ethereal italic title. Distinct from every other
+  // chrome: no hard brackets (futuristic), no parchment (fantasy), no flat
+  // sans (modern), no lace (bloom). Its signature is glowing softness over
+  // a deep indigo field; the fireflies/bubbles live on the body below.
+  "[data-vle-chrome='ember'] .vlf-frame{border-radius:calc(var(--vradius) + 10px);border-color:color-mix(in srgb,var(--vg) 38%,transparent);box-shadow:0 0 24px rgba(var(--vg-rgb),.18),0 0 60px rgba(var(--vg2-rgb),.14),0 18px 60px rgba(8,8,24,.6),inset 0 0 0 1px rgba(255,255,255,.06)}",
+  "[data-vle-chrome='ember'] .vlf-bar{background:linear-gradient(180deg,rgba(var(--vg-rgb),.1),transparent);border-bottom:1px solid color-mix(in srgb,var(--vg) 22%,transparent)}",
+  "[data-vle-chrome='ember'] .vlf-title{font-family:var(--vserif);font-style:italic;font-weight:500;font-size:calc(17px * var(--vscale));letter-spacing:1px;text-transform:none;text-shadow:0 0 12px rgba(var(--vg-rgb),.4)}",
+  // a soft inner halo - a diffuse glow ring, not a hard bracket or dotted lace
+  "[data-vle-chrome='ember'] .vlf-frame::before{content:'';position:absolute;z-index:1;inset:6px;border-radius:calc(var(--vradius) + 4px);box-shadow:inset 0 0 22px rgba(var(--vg-rgb),.1),inset 0 0 40px rgba(var(--vg2-rgb),.07);pointer-events:none}",
+  "[data-vle-chrome='ember'] .vlf-grip{background:none;border:none;right:7px;bottom:7px;width:12px;height:12px;border-right:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-bottom:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-radius:0 0 10px 0;opacity:.7}",
+  "[data-vle-chrome='ember'] .vlf-launch{border-radius:18px 0 0 18px;box-shadow:-5px 4px 22px rgba(0,0,0,.5),0 0 18px rgba(var(--vg-rgb),.18)}",
+
   // ---- CRUD controls + pagination ----
   ".vle-sec-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:8px}",
   ".vle-add{font:600 9px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);background:rgba(var(--vg-rgb),.14);border:1px solid rgba(var(--vg-rgb),.34);border-radius:7px;padding:5px 11px;cursor:pointer}",
@@ -825,6 +838,8 @@ export const STYLES = [
   ".vle-mode-sk.sk-phone{flex-direction:column;gap:4px}.vle-mode-sk.sk-phone i{height:7px}.vle-mode-sk.sk-phone i:last-child{margin-top:auto;height:9px}",
   ".vle-mode-sk.sk-hud{flex-direction:column;gap:4px}.vle-mode-sk.sk-hud i{height:5px;width:70%}.vle-mode-sk.sk-hud i:last-child{width:45%}",
   ".vle-mode-sk.sk-bloom{flex-direction:column;gap:5px;background:linear-gradient(160deg,#fff4f8,#f0e2ea)}.vle-mode-sk.sk-bloom i{height:8px;border-radius:9px;background:linear-gradient(90deg,rgba(217,140,171,.5),rgba(143,191,127,.45))}.vle-mode-sk.sk-bloom i:first-child{height:11px}",
+  ".vle-mode-sk.sk-ember{flex-direction:column;gap:4px;background:radial-gradient(80% 60% at 30% 20%,rgba(184,169,255,.18),transparent),linear-gradient(160deg,#141428,#0a0a18)}.vle-mode-sk.sk-ember i{height:6px;border-radius:5px;background:linear-gradient(90deg,rgba(184,169,255,.55),rgba(143,214,200,.45));box-shadow:0 0 4px rgba(184,169,255,.4)}.vle-mode-sk.sk-ember i:first-child{height:9px}.vle-mode-sk.sk-ember i:last-child{width:60%}",
+
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
   // ---- layout picker + dashboard layout modes ----
@@ -1146,4 +1161,71 @@ export const STYLES = [
   "html[data-vle-chrome='bloom'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,var(--vg),color-mix(in srgb,var(--vg) 60%,#fff));border:1px solid color-mix(in srgb,var(--vg) 55%,transparent);color:#fff;box-shadow:0 2px 6px rgba(180,120,150,.4)}",
   "html[data-vle-chrome='bloom'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,var(--vg2),color-mix(in srgb,var(--vg2) 60%,#fff));border-color:color-mix(in srgb,var(--vg2) 55%,transparent);color:#fff}",
   "html[data-vle-chrome='bloom'] .vlf-bar::before{content:'\\2740';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg2);opacity:.55;font-size:12px;pointer-events:none}",
+
+  // ================= THEME: EMBER ("Starlit Night Dreaming") - float + drawer =================
+  // A dark, ethereal, animated pastel look (lilac & mint glow on indigo void).
+  // Signature: drifting fireflies + slow-rising bubbles + a faint nebula wash.
+  // Soft-edged glowing cards, pillowy radius, dotted-stardust rules. Distinct
+  // from Bloom (light/cozy, static) and Futuristic (hard/telemetry, scanlines).
+  // All chrome-scoped so it re-skins BOTH the floating window and the drawer.
+  // Animations honor html[data-vle-motion='off'] + prefers-reduced-motion.
+  // --- shared: indigo nebula wash + the starfall texture (set by the mode) ---
+  "html[data-vle-chrome='ember'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(120% 90% at 20% 10%,rgba(var(--vg-rgb),.1),transparent 50%),radial-gradient(120% 90% at 80% 90%,rgba(var(--vg2-rgb),.08),transparent 50%)}",
+  "html[data-vle-chrome='ember'] .vlf-body{background-image:radial-gradient(120% 80% at 20% 10%,rgba(var(--vg-rgb),.07),transparent 50%),radial-gradient(120% 80% at 80% 90%,rgba(var(--vg2-rgb),.06),transparent 50%)}",
+  // --- the signature: drifting fireflies + slow-rising bubbles (motion-gated) ---
+  "html[data-vle-chrome='ember'] .vle-body{position:relative}",
+  "html[data-vle-chrome='ember'] .vlf-body{position:relative}",
+  "html[data-vle-chrome='ember'] .vle-body::after,html[data-vle-chrome='ember'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(1.5px 1.5px at 12% 18%,rgba(var(--vg-rgb),.6),transparent),radial-gradient(1px 1px at 70% 32%,rgba(var(--vg2-rgb),.5),transparent),radial-gradient(2px 2px at 38% 68%,rgba(var(--vg-rgb),.45),transparent),radial-gradient(1px 1px at 84% 78%,rgba(var(--vg2-rgb),.55),transparent),radial-gradient(1.5px 1.5px at 52% 12%,rgba(240,184,208,.4),transparent),radial-gradient(1px 1px at 24% 88%,rgba(245,217,138,.4),transparent);background-repeat:no-repeat;opacity:.6;animation:vle-ember-drift 18s linear infinite}",
+  "html[data-vle-chrome='ember'] .vle-body>*,html[data-vle-chrome='ember'] .vlf-body>*{position:relative;z-index:1}",
+  // rising bubbles - a second layer of hollow pastel rings floating up
+  "html[data-vle-chrome='ember'] .vle-body::before,html[data-vle-chrome='ember'] .vlf-body::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(circle at 18% 100%,transparent 4px,rgba(var(--vg-rgb),.12) 4.5px,transparent 6px),radial-gradient(circle at 62% 100%,transparent 5px,rgba(var(--vg2-rgb),.1) 5.5px,transparent 7px),radial-gradient(circle at 88% 100%,transparent 3px,rgba(240,184,208,.12) 3.5px,transparent 5px);background-repeat:no-repeat;animation:vle-ember-rise 22s linear infinite;opacity:.5}",
+  "@keyframes vle-ember-drift{0%{transform:translateY(0);opacity:.6} 50%{opacity:.35} 100%{transform:translateY(-12px);opacity:.6}}",
+  "@keyframes vle-ember-rise{0%{transform:translateY(0);opacity:0} 10%{opacity:.5} 90%{opacity:.4} 100%{transform:translateY(-160px);opacity:0}}",
+  "html[data-vle-chrome='ember'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='ember'][data-vle-motion='off'] .vlf-body::after,html[data-vle-chrome='ember'][data-vle-motion='off'] .vle-body::before,html[data-vle-chrome='ember'][data-vle-motion='off'] .vlf-body::before{animation:none;opacity:.4}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='ember'] .vle-body::after,html[data-vle-chrome='ember'] .vlf-body::after,html[data-vle-chrome='ember'] .vle-body::before,html[data-vle-chrome='ember'] .vlf-body::before{animation:none;opacity:.4}}",
+  // --- drawer head -> a luminous script title with a soft starlight glow ---
+  "html[data-vle-chrome='ember'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:1px;border-bottom:1px solid color-mix(in srgb,var(--vg) 26%,transparent)}",
+  "html[data-vle-chrome='ember'] .vle-mark{text-shadow:0 0 14px rgba(var(--vg-rgb),.55)}",
+  "html[data-vle-chrome='ember'] .vle-mark::after{content:'\\2726';margin-left:7px;color:var(--vg2);opacity:.75;font-size:.78em;text-shadow:0 0 8px rgba(var(--vg2-rgb),.5)}",
+  "html[data-vle-chrome='ember'] .vle-stats{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1px;text-transform:lowercase;opacity:.65}",
+  // --- tab bar -> rounded glow-pills; active = a luminous two-tone aurora ---
+  "html[data-vle-chrome='ember'] .vle-tabbtn{border-radius:var(--rpill);text-transform:none;letter-spacing:.4px;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-weight:500}",
+  "html[data-vle-chrome='ember'] .vle-tabbtn:hover{background:color-mix(in srgb,var(--vg) 10%,transparent);color:var(--vi)}",
+  "html[data-vle-chrome='ember'] .vle-tabbtn.on{color:var(--vg);border-color:transparent;background:linear-gradient(120deg,color-mix(in srgb,var(--vg) 20%,transparent),color-mix(in srgb,var(--vg2) 18%,transparent));box-shadow:0 0 14px rgba(var(--vg-rgb),.22)}",
+  "html[data-vle-chrome='ember'] .vle-tabicon.on{color:var(--vg);border-color:color-mix(in srgb,var(--vg) 40%,transparent);background:color-mix(in srgb,var(--vg) 16%,transparent);box-shadow:0 0 12px rgba(var(--vg-rgb),.2)}",
+  // --- cards -> pillowy, soft-edged, with a faint pastel glow halo ---
+  "html[data-vle-chrome='ember'] .vle-card,html[data-vle-chrome='ember'] .vle-rel-card,html[data-vle-chrome='ember'] .vld-sec,html[data-vle-chrome='ember'] .vld-pc{border-radius:18px;border-color:color-mix(in srgb,var(--vg) 22%,transparent);background:linear-gradient(168deg,rgba(24,24,40,.62),rgba(15,15,28,.58));box-shadow:0 0 18px rgba(var(--vg-rgb),.06),0 4px 18px rgba(0,0,0,.3)}",
+  "html[data-vle-chrome='ember'] .vle-card:hover,html[data-vle-chrome='ember'] .vle-rel-card:hover{box-shadow:0 0 26px rgba(var(--vg-rgb),.14),0 6px 22px rgba(0,0,0,.36)}",
+  // --- section eyebrows -> ethereal italic small-caps with a four-point star ---
+  "html[data-vle-chrome='ember'] .vld-h,html[data-vle-chrome='ember'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1.5px;color:var(--vg);text-transform:none;text-shadow:0 0 10px rgba(var(--vg-rgb),.3)}",
+  "html[data-vle-chrome='ember'] .vld-h::before,html[data-vle-chrome='ember'] .vle-sec-h::before{content:'\\2726 ';color:var(--vg2);opacity:.8}",
+  // --- hero scene line -> dreamy italic serif wreathed in soft starlight ---
+  "html[data-vle-chrome='ember'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.3px;text-shadow:0 0 16px rgba(var(--vg-rgb),.32),0 0 32px rgba(var(--vg2-rgb),.18)}",
+  "html[data-vle-chrome='ember'] .vld-hero::before{content:'\\275B ';color:var(--vg2);opacity:.7;font-style:normal}",
+  "html[data-vle-chrome='ember'] .vld-sec--hero{background:linear-gradient(160deg,rgba(var(--vg-rgb),.12),rgba(var(--vg2-rgb),.1))!important;border-color:color-mix(in srgb,var(--vg) 26%,transparent)!important;border-radius:22px!important;box-shadow:0 0 30px rgba(var(--vg-rgb),.1)!important}",
+  // --- tension -> glowing pastel orbs (lilac->mint), not alarming dots ---
+  "html[data-vle-chrome='ember'] .vld-dot{border-radius:50%}",
+  "html[data-vle-chrome='ember'] .vld-dot.on{background:radial-gradient(circle at 40% 35%,var(--vg),color-mix(in srgb,var(--vg) 50%,transparent));box-shadow:0 0 8px rgba(var(--vg-rgb),.55)}",
+  // --- avatars -> luminous moon-medallions with a starlight halo when present ---
+  "html[data-vle-chrome='ember'] .vle-av,html[data-vle-chrome='ember'] .vld-pc-av{border-radius:50%;background:radial-gradient(60% 55% at 40% 35%,color-mix(in srgb,var(--vg) 28%,transparent),color-mix(in srgb,var(--vg2) 20%,transparent));border:2px solid color-mix(in srgb,var(--vg) 42%,transparent);color:var(--vi);box-shadow:0 0 12px rgba(var(--vg-rgb),.2)}",
+  "html[data-vle-chrome='ember'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.2),0 0 18px rgba(var(--vg-rgb),.5)}",
+  // --- twin bond meters -> glowing pastel strands (lilac affection, mint trust) ---
+  "html[data-vle-chrome='ember'] .vle-tw-t{height:9px;border-radius:6px;background:rgba(255,255,255,.06)}",
+  "html[data-vle-chrome='ember'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 55%,transparent),var(--vg));box-shadow:0 0 8px rgba(var(--vg-rgb),.35)}",
+  "html[data-vle-chrome='ember'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 55%,transparent),var(--vg2));box-shadow:0 0 8px rgba(var(--vg2-rgb),.3)}",
+  // --- 'Latest' feed -> a stardust trail: dotted lilac stem with star nodes ---
+  "html[data-vle-chrome='ember'] .vld-rec{position:relative;margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(11px * var(--vscale)) calc(18px * var(--vscale));border-left:2px dotted color-mix(in srgb,var(--vg) 28%,transparent)}",
+  "html[data-vle-chrome='ember'] .vld-rec:last-child{border-left-color:transparent}",
+  "html[data-vle-chrome='ember'] .vld-rec::before{content:'\\2726';position:absolute;left:-8px;top:calc(1px * var(--vscale));font-size:11px;color:var(--vg2);text-shadow:0 0 6px rgba(var(--vg2-rgb),.5)}",
+  "html[data-vle-chrome='ember'] .vld-rec--journal::before{color:var(--v-pos-i)}html[data-vle-chrome='ember'] .vld-rec--knew::before{color:var(--v-info)}html[data-vle-chrome='ember'] .vld-rec--secret::before{color:var(--v-neg-i)}html[data-vle-chrome='ember'] .vld-rec--shift::before{color:var(--v-press-i)}",
+  // --- chips soften to fully-rounded pastel lozenges with a faint glow ---
+  "html[data-vle-chrome='ember'] .v-chip{border-radius:var(--rpill);box-shadow:0 0 8px rgba(var(--vg-rgb),.1)}",
+  // --- modal + toasts pick up the luminous pastel treatment (read document attr) ---
+  "html[data-vle-chrome='ember'] .vlfm{border-radius:22px;border-color:color-mix(in srgb,var(--vg) 34%,transparent);box-shadow:0 0 40px rgba(var(--vg-rgb),.18),0 24px 70px rgba(0,0,0,.6)}",
+  "html[data-vle-chrome='ember'] .vlfm-head{font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:1px;border-bottom:1px solid color-mix(in srgb,var(--vg) 28%,transparent)}",
+  // --- float-only: a glowing star 'ember' close button + star flanking the title ---
+  "html[data-vle-chrome='ember'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,var(--vg),color-mix(in srgb,var(--vg) 55%,#1a1a30));border:1px solid color-mix(in srgb,var(--vg) 55%,transparent);color:#1a1a30;box-shadow:0 0 12px rgba(var(--vg-rgb),.45)}",
+  "html[data-vle-chrome='ember'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,var(--vg2),color-mix(in srgb,var(--vg2) 55%,#1a1a30));border-color:color-mix(in srgb,var(--vg2) 55%,transparent);color:#1a1a30;box-shadow:0 0 14px rgba(var(--vg2-rgb),.5)}",
+  "html[data-vle-chrome='ember'] .vlf-bar::before{content:'\\2726';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg2);opacity:.6;font-size:12px;pointer-events:none;text-shadow:0 0 8px rgba(var(--vg2-rgb),.5)}",
+
 ].join('\n');
