@@ -447,7 +447,7 @@
       "role": "system",
       "position": "pre_history",
       "enabled": true,
-      "content": "{{setvar::vl_active::POV {{var::pov}} | len {{var::length}} | stakes {{var::stakes}} | world {{var::disposition}} | romance {{var::romance}} | NSFW {{var::nsfw_level}} | agency {{var::agency}} | reader {{var::epistemic}}{{if::{{var::nsfl}}}} | NSFL{{/if}}}}{{noop}}"
+      "content": "{{setvar::vl_active::POV {{var::pov}} | len {{var::length}} | stakes {{var::stakes}} | world {{var::disposition}} | romance {{var::romance}} | NSFW {{var::nsfw_level}} | agency {{var::agency}} | reader {{var::epistemic}}{{if::{{var::nsfl}}}} | NSFL{{/if}}{{if::{{eq::{{var::era}}::none}}}}{{else}} | ERA-IDIOM (hold it: {{var::era_strictness}}){{/if}}{{if::{{eq::{{var::cast}}::none}}}}{{else}} | TONAL-CAST (keep the wavelength){{/if}}}}{{noop}}"
     },
     {
       "id": "v2-doctrine",
@@ -503,7 +503,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-core",
-      "content": "{{if::{{eq::{{var::era}}::none}}}}{{else}}[ERA / IDIOM] The historical register the prose speaks in - its diction, the references and technology allowed on the page, and the sensory furniture of the world (light source, tools, dress, sound). This is a DICTION and ANACHRONISM control, NOT a setting decree: it NEVER overrides the character card, established canon, or a world the scene has already declared - if the card is cyberpunk, it stays cyberpunk. When the world's era is already fixed, this only sharpens the idiom to match; when the world is unstated, it sets the period. It never overrides character truth, the limited-knowledge law, or {{user}}'s agency, and it shows in word-choice and detail, never in narration naming a century.\n{{var::era}}\nANACHRONISM: {{var::era_strictness}}{{/if}}",
+      "content": "{{if::{{eq::{{var::era}}::none}}}}{{else}}[ERA / IDIOM — COMMIT, do not drift] Write EVERY sentence in this historical register and hold it the whole scene. A reader must be able to place the period from the first two sentences and never lose it - the diction, the references and technology on the page, the money, and the sensory furniture (light source, tools, dress, sound) all belong to this era. This is not optional seasoning: it is a hard constraint on word-choice and detail, second only to character truth. Reach for the period word over the neutral-modern one every time; when a plainly modern term slips in, it is a failure - cut it. Never relax into a generic contemporary voice because it's easier.\nWRITE IN THIS ERA NOW:\n{{var::era}}\nANACHRONISM: {{var::era_strictness}}\nGuardrails (these bound it, they do not weaken it): this governs DICTION, not the setting - it never contradicts the character card, established canon, character truth, the limited-knowledge law, or {{user}}'s agency. If the world's era is already fixed, sharpen the idiom to match it; if unstated, this SETS the period. Enact it in the prose; never narrate the era or name a century on the page.{{/if}}",
       "variables": [
         {
           "id": "var_era",
@@ -624,7 +624,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-core",
-      "content": "{{if::{{eq::{{var::cast}}::none}}}}{{else}}[TONAL CAST] The emotional wavelength the prose filters light through - which images get noticed, the warmth or chill of the diction, the sensory bias of the scene. It COLORS, it never co-drives: it never overrides character truth, stakes, the scene's real emotion, or the named-emotion ban (still render the mood through body/object/light, never by naming the color or the feeling). If the beat's true emotion contradicts the cast, the beat wins. It shows in what the prose lingers on, never in narration naming a hue or a mood.\n{{var::cast}}{{/if}}",
+      "content": "{{if::{{eq::{{var::cast}}::none}}}}{{else}}[TONAL CAST — hold this wavelength] Every scene is lit through this emotional filter, and it must be VISIBLE on the page: it decides which images the prose reaches for, which sensory details get noticed and which get skipped, and the warmth or chill of the diction. This is a real, felt constraint, not a faint tint - a reader should sense the wavelength within the first paragraph. Choose the image, the light, and the word that carry this cast; when a detail is neutral, recolor it to this wavelength rather than leaving it grey. Sustain it across the whole turn; do not let it wash out after the opening line.\nCAST THE SCENE IN THIS NOW:\n{{var::cast}}\nGuardrails (they bound it, they don't mute it): render the mood through body, object, and light - never by naming the color or the feeling on the page (the named-emotion ban still holds). It never overrides character truth or stakes; if the beat's genuine emotion truly contradicts the cast, the beat wins - but default to FINDING this wavelength in the beat, not to abandoning it.{{/if}}",
       "variables": [
         {
           "id": "var_cast",
