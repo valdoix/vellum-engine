@@ -498,7 +498,10 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition }, ...(focusId ? { focusId } : {}) });
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
-    const res = await controllerGenerate([{ role: 'system', content: SIM_SYS }, { role: 'user', content: prompt }], userId, 3000, 600);
+    // 30s timeout: this runs detached (background tick or manual button), NOT on
+    // the prompt-assembly path — a reasoning model needs far more than the old 3s
+    // to think + emit JSON, which was aborting every tick ("Generation aborted").
+    const res = await controllerGenerate([{ role: 'system', content: SIM_SYS }, { role: 'user', content: prompt }], userId, 30000, 600);
     if (!res.ok) {
       spindle.log?.warn?.(`[vellum_engine] off-screen sim: generation failed (${res.error})`);
       return { beats: 0, reason: 'empty_reply' };
