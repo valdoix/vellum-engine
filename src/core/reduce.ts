@@ -491,8 +491,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         cur.name = e.name;
         if (e.note !== undefined) cur.note = e.note;
         if (e.parent !== undefined) { if (e.parent) cur.parent = e.parent; else delete cur.parent; } // '' clears
-        // a user edit (auto:false) sticks; an auto refresh never downgrades it
-        if (e.auto === false) cur.auto = false;
+        // explicit user pin/unpin wins either way; otherwise an auto refresh may
+        // only downgrade to pinned (auto:false), never silently unpin.
+        if (e.src === 'user' && e.auto !== undefined) cur.auto = e.auto;
+        else if (e.auto === false) cur.auto = false;
         cur.lastTurn = e.turn;
       } else {
         s.locations.push({ id: e.id, name: e.name, ...(e.note ? { note: e.note } : {}), ...(e.auto !== undefined ? { auto: e.auto } : {}), ...(e.parent ? { parent: e.parent } : {}), firstTurn: e.turn, lastTurn: e.turn });

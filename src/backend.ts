@@ -1203,6 +1203,21 @@ const dispatch: Record<string, Handler> = {
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true }, uid);
   },
+  vellum_location_pin: async (p, uid) => {
+    // pin (auto:false, sticks + always injected) or unpin (auto:true, back to a
+    // recency-capped auto entry). A user-sourced auto flag wins in the reducer.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const id = String(p.id);
+    const state = await loadState(chatId);
+    const cur = (state.locations ?? []).find((l) => l.id === id);
+    if (!cur) return;
+    const pinned = p?.pinned === undefined ? cur.auto === true : !!p.pinned; // toggle when unspecified
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'location.set', id, name: cur.name, auto: !pinned } as VellumEvent]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true, pinned }, uid);
+  },
   vellum_set_next_scene: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;

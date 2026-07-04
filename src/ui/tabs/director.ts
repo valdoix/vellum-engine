@@ -118,6 +118,8 @@ export const directorTab: Component<ChronicleState> = {
         ], (o) => { if (o.name?.trim()) send({ type: 'vellum_location_set', id: selfId, name: o.name, note: o.note ?? '', parent: o.parent ?? '' }); });
         return;
       }
+      const lpin = t.closest('[data-loc-pin]');
+      if (lpin) { send({ type: 'vellum_location_pin', id: lpin.getAttribute('data-id'), pinned: lpin.getAttribute('data-pinned') === '1' }); return; }
       const ld = t.closest('[data-loc-del]');
       if (ld) { confirmModal('Delete this location?', () => send({ type: 'vellum_location_drop', id: ld.getAttribute('data-id') })); return; }
 
@@ -249,7 +251,8 @@ function locationsView(s: ChronicleState): string {
       + `<span class="vle-loc-name">${esc(l.name)}</span>`
       + (kidCount && collapsed ? `<span class="vle-loc-count" title="${kidCount} contained place(s)">${kidCount}</span>` : '')
       + (l.note ? `<span class="vle-loc-note">${esc(l.note)}</span>` : '')
-      + `<span class="vle-mem-ctl"><button class="vle-mini" data-loc-edit data-id="${esc(l.id)}" data-name="${esc(l.name)}" data-note="${esc(l.note ?? '')}" data-parent="${esc(l.parent ?? '')}" title="Edit / pin">\u270E</button>`
+      + `<span class="vle-mem-ctl"><button class="vle-mini${l.auto ? '' : ' on'}" data-loc-pin data-id="${esc(l.id)}" data-pinned="${l.auto ? '1' : '0'}" title="${l.auto ? 'Pin (keep + always inject)' : 'Unpin (back to auto)'}">${l.auto ? '\u2690' : '\u2691'}</button>`
+      + `<button class="vle-mini" data-loc-edit data-id="${esc(l.id)}" data-name="${esc(l.name)}" data-note="${esc(l.note ?? '')}" data-parent="${esc(l.parent ?? '')}" title="Edit">\u270E</button>`
       + `<button class="vle-mini del" data-loc-del data-id="${esc(l.id)}" title="Delete">\u2715</button></span></div>`;
   };
   // depth-first walk; children nest in their own wrapper so a continuous rail +

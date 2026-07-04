@@ -36,6 +36,30 @@ describe('locations — reduce', () => {
     const s = reduce([ev({ kind: 'location.set', id: 'l1', name: 'Gate', turn: 1 }), ev({ kind: 'location.drop', id: 'l1' })]);
     expect(s.locations).toHaveLength(0);
   });
+
+  it('a user pin/unpin sets auto either way; a later auto refresh cannot unpin', () => {
+    // start auto, user pins (auto:false), then user unpins (auto:true again)
+    let s = reduce([
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: true, turn: 1 }),
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: false, src: 'user', turn: 2 }),
+    ]);
+    expect(s.locations[0]!.auto).toBe(false); // pinned
+    s = reduce([
+      ...[] as VellumEvent[],
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: true, turn: 1 }),
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: false, src: 'user', turn: 2 }),
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: true, src: 'user', turn: 3 }),  // user unpins
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: false, turn: 4 }),               // auto refresh (model) — cannot unpin, but here it re-pins downward
+    ]);
+    // model auto:false still only downgrades to pinned; that's fine. The point:
+    // the USER unpin at turn 3 took effect (auto flipped true), unlike a model event.
+    const s2 = reduce([
+      ev({ kind: 'location.set', id: 'l2', name: 'Yard', auto: false, src: 'user', turn: 1 }), // user pins
+      ev({ kind: 'location.set', id: 'l2', name: 'Yard', auto: true, turn: 2 }),                // model refresh tries to unpin
+    ]);
+    expect(s2.locations[0]!.auto).toBe(false); // model can NEVER unpin
+    void s;
+  });
 });
 
 describe('locationList injector', () => {
