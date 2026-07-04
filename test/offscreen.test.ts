@@ -49,6 +49,22 @@ describe('buildSimPrompt', () => {
     expect(p).not.toContain('tyrion_plot'); // only the focused thread is in the prompt
     expect(p).toContain('exactly one entry');
   });
+
+  it('time-skip: an elapsed day-jump asks the sim to advance the world proportionally', () => {
+    const s = state();
+    s.offscreen = [{ id: 'jaime_doubt', name: 'Jaime weighs loyalty', status: 'active', gist: 'pacing', beats: ['pacing'], firstTurn: 8, lastTurn: 10 }] as any;
+    // world-wide tick with a 15-day skip
+    const world = buildSimPrompt(s, offscreenCast(s), { skipDays: 15 });
+    expect(world).toContain('TIME-SKIP');
+    expect(world).toContain('week');
+    // per-thread advance carries the same signal
+    const focused = buildSimPrompt(s, offscreenCast(s), { focusId: 'jaime_doubt', skipDays: 40 });
+    expect(focused).toContain('TIME-SKIP');
+    expect(focused).toContain('month');
+    // an ordinary same-turn tick (< 2 days) stays a single beat — no skip note
+    expect(buildSimPrompt(s, offscreenCast(s), { skipDays: 1 })).not.toContain('TIME-SKIP');
+    expect(buildSimPrompt(s, offscreenCast(s), {})).not.toContain('TIME-SKIP');
+  });
 });
 
 describe('parseSim', () => {

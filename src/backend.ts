@@ -484,7 +484,7 @@ const SIM_CADENCE = 3; // tick the off-screen world every Nth turn (cost control
  * produced nothing instead of silently claiming success. */
 type SimResult = { beats: number; reason?: 'no_generation' | 'no_cast' | 'empty_reply' };
 
-async function simulateOffscreen(chatId: string, userId: string | null, focusId?: string): Promise<SimResult> {
+async function simulateOffscreen(chatId: string, userId: string | null, focusId?: string, skipDays?: number): Promise<SimResult> {
   if (_simulating.has(chatId)) return { beats: 0, reason: 'empty_reply' };
   if (!(await has('generation'))) return { beats: 0, reason: 'no_generation' };
   _simulating.add(chatId);
@@ -497,7 +497,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     const tone = await readTone(chatId, userId);
     const locks = await readLocks(chatId);
     const directives = await readDirectives(chatId);
-    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}) });
+    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}) });
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
     // 30s timeout: this runs detached (background tick or manual button), NOT on
@@ -536,8 +536,11 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
     invalidateIndex(chatId);
+    // remember the narrative day this tick covered so the NEXT fold can measure a
+    // time-skip (a big day-jump) and force a proportional catch-up tick.
+    try { await setChatVar(chatId, 'vellum_sim_day', String(state.day || 0)); } catch { /* best effort */ }
     await broadcastState(chatId, userId);
-    spindle.log?.info?.(`[vellum_engine] off-screen sim${focusId ? ` (focus ${focusId})` : ''}: ${useParsed.offscreen.length} subplot beat(s)`);
+    spindle.log?.info?.(`[vellum_engine] off-screen sim${focusId ? ` (focus ${focusId})` : ''}${skipDays && skipDays >= 2 ? ` [time-skip ~${Math.floor(skipDays)}d]` : ''}: ${useParsed.offscreen.length} subplot beat(s)`);
     return { beats: evs.length };
   } catch (e) { spindle.log?.warn?.('[vellum_engine] simulateOffscreen: ' + ((e as Error)?.message ?? e)); return { beats: 0, reason: 'empty_reply' }; }
   finally { _simulating.delete(chatId); }
@@ -549,9 +552,17 @@ async function maybeSimulate(chatId: string, userId: string | null): Promise<voi
   try { on = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
   if (!on) return;
   const state = await loadState(chatId);
+  // narrative days elapsed since the last sim tick (or since the chat's first day
+  // if the sim has never run). A jump of >=2 days is a TIME-SKIP: the off-screen
+  // world should move with it, so force a catch-up tick NOW and tell the sim how
+  // much time to cover — regardless of the turn cadence below.
+  let lastSimDay: number | null = null;
+  try { const raw = await getChatVar(chatId, 'vellum_sim_day'); if (raw !== '' && raw != null) { const n = Number(raw); if (Number.isFinite(n)) lastSimDay = n; } } catch { /* best effort */ }
+  const skipDays = lastSimDay === null ? 0 : Math.max(0, (state.day || 0) - lastSimDay);
   const interval = (await budgetCaps(chatId)).simInterval || SIM_CADENCE; // 0 → treat as default
-  if (interval <= 0 || (state.turns || 0) % interval !== 0) return; // cadence guard (user-tunable)
-  await simulateOffscreen(chatId, userId);
+  const cadenceHit = interval > 0 && (state.turns || 0) % interval === 0;
+  if (!cadenceHit && skipDays < 2) return; // no cadence tick and no time-skip → nothing to do
+  await simulateOffscreen(chatId, userId, undefined, skipDays >= 2 ? skipDays : undefined);
 }
 
 const _vaultSyncing = new Set<string>();

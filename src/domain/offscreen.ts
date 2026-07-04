@@ -34,6 +34,21 @@ export interface SimCtx {
   directives?: readonly Directive[];
   tone?: { disposition: string; social?: Social };
   focusId?: string; // when set, advance ONLY this subplot (per-thread advance)
+  /** narrative days elapsed since the last sim tick. >1 = a time-skip: the
+   * off-screen world & its subplots should advance PROPORTIONALLY, not by the
+   * usual single small beat. 0/undefined = an ordinary same-day tick. */
+  skipDays?: number;
+}
+
+/** How much off-screen life a tick should cover, given the days elapsed. A time-
+ * skip (>=2 days) turns each "small beat" into a period the subplots live
+ * through — so we license the model to jump further and resolve threads that
+ * would naturally have run their course. PURE. */
+export function timeSkipNote(skipDays?: number): string {
+  const d = Math.floor(skipDays ?? 0);
+  if (d < 2) return '';
+  const span = d >= 30 ? `${Math.round(d / 30)} month(s)` : d >= 14 ? `${Math.round(d / 7)} week(s)` : `${d} days`;
+  return `TIME-SKIP: about ${span} have passed off-screen since the last update. The same time passed for everyone — advance each subplot by that WHOLE span, not a single beat: let journeys arrive, plans mature or fail, waits end, and RESOLVE any subplot that would plausibly have concluded over ${span}. Report the net result of the elapsed time, not one small step.`;
 }
 
 const SIM_SYS_BASE = [
@@ -88,6 +103,8 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
     lines.push(`- [${focus.id}] ${focus.name}${focus.who ? ` (${focus.who})` : ''}${focus.where ? ` @${focus.where}` : ''}: ${focus.gist || focus.beats[focus.beats.length - 1] || ''}`);
     if (focus.beats.length) { lines.push('', 'RECENT BEATS:'); for (const b of focus.beats.slice(-4)) lines.push(`- ${b}`); }
     lines.push('', 'Reply with exactly one entry: op "advance" (or "resolve" if it has run its course), same id.');
+    const skipF = timeSkipNote(ctx.skipDays);
+    if (skipF) lines.push('', skipF);
     if (ctx.tone?.disposition && ctx.tone.disposition !== 'fair') lines.push('', `WORLD TONE: ${ctx.tone.disposition}.`);
     lines.push('', `Current scene: ${state.scene.location || 'unknown'}${state.scene.time ? ', ' + state.scene.time : ''}.`);
     return lines.join('\n');
@@ -101,6 +118,8 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
   } else {
     lines.push('', 'No off-screen subplots yet — open one or two NEW ones.');
   }
+  const skip = timeSkipNote(ctx.skipDays);
+  if (skip) lines.push('', skip);
   if (ctx.tone?.disposition && ctx.tone.disposition !== 'fair') lines.push('', `WORLD TONE: ${ctx.tone.disposition} — let off-screen life lean this way.`);
   const armed = (ctx.directives ?? []).filter((d) => d.status === 'armed');
   if (armed.length) { lines.push('', 'DIRECTOR INTENT (honor if it fits):'); for (const d of armed) lines.push(`- ${d.text}`); }
