@@ -199,6 +199,24 @@ const ABSTRACT_NOUN = new Set([
 // "X vs Y") rather than naming one. Their PRESENCE means "not a single entity".
 const JOINER = new Set(['and', '&', 'vs', 'vs.', 'versus', 'between', '+']);
 
+// PROJECT / TOPIC / ACTIVITY head nouns: a name like "Harrenhal Restoration",
+// "Harrenhal Plumbing", "Harrenhal Restoration Plans" describes a task, topic, or
+// undertaking — never a person. The extractor sometimes lifts a scene subject
+// ("the restoration of Harrenhal") and treats it as a proper name. Rejected as a
+// CHARACTER when it is the HEAD (last) word; factions are left untouched so a
+// movement like "The Restoration" can still resolve. Kept distinct from GROUP_HEAD
+// (organized bodies) and ABSTRACT_NOUN (relationships/concepts).
+const TOPIC_HEAD = new Set([
+  'restoration', 'renovation', 'refurbishment', 'reconstruction', 'rebuild',
+  'repair', 'repairs', 'construction', 'demolition', 'excavation', 'plumbing',
+  'masonry', 'roofing', 'carpentry', 'project', 'projects', 'plan', 'plans',
+  'blueprint', 'blueprints', 'scope', 'proposal', 'proposals', 'scheme',
+  'initiative', 'effort', 'campaign', 'operation', 'logistics', 'maintenance',
+  'upkeep', 'survey', 'inspection', 'assessment', 'budget', 'timeline',
+  'schedule', 'agenda', 'roadmap', 'strategy', 'preparations', 'arrangements',
+  'renovations', 'expansion', 'overhaul', 'restorations',
+]);
+
 /** True when a raw name describes a RELATIONSHIP or ABSTRACTION rather than a
  * single entity — so it must not mint a cast card OR a faction. Catches:
  *   - a joiner word ("Daeron and Jaime", "Stark vs Lannister", "A & B")
@@ -245,6 +263,17 @@ export function notAName(rawName: string): boolean {
   // "King's Landing" still resolve.) Match the raw apostrophe form so a middle
   // initial like "George S Patton" — no apostrophe — is unaffected.
   if (/\b\w+['\u2019]s\b/i.test(String(rawName ?? ''))) return true;
+  // A PROJECT/TOPIC phrase ("Harrenhal Restoration", "Harrenhal Plumbing",
+  // "Harrenhal Restoration Plans") is a task or subject, not a person. Reject
+  // when the HEAD (last) word is a topic/activity noun. Character-only: a faction
+  // like "The Restoration" (single word) is unaffected — this needs a modifier
+  // BEFORE the head, so a lone topic word passes to the faction path.
+  const rest = String(rawName ?? '').trim().replace(/^(a|an|the)\s+/i, '');
+  const words = rest.split(/\s+/).filter(Boolean);
+  if (words.length > 1) {
+    const head = words[words.length - 1]!.toLowerCase().replace(/[^a-z]/g, '');
+    if (TOPIC_HEAD.has(head)) return true;
+  }
   return false;
 }
 

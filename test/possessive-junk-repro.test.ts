@@ -47,14 +47,33 @@ describe('hypothetical/abstract "with" concepts must be rejected', () => {
   }
 });
 
+describe('project/topic phrases must be rejected as characters', () => {
+  const TOPIC_JUNK = [
+    'Harrenhal Restoration',
+    'Harrenhal Restoration Scope',
+    'Harrenhal Restoration Plans',
+    'Harrenhal Plumbing',
+    'The Wall Reconstruction',
+    'Winterfell Repairs',
+  ];
+  for (const n of TOPIC_JUNK) {
+    it(`rejects "${n}" as a character`, () => { expect(notAName(n)).toBe(true); });
+  }
+});
+
 describe('legitimate names must still pass', () => {
   // proper-noun possessive FACTIONS still resolve
   for (const n of ["The Night's Watch", "King's Landing"]) {
     it(`keeps faction "${n}"`, () => { expect(notAFactionName(n)).toBe(false); });
   }
   // a plain personal name with a middle initial (no apostrophe) is unaffected
-  for (const n of ['George S Patton', 'Daeron', 'Anne']) {
+  for (const n of ['George S Patton', 'Daeron', 'Anne', 'Daeron Targaryen', 'Robert Baratheon']) {
     it(`keeps character "${n}"`, () => { expect(notAName(n)).toBe(false); });
+  }
+  // a lone topic word is NOT a character phrase — it still resolves as a faction
+  // (e.g. "The Restoration" as a political movement)
+  for (const n of ['The Restoration', 'Restoration']) {
+    it(`keeps faction "${n}"`, () => { expect(notAFactionName(n)).toBe(false); });
   }
 });
 
