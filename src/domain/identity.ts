@@ -191,6 +191,9 @@ const ABSTRACT_NOUN = new Set([
   'kinship', 'fling', 'courtship', 'attraction', 'pairing', 'duo', 'closeness',
   'estrangement', 'reconciliation', 'reunion', 'standoff', 'truce', 'tryst',
   'entanglement', 'frenemy', 'situationship', 'flirtation', 'grudge',
+  // hypothetical/aspirational concepts the extractor sometimes names as if they
+  // were entities ("The Future With Children", "A Life Together")
+  'future', 'life', 'past', 'possibility', 'fate', 'destiny', 'aftermath',
 ]);
 // JOINER words that bind TWO entities into a relationship phrase ("X and Y",
 // "X vs Y") rather than naming one. Their PRESENCE means "not a single entity".
@@ -235,7 +238,14 @@ export function looksLikeGroup(rawName: string): boolean {
  * "Daeron"), capitalized epithets ("The Stranger").
  */
 export function notAName(rawName: string): boolean {
-  return notAFactionName(rawName) || looksLikeGroup(rawName);
+  if (notAFactionName(rawName) || looksLikeGroup(rawName)) return true;
+  // A PERSON is never named with a possessive apostrophe-s: "Daeron's Camp",
+  // "Rhaella's Letter", "Cersei's father" are all descriptions/relations, not
+  // identities. (Factions keep the looser rule so "The Night's Watch" and
+  // "King's Landing" still resolve.) Match the raw apostrophe form so a middle
+  // initial like "George S Patton" — no apostrophe — is unaffected.
+  if (/\b\w+['\u2019]s\b/i.test(String(rawName ?? ''))) return true;
+  return false;
 }
 
 /**

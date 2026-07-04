@@ -7,34 +7,54 @@ import type { ParsedState } from '../src/parse/parsed.js';
 import { nextSeq } from '../src/core/ids.js';
 
 // Repro: the AI model sometimes emits possessive DESCRIPTIONS (e.g. "Daeron's
-// Secret Research", "Cersei's Private Study") as if they were character names,
-// minting junk cast cards like "Daeron S Secret Research". The fix rejects any
-// possessive phrase where the thing described is 2+ words (contains underscore
-// after "_s_" in the canonical id), while still allowing legitimate single-word
-// possessives like "Cersei's father" (a distinct person) or "The Night's Watch"
-// (a proper-noun faction).
+// Secret Research", "Daeron's Camp", "Rhaella's Letter") and hypothetical
+// concepts ("The Future With Children") as if they were character names,
+// minting junk cast cards like "Daeron S Camp". A PERSON is never named with a
+// possessive apostrophe-s, so ANY "X's Y" is rejected as a character (kinship
+// included). Factions keep the looser rule so proper-noun groups like "The
+// Night's Watch" / "King's Landing" still resolve.
 
-describe('possessive junk phrases must be rejected', () => {
+describe('possessive junk phrases must be rejected as characters', () => {
   const POSSESSIVE_JUNK = [
     "Daeron's Secret Research",
     "Cersei's Private Study",
     "Jaime's Golden Hand",
     "Tyrion's Wine Collection",
+    "Daeron's Camp",
+    "Rhaella's Letter",
+    // kinship possessives are now rejected too (per policy)
+    "Cersei's father",
+    "Daeron's mother",
+    "Jaime's son",
   ];
   for (const n of POSSESSIVE_JUNK) {
     it(`rejects "${n}" as a character`, () => { expect(notAName(n)).toBe(true); });
+  }
+  // curly-apostrophe variant must also be caught
+  it('rejects a curly-apostrophe possessive', () => { expect(notAName('Daeron\u2019s Camp')).toBe(true); });
+});
+
+describe('multi-word possessive descriptions are rejected as factions too', () => {
+  const FACTION_JUNK = ["Daeron's Secret Research", "Tyrion's Wine Collection"];
+  for (const n of FACTION_JUNK) {
     it(`rejects "${n}" as a faction`, () => { expect(notAFactionName(n)).toBe(true); });
   }
 });
 
-describe('legitimate possessive names must still pass', () => {
-  const VALID_POSSESSIVES_CHAR = ["Cersei's father", "Daeron's mother", "Jaime's son"];
-  const VALID_POSSESSIVES_FACTION = ["The Night's Watch", "King's Landing"];
-  for (const n of VALID_POSSESSIVES_CHAR) {
-    it(`keeps character "${n}"`, () => { expect(notAName(n)).toBe(false); });
+describe('hypothetical/abstract "with" concepts must be rejected', () => {
+  for (const n of ["The Future With Children", "Cersei's Bond with Jaime"]) {
+    it(`rejects "${n}" as a character`, () => { expect(notAName(n)).toBe(true); });
   }
-  for (const n of VALID_POSSESSIVES_FACTION) {
+});
+
+describe('legitimate names must still pass', () => {
+  // proper-noun possessive FACTIONS still resolve
+  for (const n of ["The Night's Watch", "King's Landing"]) {
     it(`keeps faction "${n}"`, () => { expect(notAFactionName(n)).toBe(false); });
+  }
+  // a plain personal name with a middle initial (no apostrophe) is unaffected
+  for (const n of ['George S Patton', 'Daeron', 'Anne']) {
+    it(`keeps character "${n}"`, () => { expect(notAName(n)).toBe(false); });
   }
 });
 
@@ -64,13 +84,21 @@ describe('end-to-end: possessive junk does not mint cast cards', () => {
     expect(s.relations).toHaveLength(0);
   });
 
-  it('allows "Cersei\'s father" as a legitimate distinct character', () => {
+  it('rejects "Daeron\'s Camp" from present list (no junk card)', () => {
+    const parsed: ParsedState = { present: [{ name: "Daeron's Camp" }], delta: {} };
+    const ctx = { state: freshState(), seq: nextSeq, turn: 1, day: 1 };
+    const events = coreFeature.extract!(parsed, ctx);
+    const s = reduce(events, ctx.state);
+    expect(Object.keys(s.cast)).not.toContain('daeron_s_camp');
+    expect(Object.values(s.cast).map((c) => c.name)).not.toContain('Daeron S Camp');
+  });
+
+  it('rejects "Cersei\'s father" as a character (kinship possessive)', () => {
     const parsed: ParsedState = { present: [{ name: "Cersei's father" }], delta: {} };
     const ctx = { state: freshState(), seq: nextSeq, turn: 1, day: 1 };
     const events = coreFeature.extract!(parsed, ctx);
     const s = reduce(events, ctx.state);
-    // This SHOULD mint a cast card (it's a valid, distinct person)
-    expect(s.cast.cersei_s_father).toBeDefined();
-    expect(s.cast.cersei_s_father!.name).toBe("Cersei's father");
+    // No longer mints a card — a person is never named with a possessive
+    expect(s.cast.cersei_s_father).toBeUndefined();
   });
 });

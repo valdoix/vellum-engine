@@ -102,7 +102,7 @@ describe('notAName — reject pronouns / deixis / bare generics', () => {
     expect(notAName('everyone, including herself until now')).toBe(true); // clause, not a name
     expect(notAName('everyone')).toBe(true);
     expect(notAName('the lady and her maid')).toBe(true); // contains a pronoun token
-    expect(notAName("Cersei's father")).toBe(false); // a real (distinct) name still passes
+    expect(notAName("Cersei's father")).toBe(true); // possessive: a person is never named "X's Y"
   });
   it('rejects narration/meta role labels (Narrator POV Character)', () => {
     expect(notAName('Narrator POV Character')).toBe(true);
