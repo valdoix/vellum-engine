@@ -258,6 +258,21 @@ export function notAFactionName(rawName: string): boolean {
   // a single bare LOWERCASE generic word ("guard", "stranger") — capitalized
   // first letter means a proper epithet, which passes.
   if (words.length === 1 && words[0]![0] === words[0]![0]!.toLowerCase() && GENERIC.has(lower)) return true;
+  // POSSESSIVE DESCRIPTIONS ("Daeron's Secret Research") are not names. canonId
+  // strips the apostrophe → "daeron_s_secret_research", which mints a junk card.
+  // We only reject when the thing described has 2+ words after the 's (i.e. the
+  // cid segment after "_s_" itself contains an underscore). Single-word possessives
+  // like "Cersei's father" (→ cersei_s_father) or "The Night's Watch"
+  // (→ night_s_watch) are legitimate named entities and must still pass.
+  const cid = canonId(s);
+  if (cid) {
+    const sIdx = cid.indexOf('_s_');
+    if (sIdx !== -1) {
+      const afterS = cid.slice(sIdx + 3); // tokens after "_s_"
+      // 2+ word description (contains underscore) → possessive junk phrase → reject
+      if (afterS.includes('_')) return true;
+    }
+  }
   // a NAME is short. A long phrase ("everyone, including herself until now") or
   // one containing a pronoun token is free text, not a character — reject so it
   // can't mint a junk cast node from a secret's `from`/a bond endpoint.
