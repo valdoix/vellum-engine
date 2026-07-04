@@ -29,6 +29,9 @@ let _directives: UIDirective[] = [];
 let _nextScene: { location?: string; day?: number; time?: string; note?: string } | null = null;
 // latest rendered state, so click handlers (location/plant forms) can read lists.
 let _state: ChronicleState | null = null;
+// collapsed location ids (their children hidden). Session-only UI state; a place
+// stays expanded by default so nothing is hidden unless the user folds it.
+const _locCollapsed = new Set<string>();
 
 /** Location options for a parent/seat picker: every location except `selfId`
  * (a place can't contain itself). Leading blank = "none". */
@@ -61,7 +64,7 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '')).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '')).join(',')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
   render(s) {
     _state = s;
     const counts: Record<DView, number> = {
@@ -95,6 +98,8 @@ export const directorTab: Component<ChronicleState> = {
       if (ddel) { const id = ddel.getAttribute('data-id'); pushDirectives(_directives.filter((d) => d.id !== id)); return; }
 
       // --- locations ---
+      const ltog = t.closest('[data-loc-toggle]');
+      if (ltog) { const id = ltog.getAttribute('data-id') || ''; if (_locCollapsed.has(id)) _locCollapsed.delete(id); else _locCollapsed.add(id); refreshUI(); return; }
       if (t.closest('[data-loc-add]')) {
         formModal('New Location', [
           { key: 'name', label: 'Place name', type: 'text', placeholder: 'The Salt Docks' },
@@ -233,25 +238,33 @@ function locationsView(s: ChronicleState): string {
     else roots.push(l);
   }
   const byRecent = (a: typeof list[number], b: typeof list[number]): number => b.lastTurn - a.lastTurn;
-  const row = (l: typeof list[number], depth: number): string => {
-    // connector: roots stand alone; children get a "|--" branch, indented by depth.
-    const branch = depth > 0 ? `<span class="vle-loc-branch" aria-hidden="true">${'\u2502\u00A0\u00A0'.repeat(depth - 1)}\u251C\u2500\u2500 </span>` : '';
-    return `<div class="vle-loc-row">${branch}`
-      + `<span class="vle-loc-mark" title="${l.auto ? 'auto-collected from a scene' : 'pinned by you'}">${l.auto ? '\u25CB' : '\u2691'}</span>`
+  const row = (l: typeof list[number], kidCount: number, collapsed: boolean): string => {
+    // a caret toggles children (only when the place has any); leaf places get a
+    // spacer so their dot lines up with the carets above.
+    const caret = kidCount
+      ? `<button class="vle-loc-caret${collapsed ? ' closed' : ''}" data-loc-toggle data-id="${esc(l.id)}" title="${collapsed ? 'Show' : 'Hide'} contained places" aria-expanded="${collapsed ? 'false' : 'true'}">\u25BE</button>`
+      : `<span class="vle-loc-caret spacer" aria-hidden="true"></span>`;
+    return `<div class="vle-loc-row">${caret}`
+      + `<span class="vle-loc-dot" title="${l.auto ? 'auto-collected from a scene' : 'pinned by you'}">${l.auto ? '\u25CB' : '\u2691'}</span>`
       + `<span class="vle-loc-name">${esc(l.name)}</span>`
+      + (kidCount && collapsed ? `<span class="vle-loc-count" title="${kidCount} contained place(s)">${kidCount}</span>` : '')
       + (l.note ? `<span class="vle-loc-note">${esc(l.note)}</span>` : '')
       + `<span class="vle-mem-ctl"><button class="vle-mini" data-loc-edit data-id="${esc(l.id)}" data-name="${esc(l.name)}" data-note="${esc(l.note ?? '')}" data-parent="${esc(l.parent ?? '')}" title="Edit / pin">\u270E</button>`
       + `<button class="vle-mini del" data-loc-del data-id="${esc(l.id)}" title="Delete">\u2715</button></span></div>`;
   };
-  // depth-first walk; a `seen` guard breaks any accidental parent cycle in the data.
+  // depth-first walk; children nest in their own wrapper so a continuous rail +
+  // elbow can be drawn in CSS (like the timeline), not with text glyphs. A `seen`
+  // guard breaks any accidental parent cycle in the data.
   const seen = new Set<string>();
-  const walk = (l: typeof list[number], depth: number): string => {
+  const walk = (l: typeof list[number]): string => {
     if (seen.has(l.id)) return '';
     seen.add(l.id);
     const children = (kids.get(l.id) ?? []).slice().sort(byRecent);
-    return row(l, depth) + children.map((c) => walk(c, depth + 1)).join('');
+    const collapsed = children.length > 0 && _locCollapsed.has(l.id);
+    const kidsHtml = children.length && !collapsed ? `<div class="vle-loc-kids">${children.map(walk).join('')}</div>` : '';
+    return `<div class="vle-loc-node">${row(l, children.length, collapsed)}${kidsHtml}</div>`;
   };
-  return head + intro + `<div class="vle-loc-tree">${roots.sort(byRecent).map((r) => walk(r, 0)).join('')}</div>`;
+  return head + intro + `<div class="vle-loc-tree">${roots.sort(byRecent).map(walk).join('')}</div>`;
 }
 
 function nextSceneView(s: ChronicleState): string {

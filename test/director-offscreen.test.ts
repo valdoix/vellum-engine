@@ -58,10 +58,10 @@ describe('Director Locations view — nests contained places under their parent'
     ];
     switchTo('locations');
     const html = directorTab.render(s);
-    // parent is a root (no branch), children carry the |-- connector
+    // children nest inside the parent's node under a .vle-loc-kids wrapper (the
+    // rail + elbow are drawn in CSS, like the timeline — no text glyphs).
     expect(html).toContain('Harrenhal');
-    expect(html).toContain('vle-loc-branch');
-    expect(html).toContain('\u251C\u2500\u2500'); // "├──"
+    expect(html).toContain('vle-loc-kids');
     // child rows come AFTER the parent row in document order
     expect(html.indexOf('Harrenhal')).toBeLessThan(html.indexOf('Training yard'));
     expect(html.indexOf('Harrenhal')).toBeLessThan(html.indexOf('Great Hall'));
@@ -73,5 +73,42 @@ describe('Director Locations view — nests contained places under their parent'
     switchTo('locations');
     const html = directorTab.render(s);
     expect(html).toContain('Lost Cave');
+  });
+
+  it('a parent with children shows a collapse caret; a leaf place does not', () => {
+    const s = freshState();
+    s.locations = [
+      { id: 'harrenhal', name: 'Harrenhal', auto: true, firstTurn: 1, lastTurn: 5 },
+      { id: 'yard', name: 'Training yard', parent: 'harrenhal', auto: true, firstTurn: 2, lastTurn: 6 },
+    ];
+    switchTo('locations');
+    const html = directorTab.render(s);
+    expect(html).toContain('data-loc-toggle'); // caret on the parent
+    expect(html).toContain('data-id="harrenhal"');
+    expect(html).toContain('Training yard'); // expanded by default
+  });
+
+  it('collapsing a parent hides its children and shows the contained-count badge', () => {
+    const s = freshState();
+    s.locations = [
+      { id: 'harrenhal', name: 'Harrenhal', auto: true, firstTurn: 1, lastTurn: 5 },
+      { id: 'yard', name: 'Training yard', parent: 'harrenhal', auto: true, firstTurn: 2, lastTurn: 6 },
+      { id: 'hall', name: 'Great Hall', parent: 'harrenhal', auto: true, firstTurn: 3, lastTurn: 4 },
+    ];
+    switchTo('locations');
+    // click the caret via the same delegated handler used in the tab
+    let handler: ((e: unknown) => void) | null = null;
+    const fakeHost = { addEventListener: (_t: string, h: (e: unknown) => void) => { handler = h; } } as unknown as HTMLElement;
+    directorTab.mount!(fakeHost);
+    const target = { closest: (sel: string) => (sel === '[data-loc-toggle]' ? { getAttribute: () => 'harrenhal' } : null) };
+    handler!({ target });
+    const html = directorTab.render(s);
+    expect(html).not.toContain('Training yard'); // children hidden
+    expect(html).not.toContain('Great Hall');
+    expect(html).toContain('vle-loc-count');    // "2" contained-places badge
+    expect(html).toContain('Harrenhal');        // parent still shown
+    // toggle back open
+    handler!({ target });
+    expect(directorTab.render(s)).toContain('Training yard');
   });
 });

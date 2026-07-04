@@ -3,7 +3,8 @@ import { reduce } from '../src/core/reduce.js';
 import { freshState } from '../src/domain/types.js';
 import { migrate } from '../src/core/migrate.js';
 import { SCHEMA_VERSION } from '../src/core/events.js';
-import { locationList, injectableLocations } from '../src/domain/locations.js';
+import { locationList, injectableLocations, inferLocationParent, currentPlaceChildren } from '../src/domain/locations.js';
+import type { Location } from '../src/domain/types.js';
 import type { VellumEvent } from '../src/core/events.js';
 
 let seq = 0;
@@ -50,6 +51,54 @@ describe('locationList injector', () => {
     const block = locationList(s, 5);
     expect(block).toContain('LOCATIONS');
     expect(block).toContain('Pinned Hall \u2014 always');
+  });
+});
+
+describe('inferLocationParent — text-only containment', () => {
+  const loc = (o: Partial<Location> & { id: string; name: string }): Location => ({ auto: true, firstTurn: 1, lastTurn: 1, ...o });
+  const existing = [loc({ id: 'loc_harrenhal', name: 'Harrenhal' }), loc({ id: 'loc_kings_landing', name: "King's Landing" })];
+
+  it('nests a place whose name contains an existing location', () => {
+    expect(inferLocationParent('Harrenhal study', existing)).toBe('loc_harrenhal');
+    expect(inferLocationParent('the Study, Harrenhal', existing)).toBe('loc_harrenhal');
+  });
+  it('returns "" when nothing matches, and never self-parents', () => {
+    expect(inferLocationParent('The Salt Docks', existing)).toBe('');
+    expect(inferLocationParent('Harrenhal', existing)).toBe(''); // same name = self, no parent
+  });
+  it('longest match wins when multiple contain', () => {
+    const ex = [loc({ id: 'l1', name: 'Harrenhal' }), loc({ id: 'l2', name: 'Old Harrenhal' })];
+    expect(inferLocationParent('Old Harrenhal cellar', ex)).toBe('l2');
+  });
+  it('auto-parenting flows through the reducer (word-contained sub-place nests)', () => {
+    const s = reduce([
+      ev({ kind: 'location.set', id: 'loc_harrenhal', name: 'Harrenhal', auto: true, turn: 1 }),
+      ev({ kind: 'location.set', id: 'loc_harrenhal_study', name: 'Harrenhal study', parent: 'loc_harrenhal', auto: true, turn: 2 }),
+    ]);
+    expect(s.locations.find((l) => l.id === 'loc_harrenhal_study')!.parent).toBe('loc_harrenhal');
+  });
+});
+
+describe('currentPlaceChildren + injector surfacing', () => {
+  it('lists the current scene location\'s sub-places, even stale ones', () => {
+    const s = freshState();
+    s.scene.location = 'Harrenhal';
+    s.locations = [
+      { id: 'loc_harrenhal', name: 'Harrenhal', auto: true, firstTurn: 1, lastTurn: 20 },
+      { id: 'loc_study', name: 'The Study', parent: 'loc_harrenhal', auto: true, firstTurn: 2, lastTurn: 3 },
+    ];
+    expect(currentPlaceChildren(s).map((l) => l.id)).toEqual(['loc_study']);
+    // cap 1 keeps only the most-recent (Harrenhal); the stale Study drops from the
+    // main list but must RESURFACE via the "Within" line — the point of the feature.
+    const block = locationList(s, 1);
+    expect(block).toContain('Within Harrenhal');
+    expect(block).toContain('The Study');
+  });
+  it('no scene location → no children line', () => {
+    const s = freshState();
+    s.locations = [{ id: 'a', name: 'A', auto: true, firstTurn: 1, lastTurn: 1 }];
+    expect(currentPlaceChildren(s)).toEqual([]);
+    expect(locationList(s, 12)).not.toContain('Within');
   });
 });
 

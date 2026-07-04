@@ -5,6 +5,7 @@ import { canonId } from '../core/ids.js';
 import { resolveCastId, notAName, resolveFactionId, isNameMash } from './identity.js';
 import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
 import { findLock, applyLockToBond } from './relation-lock.js';
+import { inferLocationParent } from './locations.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -145,7 +146,15 @@ export const coreFeature: Feature = {
       // because location.set with auto:true never downgrades a user-pinned entry.
       const loc = String(parsed.scene?.loc ?? '').trim();
       if (loc && loc.length >= 2 && !notAName(loc)) {
-        out.push({ ...base(), kind: 'location.set', id: 'loc_' + canonId(loc), name: loc, auto: true } as VellumEvent);
+        const locId = 'loc_' + canonId(loc);
+        // TEXT-only containment inference (no LLM): if this new place's name holds
+        // an existing location's name ("Harrenhal study"), nest it under that
+        // place. Only for genuinely-new locations (never re-parent a known one —
+        // that would clobber a user's manual parent), and never self-parent.
+        const known = ctx.state.locations ?? [];
+        const isNew = !known.some((l) => l.id === locId || l.name.trim().toLowerCase() === loc.toLowerCase());
+        const parent = isNew ? inferLocationParent(loc, known) : '';
+        out.push({ ...base(), kind: 'location.set', id: locId, name: loc, auto: true, ...(parent && parent !== locId ? { parent } : {}) } as VellumEvent);
       }
     }
     // mark present characters as cast (present status); names seed cards

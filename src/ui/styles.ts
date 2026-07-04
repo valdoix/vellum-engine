@@ -192,12 +192,27 @@ export const STYLES = [
   ".vle-dir-when,.vle-dir-ttl{font-family:var(--vmono);font-size:10px;color:var(--vi2);opacity:.65}",
   ".vle-loc-grp{margin:0 0 10px}",
   ".vle-loc-grp-h{font:600 11px/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vle-gold);opacity:.8;margin:0 0 5px;padding-bottom:3px;border-bottom:1px solid rgba(var(--vg-rgb),.16)}",
-  ".vle-loc-row{display:flex;align-items:baseline;gap:8px;padding:5px 2px}",
+  ".vle-loc-row{position:relative;display:flex;align-items:center;gap:8px;padding:5px 2px}",
   ".vle-loc-mark{flex:0 0 auto;color:var(--vle-gold)}",
   ".vle-loc-name{font-family:var(--vserif);font-size:calc(14px * var(--vscale));color:var(--vi)}",
   ".vle-loc-note{flex:1 1 auto;min-width:0;font-size:calc(12px * var(--vscale));color:var(--vi2);opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
   ".vle-loc-tree{margin:0 0 6px}",
-  ".vle-loc-branch{flex:0 0 auto;white-space:pre;font-family:var(--vmono);font-size:calc(12px * var(--vscale));color:var(--vle-gold);opacity:.5;margin-right:-4px}",
+  ".vle-loc-node{position:relative}",
+  // children indent under their parent; connectors are drawn PER child node so
+  // nesting stays correct (classic file-tree CSS): a vertical segment + an elbow.
+  ".vle-loc-kids{margin-left:9px;padding-left:16px}",
+  // vertical rail: runs from the top of the node down to the child's dot centre;
+  // non-last children extend it the full node height to reach the next sibling.
+  ".vle-loc-kids>.vle-loc-node::before{content:'';position:absolute;left:-7px;top:0;height:16px;width:2px;background:rgba(var(--vg-rgb),.28)}",
+  ".vle-loc-kids>.vle-loc-node:not(:last-child)::before{height:100%}",
+  // elbow: from the rail across to the dot
+  ".vle-loc-kids>.vle-loc-node>.vle-loc-row::before{content:'';position:absolute;left:-7px;top:15px;width:13px;height:2px;background:rgba(var(--vg-rgb),.28)}",
+  ".vle-loc-dot{position:relative;flex:0 0 auto;display:inline-grid;place-items:center;width:18px;height:18px;font-size:calc(11px * var(--vscale));color:var(--vle-gold);background:var(--vsurf-1);border-radius:50%;box-shadow:0 0 0 3px var(--vsurf-1)}",
+  ".vle-loc-caret{flex:0 0 auto;width:16px;height:16px;display:inline-grid;place-items:center;padding:0;font-size:calc(10px * var(--vscale));line-height:1;color:var(--vle-gold);background:transparent;border:none;border-radius:4px;cursor:pointer;opacity:.7;transition:transform .12s,opacity .12s}",
+  ".vle-loc-caret:hover{opacity:1;background:rgba(var(--vg-rgb),.14)}",
+  ".vle-loc-caret.closed{transform:rotate(-90deg)}",
+  ".vle-loc-caret.spacer{cursor:default;opacity:0;pointer-events:none}",
+  ".vle-loc-count{flex:0 0 auto;font:600 9px/1 var(--vmono);color:var(--vle-gold);background:rgba(var(--vg-rgb),.14);border-radius:999px;padding:2px 6px}",
   ".vle-nextscene{border:1px solid color-mix(in srgb,var(--vle-gold) 30%,transparent);border-radius:10px;padding:11px 13px;background:color-mix(in srgb,var(--vle-gold) 6%,transparent)}",
   ".vle-ns-row{display:flex;gap:9px;margin:0 0 5px}",
   ".vle-ns-k{flex:0 0 48px;font:600 10px/1.5 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);opacity:.75}",
