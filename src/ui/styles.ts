@@ -365,7 +365,7 @@ export const STYLES = [
   ".vle-trk{display:flex;flex-direction:column;gap:6px;padding:10px 11px;border:1px solid rgba(var(--vg-rgb),.18);border-left:3px solid var(--vle-gold-soft);border-radius:var(--vr2);background:color-mix(in srgb,var(--vi) 3%,transparent)}",
   ".vle-trk--done{opacity:.6;border-left-color:rgba(var(--vg-rgb),.3)}",
   ".vle-trk-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}",
-  ".vle-trk-n{flex:1 1 auto;min-width:0;font-family:var(--vserif);font-size:calc(14px * var(--vscale));line-height:1.3;color:var(--vi);overflow-wrap:anywhere}",
+  ".vle-trk-n{flex:1 1 auto;min-width:0;font-family:var(--vserif);font-size:calc(14px * var(--vscale));line-height:1.3;color:var(--vi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
   ".vle-trk-pill{flex:0 0 auto;font:600 8.5px/1.4 var(--vmono);letter-spacing:.3px;text-transform:uppercase;color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 12%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 32%,transparent);border-radius:999px;padding:2px 8px;white-space:nowrap}",
   ".vle-trk-pill.done{color:var(--vi2);background:rgba(var(--vg-rgb),.1);border-color:rgba(var(--vg-rgb),.25)}",
   ".vle-trk-off{font-size:calc(11.5px * var(--vscale));line-height:1.4;color:var(--v-info);opacity:.92}",
