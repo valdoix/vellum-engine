@@ -3,6 +3,7 @@ import type { ChronicleState, Memory } from '../../domain/types.js';
 import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
+import { linkedOffscreen } from '../../domain/offscreen.js';
 
 
 /**
@@ -58,7 +59,7 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_beatSuggest.length}:${_turnLog.length}:${s.arcs.length}:${s.threads.length}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_beatSuggest.length}:${_turnLog.length}:${s.arcs.map((t) => t.id + t.status + t.name + t.beats.length).join(',')}:${s.threads.map((t) => t.id + t.status + t.name + t.beats.length).join(',')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const memCount = s.memories.filter((m) => m.tier !== 'beat').length; // Memory view excludes beats (own tab)
@@ -73,7 +74,7 @@ export const chronicleTab: Component<ChronicleState> = {
       + '<span class="vle-subnav-g">Records</span>' + inGroup(['memory', 'knowledge', 'secrets', 'scars', 'codex', 'items'])
       + '</div>';
     let body = '';
-    if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs) + tracks('\u269C Threads', s.threads) || '';
+    if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) || '';
     else if (_view === 'timeline') body = timeline(s);
     else if (_view === 'turns') body = turnsView(s);
     else if (_view === 'beats') body = beatsView(s);
@@ -232,6 +233,32 @@ export const chronicleTab: Component<ChronicleState> = {
       ], (o) => { if (o.item?.trim()) send({ type: 'vellum_item_edit', id: ie.getAttribute('data-id'), item: o.item, who: o.who ?? '', note: o.note ?? '' }); }); return; }
       const idl = t.closest('[data-item-del]');
       if (idl) { confirmModal('Delete this item?', () => send({ type: 'vellum_item_delete', id: idl.getAttribute('data-id') })); return; }
+      // --- plot threads / arcs (user CRUD) ---
+      const tadd = t.closest('[data-track-add]');
+      if (tadd) {
+        const arc = tadd.getAttribute('data-arc') === '1';
+        formModal(arc ? 'New Arc' : 'New Thread', [
+          { key: 'name', label: arc ? 'Arc name' : 'Thread name', type: 'text', placeholder: arc ? 'The Long Reckoning' : 'The Letter' },
+          { key: 'status', label: 'Status (optional)', type: 'text', placeholder: 'advance' },
+        ], (o) => { if (o.name?.trim()) send({ type: 'vellum_thread_set', name: o.name, status: o.status || undefined, kindArc: arc }); });
+        return;
+      }
+      const ted = t.closest('[data-track-edit]');
+      if (ted) {
+        const arc = ted.getAttribute('data-arc') === '1';
+        formModal(arc ? 'Edit Arc' : 'Edit Thread', [
+          { key: 'name', label: 'Name', type: 'text', value: ted.getAttribute('data-name') || '' },
+          { key: 'status', label: 'Status', type: 'text', value: ted.getAttribute('data-status') || '' },
+          { key: 'note', label: 'Add a beat (optional)', type: 'text', placeholder: 'what just happened' },
+        ], (o) => { if (o.name?.trim()) send({ type: 'vellum_thread_set', id: ted.getAttribute('data-id'), name: o.name, status: o.status ?? '', note: o.note || undefined, kindArc: arc }); });
+        return;
+      }
+      const tres = t.closest('[data-track-resolve]');
+      if (tres) { send({ type: 'vellum_thread_set', id: tres.getAttribute('data-id'), name: tres.getAttribute('data-name'), status: 'resolved', kindArc: tres.getAttribute('data-arc') === '1' }); return; }
+      const tro = t.closest('[data-track-reopen]');
+      if (tro) { send({ type: 'vellum_thread_set', id: tro.getAttribute('data-id'), name: tro.getAttribute('data-name'), status: 'advance', kindArc: tro.getAttribute('data-arc') === '1' }); return; }
+      const tdel = t.closest('[data-track-del]');
+      if (tdel) { confirmModal('Delete this thread? (removes it from the board now; the model may re-raise it if the story keeps naming it)', () => send({ type: 'vellum_thread_drop', id: tdel.getAttribute('data-id'), kindArc: tdel.getAttribute('data-arc') === '1' })); return; }
     });
   },
 };
@@ -242,12 +269,23 @@ function scene(s: ChronicleState): string {
     + (s.scene.tension ? ' <span class="vle-tension">tension ' + esc(s.scene.tension) + '/10</span>' : '') + '</div>';
 }
 
-function tracks(title: string, list: ChronicleState['arcs']): string {
-  if (!list.length) return '';
-  const rows = list.slice().sort(byRecent).slice(0, 12).map((t) =>
-    '<div class="vle-track"><span class="vle-track-n">' + esc(t.name) + '</span><span class="vle-track-s">' + esc(t.status) + '</span></div>'
-  ).join('');
-  return sectionHeader(title, { sub: true, count: list.length }) + rows;
+function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s: ChronicleState): string {
+  const addBtn = `<button class="vle-add sm" data-track-add data-arc="${kindArc ? '1' : '0'}" title="Add ${kindArc ? 'an arc' : 'a thread'}">+</button>`;
+  const A = (x: unknown): string => esc(x);
+  const rows = list.slice().sort(byRecent).slice(0, 12).map((t) => {
+    const resolved = /resolv/i.test(t.status || '');
+    // reflect any linked off-screen subplot's latest beat (the bridge)
+    const off = !kindArc ? linkedOffscreen(s, { id: t.id, name: t.name }) : [];
+    const offBeat = off.length ? `<div class="vle-track-off" title="advanced off-screen">\u2748 ${esc(off[0]!.gist || off[0]!.beats[off[0]!.beats.length - 1] || '')}</div>` : '';
+    const hist = t.beats.length > 1 ? `<details class="vle-os-h"><summary>${t.beats.length} beats</summary>${t.beats.map((b) => '<div>\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
+    const editBtn = `<button class="vle-mini" data-track-edit data-id="${A(t.id)}" data-arc="${kindArc ? '1' : '0'}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">\u270E</button>`;
+    const stBtn = resolved
+      ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${kindArc ? '1' : '0'}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
+      : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${kindArc ? '1' : '0'}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
+    const ctl = `<span class="vle-mem-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${kindArc ? '1' : '0'}" title="Delete">\u2715</button></span>`;
+    return `<div class="vle-track${resolved ? ' vle-os--done' : ''}"><div class="vle-track-top"><span class="vle-track-n">${esc(t.name)}</span><span class="vle-track-s">${esc(t.status)}</span>${ctl}</div>${offBeat}${hist}</div>`;
+  }).join('');
+  return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + (rows || emptyState(`No ${kindArc ? 'arcs' : 'threads'} yet.`, 'They fill in as the story unfolds; add one by hand too.'));
 }
 
 /** Off-screen subplots (the sim) + any model-narrated meanwhile lines, so all

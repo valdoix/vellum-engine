@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 12 as const;
+export const SCHEMA_VERSION = 13 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -160,6 +160,11 @@ export const EvMemoryEdit = z.object({ ...base, kind: z.literal('memory.edit'), 
 
 export const EvThread = z.object({ ...base, kind: z.literal('thread.op'), op: z.enum(['new', 'advance', 'stall', 'resolve']), name: z.string(), note: z.string().optional() });
 export const EvArc = z.object({ ...base, kind: z.literal('arc.op'), op: z.enum(['new', 'advance', 'resolve']), name: z.string(), note: z.string().optional() });
+// user CRUD on plot threads/arcs — targets the STABLE id when known (edit), else
+// creates by name. Distinct from the model's thread.op so a user intent is clear.
+export const EvThreadSet = z.object({ ...base, kind: z.literal('thread.set'), id: z.string().optional(), name: z.string(), status: z.string().optional(), note: z.string().optional(), kindArc: z.boolean().optional() });
+export const EvThreadDrop = z.object({ ...base, kind: z.literal('thread.drop'), id: z.string() });
+export const EvArcDrop = z.object({ ...base, kind: z.literal('arc.drop'), id: z.string() });
 // Layer 3 — semantic reconcile: fold near-duplicate tracks (different words,
 // same ongoing thread, e.g. "Jaime's Arrival" + "Jaime at Harrenhal") into one.
 // Append-only → auditable + undoable. `from`/`into` are track names.
@@ -167,7 +172,9 @@ export const EvThreadMerge = z.object({ ...base, kind: z.literal('thread.merge')
 export const EvArcMerge = z.object({ ...base, kind: z.literal('arc.merge'), from: z.array(z.string()), into: z.string() });
 // off-screen subplot: a living "meanwhile" thread the off-screen sim advances —
 // accumulates beats, can resolve, round-trips to the prompt like a plot thread.
-export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), op: z.enum(['new', 'advance', 'resolve']), id: z.string(), name: z.string().optional(), who: z.string().optional(), where: z.string().optional(), gist: z.string().optional() });
+export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), op: z.enum(['new', 'advance', 'resolve']), id: z.string(), name: z.string().optional(), who: z.string().optional(), where: z.string().optional(), gist: z.string().optional(), thread: z.string().optional() });
+// user link/unlink of an off-screen subplot to a plot Track id ('' clears).
+export const EvOffscreenLink = z.object({ ...base, kind: z.literal('offscreen.link'), id: z.string(), thread: z.string() });
 export const EvOffscreenDrop = z.object({ ...base, kind: z.literal('offscreen.drop'), id: z.string() });
 
 export const VellumEvent = z.discriminatedUnion('kind', [
@@ -177,14 +184,14 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvBondDelta, EvBondDrop,
   EvKnowledge, EvKnowledgeDrop, EvKnowledgeMerge, EvSecretForm, EvSecretReveal, EvSecretDrop, EvSecretMerge,
   EvMemory, EvMemoryDrop, EvMemoryLink, EvMemoryEdit,
-  EvThread, EvArc, EvThreadMerge, EvArcMerge,
+  EvThread, EvArc, EvThreadMerge, EvArcMerge, EvThreadSet, EvThreadDrop, EvArcDrop,
   EvJournal, EvJournalDrop, EvJournalEdit,
   EvScarForm, EvScarDrop, EvLoreNote, EvLoreDrop,
   EvItemChange, EvItemDrop,
   EvLocationSet, EvLocationDrop, EvContinuityFlag,
   EvTraitDrift,
   EvPlantSet, EvPlantPay, EvPlantAbandon, EvPlantDrop,
-  EvParallel, EvOffscreen, EvOffscreenDrop,
+  EvParallel, EvOffscreen, EvOffscreenDrop, EvOffscreenLink,
 ]);
 export type VellumEvent = z.infer<typeof VellumEvent>;
 

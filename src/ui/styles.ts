@@ -360,8 +360,12 @@ export const STYLES = [
   ".vle-card--mentioned .vle-card-sub,.vle-card--added .vle-card-sub{color:var(--vi2);opacity:.6}",
   ".vle-card-app{font-size:13px;opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
   // tracks + memory
-  ".vle-track{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 8px;border-left:2px solid var(--vle-gold-soft);margin-bottom:3px}",
-  ".vle-track-s{font:600 9px/1.3 var(--vmono);color:var(--vle-gold);opacity:.8}",
+  ".vle-track{font-size:12px;padding:4px 8px;border-left:2px solid var(--vle-gold-soft);margin-bottom:4px}",
+  ".vle-track-top{display:flex;align-items:center;gap:8px}",
+  ".vle-track-n{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+  ".vle-track-s{flex:0 0 auto;font:600 9px/1.3 var(--vmono);color:var(--vle-gold);opacity:.8}",
+  ".vle-track-off{margin-top:3px;font-size:11px;color:var(--v-info);opacity:.9}",
+  ".vle-os-link{font:600 9px/1.3 var(--vmono);color:var(--vle-gold);background:rgba(var(--vg-rgb),.12);border-radius:999px;padding:2px 7px;white-space:nowrap}",
   // off-screen subplots (the sim) in the World view
   ".vle-os{border-left:2px solid color-mix(in srgb,var(--v-info) 50%,transparent);background:color-mix(in srgb,var(--v-info) 6%,transparent);border-radius:0 var(--vr1) var(--vr1) 0;padding:6px 10px;margin-bottom:5px}",
   ".vle-os--narr{border-left-color:var(--vle-gold-soft);background:rgba(var(--vg-rgb),.04)}",

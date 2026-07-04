@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys } from '../src/domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys, threadOffscreenLink, linkedOffscreen } from '../src/domain/offscreen.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
@@ -64,6 +64,55 @@ describe('buildSimPrompt', () => {
     // an ordinary same-turn tick (< 2 days) stays a single beat — no skip note
     expect(buildSimPrompt(s, offscreenCast(s), { skipDays: 1 })).not.toContain('TIME-SKIP');
     expect(buildSimPrompt(s, offscreenCast(s), {})).not.toContain('TIME-SKIP');
+  });
+});
+
+describe('thread <-> off-screen bridge', () => {
+  it('threadOffscreenLink matches on shared title/gist tokens, not on stopwords alone', () => {
+    // "The Letter" thread <-> "The Appointment" subplot whose gist mentions the letter
+    expect(threadOffscreenLink('The Letter', { name: 'The Appointment', gist: 'B receives A\u2019s letter and acts on it' })).toBe(true);
+    expect(threadOffscreenLink('The Letter', { name: 'A letter is delivered', gist: '' })).toBe(true);
+    expect(threadOffscreenLink('The Harbor Strike', { name: 'The dockhands walk off', gist: 'the harbor strike spreads' })).toBe(true);
+    // no real overlap → no link (shared "the" must not link them)
+    expect(threadOffscreenLink('The Letter', { name: 'The Siege', gist: 'walls hold' })).toBe(false);
+  });
+
+  it('the sim prompt tells the sim which open threads a subplot ties into', () => {
+    const s = state();
+    s.threads = [{ name: 'The Letter', status: 'advance', firstTurn: 3, lastTurn: 8 }] as any;
+    s.offscreen = [{ id: 'appt', name: 'The Appointment', status: 'active', gist: 'B opens the letter', beats: ['B opens the letter'], firstTurn: 8, lastTurn: 8 }] as any;
+    // world-wide prompt lists the thread + flags the tie
+    const world = buildSimPrompt(s, offscreenCast(s), { threads: [{ name: 'The Letter', status: 'advance' }] });
+    expect(world).toContain('ON-SCREEN PLOT THREADS');
+    expect(world).toContain('The Letter');
+    expect(world).toContain('ties into: appt');
+    // focused prompt surfaces the linked thread for that one subplot
+    const focused = buildSimPrompt(s, offscreenCast(s), { focusId: 'appt', threads: [{ name: 'The Letter', status: 'advance' }] });
+    expect(focused).toContain('TIES INTO ON-SCREEN PLOT THREAD');
+    expect(focused).toContain('The Letter');
+  });
+
+  it('linkedOffscreen finds the active subplot feeding a thread (reflection side)', () => {
+    const s = state();
+    s.offscreen = [
+      { id: 'appt', name: 'The Appointment', status: 'active', gist: 'B opens the letter', beats: ['x'], firstTurn: 8, lastTurn: 8 },
+      { id: 'siege', name: 'The Siege', status: 'active', gist: 'walls hold', beats: ['y'], firstTurn: 8, lastTurn: 8 },
+    ] as any;
+    const hits = linkedOffscreen(s, { name: 'The Appointment' });
+    expect(hits.map((o) => o.id)).toEqual(['appt']);
+    expect(linkedOffscreen(s, { name: 'The Siege' }).map((o) => o.id)).toEqual(['siege']);
+  });
+
+  it('an explicit link overrides the text match (both directions)', () => {
+    const s = state();
+    s.offscreen = [
+      // linked to thread id "thr_the_letter" but its NAME wouldn't text-match it
+      { id: 'errand', name: 'The Errand', status: 'active', gist: 'a courier rides', beats: ['x'], thread: 'thr_the_letter', firstTurn: 8, lastTurn: 8 },
+    ] as any;
+    // explicit link matches by id, not name
+    expect(linkedOffscreen(s, { id: 'thr_the_letter', name: 'The Letter' }).map((o) => o.id)).toEqual(['errand']);
+    // a different thread whose NAME would text-match "errand" no longer links, because the explicit link wins
+    expect(linkedOffscreen(s, { id: 'thr_the_errand', name: 'The Errand' })).toEqual([]);
   });
 });
 

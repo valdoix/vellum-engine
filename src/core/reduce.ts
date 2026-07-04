@@ -1,5 +1,6 @@
 import type { VellumEvent } from '../core/events.js';
-import { type ChronicleState, type Relation, freshState } from '../domain/types.js';
+import { canonId } from '../core/ids.js';
+import { type ChronicleState, type Relation, type Track, freshState } from '../domain/types.js';
 import { freshRelation, applyScore, addCategories, removeCategories, sentimentToScores, deriveSentiment } from '../domain/relations.js';
 import { normalizeCategorySet, primaryCategory, isCategory } from '../domain/category.js';
 
@@ -378,29 +379,57 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'thread.op': {
-      upsertTrack(s.threads, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn);
+      upsertTrack(s.threads, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op);
       break;
     }
     case 'arc.op': {
-      upsertTrack(s.arcs, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn);
+      upsertTrack(s.arcs, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op);
       break;
     }
-    case 'thread.merge': { mergeTracks(s.threads, e.from, e.into); break; }
+    case 'thread.merge': {
+      const remap = mergeTracks(s.threads, e.from, e.into);
+      // keep explicit off-screen links valid: repoint any ref at a folded-away
+      // thread id to the survivor (the stale-ref hole the id refactor closes).
+      if (remap) for (const o of s.offscreen) if (o.thread && remap.dropped.has(o.thread)) o.thread = remap.keep;
+      break;
+    }
     case 'arc.merge': { mergeTracks(s.arcs, e.from, e.into); break; }
+    case 'thread.set': {
+      // user CRUD: edit by id, else upsert by name. `note` accrues as a beat.
+      const list = e.kindArc ? s.arcs : s.threads;
+      const cur = e.id ? list.find((t) => t.id === e.id) : list.find((t) => sameTrack(t.name, e.name));
+      if (cur) {
+        cur.name = e.name;
+        if (e.status !== undefined) cur.status = e.status;
+        cur.lastTurn = Math.max(cur.lastTurn, e.turn);
+        if (e.note) pushTrackBeat(cur, e.note);
+      } else {
+        upsertTrack(list, e.name, e.status ?? 'advance', e.turn, e.note, 'new');
+      }
+      break;
+    }
+    case 'thread.drop': { s.threads = s.threads.filter((t) => t.id !== e.id); break; }
+    case 'arc.drop': { s.arcs = s.arcs.filter((t) => t.id !== e.id); break; }
     case 'offscreen.op': {
       const list = s.offscreen;
       let ot = list.find((o) => o.id === e.id);
       if (!ot) {
         if (e.op === 'resolve') break; // nothing to resolve
-        ot = { id: e.id, name: e.name || e.id, status: 'active', gist: e.gist ?? '', beats: [], firstTurn: e.turn, lastTurn: e.turn, ...(e.who ? { who: e.who } : {}), ...(e.where ? { where: e.where } : {}) };
+        ot = { id: e.id, name: e.name || e.id, status: 'active', gist: e.gist ?? '', beats: [], firstTurn: e.turn, lastTurn: e.turn, ...(e.who ? { who: e.who } : {}), ...(e.where ? { where: e.where } : {}), ...(e.thread ? { thread: e.thread } : {}) };
         list.push(ot);
       }
       if (e.name) ot.name = e.name;
       if (e.who) ot.who = e.who;
       if (e.where) ot.where = e.where;
+      if (e.thread !== undefined) { if (e.thread) ot.thread = e.thread; else delete ot.thread; }
       if (e.gist) { ot.gist = e.gist; ot.beats = [...ot.beats, e.gist].slice(-6); }
       ot.lastTurn = Math.max(ot.lastTurn, e.turn);
       if (e.op === 'resolve') ot.status = 'resolved';
+      break;
+    }
+    case 'offscreen.link': {
+      const ot = s.offscreen.find((o) => o.id === e.id);
+      if (ot) { if (e.thread) ot.thread = e.thread; else delete ot.thread; } // '' clears
       break;
     }
     case 'offscreen.drop': {
@@ -612,33 +641,67 @@ function similarFact(a: string, b: string): boolean {
  * one carries more detail ("…and has not said the words yet"). */
 function richer(a: string, b: string): string { return b.length > a.length ? b : a; }
 
-function upsertTrack(list: { name: string; status: string; firstTurn: number; lastTurn: number }[], name: string, status: string, turn: number): void {
-  const t = list.find((x) => sameTrack(x.name, name));
-  if (t) { t.status = status; t.lastTurn = Math.max(t.lastTurn, turn); } // keep existing (canonical) name
-  else list.push({ name, status, firstTurn: turn, lastTurn: turn });
+/** Push a beat onto a track's running history (newest last), capped, deduping an
+ * immediate repeat. Mirrors the OffscreenThread beats discipline. */
+function pushTrackBeat(t: Track, beat: string): void {
+  const b = beat.trim();
+  if (!b || t.beats[t.beats.length - 1] === b) return;
+  t.beats = [...t.beats, b].slice(-6);
 }
 
-/** Layer 3 reduce: fold `from` tracks into `into` (by name), reconciling turns
- * and status to the latest, then drop the merged-away tracks. The `into` track
- * is created if absent. Tolerant of names that don't exist (skip). */
-function mergeTracks(list: { name: string; status: string; firstTurn: number; lastTurn: number }[], from: string[], into: string): void {
+/** Upsert a track by fuzzy title match (sameTrack). The id is engine-assigned on
+ * FIRST sight (slug of the first title) and never changes as the model's title
+ * drifts — the model speaks in titles, the engine owns the id. A `note` (or the
+ * op, for a genuine step) accrues onto beats[]. */
+function upsertTrack(list: Track[], name: string, status: string, turn: number, note?: string, op?: string): void {
+  const t = list.find((x) => sameTrack(x.name, name));
+  if (t) {
+    t.status = status; t.lastTurn = Math.max(t.lastTurn, turn); // keep existing (canonical) id + name
+  } else {
+    // mint a collision-free id from the first title
+    let id = 'thr_' + canonId(name); let n = 2;
+    while (list.some((x) => x.id === id)) id = 'thr_' + canonId(name) + '_' + n++;
+    list.push({ id, name, status, beats: [], firstTurn: turn, lastTurn: turn });
+  }
+  const cur = list.find((x) => sameTrack(x.name, name));
+  // record a beat only for a real story step (a note, or a new/advance/resolve),
+  // never for a bare status echo that carries no information.
+  if (cur && note) pushTrackBeat(cur, note);
+  else if (cur && (op === 'new' || op === 'resolve')) pushTrackBeat(cur, op === 'resolve' ? 'resolved' : name);
+}
+
+/** Layer 3 reduce: fold `from` tracks into `into` (by name), reconciling turns,
+ * status, and beats to the survivor, then drop the merged-away tracks. The `into`
+ * track is created if absent. Tolerant of names that don't exist (skip). The
+ * surviving id is the target's (or a source's, or freshly minted). */
+function mergeTracks(list: Track[], from: string[], into: string): { keep: string; dropped: Set<string> } | null {
   const target = list.find((x) => x.name.toLowerCase() === into.toLowerCase());
   const sources = from.filter((f) => f.toLowerCase() !== into.toLowerCase())
     .map((f) => list.find((x) => x.name.toLowerCase() === f.toLowerCase()))
     .filter((x): x is NonNullable<typeof x> => !!x);
-  if (!sources.length && target) return;
-  const keep = target ?? { name: into, status: 'advance', firstTurn: Infinity, lastTurn: 0 };
+  if (!sources.length && target) return null;
+  const keep: Track = target ?? { id: sources[0]?.id ?? ('thr_' + canonId(into)), name: into, status: 'advance', beats: [], firstTurn: Infinity, lastTurn: 0 };
+  // union beats in turn order (target first, then sources), deduped + capped
+  const merged = [...keep.beats];
   for (const src of sources) {
     keep.firstTurn = Math.min(keep.firstTurn, src.firstTurn);
     if (src.lastTurn >= keep.lastTurn) { keep.lastTurn = src.lastTurn; keep.status = src.status; }
+    for (const b of src.beats) if (b && merged[merged.length - 1] !== b && !merged.includes(b)) merged.push(b);
   }
+  keep.beats = merged.slice(-6);
   if (!isFinite(keep.firstTurn)) keep.firstTurn = keep.lastTurn;
-  const dropNames = new Set(sources.map((s) => s.name.toLowerCase()));
-  // rebuild: remove sources (and the old target slot), then push the merged keep
+  // every source id is folded away; `keep` (fresh object or the target) is pushed
+  // separately. When no target existed, keep borrows sources[0]'s id — that source
+  // object is still spliced out here, so the re-pushed keep leaves exactly one row.
+  const dropped = new Set(sources.map((s) => s.id));
   for (let i = list.length - 1; i >= 0; i--) {
-    if (dropNames.has(list[i]!.name.toLowerCase()) || list[i] === target) list.splice(i, 1);
+    if (dropped.has(list[i]!.id) || list[i] === target) list.splice(i, 1);
   }
   list.push(keep);
+  // the off-screen rewrite compares against dropped ids EXCLUDING the survivor's,
+  // so a link already on the survivor is left untouched.
+  dropped.delete(keep.id);
+  return { keep: keep.id, dropped };
 }
 
 // re-exports used by callers building events from parsed state

@@ -143,8 +143,12 @@ export interface Memory {
 }
 
 export interface Track {
+  id: string;          // stable engine-assigned id (slug of the first title); the
+                       // model keeps speaking in titles, the engine owns the id
   name: string;
   status: string;
+  beats: string[];     // running history of what happened (newest last, capped) —
+                       // mirrors OffscreenThread so threads & subplots share a shape
   firstTurn: number;
   lastTurn: number;
 }
@@ -304,6 +308,8 @@ export interface OffscreenThread {
   status: 'active' | 'resolved';
   gist: string;   // latest one-line state
   beats: string[]; // running history of what happened off-screen (newest last, capped)
+  thread?: string; // OPTIONAL explicit link to a plot Track id — the user-set
+                   // bridge that overrides the soft text match; rewritten on merge
   firstTurn: number;
   lastTurn: number;
 }

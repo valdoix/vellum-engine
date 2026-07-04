@@ -72,9 +72,9 @@ export function validateMerges(groups: MergeGroup[] | null, existingNames: strin
 }
 
 /** Open (non-resolved) tracks of a kind, newest first — the merge candidates. */
-export function openTracks(state: ChronicleState, kind: 'threads' | 'arcs'): Array<{ name: string; status: string; lastTurn: number }> {
+export function openTracks(state: ChronicleState, kind: 'threads' | 'arcs'): Array<{ id: string; name: string; status: string; lastTurn: number }> {
   return state[kind]
     .filter((t) => !/resolv/i.test(t.status || ''))
     .sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0))
-    .map((t) => ({ name: t.name, status: t.status, lastTurn: t.lastTurn }));
+    .map((t) => ({ id: t.id, name: t.name, status: t.status, lastTurn: t.lastTurn }));
 }

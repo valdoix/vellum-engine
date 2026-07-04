@@ -38,6 +38,41 @@ export interface SimCtx {
    * off-screen world & its subplots should advance PROPORTIONALLY, not by the
    * usual single small beat. 0/undefined = an ordinary same-day tick. */
   skipDays?: number;
+  /** open on-screen plot threads (id + name + latest note), fed to the sim so an
+   * off-screen subplot can build TOWARD / react to the main plot — the bridge
+   * that lets "The Appointment" (sim) advance "The Letter" (thread). */
+  threads?: ReadonlyArray<{ id?: string; name: string; status?: string }>;
+}
+
+// Title/gist token overlap for the soft thread<->offscreen bridge. Deliberately
+// text-only (the plan's 2d "match by text, soft association" — no foreign keys):
+// significant tokens of the shorter side must all appear in the longer, and both
+// carry >=2 significant tokens so trivially-short titles never spuriously link.
+const LINK_STOP = new Set(['the', 'a', 'an', 'of', 'to', 'and', 'in', 'on', 'at', 'for', 'with', 'is', 'as', 'by', 'his', 'her', 'their', 'from']);
+function linkTokens(text: string): Set<string> {
+  return new Set(String(text || '').toLowerCase().replace(/['\u2019]s\b/g, '').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter((w) => w.length > 1 && !LINK_STOP.has(w)).map((w) => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w)));
+}
+/** Does an off-screen subplot relate to a plot thread? An EXPLICIT link (the
+ * user set `sub.thread` to this track's id) always wins; otherwise fall back to
+ * the soft text match: exact title, or one side's significant tokens a subset of
+ * the other's, comparing the thread name against the subplot's name AND gist.
+ * Single-token titles ("The Letter" → "letter") work — stopwords are stripped
+ * first so a shared "the" can never link. Pass `threadId` to honor the link. PURE. */
+export function threadOffscreenLink(threadName: string, sub: { name: string; gist?: string; thread?: string }, threadId?: string): boolean {
+  // an explicit user link is authoritative (both directions of the override).
+  if (sub.thread) return !!threadId && sub.thread === threadId;
+  const t = linkTokens(threadName);
+  if (!t.size) return false;
+  for (const other of [sub.name, sub.gist || '']) {
+    if (threadName.toLowerCase().trim() === (other || '').toLowerCase().trim()) return true;
+    const o = linkTokens(other);
+    if (!o.size) continue;
+    const [small, big] = t.size <= o.size ? [t, o] : [o, t];
+    let all = true; for (const x of small) if (!big.has(x)) { all = false; break; }
+    if (all) return true;
+  }
+  return false;
 }
 
 /** How much off-screen life a tick should cover, given the days elapsed. A time-
@@ -102,6 +137,10 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
     lines.push('ADVANCE THIS ONE OFF-SCREEN SUBPLOT by a single small beat (reuse its id):');
     lines.push(`- [${focus.id}] ${focus.name}${focus.who ? ` (${focus.who})` : ''}${focus.where ? ` @${focus.where}` : ''}: ${focus.gist || focus.beats[focus.beats.length - 1] || ''}`);
     if (focus.beats.length) { lines.push('', 'RECENT BEATS:'); for (const b of focus.beats.slice(-4)) lines.push(`- ${b}`); }
+    // surface any on-screen plot thread this subplot relates to, so the beat can
+    // move it forward (the bridge) rather than drifting off on its own.
+    const linked = (ctx.threads ?? []).filter((th) => threadOffscreenLink(th.name, focus, th.id));
+    if (linked.length) { lines.push('', 'THIS TIES INTO ON-SCREEN PLOT THREAD(S) — let the beat move them forward if it fits:'); for (const th of linked) lines.push(`- ${th.name}${th.status && !/^(new|advance)$/i.test(th.status) ? ` (${th.status})` : ''}`); }
     lines.push('', 'Reply with exactly one entry: op "advance" (or "resolve" if it has run its course), same id.');
     const skipF = timeSkipNote(ctx.skipDays);
     if (skipF) lines.push('', skipF);
@@ -117,6 +156,17 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
     for (const o of open) lines.push(`- [${o.id}] ${o.name}${o.who ? ` (${o.who})` : ''}: ${o.gist || o.beats[o.beats.length - 1] || ''}`);
   } else {
     lines.push('', 'No off-screen subplots yet — open one or two NEW ones.');
+  }
+  // on-screen plot threads: let off-screen life BUILD TOWARD the main plot. When a
+  // subplot already ties into one (title/gist overlap), flag it so the sim moves
+  // that thread forward instead of spawning a disconnected beat.
+  const openThreads = (ctx.threads ?? []).slice(0, 6);
+  if (openThreads.length) {
+    lines.push('', 'ON-SCREEN PLOT THREADS (off-screen life may quietly build toward these; if a subplot below already ties into one, advance it that way):');
+    for (const th of openThreads) {
+      const tie = open.filter((o) => threadOffscreenLink(th.name, o, th.id)).map((o) => o.id);
+      lines.push(`- ${th.name}${th.status && !/^(new|advance)$/i.test(th.status) ? ` (${th.status})` : ''}${tie.length ? ` [ties into: ${tie.join(', ')}]` : ''}`);
+    }
   }
   const skip = timeSkipNote(ctx.skipDays);
   if (skip) lines.push('', skip);
@@ -283,6 +333,14 @@ export function readyToIntersect(state: ChronicleState, o: ChronicleState['offsc
   if ((o.beats?.length ?? 0) >= 3) return true;
   const loc = (state.scene.location ?? '').trim().toLowerCase();
   return !!loc && !!o.where && o.where.trim().toLowerCase() === loc;
+}
+
+/** Active off-screen subplots that relate to a given plot-thread name (the
+ * reflection side of the bridge): the on-screen recall annotates a thread with
+ * "off-screen: <subplot's latest beat>" so the narrator knows the sim advanced
+ * it while it was off-stage. PURE. */
+export function linkedOffscreen(state: ChronicleState, thread: { id?: string; name: string }): ChronicleState['offscreen'] {
+  return (state.offscreen ?? []).filter((o) => o.status === 'active' && threadOffscreenLink(thread.name, o, thread.id));
 }
 
 /** Convergence injection: the top ripe off-screen threads, nudged to re-enter the

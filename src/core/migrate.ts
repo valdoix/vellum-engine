@@ -94,6 +94,15 @@ export function migrate(raw: unknown): unknown {
     version = 12;
   }
 
+  // v12 → v13: plot threads/arcs (Track) gained a stable engine-assigned `id` +
+  // a `beats[]` history, plus thread.set/thread.drop/arc.drop user-CRUD events.
+  // NO data rewrite: state is re-derived from the event log, and the reducer now
+  // mints ids + accrues beats from the SAME thread.op events already stored, so
+  // old logs upgrade transparently on reload.
+  if (version < 13) {
+    version = 13;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

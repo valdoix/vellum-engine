@@ -497,7 +497,10 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     const tone = await readTone(chatId, userId);
     const locks = await readLocks(chatId);
     const directives = await readDirectives(chatId);
-    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}) });
+    // open plot threads feed the sim so off-screen life can build TOWARD the main
+    // plot (the thread<->offscreen bridge), newest first, capped.
+    const threads = openTracks(state, 'threads').slice(0, 6).map((t) => ({ id: t.id, name: t.name, status: t.status }));
+    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}), ...(threads.length ? { threads } : {}) });
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
     // 30s timeout: this runs detached (background tick or manual button), NOT on
@@ -1218,6 +1221,34 @@ const dispatch: Record<string, Handler> = {
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true, pinned }, uid);
   },
+  vellum_thread_set: async (p, uid) => {
+    // user CRUD on a plot thread/arc: create by name or edit by id (rename /
+    // status / append a manual beat). Mirrors vellum_location_set.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const name = String(p?.name ?? '').trim();
+    if (!name && !p?.id) return;
+    const state = await loadState(chatId);
+    const kindArc = !!p?.kindArc;
+    const cur = p?.id ? (kindArc ? state.arcs : state.threads).find((t) => t.id === String(p.id)) : undefined;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'thread.set',
+      ...(p?.id ? { id: String(p.id) } : {}), name: name || cur?.name || '',
+      ...(p?.status !== undefined ? { status: String(p.status) } : {}),
+      ...(p?.note ? { note: String(p.note).slice(0, 200) } : {}),
+      ...(kindArc ? { kindArc: true } : {}) } as VellumEvent]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_thread_done', ok: true }, uid);
+  },
+  vellum_thread_drop: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const kind = p?.kindArc ? 'arc.drop' : 'thread.drop';
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind, id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_thread_done', ok: true }, uid);
+  },
   vellum_set_next_scene: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
@@ -1261,6 +1292,15 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId || !p?.id) return;
     await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'offscreen.drop', id: String(p.id) } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true }, uid);
+  },
+  vellum_offthread_link: async (p, uid) => {
+    // explicit link/unlink of an off-screen subplot to a plot Track id. Empty
+    // thread ('') clears the link (back to the soft text-match bridge).
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'offscreen.link', id: String(p.id), thread: String(p?.thread ?? '') } as VellumEvent]);
     invalidateIndex(chatId); await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true }, uid);
   },

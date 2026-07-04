@@ -125,4 +125,16 @@ describe('buildInjection — continuity guardrail', () => {
     expect(inj.text).toContain('CHRONICLE RECALL');
     expect(inj.recallIds).toContain('k2'); // relevant prose retrieved
   });
+
+  it('reflects an off-screen subplot back onto its matching plot thread', () => {
+    const s = stateWith();
+    s.cast = { ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false } };
+    s.scene = { location: 'Winterfell', tension: 4, time: 'dusk', weather: '', present: ['ned'], detail: [] };
+    s.threads = [{ id: 'thr_the_letter', name: 'The Letter', status: 'advance', beats: [], firstTurn: 3, lastTurn: 8 }];
+    s.offscreen = [{ id: 'appt', name: 'The Appointment', status: 'active', gist: 'B opens the letter and rides north', beats: ['B opens the letter and rides north'], firstTurn: 8, lastTurn: 9 }];
+    const inj = buildInjection('chatBridge', s, 'the letter');
+    expect(inj.text).toContain('OPEN THREADS & ARCS');
+    expect(inj.text).toContain('The Letter');
+    expect(inj.text).toContain('off-screen: B opens the letter and rides north'); // reflected onto the thread
+  });
 });

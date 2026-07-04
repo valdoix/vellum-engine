@@ -177,6 +177,17 @@ export const directorTab: Component<ChronicleState> = {
       if (ores) { send({ type: 'vellum_offthread_resolve', id: ores.getAttribute('data-id') }); return; }
       const oreopen = t.closest('[data-off-reopen]');
       if (oreopen) { send({ type: 'vellum_offthread_set', id: oreopen.getAttribute('data-id'), name: oreopen.getAttribute('data-name') || '' }); return; }
+      const olink = t.closest('[data-off-link]');
+      if (olink) {
+        const id = olink.getAttribute('data-id') || '';
+        const cur = olink.getAttribute('data-thread') || '';
+        const opts = [{ value: '', label: '\u2014 none (use auto text-match) \u2014' },
+          ...(_state?.threads ?? []).map((th) => ({ value: th.id, label: th.name }))];
+        formModal('Link to a plot thread', [
+          { key: 'thread', label: 'Plot thread', type: 'select', value: cur, options: opts },
+        ], (o) => { send({ type: 'vellum_offthread_link', id, thread: o.thread ?? '' }); });
+        return;
+      }
       const odel = t.closest('[data-off-del]');
       if (odel) { confirmModal('Delete this off-screen thread?', () => send({ type: 'vellum_offthread_drop', id: odel.getAttribute('data-id') })); return; }
     });
@@ -330,11 +341,16 @@ function offscreenView(s: ChronicleState): string {
     const hist = o.beats.length > 1 ? `<details class="vle-os-h"><summary>${o.beats.length} beats</summary>${o.beats.map((b) => '<div>\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
     const editBtn = `<button class="vle-mini" data-off-edit data-id="${A(o.id)}" data-name="${A(o.name)}" data-who="${A(o.who ? (s.cast[o.who]?.name ?? o.who) : '')}" data-where="${A(o.where ?? '')}" data-gist="${A(o.gist ?? '')}" title="Edit">\u270E</button>`;
     const advBtn = done ? '' : `<button class="vle-mini" data-off-adv data-id="${A(o.id)}" title="Advance this thread one AI beat (needs generation)">\u25B8</button>`;
+    // explicit link to a plot thread (the bridge). Show the linked thread name; the
+    // button opens a picker (or clears). Highlighted when a link is set.
+    const linkedName = o.thread ? (s.threads.find((th) => th.id === o.thread)?.name ?? '') : '';
+    const linkChip = linkedName ? `<span class="vle-os-link" title="linked plot thread">\u269C ${esc(linkedName)}</span>` : '';
+    const linkBtn = `<button class="vle-mini${o.thread ? ' on' : ''}" data-off-link data-id="${A(o.id)}" data-thread="${A(o.thread ?? '')}" title="${o.thread ? 'Change / clear plot-thread link' : 'Link to a plot thread'}">\u269C</button>`;
     const stBtn = done
       ? `<button class="vle-mini" data-off-reopen data-id="${A(o.id)}" data-name="${A(o.name)}" title="Reopen">\u21BA</button>`
       : `<button class="vle-mini" data-off-resolve data-id="${A(o.id)}" title="Resolve">\u2713</button>`;
-    const ctl = `<span class="vle-mem-ctl">${advBtn}${editBtn}${stBtn}<button class="vle-mini del" data-off-del data-id="${A(o.id)}" title="Delete">\u2715</button></span>`;
-    return `<div class="vle-os${done ? ' vle-os--done' : ''}"><div class="vle-os-top"><span class="vle-os-n">${esc(o.name)}</span>${who ? `<span class="vle-os-who">${who}</span>` : ''}${where}${ripe}${staleMark}${ctl}</div><div class="vle-os-gist">${esc(o.gist || o.beats[o.beats.length - 1] || '')}</div>${hist}</div>`;
+    const ctl = `<span class="vle-mem-ctl">${advBtn}${linkBtn}${editBtn}${stBtn}<button class="vle-mini del" data-off-del data-id="${A(o.id)}" title="Delete">\u2715</button></span>`;
+    return `<div class="vle-os${done ? ' vle-os--done' : ''}"><div class="vle-os-top"><span class="vle-os-n">${esc(o.name)}</span>${who ? `<span class="vle-os-who">${who}</span>` : ''}${where}${linkChip}${ripe}${staleMark}${ctl}</div><div class="vle-os-gist">${esc(o.gist || o.beats[o.beats.length - 1] || '')}</div>${hist}</div>`;
   };
   let html = head + intro;
   if (active.length) html += '<div class="vle-subnav-g">Active</div>' + active.map(row).join('');

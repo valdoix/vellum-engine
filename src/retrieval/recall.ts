@@ -7,6 +7,7 @@ import { vectorSearch } from './embed.js';
 import { hashStr } from '../core/ids.js';
 import { traverseRanked, type CallModel, type TraversalTrace } from './traverse.js';
 import { traverseTree, type TreeTraversalTrace } from './traverse-tree.js';
+import { linkedOffscreen } from '../domain/offscreen.js';
 
 /**
  * Recall assembler. Produces the text VELLUM injects into the prompt, in two
@@ -136,10 +137,19 @@ function structuredBlock(state: ChronicleState, budget: number): string {
   // each turn ("Jaime's Arrival" → "Jaime at Harrenhal"). Non-resolved, newest
   // first, capped. This is the highest-leverage anti-fragmentation fix.
   const isOpen = (t: { status: string }): boolean => !/resolv/i.test(t.status || '');
-  const trackLine = (t: { name: string; status: string }): string =>
-    '- ' + t.name + (t.status && !/^(advance|new)$/i.test(t.status) ? ': ' + t.status : '');
-  const openThreads = state.threads.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 6).map(trackLine);
-  const openArcs = state.arcs.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 2).map(trackLine);
+  // reflect the bridge back: if the off-screen sim advanced a subplot that ties
+  // into this thread, annotate the thread with its latest off-screen beat so the
+  // narrator picks up where the sim left off ("The Letter … off-screen: B opened it").
+  const offBeat = (t: { id?: string; name: string }): string => {
+    const links = linkedOffscreen(state, t);
+    if (!links.length) return '';
+    const beat = links[0]!.gist || links[0]!.beats[links[0]!.beats.length - 1] || '';
+    return beat ? ' \u2014 off-screen: ' + beat : '';
+  };
+  const trackLine = (t: { id?: string; name: string; status: string }, withOff: boolean): string =>
+    '- ' + t.name + (t.status && !/^(advance|new)$/i.test(t.status) ? ': ' + t.status : '') + (withOff ? offBeat(t) : '');
+  const openThreads = state.threads.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 6).map((t) => trackLine(t, true));
+  const openArcs = state.arcs.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 2).map((t) => trackLine(t, false));
 
   // present/active factions + their standing toward the player (authoritative,
   // like cast). Reuses the shared structured budget.
