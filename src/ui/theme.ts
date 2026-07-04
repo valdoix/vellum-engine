@@ -32,7 +32,7 @@ export interface Theme {
   surf2c: string;      // '' = skin surface; else hex overriding card surface 2
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
-  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier'; // window ornamentation, orthogonal to skin
+  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier' | 'glimmerwood'; // window ornamentation, orthogonal to skin
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
   // skin-derived (overridden by skin pick)
@@ -52,7 +52,7 @@ const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristi
 const F_ETHEREAL = "'Cormorant Garamond','Quicksand',Georgia,serif"; // Ember display — airy serif with a dreamy italic lean
 const F_ACADEMIA = "'Cinzel','EB Garamond',Georgia,'Times New Roman',serif"; // Atelier display — engraved museum-placard caps over an old-book body
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier' | 'glimmerwood';
 
 /**
  * A "mode" is a one-click preset over existing axes — chrome (window ornament) plus
@@ -80,6 +80,7 @@ export const MODES: Mode[] = [
   // gallery light — deliberately warm/brown to stand apart from Bloom (light
   // pastel), Ember (glowing indigo), and Nocturne (cold navy architecture).
   { id: 'atelier', name: 'Atelier', blurb: 'A dark-academia gallery \u2014 gilt-framed oil paintings, brass placards, marble busts, autumn &amp; old books.', patch: { chrome: 'atelier', radius: 4, border: 1.5, texture: 'canvas', serif: F_ACADEMIA, accent: '#b08840', accent2: '#7d3b2e', opacity: 0.98, blur: 6 }, form: 'gallery', skin: 'atelier' },
+  { id: 'glimmerwood', name: 'Glimmerwood', blurb: 'An ethereal fairy glade \u2014 moss glass, gauzy light, golden fireflies, and leaf-soft storybook forms.', patch: { chrome: 'glimmerwood', radius: 24, border: 1, texture: 'firefly-grove', serif: F_ETHEREAL, accent: '#f3c66b', accent2: '#668f88', opacity: 0.9, blur: 14, bg: '', surf1c: '', surf2c: '' }, form: 'glade', skin: 'glimmerwood' },
 ];
 
 // base semantic palette, reused by every skin (skins override clash-prone ones)
@@ -109,6 +110,7 @@ export const SKINS: Skin[] = [
   // gilt accent, autumn semantics (moss-olive, oxblood, faded slate-teal, dusty
   // plum, ochre). The recommended skin for the Atelier chrome; composes anywhere.
   { id: 'atelier', name: 'Old Masters', blurb: 'A dim gallery at dusk — walnut walls, gilt frames, aged canvas, autumn oils.', theme: { accent: '#b08840', serif: F_ACADEMIA, mono: F_MONO, surf1: 'rgba(38,29,21,.9)', surf2: 'rgba(26,19,13,.94)', ink: '#ece0c8', ink2: '#b6a487', glass: 'linear-gradient(160deg,rgba(34,26,19,.99),rgba(20,15,10,.995))', ...SEM, pos: '#8a9463', posInk: '#a9b382', neg: '#a4503f', negInk: '#c87a63', info: '#6f9a99', warn: '#9a7ea0', press: '#c08a3c', pressInk: '#d9a856' } },
+  { id: 'glimmerwood', name: 'Glimmerwood', blurb: 'Mist-soft moss and teal glass lit by warm fireflies and pearly woodland ink.', theme: { accent: '#f3c66b', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(38,58,49,.66)', surf2: 'rgba(24,40,35,.72)', ink: '#eee9d7', ink2: '#bdcbbd', glass: 'linear-gradient(155deg,rgba(39,59,50,.94),rgba(18,34,30,.97))', ...SEM, pos: '#8fc397', posInk: '#b7ddb7', neg: '#cf806d', negInk: '#e9a28e', info: '#83b8b0', warn: '#aaa3bd', press: '#d99662', pressInk: '#efb982' } },
 ];
 
 const FONT_CHOICES: Array<{ label: string; stack: string }> = [
@@ -138,6 +140,7 @@ const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   { id: 'midnight-lace', label: 'Midnight Lace', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cg fill='none' stroke='%23b9cfee' stroke-opacity='.105'%3E%3Cpath d='M0 22Q22 0 44 22T88 22T132 22T176 22M0 158q22 22 44 0t44 0t44 0t44 0'/%3E%3Ccircle cx='18' cy='18' r='11'/%3E%3Ccircle cx='162' cy='162' r='11'/%3E%3Cpath d='M18 4v28M4 18h28M162 148v28m-14-14h28'/%3E%3C/g%3E%3Cg fill='%23466da8' fill-opacity='.1'%3E%3Cpath d='M52 72c18-16 30-3 20 15-14 3-22-3-20-15zm76 35c-18 16-30 3-20-15 14-3 22 3 20 15z'/%3E%3C/g%3E%3C/svg%3E\")" },
   // woven artist's canvas — warm ochre warp/weft threads, a faint linen tooth
   { id: 'canvas', label: 'Canvas', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cg stroke='%23b08840' stroke-opacity='0.09'%3E%3Cpath d='M0 4h16M0 12h16' stroke-width='2'/%3E%3Cpath d='M4 0v16M12 0v16' stroke-width='2'/%3E%3C/g%3E%3Cg stroke='%23000' stroke-opacity='0.05'%3E%3Cpath d='M0 8h16M8 0v16'/%3E%3C/g%3E%3C/svg%3E\")" },
+  { id: 'firefly-grove', label: 'Firefly Grove', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='180'%3E%3Cg fill='%23f3c66b'%3E%3Ccircle cx='26' cy='31' r='1.5' fill-opacity='.35'/%3E%3Ccircle cx='176' cy='42' r='1' fill-opacity='.28'/%3E%3Ccircle cx='104' cy='139' r='1.4' fill-opacity='.3'/%3E%3Cpath d='M62 70l2 6 6 2-6 2-2 6-2-6-6-2 6-2z' fill-opacity='.18'/%3E%3C/g%3E%3Cg fill='none' stroke='%2393b39a' stroke-opacity='.12'%3E%3Cpath d='M0 168Q45 112 88 166T176 156T220 134'/%3E%3Cpath d='M22 148q18-28 36 0M164 150q16-26 32 0'/%3E%3C/g%3E%3Cg fill='%23668f88' fill-opacity='.14'%3E%3Cpath d='M43 132c15-15 27-5 18 11-11 5-19 1-18-11zm133-18c-14-13-25-4-17 11 11 4 18 0 17-11z'/%3E%3C/g%3E%3C/svg%3E\")" },
 ];
 
 const KEY = 'vellum2.theme';
@@ -169,7 +172,7 @@ function sanitize(t: Theme): Theme {
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
     bg: safeHexOpt(t.bg), surf1c: safeHexOpt(t.surf1c), surf2c: safeHexOpt(t.surf2c),
-    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'nocturne', 'atelier'] as const).includes(t.chrome) ? t.chrome : 'default',
+    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'nocturne', 'atelier', 'glimmerwood'] as const).includes(t.chrome) ? t.chrome : 'default',
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -267,6 +270,7 @@ export function customizePanel(tab: CzTab = 'look'): string {
     ember: '<span class="vle-mode-sk sk-ember"><i></i><i></i><i></i></span>',
     nocturne: '<span class="vle-mode-sk sk-nocturne"><i></i><i></i><i></i></span>',
     atelier: '<span class="vle-mode-sk sk-atelier"><i></i><i></i></span>',
+    glimmerwood: '<span class="vle-mode-sk sk-glimmerwood"><i></i><i></i><i></i></span>',
   };
   const themeCards = MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
     + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('');

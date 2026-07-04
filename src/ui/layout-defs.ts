@@ -83,6 +83,13 @@ export const LAYOUTS: LayoutDef[] = [
     order: ['status', 'present', 'tension', 'relations', 'recent', 'threads', 'parallel', 'stats'],
     hidden: [], collapsed: ['parallel', 'stats'], density: 'roomy', columns: 1,
   },
+  {
+    // An organic clearing: the scene opens wide, present cast and bonds form the
+    // living center, while plot and recent activity trail down a narrow side path.
+    id: 'glade', name: 'Fairy Glade', blurb: 'An open clearing with leaf clusters and a narrow firefly trail (Glimmerwood chrome).', glyph: '\u273E',
+    order: ['status', 'present', 'relations', 'tension', 'recent', 'threads', 'parallel', 'stats'],
+    hidden: [], collapsed: ['parallel', 'stats'], density: 'roomy', columns: 2,
+  },
 ];
 
 void ALL;
