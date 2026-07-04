@@ -28,6 +28,27 @@ export function getRawMessages(chatId: string): Promise<any[]> {
 }
 
 /**
+ * The CURRENTLY-ACTIVE content of a message, swipe-aware. A swipe replaces the
+ * visible reply in place (same message slot, same turn number) by bumping
+ * `swipe_id` into `swipes[]` — but some hosts leave the old text in `m.content`
+ * and only update `swipe_id`. So we PREFER the active swipe (swipes[swipe_id])
+ * and fall back to m.content, not the other way round. Getting this wrong makes
+ * a swipe read as unchanged, so the fold reconcile never re-runs and the
+ * chronicle keeps the discarded swipe's bonds/knowledge/scene state. Every read
+ * path that feeds a turn signature MUST agree on this, so it lives here once.
+ */
+export function activeContent(m: any): string {
+  if (!m) return '';
+  const swipes = Array.isArray(m.swipes) ? m.swipes : null;
+  if (swipes && swipes.length) {
+    const active = typeof m.swipe_id === 'number' ? swipes[m.swipe_id] : undefined;
+    const picked = active ?? (typeof m.content === 'string' && m.content ? m.content : swipes[swipes.length - 1]);
+    return String(picked ?? '');
+  }
+  return typeof m.content === 'string' ? m.content : '';
+}
+
+/**
  * Chat + message host access. The regex-proof read path: stored message content
  * keeps the ‹vellum› block even when display regex hides it from the reader.
  */
@@ -49,12 +70,7 @@ export async function latestAssistantContent(chatId: string): Promise<Result<str
     for (let i = msgs.length - 1; i >= 0; i--) {
       const m = msgs[i];
       if (!m || m.role !== 'assistant') continue;
-      let content = typeof m.content === 'string' ? m.content : '';
-      if (!content && Array.isArray(m.swipes) && m.swipes.length) {
-        const slot = typeof m.swipe_id === 'number' ? m.swipes[m.swipe_id] : null;
-        content = String(slot ?? m.swipes[m.swipes.length - 1] ?? '');
-      }
-      return content;
+      return activeContent(m);
     }
     throw new Error('no assistant message');
   });
@@ -85,12 +101,7 @@ export async function allAssistantContents(chatId: string): Promise<string[]> {
     const out: string[] = [];
     for (const m of msgs) {
       if (!m || m.role !== 'assistant') continue;
-      let content = typeof m.content === 'string' ? m.content : '';
-      if (!content && Array.isArray(m.swipes) && m.swipes.length) {
-        const slot = typeof m.swipe_id === 'number' ? m.swipes[m.swipe_id] : null;
-        content = String(slot ?? m.swipes[m.swipes.length - 1] ?? '');
-      }
-      out.push(content);
+      out.push(activeContent(m));
     }
     return out;
   } catch {
@@ -115,23 +126,15 @@ export async function allTurnContents(chatId: string): Promise<string[]> {
   try {
     const msgs = await getRawMessages(chatId);
     if (!Array.isArray(msgs)) return [];
-    const pickContent = (m: any): string => {
-      let content = typeof m.content === 'string' ? m.content : '';
-      if (!content && Array.isArray(m.swipes) && m.swipes.length) {
-        const slot = typeof m.swipe_id === 'number' ? m.swipes[m.swipe_id] : null;
-        content = String(slot ?? m.swipes[m.swipes.length - 1] ?? '');
-      }
-      return content;
-    };
     const out: string[] = [];
     let pendingUser: string[] = []; // user lines awaiting the next assistant turn
     for (const m of msgs) {
       if (!m) continue;
       if (m.role === 'user') {
-        const c = pickContent(m).trim();
+        const c = activeContent(m).trim();
         if (c) pendingUser.push(c);
       } else if (m.role === 'assistant') {
-        const reply = pickContent(m).trim();
+        const reply = activeContent(m).trim();
         const block = pendingUser.length
           ? pendingUser.map((u) => `[Player action]\n${u}`).join('\n\n') + (reply ? `\n\n[Scene]\n${reply}` : '')
           : reply;
