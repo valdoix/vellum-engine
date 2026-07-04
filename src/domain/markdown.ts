@@ -12,7 +12,7 @@ export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
   const nm = (id: string): string => state.cast[id]?.name ?? id;
   const out: string[] = [];
   out.push('# ' + title, '');
-  const dayLabel = formatDate(state.day ?? 0, state.dateFormat || 'day', state.dateEpoch);
+  const dayLabel = formatDate(state.day ?? 0, state.dateFormat || 'day', state);
   out.push(`*${dayLabel} · turn ${state.turns ?? 0} · ${Object.keys(state.cast).length} characters*`, '');
 
   // --- Story So Far: arcs, then chapters, then the beat spine, in order ---
@@ -27,7 +27,7 @@ export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
   if (beats.length) {
     out.push('## Landmarks', '');
     for (const b of beats) {
-      const dayLabel = b.beatDay !== undefined ? formatDate(b.beatDay, state.dateFormat || 'day', state.dateEpoch) : '';
+      const dayLabel = b.beatDay !== undefined ? formatDate(b.beatDay, state.dateFormat || 'day', state) : '';
       const timeStr = b.beatTime ? ', ' + b.beatTime : '';
       const prefix = dayLabel ? `**${dayLabel}${timeStr}** — ` : '';
       out.push('- ' + prefix + b.text);

@@ -222,8 +222,26 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       const formats = ['day', 'month-day-year', 'month-day', 'month', 'week', 'month-year', 'year'];
       const df = formats.includes(String(e.dateFormat)) ? e.dateFormat : undefined;
       const epoch = e.dateEpoch !== undefined ? String(e.dateEpoch).trim() : undefined;
-      if (df === undefined && epoch === undefined) return [];
-      return [{ ...base(ctx), kind: 'config.set', ...(df ? { dateFormat: df } : {}), ...(epoch !== undefined ? { dateEpoch: epoch } : {}) } as VellumEvent];
+      // month names: array or comma/newline string → trimmed list (empty clears)
+      const toList = (v: unknown): string[] | undefined => {
+        if (v === undefined) return undefined;
+        const arr = Array.isArray(v) ? v : String(v).split(/[,\n]/);
+        return arr.map((s) => String(s).trim()).filter(Boolean);
+      };
+      const months = toList(e.monthNames);
+      const monthsShort = toList(e.monthNamesShort);
+      const yearPrefix = e.yearPrefix !== undefined ? String(e.yearPrefix) : undefined;
+      const yearSuffix = e.yearSuffix !== undefined ? String(e.yearSuffix) : undefined;
+      if (df === undefined && epoch === undefined && months === undefined && monthsShort === undefined && yearPrefix === undefined && yearSuffix === undefined) return [];
+      return [{
+        ...base(ctx), kind: 'config.set',
+        ...(df ? { dateFormat: df } : {}),
+        ...(epoch !== undefined ? { dateEpoch: epoch } : {}),
+        ...(months !== undefined ? { monthNames: months } : {}),
+        ...(monthsShort !== undefined ? { monthNamesShort: monthsShort } : {}),
+        ...(yearPrefix !== undefined ? { yearPrefix } : {}),
+        ...(yearSuffix !== undefined ? { yearSuffix } : {}),
+      } as VellumEvent];
     }
     default:
       return [];

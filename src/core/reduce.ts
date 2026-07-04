@@ -88,6 +88,11 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         const d = e.dateEpoch ? new Date(e.dateEpoch) : undefined;
         s.dateEpoch = d && !isNaN(d.getTime()) ? d : undefined;
       }
+      // fantasy calendar naming: an empty array clears back to defaults
+      if (e.monthNames !== undefined) s.monthNames = e.monthNames.length ? e.monthNames : undefined;
+      if (e.monthNamesShort !== undefined) s.monthNamesShort = e.monthNamesShort.length ? e.monthNamesShort : undefined;
+      if (e.yearPrefix !== undefined) s.yearPrefix = e.yearPrefix || undefined;
+      if (e.yearSuffix !== undefined) s.yearSuffix = e.yearSuffix || undefined;
       break;
     }
     case 'scene.set': {

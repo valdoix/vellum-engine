@@ -104,7 +104,7 @@ function statusBar(s: ChronicleState): string {
   // hero scene line (the biggest thing) + ONE quiet meta line, not 4 gold pills
   const meta = [
     `T${s.turns ?? 0}`,
-    s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s.dateEpoch) : '',
+    s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s) : '',
     s.scene.time ? esc(s.scene.time) : '',
     s.scene.weather ? esc(s.scene.weather) : '',
   ].filter(Boolean).join('  \u00b7  ');

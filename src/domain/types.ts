@@ -298,6 +298,12 @@ export interface ChronicleState {
   turns: number;
   dateFormat: 'day' | 'month-day-year' | 'month-day' | 'month' | 'week' | 'month-year' | 'year';
   dateEpoch?: Date; // Optional: reference date for calendar conversion
+  // Fantasy calendar naming (Tier 1): rename the display labels while keeping the
+  // underlying Gregorian structure. All optional; empty ⇒ default names.
+  monthNames?: string[];      // custom long month names (wraps if <12 given)
+  monthNamesShort?: string[]; // custom short month names (falls back to long)
+  yearPrefix?: string;        // era text before the year ("Year ")
+  yearSuffix?: string;        // era text after the year (" A.R.")
 }
 
 /** A living off-screen subplot the off-screen sim advances over turns. Mirrors

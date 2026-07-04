@@ -70,7 +70,7 @@ export function beatReorderEvents(state: ChronicleState, id: string, dir: -1 | 1
 /** A short "[Day N · time] text" label for one beat (display + spine line). */
 export function beatLabel(m: Memory, state?: ChronicleState): string {
   const day = m.beatDay !== undefined
-    ? (state ? formatDate(m.beatDay, state.dateFormat || 'day', state.dateEpoch) : `Day ${m.beatDay}`)
+    ? (state ? formatDate(m.beatDay, state.dateFormat || 'day', state) : `Day ${m.beatDay}`)
     : '';
   const time = m.beatTime ? (day ? ', ' + m.beatTime : m.beatTime) : '';
   const anchor = day || time ? `[${day}${time}] ` : '';

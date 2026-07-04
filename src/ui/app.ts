@@ -171,16 +171,25 @@ function openCalendarModal(ctx: Ctx): void {
       ],
     },
     { key: 'dateEpoch', label: 'Start date (day 0) \u2014 optional, for calendar formats', type: 'text', value: _dateEpoch, placeholder: '2026-01-01', hint: 'ISO date the story\u2019s day 0 maps to. Blank = a neutral fictional calendar.' },
+    // --- fantasy calendar naming (Advanced): rename months + the era on the year
+    { key: 'monthNames', label: 'Custom month names (fantasy calendar)', type: 'textarea', value: _monthNames, adv: true, placeholder: 'Frostfall, Thawmoon, Seedtide, \u2026', hint: 'Comma- or line-separated. Replaces January\u2026December in order; fewer than 12 will cycle. Blank = default names.' },
+    { key: 'monthNamesShort', label: 'Custom short month names (optional)', type: 'textarea', value: _monthNamesShort, adv: true, placeholder: 'Fro, Thw, Sed, \u2026', hint: 'Used by the Month Year format. Blank = falls back to the long names above.' },
+    { key: 'yearPrefix', label: 'Year prefix (era)', type: 'text', value: _yearPrefix, adv: true, placeholder: 'Year ', hint: 'Text before the year number, e.g. \u201CYear \u201D.' },
+    { key: 'yearSuffix', label: 'Year suffix (era)', type: 'text', value: _yearSuffix, adv: true, placeholder: ' A.R.', hint: 'Text after the year number, e.g. \u201C A.R.\u201D or \u201C of the Third Age\u201D.' },
   ], (o) => {
     _calendar = (o.calendar ?? '').trim();
     setDashCalendar(_calendar);
     ctx.sendToBackend({ type: 'vellum_set_calendar', calendar: _calendar });
-    // date-format + epoch persist as a config event (flows to every state consumer)
+    // date-format + epoch + fantasy naming persist as a config event (flows to every state consumer)
     const df = (o.dateFormat ?? 'day').trim();
     const epoch = (o.dateEpoch ?? '').trim();
-    if (df !== _dateFormat || epoch !== _dateEpoch) {
-      _dateFormat = df; _dateEpoch = epoch;
-      cmd('config_set', { dateFormat: df, dateEpoch: epoch });
+    const months = (o.monthNames ?? '').trim();
+    const monthsShort = (o.monthNamesShort ?? '').trim();
+    const yearPrefix = o.yearPrefix ?? '';
+    const yearSuffix = o.yearSuffix ?? '';
+    if (df !== _dateFormat || epoch !== _dateEpoch || months !== _monthNames || monthsShort !== _monthNamesShort || yearPrefix !== _yearPrefix || yearSuffix !== _yearSuffix) {
+      _dateFormat = df; _dateEpoch = epoch; _monthNames = months; _monthNamesShort = monthsShort; _yearPrefix = yearPrefix; _yearSuffix = yearSuffix;
+      cmd('config_set', { dateFormat: df, dateEpoch: epoch, monthNames: months, monthNamesShort: monthsShort, yearPrefix, yearSuffix });
     }
     notify(ctx, 'success', 'Calendar settings saved.');
   });
@@ -258,7 +267,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const stats = (): void => {
     const s = getState();
     const w = s.scene.weather ? ` \u00b7 \u2601 ${s.scene.weather}` : '';
-    const dayLabel = s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s.dateEpoch) : 'D0';
+    const dayLabel = s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s) : 'D0';
     statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 ${dayLabel} \u00b7 ${Object.keys(s.cast).length} cast \u00b7 ${s.relations.length} bonds${w}`;
   };
   root.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.vle-tabbar [data-tab],.vle-tabicons [data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
@@ -297,6 +306,10 @@ let _hardLimits = ''; // last-known hard-limits chat var (mirrored from broadcas
 let _calendar = ''; // last-known world-calendar chat var
 let _dateFormat = 'day'; // last-known date-display format (mirrored from state broadcasts)
 let _dateEpoch = ''; // last-known ISO start-date for calendar formats (mirrored from state broadcasts)
+let _monthNames = ''; // last-known custom month names (comma/newline list, mirrored from state)
+let _monthNamesShort = ''; // last-known custom short month names (mirrored from state)
+let _yearPrefix = ''; // last-known era prefix on the year (mirrored from state)
+let _yearSuffix = ''; // last-known era suffix on the year (mirrored from state)
 let _budget: Record<string, unknown> | null = null; // last-known context-budget cfg
 let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
 let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
@@ -704,6 +717,10 @@ export function setup(ctx: Ctx): () => void {
         // mirror date-display config from the reduced state so the Calendar modal opens pre-filled
         if (state?.dateFormat) _dateFormat = state.dateFormat;
         _dateEpoch = state?.dateEpoch ? new Date(state.dateEpoch).toISOString().slice(0, 10) : '';
+        _monthNames = Array.isArray(state?.monthNames) ? state.monthNames.join(', ') : '';
+        _monthNamesShort = Array.isArray(state?.monthNamesShort) ? state.monthNamesShort.join(', ') : '';
+        _yearPrefix = state?.yearPrefix ?? '';
+        _yearSuffix = state?.yearSuffix ?? '';
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;

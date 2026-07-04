@@ -240,7 +240,7 @@ async function readCalendar(chatId: string): Promise<string> {
 async function calendarInjection(chatId: string, day: number, state?: import('./domain/types.js').ChronicleState): Promise<string> {
   const cal = await readCalendar(chatId);
   if (!cal) return '';
-  const dayLabel = state ? formatDate(day, state.dateFormat || 'day', state.dateEpoch) : `Day ${day}`;
+  const dayLabel = state ? formatDate(day, state.dateFormat || 'day', state) : `Day ${day}`;
   return `[CALENDAR] The current day (${dayLabel}) falls within: ${cal}. Reflect the season/occasion (and year, if named) in the world where it fits; never narrate the calendar as a mechanic.`;
 }
 
@@ -270,7 +270,7 @@ async function nextSceneInjection(chatId: string, state?: import('./domain/types
   if (!ns) return '';
   const where = ns.location ? `Location: ${ns.location}.` : '';
   const dayLabel = ns.day !== undefined && ns.day !== null
-    ? (state ? formatDate(ns.day, state.dateFormat || 'day', state.dateEpoch) : `Day ${ns.day}`)
+    ? (state ? formatDate(ns.day, state.dateFormat || 'day', state) : `Day ${ns.day}`)
     : '';
   const when = [dayLabel, ns.time || ''].filter(Boolean).join(', ');
   const whenS = when ? `${when}.` : '';

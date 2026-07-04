@@ -291,7 +291,7 @@ function nextSceneView(s: ChronicleState): string {
     + '<button class="vle-link" data-qol="tone">\u2665 Tone &amp; world bias</button></div>';
   if (!_nextScene) return head + intro + emptyState('No next-scene set.', 'The story flows naturally. Set one to open the next turn at a specific place/time.') + steer;
   const ns = _nextScene;
-  const when = [ns.day !== undefined ? formatDate(ns.day, s.dateFormat || 'day', s.dateEpoch) : '', ns.time || ''].filter(Boolean).join(', ');
+  const when = [ns.day !== undefined ? formatDate(ns.day, s.dateFormat || 'day', s) : '', ns.time || ''].filter(Boolean).join(', ');
   const card = `<div class="vle-nextscene">`
     + (ns.location ? `<div class="vle-ns-row"><span class="vle-ns-k">where</span><span class="vle-ns-v">${esc(ns.location)}</span></div>` : '')
     + (when ? `<div class="vle-ns-row"><span class="vle-ns-k">when</span><span class="vle-ns-v">${esc(when)}</span></div>` : '')
