@@ -270,22 +270,30 @@ function scene(s: ChronicleState): string {
 }
 
 function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s: ChronicleState): string {
-  const addBtn = `<button class="vle-add sm" data-track-add data-arc="${kindArc ? '1' : '0'}" title="Add ${kindArc ? 'an arc' : 'a thread'}">+</button>`;
+  const arc = kindArc ? '1' : '0';
+  const addBtn = `<button class="vle-add sm" data-track-add data-arc="${arc}" title="Add ${kindArc ? 'an arc' : 'a thread'}">+</button>`;
   const A = (x: unknown): string => esc(x);
-  const rows = list.slice().sort(byRecent).slice(0, 12).map((t) => {
+  const cards = list.slice().sort(byRecent).slice(0, 12).map((t) => {
     const resolved = /resolv/i.test(t.status || '');
+    // a bare "advance"/"new" status carries no info — show a neutral "open" pill.
+    const statusText = t.status && !/^(advance|new)$/i.test(t.status) ? t.status : (resolved ? 'resolved' : 'open');
+    const pill = `<span class="vle-trk-pill${resolved ? ' done' : ''}">${esc(statusText)}</span>`;
     // reflect any linked off-screen subplot's latest beat (the bridge)
     const off = !kindArc ? linkedOffscreen(s, { id: t.id, name: t.name }) : [];
-    const offBeat = off.length ? `<div class="vle-track-off" title="advanced off-screen">\u2748 ${esc(off[0]!.gist || off[0]!.beats[off[0]!.beats.length - 1] || '')}</div>` : '';
-    const hist = t.beats.length > 1 ? `<details class="vle-os-h"><summary>${t.beats.length} beats</summary>${t.beats.map((b) => '<div>\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
-    const editBtn = `<button class="vle-mini" data-track-edit data-id="${A(t.id)}" data-arc="${kindArc ? '1' : '0'}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">\u270E</button>`;
+    const offBeat = off.length ? `<div class="vle-trk-off" title="advanced off-screen">\u2748 ${esc(off[0]!.gist || off[0]!.beats[off[0]!.beats.length - 1] || '')}</div>` : '';
+    const hist = t.beats.length > 1 ? `<details class="vle-trk-hist"><summary>${t.beats.length} beats</summary>${t.beats.map((b) => '<div class="vle-trk-beat">\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
+    const editBtn = `<button class="vle-mini" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">\u270E</button>`;
     const stBtn = resolved
-      ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${kindArc ? '1' : '0'}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
-      : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${kindArc ? '1' : '0'}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
-    const ctl = `<span class="vle-mem-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${kindArc ? '1' : '0'}" title="Delete">\u2715</button></span>`;
-    return `<div class="vle-track${resolved ? ' vle-os--done' : ''}"><div class="vle-track-top"><span class="vle-track-n">${esc(t.name)}</span><span class="vle-track-s">${esc(t.status)}</span>${ctl}</div>${offBeat}${hist}</div>`;
+      ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
+      : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
+    const ctl = `<div class="vle-trk-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
+    return `<div class="vle-trk${resolved ? ' vle-trk--done' : ''}">`
+      + `<div class="vle-trk-head"><span class="vle-trk-n">${esc(t.name)}</span>${pill}</div>`
+      + offBeat + hist + ctl
+      + `</div>`;
   }).join('');
-  return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + (rows || emptyState(`No ${kindArc ? 'arcs' : 'threads'} yet.`, 'They fill in as the story unfolds; add one by hand too.'));
+  const body = cards ? `<div class="vle-trk-grid">${cards}</div>` : emptyState(`No ${kindArc ? 'arcs' : 'threads'} yet.`, 'They fill in as the story unfolds; add one by hand too.');
+  return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
 }
 
 /** Off-screen subplots (the sim) + any model-narrated meanwhile lines, so all
