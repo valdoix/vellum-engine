@@ -361,7 +361,7 @@ export const STYLES = [
   ".vle-card-app{font-size:13px;opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
   // tracks + memory
   // plot threads / arcs — cards in a responsive grid (was a cramped 1-row flex)
-  ".vle-trk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:6px}",
+  ".vle-trk-grid{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}",
   ".vle-trk{display:flex;flex-direction:column;gap:6px;padding:10px 11px;border:1px solid rgba(var(--vg-rgb),.18);border-left:3px solid var(--vle-gold-soft);border-radius:var(--vr2);background:color-mix(in srgb,var(--vi) 3%,transparent)}",
   ".vle-trk--done{opacity:.6;border-left-color:rgba(var(--vg-rgb),.3)}",
   ".vle-trk-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}",
