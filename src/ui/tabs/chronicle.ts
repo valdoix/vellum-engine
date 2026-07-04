@@ -287,9 +287,12 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
       ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
       : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
     const ctl = `<div class="vle-trk-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
+    // head = title + status pill ONLY; everything else (off-screen beat, beats
+    // history, controls) lives in a body wrapper strictly below the head row.
+    const body = `<div class="vle-trk-body">${offBeat}${hist}${ctl}</div>`;
     return `<div class="vle-trk${resolved ? ' vle-trk--done' : ''}">`
       + `<div class="vle-trk-head"><span class="vle-trk-n">${esc(t.name)}</span>${pill}</div>`
-      + offBeat + hist + ctl
+      + body
       + `</div>`;
   }).join('');
   const body = cards ? `<div class="vle-trk-grid">${cards}</div>` : emptyState(`No ${kindArc ? 'arcs' : 'threads'} yet.`, 'They fill in as the story unfolds; add one by hand too.');
