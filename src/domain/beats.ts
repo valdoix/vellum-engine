@@ -1,5 +1,6 @@
 import type { ChronicleState, Memory } from './types.js';
 import type { VellumEvent } from '../core/events.js';
+import { formatDate } from './date-format.js';
 
 /**
  * Story Beats (tier 'beat') — author-curated landmark index cards. Distinct from
@@ -67,8 +68,10 @@ export function beatReorderEvents(state: ChronicleState, id: string, dir: -1 | 1
 }
 
 /** A short "[Day N · time] text" label for one beat (display + spine line). */
-export function beatLabel(m: Memory): string {
-  const day = m.beatDay !== undefined ? `Day ${m.beatDay}` : '';
+export function beatLabel(m: Memory, state?: ChronicleState): string {
+  const day = m.beatDay !== undefined
+    ? (state ? formatDate(m.beatDay, state.dateFormat || 'day', state.dateEpoch) : `Day ${m.beatDay}`)
+    : '';
   const time = m.beatTime ? (day ? ', ' + m.beatTime : m.beatTime) : '';
   const anchor = day || time ? `[${day}${time}] ` : '';
   return anchor + m.text;
@@ -83,7 +86,7 @@ export function beatSpine(state: ChronicleState, cap = 14): string {
   let spine = sortedBeats(state).filter((m) => m.spine);
   if (!spine.length) return '';
   if (spine.length > cap) spine = spine.slice(spine.length - cap); // keep the most recent
-  const lines = spine.map((m) => '- ' + beatLabel(m));
+  const lines = spine.map((m) => '- ' + beatLabel(m, state));
   return '[STORY SPINE — the author-marked landmarks of this story, in order. Treat as established ground truth; honor and build on them, never contradict or re-tell them as if new]\n' + lines.join('\n');
 }
 

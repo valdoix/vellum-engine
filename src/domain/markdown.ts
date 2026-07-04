@@ -1,5 +1,6 @@
 import type { ChronicleState } from './types.js';
 import { arcLine } from './drift.js';
+import { formatDate } from './date-format.js';
 
 /**
  * Render the chronicle to a readable Markdown document — the shareable form of
@@ -11,7 +12,8 @@ export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
   const nm = (id: string): string => state.cast[id]?.name ?? id;
   const out: string[] = [];
   out.push('# ' + title, '');
-  out.push(`*Day ${state.day ?? 0} · turn ${state.turns ?? 0} · ${Object.keys(state.cast).length} characters*`, '');
+  const dayLabel = formatDate(state.day ?? 0, state.dateFormat || 'day', state.dateEpoch);
+  out.push(`*${dayLabel} · turn ${state.turns ?? 0} · ${Object.keys(state.cast).length} characters*`, '');
 
   // --- Story So Far: arcs, then chapters, then the beat spine, in order ---
   const arcs = state.memories.filter((m) => m.tier === 'arc').sort((a, b) => (a.covers?.[0] ?? a.turn) - (b.covers?.[0] ?? b.turn));
@@ -24,7 +26,12 @@ export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
   }
   if (beats.length) {
     out.push('## Landmarks', '');
-    for (const b of beats) out.push('- ' + (b.beatDay !== undefined ? `**Day ${b.beatDay}${b.beatTime ? ', ' + b.beatTime : ''}** — ` : '') + b.text);
+    for (const b of beats) {
+      const dayLabel = b.beatDay !== undefined ? formatDate(b.beatDay, state.dateFormat || 'day', state.dateEpoch) : '';
+      const timeStr = b.beatTime ? ', ' + b.beatTime : '';
+      const prefix = dayLabel ? `**${dayLabel}${timeStr}** — ` : '';
+      out.push('- ' + prefix + b.text);
+    }
     out.push('');
   }
 

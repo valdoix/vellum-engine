@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 13 as const;
+export const SCHEMA_VERSION = 14 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -38,6 +38,12 @@ const base = { seq: z.number().int().nonnegative(), turn: z.number().int().nonne
 
 // --- individual event variants -------------------------------------------
 export const EvTurnFold = z.object({ ...base, kind: z.literal('turn.fold'), sig: z.string() });
+// --- chronicle config: user preferences that live in the log so they persist +
+// flow to every reduce() consumer (UI, injections, export). Currently the
+// date-display format (day-count vs. calendar). Additive/optional.
+export const DateFormat = z.enum(['day', 'month-day-year', 'month-day', 'month', 'week', 'month-year', 'year']);
+export type DateFormat = z.infer<typeof DateFormat>;
+export const EvConfigSet = z.object({ ...base, kind: z.literal('config.set'), dateFormat: DateFormat.optional(), dateEpoch: z.string().optional() });
 export const PresentDetail = z.object({ id: z.string(), name: z.string().optional(), mood: z.string().optional(), doing: z.string().optional(), condition: z.string().optional(), thought: z.string().optional() });
 export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional() });
 export const ParallelItem = z.object({ who: z.string().optional(), where: z.string().optional(), activity: z.string(), note: z.string().optional(), src: z.literal('sim').optional() });
@@ -178,7 +184,7 @@ export const EvOffscreenLink = z.object({ ...base, kind: z.literal('offscreen.li
 export const EvOffscreenDrop = z.object({ ...base, kind: z.literal('offscreen.drop'), id: z.string() });
 
 export const VellumEvent = z.discriminatedUnion('kind', [
-  EvTurnFold, EvSceneSet,
+  EvTurnFold, EvConfigSet, EvSceneSet,
   EvCastSeen, EvCastEdit, EvCastDrop,
   EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding, EvFactionRel, EvFactionRelDrop,
   EvBondDelta, EvBondDrop,

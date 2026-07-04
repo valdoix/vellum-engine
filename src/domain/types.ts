@@ -296,6 +296,8 @@ export interface ChronicleState {
   scene: Scene;
   day: number;
   turns: number;
+  dateFormat: 'day' | 'month-day-year' | 'month-day' | 'month' | 'week' | 'month-year' | 'year';
+  dateEpoch?: Date; // Optional: reference date for calendar conversion
 }
 
 /** A living off-screen subplot the off-screen sim advances over turns. Mirrors
@@ -339,5 +341,6 @@ export function freshState(): ChronicleState {
     scene: { location: '', time: '', tension: 0, weather: '', present: [], detail: [] },
     day: 0,
     turns: 0,
+    dateFormat: 'day',
   };
 }

@@ -4,6 +4,7 @@ import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { linkedOffscreen } from '../../domain/offscreen.js';
+import { formatDate } from '../../domain/date-format.js';
 
 
 /**
@@ -389,11 +390,11 @@ function beatsView(s: ChronicleState): string {
   const head = sectionHeader('\u2691 Story Beats', { sub: true, count: list.length, action: '<button class="vle-add sm" data-beat-suggest title="Suggest beats from the story so far">\u2728 suggest</button><button class="vle-add sm" data-beat-add>+</button>' });
   const intro = '<div class="vle-cz-note">Landmark index cards you author - the story\u2019s through-line. Spine beats (\u2691) are injected into every prompt as ground truth; the rest surface by relevance. Use \u25B4\u25BE to reorder.</div>';
   const sug = _beatSuggest.length
-    ? '<div class="vle-beat-sug-h"><span class="vle-beat-sug-lbl">Suggested:</span><div class="vle-beat-sug-row">' + _beatSuggest.slice(0, 12).map((x, i) => `<button class="vle-beat-sug-chip" data-beat-accept="${i}" title="Add as a beat: ${esc(x.text)}">+ ${esc((x.day ? 'D' + x.day + ' ' : '') + x.text).slice(0, 48)}</button>`).join('') + '</div></div>'
+    ? '<div class="vle-beat-sug-h"><span class="vle-beat-sug-lbl">Suggested:</span><div class="vle-beat-sug-row">' + _beatSuggest.slice(0, 12).map((x, i) => `<button class="vle-beat-sug-chip" data-beat-accept="${i}" title="Add as a beat: ${esc(x.text)}">+ ${esc((x.day ? formatDate(x.day, s.dateFormat || 'day', s.dateEpoch) + ' ' : '') + x.text).slice(0, 48)}</button>`).join('') + '</div></div>'
     : '';
   if (!list.length) return head + intro + sug + emptyState('No beats yet.', 'Mark a landmark: a duel, a betrayal, a vow. Or hit \u2728 suggest to pull candidates from what already happened.');
   const rows = list.map((m, i) => {
-    const anchor = (m.beatDay !== undefined ? 'Day ' + m.beatDay : '') + (m.beatTime ? (m.beatDay !== undefined ? ', ' : '') + m.beatTime : '');
+    const anchor = (m.beatDay !== undefined ? formatDate(m.beatDay, s.dateFormat || 'day', s.dateEpoch) : '') + (m.beatTime ? (m.beatDay !== undefined ? ', ' : '') + m.beatTime : '');
     const spine = m.spine ? '<span class="vle-mem-tier t-beat" title="On the always-injected spine">\u2691</span>' : '<span class="vle-mem-tier" title="Recalled by relevance only" style="opacity:.5">\u25CB</span>';
     const up = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="up"${i === 0 ? ' disabled' : ''} title="Move earlier">\u25B4</button>`;
     const down = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="down"${i === list.length - 1 ? ' disabled' : ''} title="Move later">\u25BE</button>`;

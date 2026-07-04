@@ -42,7 +42,7 @@ describe('end-to-end: possessive junk does not mint cast cards', () => {
   it('rejects "Daeron\'s Secret Research" from present list', () => {
     const parsed: ParsedState = { present: [{ name: "Daeron's Secret Research" }], delta: {} };
     const ctx = { state: freshState(), seq: nextSeq, turn: 1, day: 1 };
-    const events = coreFeature.extract(parsed, ctx);
+    const events = coreFeature.extract!(parsed, ctx);
     const s = reduce(events, ctx.state);
     // No cast card should exist for the junk phrase
     expect(Object.keys(s.cast)).not.toContain('daeron_s_secret_research');
@@ -55,7 +55,7 @@ describe('end-to-end: possessive junk does not mint cast cards', () => {
       delta: { bonds: [{ a: 'Daeron', b: "Cersei's Private Study", aff: 5 }] },
     };
     const ctx = { state: freshState(), seq: nextSeq, turn: 1, day: 1 };
-    const events = coreFeature.extract(parsed, ctx);
+    const events = coreFeature.extract!(parsed, ctx);
     const s = reduce(events, ctx.state);
     // Daeron should exist, but not the junk phrase
     expect(s.cast.daeron).toBeDefined();
@@ -67,7 +67,7 @@ describe('end-to-end: possessive junk does not mint cast cards', () => {
   it('allows "Cersei\'s father" as a legitimate distinct character', () => {
     const parsed: ParsedState = { present: [{ name: "Cersei's father" }], delta: {} };
     const ctx = { state: freshState(), seq: nextSeq, turn: 1, day: 1 };
-    const events = coreFeature.extract(parsed, ctx);
+    const events = coreFeature.extract!(parsed, ctx);
     const s = reduce(events, ctx.state);
     // This SHOULD mint a cast card (it's a valid, distinct person)
     expect(s.cast.cersei_s_father).toBeDefined();

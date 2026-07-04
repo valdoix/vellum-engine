@@ -13,6 +13,7 @@ import { planChapterFrom, planArc, planArcFrom } from './domain/memory.js';
 import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats } from './domain/beats.js';
 import { locationList } from './domain/locations.js';
 import { driftInjection } from './domain/drift.js';
+import { formatDate } from './domain/date-format.js';
 import { turnLog } from './domain/turnlog.js';
 import { toMarkdown } from './domain/markdown.js';
 import { moodInjectionCached, invalidateMood } from './domain/mood.js';
@@ -236,10 +237,11 @@ async function budgetRaw(chatId: string): Promise<ContextBudget> {
 async function readCalendar(chatId: string): Promise<string> {
   try { return String((await getChatVar(chatId, 'vellum_calendar')) ?? '').trim(); } catch { return ''; }
 }
-async function calendarInjection(chatId: string, day: number): Promise<string> {
+async function calendarInjection(chatId: string, day: number, state?: import('./domain/types.js').ChronicleState): Promise<string> {
   const cal = await readCalendar(chatId);
   if (!cal) return '';
-  return `[CALENDAR] The current day (Day ${day}) falls within: ${cal}. Reflect the season/occasion (and year, if named) in the world where it fits; never narrate the calendar as a mechanic.`;
+  const dayLabel = state ? formatDate(day, state.dateFormat || 'day', state.dateEpoch) : `Day ${day}`;
+  return `[CALENDAR] The current day (${dayLabel}) falls within: ${cal}. Reflect the season/occasion (and year, if named) in the world where it fits; never narrate the calendar as a mechanic.`;
 }
 
 // --- Hard limits: absolute per-chat content boundaries. Injected FIRST (highest
@@ -263,11 +265,14 @@ async function readNextScene(chatId: string): Promise<NextScene | null> {
 async function clearNextScene(chatId: string): Promise<void> {
   try { await setChatVar(chatId, 'vellum_next_scene', ''); } catch { /* best effort */ }
 }
-async function nextSceneInjection(chatId: string): Promise<string> {
+async function nextSceneInjection(chatId: string, state?: import('./domain/types.js').ChronicleState): Promise<string> {
   const ns = await readNextScene(chatId);
   if (!ns) return '';
   const where = ns.location ? `Location: ${ns.location}.` : '';
-  const when = [ns.day !== undefined && ns.day !== null ? `Day ${ns.day}` : '', ns.time || ''].filter(Boolean).join(', ');
+  const dayLabel = ns.day !== undefined && ns.day !== null
+    ? (state ? formatDate(ns.day, state.dateFormat || 'day', state.dateEpoch) : `Day ${ns.day}`)
+    : '';
+  const when = [dayLabel, ns.time || ''].filter(Boolean).join(', ');
   const whenS = when ? `${when}.` : '';
   const note = ns.note ? ` ${ns.note}` : '';
   const body = [where, whenS].filter(Boolean).join(' ') + note;
@@ -852,8 +857,8 @@ async function wireCapabilities(): Promise<void> {
             budgetCaps(chatId),
             readDirectives(chatId),
             readLocks(chatId),
-            calendarInjection(chatId, state.day || 0),
-            nextSceneInjection(chatId),
+            calendarInjection(chatId, state.day || 0, state),
+            nextSceneInjection(chatId, state),
             hardLimitsInjection(chatId),
             loadLog(chatId).then((l) => l.events).catch(() => [] as VellumEvent[]),
           ]);

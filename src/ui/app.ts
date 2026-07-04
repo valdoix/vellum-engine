@@ -13,10 +13,11 @@ import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize } from './theme.js';
 import { dashboardHtml, setPhoneSection, setSysInfo, setDashCalendar } from './dashboard.js';
+import { formatDate } from '../domain/date-format.js';
 import { esc } from './format.js';
 import { icon, hasIcon } from './icons.js';
 import type { Component } from './component.js';
-import { wireBridge, wirePagers, wireFilters, refreshUI, send } from './bridge.js';
+import { wireBridge, wirePagers, wireFilters, refreshUI, send, cmd } from './bridge.js';
 import { confirmModal, formModal } from './modal.js';
 
 /**
@@ -156,11 +157,32 @@ function openBudgetModal(ctx: Ctx): void {
 function openCalendarModal(ctx: Ctx): void {
   formModal('World Calendar', [
     { key: 'calendar', label: 'Current epoch / season / occasion (blank = none)', type: 'text', value: _calendar, placeholder: 'the third day of the harvest festival, year 312' },
+    {
+      key: 'dateFormat', label: 'Time display format', type: 'select', value: _dateFormat,
+      hint: 'How the day counter reads everywhere (dashboard, beats, journal, export). Calendar formats derive a date from the day number + start date below.',
+      options: [
+        { value: 'day', label: 'Day count \u2014 Day 1, Day 2\u2026' },
+        { value: 'month-day-year', label: 'Month Day, Year \u2014 January 5, 2026' },
+        { value: 'month-day', label: 'Month Day \u2014 January 5' },
+        { value: 'month', label: 'Month \u2014 January' },
+        { value: 'week', label: 'Week number \u2014 Week 1, Week 2\u2026' },
+        { value: 'month-year', label: 'Month Year \u2014 Jan 2026' },
+        { value: 'year', label: 'Year \u2014 Year 2026' },
+      ],
+    },
+    { key: 'dateEpoch', label: 'Start date (day 0) \u2014 optional, for calendar formats', type: 'text', value: _dateEpoch, placeholder: '2026-01-01', hint: 'ISO date the story\u2019s day 0 maps to. Blank = a neutral fictional calendar.' },
   ], (o) => {
     _calendar = (o.calendar ?? '').trim();
     setDashCalendar(_calendar);
     ctx.sendToBackend({ type: 'vellum_set_calendar', calendar: _calendar });
-    notify(ctx, 'success', _calendar ? 'Calendar set.' : 'Calendar cleared.');
+    // date-format + epoch persist as a config event (flows to every state consumer)
+    const df = (o.dateFormat ?? 'day').trim();
+    const epoch = (o.dateEpoch ?? '').trim();
+    if (df !== _dateFormat || epoch !== _dateEpoch) {
+      _dateFormat = df; _dateEpoch = epoch;
+      cmd('config_set', { dateFormat: df, dateEpoch: epoch });
+    }
+    notify(ctx, 'success', 'Calendar settings saved.');
   });
 }
 
@@ -236,7 +258,8 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const stats = (): void => {
     const s = getState();
     const w = s.scene.weather ? ` \u00b7 \u2601 ${s.scene.weather}` : '';
-    statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 D${s.day ?? 0} \u00b7 ${Object.keys(s.cast).length} cast \u00b7 ${s.relations.length} bonds${w}`;
+    const dayLabel = s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s.dateEpoch) : 'D0';
+    statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 ${dayLabel} \u00b7 ${Object.keys(s.cast).length} cast \u00b7 ${s.relations.length} bonds${w}`;
   };
   root.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.vle-tabbar [data-tab],.vle-tabicons [data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => {
@@ -272,6 +295,8 @@ let _tidyOn = false;
 let _chapterVault = 'keyed';
 let _hardLimits = ''; // last-known hard-limits chat var (mirrored from broadcasts)
 let _calendar = ''; // last-known world-calendar chat var
+let _dateFormat = 'day'; // last-known date-display format (mirrored from state broadcasts)
+let _dateEpoch = ''; // last-known ISO start-date for calendar formats (mirrored from state broadcasts)
 let _budget: Record<string, unknown> | null = null; // last-known context-budget cfg
 let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
 let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
@@ -676,6 +701,9 @@ export function setup(ctx: Ctx): () => void {
         if ('nextScene' in p) setDirectorNextScene(p.nextScene);
         if (typeof p.hardLimits === 'string') _hardLimits = p.hardLimits;
         if (typeof p.calendar === 'string') { _calendar = p.calendar; setDashCalendar(_calendar); }
+        // mirror date-display config from the reduced state so the Calendar modal opens pre-filled
+        if (state?.dateFormat) _dateFormat = state.dateFormat;
+        _dateEpoch = state?.dateEpoch ? new Date(state.dateEpoch).toISOString().slice(0, 10) : '';
         if (typeof p.traversalMode === 'string') {
           _traverseMode = p.traversalMode;
           if (typeof p.traversalAxis === 'string') _traverseAxis = p.traversalAxis;

@@ -3,6 +3,7 @@ import type { ChronicleState, JournalEntry } from '../../domain/types.js';
 import { esc, nameOf, emptyState, sectionHeader, nameHtml, initials } from '../format.js';
 import { cmd, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
+import { formatDate } from '../../domain/date-format.js';
 
 /**
  * Journal tab — each character's MEMORY JOURNAL: the moments they personally
@@ -121,7 +122,7 @@ function leaf(s: ChronicleState, j: JournalEntry): string {
   const sc = SENT_CLS[j.sentiment] ?? 'neu';
   const A = (x: unknown): string => esc(x);
   const about = j.about ? ' \u2192 ' + nameOf(s, j.about) : '';
-  const anchor = (j.day ? 'Day ' + j.day + ' \u00b7 ' : '') + (KIND_GLYPH[j.kind] ?? '\u25C9') + ' ' + j.kind + ' \u00b7 ' + j.weight;
+  const anchor = (j.day ? formatDate(j.day, s.dateFormat || 'day', s.dateEpoch) + ' \u00b7 ' : '') + (KIND_GLYPH[j.kind] ?? '\u25C9') + ' ' + j.kind + ' \u00b7 ' + j.weight;
   return `<div class="vle-leaf vle-leaf--${sc}">`
     + `<div class="vle-leaf-meta">${esc(anchor)}${esc(about)}`
     + `<span class="vle-leaf-ctl"><button class="vle-mini" data-jr-edit data-id="${A(j.id)}" data-who="${A(nameOf(s, j.who))}" data-about="${A(j.about ? nameOf(s, j.about) : '')}" data-mem="${A(j.memory)}" data-kind="${A(j.kind)}" data-weight="${A(j.weight)}" data-sent="${A(j.sentiment)}" title="Edit">\u270E</button>`

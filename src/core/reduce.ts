@@ -82,6 +82,14 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       s.day = Math.max(s.day, e.day);
       break;
     }
+    case 'config.set': {
+      if (e.dateFormat) s.dateFormat = e.dateFormat;
+      if (e.dateEpoch !== undefined) {
+        const d = e.dateEpoch ? new Date(e.dateEpoch) : undefined;
+        s.dateEpoch = d && !isNaN(d.getTime()) ? d : undefined;
+      }
+      break;
+    }
     case 'scene.set': {
       s.scene = {
         location: e.location ?? s.scene.location,

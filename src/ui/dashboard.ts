@@ -1,6 +1,7 @@
 import type { ChronicleState, PresentChar, Relation } from '../domain/types.js';
 import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml, bondMeter, initials, avatarParts } from './format.js';
 import { storyStats } from '../domain/stats.js';
+import { formatDate } from '../domain/date-format.js';
 
 /**
  * The floating-window DASHBOARD — a single at-a-glance scene panel (distinct
@@ -103,7 +104,7 @@ function statusBar(s: ChronicleState): string {
   // hero scene line (the biggest thing) + ONE quiet meta line, not 4 gold pills
   const meta = [
     `T${s.turns ?? 0}`,
-    s.day ? `Day ${s.day}` : '',
+    s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s.dateEpoch) : '',
     s.scene.time ? esc(s.scene.time) : '',
     s.scene.weather ? esc(s.scene.weather) : '',
   ].filter(Boolean).join('  \u00b7  ');

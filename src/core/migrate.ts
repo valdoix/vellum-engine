@@ -103,6 +103,12 @@ export function migrate(raw: unknown): unknown {
     version = 13;
   }
 
+  // v13 → v14: chronicle config event (config.set / state.dateFormat). Additive —
+  // old logs have no config event and default to the 'day' count format.
+  if (version < 14) {
+    version = 14;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }
