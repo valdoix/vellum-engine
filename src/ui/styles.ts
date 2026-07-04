@@ -366,7 +366,7 @@ export const STYLES = [
   ".vle-trk--done{opacity:.6;border-left-color:rgba(var(--vg-rgb),.3)}",
   ".vle-trk-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px}",
   ".vle-trk-n{font-family:var(--vserif);font-size:calc(14px * var(--vscale));line-height:1.3;color:var(--vi);overflow-wrap:anywhere}",
-  ".vle-trk-pill{align-self:flex-start;font:600 8.5px/1.4 var(--vmono);letter-spacing:.3px;text-transform:uppercase;color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 12%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 32%,transparent);border-radius:999px;padding:2px 8px;white-space:nowrap}",
+  ".vle-trk-pill{align-self:flex-start;font:600 8.5px/1.4 var(--vmono);letter-spacing:.3px;text-transform:uppercase;color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 12%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 32%,transparent);border-radius:999px;padding:2px 8px;max-width:100%;overflow-wrap:break-word}",
   ".vle-trk-pill.done{color:var(--vi2);background:rgba(var(--vg-rgb),.1);border-color:rgba(var(--vg-rgb),.25)}",
   ".vle-trk-body{display:flex;flex-direction:column;gap:6px}",
   ".vle-trk-off{font-size:calc(11.5px * var(--vscale));line-height:1.45;color:var(--v-info);opacity:.92;overflow-wrap:anywhere}",
