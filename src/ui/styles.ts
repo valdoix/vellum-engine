@@ -196,6 +196,8 @@ export const STYLES = [
   ".vle-loc-mark{flex:0 0 auto;color:var(--vle-gold)}",
   ".vle-loc-name{font-family:var(--vserif);font-size:calc(14px * var(--vscale));color:var(--vi)}",
   ".vle-loc-note{flex:1 1 auto;min-width:0;font-size:calc(12px * var(--vscale));color:var(--vi2);opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+  ".vle-loc-tree{margin:0 0 6px}",
+  ".vle-loc-branch{flex:0 0 auto;white-space:pre;font-family:var(--vmono);font-size:calc(12px * var(--vscale));color:var(--vle-gold);opacity:.5;margin-right:-4px}",
   ".vle-nextscene{border:1px solid color-mix(in srgb,var(--vle-gold) 30%,transparent);border-radius:10px;padding:11px 13px;background:color-mix(in srgb,var(--vle-gold) 6%,transparent)}",
   ".vle-ns-row{display:flex;gap:9px;margin:0 0 5px}",
   ".vle-ns-k{flex:0 0 48px;font:600 10px/1.5 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vle-gold);opacity:.75}",

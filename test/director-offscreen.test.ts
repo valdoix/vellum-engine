@@ -47,3 +47,31 @@ describe('Director Off-screen view — renders model-narrated parallel meanwhile
     expect(directorTab.version!(a)).not.toBe(directorTab.version!(b));
   });
 });
+
+describe('Director Locations view — nests contained places under their parent', () => {
+  it('renders children indented with a branch connector under the parent', () => {
+    const s = freshState();
+    s.locations = [
+      { id: 'harrenhal', name: 'Harrenhal', auto: true, firstTurn: 1, lastTurn: 5 },
+      { id: 'yard', name: 'Training yard', parent: 'harrenhal', auto: true, firstTurn: 2, lastTurn: 6 },
+      { id: 'hall', name: 'Great Hall', parent: 'harrenhal', auto: true, firstTurn: 3, lastTurn: 4 },
+    ];
+    switchTo('locations');
+    const html = directorTab.render(s);
+    // parent is a root (no branch), children carry the |-- connector
+    expect(html).toContain('Harrenhal');
+    expect(html).toContain('vle-loc-branch');
+    expect(html).toContain('\u251C\u2500\u2500'); // "├──"
+    // child rows come AFTER the parent row in document order
+    expect(html.indexOf('Harrenhal')).toBeLessThan(html.indexOf('Training yard'));
+    expect(html.indexOf('Harrenhal')).toBeLessThan(html.indexOf('Great Hall'));
+  });
+
+  it('a dangling parent ref still renders the place (as a root), never hidden', () => {
+    const s = freshState();
+    s.locations = [{ id: 'orphan', name: 'Lost Cave', parent: 'gone', auto: true, firstTurn: 1, lastTurn: 1 }];
+    switchTo('locations');
+    const html = directorTab.render(s);
+    expect(html).toContain('Lost Cave');
+  });
+});

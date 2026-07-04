@@ -217,21 +217,41 @@ function addDirectiveForm(): void {
 }
 
 function locationsView(s: ChronicleState): string {
-  const list = (s.locations ?? []).slice().sort((a, b) => b.lastTurn - a.lastTurn);
+  const list = (s.locations ?? []).slice();
   const head = sectionHeader('\u25C9 Locations', { sub: true, count: list.length, action: '<button class="vle-add sm" data-loc-add>+</button>' });
-  const intro = '<div class="vle-cz-note">Established places, injected each turn so the model reuses these names instead of inventing or renaming. Visited scenes are added automatically; pin or edit your own.</div>';
+  const intro = '<div class="vle-cz-note">Established places, injected each turn so the model reuses these names instead of inventing or renaming. Contained places nest under the place they sit inside. Visited scenes are added automatically; pin or edit your own.</div>';
   if (!list.length) return head + intro + emptyState('No locations yet.', 'Places you visit are collected here automatically; you can also add and pin your own.');
-  const pinned = list.filter((l) => l.auto !== true);
-  const auto = list.filter((l) => l.auto === true);
-  const row = (l: typeof list[number]): string =>
-    `<div class="vle-loc-row"><span class="vle-loc-mark" title="${l.auto ? 'auto-collected from a scene' : 'pinned by you'}">${l.auto ? '\u25CB' : '\u2691'}</span>`
-    + `<span class="vle-loc-name">${esc(l.name)}</span>`
-    + (l.parent ? `<span class="vle-loc-note">in ${esc((s.locations ?? []).find((x) => x.id === l.parent)?.name ?? l.parent)}</span>` : '')
-    + (l.note ? `<span class="vle-loc-note">${esc(l.note)}</span>` : '')
-    + `<span class="vle-mem-ctl"><button class="vle-mini" data-loc-edit data-id="${esc(l.id)}" data-name="${esc(l.name)}" data-note="${esc(l.note ?? '')}" data-parent="${esc(l.parent ?? '')}" title="Edit / pin">\u270E</button>`
-    + `<button class="vle-mini del" data-loc-del data-id="${esc(l.id)}" title="Delete">\u2715</button></span></div>`;
-  const grp = (label: string, ls: typeof list): string => ls.length ? `<div class="vle-loc-grp"><div class="vle-loc-grp-h">${label}</div>${ls.map(row).join('')}</div>` : '';
-  return head + intro + grp('Pinned', pinned) + grp('Visited', auto);
+  // Build the containment tree: a location nests under its `parent` when that
+  // parent is itself a known location; otherwise it's a root (a dangling parent
+  // ref falls back to a root so nothing is hidden).
+  const byId = new Map(list.map((l) => [l.id, l]));
+  const kids = new Map<string, typeof list>();
+  const roots: typeof list = [];
+  for (const l of list) {
+    const pid = l.parent && byId.has(l.parent) ? l.parent : '';
+    if (pid) (kids.get(pid) ?? kids.set(pid, []).get(pid)!).push(l);
+    else roots.push(l);
+  }
+  const byRecent = (a: typeof list[number], b: typeof list[number]): number => b.lastTurn - a.lastTurn;
+  const row = (l: typeof list[number], depth: number): string => {
+    // connector: roots stand alone; children get a "|--" branch, indented by depth.
+    const branch = depth > 0 ? `<span class="vle-loc-branch" aria-hidden="true">${'\u2502\u00A0\u00A0'.repeat(depth - 1)}\u251C\u2500\u2500 </span>` : '';
+    return `<div class="vle-loc-row">${branch}`
+      + `<span class="vle-loc-mark" title="${l.auto ? 'auto-collected from a scene' : 'pinned by you'}">${l.auto ? '\u25CB' : '\u2691'}</span>`
+      + `<span class="vle-loc-name">${esc(l.name)}</span>`
+      + (l.note ? `<span class="vle-loc-note">${esc(l.note)}</span>` : '')
+      + `<span class="vle-mem-ctl"><button class="vle-mini" data-loc-edit data-id="${esc(l.id)}" data-name="${esc(l.name)}" data-note="${esc(l.note ?? '')}" data-parent="${esc(l.parent ?? '')}" title="Edit / pin">\u270E</button>`
+      + `<button class="vle-mini del" data-loc-del data-id="${esc(l.id)}" title="Delete">\u2715</button></span></div>`;
+  };
+  // depth-first walk; a `seen` guard breaks any accidental parent cycle in the data.
+  const seen = new Set<string>();
+  const walk = (l: typeof list[number], depth: number): string => {
+    if (seen.has(l.id)) return '';
+    seen.add(l.id);
+    const children = (kids.get(l.id) ?? []).slice().sort(byRecent);
+    return row(l, depth) + children.map((c) => walk(c, depth + 1)).join('');
+  };
+  return head + intro + `<div class="vle-loc-tree">${roots.sort(byRecent).map((r) => walk(r, 0)).join('')}</div>`;
 }
 
 function nextSceneView(s: ChronicleState): string {
