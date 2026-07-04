@@ -91,6 +91,7 @@ const SIM_SYS_BASE = [
   'You are given OFF-SCREEN CHARACTERS (not in the current scene) and the CURRENT OFF-SCREEN SUBPLOTS already in motion.',
   'For each, decide a small next beat: ADVANCE an existing subplot (reuse its id), RESOLVE one that has run its course, or open a NEW one.',
   'Keep beats SMALL and plausible (a clause, not a plot twist). Do NOT kill anyone or resolve a major on-screen arc.',
+  'NARRATIVE TRUTH ONLY: every beat must be grounded in facts already established in THIS story — what has been played, witnessed, or explicitly stated. Do NOT import details from source books, adaptations, or prior knowledge about these characters. If a fact has not appeared in the narrative, it does not exist here.',
 ];
 // what the sim may do to NPC↔NPC relationships, by Social autonomy level.
 const SIM_SOCIAL_RULE: Record<Social, string> = {
