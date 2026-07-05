@@ -2,6 +2,7 @@ import { type EventLog, type VellumEvent, VellumEvent as VellumEventSchema, fres
 import { type ChronicleState } from '../domain/types.js';
 import { reduce } from '../core/reduce.js';
 import { mergeDuplicates } from '../domain/identity.js';
+import { sweepProvisionalCast } from '../domain/cast-hygiene.js';
 import { migrate } from '../core/migrate.js';
 import { tryCatchAsync } from '../core/result.js';
 
@@ -113,7 +114,7 @@ export async function loadLog(chatId: string): Promise<EventLog> {
     readonly = true;
     spindle.log?.warn?.('[vellum_engine] log read failed for ' + chatId + ' — READ-ONLY this session.');
   }
-  _cache.set(chatId, { log, state: mergeDuplicates(reduce(log.events)), reduced: log.events.length, readonly, dirty: false, ...(serialized !== undefined ? { serialized, persistedCount } : {}) });
+  _cache.set(chatId, { log, state: sweepProvisionalCast(mergeDuplicates(reduce(log.events))), reduced: log.events.length, readonly, dirty: false, ...(serialized !== undefined ? { serialized, persistedCount } : {}) });
   return log;
 }
 
@@ -147,6 +148,13 @@ export async function loadState(chatId: string): Promise<ChronicleState> {
       // recompute from the MERGED state so the stored sig reflects post-merge ids
       c.mergeSig = identitySig(c.state);
     }
+    // GC (Layer 3): reap provisional cast cards — auto-registered, single-mention,
+    // never-staged, attachment-less names that aged past the grace window. Junk
+    // that appeared once and attached nothing dies on its own instead of needing a
+    // blocklist to predict it. Runs each fold (grace is turn-based); returns the
+    // SAME object when nothing is reaped, so a no-op costs one pass and no churn.
+    const swept = sweepProvisionalCast(c.state);
+    if (swept !== c.state) { c.state = swept; c.mergeSig = identitySig(c.state); }
   }
   return c.state;
 }

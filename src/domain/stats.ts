@@ -1,4 +1,5 @@
 import type { ChronicleState } from './types.js';
+import { visibleCast } from './cast-hygiene.js';
 
 /**
  * Story stats — PURE read over existing state. A light "story so far" readout:
@@ -34,7 +35,7 @@ export function storyStats(s: ChronicleState): StoryStats {
   return {
     turns: s.turns ?? 0,
     days: s.day ?? 0,
-    cast: Object.keys(s.cast).length,
+    cast: visibleCast(s).length,
     bonds: s.relations.length,
     chapters: s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc').length,
     topCharacters,

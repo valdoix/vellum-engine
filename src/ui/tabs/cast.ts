@@ -4,6 +4,7 @@ import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, 
 import { cmd, paginate, pagerHtml, send, setPage, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { traitArc, dormantTraits } from '../../domain/drift.js';
+import { visibleCast } from '../../domain/cast-hygiene.js';
 
 /**
  * Cast tab — two sections: CHARACTERS (individuals) and FACTIONS (groups).
@@ -130,7 +131,9 @@ export const castTab: Component<ChronicleState> = {
 
 // ---------- characters ----------
 function castSection(s: ChronicleState): string {
-  const all = Object.values(s.cast);
+  // hide provisional cards (unproven, single-mention, attachment-less auto names)
+  // until they earn their place — Layer 1 quarantine
+  const all = visibleCast(s);
   const auto = autoNameMode();
   const autoCtl = '<span class="vle-autoc">auto color: '
     + (['off', 'solid', 'gradient'] as const).map((m) => `<button class="vle-autoc-b${auto === m ? ' on' : ''}" data-autoname="${m}">${m}</button>`).join('')

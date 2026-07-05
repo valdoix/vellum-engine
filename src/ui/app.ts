@@ -14,6 +14,7 @@ import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize } from './theme.js';
 import { dashboardHtml, setPhoneSection, setSysInfo, setDashCalendar } from './dashboard.js';
 import { formatDate } from '../domain/date-format.js';
+import { visibleCast } from '../domain/cast-hygiene.js';
 import { esc } from './format.js';
 import { icon, hasIcon } from './icons.js';
 import type { Component } from './component.js';
@@ -268,7 +269,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
     const s = getState();
     const w = s.scene.weather ? ` \u00b7 \u2601 ${s.scene.weather}` : '';
     const dayLabel = s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s) : 'D0';
-    statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 ${dayLabel} \u00b7 ${Object.keys(s.cast).length} cast \u00b7 ${s.relations.length} bonds${w}`;
+    statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 ${dayLabel} \u00b7 ${visibleCast(s).length} cast \u00b7 ${s.relations.length} bonds${w}`;
   };
   root.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.vle-tabbar [data-tab],.vle-tabicons [data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => {
@@ -386,7 +387,7 @@ interface SearchHit { tab: string; kind: string; label: string; sub: string }
 function buildSearchIndex(s: ChronicleState): SearchHit[] {
   const hits: SearchHit[] = [];
   const nm = (id: string): string => s.cast[id]?.name ?? id;
-  for (const c of Object.values(s.cast)) hits.push({ tab: 'cast', kind: 'cast', label: c.name, sub: [c.role, c.status].filter(Boolean).join(' \u00b7 ') });
+  for (const c of visibleCast(s)) hits.push({ tab: 'cast', kind: 'cast', label: c.name, sub: [c.role, c.status].filter(Boolean).join(' \u00b7 ') });
   for (const f of Object.values(s.factions)) hits.push({ tab: 'cast', kind: 'faction', label: f.name, sub: f.kind || 'faction' });
   for (const r of s.relations) hits.push({ tab: 'relations', kind: 'bond', label: `${nm(r.a)} \u2192 ${nm(r.b)}`, sub: r.label || r.categories.join(', ') });
   for (const j of s.journal) hits.push({ tab: 'journal', kind: 'journal', label: nm(j.who), sub: j.memory });
