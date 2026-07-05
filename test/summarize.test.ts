@@ -117,4 +117,58 @@ describe('summarize pass-1 retry (reasoning-model empty first call)', () => {
     expect(chapter.text).toContain('Cersei');
     expect(calls).toBeGreaterThanOrEqual(2); // proves the retry fired
   });
+
+  it('escalates the token budget and allows reasoning on the retry attempt', async () => {
+    const seen: Array<{ max: number; reasoningOff: boolean }> = [];
+    (globalThis as any).spindle = {
+      permissions: { has: async () => true },
+      has: async () => true,
+      log: { warn: () => {}, info: () => {} },
+      generate: {
+        raw: async (req: any) => {
+          seen.push({ max: req?.parameters?.max_tokens, reasoningOff: req?.reasoning?.source === 'off' });
+          // both detail attempts empty; only the pass-2 gist (3rd call) can't run
+          // because detail never landed → falls to the digest. We only assert the
+          // ESCALATION shape here.
+          return { content: '' };
+        },
+      },
+    };
+    invalidatePermissions();
+    await summarizeOnce(stateWithTurnMemories(8), null, 8);
+    // attempt 1: reasoning off, base budget; attempt 2: reasoning ON, bigger budget
+    expect(seen[0]!.reasoningOff).toBe(true);
+    expect(seen[1]!.reasoningOff).toBe(false);
+    expect(seen[1]!.max).toBeGreaterThan(seen[0]!.max);
+  });
+
+  it('falls back to the first-half window before the structural digest', async () => {
+    let calls = 0;
+    (globalThis as any).spindle = {
+      permissions: { has: async () => true },
+      has: async () => true,
+      log: { warn: () => {}, info: () => {} },
+      generate: {
+        raw: async () => {
+          calls++;
+          // calls 1+2: full-window detail attempts, both empty (too much to write);
+          // call 3: half-window detail succeeds; call 4: gist from that detail.
+          if (calls <= 2) return { content: '' };
+          if (calls === 3) return { content: 'DETAIL:\nCersei reached Harrenhal in the first days.\nKEYS:\nHarrenhal' };
+          return { content: 'Cersei reached Harrenhal and settled in.' };
+        },
+      },
+    };
+    invalidatePermissions();
+    const evs = await summarizeOnce(stateWithTurnMemories(8), null, 8);
+    const chapter = evs.find((e: any) => e.kind === 'memory.record') as any;
+    expect(chapter).toBeTruthy();
+    // a real LLM chapter, not the digest
+    expect(chapter.text.startsWith('Chapter (turns')).toBe(false);
+    expect(chapter.text).toContain('Cersei');
+    // narrowed to the first half: covers 1..4 and drops only those 4 turns
+    expect(chapter.covers).toEqual([1, 4]);
+    const drops = evs.filter((e: any) => e.kind === 'memory.drop');
+    expect(drops.length).toBe(4);
+  });
 });

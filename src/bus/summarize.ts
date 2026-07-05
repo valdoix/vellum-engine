@@ -87,28 +87,34 @@ export async function summarizeFromPlan(
 
   // --- pass 1: DETAIL + KEYS (the dense record) ---
   const detailSys = resolvePrompt(kind, cfg, names);
-  let gen1 = await internalGenerate(
-    [{ role: 'system', content: detailSys }, { role: 'user', content: src }],
-    { temperature: cfg.temperature, max_tokens: cfg.genMaxTokens },
-    userId,
-    { reasoningOff: true },
-  );
-  // one bounded retry: on a reasoning model the first call sometimes spends the
-  // whole token budget on hidden thinking and comes back empty, which drops us to
-  // the structural first-sentence digest. Retrying targets that intermittency.
-  if (!(gen1.ok && gen1.value.trim())) {
-    gen1 = await internalGenerate(
-      [{ role: 'system', content: detailSys }, { role: 'user', content: src }],
-      { temperature: cfg.temperature, max_tokens: cfg.genMaxTokens },
-      userId,
-      { reasoningOff: true },
-    );
-  }
-  tokens += approxTokens(detailSys.length + src.length + (gen1.ok ? gen1.value.length : 0));
-  if (gen1.ok && gen1.value.trim()) {
-    const parsed = parseDetailKeys(gen1.value);
+  const gen1 = await generateDetail(detailSys, src, cfg, userId);
+  tokens += gen1.tokens;
+  if (gen1.text) {
+    const parsed = parseDetailKeys(gen1.text);
     detail = parsed.detail;
     keys = parsed.keys;
+  }
+
+  // WINDOW-SPLIT FALLBACK: if the full window came back empty (a reasoning model
+  // that couldn't think + write the whole span within budget), retry on just the
+  // FIRST HALF of the sources before surrendering to the structural digest. A
+  // real chapter over fewer turns beats a first-sentence concatenation. Only the
+  // first half is summarized here (the caller re-runs on the remainder next pass,
+  // since those turns stay un-covered); the covers/sources are narrowed to match.
+  if (!detail.trim() && plan.sourceIds.length >= 4) {
+    const half = narrowPlan(plan, Math.ceil(plan.sourceIds.length / 2));
+    if (half) {
+      if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: full window empty; retrying on first ${half.sourceIds.length}/${plan.sourceIds.length} turns`);
+      const halfSrc = sourceText(state, half.sourceIds, names);
+      const gen1b = await generateDetail(detailSys, halfSrc, cfg, userId);
+      tokens += gen1b.tokens;
+      if (gen1b.text) {
+        const parsed = parseDetailKeys(gen1b.text);
+        detail = parsed.detail;
+        keys = parsed.keys;
+        plan = half; // the chapter now covers only the half we successfully summarized
+      }
+    }
   }
 
   // --- pass 2: GIST (condensed FROM the finished detail) ---
@@ -132,9 +138,10 @@ export async function summarizeFromPlan(
   // fallbacks: no detail at all (generation down) → structural digest as gist;
   // detail but the gist call failed → derive the gist from the detail.
   if (!gist && !detail) {
-    // both generation passes came back empty — we surface the first-sentence
-    // structural digest. Log it so this is diagnosable, not a mystery "bad summary".
-    if (typeof spindle !== 'undefined') spindle.log?.warn?.('[vellum_engine] summarize: generation returned no detail after retry; using structural digest');
+    // every generation attempt (full window + escalation + half-window) came back
+    // empty — surface the first-sentence structural digest. Log the shape of the
+    // failure so this is diagnosable, not a mystery "bad summary".
+    if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: all generation attempts returned no detail (${kind}, ${plan.sourceIds.length} sources, ~${tokens} tok spent); using structural digest`);
     gist = fallbackDigest(state, plan, cfg.gistCap);
   }
   if (!gist && detail) gist = cleanGist(detail);
@@ -154,6 +161,51 @@ export async function summarizeFromPlan(
     state.turns || plan.covers[1], state.day || 0, nextSeq,
   );
   return { events, tokens };
+}
+
+/**
+ * Run the DETAIL+KEYS pass with an ESCALATING retry. The first attempt is
+ * cheap: reasoning OFF at the configured budget. If it comes back empty — the
+ * dominant failure on providers that IGNORE `reasoning: off`, where the whole
+ * token budget is spent on hidden thinking and `content` is empty — the retry
+ * is NOT identical: it (a) raises the output budget substantially so think+write
+ * both fit, and (b) STOPS forcing reasoning off, so the answer is allowed to
+ * land in the reasoning channel that extractGenContent already harvests. A
+ * generous wall-clock timeout on each attempt prevents a stalled provider from
+ * hanging the pass. Returns the cleaned text ('' when both attempts fail) and a
+ * token estimate for the usage toast.
+ */
+async function generateDetail(sys: string, src: string, cfg: SummarizerCfg, userId: string | null): Promise<{ text: string; tokens: number }> {
+  const msgs = [{ role: 'system' as const, content: sys }, { role: 'user' as const, content: src }];
+  let tokens = 0;
+  // attempt 1 — cheap: reasoning off, configured budget, 45s wall-clock.
+  const a1 = await internalGenerate(msgs, { temperature: cfg.temperature, max_tokens: cfg.genMaxTokens }, userId, { reasoningOff: true, timeoutMs: 45000 });
+  tokens += approxTokens(sys.length + src.length + (a1.ok ? a1.value.length : 0));
+  if (a1.ok && a1.value.trim()) return { text: a1.value, tokens };
+  // attempt 2 — ESCALATE: 3× budget (floored for reasoning models) AND allow the
+  // model to reason, so a provider that ignores `off` can complete its thinking
+  // and the answer surfaces via extractGenContent's reasoning-channel read.
+  const escalated = Math.max(cfg.genMaxTokens * 3, 8000);
+  if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: attempt 1 empty (${a1.ok ? 'no content/reasoning' : a1.error}); escalating to max_tokens=${escalated} with reasoning allowed`);
+  const a2 = await internalGenerate(msgs, { temperature: cfg.temperature, max_tokens: escalated }, userId, { reasoningOff: false, timeoutMs: 60000 });
+  tokens += approxTokens(a2.ok ? a2.value.length : 0);
+  if (a2.ok && a2.value.trim()) return { text: a2.value, tokens };
+  if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: attempt 2 also empty (${a2.ok ? 'no content/reasoning' : a2.error})`);
+  return { text: '', tokens };
+}
+
+/** Narrow a plan to its first `n` sources (by turn order), recomputing covers.
+ * Used by the window-split fallback so a chapter that only summarized part of
+ * the window still records the correct span and drops only those turns. */
+function narrowPlan(plan: CompressPlan, n: number): CompressPlan | null {
+  if (n <= 0 || n >= plan.source.length) return null;
+  const source = plan.source.slice().sort((a, b) => a.turn - b.turn).slice(0, n);
+  if (!source.length) return null;
+  return {
+    sourceIds: source.map((s) => s.id),
+    source,
+    covers: [source[0]!.turn, source[source.length - 1]!.turn],
+  };
 }
 
 /** The most recent chapter/arc gists BEFORE this window, oldest→newest, as the

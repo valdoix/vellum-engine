@@ -35,13 +35,15 @@ export async function internalGenerate(
   messages: GenMsg[],
   params: Record<string, unknown>,
   userId: string | null,
-  opts?: { reasoningOff?: boolean; responseFormat?: Record<string, unknown>; connectionId?: string },
+  opts?: { reasoningOff?: boolean; responseFormat?: Record<string, unknown>; connectionId?: string; timeoutMs?: number },
 ): Promise<Result<string, string>> {
   if (!(await has('generation'))) return Err('no_generation_permission');
   if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
   // Disable extended thinking for internal tasks by default: on a reasoning model
   // the token budget is otherwise spent on hidden thinking and `content` comes
-  // back empty, which silently drops us to the structural fallback.
+  // back empty, which silently drops us to the structural fallback. Callers that
+  // escalate a failed attempt pass reasoningOff:false so the answer is allowed to
+  // land in the reasoning channel that extractGenContent already harvests.
   // `responseFormat` (json_schema) is best-effort: the host strips it without the
   // generation_parameters permission, so we still parse defensively downstream.
   const params2 = opts?.responseFormat ? { ...(params || {}), response_format: opts.responseFormat } : (params || {});
@@ -50,7 +52,13 @@ export async function internalGenerate(
   // connection; passing connection_id also fixes the `raw` fallback, which would
   // otherwise have no provider/model. Caller may pin a specific connection.
   const connId = opts?.connectionId ?? (await defaultConnectionId(userId));
-  const req = { messages, parameters: params2, userId, ...(connId ? { connection_id: connId } : {}), ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
+  // Bounded wall-clock: internal tasks run detached, but a provider that stalls
+  // must not hang the summarize/extract/sim pass indefinitely. Generous by
+  // default (these are background jobs); on timeout the upstream request is torn
+  // down and tryCatchAsync surfaces the abort as an Err so callers fall back.
+  const timeoutMs = opts?.timeoutMs;
+  const signal = timeoutMs && typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
+  const req = { messages, parameters: params2, userId, ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}), ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
   return tryCatchAsync(async () => {
     const r = spindle.generate.quiet
       ? await spindle.generate.quiet(req)
@@ -62,6 +70,15 @@ export async function internalGenerate(
 // The user's default connection id, cached per user (the model they actually
 // chat with). Lets internal tasks pin the real connection instead of defaulting.
 const _connCache = new Map<string, string>();
+
+/** Drop the cached default-connection id (all users, or one). Call when the
+ * active chat or permissions change, so a user who switched their default
+ * connection mid-session doesn't keep running internal tasks on the stale one. */
+export function invalidateConnCache(userId?: string | null): void {
+  if (userId === undefined) { _connCache.clear(); return; }
+  _connCache.delete(userId ?? '_');
+}
+
 async function defaultConnectionId(userId: string | null): Promise<string> {
   const key = userId ?? '_';
   const hit = _connCache.get(key);

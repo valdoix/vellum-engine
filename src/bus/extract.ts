@@ -230,7 +230,7 @@ export async function extractFromProse(prose: string, turn: number, day: number,
     [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: prose.slice(0, 8000) }],
     { temperature: 0.2, max_tokens: 900 },
     userId,
-    { reasoningOff: true, responseFormat: EXTRACT_SCHEMA },
+    { reasoningOff: true, responseFormat: EXTRACT_SCHEMA, timeoutMs: 45000 },
   );
   if (!gen.ok) return [];
   const obj = parseJson(gen.value);

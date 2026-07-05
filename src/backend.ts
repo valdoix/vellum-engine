@@ -21,7 +21,7 @@ import { plantsInjection } from './domain/plants.js';
 import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
-import { controllerGenerate } from './host/generation.js';
+import { controllerGenerate, invalidateConnCache } from './host/generation.js';
 import type { CallModel } from './retrieval/traverse.js';
 import { traverseTree, type TreeTraversalResult } from './retrieval/traverse-tree.js';
 
@@ -928,8 +928,8 @@ async function wireCapabilities(): Promise<void> {
 
 // Always-safe events (no special permission to subscribe).
 try {
-  spindle.on?.('PERMISSION_CHANGED', () => { invalidatePermissions(); void wireCapabilities(); });
-  spindle.on?.('CHAT_SWITCHED', (p: any) => { rememberUser(p?.userId); invalidateChatCaps(); invalidateChatVars(); if (p?.chatId) invalidate(); });
+  spindle.on?.('PERMISSION_CHANGED', () => { invalidatePermissions(); invalidateConnCache(); void wireCapabilities(); });
+  spindle.on?.('CHAT_SWITCHED', (p: any) => { rememberUser(p?.userId); invalidateChatCaps(); invalidateChatVars(); invalidateConnCache(); if (p?.chatId) invalidate(); });
 } catch { /* events optional */ }
 
 // --- frontend dispatch table ---------------------------------------------
