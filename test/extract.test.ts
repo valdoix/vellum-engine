@@ -116,3 +116,42 @@ describe('mapExtracted — prose gate (anti-hallucination / anti-misattribution)
     expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(1);
   });
 });
+
+describe('mapExtracted — present + inner-thought recovery', () => {
+  const prose = 'Daeron knelt beside Cersei and confessed. She wept, thinking she would never forgive him.';
+
+  it('recovers a present character\'s inner thought as a mergeDetail scene.set', () => {
+    const evs = mapExtracted({
+      present: [{ who: 'Cersei', mood: 'shattered', doing: 'weeping', thought: 'I will never forgive him.' }],
+    }, 6, 1, names, sf, freshState(), undefined, prose);
+    const scene = evs.find((e) => e.kind === 'scene.set') as any;
+    expect(scene).toBeDefined();
+    expect(scene.mergeDetail).toBe(true);
+    expect(scene.present).toContain('cersei');
+    const d = scene.detail.find((x: any) => x.id === 'cersei');
+    expect(d.thought).toBe('I will never forgive him.');
+    expect(d.mood).toBe('shattered');
+    // a first-seen on-stage character is also seeded as cast
+    expect(evs.some((e) => e.kind === 'cast.seen' && (e as any).id === 'cersei')).toBe(true);
+  });
+
+  it('never emits present interiority for the player ({{user}}/persona)', () => {
+    const evs = mapExtracted({
+      present: [{ who: '{{user}}', mood: 'furious', thought: 'I should have known.' }, { who: 'Daeron', thought: 'She saw through me.' }],
+    }, 6, 1, names, sf, freshState(), undefined, prose);
+    const scene = evs.find((e) => e.kind === 'scene.set') as any;
+    expect(scene.present).not.toContain('anne'); // persona excluded
+    expect(scene.detail.some((d: any) => d.id === 'anne')).toBe(false);
+    expect(scene.detail.some((d: any) => d.id === 'daeron' && d.thought)).toBe(true);
+  });
+
+  it('drops a present entry hallucinated / not in the prose', () => {
+    const evs = mapExtracted({ present: [{ who: 'Aegon', thought: 'plotting' }] }, 6, 1, names, sf, freshState(), undefined, prose);
+    expect(evs.some((e) => e.kind === 'scene.set')).toBe(false);
+  });
+
+  it('never puts a group in present', () => {
+    const evs = mapExtracted({ present: [{ who: 'the guards', mood: 'wary' }] }, 6, 1, names, sf, freshState(), undefined, 'the guards watched from the wall');
+    expect(evs.some((e) => e.kind === 'scene.set')).toBe(false);
+  });
+});

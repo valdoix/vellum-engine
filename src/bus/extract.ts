@@ -25,7 +25,8 @@ declare const spindle: any;
 const EXTRACT_SYS =
   'You are the LIVING-STATE EXTRACTOR for a roleplay. Read the RECENT NARRATIVE PROSE and surface what it newly '
   + 'establishes. Output STRICT JSON only, no prose outside it: '
-  + '{"knowledge":[{"who":"Name","fact":"one clause","reliability":"knows|believes|suspects|wrong|unaware","truth":"true|false|unknown","source":"how they learned it, brief or omit","about":"Name or omit"}],'
+  + '{"present":[{"who":"Name","mood":"one-word emotion or short phrase","doing":"what they are physically doing right now","condition":"physical state e.g. wounded|exhausted, or omit","thought":"their genuine first-person INNER VOICE this beat, under what THEY know, or omit"}],'
+  + '"knowledge":[{"who":"Name","fact":"one clause","reliability":"knows|believes|suspects|wrong|unaware","truth":"true|false|unknown","source":"how they learned it, brief or omit","about":"Name or omit"}],'
   + '"secrets":[{"secret":"one clause","keeper":"Name","from":"Name(s) comma-sep or omit","danger":"minor|major|explosive"}],'
   + '"journal":[{"who":"Name","about":"Name or omit","memory":"one vivid sentence from WHO\'S point of view","kind":"interaction|promise|betrayal|gift|shared|wound|observation","weight":"trivial|minor|significant|defining","sentiment":"positive|negative|neutral|complex"}],'
   + '"bonds":[{"a":"Name","b":"Name","aff":<int -40..40>,"trust":<int -40..40>,"cat":["familial|romantic|alliance|rivalry|social"],"why":"one clause"}],"factions":[{"name":"Group name","kind":"household|house|guild|order","members":["Name"],"standing":<int -40..40 toward the player, optional>}]}. '
@@ -39,7 +40,8 @@ const EXTRACT_SYS =
   + 'JOURNAL: extract genuine TURNING POINTS a character would personally carry — a confession, promise, betrayal, gift, wound, first kiss, a moment of being truly seen — written from that character\'s POV; the PLAYER can and should hold journal entries too. '
   + 'BONDS: aff/trust are the CHANGE this excerpt caused to how A feels toward B; omit pairs that did not move; cat only when the bond\'s nature changed. '
   + 'FACTIONS: name a GROUP (household staff, a house, a guild) when it acts, is referenced as a bloc, or a character belongs to one; list known members and the group\'s standing toward the player if it shifted. Capture every real reveal/turning-point that carries dramatic weight, invent nothing the prose does not support. Empty arrays are fine. '
-  + 'CRITICAL: a COLLECTIVE or GROUP is a FACTION, never a character. "The household staff", "the court", "the Kingsguard", "the guards", "the council", "House Lannister" are GROUPS — put them ONLY in factions[].name (with members), NEVER in a who/a/b/keeper character slot. Those slots take individual named people only. If a group already exists (see the FACTIONS list in context), reuse its EXACT name; do not coin a synonym.';
+  + 'PRESENT + INNER THOUGHT: for EACH individually-named character on-stage in this excerpt, emit a present[] entry with their current mood and what they are doing, and — this is the point — their `thought`: the genuine, unspoken first-person inner voice they carry through this beat, framed by ONLY what THAT character knows (never omniscient, never the narrator\'s summary). If the prose already renders a character\'s interiority (a line of free-indirect thought, a private fear, what they don\'t say aloud), capture it as `thought` in their own voice. Do NOT invent interiority the prose gives no basis for; omit `thought` when the character is a cipher this beat. NEVER emit a present entry for the player/persona ({{user}}) — their inner state is authored only by the player; and never for a group. '
+  + 'CRITICAL: a COLLECTIVE or GROUP is a FACTION, never a character. "The household staff", "the court", "the Kingsguard", "the guards", "the council", "House Lannister" are GROUPS — put them ONLY in factions[].name (with members), NEVER in a who/a/b/keeper/present character slot. Those slots take individual named people only. If a group already exists (see the FACTIONS list in context), reuse its EXACT name; do not coin a synonym.';
 
 function parseJson(text: string): any | null {
   let t = String(text || '').replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```[a-z]*\n?|```/gi, '').trim();
@@ -131,6 +133,35 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   const tokens = prose ? buildProseTokens(prose) : null;
   const present = (name: string): boolean => !tokens || inProse(name, tokens, userCanon, charCanon, state?.cast);
 
+  // PRESENT + INNER THOUGHT recovery: rebuild the on-stage roster and per-
+  // character detail (mood/doing/condition/thought) from prose so a dropped or
+  // truncated <vellum> block doesn't lose interiority. Emitted as a NON-
+  // authoritative scene.set (mergeDetail:true) that only fills gaps — never
+  // demotes cast or overwrites the block's authored detail. The player is never
+  // given interiority here (authored only by {{user}}); a group is never present.
+  const presIds: string[] = [];
+  const presDetail: Array<{ id: string; mood?: string; doing?: string; condition?: string; thought?: string }> = [];
+  const seenPres = new Set<string>();
+  for (const p of Array.isArray(obj.present) ? obj.present : []) {
+    const who = realName(p?.who, names);
+    if (badN(who) || !present(who)) continue;
+    const id = rid(who);
+    if (id === userCanon) continue; // never author the player's inner state
+    if (seenPres.has(id)) continue;
+    seenPres.add(id);
+    presIds.push(id);
+    const mood = String(p?.mood || '').trim().slice(0, 80) || undefined;
+    const doing = String(p?.doing || '').trim().slice(0, 160) || undefined;
+    const condition = String(p?.condition || '').trim().slice(0, 80) || undefined;
+    const thought = String(p?.thought || '').trim().slice(0, 300) || undefined;
+    presDetail.push({ id, ...(mood ? { mood } : {}), ...(doing ? { doing } : {}), ...(condition ? { condition } : {}), ...(thought ? { thought } : {}) });
+    // seed/refresh the cast card so a first-seen on-stage character exists
+    out.push({ ...base(), kind: 'cast.seen', id, name: who, status: 'present' } as VellumEvent);
+  }
+  if (presDetail.some((d) => d.mood || d.doing || d.condition || d.thought) || presIds.length) {
+    out.push({ ...base(), kind: 'scene.set', present: presIds, detail: presDetail, mergeDetail: true } as VellumEvent);
+  }
+
   for (const k of Array.isArray(obj.knowledge) ? obj.knowledge : []) {
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
     if (badN(who) || !fact || !present(who)) continue;
@@ -218,6 +249,10 @@ const EXTRACT_SCHEMA = {
     schema: {
       type: 'object',
       properties: {
+        present: { type: 'array', items: { type: 'object', properties: {
+          who: { type: 'string' }, mood: { type: 'string' }, doing: { type: 'string' },
+          condition: { type: 'string' }, thought: { type: 'string' },
+        }, required: ['who'] } },
         knowledge: { type: 'array', items: { type: 'object', properties: {
           who: { type: 'string' }, fact: { type: 'string' }, about: { type: 'string' },
           reliability: { type: 'string', enum: ['knows', 'believes', 'suspects', 'wrong', 'unaware'] },

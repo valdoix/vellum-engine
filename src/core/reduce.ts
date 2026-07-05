@@ -96,6 +96,31 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'scene.set': {
+      // MERGE MODE (prose extractor recovery): never rewrite the scene wholesale
+      // or demote anyone — only ADD missing present ids and FILL empty detail
+      // fields (esp. inner thoughts) so a dropped/truncated <vellum> block doesn't
+      // lose interiority. An authored value from the block always wins.
+      if (e.mergeDetail) {
+        const present = s.scene.present.slice();
+        for (const id of e.present) if (id && !present.includes(id)) present.push(id);
+        const detail = s.scene.detail.map((d) => ({ ...d }));
+        const byId = new Map(detail.map((d) => [d.id, d] as const));
+        for (const d of e.detail ?? []) {
+          const cur = byId.get(d.id);
+          if (cur) {
+            // only fill fields the block left EMPTY — never overwrite authored detail
+            if (!cur.mood && d.mood) cur.mood = d.mood;
+            if (!cur.doing && d.doing) cur.doing = d.doing;
+            if (!cur.condition && d.condition) cur.condition = d.condition;
+            if (!cur.thought && d.thought) cur.thought = d.thought;
+          } else {
+            const nd = { id: d.id, ...(d.mood ? { mood: d.mood } : {}), ...(d.doing ? { doing: d.doing } : {}), ...(d.condition ? { condition: d.condition } : {}), ...(d.thought ? { thought: d.thought } : {}) };
+            detail.push(nd); byId.set(d.id, nd);
+          }
+        }
+        s.scene = { ...s.scene, present, detail };
+        break;
+      }
       s.scene = {
         location: e.location ?? s.scene.location,
         time: e.time ?? s.scene.time,

@@ -109,6 +109,31 @@ describe('reduce — cast, knowledge, secrets, memory', () => {
     expect(s.scene.present).toEqual(['ned']);
   });
 
+  it('mergeDetail scene.set fills empty detail fields without overwriting authored ones', () => {
+    const s = reduce([
+      ev({ kind: 'scene.set', present: ['ned'], detail: [{ id: 'ned', mood: 'grim' }] }), // block authored mood only
+      // prose extractor recovers the inner thought (and would-be mood, which must NOT clobber)
+      ev({ kind: 'scene.set', present: ['ned'], detail: [{ id: 'ned', mood: 'weary', thought: 'Winter is coming.' }], mergeDetail: true }),
+    ]);
+    const d = s.scene.detail.find((x) => x.id === 'ned')!;
+    expect(d.mood).toBe('grim'); // authored value preserved
+    expect(d.thought).toBe('Winter is coming.'); // gap filled
+    expect(s.scene.present).toEqual(['ned']);
+  });
+
+  it('mergeDetail scene.set adds a missing present character and never demotes cast', () => {
+    const s = reduce([
+      ev({ kind: 'cast.seen', id: 'jon', name: 'Jon', status: 'present' }),
+      ev({ kind: 'scene.set', present: ['ned'], detail: [{ id: 'ned' }] }), // authoritative: only Ned on stage
+      // recovery re-seeds Jon (cast.seen) then adds his thought without wiping Ned
+      ev({ kind: 'cast.seen', id: 'jon', name: 'Jon', status: 'present' }),
+      ev({ kind: 'scene.set', present: ['jon'], detail: [{ id: 'jon', thought: 'I am no Stark.' }], mergeDetail: true }),
+    ]);
+    expect(s.scene.present).toEqual(['ned', 'jon']); // merged, not replaced
+    expect(s.scene.detail.find((x) => x.id === 'jon')!.thought).toBe('I am no Stark.');
+    expect(s.cast.jon!.status).toBe('present'); // merge event never demotes
+  });
+
   it('tracks cast and drops cascade to relations', () => {
     const s = reduce([
       ev({ kind: 'cast.seen', id: 'ned', name: 'Ned Stark', status: 'present' }),

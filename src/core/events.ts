@@ -45,7 +45,12 @@ export const DateFormat = z.enum(['day', 'month-day-year', 'month-day', 'month',
 export type DateFormat = z.infer<typeof DateFormat>;
 export const EvConfigSet = z.object({ ...base, kind: z.literal('config.set'), dateFormat: DateFormat.optional(), dateEpoch: z.string().optional(), monthNames: z.array(z.string()).optional(), monthNamesShort: z.array(z.string()).optional(), yearPrefix: z.string().optional(), yearSuffix: z.string().optional() });
 export const PresentDetail = z.object({ id: z.string(), name: z.string().optional(), mood: z.string().optional(), doing: z.string().optional(), condition: z.string().optional(), thought: z.string().optional() });
-export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional() });
+// `mergeDetail` = a NON-authoritative scene event (from the prose extractor): it
+// only FILLS GAPS in the current scene's present list + per-character detail
+// (mood/doing/condition/thought) and never demotes cast or replaces the block's
+// authored detail. Used to recover inner thoughts when the model's <vellum>
+// block was dropped or truncated mid-`present`.
+export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional(), mergeDetail: z.boolean().optional() });
 export const ParallelItem = z.object({ who: z.string().optional(), where: z.string().optional(), activity: z.string(), note: z.string().optional(), src: z.literal('sim').optional() });
 export const EvParallel = z.object({ ...base, kind: z.literal('parallel.set'), items: z.array(ParallelItem).default([]) });
 
