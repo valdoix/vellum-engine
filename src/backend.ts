@@ -103,19 +103,18 @@ function recordInjection(chatId: string, turn: number, text: string, recallIds: 
   return rec;
 }
 
-// Last log version broadcast to the frontend, per chat. Lets vellum_get_state
-// skip a redundant full-state re-post when the fold it just ran didn't change
-// anything the UI hasn't already received (the GENERATION_ENDED poll case).
-const _lastBroadcastVersion = new Map<string, number>();
-
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
   const state = await loadState(chatId);
   // independent reads run in parallel (chat vars are cached, but this also cuts
-  // first-read host round-trips and any awaited derivations).
-  const [tone, tidyRaw, offscreenRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar] = await Promise.all([
+  // first-read host round-trips and any awaited derivations). EVERY persisted
+  // per-chat toggle/setting the UI shows must be included here — the frontend
+  // hydrates its toggle display from this broadcast, so anything omitted silently
+  // reverts to its default after a reload/chat-switch (the hide-toggle bug).
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
+    getChatVar(chatId, 'vellum_hide_summarized').catch(() => ''),
     readChapterVaultMode(chatId),
     getChatVar(chatId, 'vellum_traversal').catch(() => ''),
     getChatVar(chatId, 'vellum_traversal_mode').catch(() => ''),
@@ -128,9 +127,9 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
+  const hide = !!hideRaw;
   const traversalMode = travOn ? (travModeRaw === 'tree' ? 'tree' : 'flat') : 'off';
-  _lastBroadcastVersion.set(chatId, logVersion(chatId));
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar }, userId ?? currentUser());
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ events ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ append ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ broadcast. */
@@ -977,13 +976,14 @@ const dispatch: Record<string, Handler> = {
   vellum_get_state: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_state', chatId: null, state: null }, uid); return; }
-    // self-heal: catch up any turns that weren't folded. foldChat already
-    // broadcasts when it folds new events (incl. the early block-fold broadcast),
-    // so only re-broadcast here if the log version advanced past what the frontend
-    // last received — otherwise this poll (the GENERATION_ENDED safety fetch) is a
-    // no-op that would otherwise re-serialize + re-post the whole state for nothing.
+    // self-heal: catch up any turns that weren't folded, then broadcast. We ALWAYS
+    // broadcast here (not gated on log version): this is the frontend's hydrate
+    // path on open / chat-switch / refresh, and it carries the per-chat SETTINGS
+    // (tone, hide, traversal, …) which are chat vars — orthogonal to the event log.
+    // Gating on logVersion would skip re-sending settings when the log hadn't
+    // changed, so the UI's toggles would revert to their module defaults.
     try { await foldChat(chatId, uid); } catch { /* best effort */ }
-    if (_lastBroadcastVersion.get(chatId) !== logVersion(chatId)) await broadcastState(chatId, uid);
+    await broadcastState(chatId, uid);
   },
   vellum_recover: async (p, uid) => {
     // Restore from the .bak if it holds more events than the current log (undo a

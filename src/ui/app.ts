@@ -761,6 +761,7 @@ export function setup(ctx: Ctx): () => void {
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
+        if (typeof p.hide === 'boolean') { _hideOn = p.hide; document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn)); }
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
         if (Array.isArray(p.directives)) { setDirectorDirectives(p.directives); }
