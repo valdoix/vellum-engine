@@ -103,6 +103,11 @@ function recordInjection(chatId: string, turn: number, text: string, recallIds: 
   return rec;
 }
 
+// Last log version broadcast to the frontend, per chat. Lets vellum_get_state
+// skip a redundant full-state re-post when the fold it just ran didn't change
+// anything the UI hasn't already received (the GENERATION_ENDED poll case).
+const _lastBroadcastVersion = new Map<string, number>();
+
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
   const state = await loadState(chatId);
   // independent reads run in parallel (chat vars are cached, but this also cuts
@@ -124,6 +129,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
   const traversalMode = travOn ? (travModeRaw === 'tree' ? 'tree' : 'flat') : 'off';
+  _lastBroadcastVersion.set(chatId, logVersion(chatId));
   spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar }, userId ?? currentUser());
 }
 
@@ -311,6 +317,11 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   }
   let added = 0;
   const foldedEvents: VellumEvent[] = []; // accumulate for Plot Director self-clear
+  // PASS 1 (fast, no LLM) queues each folded turn's prose for the deep extractor,
+  // which runs in PASS 2 AFTER an early broadcast — so the scene/cast/relations/
+  // mood the <vellum> block already established reach the "Now" window immediately
+  // instead of waiting on the extractor's model round-trip.
+  const extractQueue: Array<{ turnNo: number; gist: string; day: number; hadBlock: boolean }> = [];
   // snapshot the PRE-fold state for the continuity check: loadState/append return
   // the same cached object mutated in place, so a live reference would already show
   // this turn's reveals/learns. Clone the few slices the checker reads.
@@ -328,19 +339,8 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     foldedEvents.push(...evs);
     prior = await appendDeferred(chatId, evs);
     added += evs.length;
-    // prose-driven extraction: knowledge / secrets / journal / bonds (incl. the
-    // player) the model didn't hand-write in a <vellum> block. When the turn had
-    // NO parseable block (source 'none'/'regex'), this is the SAFETY NET Ã¢â‚¬â€ the
-    // schema-guaranteed extractor mines the structure from prose so a forgotten
-    // block never means lost continuity. Best-effort; never throws into the fold.
-    const hadBlock = source === 'json';
-    if (gist) {
-      try {
-        const xevs = await extractFromProse(gist, turnNo, prior.day || 0, names, userId, prior, tone);
-        if (xevs.length) { prior = await appendDeferred(chatId, xevs); added += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal/bond)${hadBlock ? '' : ' [FALLBACK: no <vellum> block]'} from turn ${turnNo}`); }
-        else if (!hadBlock) spindle.log?.warn?.(`[vellum_engine] turn ${turnNo} had no <vellum> block and prose extraction yielded nothing`);
-      } catch (e) { spindle.log?.warn?.('[vellum_engine] extract: ' + ((e as Error)?.message ?? e)); }
-    }
+    // defer prose-driven extraction to PASS 2 (below the early broadcast).
+    if (gist) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' });
     spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);
     if (source === 'none' && /\u2039\/?vellum\u203a|<\/?vellum>/i.test(content)) {
       const m = content.match(/(?:\u2039vellum\u203a|<vellum>)([\s\S]*?)(?:\u2039\/vellum\u203a|<\/vellum>)/i);
@@ -348,6 +348,34 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     }
   }
   if (!added) return;
+  // A deep (LLM) extraction pass follows only if we queued gists AND the
+  // generation permission is granted; otherwise phase 1 is the whole update.
+  const willExtract = extractQueue.length > 0 && (await has('generation'));
+  const foldTotal = willExtract ? 2 : 1;
+  // EARLY BROADCAST: the block-folded state (scene, present, mood, cast,
+  // relations) is complete now — push it to the UI BEFORE the deep prose
+  // extractor runs, so the "Now" window and drawer refresh immediately instead
+  // of waiting on the extractor's per-turn model round-trip. The deferred appends
+  // are flushed here so a crash mid-extraction can't lose the block fold.
+  await flush(chatId);
+  invalidateIndex(chatId);
+  await broadcastState(chatId, userId);
+  // progress toast, phase 1 of N: the live scene is in. When a deep pass follows,
+  // this reads "… (1/2)"; when it doesn't, the frontend shows a single done toast.
+  spindle.sendToFrontend?.({ type: 'vellum_fold_progress', chatId, phase: 1, total: foldTotal }, userId ?? currentUser());
+  // PASS 2 (slow, LLM): prose-driven extraction — knowledge / secrets / journal /
+  // bonds (incl. the player) the model didn't hand-write in a <vellum> block. When
+  // a turn had NO parseable block, this is the SAFETY NET: the schema-guaranteed
+  // extractor mines the structure from prose so a forgotten block never means lost
+  // continuity. Best-effort; never throws into the fold.
+  let extracted = 0;
+  for (const q of extractQueue) {
+    try {
+      const xevs = await extractFromProse(q.gist, q.turnNo, q.day, names, userId, prior, tone);
+      if (xevs.length) { prior = await appendDeferred(chatId, xevs); extracted += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal/bond)${q.hadBlock ? '' : ' [FALLBACK: no <vellum> block]'} from turn ${q.turnNo}`); }
+      else if (!q.hadBlock) spindle.log?.warn?.(`[vellum_engine] turn ${q.turnNo} had no <vellum> block and prose extraction yielded nothing`);
+    } catch (e) { spindle.log?.warn?.('[vellum_engine] extract: ' + ((e as Error)?.message ?? e)); }
+  }
   // Plot Director: self-clear armed directives whose target transition fired this
   // fold, and expire any past TTL. Persist only on change.
   try {
@@ -361,7 +389,8 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   } catch { /* best effort */ }
   // Plot Director continuity alarm: passive, non-blocking warnings comparing the
   // fold's events to the PRE-fold state (snapshot, so reveals/learns aren't yet
-  // applied). Advisory only Ã¢â‚¬â€ surfaced as a toast + in the Director panel.
+  // applied). Advisory only Ã¢â‚¬â€ surfaced as a toast + in the Director panel.
+  let flagged = 0;
   try {
     const warnings = checkContinuity(foldedEvents, preFold);
     if (warnings.length) {
@@ -369,14 +398,22 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
       // persist as a small ring-buffer log so the Director tab can show them
       const flagTurn = (await loadState(chatId)).turns || 0;
       await appendDeferred(chatId, warnings.map((w) => ({ seq: nextSeqLocal(), turn: flagTurn, day: 0, src: 'system', kind: 'continuity.flag', code: w.kind, detail: w.text } as VellumEvent)));
+      flagged = warnings.length;
     }
   } catch { /* best effort */ }
-  // Single durable write for the whole fold pass: all the appends above were
-  // deferred (in-memory), so this collapses N full-log stringify+write cycles
-  // into ONE — the largest per-turn I/O win on a long chronicle.
-  await flush(chatId);
-  invalidateIndex(chatId);
-  await broadcastState(chatId, userId);
+  // Second durable write + broadcast, but ONLY if PASS 2 (prose extraction or
+  // continuity flags) actually added events. On the common clean-JSON turn both
+  // are empty, so the early broadcast above already reflected everything and this
+  // is skipped — no redundant full-log stringify+write or full-state re-post.
+  if (extracted || flagged) {
+    await flush(chatId);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, userId);
+  }
+  // progress toast, phase 2 of 2: the deep pass finished (whether or not it found
+  // anything new). Only emitted when a deep pass was actually expected, so a
+  // permission-less / block-only turn shows just the single phase-1 completion.
+  if (willExtract) spindle.sendToFrontend?.({ type: 'vellum_fold_progress', chatId, phase: 2, total: 2, added: extracted }, userId ?? currentUser());
   void maybeAutoSummarize(chatId, userId);
   void maybeVaultSync(chatId, userId);
   void maybeTidyThreads(chatId, userId);
@@ -940,9 +977,13 @@ const dispatch: Record<string, Handler> = {
   vellum_get_state: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_state', chatId: null, state: null }, uid); return; }
-    // self-heal: catch up any turns that weren't folded, then broadcast
+    // self-heal: catch up any turns that weren't folded. foldChat already
+    // broadcasts when it folds new events (incl. the early block-fold broadcast),
+    // so only re-broadcast here if the log version advanced past what the frontend
+    // last received — otherwise this poll (the GENERATION_ENDED safety fetch) is a
+    // no-op that would otherwise re-serialize + re-post the whole state for nothing.
     try { await foldChat(chatId, uid); } catch { /* best effort */ }
-    await broadcastState(chatId, uid);
+    if (_lastBroadcastVersion.get(chatId) !== logVersion(chatId)) await broadcastState(chatId, uid);
   },
   vellum_recover: async (p, uid) => {
     // Restore from the .bak if it holds more events than the current log (undo a

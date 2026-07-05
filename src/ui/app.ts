@@ -61,6 +61,43 @@ function notify(ctx: Ctx, level: ToastLevel, msg: string): void {
   } catch { /* DOM unavailable */ }
 }
 
+/**
+ * A STICKY toast that updates IN PLACE by a stable key, instead of stacking a
+ * new one each call. Used for the multi-phase fold progress ("Scene inscribed…
+ * (1/2)" → "Chronicle updated (2/2)") so the two backend broadcast phases read
+ * as one message that advances, not two separate popups. Passing `done:true`
+ * lets it auto-dismiss after a short beat; otherwise it lingers (a later call
+ * with the same key replaces its text). Falls back silently if the DOM is gone.
+ */
+const _stickyToasts = new Map<string, { el: HTMLElement; t: ReturnType<typeof setTimeout> | null }>();
+function stickyToast(key: string, level: ToastLevel, msg: string, done = false): void {
+  try {
+    let host = document.querySelector('.vle-toasts') as HTMLElement | null;
+    if (!host) { host = document.createElement('div'); host.className = 'vle-toasts'; document.body.appendChild(host); }
+    let rec = _stickyToasts.get(key);
+    if (!rec || !rec.el.isConnected) {
+      const el = document.createElement('div');
+      el.className = 'vle-toast vle-toast--' + level;
+      host.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('on'));
+      rec = { el, t: null };
+      _stickyToasts.set(key, rec);
+    } else {
+      rec.el.className = 'vle-toast vle-toast--' + level + ' on';
+    }
+    rec.el.textContent = msg;
+    if (rec.t) { clearTimeout(rec.t); rec.t = null; }
+    if (done) {
+      const el = rec.el;
+      rec.t = setTimeout(() => {
+        el.classList.remove('on');
+        setTimeout(() => { try { el.remove(); } catch { /* ignore */ } }, 250);
+        _stickyToasts.delete(key);
+      }, 2400);
+    }
+  } catch { /* DOM unavailable */ }
+}
+
 const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:var(--vg,#cda84e)"><path d="M4 3.5h9l3 3V16.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4"/><path d="M6 9h8M6 12h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
 // "Now" Ã¢â‚¬â€ the live-scene dashboard, reused as the first drawer view so the drawer
@@ -99,6 +136,7 @@ const QOL = [
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
+  { id: 'foldtoast', label: '\u2261 Update toast', title: 'Show a brief toast after each turn as the tracker updates (scene first, then the deep memory pass). Off by default.', group: 'toggle' },
   // run = one-shot verbs
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'run' },
   { id: 'rescan', label: '\u21bb Rescan', title: 'Re-fold the latest turn from the raw message', group: 'run' },
@@ -315,6 +353,12 @@ let _budget: Record<string, unknown> | null = null; // last-known context-budget
 let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
 let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
+let _lastStateAt = 0; // epoch ms of the last vellum_state broadcast (for the post-turn safety poll)
+const FOLD_TOAST_KEY = 'vellum2.foldToast';
+// per-client display preference: show the post-turn "tracker updated" toast.
+// Off by default so the common turn is silent; persisted in localStorage (a pure
+// UI preference — no chat var / backend round-trip needed).
+let _foldToastOn = ((): boolean => { try { return localStorage.getItem(FOLD_TOAST_KEY) === '1'; } catch { return false; } })();
 
 // Transient "running" indication for one-shot QOL actions. Set busy when the
 // action is dispatched; cleared when the matching backend reply arrives. A
@@ -342,6 +386,7 @@ function openActions(ctx: Ctx): void {
     const toggleState: Record<string, string> = {
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
+      foldtoast: _foldToastOn ? 'on' : 'off',
       traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
       tone: (_tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living' && _tone.politics === 'off') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition} \u00b7 ${_tone.social}${_tone.politics !== 'off' ? ' \u00b7 pol:' + _tone.politics : ''}`,
     };
@@ -439,6 +484,12 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
+  else if (id === 'foldtoast') {
+    _foldToastOn = !_foldToastOn;
+    try { localStorage.setItem(FOLD_TOAST_KEY, _foldToastOn ? '1' : ''); } catch { /* ignore */ }
+    document.querySelectorAll('[data-qol=\'foldtoast\']').forEach((b) => b.classList.toggle('on', _foldToastOn));
+    notify(ctx, 'info', _foldToastOn ? 'Update toast on: a brief note after each turn.' : 'Update toast off.');
+  }
   else if (id === 'traverse') {
     // cycle: off Ã¢â€ â€™ flat Ã¢â€ â€™ treeÃ‚Â·time Ã¢â€ â€™ treeÃ‚Â·char Ã¢â€ â€™ treeÃ‚Â·hybrid Ã¢â€ â€™ off
     if (_traverseMode === 'off') { _traverseMode = 'flat'; }
@@ -701,6 +752,7 @@ export function setup(ctx: Ctx): () => void {
   const unsub = ctx.onBackendMessage((p: any) => {
     try {
       if (p?.type === 'vellum_state') {
+        _lastStateAt = Date.now(); // mark arrival so the post-turn safety poll can skip
         state = p.state ?? freshState();
         if (p.tone) {
         _tone = { romance: p.tone.romance ?? 'medium', disposition: p.tone.disposition ?? 'fair', social: p.tone.social ?? 'living', politics: p.tone.politics ?? 'off' };
@@ -729,6 +781,21 @@ export function setup(ctx: Ctx): () => void {
         }
         setSysInfo({ recall: _traverseMode === 'off' ? 'off' : _traverseMode === 'tree' ? `tree\u00b7${axisLabel(_traverseAxis)}` : 'flat' });
         drawer.update(); float.refresh();
+      } else if (p?.type === 'vellum_fold_progress') {
+        // Two-phase fold: phase 1 = the live scene is in (fast); phase 2 = the
+        // deep memory pass (knowledge/secrets/journal) finished. One sticky toast
+        // advances in place rather than stacking two. Off by default (opt-in via
+        // the Update-toast toggle) so the common turn is silent.
+        if (_foldToastOn) {
+          const total = Number(p.total) || 1;
+          if (total < 2) {
+            stickyToast('fold', 'success', 'Chronicle updated.', true); // single-pass turn
+          } else if (p.phase === 1) {
+            stickyToast('fold', 'info', 'Scene inscribed\u2026 weaving memory (1/2)');
+          } else {
+            stickyToast('fold', 'success', 'Chronicle updated (2/2)', true);
+          }
+        }
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
         if (p.log?.[0]?.chars) setSysInfo({ injChars: p.log[0].chars });
@@ -882,11 +949,16 @@ export function setup(ctx: Ctx): () => void {
   });
 
   const offChat = ctx.events?.on('CHAT_SWITCHED', () => { resetGraphCache(); ctx.sendToBackend({ type: 'vellum_get_state' }); });
-  // belt-and-suspenders: after a turn finishes, pull fresh state a couple times
-  // (the backend folds asynchronously + may retry reading a just-committed msg)
+  // After a turn finishes the backend folds and broadcasts vellum_state on its
+  // own (including an EARLY broadcast before the slow prose extractor). So this is
+  // just a safety net for the case where that broadcast never arrives (a missed
+  // fold, or GENERATION_ENDED firing before the message is committed): fire ONE
+  // conditional poll ~700ms later, and only if no fresh state showed up in the
+  // meantime. No fixed 600ms floor on the common path, and no redundant second
+  // fetch that would force another full fold.
   const offGen = ctx.events?.on('GENERATION_ENDED', () => {
-    setTimeout(() => ctx.sendToBackend({ type: 'vellum_get_state' }), 600);
-    setTimeout(() => ctx.sendToBackend({ type: 'vellum_get_state' }), 1800);
+    const mark = Date.now();
+    setTimeout(() => { if (_lastStateAt < mark) ctx.sendToBackend({ type: 'vellum_get_state' }); }, 700);
   });
   ctx.sendToBackend({ type: 'vellum_get_state' });
 
