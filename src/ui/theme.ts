@@ -32,7 +32,8 @@ export interface Theme {
   surf2c: string;      // '' = skin surface; else hex overriding card surface 2
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
-  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier' | 'glimmerwood'; // window ornamentation, orthogonal to skin
+  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier' | 'glimmerwood' | 'marginalia'; // window ornamentation, orthogonal to skin
+
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
   // skin-derived (overridden by skin pick)
@@ -51,8 +52,10 @@ const F_DISPLAY = "'Cinzel','Cormorant Garamond',Georgia,serif"; // Fantasy disp
 const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
 const F_ETHEREAL = "'Cormorant Garamond','Quicksand',Georgia,serif"; // Ember display — airy serif with a dreamy italic lean
 const F_ACADEMIA = "'Cinzel','EB Garamond',Georgia,'Times New Roman',serif"; // Atelier display — engraved museum-placard caps over an old-book body
+const F_MARGINALIA = "'Cormorant Garamond','EB Garamond',Georgia,serif"; // Marginalia display — a soft, gentle old-book serif with a dreamy italic (light academia)
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier' | 'glimmerwood';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier' | 'glimmerwood' | 'marginalia';
+
 
 /**
  * A "mode" is a one-click preset over existing axes — chrome (window ornament) plus
@@ -81,7 +84,16 @@ export const MODES: Mode[] = [
   // pastel), Ember (glowing indigo), and Nocturne (cold navy architecture).
   { id: 'atelier', name: 'Atelier', blurb: 'A dark-academia gallery \u2014 gilt-framed oil paintings, brass placards, marble busts, autumn &amp; old books.', patch: { chrome: 'atelier', radius: 4, border: 1.5, texture: 'canvas', serif: F_ACADEMIA, accent: '#b08840', accent2: '#7d3b2e', opacity: 0.98, blur: 6 }, form: 'gallery', skin: 'atelier' },
   { id: 'glimmerwood', name: 'Glimmerwood', blurb: 'An ethereal fairy glade \u2014 moss glass, gauzy light, golden fireflies, and leaf-soft storybook forms.', patch: { chrome: 'glimmerwood', radius: 24, border: 1, texture: 'firefly-grove', serif: F_ETHEREAL, accent: '#f3c66b', accent2: '#668f88', opacity: 0.9, blur: 14, bg: '', surf1c: '', surf2c: '' }, form: 'glade', skin: 'glimmerwood' },
+  // MARGINALIA — "the light-academia study at night": a soft pressed-flower
+  // notebook. Deep dusk-lilac paper, warm cream ink, pastel botanicals (mauve,
+  // sage, dusty rose, honey). EVERYTHING is soft — max radius, thin borders, big
+  // blur, pillowy cards, dotted-ink rules, pressed-flower texture, a little
+  // ribbon bookmark and inky-bloom flourishes. Deliberately gentle & low-contrast
+  // to stand apart from Atelier (hard warm gilt frames), Bloom (bright light
+  // pink), Ember (glowing indigo) and Nocturne (cold navy architecture).
+  { id: 'marginalia', name: 'Marginalia', blurb: 'A light-academia notebook at night \u2014 soft lilac paper, cream ink, pressed flowers, no hard edges.', patch: { chrome: 'marginalia', radius: 24, border: 1, texture: 'pressed-flowers', serif: F_MARGINALIA, accent: '#c9a7d6', accent2: '#a3c090', opacity: 0.94, blur: 13 }, form: 'dashboard', skin: 'marginalia' },
 ];
+
 
 // base semantic palette, reused by every skin (skins override clash-prone ones)
 const SEM = { pos: '#8fa67e', posInk: '#a9c089', neg: '#c96a6a', negInk: '#e09090', info: '#9bc0e6', warn: '#b48ed0', press: '#c8923e', pressInk: '#dcad62' } as const;
@@ -111,7 +123,13 @@ export const SKINS: Skin[] = [
   // plum, ochre). The recommended skin for the Atelier chrome; composes anywhere.
   { id: 'atelier', name: 'Old Masters', blurb: 'A dim gallery at dusk — walnut walls, gilt frames, aged canvas, autumn oils.', theme: { accent: '#b08840', serif: F_ACADEMIA, mono: F_MONO, surf1: 'rgba(38,29,21,.9)', surf2: 'rgba(26,19,13,.94)', ink: '#ece0c8', ink2: '#b6a487', glass: 'linear-gradient(160deg,rgba(34,26,19,.99),rgba(20,15,10,.995))', ...SEM, pos: '#8a9463', posInk: '#a9b382', neg: '#a4503f', negInk: '#c87a63', info: '#6f9a99', warn: '#9a7ea0', press: '#c08a3c', pressInk: '#d9a856' } },
   { id: 'glimmerwood', name: 'Glimmerwood', blurb: 'Mist-soft moss and teal glass lit by warm fireflies and pearly woodland ink.', theme: { accent: '#f3c66b', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(38,58,49,.66)', surf2: 'rgba(24,40,35,.72)', ink: '#eee9d7', ink2: '#bdcbbd', glass: 'linear-gradient(155deg,rgba(39,59,50,.94),rgba(18,34,30,.97))', ...SEM, pos: '#8fc397', posInk: '#b7ddb7', neg: '#cf806d', negInk: '#e9a28e', info: '#83b8b0', warn: '#aaa3bd', press: '#d99662', pressInk: '#efb982' } },
+  // Marginalia — the light-academia study at night: a soft dusk-lilac notebook,
+  // warm cream ink, pressed-flower pastels (mauve, sage, dusty rose, honey). Deep
+  // muted plum-charcoal paper with NO harsh contrast — everything gentle and inky.
+  // The recommended skin for the Marginalia chrome; composes with any chrome.
+  { id: 'marginalia', name: 'Pressed Petals', blurb: 'A light-academia notebook at night — dusk lilac, cream ink, pressed-flower pastels.', theme: { accent: '#c9a7d6', serif: F_MARGINALIA, mono: F_MONO, surf1: 'rgba(44,38,52,.6)', surf2: 'rgba(31,27,39,.56)', ink: '#efe6d7', ink2: '#bcafc2', glass: 'linear-gradient(168deg,rgba(40,34,48,.97),rgba(26,22,32,.985))', ...SEM, pos: '#a3c090', posInk: '#c0d8ac', neg: '#d68ea2', negInk: '#e8adbc', info: '#a9bce4', warn: '#c8a6dc', press: '#d9bd80', pressInk: '#ecd39c' } },
 ];
+
 
 const FONT_CHOICES: Array<{ label: string; stack: string }> = [
   { label: 'Cormorant (serif)', stack: F_SERIF },
@@ -141,7 +159,13 @@ const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   // woven artist's canvas — warm ochre warp/weft threads, a faint linen tooth
   { id: 'canvas', label: 'Canvas', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cg stroke='%23b08840' stroke-opacity='0.09'%3E%3Cpath d='M0 4h16M0 12h16' stroke-width='2'/%3E%3Cpath d='M4 0v16M12 0v16' stroke-width='2'/%3E%3C/g%3E%3Cg stroke='%23000' stroke-opacity='0.05'%3E%3Cpath d='M0 8h16M8 0v16'/%3E%3C/g%3E%3C/svg%3E\")" },
   { id: 'firefly-grove', label: 'Firefly Grove', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='180'%3E%3Cg fill='%23f3c66b'%3E%3Ccircle cx='26' cy='31' r='1.5' fill-opacity='.35'/%3E%3Ccircle cx='176' cy='42' r='1' fill-opacity='.28'/%3E%3Ccircle cx='104' cy='139' r='1.4' fill-opacity='.3'/%3E%3Cpath d='M62 70l2 6 6 2-6 2-2 6-2-6-6-2 6-2z' fill-opacity='.18'/%3E%3C/g%3E%3Cg fill='none' stroke='%2393b39a' stroke-opacity='.12'%3E%3Cpath d='M0 168Q45 112 88 166T176 156T220 134'/%3E%3Cpath d='M22 148q18-28 36 0M164 150q16-26 32 0'/%3E%3C/g%3E%3Cg fill='%23668f88' fill-opacity='.14'%3E%3Cpath d='M43 132c15-15 27-5 18 11-11 5-19 1-18-11zm133-18c-14-13-25-4-17 11 11 4 18 0 17-11z'/%3E%3C/g%3E%3C/svg%3E\")" },
+  // pressed flowers & inky flourishes — soft dusk-lilac line blooms with faint
+  // sage leaves and a scattered ink dot, all hairline-thin (the light-academia
+  // 'marginalia' texture: gentle, hand-drawn, no hard edges). Recommended for the
+  // Marginalia chrome; composes with any chrome.
+  { id: 'pressed-flowers', label: 'Pressed Flowers', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='190' height='190'%3E%3Cg fill='none' stroke='%23c8a9d8' stroke-opacity='.16' stroke-width='1.1'%3E%3Cg transform='translate(34 40)'%3E%3Ccircle r='3.4'/%3E%3Cpath d='M0 0C0-9 7-13 0-18M0 0C0-9-7-13 0-18M0 0C8-4 13 3 18 0M0 0C8 4 13-3 18 0M0 0C0 9 7 13 0 18M0 0C0 9-7 13 0 18M0 0C-8-4-13 3-18 0M0 0C-8 4-13-3-18 0'/%3E%3C/g%3E%3Cg transform='translate(140 132)'%3E%3Ccircle r='3'/%3E%3Cpath d='M0 0C0-8 6-11 0-15M0 0C0-8-6-11 0-15M0 0C7-3 11 3 15 0M0 0C7 4 11-3 15 0M0 0C0 8 6 11 0 15M0 0C0 8-6 11 0 15M0 0C-7-3-11 3-15 0M0 0C-7 4-11-3-15 0'/%3E%3C/g%3E%3C/g%3E%3Cg fill='none' stroke='%238fae8c' stroke-opacity='.13' stroke-width='1.1'%3E%3Cpath d='M96 26q10 8 6 22q-11-2-6-22z'/%3E%3Cpath d='M22 148q-9 7-6 20q10-3 6-20z'/%3E%3Cpath d='M168 58q9 6 6 18q-9-2-6-18z'/%3E%3C/g%3E%3Cg fill='%23b58fc8' fill-opacity='.12'%3E%3Ccircle cx='110' cy='70' r='1.4'/%3E%3Ccircle cx='60' cy='110' r='1.1'/%3E%3Ccircle cx='150' cy='168' r='1.2'/%3E%3C/g%3E%3C/svg%3E\")" },
 ];
+
 
 const KEY = 'vellum2.theme';
 const DEFAULT: Theme = {
@@ -172,7 +196,8 @@ function sanitize(t: Theme): Theme {
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
     bg: safeHexOpt(t.bg), surf1c: safeHexOpt(t.surf1c), surf2c: safeHexOpt(t.surf2c),
-    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'nocturne', 'atelier', 'glimmerwood'] as const).includes(t.chrome) ? t.chrome : 'default',
+    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'nocturne', 'atelier', 'glimmerwood', 'marginalia'] as const).includes(t.chrome) ? t.chrome : 'default',
+
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -271,7 +296,9 @@ export function customizePanel(tab: CzTab = 'look'): string {
     nocturne: '<span class="vle-mode-sk sk-nocturne"><i></i><i></i><i></i></span>',
     atelier: '<span class="vle-mode-sk sk-atelier"><i></i><i></i></span>',
     glimmerwood: '<span class="vle-mode-sk sk-glimmerwood"><i></i><i></i><i></i></span>',
+    marginalia: '<span class="vle-mode-sk sk-marginalia"><i></i><i></i><i></i></span>',
   };
+
   const themeCards = MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
     + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('');
   let body = '';

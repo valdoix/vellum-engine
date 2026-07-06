@@ -1431,4 +1431,97 @@ export const STYLES = [
   "html[data-vle-chrome='glimmerwood'] .vlfm{border-radius:26px 16px 28px 14px;border-color:rgba(var(--vg-rgb),.25);box-shadow:0 0 30px rgba(var(--vg-rgb),.1),0 24px 70px rgba(6,20,17,.58)}html[data-vle-chrome='glimmerwood'] .vlfm-head{font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:1px;border-bottom:1px solid rgba(var(--vg-rgb),.2)}",
   "@media(max-width:620px){html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'][data-cols='2']{grid-template-columns:1fr}html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'] .vld-sec{grid-column:1!important}}",
 
+  // ================= THEME: MARGINALIA ("The Light-Academia Notebook at Night") — float + drawer =================
+  // A soft pressed-flower study journal after dusk. Deep dusk-lilac paper, warm
+  // cream ink, pastel botanicals (mauve, sage, dusty rose, honey). The whole
+  // point is SOFTNESS: no hard edges anywhere — pillowy max-radius cards, hairline
+  // dotted-ink rules, a torn-deckle notebook edge on the float, a ribbon bookmark,
+  // pressed-flower texture, inky ❦/❀ flourishes, and only the faintest drifting
+  // pollen. Deliberately gentle & LOW-contrast to stand apart from Atelier (hard
+  // gilt frames), Bloom (bright light pink), Ember (glowing indigo), Nocturne
+  // (cold navy). All chrome-scoped so it re-skins BOTH the float and the drawer.
+  // --- theme-gallery picker tile: a soft lilac page with a pressed bloom + leaf ---
+  ".vle-mode-sk.sk-marginalia{flex-direction:column;gap:5px;padding:8px;border-radius:12px;background:radial-gradient(circle at 74% 26%,rgba(201,167,214,.5) 0 3px,transparent 6px),radial-gradient(circle at 26% 74%,rgba(163,192,144,.4) 0 2px,transparent 5px),linear-gradient(160deg,#2c2634,#1f1b27);box-shadow:inset 0 0 0 1px rgba(201,167,214,.25)}.vle-mode-sk.sk-marginalia i{height:6px;border-radius:20px;background:linear-gradient(90deg,rgba(201,167,214,.45),rgba(163,192,144,.3));border:none}.vle-mode-sk.sk-marginalia i:first-child{height:9px;width:70%;background:linear-gradient(90deg,rgba(201,167,214,.6),rgba(232,173,188,.35))}.vle-mode-sk.sk-marginalia i:last-child{width:52%}",
+
+  // --- shared: soft dusk wash of lilac + sage bloom, no hard gradients ---
+  "html[data-vle-chrome='marginalia'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(130% 90% at 8% 4%,rgba(var(--vg-rgb),.1),transparent 52%),radial-gradient(130% 95% at 96% 100%,rgba(var(--vg2-rgb),.09),transparent 55%)}",
+  "html[data-vle-chrome='marginalia'] .vlf-body{background-image:radial-gradient(130% 85% at 8% 4%,rgba(var(--vg-rgb),.08),transparent 52%),radial-gradient(130% 90% at 96% 100%,rgba(var(--vg2-rgb),.07),transparent 55%)}",
+
+  // --- the signature FLOAT frame: a soft notebook page — big pillowy radius, a
+  // faint pressed-flower inner border, and a hanging ribbon bookmark (no hard edge) ---
+  "html[data-vle-chrome='marginalia'] .vlf-frame{border-color:rgba(var(--vg-rgb),.28);border-radius:calc(var(--vradius) + 10px);box-shadow:0 26px 70px rgba(18,14,24,.6),0 0 30px rgba(var(--vg-rgb),.08),inset 0 0 50px rgba(var(--vg2-rgb),.05);overflow:visible}",
+  "html[data-vle-chrome='marginalia'] .vlf-frame::before{content:'';position:absolute;z-index:2;inset:7px;border:1px dashed rgba(var(--vg-rgb),.24);border-radius:calc(var(--vradius) + 5px);pointer-events:none}",
+  // a soft satin ribbon bookmark slipping over the top-right corner
+  "html[data-vle-chrome='marginalia'] .vlf-frame::after{content:'';position:absolute;z-index:3;top:-3px;right:26px;width:13px;height:34px;background:linear-gradient(180deg,var(--vg),color-mix(in srgb,var(--vg) 55%,transparent));border-radius:3px 3px 0 0;box-shadow:0 3px 5px rgba(0,0,0,.28);clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);pointer-events:none;opacity:.85}",
+  "html[data-vle-chrome='marginalia'] .vlf-bar{background:linear-gradient(180deg,rgba(var(--vg-rgb),.1),rgba(var(--vg2-rgb),.05));border-bottom:1px dashed rgba(var(--vg-rgb),.22);border-radius:calc(var(--vradius) + 8px) calc(var(--vradius) + 8px) 0 0}",
+  "html[data-vle-chrome='marginalia'] .vlf-title,html[data-vle-chrome='marginalia'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:.8px;text-transform:none;text-shadow:0 0 12px rgba(var(--vg-rgb),.2)}",
+  "html[data-vle-chrome='marginalia'] .vlf-bar::before{content:'\\2740';position:absolute;left:calc(15px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg2);opacity:.62;font-size:13px}",
+  // a soft round pressed-wax close bud — no hard border
+  "html[data-vle-chrome='marginalia'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,color-mix(in srgb,var(--vg) 75%,#fff),var(--vg));border:none;color:#2a2233;box-shadow:0 2px 7px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='marginalia'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,color-mix(in srgb,var(--vg2) 75%,#fff),var(--vg2));color:#22281c}",
+  "html[data-vle-chrome='marginalia'] .vlf-grip{background:none;border:none;right:10px;bottom:10px;width:10px;height:10px;border-right:2px solid rgba(var(--vg-rgb),.45);border-bottom:2px solid rgba(var(--vg-rgb),.45);border-radius:0 0 4px 0}",
+  "html[data-vle-chrome='marginalia'] .vlf-launch{border-radius:14px 0 0 14px;border:1px solid rgba(var(--vg-rgb),.3);border-right:none;box-shadow:-4px 4px 16px rgba(18,14,24,.4)}",
+
+  // --- the faintest drifting pollen motes in soft light (motion-gated) ---
+  "html[data-vle-chrome='marginalia'] .vle-body,html[data-vle-chrome='marginalia'] .vlf-body{position:relative}",
+  "html[data-vle-chrome='marginalia'] .vle-body::after,html[data-vle-chrome='marginalia'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(1.5px 1.5px at 18% 26%,rgba(var(--vg-rgb),.5),transparent),radial-gradient(1px 1px at 70% 20%,rgba(var(--vg2-rgb),.42),transparent),radial-gradient(1.5px 1.5px at 46% 72%,rgba(232,173,188,.4),transparent),radial-gradient(1px 1px at 84% 66%,rgba(var(--vg-rgb),.38),transparent);background-repeat:no-repeat;opacity:.5;animation:vle-marg-pollen 24s ease-in-out infinite alternate}",
+  "html[data-vle-chrome='marginalia'] .vle-body>*,html[data-vle-chrome='marginalia'] .vlf-body>*{position:relative;z-index:1}",
+  "@keyframes vle-marg-pollen{0%{transform:translate(0,2px);opacity:.34}50%{opacity:.56}100%{transform:translate(7px,-11px);opacity:.4}}",
+  "html[data-vle-chrome='marginalia'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='marginalia'][data-vle-motion='off'] .vlf-body::after{animation:none;opacity:.4}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='marginalia'] .vle-body::after,html[data-vle-chrome='marginalia'] .vlf-body::after{animation:none;opacity:.4}}",
+
+  // --- drawer head -> a soft journal title with a dotted-ink underrule + pressed bloom ---
+  "html[data-vle-chrome='marginalia'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:.6px;border-bottom:1px dashed rgba(var(--vg-rgb),.3)}",
+  "html[data-vle-chrome='marginalia'] .vle-mark{text-shadow:0 0 12px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='marginalia'] .vle-mark::after{content:'\\2740';margin-left:7px;color:var(--vg2);opacity:.72;font-size:.78em}",
+  "html[data-vle-chrome='marginalia'] .vle-stats{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1px;text-transform:lowercase;opacity:.68}",
+
+  // --- tab bar -> soft rounded ink-lozenges; active = a gentle two-tone wash, no border ---
+  "html[data-vle-chrome='marginalia'] .vle-tabs{border-bottom:1px dashed rgba(var(--vg-rgb),.18)}",
+  "html[data-vle-chrome='marginalia'] .vle-tabbtn{border-radius:var(--rpill);text-transform:none;letter-spacing:.3px;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-weight:500}",
+  "html[data-vle-chrome='marginalia'] .vle-tabbtn:hover{background:color-mix(in srgb,var(--vg) 9%,transparent);color:var(--vi)}",
+  "html[data-vle-chrome='marginalia'] .vle-tabbtn.on,html[data-vle-chrome='marginalia'] .vlf-tab.on{color:var(--vg);border-color:transparent;background:linear-gradient(120deg,color-mix(in srgb,var(--vg) 20%,transparent),color-mix(in srgb,var(--vg2) 16%,transparent))}",
+  "html[data-vle-chrome='marginalia'] .vle-tabicon.on{color:var(--vg);border-color:transparent;background:color-mix(in srgb,var(--vg) 14%,transparent)}",
+
+  // --- cards -> pillowy soft notebook leaves: big radius, hairline dashed edge, soft shadow ---
+  "html[data-vle-chrome='marginalia'] .vle-card,html[data-vle-chrome='marginalia'] .vle-rel-card,html[data-vle-chrome='marginalia'] .vld-sec,html[data-vle-chrome='marginalia'] .vld-pc{border-radius:20px;border:1px solid rgba(var(--vg-rgb),.18);background:linear-gradient(168deg,rgba(44,38,52,.6),rgba(31,27,39,.56));box-shadow:0 3px 16px rgba(18,14,24,.24),inset 0 1px 0 rgba(255,255,255,.03)}",
+  "html[data-vle-chrome='marginalia'] .vle-card:hover,html[data-vle-chrome='marginalia'] .vle-rel-card:hover{border-color:rgba(var(--vg-rgb),.32);box-shadow:0 5px 22px rgba(18,14,24,.3),0 0 16px rgba(var(--vg-rgb),.06)}",
+
+  // --- section eyebrows -> soft italic small-caps with a pressed-flower fleuron ---
+  "html[data-vle-chrome='marginalia'] .vld-h,html[data-vle-chrome='marginalia'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1.4px;color:var(--vg);text-transform:none;border-bottom:1px dashed rgba(var(--vg-rgb),.16);padding-bottom:calc(3px * var(--vscale))}",
+  "html[data-vle-chrome='marginalia'] .vld-h::before,html[data-vle-chrome='marginalia'] .vle-sec-h::before{content:'\\2766 ';color:var(--vg2);opacity:.72}",
+
+  // --- hero scene -> a dreamy italic journal entry with a soft inky drop-cap ---
+  "html[data-vle-chrome='marginalia'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:.2px;text-shadow:0 1px 12px rgba(var(--vg-rgb),.24)}",
+  "html[data-vle-chrome='marginalia'] .vld-hero::first-letter{font-family:var(--vserif);font-weight:600;font-style:normal;font-size:2em;line-height:.82;float:left;margin:3px 8px 0 0;color:var(--vg);text-shadow:0 0 10px rgba(var(--vg-rgb),.3)}",
+  "html[data-vle-chrome='marginalia'] .vld-sec--hero{background:radial-gradient(120% 150% at 30% 0,color-mix(in srgb,var(--vg) 12%,transparent),color-mix(in srgb,var(--vg2) 7%,transparent) 60%)!important;border:1px dashed rgba(var(--vg-rgb),.24)!important;border-radius:24px!important;box-shadow:inset 0 0 30px rgba(var(--vg-rgb),.06)!important}",
+
+  // --- tension -> soft pressed-flower buds (lilac->sage), never alarming ---
+  "html[data-vle-chrome='marginalia'] .vld-dot{border-radius:50%;background:rgba(var(--vg-rgb),.12)}",
+  "html[data-vle-chrome='marginalia'] .vld-dot.on{background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--vg) 85%,#fff),var(--vg2));box-shadow:0 0 7px rgba(var(--vg-rgb),.45)}",
+
+  // --- avatars -> soft pressed-flower medallions with a gentle petal halo when present ---
+  "html[data-vle-chrome='marginalia'] .vle-av,html[data-vle-chrome='marginalia'] .vld-pc-av,html[data-vle-chrome='marginalia'] .vle-strip-av{border-radius:50%;background:radial-gradient(60% 55% at 40% 34%,color-mix(in srgb,var(--vg) 30%,transparent),color-mix(in srgb,var(--vg2) 20%,transparent));border:1px solid rgba(var(--vg-rgb),.4);color:var(--vi);box-shadow:0 0 10px rgba(var(--vg-rgb),.14)}",
+  "html[data-vle-chrome='marginalia'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.18),0 0 14px rgba(var(--vg-rgb),.34)}",
+
+  // --- twin bond meters -> soft rounded strands (lilac affection, sage trust) ---
+  "html[data-vle-chrome='marginalia'] .vle-tw-t{height:8px;border-radius:6px;background:rgba(var(--vg-rgb),.08)}",
+  "html[data-vle-chrome='marginalia'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 55%,transparent),var(--vg))}",
+  "html[data-vle-chrome='marginalia'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 55%,transparent),var(--vg2))}",
+
+  // --- 'Latest' feed -> a pressed-flower stem: soft dashed lilac vine with bloom nodes ---
+  "html[data-vle-chrome='marginalia'] .vld-rec{position:relative;margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(11px * var(--vscale)) calc(18px * var(--vscale));border-left:1.5px dashed rgba(var(--vg-rgb),.26)}",
+  "html[data-vle-chrome='marginalia'] .vld-rec:last-child{border-left-color:transparent}",
+  "html[data-vle-chrome='marginalia'] .vld-rec::before{content:'\\2740';position:absolute;left:-8px;top:calc(1px * var(--vscale));font-size:11px;color:var(--vg2)}",
+  "html[data-vle-chrome='marginalia'] .vld-rec--journal::before{color:var(--v-pos-i)}html[data-vle-chrome='marginalia'] .vld-rec--knew::before{color:var(--v-info)}html[data-vle-chrome='marginalia'] .vld-rec--secret::before{color:var(--v-neg-i)}html[data-vle-chrome='marginalia'] .vld-rec--shift::before{color:var(--v-press-i)}",
+
+  // --- chips soften to fully-rounded pastel lozenges ---
+  "html[data-vle-chrome='marginalia'] .v-chip{border-radius:var(--rpill)}",
+
+  // --- modal + toasts pick up the soft dashed notebook treatment (read document attr) ---
+  "html[data-vle-chrome='marginalia'] .vlfm{border-radius:22px;border:1px dashed rgba(var(--vg-rgb),.3);box-shadow:0 24px 70px rgba(18,14,24,.55),0 0 30px rgba(var(--vg-rgb),.1)}",
+  "html[data-vle-chrome='marginalia'] .vlfm-head{font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:.6px;border-bottom:1px dashed rgba(var(--vg-rgb),.26)}",
+
 ].join('\n');
+
+
