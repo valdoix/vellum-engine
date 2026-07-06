@@ -185,6 +185,18 @@ export async function getChatVar(chatId: string, key: string): Promise<string> {
   if (hit && Date.now() - hit.at < VAR_TTL) return hit.value;
   try {
     const v = String((await spindle.variables?.chat?.get?.(chatId, key)) ?? '');
+    // AUTHORITATIVE-CACHE GUARD: these vars are written ONLY through setChatVar
+    // (write-through), so the cache is the source of truth. A TTL-expiry re-read
+    // that comes back EMPTY while we hold a NON-empty cached value is almost
+    // always the host transiently losing the var — e.g. on REGENERATE, where the
+    // in-memory chat metadata is reset before our DB write is reflected back.
+    // Honoring that empty read clobbered persisted settings (tone reverting to
+    // default after a regen). So keep the known value and refresh its timestamp;
+    // a genuine clear always arrives via setChatVar('') (write-through → cache '').
+    if (v === '' && hit && hit.value !== '') {
+      _varCache.set(ck, { value: hit.value, at: Date.now() });
+      return hit.value;
+    }
     _varCache.set(ck, { value: v, at: Date.now() });
     return v;
   } catch {
