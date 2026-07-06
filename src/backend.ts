@@ -1,6 +1,6 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, appendHintTurn, chatNames, getChatVar, setChatVar, invalidateChatVars } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar, invalidateChatVars } from './host/chats.js';
 import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logHasKind, truncateAfterTurn, turnSigs, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -328,13 +328,7 @@ async function nextSceneInjection(chatId: string, state?: import('./domain/types
 async function foldChatInner(chatId: string, userId: string | null, hint?: string): Promise<void> {
   let msgs = await allTurnContents(chatId);
   if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allTurnContents(chatId); }
-  // The GENERATION_ENDED hint is the RAW assistant reply, but allTurnContents
-  // wraps each turn as "[Player action]…[Scene]<reply>". appendHintTurn dedups by
-  // testing whether the last committed block already CARRIES the reply (a strict
-  // equality guard would never match the wrapped block, appending a phantom,
-  // unwrapped duplicate turn every fold — the turn-inflation/rollback-thrash bug),
-  // while still admitting a genuinely-uncommitted new-chat turn (commit-race net).
-  msgs = appendHintTurn(msgs, hint);
+  if (hint && hint.trim() && (!msgs.length || msgs[msgs.length - 1] !== hint)) msgs.push(hint);
   if (!msgs.length) return;
   let prior = await loadState(chatId);
   // tone dials + canonical {{user}} id + locks, resolved once per fold pass (in

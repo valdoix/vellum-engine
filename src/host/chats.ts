@@ -148,27 +148,6 @@ export async function allTurnContents(chatId: string): Promise<string[]> {
   }
 }
 
-/**
- * The GENERATION_ENDED payload hands us the RAW assistant reply, but
- * allTurnContents wraps every committed turn as "[Player action]…[Scene]<reply>".
- * A strict-equality dedup against the last block therefore NEVER matches after
- * that format change and would append the raw reply as a phantom, unwrapped
- * duplicate turn on every fold (inflating the turn high-water, which then makes
- * the next hint-less get_state roll the log back and thrash prose extraction).
- *
- * So the fold should append the hint ONLY when the last committed block does not
- * already CARRY that reply: dedups the common case (reply already committed), yet
- * still admits a genuinely-uncommitted new-chat turn (the commit-race safety net).
- * Returns the (possibly hint-appended) turn list; never mutates the input.
- */
-export function appendHintTurn(msgs: string[], hint?: string): string[] {
-  const h = hint?.trim() ?? '';
-  if (!h) return msgs;
-  const last = msgs[msgs.length - 1] ?? '';
-  if (last.includes(h)) return msgs;
-  return [...msgs, h];
-}
-
 export function isPermDenied(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
   return /permission|denied|not granted/i.test(msg);
