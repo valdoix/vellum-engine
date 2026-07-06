@@ -278,10 +278,43 @@ export function bondMeter(dirs: { a: string; b: string; affection: number; trust
   const cap = (d: { a: string; b: string }): string => abbr(nameFor(d.a)) + '\u2192' + abbr(nameFor(d.b));
   const aff = dirs.map((d) => bondRow(cap(d), d.affection, 'aff')).join('');
   const tru = dirs.map((d) => bondRow(cap(d), d.trust, 'trust')).join('');
+  // .vle-bm-zero is a continuous dashed center rule spanning all rows in an axis
+  // (K2) so the shared zero reads as one line, not a per-row tick.
   return '<div class="vle-bm">'
-    + '<div class="vle-bm-axis"><span class="vle-bm-axl">affection</span>' + aff + '</div>'
-    + '<div class="vle-bm-axis"><span class="vle-bm-axl">trust</span>' + tru + '</div>'
+    + '<div class="vle-bm-axis"><span class="vle-bm-zero" aria-hidden="true"></span><span class="vle-bm-axl">affection</span>' + aff + '</div>'
+    + '<div class="vle-bm-axis"><span class="vle-bm-zero" aria-hidden="true"></span><span class="vle-bm-axl">trust</span>' + tru + '</div>'
     + '</div>';
+}
+
+/**
+ * A single glanceable VERDICT word for a bond (mockup 20 panel 2), derived from
+ * the pair's dominant category + sentiment + the sign of average affection/trust.
+ * Pure: reads only the given directed edges, invents no state. Used as the card's
+ * one-line read so the pair name/scores don't have to be scanned to "get" it.
+ */
+export function bondVerdict(dirs: { affection: number; trust: number; sentiment?: string; category?: string; categories?: string[] }[]): string {
+  if (!dirs.length) return 'unknown';
+  const avg = (pick: (d: typeof dirs[number]) => number): number => dirs.reduce((s, d) => s + (pick(d) || 0), 0) / dirs.length;
+  const aff = avg((d) => d.affection);
+  const tru = avg((d) => d.trust);
+  // dominant category across both directions (first non-neutral wins)
+  const cats = dirs.flatMap((d) => d.categories ?? (d.category ? [d.category] : []));
+  const cat = cats.find((c) => c && c !== 'neutral') ?? dirs[0]!.category ?? 'social';
+  const sent = dirs.map((d) => d.sentiment).find(Boolean) ?? 'neutral';
+  const warm = aff > 20, cold = aff < -20, trusts = tru > 20, wary = tru < -20;
+  const hostile = sent === 'hostile' || (cold && wary);
+  switch (cat) {
+    case 'romantic':
+      return warm && trusts ? 'devotion' : warm ? 'infatuation' : cold ? 'bitter ex' : 'uneasy romance';
+    case 'familial':
+      return hostile ? 'estranged kin' : warm ? 'close family' : wary ? 'strained family' : 'family';
+    case 'alliance':
+      return hostile ? 'broken pact' : trusts && warm ? 'firm alliance' : wary ? 'wary alliance' : 'alliance';
+    case 'rivalry':
+      return hostile ? 'enmity' : cold ? 'rivalry' : 'tense rivalry';
+    default:
+      return hostile ? 'hostility' : warm && trusts ? 'close bond' : cold ? 'cold distance' : wary ? 'wary acquaintance' : 'acquaintance';
+  }
 }
 
 /** Sentiment tone from the affection axis alone (fill color of a bond glyph). */

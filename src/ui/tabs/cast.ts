@@ -6,6 +6,8 @@ import { cmd, paginate, pagerHtml, send, setPage, refreshUI } from '../bridge.js
 import { formModal, confirmModal } from '../modal.js';
 import { traitArc, dormantTraits } from '../../domain/drift.js';
 import { visibleCast } from '../../domain/cast-hygiene.js';
+import { activeShape } from '../theme.js';
+import { shapeOrnament } from '../ornament.js';
 
 /**
  * Cast tab — two sections: CHARACTERS (individuals) and FACTIONS (groups).
@@ -254,8 +256,9 @@ function card(s: ChronicleState, c: CastCard): string {
       + (c.note ? `<div class="vle-card-note">${esc(c.note)}</div>` : '')
       + '</div>'
     : '';
-  return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + (open ? ' is-open' : '') + (c.deceased ? ' v-orn--ring-harm' : '') + '">'
-    + '<button class="vle-av' + (c.imageUrl ? ' has-img' : '') + '" data-cast-unfold data-id="' + A(c.id) + '" title="' + esc(c.status) + ' \u00b7 expand"' + (c.imageUrl ? ' style="background-image:url(' + JSON.stringify(c.imageUrl) + ')"' : '') + '>' + (c.imageUrl ? '' : esc(initials(c.name))) + '<span class="vle-av-dot"></span></button>'
+  return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + (open ? ' is-open' : '') + '">'
+    + shapeOrnament(activeShape('cast'), 'cast')
+    + '<button class="vle-av' + (c.imageUrl ? ' has-img' : '') + (c.deceased ? ' v-orn--ring-harm' : '') + '" data-cast-unfold data-id="' + A(c.id) + '" title="' + esc(c.status) + ' \u00b7 expand"' + (c.imageUrl ? ' style="background-image:url(' + JSON.stringify(c.imageUrl) + ')"' : '') + '>' + (c.imageUrl ? '' : esc(initials(c.name))) + '<span class="vle-av-dot"></span></button>'
     + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + deceasedMark(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (sub ? '<span class="vle-card-sub">' + sub + '</span>' : '')
     + (!open && c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')
@@ -312,6 +315,7 @@ function factionCard(s: ChronicleState, f: Faction): string {
   const chips = members.slice(0, 8).map((m) => `<span class="vle-fac-mem" title="${A(m.role ?? '')}">${nameHtml(s, m.char)}${m.role ? ' \u00b7 ' + esc(m.role) : ''}<button class="vle-fac-x" data-fac-memdel data-id="${A(f.id)}" data-char="${A(m.char)}" title="Remove">\u00d7</button></span>`).join('');
   const stand = standingLabel(f.standing);
   return '<div class="vle-card vle-fac vle-card--' + esc(f.status) + (f.status === 'present' ? ' on' : '') + '">'
+    + shapeOrnament(activeShape('factions'), 'factions')
     + '<span class="vle-av vle-fac-av" title="' + esc(f.status) + '">' + esc(initials(f.name)) + '</span>'
     + '<span class="vle-card-main"><span class="vle-card-n">' + esc(f.name) + (f.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (f.kind ? '<span class="vle-card-meta">' + esc(f.kind) + '</span>' : '')

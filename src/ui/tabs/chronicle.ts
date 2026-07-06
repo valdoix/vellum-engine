@@ -5,6 +5,8 @@ import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } fro
 import { formModal, confirmModal } from '../modal.js';
 import { linkedOffscreen } from '../../domain/offscreen.js';
 import { formatDate } from '../../domain/date-format.js';
+import { activeShape } from '../theme.js';
+import { shapeOrnament, scarSeam } from '../ornament.js';
 
 
 /**
@@ -354,11 +356,12 @@ function timeline(s: ChronicleState): string {
     if (r.day !== undefined && r.day !== lastDay) { parts.push(`<div class="vle-spine-day"><span>D${esc(r.day)}</span></div>`); lastDay = r.day; }
     const label = r.span ? `t${r.span[0]}\u2013${r.span[1]}` : `t${r.turn}`;
     if (r.kind === 'beat') {
-      parts.push(`<div class="vle-spine-beat v-orn--glow"><span class="vle-spine-beat-k">\u2691 beat</span><span class="vle-spine-beat-x">${esc(r.text)}</span></div>`);
+      // spine beats sit centered ON the rail as a filled square node with a glow
+      parts.push(`<div class="vle-spine-beat vle-spine-beat--sq v-orn--glow"><span class="vle-spine-beat-k">\u2691 beat</span><span class="vle-spine-beat-x">${esc(r.text)}</span></div>`);
       continue;
     }
     const s2 = side++ % 2 === 0 ? 'l' : 'r';
-    parts.push(`<div class="vle-spine-row vle-spine-${s2}"><div class="vle-spine-card vle-spine-${esc(r.kind)}">`
+    parts.push(`<div class="vle-spine-row vle-spine-${s2}"><span class="vle-spine-node vle-spine-node--${esc(r.kind)}"></span><div class="vle-spine-card vle-spine-${esc(r.kind)}">`
       + `<span class="vle-spine-meta"><span class="vle-spine-kind">${esc(r.kind)}</span><span class="vle-spine-t">${esc(label)}</span></span>`
       + `<span class="vle-spine-x">${esc(r.text)}</span></div></div>`);
   }
@@ -399,7 +402,7 @@ function beatsView(s: ChronicleState): string {
     const up = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="up"${i === 0 ? ' disabled' : ''} title="Move earlier">\u25B4</button>`;
     const down = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="down"${i === list.length - 1 ? ' disabled' : ''} title="Move later">\u25BE</button>`;
     const edit = `<button class="vle-mini" data-beat-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-day="${m.beatDay ?? ''}" data-time="${esc(m.beatTime ?? '')}" data-spine="${m.spine ? '1' : '0'}" title="Edit">\u270E</button>`;
-    return '<div class="vle-mem vle-mem--beat">' + spine
+    return '<div class="vle-mem vle-mem--beat">' + shapeOrnament(activeShape('beats'), 'beats') + spine
       + (anchor ? `<span class="vle-tl-day">${esc(anchor)}</span>` : '')
       + `<span class="vle-mem-t">${esc(m.text)}</span>`
       + `<span class="vle-mem-ctl">${up}${down}${edit}<button class="vle-mini del" data-beat-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
@@ -473,9 +476,13 @@ function knowledge(s: ChronicleState): string {
   const bar = filterBar('knowledge', { whos, whoCounts });
   const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
   const { slice, page, pages } = paginate('knowledge', filtered);
-  const rows = slice.map((k) => '<div class="vle-mem vle-mem--know' + (k.truth === 'false' ? ' v-orn--glow-neg' : '') + '"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
-    + `<span class="vle-mem-t"${k.source ? ` title="source: ${esc(k.source)}"` : ''}>` + relChip(k.reliability) + (k.truth === 'false' ? '<span class="vle-kfalse" title="actually false — dramatic irony">\u2717 false</span>' : '') + esc(k.fact) + '</span>'
-    + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button></div>`).join('');
+  const rows = slice.map((k) => {
+    const isFalse = k.truth === 'false';
+    return '<div class="vle-mem vle-mem--know' + (isFalse ? ' is-false v-orn--glow-neg' : '') + '"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
+      + `<span class="vle-mem-t"${k.source ? ` title="source: ${esc(k.source)}"` : ''}>` + relChip(k.reliability) + (isFalse ? '<span class="vle-kfalse" title="actually false — dramatic irony">\u26A0 false</span>' : '') + esc(k.fact)
+      + (isFalse ? '<span class="vle-kirony">dramatic irony \u2014 believed, but untrue</span>' : '') + '</span>'
+      + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button></div>`;
+  }).join('');
   if (!slice.length) return head + bar + emptyState('No knowledge matches this filter.');
   return head + bar + rows + pagerHtml('knowledge', page, pages);
 }
@@ -489,7 +496,7 @@ function secrets(s: ChronicleState): string {
   const bar = filterBar('secrets', { whos, whoCounts });
   const filtered = applyFilter('secrets', s.secrets.map((x) => ({ ...x, turn: x.formedTurn })), { who: (x) => x.keeper });
   const { slice, page, pages } = paginate('secrets', filtered);
-  const rows = slice.map((sec) => '<div class="vle-mem vle-mem--secret v-orn--seal' + (sec.revealed ? ' is-broken' : '') + '"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
+  const rows = slice.map((sec) => '<div class="vle-mem vle-mem--secret v-orn--seal' + (sec.revealed ? ' is-broken' : '') + '">' + shapeOrnament(activeShape('secrets'), 'secrets') + '<span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
     + (sec.revealed ? '' : `<button class="vle-mini" data-sec-reveal data-id="${esc(sec.id)}" title="Reveal">\u25D0</button>`)
     + `<button class="vle-mini del" data-sec-del data-id="${esc(sec.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No secrets match this filter.');
@@ -508,7 +515,7 @@ function scars(s: ChronicleState): string {
   const bar = filterBar('scars', { whos, whoCounts });
   const filtered = applyFilter('scars', list, { who: (x) => x.who });
   const { slice, page, pages } = paginate('scars', filtered);
-  const rows = slice.map((x) => '<div class="vle-mem vle-mem--scar"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, x.who)) + '</span>'
+  const rows = slice.map((x) => '<div class="vle-mem vle-mem--scar">' + scarSeam(false) + '<span class="vle-mem-tier t-turn">' + esc(nameOf(s, x.who)) + '</span>'
     + '<span class="vle-mem-t"><span class="vle-scar-was">' + esc(x.was) + '</span>' + (x.about ? ' <em>(about ' + esc(nameOf(s, x.about)) + ')</em>' : '') + '</span>'
     + `<button class="vle-mini del" data-scar-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No scars match this filter.');
@@ -546,7 +553,7 @@ function itemsView(s: ChronicleState): string {
   const body = order.map((key) => {
     const label = key === '\u0000scene' ? 'Scene' : nameOf(s, key) + (present.has(key) ? ' \u00b7 present' : '');
     const rows = groups.get(key)!.map((it) =>
-      '<div class="vle-item-row"><span class="vle-item-name">' + esc(it.item) + '</span>'
+      '<div class="vle-item-row">' + shapeOrnament(activeShape('items'), 'items') + '<span class="vle-item-name">' + esc(it.item) + '</span>'
       + (it.note ? `<span class="vle-item-note">${esc(it.note)}</span>` : '')
       + `<span class="vle-mem-ctl"><button class="vle-mini" data-item-edit data-id="${esc(it.id)}" data-item="${esc(it.item)}" data-who="${esc(it.who === 'world' ? '' : nameOf(s, it.who))}" data-note="${esc(it.note ?? '')}" title="Edit">\u270E</button>`
       + `<button class="vle-mini del" data-item-del data-id="${esc(it.id)}" title="Delete">\u2715</button></span></div>`

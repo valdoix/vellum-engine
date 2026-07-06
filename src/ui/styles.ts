@@ -98,6 +98,12 @@ export const STYLES = [
   ".vld-stat,.vld-h,.vld-mood,.vld-cond,.vld-rel-s,.vld-cat,.vld-thread-s,.vld-par-w,.vld-rec-k{font-size:calc(1em * var(--vdscale))}",
   ".vle-root,.vlf-body{opacity:1}",
   ".vle-root{font-family:var(--vserif);color:var(--vle-ink);padding:calc(13px * var(--vscale)) calc(15px * var(--vscale))}",
+  // H3 nav panel (mockup 20): header + tab rail grouped into one framed block.
+  // Rounded, hairline border, a subtle STATIC radial wash (no motion). Default is
+  // quiet; per-chrome variants below add each world's flavor.
+  ".vle-navpanel{position:relative;border:1px solid var(--vle-gold-soft);border-radius:calc(var(--vradius) + 2px);padding:calc(11px * var(--vscale)) calc(13px * var(--vscale)) calc(8px * var(--vscale));margin-bottom:calc(11px * var(--vscale));background:radial-gradient(120% 140% at 0% 0%,rgba(var(--vg-rgb),.06),transparent 60%)}",
+  ".vle-navpanel .vle-head{border-bottom:1px solid var(--vle-gold-soft)}",
+  "@media (max-width:440px){.vle-navpanel{padding:calc(8px * var(--vscale)) calc(9px * var(--vscale)) calc(6px * var(--vscale))}}",
   ".vle-head{display:flex;align-items:center;gap:9px;font-size:calc(22px * var(--vscale));letter-spacing:1.5px;padding-bottom:calc(11px * var(--vscale));border-bottom:1px solid var(--vle-gold-soft)}",
   ".vle-mark{color:var(--vle-gold);text-shadow:0 0 8px rgba(var(--vg-rgb),.4)}",
   ".vle-ver{font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;opacity:.6;color:var(--vle-gold)}",
@@ -113,7 +119,13 @@ export const STYLES = [
   ".vle-tabicons{display:flex;align-items:center;gap:5px;margin:0 0 calc(9px * var(--vscale));flex-wrap:wrap;padding-top:calc(6px * var(--vscale));border-top:1px solid rgba(var(--vg-rgb),.14)}",
   ".vle-tabbtn{font:600 calc(11px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vi2);background:transparent;border:1px solid transparent;border-radius:9px;padding:calc(8px * var(--vscale)) calc(13px * var(--vscale));cursor:pointer;opacity:.7;transition:opacity .15s,background .15s,color .15s}",
   ".vle-tabbtn:hover{opacity:1;background:rgba(var(--vg-rgb),.08)}",
+  ".vle-tabbtn{position:relative}",
   ".vle-tabbtn.on{opacity:1;background:rgba(var(--vg-rgb),.2);border-color:rgba(var(--vg-rgb),.45);color:var(--vle-gold)}",
+  // H2 active-tab glow underline (base). A short centered accent bar with a soft
+  // glow; additive to the lozenge fill. Chrome ::after underlines (modern/
+  // futuristic/illuminated) have higher specificity and keep winning where set.
+  ".vle-tabbtn.on::after{content:'';position:absolute;left:24%;right:24%;bottom:-2px;height:2px;border-radius:2px;background:var(--vg);box-shadow:0 0 6px rgba(var(--vg-rgb),.6)}",
+  "@media (prefers-reduced-motion:reduce){.vle-tabbtn.on::after{box-shadow:none}}",
   ".vle-tabbar-sep{flex:none;width:1px;align-self:stretch;margin:2px 4px;background:rgba(var(--vg-rgb),.22)}",
   // labeled tool dock (Journal/Graph/Vault/Context) — icon + label chip, a real
   // second tier. Labels hide when the dock is tight (see the container query below).
@@ -149,11 +161,18 @@ export const STYLES = [
   ".vle-subnav-b.on{opacity:1;background:rgba(var(--vg-rgb),.18);border-color:rgba(var(--vg-rgb),.4);color:var(--vle-gold)}",
   // timeline (Plot Director, Phase 3) — turn-axis rail
   ".vle-spine{position:relative;margin:10px 0;padding:4px 0}",
-  ".vle-spine::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:rgba(var(--vg-rgb),.25)}",
+  // the spine is a dotted VINE (mockup 21) rather than a solid rule
+  ".vle-spine::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:repeating-linear-gradient(to bottom,rgba(var(--vg-rgb),.5) 0 4px,transparent 4px 9px)}",
+  // kind-colored node pinned to the center rail for each branching row
+  ".vle-spine-node{position:absolute;top:15px;width:9px;height:9px;border-radius:50%;background:var(--vg);box-shadow:0 0 0 3px var(--vsurf-2),0 0 7px rgba(var(--vg-rgb),.4);z-index:2}",
+  ".vle-spine-l .vle-spine-node{right:-4px}.vle-spine-r .vle-spine-node{left:-4px}",
+  ".vle-spine-node--secret{background:var(--v-neg)}.vle-spine-node--knew{background:var(--v-info)}.vle-spine-node--journal{background:var(--v-pos)}.vle-spine-node--memory{background:var(--vg)}.vle-spine-node--scar{background:var(--v-warn)}.vle-spine-node--lore{background:var(--vg)}",
   ".vle-spine-act{position:relative;z-index:1;text-align:center;margin:14px auto 10px;max-width:70%;font:600 var(--vt-eyebrow)/1.4 var(--vmono);letter-spacing:3px;text-transform:uppercase;color:var(--vg);background:rgba(var(--vg-rgb),.08);border-radius:var(--vr1);padding:5px 10px}",
   ".vle-spine-day{position:relative;z-index:1;display:flex;justify-content:center;margin:8px 0}",
   ".vle-spine-day span{font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--vg);background:var(--vsurf-2);border:1px solid rgba(var(--vg-rgb),.5);border-radius:50%;width:30px;height:30px;display:grid;place-items:center}",
   ".vle-spine-beat{position:relative;z-index:1;margin:8px auto;max-width:80%;text-align:center;background:color-mix(in srgb,var(--vg) 12%,var(--vsurf-1));border:1px solid rgba(var(--vg-rgb),.5);border-radius:var(--vr2);padding:7px 12px}",
+  // filled square node on the rail marking a spine beat (vs the round branch dots)
+  ".vle-spine-beat--sq::before{content:'';position:absolute;left:50%;top:-7px;width:9px;height:9px;margin-left:-4.5px;background:var(--vg);box-shadow:0 0 0 3px var(--vsurf-2),0 0 8px rgba(var(--vg-rgb),.5);z-index:2}",
   ".vle-spine-beat-k{display:block;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--vg);opacity:.8;margin-bottom:3px}",
   ".vle-spine-beat-x{font-family:var(--vserif);font-style:italic;font-size:calc(14px * var(--vscale));color:var(--vi)}",
   ".vle-spine-row{position:relative;display:flex;width:50%;box-sizing:border-box;margin:5px 0}",
@@ -172,7 +191,7 @@ export const STYLES = [
   ".vle-spine-journal{border-left-color:var(--v-pos)}.vle-spine-journal .vle-spine-kind{color:var(--v-pos-i)}",
   ".vle-spine-scar{border-left-color:var(--v-warn)}.vle-spine-scar .vle-spine-kind{color:var(--v-warn)}",
   ".vle-spine-lore{border-left-color:var(--vg)}.vle-spine-lore .vle-spine-kind{color:var(--vg)}",
-  "@container (max-width:420px){.vle-spine::before{left:13px}.vle-spine-row{width:100%;padding-left:30px!important;padding-right:0!important;justify-content:flex-start!important;margin-left:0!important;margin-right:0!important}.vle-spine-l .vle-spine-card::after,.vle-spine-r .vle-spine-card::after{left:-17px!important;right:auto!important}.vle-spine-beat,.vle-spine-act{margin-left:0;max-width:100%}.vle-spine-day{justify-content:flex-start;margin-left:0}}",
+  "@container (max-width:420px){.vle-spine::before{left:13px}.vle-spine-row{width:100%;padding-left:30px!important;padding-right:0!important;justify-content:flex-start!important;margin-left:0!important;margin-right:0!important}.vle-spine-l .vle-spine-card::after,.vle-spine-r .vle-spine-card::after{left:-17px!important;right:auto!important}.vle-spine-l .vle-spine-node,.vle-spine-r .vle-spine-node{left:9px!important;right:auto!important}.vle-spine-beat,.vle-spine-act{margin-left:0;max-width:100%}.vle-spine-beat--sq::before{left:13px}.vle-spine-day{justify-content:flex-start;margin-left:0}}",
   ".vle-tl{display:flex;flex-direction:column;gap:0;margin-top:6px;position:relative}",
   ".vle-tl-row{display:flex;align-items:flex-start;gap:9px;padding:5px 0;position:relative}",
   ".vle-tl-t{flex:none;width:54px;text-align:right;font:600 9px/1.5 var(--vmono);color:var(--vle-gold);opacity:.7}",
@@ -184,6 +203,11 @@ export const STYLES = [
   ".vle-tl-dot.vle-tl-scar{background:var(--v-warn)}.vle-tl-dot.vle-tl-lore{background:var(--vle-gold)}",
   ".vle-tl-dot.vle-tl-beat{background:var(--vle-gold);box-shadow:0 0 0 2px color-mix(in srgb,var(--vle-gold) 40%,transparent)}",
   ".vle-mem-tier.t-beat{color:var(--vle-gold);border-color:color-mix(in srgb,var(--vle-gold) 45%,transparent)}",
+  // G5 index-card feel: beat rows get a hairline card + a faint alternating tilt.
+  ".vle-mem--beat{position:relative;padding:6px 10px;margin:5px 0;background:color-mix(in srgb,var(--vg) 5%,var(--vsurf-1));border:1px solid rgba(var(--vg-rgb),.16);border-left:3px solid var(--vle-gold);border-radius:var(--vr2);transform:rotate(-.5deg);transition:transform .18s ease}",
+  ".vle-mem--beat:nth-child(2n){transform:rotate(.5deg)}",
+  ".vle-mem--beat:hover{transform:rotate(0)}",
+  "@media (prefers-reduced-motion:reduce){.vle-mem--beat,.vle-mem--beat:nth-child(2n),.vle-mem--beat:hover{transform:none;transition:none}}",
   ".vle-beat-sug-h{display:flex;align-items:center;gap:8px;margin:4px 0 8px;min-width:0}",
   ".vle-beat-sug-lbl{flex:0 0 auto;font:600 10px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;opacity:.6}",
   ".vle-beat-sug-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}",
@@ -254,9 +278,12 @@ export const STYLES = [
   ".vle-dir-col{margin:0 0 10px}",
   ".vle-dir-col-h{font:600 11px/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vle-gold);opacity:.8;margin:0 0 5px;padding-bottom:3px;border-bottom:1px solid rgba(var(--vg-rgb),.16)}",
   ".vle-dir-card{display:flex;align-items:baseline;gap:8px;padding:6px 9px;margin:0 0 5px;border:1px solid rgba(var(--vg-rgb),.18);border-left:3px solid var(--v-warn);border-radius:8px;background:color-mix(in srgb,var(--vi) 3%,transparent)}",
-  ".vle-dir-armed{border-left-color:var(--v-pos)}",
-  ".vle-dir-dormant{border-left-color:var(--v-warn)}",
-  ".vle-dir-done{border-left-color:rgba(var(--vg-rgb),.3);opacity:.6}",
+  // G6 luminance lifecycle: scheduled dim (butter), active lit (mint) + glow,
+  // done greyed + struck. The left-bar reads as a state gauge at a glance.
+  ".vle-dir-armed{border-left-color:var(--v-pos);border-left-width:4px}",
+  ".vle-dir-dormant{border-left-color:var(--v-warn);opacity:.72}",
+  ".vle-dir-done{border-left-color:rgba(var(--vg-rgb),.3);opacity:.55}",
+  ".vle-dir-done .vle-dir-text{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--vi) 45%,transparent)}",
   ".vle-dir-glyph{flex:0 0 auto;color:var(--vle-gold)}",
   ".vle-dir-text{flex:1 1 auto;font-family:var(--vserif);font-size:calc(14px * var(--vscale));color:var(--vi)}",
   ".vle-dir-target{font-family:var(--vmono);font-size:11px;color:var(--vi2);opacity:.7}",
@@ -485,11 +512,34 @@ export const STYLES = [
   ".vle-krel-wrong{color:var(--v-neg-i);border:1px solid color-mix(in srgb,var(--v-neg) 50%,transparent);background:color-mix(in srgb,var(--v-neg) 8%,transparent)}",
   ".vle-krel-unaware{color:#8c8478;border:1px solid rgba(140,132,120,.4)}",
   ".vle-kfalse{display:inline-block;font:600 9px/1 var(--vmono);color:var(--v-neg-i);margin-right:5px;opacity:.85}",
+  // G2 dramatic-irony: a false belief gets a faint rose wash + an italic caption
+  ".vle-mem--know.is-false{background:color-mix(in srgb,var(--v-neg) 7%,transparent)}",
+  ".vle-kirony{display:block;margin-top:3px;font:italic 400 calc(10.5px * var(--vscale))/1.3 var(--vserif);color:var(--v-neg-i);opacity:.8}",
+  // G3 secret left medallion: an avatar-sized seal at the row's left edge; intact
+  // rose for sealed, dashed mint for revealed. Replaces the top-right corner pip
+  // on the secrets surface (the generic .v-orn--seal pip is hidden here).
+  ".vle-mem--secret{position:relative;padding-left:38px}",
+  ".vle-mem--secret.v-orn--seal::after{display:none}",
+  ".vle-mem--secret::before{content:'\\2680';position:absolute;left:8px;top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px;color:var(--v-neg-i);border:1.5px solid color-mix(in srgb,var(--v-neg) 60%,transparent);background:color-mix(in srgb,var(--v-neg) 12%,var(--vsurf-1));box-shadow:0 0 6px color-mix(in srgb,var(--v-neg) 25%,transparent)}",
+  ".vle-mem--secret.is-broken::before{content:'\\2727';color:var(--v-pos-i);border:1.5px dashed color-mix(in srgb,var(--v-pos) 55%,transparent);background:transparent;box-shadow:none}",
   // relations
   ".vle-rel-grid{display:flex;flex-direction:column;gap:7px}",
-  ".vle-rel-card{border:1px solid var(--vle-gold-soft);border-radius:9px;padding:8px 10px;background:rgba(22,20,16,.4)}",
+  ".vle-rel-card{position:relative;border:1px solid var(--vle-gold-soft);border-radius:9px;padding:8px 10px;background:rgba(22,20,16,.4)}",
   ".vle-rel-top{display:flex;justify-content:space-between;align-items:center;gap:8px}",
   ".vle-rel-pair{font-size:14px}",
+  // K1 verdict word: the glanceable one-line read, between pair name and controls
+  ".vle-rel-verdict{margin-right:auto;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vg);opacity:.85;padding:2px 7px;border-radius:var(--vr1);border:1px solid rgba(var(--vg-rgb),.3);background:rgba(var(--vg-rgb),.08)}",
+  // K3 one-line direction: from→to · sentiment · label quote · controls
+  ".vle-rel-dirline{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:12px;flex-wrap:wrap}",
+  ".vle-rel-dirline .vle-rel-label{margin:0;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+  ".vle-rel-dirline .vle-rel-ctl{margin-left:auto}",
+  // K3 category chips shown ONCE at the card foot (union of both directions)
+  ".vle-rel-catfoot{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}",
+  // K2 continuous dashed center-zero across an axis's rows. Track 50% = the fixed
+  // caption(84)+gap(7) offset plus half the remaining width minus value(30)+gap(7).
+  ".vle-bm-axis{position:relative}",
+  ".vle-bm-zero{position:absolute;left:calc(50% + 27px);top:16px;bottom:1px;width:0;border-left:1px dashed rgba(255,255,255,.28);pointer-events:none;z-index:0}",
+  ".vle-bm-row .vle-tw-mid{display:none}",
   // paired card: A↔B header, then a directional row per edge
   ".vle-rel-dir{margin-top:7px;padding-top:7px;border-top:1px dashed rgba(var(--vg-rgb),.16)}",
   ".vle-rel-dir:first-of-type{border-top:none;margin-top:5px;padding-top:0}",
@@ -1195,6 +1245,9 @@ export const STYLES = [
   // Calm, flat, sans, rounded. Drawer (.vle-root) gets equal treatment to the float.
   "html[data-vle-chrome='modern'] .vle-root{font-family:var(--vserif)}",
   // head → app title, no glow; tab bar → flat pills with an accent underline
+  // H3 modern nav panel: a clean flat card, no wash, soft shadow like the app.
+  "html[data-vle-chrome='modern'] .vle-navpanel{background:color-mix(in srgb,var(--vi) 3%,transparent);border-color:color-mix(in srgb,var(--vi) 12%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.12)}",
+  "html[data-vle-chrome='modern'] .vle-navpanel .vle-head{border-bottom:none}",
   "html[data-vle-chrome='modern'] .vle-head{border-bottom:none;font-weight:700;letter-spacing:0}",
   "html[data-vle-chrome='modern'] .vle-mark{text-shadow:none}",
   "html[data-vle-chrome='modern'] .vle-tabbtn{border-radius:var(--rpill);text-transform:none;letter-spacing:.2px;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-weight:600}",
@@ -1275,6 +1328,7 @@ export const STYLES = [
   "html[data-vle-chrome='illuminated'] .vlf-x:hover{background:radial-gradient(40% 35% at 40% 35%,#c84a44,#7e2622);color:#ffd8d2;border-color:#4a1513}",
   // --- drawer 'binding': a gilt top rule + parchment already via texture default ---
   "html[data-vle-chrome='illuminated'] .vlf-title{font-family:var(--vserif);font-style:italic;letter-spacing:1px}",
+  "html[data-vle-chrome='illuminated'] .vle-navpanel{border:2px solid rgba(var(--vg-rgb),.35);border-radius:6px;background:radial-gradient(120% 140% at 0% 0%,rgba(var(--vg-rgb),.1),transparent 62%);box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.15)}",
   "html[data-vle-chrome='illuminated'] .vle-head{border-bottom:2px solid rgba(var(--vg-rgb),.3);box-shadow:0 1px 0 rgba(var(--vg-rgb),.15);font-family:var(--vserif);font-style:italic}",
   "html[data-vle-chrome='illuminated'] .vle-stats{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1px;text-transform:lowercase;opacity:.7}",
   "html[data-vle-chrome='modern'] .vle-stats{font-family:var(--vserif);font-weight:600;letter-spacing:0;opacity:.65}",
@@ -1289,6 +1343,7 @@ export const STYLES = [
   // grid void backdrop on both roots
   "html[data-vle-chrome='futuristic'] .vle-root{background-image:linear-gradient(rgba(var(--vg-rgb),.05) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--vg-rgb),.05) 1px,transparent 1px);background-size:22px 22px}",
   // drawer head → telemetry bar
+  "html[data-vle-chrome='futuristic'] .vle-navpanel{border-radius:2px;border-color:rgba(var(--vg-rgb),.35);background:linear-gradient(rgba(var(--vg-rgb),.05),transparent),repeating-linear-gradient(0deg,rgba(var(--vg-rgb),.05) 0 1px,transparent 1px 14px),repeating-linear-gradient(90deg,rgba(var(--vg-rgb),.05) 0 1px,transparent 1px 14px);box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.12)}",
   "html[data-vle-chrome='futuristic'] .vle-head{font-family:'Orbitron',var(--vmono);text-transform:uppercase;letter-spacing:3px;border-bottom:1px solid rgba(var(--vg-rgb),.4);font-size:calc(16px * var(--vscale))}",
   "html[data-vle-chrome='futuristic'] .vle-head::before{content:'\\25E4 ';color:var(--vg)}",
   "html[data-vle-chrome='futuristic'] .vle-stats{color:var(--vg);opacity:.8}",
@@ -1339,6 +1394,7 @@ export const STYLES = [
   "html[data-vle-chrome='bloom'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(120% 90% at 0% 0%,rgba(var(--vg-rgb),.08),transparent 55%),radial-gradient(120% 90% at 100% 100%,rgba(var(--vg2-rgb),.08),transparent 55%)}",
   "html[data-vle-chrome='bloom'] .vlf-body{background-image:radial-gradient(120% 80% at 0% 0%,rgba(var(--vg-rgb),.06),transparent 55%),radial-gradient(120% 80% at 100% 100%,rgba(var(--vg2-rgb),.06),transparent 55%)}",
   // --- drawer head → a lace-hemmed garland with a script title + bloom mark ---
+  "html[data-vle-chrome='bloom'] .vle-navpanel{border-radius:calc(var(--vradius) + 6px);border-color:color-mix(in srgb,var(--vg) 30%,transparent);background:radial-gradient(140% 160% at 100% 0%,color-mix(in srgb,var(--vg) 10%,transparent),transparent 60%)}",
   "html[data-vle-chrome='bloom'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.5px;border-bottom:1.5px dashed color-mix(in srgb,var(--vg) 34%,transparent)}",
   "html[data-vle-chrome='bloom'] .vle-mark{text-shadow:0 0 10px rgba(var(--vg-rgb),.45)}",
   "html[data-vle-chrome='bloom'] .vle-mark::after{content:'\\2740';margin-left:6px;color:var(--vg2);opacity:.7;font-size:.8em}",
@@ -1404,6 +1460,7 @@ export const STYLES = [
   "html[data-vle-chrome='ember'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='ember'][data-vle-motion='off'] .vlf-body::after,html[data-vle-chrome='ember'][data-vle-motion='off'] .vle-body::before,html[data-vle-chrome='ember'][data-vle-motion='off'] .vlf-body::before{animation:none;opacity:.4}",
   "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='ember'] .vle-body::after,html[data-vle-chrome='ember'] .vlf-body::after,html[data-vle-chrome='ember'] .vle-body::before,html[data-vle-chrome='ember'] .vlf-body::before{animation:none;opacity:.4}}",
   // --- drawer head -> a luminous script title with a soft starlight glow ---
+  "html[data-vle-chrome='ember'] .vle-navpanel{border-radius:calc(var(--vradius) + 6px);border-color:color-mix(in srgb,var(--vg) 26%,transparent);background:radial-gradient(140% 160% at 50% 0%,color-mix(in srgb,var(--vg) 12%,transparent),transparent 62%);box-shadow:0 0 20px color-mix(in srgb,var(--vg) 12%,transparent)}",
   "html[data-vle-chrome='ember'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:1px;border-bottom:1px solid color-mix(in srgb,var(--vg) 26%,transparent)}",
   "html[data-vle-chrome='ember'] .vle-mark{text-shadow:0 0 14px rgba(var(--vg-rgb),.55)}",
   "html[data-vle-chrome='ember'] .vle-mark::after{content:'\\2726';margin-left:7px;color:var(--vg2);opacity:.75;font-size:.78em;text-shadow:0 0 8px rgba(var(--vg2-rgb),.5)}",
@@ -1472,6 +1529,57 @@ export const STYLES = [
   ".v-orn--seal{position:relative}",
   ".v-orn--seal::after{content:'';position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--v-neg) 80%,#fff) 10%,var(--v-neg));box-shadow:0 0 6px rgba(0,0,0,.4)}",
   ".v-orn--seal.is-broken::after{background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--v-neg) 40%,transparent),transparent 70%);box-shadow:none;border:1px dashed color-mix(in srgb,var(--v-neg) 55%,transparent)}",
+
+  // ============================================================================
+  // CARD SHAPE ORNAMENT LAYER (mockups 30-35). Two mechanisms, both keyed off the
+  // data-shape-<surface> attribute (which the DEFAULT chrome never emits, so the
+  // default theme stays byte-identical):
+  //   1. .v-ornlayer / .v-ornsvg   -> an appended inline-SVG detail (folio fold,
+  //      gem facets, ember constellation, scar seam) from ornament.ts.
+  //   2. pseudo-element details    -> ticket perforation, futuristic reticle,
+  //      modern accent bar, tarot/inset inner frame; pure CSS, no markup.
+  // The card roots are position:relative already (or made so here) so the layer
+  // pins to the card. All are pointer-events:none and motion-free.
+  // ============================================================================
+  // the appended overlay: fills the card, never intercepts clicks, sits above bg
+  // but below text is not required -- it is decorative and translucent.
+  ".v-ornlayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:inherit;z-index:1}",
+  ".v-ornsvg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}",
+  // folio dog-ear: a turned corner in the accent, with a darker crease.
+  ".v-ornsvg--folio .v-fold-back{fill:color-mix(in srgb,var(--vg) 30%,transparent)}",
+  ".v-ornsvg--folio .v-fold-crease{stroke:color-mix(in srgb,var(--vg) 55%,transparent);stroke-width:1}",
+  // gem facets: faint accent hairlines echoing the cut.
+  ".v-ornsvg--gem .v-facet{stroke:color-mix(in srgb,var(--vg) 22%,transparent);stroke-width:1;fill:none}",
+  // ember constellation: a dotted arc + glowing star nodes between avatars.
+  ".v-ornsvg--const .v-const-arc{stroke:color-mix(in srgb,var(--vg) 45%,transparent);stroke-width:1;stroke-dasharray:1 4;stroke-linecap:round}",
+  ".v-ornsvg--const .v-const-star{fill:color-mix(in srgb,var(--vg) 80%,#fff)}",
+  "html[data-vle-motion='on'] .v-ornsvg--const .v-const-star{animation:v-twinkle 3.4s ease-in-out infinite}",
+  "@keyframes v-twinkle{0%,100%{opacity:.55}50%{opacity:1}}",
+  "@media (prefers-reduced-motion:reduce){.v-ornsvg--const .v-const-star{animation:none!important}}",
+  // scar seam: a torn polyline; solid=open, dotted+faded=healing.
+  ".v-ornsvg--scar .v-scar{stroke:var(--v-neg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}",
+  ".v-ornsvg--scar .v-scar--healing{stroke:color-mix(in srgb,var(--v-neg) 45%,transparent);stroke-dasharray:3 4}",
+
+  // --- pseudo-element shape details (no markup; the card root carries them) ---
+  // ensure the shape-driven roots can host absolute children.
+  "html[data-shape-present] .vld-pc,html[data-shape-bonds] .vle-rel-card,html[data-shape-cast] .vle-card:not(.vle-fac),html[data-shape-beats] .vle-mem--beat,html[data-shape-factions] .vle-fac,html[data-shape-items] .vle-item-row,html[data-shape-secrets] .vle-mem--secret{position:relative}",
+  // ticket perforation: a vertical dashed tear line near the right edge, echoing
+  // the ticket clip stub. Applied to whichever surface resolves to 'ticket'.
+  "[data-shape-present='ticket'] .vld-pc::after,[data-shape-cast='ticket'] .vle-card:not(.vle-fac)::after,[data-shape-beats='ticket'] .vle-mem--beat::after,[data-shape-items='ticket'] .vle-item-row::after,[data-shape-factions='ticket'] .vle-fac::after{content:'';position:absolute;top:8%;bottom:8%;right:12px;width:0;border-left:1.5px dashed color-mix(in srgb,var(--vg) 42%,transparent);pointer-events:none;z-index:1}",
+  // futuristic reticle: four corner crosshair ticks on notched cards.
+  // (secrets surface is excluded here -- it carries its own G3 left medallion.)
+  "[data-shape-present='notched'] .vld-pc::before,[data-shape-cast='notched'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;inset:3px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/1px 8px no-repeat;opacity:.5}",
+  // tarot inner frame: an inset hairline rule for the portrait-card feel.
+  "[data-shape-present='tarot'] .vld-pc::before,[data-shape-cast='tarot'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;inset:4px;border:1px solid color-mix(in srgb,var(--vg) 25%,transparent);border-radius:inherit;pointer-events:none;z-index:1}",
+  // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
+  // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
+  // hero (present) stays frosted glass. Scoped to the modern chrome only.
+  "html[data-vle-chrome='modern'] .vle-mem--beat,html[data-vle-chrome='modern'] .vle-fac,html[data-vle-chrome='modern'] .vle-card:not(.vle-fac),html[data-vle-chrome='modern'] .vle-item-row{position:relative;background:color-mix(in srgb,var(--vg) 4%,var(--vsurf1,transparent))}",
+  "html[data-vle-chrome='modern'] .vle-mem--beat::before,html[data-vle-chrome='modern'] .vle-fac::before,html[data-vle-chrome='modern'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--vg);opacity:.8;pointer-events:none;z-index:1}",
+  "html[data-vle-chrome='modern'] .vle-fac::before{background:var(--v-info)}",
+  // --- F4 avatar reshape: cameo => oval portrait, tarot => taller medallion ---
+  "[data-shape-present='cameo'] .vld-pc .vld-pc-av,[data-shape-items='cameo'] .vle-item-row .vle-av,[data-shape-cast='cameo'] .vle-card:not(.vle-fac) .vle-av{border-radius:46% / 52%}",
+  "[data-shape-cast='tarot'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='tarot'] .vld-pc .vld-pc-av{border-radius:44% / 40%}",
 
 ].join('\n');
 

@@ -1,9 +1,10 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Relation } from '../../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bondMeter, emptyState, sectionHeader, nameHtml } from '../format.js';
+import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bondMeter, bondVerdict, emptyState, sectionHeader, nameHtml } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
-import { getTheme } from '../theme.js';
+import { getTheme, activeShape } from '../theme.js';
+import { shapeOrnament } from '../ornament.js';
 import { renderBondRadar } from '../theme-render.js';
 
 /**
@@ -130,22 +131,28 @@ function card(s: ChronicleState, group: Relation[]): string {
   const byDir = (from: string, to: string): Relation | undefined => group.find((r) => r.a === from && r.b === to);
   const dirs = [byDir(pa, pb), byDir(pb, pa)].filter(Boolean) as Relation[];
 
-  const dirRow = (r: Relation): string => {
-    const cats = catsOf(r);
+  // K3: each direction collapses to ONE line — from→to · sentiment + label quote
+  // + edit/del. Category chips move to the card foot (shown once), not per row.
+  const dirLine = (r: Relation): string => {
     const an = nameOf(s, r.a), bn = nameOf(s, r.b);
-    const chips = cats.map((c) => '<span class="vle-cat" style="--c:' + (CAT_COLORS[c] || '#888') + '">' + esc(c) + '</span>').join('');
-    return '<div class="vle-rel-dir">'
-      + '<div class="vle-rel-dirtop"><span class="vle-rel-dirn">' + nameHtml(s, r.a) + ' \u2192 ' + nameHtml(s, r.b) + '</span>'
+    const cats = catsOf(r);
+    return '<div class="vle-rel-dirline">'
+      + '<span class="vle-rel-dirn">' + nameHtml(s, r.a) + ' \u2192 ' + nameHtml(s, r.b) + '</span>'
       + '<span class="vle-rel-sent">' + esc(SENT_LABEL[r.sentiment] || r.sentiment) + '</span>'
+      + (r.label ? '<span class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</span>' : '')
+      + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '')
       + '<span class="vle-rel-ctl">'
       + `<button class="vle-mini" data-rel-edit data-a="${A(an)}" data-b="${A(bn)}" data-label="${A(r.label)}" data-cats="${A(cats.join(','))}" data-aff="${r.affection}" data-trust="${r.trust}" title="Edit">\u270E</button>`
       + `<button class="vle-mini del" data-rel-del data-a="${A(an)}" data-b="${A(bn)}" title="Delete">\u2715</button>`
-      + '</span></div>'
-      + (r.label ? '<div class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</div>' : '')
-      + '<div class="vle-cats">' + chips + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '') + '</div>'
-      + historyHtml(r)
-      + '</div>';
+      + '</span></div>';
   };
+  // category chips: the UNION of both directions, rendered once at the card foot.
+  const allCats = Array.from(new Set(dirs.flatMap((r) => catsOf(r))));
+  const catFoot = allCats.length
+    ? '<div class="vle-rel-catfoot">' + allCats.map((c) => '<span class="vle-cat" style="--c:' + (CAT_COLORS[c] || '#888') + '">' + esc(c) + '</span>').join('') + '</div>'
+    : '';
+  // K1 verdict word — the one-line read of the pair.
+  const verdict = bondVerdict(dirs);
 
   const reverseMissing = dirs.length === 1
     ? `<div class="vle-rel-onesided">no reciprocal bond from ${esc(nameOf(s, dirs[0]!.b))} yet</div>`
@@ -156,20 +163,31 @@ function card(s: ChronicleState, group: Relation[]): string {
     ? renderBondRadar(s, group)
     : bondMeter(dirs, (id) => nameOf(s, id));
   return '<div class="vle-rel-card">'
-    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, pa) + ' \u2194 ' + nameHtml(s, pb) + '</span>'
+    + shapeOrnament(activeShape('bonds'), 'bonds')
+    // K1 verdict header: A ⇄ B + one verdict word + lock badge/button.
+    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, pa) + ' \u21C4 ' + nameHtml(s, pb) + '</span>'
+    + '<span class="vle-rel-verdict">' + esc(verdict) + '</span>'
     + '<span class="vle-rel-ctl">' + lockBadge
     + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(pa)}" data-b="${A(pb)}" data-an="${A(nameOf(s, pa))}" data-bn="${A(nameOf(s, pb))}" title="Plot Director lock">\uD83D\uDD12</button>`
     + '</span></div>'
     + viz
-    + dirs.map(dirRow).join('')
+    + dirs.map(dirLine).join('')
+    + catFoot
     + reverseMissing
+    // K4 history as one quiet disclosure per PAIR (both directions combined).
+    + pairHistoryHtml(dirs)
     + '</div>';
 }
 
-/** Collapsible change-history: category transitions + score samples over time. */
-function historyHtml(r: Relation): string {
-  const cat = (r.categoryHistory ?? []).filter((h) => h.op === 'add' || h.op === 'remove');
-  const scores = (r.history ?? []);
+/** K4: ONE quiet change-history disclosure per PAIR (both directions combined),
+ * with the richest direction's sparkline. Category transitions + score samples,
+ * merged and time-ordered so the margin holds one history, not two. */
+function pairHistoryHtml(dirs: Relation[]): string {
+  const cat = dirs.flatMap((r) => (r.categoryHistory ?? []).filter((h) => h.op === 'add' || h.op === 'remove'))
+    .sort((a, b) => (a.day || 0) - (b.day || 0));
+  // sparkline follows the direction with the most samples (fullest arc)
+  const richest = dirs.slice().sort((a, b) => (b.history?.length ?? 0) - (a.history?.length ?? 0))[0];
+  const scores = richest?.history ?? [];
   if (cat.length < 1 && scores.length < 2) return '';
   const spark = scores.length >= 2 ? arcSparkline(scores) : '';
   const catRows = cat.slice(-8).map((h) => {
@@ -181,7 +199,7 @@ function historyHtml(r: Relation): string {
     const aff = (s.affection > 0 ? '+' : '') + s.affection, tr = (s.trust > 0 ? '+' : '') + s.trust;
     return `<div class="vle-hist-row"><span class="vle-hist-t">t${s.turn}</span><span class="vle-hist-sc">aff ${aff} \u00b7 trust ${tr}</span>${s.reason ? `<span class="vle-hist-why">${esc(s.reason)}</span>` : ''}</div>`;
   }).join('');
-  return '<details class="vle-hist"><summary>change history</summary>'
+  return '<details class="vle-hist"><summary>\u25B8 change history</summary>'
     + spark
     + (catRows ? '<div class="vle-hist-sec">bond shifts</div>' + catRows : '')
     + (scoreRows ? '<div class="vle-hist-sec">score trail</div>' + scoreRows : '')

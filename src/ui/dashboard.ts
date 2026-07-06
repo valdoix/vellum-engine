@@ -12,7 +12,8 @@ import { formatDate } from '../domain/date-format.js';
  */
 
 import { getLayout, type LayoutDef, type SectionId } from './layout-defs.js';
-import { getTheme } from './theme.js';
+import { getTheme, activeShape } from './theme.js';
+import { shapeOrnament } from './ornament.js';
 import { sceneVisual } from './scene-visual.js';
 
 /** Section registry — each block is a pure (state) → html function. Layouts
@@ -217,8 +218,12 @@ function presentCard(s: ChronicleState, d: PresentChar): string {
     ? `<div class="vld-pc-items">${carried.slice(0, 3).map((it) => `<span class="vld-pc-item">${esc(it.item)}</span>`).join('')}${carried.length > 3 ? `<span class="vld-pc-item">+${carried.length - 3}</span>` : ''}</div>`
     : '';
   const av = avatarParts(name, s.cast[d.id]?.imageUrl);
+  // G7: a harmed/at-risk subject gets a dashed rose ring on the medallion. Read
+  // purely from the existing condition text (presentation-only, no schema).
+  const harmed = /\b(bleed|bleeding|injur|wound|dying|hurt|poison|broken|burn|stabbed|shot|sick|ill)\w*/i.test(d.condition ?? '');
   return `<div class="vld-pc${d.thought ? ' has-thought' : ''}">`
-    + `<span class="vld-pc-av${av.cls}"${av.style}>${av.inner}<span class="vld-pc-dot"></span></span>`
+    + shapeOrnament(activeShape('present'), 'present')
+    + `<span class="vld-pc-av${av.cls}${harmed ? ' v-orn--ring-harm' : ''}"${av.style}>${av.inner}<span class="vld-pc-dot"></span></span>`
     + `<div class="vld-pc-body">`
     + `<div class="vld-pc-top"><span class="vld-pc-n">${nameHtml(s, d.id)}</span>${status ? `<span class="vld-pc-status">${status}</span>` : ''}</div>`
     + `${doing}${thought}${itemsStrip}`

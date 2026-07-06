@@ -17,6 +17,7 @@
     "@fontsource/cinzel": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/orbitron": "^5.2.8",
+    "@fontsource/quicksand": "^5.2.10",
     "@types/node": "^22.0.0",
     "lumiverse-spindle-types": "^0.5.28",
     "tsup": "^8.0.0",

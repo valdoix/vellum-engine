@@ -275,12 +275,17 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   // labeled tool dock — all in a single `.vle-tabbar` so nav reads as one grouped
   // control (was two disconnected rows). The float uses its own `.vlf-tab` strip
   // (primary only), so this consolidation is drawer-side.
-  root.innerHTML = '<div class="vle-head"><span class="vle-mark">\u2756</span> VELLUM <span class="vle-ver">II</span>'
+  // H1: header + tab rail are grouped into one nav panel (mockup 20). Additive
+  // wrapper only -- .vle-head/.vle-tabbar selectors keep matching; toolbar/body
+  // stay outside so the search/actions row and scroll body are unaffected.
+  root.innerHTML = '<div class="vle-navpanel">'
+    + '<div class="vle-head"><span class="vle-mark">\u2756</span> VELLUM <span class="vle-ver">II</span>'
     + '<span class="vle-stats" data-stats></span></div>'
     + '<div class="vle-tabbar" data-tabbar role="tablist">'
       + primary.map((t, i) => tabBtn(t, i === 0)).join('')
       + '<span class="vle-tabbar-sep" aria-hidden="true"></span>'
       + tools.map((t) => toolBtn(t)).join('')
+    + '</div>'
     + '</div>'
 
     + '<div class="vle-toolbar" data-toolbar>'

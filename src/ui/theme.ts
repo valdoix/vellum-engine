@@ -55,7 +55,7 @@ const F_SERIF = "'Cormorant Garamond',Georgia,serif";
 const F_MONO = "'JetBrains Mono',ui-monospace,monospace";
 const F_SANS = "'Inter',system-ui,-apple-system,\"Segoe UI\",sans-serif";
 const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
-const F_ETHEREAL = "'Cormorant Garamond','Quicksand',Georgia,serif"; // Ember display — airy serif with a dreamy italic lean
+const F_ETHEREAL = "'Quicksand','Cormorant Garamond',Georgia,serif"; // Ember display — airy rounded geometric (bundled), Cormorant as graceful fallback
 
 export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember';
 
@@ -77,17 +77,30 @@ export const SURFACE_LABELS: Record<Surface, string> = {
 // chosen. Each chrome styles its own palette/type; shape is orthogonal.
 export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   default: { present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'folio', factions: 'hex', items: 'cameo', secrets: 'slab' },
-  illuminated: { present: 'left-spine', bonds: 'folio', cast: 'folio', beats: 'folio', factions: 'inset', items: 'cameo', secrets: 'inset' },
-  modern: { present: 'glass', bonds: 'glass', cast: 'glass', beats: 'glass', factions: 'glass', items: 'glass', secrets: 'glass' },
+  illuminated: { present: 'folio', bonds: 'cameo', cast: 'tarot', beats: 'left-spine', factions: 'hex', items: 'ticket', secrets: 'slab' },
+  modern: { present: 'glass', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' },
   futuristic: { present: 'notched', bonds: 'gem', cast: 'notched', beats: 'ticket', factions: 'hex', items: 'gem', secrets: 'notched' },
-  bloom: { present: 'petal', bonds: 'scalloped', cast: 'cameo', beats: 'folio', factions: 'petal', items: 'scalloped', secrets: 'cameo' },
-  ember: { present: 'tarot', bonds: 'constellation', cast: 'cameo', beats: 'folio', factions: 'hex', items: 'gem', secrets: 'tarot' },
+  bloom: { present: 'cameo', bonds: 'petal', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'ticket', secrets: 'cameo' },
+  ember: { present: 'tarot', bonds: 'constellation', cast: 'slab', beats: 'folio', factions: 'hex', items: 'gem', secrets: 'tarot' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
   const o = overrides[surface];
   if (o && SHAPE_IDS.includes(o)) return o;
   return CHROME_SHAPES[chrome][surface];
+}
+/**
+ * The shape that is ACTUALLY active on the DOM for a surface, mirroring the
+ * attribute emission in applyTheme(): a user override wins; otherwise a
+ * non-default chrome contributes its gallery shape; the DEFAULT chrome with no
+ * override emits nothing -> null. Renderers use this to decide whether to append
+ * an ornament so the default theme stays byte-identical (no ornament markup).
+ */
+export function activeShape(surface: Surface): ShapeId | null {
+  const t = getTheme();
+  const o = t.cardShapes[surface];
+  if (o && SHAPE_IDS.includes(o)) return o;
+  return t.chrome !== 'default' ? CHROME_SHAPES[t.chrome][surface] : null;
 }
 /** Drop unknown surfaces / shape ids from a saved cardShapes map (same safety
  *  pattern as CHROME_REMAP: a broken theme can never inject an invalid class). */

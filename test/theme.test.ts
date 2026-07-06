@@ -95,6 +95,17 @@ describe('card shapes (per-surface silhouette overrides)', () => {
     }
   });
 
+  it('CHROME_SHAPES matches the card gallery (mockups 30-35)', () => {
+    // default is intentionally left at the live look (left-spine present) so the
+    // default theme stays byte-identical; the other five are transcribed from
+    // their mockup captions.
+    expect(CHROME_SHAPES.illuminated).toEqual({ present: 'folio', bonds: 'cameo', cast: 'tarot', beats: 'left-spine', factions: 'hex', items: 'ticket', secrets: 'slab' });
+    expect(CHROME_SHAPES.modern).toEqual({ present: 'glass', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' });
+    expect(CHROME_SHAPES.futuristic).toEqual({ present: 'notched', bonds: 'gem', cast: 'notched', beats: 'ticket', factions: 'hex', items: 'gem', secrets: 'notched' });
+    expect(CHROME_SHAPES.bloom).toEqual({ present: 'cameo', bonds: 'petal', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'ticket', secrets: 'cameo' });
+    expect(CHROME_SHAPES.ember).toEqual({ present: 'tarot', bonds: 'constellation', cast: 'slab', beats: 'folio', factions: 'hex', items: 'gem', secrets: 'tarot' });
+  });
+
   it('resolveShape: override wins, else falls back to the chrome default', () => {
     expect(resolveShape('present', 'ember', {})).toBe(CHROME_SHAPES.ember.present);
     expect(resolveShape('present', 'ember', { present: 'gem' })).toBe('gem');
