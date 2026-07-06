@@ -70,6 +70,24 @@ export const LAYOUTS: LayoutDef[] = [
     order: ['present', 'status', 'tension', 'relations', 'threads', 'parallel', 'recent'],
     hidden: [], collapsed: [], density: 'comfortable', columns: 1, mode: 'switch',
   },
+  // --- "Now" layouts (mockups 25/26/28): the live scene as a composed page.
+  // All three reuse the 8-section registry; only order + CSS (keyed on
+  // data-layout) differ, so no new sections and no engine change.
+  {
+    id: 'livingpage', name: 'Living Page', blurb: 'The scene as an illuminated page \u2014 full-bleed header, thoughts as pull-quotes, bonds as a diverging meter (default/fantasy chrome).', glyph: '\u2748',
+    order: ['status', 'tension', 'present', 'relations', 'threads', 'parallel', 'recent', 'stats'],
+    hidden: [], collapsed: [], density: 'roomy', columns: 1,
+  },
+  {
+    id: 'orrery', name: 'Orrery HUD', blurb: 'A living-system readout \u2014 scene at the core, present cast orbiting, tension as a corona (futuristic/ember chrome).', glyph: '\u2609',
+    order: ['status', 'tension', 'present', 'relations', 'threads', 'parallel', 'recent', 'stats'],
+    hidden: [], collapsed: [], density: 'comfortable', columns: 1,
+  },
+  {
+    id: 'openbook', name: 'Open Book', blurb: 'A two-leaf spread \u2014 the world on the left page, the players on the right (fantasy/parchment chrome).', glyph: '\uD83D\uDCD6',
+    order: ['status', 'tension', 'threads', 'parallel', 'stats', 'present', 'relations', 'recent'],
+    hidden: [], collapsed: [], density: 'comfortable', columns: 2,
+  },
 ];
 
 void ALL;

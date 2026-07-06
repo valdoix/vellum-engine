@@ -204,7 +204,7 @@ function directivesView(): string {
     const rows = ds.map((d) => {
       const sched = d.status === 'dormant' && (d.whenTurn || d.whenDay) ? ` <span class="vle-dir-when">arms ${d.whenDay ? 'day ' + d.whenDay : 'turn ' + d.whenTurn}</span>` : '';
       const ttl = d.status === 'armed' && d.ttl ? ` <span class="vle-dir-ttl">fades in ${d.ttl}</span>` : '';
-      return `<div class="vle-dir-card vle-dir-${d.status}"><span class="vle-dir-glyph">${KIND_GLYPH[d.kind] ?? '\u2022'}</span>`
+      return `<div class="vle-dir-card vle-dir-${d.status}${d.status === 'armed' ? ' v-orn--glow' : ''}"><span class="vle-dir-glyph">${KIND_GLYPH[d.kind] ?? '\u2022'}</span>`
         + `<span class="vle-dir-text">${esc(d.text)}${d.target ? ` <span class="vle-dir-target">${esc(d.target)}</span>` : ''}${sched}${ttl}</span>`
         + `<button class="vle-mini del" data-dir-del data-id="${esc(d.id)}" title="Remove">\u2715</button></div>`;
     }).join('');

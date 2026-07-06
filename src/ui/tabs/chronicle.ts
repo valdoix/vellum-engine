@@ -354,7 +354,7 @@ function timeline(s: ChronicleState): string {
     if (r.day !== undefined && r.day !== lastDay) { parts.push(`<div class="vle-spine-day"><span>D${esc(r.day)}</span></div>`); lastDay = r.day; }
     const label = r.span ? `t${r.span[0]}\u2013${r.span[1]}` : `t${r.turn}`;
     if (r.kind === 'beat') {
-      parts.push(`<div class="vle-spine-beat"><span class="vle-spine-beat-k">\u2691 beat</span><span class="vle-spine-beat-x">${esc(r.text)}</span></div>`);
+      parts.push(`<div class="vle-spine-beat v-orn--glow"><span class="vle-spine-beat-k">\u2691 beat</span><span class="vle-spine-beat-x">${esc(r.text)}</span></div>`);
       continue;
     }
     const s2 = side++ % 2 === 0 ? 'l' : 'r';
@@ -399,7 +399,7 @@ function beatsView(s: ChronicleState): string {
     const up = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="up"${i === 0 ? ' disabled' : ''} title="Move earlier">\u25B4</button>`;
     const down = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="down"${i === list.length - 1 ? ' disabled' : ''} title="Move later">\u25BE</button>`;
     const edit = `<button class="vle-mini" data-beat-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-day="${m.beatDay ?? ''}" data-time="${esc(m.beatTime ?? '')}" data-spine="${m.spine ? '1' : '0'}" title="Edit">\u270E</button>`;
-    return '<div class="vle-mem">' + spine
+    return '<div class="vle-mem vle-mem--beat">' + spine
       + (anchor ? `<span class="vle-tl-day">${esc(anchor)}</span>` : '')
       + `<span class="vle-mem-t">${esc(m.text)}</span>`
       + `<span class="vle-mem-ctl">${up}${down}${edit}<button class="vle-mini del" data-beat-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
@@ -473,7 +473,7 @@ function knowledge(s: ChronicleState): string {
   const bar = filterBar('knowledge', { whos, whoCounts });
   const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
   const { slice, page, pages } = paginate('knowledge', filtered);
-  const rows = slice.map((k) => '<div class="vle-mem vle-mem--know"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
+  const rows = slice.map((k) => '<div class="vle-mem vle-mem--know' + (k.truth === 'false' ? ' v-orn--glow-neg' : '') + '"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
     + `<span class="vle-mem-t"${k.source ? ` title="source: ${esc(k.source)}"` : ''}>` + relChip(k.reliability) + (k.truth === 'false' ? '<span class="vle-kfalse" title="actually false — dramatic irony">\u2717 false</span>' : '') + esc(k.fact) + '</span>'
     + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No knowledge matches this filter.');
@@ -489,7 +489,7 @@ function secrets(s: ChronicleState): string {
   const bar = filterBar('secrets', { whos, whoCounts });
   const filtered = applyFilter('secrets', s.secrets.map((x) => ({ ...x, turn: x.formedTurn })), { who: (x) => x.keeper });
   const { slice, page, pages } = paginate('secrets', filtered);
-  const rows = slice.map((sec) => '<div class="vle-mem vle-mem--secret"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
+  const rows = slice.map((sec) => '<div class="vle-mem vle-mem--secret v-orn--seal' + (sec.revealed ? ' is-broken' : '') + '"><span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
     + (sec.revealed ? '' : `<button class="vle-mini" data-sec-reveal data-id="${esc(sec.id)}" title="Reveal">\u25D0</button>`)
     + `<button class="vle-mini del" data-sec-del data-id="${esc(sec.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No secrets match this filter.');

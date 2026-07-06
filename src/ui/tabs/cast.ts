@@ -254,7 +254,7 @@ function card(s: ChronicleState, c: CastCard): string {
       + (c.note ? `<div class="vle-card-note">${esc(c.note)}</div>` : '')
       + '</div>'
     : '';
-  return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + (open ? ' is-open' : '') + '">'
+  return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + (open ? ' is-open' : '') + (c.deceased ? ' v-orn--ring-harm' : '') + '">'
     + '<button class="vle-av' + (c.imageUrl ? ' has-img' : '') + '" data-cast-unfold data-id="' + A(c.id) + '" title="' + esc(c.status) + ' \u00b7 expand"' + (c.imageUrl ? ' style="background-image:url(' + JSON.stringify(c.imageUrl) + ')"' : '') + '>' + (c.imageUrl ? '' : esc(initials(c.name))) + '<span class="vle-av-dot"></span></button>'
     + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + deceasedMark(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (sub ? '<span class="vle-card-sub">' + sub + '</span>' : '')

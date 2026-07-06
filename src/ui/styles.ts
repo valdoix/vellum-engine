@@ -3,6 +3,61 @@
  * via CSS variables so skins/host theme can override. Single string loaded via
  * spindle.dom.addStyle.
  */
+
+// ---------------------------------------------------------------------------
+// CARD SHAPE geometry (mockup 24 / 30-35). ONE source of truth: each shape's
+// declaration body (geometry only -- never color/type) is stored here, then
+// emitted twice: once as a `.v-shape--<id>` primitive (used directly by
+// renderers e.g. beat folios, journal leaves) and once per surface as a
+// `html[data-shape-<surface>='<id>'] <root>` override so the theme customizer
+// can reshape a whole surface with no per-card class churn. Keeping both from
+// one map means the primitive and the override can never drift apart.
+// ---------------------------------------------------------------------------
+const R = 'var(--v-shape-radius)';
+const SHAPE_GEOM: Record<string, string> = {
+  slab: `border-radius:${R}`,
+  'left-spine': `border-radius:0 ${R} ${R} 0;border-left-width:3px`,
+  folio: `border-radius:calc(${R} * .5) calc(${R} * 1.4) calc(${R} * .5) calc(${R} * 1.4)`,
+  hex: 'clip-path:polygon(6% 0,94% 0,100% 50%,94% 100%,6% 100%,0 50%)',
+  tarot: `border-radius:calc(${R} * 2.2) calc(${R} * 2.2) calc(${R} * .6) calc(${R} * .6)`,
+  cameo: `border-radius:calc(${R} * 3)`,
+  notched: 'clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)',
+  split: `border-radius:${R} 0 ${R} 0`,
+  ticket: 'clip-path:polygon(0 0,100% 0,100% 42%,calc(100% - 6px) 50%,100% 58%,100% 100%,0 100%,0 58%,6px 50%,0 42%)',
+  glass: `border-radius:calc(${R} * 1.3)`,
+  inset: `border-radius:calc(${R} * .7);box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.12)`,
+  gem: 'clip-path:polygon(50% 0,86% 14%,100% 50%,86% 86%,50% 100%,14% 86%,0 50%,14% 14%)',
+  petal: `border-radius:calc(${R} * 2.4) calc(${R} * .4) calc(${R} * 2.4) calc(${R} * .4)`,
+  constellation: `border-radius:${R}`,
+  scalloped: `border-radius:calc(${R} * .8);-webkit-mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat;mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat`,
+};
+// exotic edges that need a clip-path/mask fallback to a rounded slab on old UAs
+const CLIP_SHAPES = ['hex', 'notched', 'ticket', 'gem'];
+// surface -> the single stable root selector for that surface's card. cast
+// excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
+const SHAPE_SURFACE_ROOT: Record<string, string> = {
+  present: '.vld-pc', bonds: '.vle-rel-card', cast: '.vle-card:not(.vle-fac)',
+  beats: '.vle-mem--beat', factions: '.vle-fac', items: '.vle-item-row', secrets: '.vle-mem--secret',
+};
+const shapePrimitives = (): string[] => [
+  `:root{--v-shape-radius:var(--vradius)}`,
+  ...Object.entries(SHAPE_GEOM).map(([id, body]) => `.v-shape--${id}{${body}}`),
+  `@supports not (clip-path: polygon(0 0,100% 0,100% 100%)){${CLIP_SHAPES.map((id) => `.v-shape--${id}`).join(',')}{clip-path:none;border-radius:${R}}}`,
+  `@supports not ((-webkit-mask:radial-gradient(#000,#000)) or (mask:radial-gradient(#000,#000))){.v-shape--scalloped{-webkit-mask:none;mask:none;border-radius:${R}}}`,
+];
+const shapeOverrides = (): string[] => {
+  const rules: string[] = [];
+  for (const [surface, root] of Object.entries(SHAPE_SURFACE_ROOT)) {
+    for (const [id, body] of Object.entries(SHAPE_GEOM)) {
+      rules.push(`html[data-shape-${surface}='${id}'] ${root}{${body}}`);
+    }
+    // per-surface fallbacks so an override degrades the same way the primitive does
+    rules.push(`@supports not (clip-path: polygon(0 0,100% 0,100% 100%)){${CLIP_SHAPES.map((id) => `html[data-shape-${surface}='${id}'] ${root}`).join(',')}{clip-path:none;border-radius:${R}}}`);
+    rules.push(`@supports not ((-webkit-mask:radial-gradient(#000,#000)) or (mask:radial-gradient(#000,#000))){html[data-shape-${surface}='scalloped'] ${root}{-webkit-mask:none;mask:none;border-radius:${R}}}`);
+  }
+  return rules;
+};
+
 export const STYLES = [
   // --- theme tokens (overridden at runtime by theme.ts) ---------------------
   // --vg accent (hex) + --vg-rgb its r,g,b ; --vi primary ink, --vi2 muted ink ;
@@ -988,6 +1043,49 @@ export const STYLES = [
   ".vld-fold-b{padding:calc(10px * var(--vscale)) calc(13px * var(--vscale))}",
   ".vld-fold-b .vld-sec{border:none;background:none;padding:0}",
 
+  // ============ "NOW" LAYOUTS (mockups 25/26/28) — data-layout keyed, chrome-agnostic ============
+  // These style the existing sections into a composed page. Purely presentational
+  // (order comes from the LayoutDef); they degrade to a plain stack if a rule is
+  // unsupported, and all animation is already gated by the global motion switch.
+
+  // ---- Living Page (25): an illuminated manuscript page ----
+  // full-bleed scene header, tension as a gilt rule, thoughts as pull-quotes,
+  // bonds as a center-zero meter, Latest as a colophon trail.
+  ".vld-inner[data-layout='livingpage']{gap:calc(20px * var(--vscale))}",
+  ".vld-inner[data-layout='livingpage'] .vld-sec--hero{border-radius:var(--vr3);padding:calc(20px * var(--vscale)) calc(20px * var(--vscale)) calc(16px * var(--vscale))}",
+  // tension collapses to a single gilt rule under the header
+  ".vld-inner[data-layout='livingpage'] .vld-sec--tension{border:none;background:none;padding:0}",
+  ".vld-inner[data-layout='livingpage'] .vld-sec--tension .vld-h{font-size:var(--vt-eyebrow);opacity:.7}",
+  // present thoughts read as centered pull-quotes with a hanging mark
+  ".vld-inner[data-layout='livingpage'] .vld-thought{border-left:none;padding-left:0;text-align:center;margin-top:9px}",
+  ".vld-inner[data-layout='livingpage'] .vld-thought-q{font-size:calc(16px * var(--vscale));line-height:1.6}",
+  ".vld-inner[data-layout='livingpage'] .vld-thought-q::before{content:'\\201C';opacity:.4;margin-right:2px}",
+  ".vld-inner[data-layout='livingpage'] .vld-thought-q::after{content:'\\201D';opacity:.4;margin-left:2px}",
+  // Latest becomes marginalia: a slim ruled column
+  ".vld-inner[data-layout='livingpage'] .vld-rec{padding-left:calc(16px * var(--vscale));border-left:2px solid rgba(var(--vg-rgb),.2)}",
+  // stats read as a quiet colophon ribbon at the foot
+  ".vld-inner[data-layout='livingpage'] .vld-sec:last-child{text-align:center;font-style:italic;opacity:.8}",
+
+  // ---- Orrery HUD (26): a living-system readout ----
+  // v1 (bounded): scene = the core panel, present cast = an orbit ring, tension =
+  // a corona rule, telemetry (threads/parallel/recent/stats) stacks beneath. Bond
+  // arcs are intentionally NOT drawn here (no JS layout engine); the radial ring
+  // is pure CSS and falls back to a stack on narrow widths.
+  ".vld-inner[data-layout='orrery'] .vld-sec--hero{text-align:center;border-radius:calc(24px * var(--vscale))}",
+  ".vld-inner[data-layout='orrery'] .vld-sec--tension{border:none;background:none;padding:0;position:relative}",
+  ".vld-inner[data-layout='orrery'] .vld-sec--tension .vld-tension{border-radius:var(--rpill)}",
+  // present cast as a wrap of orbiting medallions (chips of avatar+name)
+  "@container (min-width:440px){.vld-inner[data-layout='orrery'] .vld-sec--present .vld-pcs{display:flex;flex-wrap:wrap;justify-content:center;gap:calc(10px * var(--vscale))}}",
+  "@container (min-width:440px){.vld-inner[data-layout='orrery'] .vld-sec--present .vld-pc{flex-direction:column;align-items:center;text-align:center;width:calc(128px * var(--vscale));background:radial-gradient(60% 60% at 50% 30%,rgba(var(--vg-rgb),.1),transparent);border-left-width:1px;border-radius:calc(18px * var(--vscale))}}",
+  "@container (min-width:440px){.vld-inner[data-layout='orrery'] .vld-sec--present .vld-thought{border-left:none;padding-left:0;text-align:center}}",
+
+  // ---- Open Book (28): a two-leaf spread ----
+  // reuses the 2-col engine; the center gutter + page shadow read like a bound
+  // book. World facts sit on the left leaf, players on the right (LayoutDef order).
+  ".vld-inner[data-layout='openbook']{position:relative;column-gap:calc(30px * var(--vscale));padding:0 calc(6px * var(--vscale))}",
+  ".vld-inner[data-layout='openbook']::before{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%);background:linear-gradient(180deg,transparent,rgba(var(--vg-rgb),.35) 12%,rgba(var(--vg-rgb),.35) 88%,transparent);pointer-events:none}",
+  "@container (max-width:380px){.vld-inner[data-layout='openbook']::before{display:none}}",
+
   // ============ FLOAT FORM FACTORS (chrome-scoped; .vlf only, drawer untouched) ============
   // ---- FANTASY · Codex (illuminated + 2-col): an open book with a center gutter ----
   "html[data-vle-chrome='illuminated'] .vlf .vld-inner[data-cols='2']{position:relative;column-gap:calc(26px * var(--vscale));padding:0 calc(4px * var(--vscale))}",
@@ -1345,6 +1443,31 @@ export const STYLES = [
   "html[data-vle-chrome='ember'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,var(--vg),color-mix(in srgb,var(--vg) 55%,#1a1a30));border:1px solid color-mix(in srgb,var(--vg) 55%,transparent);color:#1a1a30;box-shadow:0 0 12px rgba(var(--vg-rgb),.45)}",
   "html[data-vle-chrome='ember'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,var(--vg2),color-mix(in srgb,var(--vg2) 55%,#1a1a30));border-color:color-mix(in srgb,var(--vg2) 55%,transparent);color:#1a1a30;box-shadow:0 0 14px rgba(var(--vg2-rgb),.5)}",
   "html[data-vle-chrome='ember'] .vlf-bar::before{content:'\\2726';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg2);opacity:.6;font-size:12px;pointer-events:none;text-shadow:0 0 8px rgba(var(--vg2-rgb),.5)}",
+
+  // ============================================================================
+  // CARD SHAPE PRIMITIVES + per-surface overrides (mockup 24 / 30-35).
+  // Both are generated from the single SHAPE_GEOM map above (geometry only, never
+  // color/type). Primitives (.v-shape--<id>) are used directly by renderers;
+  // overrides (html[data-shape-<surface>='<id>'] <root>) are emitted last so a
+  // customizer override wins over the base + chrome rules. cardShapes:{} emits no
+  // attribute, so the default theme is byte-identical to today.
+  // Ornaments (.v-orn--*) are separate opt-in classes so a card can compose any
+  // shape with any state ornament (presence glow / harm ring / secret seal).
+  // ============================================================================
+  ...shapePrimitives(),
+  ...shapeOverrides(),
+  // --- state ornaments (compose with any shape) ---
+  // glow: a soft presence/ground-truth halo (motion-free; pure box-shadow).
+  ".v-orn--glow{box-shadow:0 0 0 1px color-mix(in srgb,var(--vg) 40%,transparent),0 0 16px rgba(var(--vg-rgb),.28)}",
+  // glow-neg: the dramatic-irony tell -- a red halo on a belief that is false.
+  ".v-orn--glow-neg{box-shadow:0 0 0 1px color-mix(in srgb,var(--v-neg) 45%,transparent),0 0 14px color-mix(in srgb,var(--v-neg) 30%,transparent)}",
+  // ring-harm: a dashed rose ring marking a harmed / at-risk subject.
+  ".v-orn--ring-harm{box-shadow:0 0 0 2px color-mix(in srgb,var(--v-neg) 60%,transparent)}",
+  ".v-orn--ring-harm{outline:1px dashed color-mix(in srgb,var(--v-neg) 55%,transparent);outline-offset:2px}",
+  // seal: a wax seal dot at the top-right; --v-orn-seal-broken cracks it open.
+  ".v-orn--seal{position:relative}",
+  ".v-orn--seal::after{content:'';position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--v-neg) 80%,#fff) 10%,var(--v-neg));box-shadow:0 0 6px rgba(0,0,0,.4)}",
+  ".v-orn--seal.is-broken::after{background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--v-neg) 40%,transparent),transparent 70%);box-shadow:none;border:1px dashed color-mix(in srgb,var(--v-neg) 55%,transparent)}",
 
 ].join('\n');
 

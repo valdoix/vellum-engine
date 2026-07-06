@@ -35,6 +35,11 @@ export interface Theme {
   mode: 'dark' | 'light'; // color mode; picks the chrome's dark/light skin
   chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember'; // window ornamentation, orthogonal to skin
 
+  // per-surface card shape overrides. {} = use the chrome's default shape for
+  // every surface (so the default theme is visually unchanged). A missing/unknown
+  // key falls back to the chrome default; sanitize() whitelists both surface & id.
+  cardShapes: Partial<Record<Surface, ShapeId>>;
+
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
   // skin-derived (overridden by skin pick)
@@ -53,6 +58,49 @@ const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristi
 const F_ETHEREAL = "'Cormorant Garamond','Quicksand',Georgia,serif"; // Ember display — airy serif with a dreamy italic lean
 
 export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember';
+
+// --- card shapes (mockups 24, 30-35) ---------------------------------------
+// The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
+// override the shape per surface; anything unset uses the chrome's default map.
+export type ShapeId =
+  | 'slab' | 'left-spine' | 'folio' | 'hex' | 'tarot' | 'cameo' | 'notched'
+  | 'split' | 'ticket' | 'glass' | 'inset' | 'gem' | 'petal' | 'constellation' | 'scalloped';
+export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items' | 'secrets';
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'folio', 'hex', 'tarot', 'cameo', 'notched', 'split', 'ticket', 'glass', 'inset', 'gem', 'petal', 'constellation', 'scalloped'];
+export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items', 'secrets'];
+// Human labels for the customizer rows.
+export const SURFACE_LABELS: Record<Surface, string> = {
+  present: 'Present (thoughts)', bonds: 'Bonds', cast: 'Cast', beats: 'Beats', factions: 'Factions', items: 'Items', secrets: 'Secrets',
+};
+// Per-chrome default silhouettes, transcribed from the card gallery (30-35).
+// `default` keeps the current look so nothing changes until a chrome/override is
+// chosen. Each chrome styles its own palette/type; shape is orthogonal.
+export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
+  default: { present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'folio', factions: 'hex', items: 'cameo', secrets: 'slab' },
+  illuminated: { present: 'left-spine', bonds: 'folio', cast: 'folio', beats: 'folio', factions: 'inset', items: 'cameo', secrets: 'inset' },
+  modern: { present: 'glass', bonds: 'glass', cast: 'glass', beats: 'glass', factions: 'glass', items: 'glass', secrets: 'glass' },
+  futuristic: { present: 'notched', bonds: 'gem', cast: 'notched', beats: 'ticket', factions: 'hex', items: 'gem', secrets: 'notched' },
+  bloom: { present: 'petal', bonds: 'scalloped', cast: 'cameo', beats: 'folio', factions: 'petal', items: 'scalloped', secrets: 'cameo' },
+  ember: { present: 'tarot', bonds: 'constellation', cast: 'cameo', beats: 'folio', factions: 'hex', items: 'gem', secrets: 'tarot' },
+};
+/** Resolve the shape for a surface: user override wins, else the chrome default. */
+export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
+  const o = overrides[surface];
+  if (o && SHAPE_IDS.includes(o)) return o;
+  return CHROME_SHAPES[chrome][surface];
+}
+/** Drop unknown surfaces / shape ids from a saved cardShapes map (same safety
+ *  pattern as CHROME_REMAP: a broken theme can never inject an invalid class). */
+export function sanitizeCardShapes(raw: unknown): Partial<Record<Surface, ShapeId>> {
+  const out: Partial<Record<Surface, ShapeId>> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (SURFACES.includes(k as Surface) && typeof v === 'string' && SHAPE_IDS.includes(v as ShapeId)) {
+      out[k as Surface] = v as ShapeId;
+    }
+  }
+  return out;
+}
 
 
 /**
@@ -156,6 +204,7 @@ const DEFAULT: Theme = {
   scale: 1.12, dataScale: 1, density: 1,
   opacity: 1, blur: 8, radius: 18, border: 1, inkEmphasis: 1, texture: '', bg: '', surf1c: '', surf2c: '', motion: true,
   launcher: 'right', mode: 'dark', chrome: 'default', tensionStyle: 'both',
+  cardShapes: {},
   ...SKINS[0]!.theme,
 };
 
@@ -195,6 +244,7 @@ function sanitize(t: Theme): Theme {
     bg: safeHexOpt(t.bg), surf1c: safeHexOpt(t.surf1c), surf2c: safeHexOpt(t.surf2c),
     mode: t.mode === 'light' ? 'light' : 'dark',
     chrome,
+    cardShapes: sanitizeCardShapes(t.cardShapes),
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -244,6 +294,16 @@ export function applyTheme(scope: HTMLElement | null): void {
   document.documentElement.setAttribute('data-vle-mode', t.mode);
   document.documentElement.toggleAttribute('data-vle-bg', !!t.bg);
   document.documentElement.setAttribute('data-vle-motion', t.motion ? 'on' : 'off');
+  // per-surface card shape. IMPORTANT: only EXPLICIT user overrides emit an
+  // attribute, so with cardShapes:{} the document is byte-identical to today and
+  // every chrome keeps expressing its own default look via its existing CSS
+  // block. An override's CSS (end of styles.ts) is source-ordered last and thus
+  // wins over both the base card rule and any chrome rule.
+  for (const surface of SURFACES) {
+    const o = t.cardShapes[surface];
+    if (o && SHAPE_IDS.includes(o)) document.documentElement.setAttribute('data-shape-' + surface, o);
+    else document.documentElement.removeAttribute('data-shape-' + surface);
+  }
 }
 
 export function setSkin(id: string): void { const s = SKINS.find((x) => x.id === id); if (s) { _theme = sanitize({ ..._theme, skin: id, ...s.theme }); save(); } }
@@ -278,7 +338,7 @@ export function importTheme(json: string): boolean { try { const t = JSON.parse(
 export { FONT_CHOICES, TEXTURES };
 
 // --- tabbed Customize panel ---------------------------------------------
-type CzTab = 'look' | 'skin' | 'mode' | 'layout' | 'color' | 'type' | 'window' | 'sections';
+type CzTab = 'look' | 'skin' | 'mode' | 'layout' | 'color' | 'type' | 'window' | 'cards' | 'sections';
 
 const slider = (key: string, label: string, min: number, max: number, step: number, val: number, fmt: (v: number) => string): string =>
   `<div class="vle-cz-h">${label} <span class="vle-cz-rst" data-cz-reset="${key}" title="Reset">\u21BA</span></div><div class="vle-cz-row">`
@@ -292,7 +352,7 @@ export function customizePanel(tab: CzTab = 'look'): string {
   // two-tier: a "Look" front tab (themes + size — the 90% case) and an Advanced
   // cluster (the full cockpit) set off by a divider so it doesn't overwhelm.
   const front: CzTab[] = ['look'];
-  const advanced: CzTab[] = ['skin', 'mode', 'layout', 'color', 'type', 'window', 'sections'];
+  const advanced: CzTab[] = ['skin', 'mode', 'layout', 'color', 'type', 'window', 'cards', 'sections'];
   const tabBtn = (id: CzTab): string => `<button class="vle-czt${tab === id ? ' on' : ''}" data-cz-tab="${id}">${id === 'look' ? 'Look' : id}</button>`;
   const tabs = front.map(tabBtn).join('')
     + '<span class="vle-czt-sep" title="Advanced">advanced</span>'
@@ -363,6 +423,20 @@ export function customizePanel(tab: CzTab = 'look'): string {
       + '<div class="vle-cz-h">Launcher tab</div><div class="vle-cz-row"><select class="vle-cz-sel" data-cz-launcher>'
         + ['right', 'left', 'hidden'].map((p) => `<option value="${p}"${t.launcher === p ? ' selected' : ''}>${p}</option>`).join('') + '</select></div>'
       + `<div class="vle-cz-h">Motion</div><div class="vle-cz-row"><label class="vle-cz-chk"><input type="checkbox" data-cz-motion${t.motion ? ' checked' : ''}> animations</label></div>`;
+  } else if (tab === 'cards') {
+    // per-surface card shape. First option 'Auto' clears the override so the
+    // surface falls back to the current chrome's default (shown in the label).
+    const shapeLabel = (id: ShapeId): string => id.replace(/-/g, ' ');
+    const row = (surface: Surface): string => {
+      const def = CHROME_SHAPES[t.chrome][surface];
+      const cur = t.cardShapes[surface];
+      const opts = `<option value=""${cur ? '' : ' selected'}>Auto (${shapeLabel(def)})</option>`
+        + SHAPE_IDS.map((id) => `<option value="${id}"${cur === id ? ' selected' : ''}>${shapeLabel(id)}</option>`).join('');
+      return `<div class="vle-cz-h">${SURFACE_LABELS[surface]}${cur ? ` <span class="vle-cz-rst" data-cz-cardshape-reset="${surface}" title="Reset to Auto">\u21BA</span>` : ''}</div>`
+        + `<div class="vle-cz-row"><select class="vle-cz-sel" data-cz-cardshape="${surface}">${opts}</select></div>`;
+    };
+    body = SURFACES.map(row).join('')
+      + '<div class="vle-cz-note">Set a silhouette per card surface. <b>Auto</b> follows the current theme\u2019s default shape. Shapes are geometry only \u2014 palette &amp; type stay from your skin/theme. Exotic edges fall back to a rounded card where unsupported.</div>';
   } else {
     // sections = display flags
     body = '<div class="vle-cz-h">Tension display</div><div class="vle-cz-row"><select class="vle-cz-sel" data-cz-tension>'
@@ -401,11 +475,18 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
     else if (el.matches('[data-cz-launcher]')) { patchTheme({ launcher: el.value as Theme['launcher'] }); reapply(); }
     else if (el.matches('[data-cz-tension]')) { patchTheme({ tensionStyle: el.value as Theme['tensionStyle'] }); reapply(); }
     else if (el.matches('[data-cz-motion]')) { patchTheme({ motion: el.checked }); reapply(); }
+    else if (el.matches('[data-cz-cardshape]')) {
+      const surface = el.getAttribute('data-cz-cardshape') as Surface;
+      const next = { ...getTheme().cardShapes };
+      if (el.value) next[surface] = el.value as ShapeId; else delete next[surface];
+      patchTheme({ cardShapes: next }); rerender('cards'); reapply();
+    }
     else if (el.matches('[data-clay]')) { import('./layout-defs.js').then((m) => { m.handleCustomLayoutChange(el); rerender('layout'); onChange(); }); }
   });
   host.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
     const tab = t.closest('[data-cz-tab]'); if (tab) { rerender(tab.getAttribute('data-cz-tab') as CzTab); return; }
+    const csr = t.closest('[data-cz-cardshape-reset]'); if (csr) { const surface = csr.getAttribute('data-cz-cardshape-reset') as Surface; const next = { ...getTheme().cardShapes }; delete next[surface]; patchTheme({ cardShapes: next }); rerender('cards'); reapply(); return; }
     const rst = t.closest('[data-cz-reset]'); if (rst) { const k = rst.getAttribute('data-cz-reset')!; patchTheme({ [k]: (DEFAULT as unknown as Record<string, unknown>)[k] } as Partial<Theme>); rerender(curTab()); reapply(); return; }
     if (t.closest('[data-cz-resetall]')) { confirmModal('Reset all appearance settings to defaults?', () => { resetTheme(); rerender('skin'); reapply(); }); return; }
     if (t.closest('[data-cz-export]')) { try { const b = new Blob([exportTheme()], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'vellum-theme.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); } catch { /* ignore */ } return; }

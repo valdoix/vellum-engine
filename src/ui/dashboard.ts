@@ -192,7 +192,7 @@ function presentBlock(s: ChronicleState): string {
   const detail = s.scene.detail?.length ? s.scene.detail : s.scene.present.map((id) => ({ id } as PresentChar));
   if (!detail.length) return '';
   const rows = detail.map((d) => presentCard(s, d)).join('');
-  return `<div class="vld-sec"><div class="vld-h">Present <span class="vld-n">${detail.length}</span></div>${rows}</div>`;
+  return `<div class="vld-sec vld-sec--present"><div class="vld-h">Present <span class="vld-n">${detail.length}</span></div><div class="vld-pcs">${rows}</div></div>`;
 }
 
 /**

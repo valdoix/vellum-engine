@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel } from '../src/ui/theme.js';
+import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel, resolveShape, sanitizeCardShapes, CHROME_SHAPES, SHAPE_IDS, SURFACES } from '../src/ui/theme.js';
 import { renderBondRadar } from '../src/ui/theme-render.js';
 import { freshState } from '../src/domain/types.js';
 
@@ -76,6 +76,50 @@ describe('theme system', () => {
     expect(html).toContain('data-mode="modern"'); // theme cards present
     expect(html).toContain('data-cz-num="scale"'); // interface-size slider present
     expect(html).toContain('vle-czt-sep'); // the Advanced divider exists
+  });
+});
+
+describe('card shapes (per-surface silhouette overrides)', () => {
+  it('default theme has an empty cardShapes map (visually unchanged)', () => {
+    setMode('default');
+    expect(getTheme().cardShapes).toEqual({});
+  });
+
+  it('CHROME_SHAPES covers every chrome x every surface with a valid shape id', () => {
+    for (const m of MODES) {
+      const map = CHROME_SHAPES[m.id];
+      expect(map, m.id).toBeTruthy();
+      for (const surface of SURFACES) {
+        expect(SHAPE_IDS.includes(map[surface]), `${m.id}.${surface}=${map[surface]}`).toBe(true);
+      }
+    }
+  });
+
+  it('resolveShape: override wins, else falls back to the chrome default', () => {
+    expect(resolveShape('present', 'ember', {})).toBe(CHROME_SHAPES.ember.present);
+    expect(resolveShape('present', 'ember', { present: 'gem' })).toBe('gem');
+    // an invalid override is ignored -> chrome default
+    // @ts-expect-error deliberately bad shape id
+    expect(resolveShape('present', 'default', { present: 'bogus' })).toBe(CHROME_SHAPES.default.present);
+  });
+
+  it('sanitizeCardShapes drops unknown surfaces and unknown shapes', () => {
+    expect(sanitizeCardShapes({ present: 'tarot', xxx: 'slab', bonds: 'nope' })).toEqual({ present: 'tarot' });
+    expect(sanitizeCardShapes(null)).toEqual({});
+    expect(sanitizeCardShapes('junk')).toEqual({});
+  });
+
+  it('patchTheme sanitizes a bogus cardShapes map down to valid entries', () => {
+    // @ts-expect-error feeding junk past the type
+    patchTheme({ cardShapes: { present: 'bogus', zzz: 'slab', bonds: 'hex' } });
+    expect(getTheme().cardShapes).toEqual({ bonds: 'hex' });
+    patchTheme({ cardShapes: {} }); // reset for other tests
+  });
+
+  it('the Cards tab renders a shape select per surface with an Auto option', () => {
+    const html = customizePanel('cards');
+    for (const surface of SURFACES) expect(html, surface).toContain(`data-cz-cardshape="${surface}"`);
+    expect(html).toContain('Auto (');
   });
 });
 
