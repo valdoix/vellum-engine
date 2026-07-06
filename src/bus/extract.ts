@@ -80,23 +80,44 @@ function bad(name: string): boolean {
  * OBJECT slots (about / secret `from` / faction name) are NOT gated here: you can
  * learn a fact ABOUT someone absent. `proseTokens` is the lowercased word set of
  * the turn's narration. */
-function buildProseTokens(prose: string): Set<string> {
-  const set = new Set<string>();
-  for (const w of String(prose || '').toLowerCase().match(/[a-z][a-z'-]{1,}/g) ?? []) set.add(w);
-  return set;
+function buildProseTokens(prose: string): ProseTokens {
+  // Scan the ORIGINAL text (not a lowercased copy) so casing survives: `all` is
+  // every word seen (lowercased for lookup); `caps` is the subset that appeared
+  // with an uppercase initial AT LEAST ONCE. A word in `all` but not in `caps`
+  // occurred exclusively in lowercase — a common noun/adverb, never a name part.
+  const all = new Set<string>();
+  const caps = new Set<string>();
+  for (const w of String(prose || '').match(/[A-Za-z][A-Za-z'-]{1,}/g) ?? []) {
+    const lw = w.toLowerCase();
+    all.add(lw);
+    if (w[0] !== w[0]!.toLowerCase()) caps.add(lw); // uppercase initial
+  }
+  return { all, caps };
 }
+interface ProseTokens { all: Set<string>; caps: Set<string> }
 const ARTICLE = new Set(['the', 'a', 'an']);
-function inProse(name: string, prose: Set<string>, userCanon: string, charCanon: string, cast?: Record<string, { id: string }>): boolean {
+function inProse(name: string, prose: ProseTokens, userCanon: string, charCanon: string, cast?: Record<string, { id: string }>): boolean {
   const id = canonId(name);
   if (!id) return false;
   if (id === userCanon || id === charCanon) return true; // persona always counts
   const toks = id.split('_').filter((t) => t.length > 1 && !ARTICLE.has(t));
   if (!toks.length) return false;
-  const hit = toks.filter((t) => prose.has(t));
+  // POSITIVE NAME VALIDATOR (turns the blocklist into a whitelist for the shape
+  // of a name): a real proper name is written in the prose with its words
+  // capitalized. If ANY word of the candidate occurs in the prose but ONLY ever
+  // lowercase, this candidate is a mis-segmented common-noun run the extractor
+  // handed back as a name — "Daeron Partially" (partially), "The Research Box"
+  // (research/box), "The Castle Morning" (castle) — and is rejected wholesale. A
+  // word ABSENT from the prose (a fuller surname the extractor supplied, e.g.
+  // "Targaryen" for a "Daeron" scene) carries no casing signal and is allowed.
+  for (const t of toks) {
+    if (prose.all.has(t) && !prose.caps.has(t)) return false;
+  }
+  const hit = toks.filter((t) => prose.all.has(t));
   if (!hit.length) return false;
   // the GIVEN name (first significant token) present = a confident match
   // ("Daeron" lands "Daeron Targaryen"; "Cersei" lands "Cersei Lannister").
-  if (prose.has(toks[0]!)) return true;
+  if (prose.all.has(toks[0]!)) return true;
   // otherwise ONLY a trailing token matched — typically a shared SURNAME. That is
   // the misattribution trap: "lannister" (from Cersei in the prose) must not admit
   // an off-scene "Tywin Lannister". Accept a surname-only match ONLY when no OTHER
