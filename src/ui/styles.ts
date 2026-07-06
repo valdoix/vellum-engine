@@ -47,13 +47,17 @@ const shapePrimitives = (): string[] => [
 ];
 const shapeOverrides = (): string[] => {
   const rules: string[] = [];
+  // Specificity booster: chrome card rules reach (0,3,1) via `html[chrome] .vlf
+  // .vld-pc`. Repeating the shape attribute on <html> lifts the override to
+  // (0,4,1) so it wins in BOTH the drawer and the float without !important.
+  const at = (surface: string, id: string): string => `[data-shape-${surface}='${id}'][data-shape-${surface}][data-shape-${surface}]`;
   for (const [surface, root] of Object.entries(SHAPE_SURFACE_ROOT)) {
     for (const [id, body] of Object.entries(SHAPE_GEOM)) {
-      rules.push(`html[data-shape-${surface}='${id}'] ${root}{${body}}`);
+      rules.push(`html${at(surface, id)} ${root}{${body}}`);
     }
     // per-surface fallbacks so an override degrades the same way the primitive does
-    rules.push(`@supports not (clip-path: polygon(0 0,100% 0,100% 100%)){${CLIP_SHAPES.map((id) => `html[data-shape-${surface}='${id}'] ${root}`).join(',')}{clip-path:none;border-radius:${R}}}`);
-    rules.push(`@supports not ((-webkit-mask:radial-gradient(#000,#000)) or (mask:radial-gradient(#000,#000))){html[data-shape-${surface}='scalloped'] ${root}{-webkit-mask:none;mask:none;border-radius:${R}}}`);
+    rules.push(`@supports not (clip-path: polygon(0 0,100% 0,100% 100%)){${CLIP_SHAPES.map((id) => `html${at(surface, id)} ${root}`).join(',')}{clip-path:none;border-radius:${R}}}`);
+    rules.push(`@supports not ((-webkit-mask:radial-gradient(#000,#000)) or (mask:radial-gradient(#000,#000))){html${at(surface, 'scalloped')} ${root}{-webkit-mask:none;mask:none;border-radius:${R}}}`);
   }
   return rules;
 };

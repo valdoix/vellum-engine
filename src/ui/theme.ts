@@ -294,14 +294,16 @@ export function applyTheme(scope: HTMLElement | null): void {
   document.documentElement.setAttribute('data-vle-mode', t.mode);
   document.documentElement.toggleAttribute('data-vle-bg', !!t.bg);
   document.documentElement.setAttribute('data-vle-motion', t.motion ? 'on' : 'off');
-  // per-surface card shape. IMPORTANT: only EXPLICIT user overrides emit an
-  // attribute, so with cardShapes:{} the document is byte-identical to today and
-  // every chrome keeps expressing its own default look via its existing CSS
-  // block. An override's CSS (end of styles.ts) is source-ordered last and thus
-  // wins over both the base card rule and any chrome rule.
+  // per-surface card shape. Emission rule:
+  //   - explicit user override        -> emit the override (always wins)
+  //   - a NON-default chrome, no ovr   -> emit that chrome's gallery shape
+  //     (mockups 30-35), so picking Ember/Futuristic/etc. reshapes its cards
+  //   - the DEFAULT chrome, no ovr     -> emit NOTHING, so the default theme is
+  //     byte-identical to before (it keeps its bespoke per-card CSS geometry)
   for (const surface of SURFACES) {
     const o = t.cardShapes[surface];
-    if (o && SHAPE_IDS.includes(o)) document.documentElement.setAttribute('data-shape-' + surface, o);
+    const shape = (o && SHAPE_IDS.includes(o)) ? o : (t.chrome !== 'default' ? CHROME_SHAPES[t.chrome][surface] : null);
+    if (shape) document.documentElement.setAttribute('data-shape-' + surface, shape);
     else document.documentElement.removeAttribute('data-shape-' + surface);
   }
 }
