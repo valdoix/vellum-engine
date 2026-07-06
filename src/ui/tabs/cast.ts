@@ -1,6 +1,7 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, CastCard, Faction } from '../../domain/types.js';
-import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, nameOf, autoNameMode, setAutoNameMode, warmCastColors, avatarParts } from '../format.js';
+import { esc, initials, byRecent, bar, emptyState, sectionHeader, nameHtmlCard, nameHtml, nameOf, autoNameMode, setAutoNameMode, warmCastColors, avatarParts, affectionTone, bondDot, bondTitle } from '../format.js';
+
 import { cmd, paginate, pagerHtml, send, setPage, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { traitArc, dormantTraits } from '../../domain/drift.js';
@@ -185,9 +186,10 @@ function bondChips(s: ChronicleState, id: string): string {
   if (!rels.length) return '';
   return rels.map((r) => {
     const cat = (r.categories[0] || r.category || 'neutral');
-    const tone = r.affection < -15 ? 'neg' : r.affection > 15 ? 'pos' : 'info';
-    return `<span class="vle-bondchip vle-bondchip--${tone}">${esc(nameOf(s, r.b))} \u00b7 ${esc(cat)}</span>`;
+    const tone = affectionTone(r.affection);
+    return `<span class="vle-bondchip vle-bondchip--${tone}" title="${esc(bondTitle(nameOf(s, r.b), r.affection, r.trust))}">${esc(nameOf(s, r.b))} \u00b7 ${esc(cat)}</span>`;
   }).join('');
+
 }
 
 /** A dagger suffix for deceased characters (empty for the living). */
@@ -272,10 +274,10 @@ function strip(s: ChronicleState, c: CastCard): string {
   const A = (x: unknown): string => esc(x);
   const st = STATUS.find((x) => x.id === c.status);
   const where = c.status === 'present' ? 'present' : (st?.label.toLowerCase() ?? c.status);
-  const dots = s.relations.filter((r) => r.a === c.id).slice(0, 5).map((r) => {
-    const tone = r.affection < -15 ? 'neg' : r.affection > 15 ? 'pos' : 'info';
-    return `<span class="vle-strip-dot vle-strip-dot--${tone}" title="${esc(nameOf(s, r.b))}"></span>`;
-  }).join('');
+  // two-axis bond glyphs: affection = fill color, trust = ring (see bondDot).
+  const dots = s.relations.filter((r) => r.a === c.id).slice(0, 5).map((r) =>
+    bondDot(r.affection, r.trust, bondTitle(nameOf(s, r.b), r.affection, r.trust))).join('');
+
   const sav = avatarParts(c.name, c.imageUrl);
   return '<div class="vle-strip vle-card--' + esc(c.status) + '">'
     + '<span class="vle-strip-av' + sav.cls + '"' + sav.style + '>' + sav.inner + '</span>'

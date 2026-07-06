@@ -271,14 +271,18 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   // the tools read as a real tier, not cryptic afterthoughts. Labels hide when
   // the width is tight (see .vle-tabicon-l in styles.ts).
   const toolBtn = (t: typeof TABS[number]): string => `<button class="vle-tabicon" data-tab="${t.id}" title="${t.label}" aria-label="${t.label}">${icon(t.icon)}<span class="vle-tabicon-l">${t.label}</span></button>`;
+  // ONE navigation tier: the five primary tabs, a hairline separator, then the
+  // labeled tool dock — all in a single `.vle-tabbar` so nav reads as one grouped
+  // control (was two disconnected rows). The float uses its own `.vlf-tab` strip
+  // (primary only), so this consolidation is drawer-side.
   root.innerHTML = '<div class="vle-head"><span class="vle-mark">\u2756</span> VELLUM <span class="vle-ver">II</span>'
     + '<span class="vle-stats" data-stats></span></div>'
-    + '<div class="vle-tabbar" data-tabbar>'
+    + '<div class="vle-tabbar" data-tabbar role="tablist">'
       + primary.map((t, i) => tabBtn(t, i === 0)).join('')
-    + '</div>'
-    + '<div class="vle-tabicons">'
+      + '<span class="vle-tabbar-sep" aria-hidden="true"></span>'
       + tools.map((t) => toolBtn(t)).join('')
     + '</div>'
+
     + '<div class="vle-toolbar" data-toolbar>'
       + `<button class="vle-qol" data-search title="Search the chronicle (cast, bonds, journal, knowledge)">${icon('search', { size: 15 })}<span>Search</span></button>`
       + `<button class="vle-qol" data-qol="customize" title="Theme: color, font, size & skins">${icon('customize', { size: 15 })}<span>Customize</span></button>`
@@ -303,13 +307,26 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
     mounted = mount(bodyEl, def.comp, getState(), def.id);
     bodyEl.scrollTop = _scroll.get(id) ?? 0; // restore reading position
   };
+  // header stat pills: one labeled pill per fact (turn / day / cast / bonds /
+  // weather) with an SVG icon — replaces the old `·`-joined run-on string and
+  // its stray ☁ glyph, so the header scans as discrete data, not one long label.
   const stats = (): void => {
     const s = getState();
-    const w = s.scene.weather ? ` \u00b7 \u2601 ${s.scene.weather}` : '';
     const dayLabel = s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s) : 'D0';
-    statsEl.innerHTML = `T${s.turns ?? 0} \u00b7 ${dayLabel} \u00b7 ${visibleCast(s).length} cast \u00b7 ${s.relations.length} bonds${w}`;
+    const pill = (ico: string, value: string, label: string): string =>
+      `<span class="vle-stat" title="${esc(label)}">${icon(ico, { size: 13 })}<b>${esc(value)}</b></span>`;
+    const pills = [
+      pill('turn', `T${s.turns ?? 0}`, 'turn'),
+      pill('calendar', dayLabel, 'day'),
+      pill('cast', String(visibleCast(s).length), 'cast on stage'),
+      pill('bonds', String(s.relations.length), 'relationships'),
+    ];
+    if (s.scene.weather) pills.push(pill('weather', s.scene.weather, 'weather'));
+    statsEl.innerHTML = pills.join('');
   };
-  root.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.vle-tabbar [data-tab],.vle-tabicons [data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
+
+  root.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.vle-tabbar [data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
+
   root.querySelector('[data-toolbar]')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('[data-qol]'); if (b) { onQol(ctx, b.getAttribute('data-qol')!); return; }
     if ((e.target as HTMLElement).closest('[data-search]')) openSearch(getState, showTab);

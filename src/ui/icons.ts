@@ -11,7 +11,9 @@
 type IconOpts = { size?: number; cls?: string };
 
 // 24×24 path bodies (stroke-based; `currentColor`). Keep them simple + legible
-// at 14–18px. Add an entry here when a new tab/action needs an icon.
+// at 14–18px. Add an entry here when a new tab/action needs an icon. Every path
+// sits natively on the 24×24 grid — no `transform` scale/translate hacks, so the
+// stroke weight stays uniform with the rest of the family at any render size.
 const PATHS: Record<string, string> = {
   // --- primary tabs ---
   now: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/>',
@@ -23,19 +25,28 @@ const PATHS: Record<string, string> = {
   graph: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="9" cy="18" r="2"/><path d="M7.6 8.2l8.8.6M8.4 16.3l8.4-5.6M7.3 8.8l1.4 7.4" opacity=".7"/>',
   vault: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 9.2v5.6"/>',
   context: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M8 5v14" opacity=".6"/><path d="M11.5 9.5l2.5 2.5-2.5 2.5"/>',
+  // --- header stat pills (turn counter, weather; cast/bonds/calendar reuse tab icons) ---
+  turn: '<circle cx="12" cy="12" r="8"/><path d="M12 7.5v5l3.5 2"/>',
+  weather: '<path d="M7 18a4 4 0 0 1 .5-8 5 5 0 0 1 9.7 1.2A3.4 3.4 0 0 1 16.5 18z"/>',
   // --- toolbar ---
   search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.3-4.3"/>',
-  director: '<path d="M12 3l2.4 5 5.5.5-4.2 3.6 1.3 5.4L12 20l-5 2.5 1.3-5.4L4 13.5l5.5-.5z" transform="scale(.85) translate(2,1.5)"/>',
+
+  // clapperboard-free director star, drawn natively on the grid (was a scaled/
+  // translated path that thinned the stroke against its neighbors).
+  director: '<path d="M12 4l2.1 4.3 4.7.7-3.4 3.3.8 4.7L12 15.5 7.8 17l.8-4.7L5.2 9l4.7-.7z"/>',
   customize: '<path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/>',
   actions: '<circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
   // --- action verbs ---
   summarize: '<path d="M4 6h16M4 10h16M4 14h10M4 18h6"/>',
   rescan: '<path d="M20 11a8 8 0 1 0-1 5"/><path d="M20 5v5h-5"/>',
-  undo: '<path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12h-1" transform="translate(0,-5)"/>',
+  // undo arrow, redrawn native to the grid (previously a translated path).
+  undo: '<path d="M8 6L3 11l5 5"/><path d="M3 11h10a6 6 0 0 1 0 12h-1.5"/>',
   rebuild: '<path d="M4 12a8 8 0 0 1 14-5l2 2"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M4 20v-5h5"/>',
   resummarize: '<path d="M5 12a7 7 0 0 1 12-4.5"/><path d="M17 5v3h-3" transform="translate(0,-0.5)"/><path d="M19 12a7 7 0 0 1-12 4.5"/><path d="M7 19v-3h3"/>',
   tidy: '<path d="M7 6l3 3M7 6l-2 2 9 9 2-2z"/><path d="M14 13l4 4-2 2-4-4" opacity=".8"/>',
-  tidyfacts: '<path d="M7 6l3 3M7 6l-2 2 9 9 2-2z"/><path d="M14 13l4 4-2 2-4-4" opacity=".8"/>',
+  // tidy facts = clean up the fact record: a page of lines with a sparkle (kept
+  // distinct from `tidy` (prose broom) and `journal`/`chronicle` documents).
+  tidyfacts: '<path d="M6 3h9l3 3v15H6z"/><path d="M9 11h5M9 15h3" opacity=".85"/><path d="M17 3.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
   summarizer: '<circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6 6l1.5 1.5M16.5 16.5L18 18M18 6l-1.5 1.5M7.5 16.5L6 18"/>',
   hide: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 4l16 16" opacity=".8"/>',
   traverse: '<circle cx="12" cy="5" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M12 7v4M12 11l-5 5M12 11l5 5"/>',

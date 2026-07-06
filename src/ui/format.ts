@@ -194,6 +194,42 @@ export function lowContrast(hex: string): boolean {
   return luminance(hex) < 0.12; // very dark text on a dark surface
 }
 
+/** WCAG 2.x contrast ratio (1..21) between two opaque #rrggbb colors. */
+export function contrastRatio(fg: string, bg: string): number {
+  const l1 = luminance(fg);
+  const l2 = luminance(bg);
+  const [hi, lo] = l1 >= l2 ? [l1, l2] : [l2, l1];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * Flatten a CSS color to an opaque #rrggbb by compositing it over `base`.
+ * Accepts #rrggbb, rgb()/rgba(), or the FIRST color of a linear-gradient (the
+ * skin's `glass` background) — enough for the contrast audit, which only needs a
+ * representative background. Unparseable input returns `base` unchanged. */
+export function flattenColor(css: string, base = '#0c0a08'): string {
+  const s = String(css ?? '').trim();
+  // pull the first rgb/rgba/hex token out of a gradient or plain color
+  const rgba = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/i);
+  const hex = s.match(/#[0-9a-fA-F]{6}/);
+  let r: number, g: number, b: number, a = 1;
+  if (rgba) {
+    r = +rgba[1]!; g = +rgba[2]!; b = +rgba[3]!; a = rgba[4] !== undefined ? +rgba[4]! : 1;
+  } else if (hex) {
+    const h = hex[0]!;
+    r = parseInt(h.slice(1, 3), 16); g = parseInt(h.slice(3, 5), 16); b = parseInt(h.slice(5, 7), 16);
+  } else {
+    return base;
+  }
+  if (a >= 1) return '#' + [r, g, b].map((n) => Math.round(n).toString(16).padStart(2, '0')).join('');
+  // composite (src over base) using the base's rgb
+  const bh = HEX6.test(base) ? base : '#000000';
+  const br = parseInt(bh.slice(1, 3), 16), bg2 = parseInt(bh.slice(3, 5), 16), bb = parseInt(bh.slice(5, 7), 16);
+  const mix = (c: number, bc: number): string => Math.round(c * a + bc * (1 - a)).toString(16).padStart(2, '0');
+  return '#' + mix(r, br) + mix(g, bg2) + mix(b, bb);
+}
+
+
 export function catsOf(r: Relation): string[] {
   return r.categories.length ? r.categories : [r.category || 'neutral'];
 }
@@ -248,8 +284,35 @@ export function bondMeter(dirs: { a: string; b: string; affection: number; trust
     + '</div>';
 }
 
+/** Sentiment tone from the affection axis alone (fill color of a bond glyph). */
+export function affectionTone(affection: number): 'pos' | 'neg' | 'info' {
+  return affection < -15 ? 'neg' : affection > 15 ? 'pos' : 'info';
+}
+
+/** Trust band from the trust axis (drives the RING of a two-axis bond glyph):
+ * high = a confident gold ring, wary = a dashed red ring, neutral = none. */
+export function trustBand(trust: number): 'high' | 'low' | 'mid' {
+  return trust > 25 ? 'high' : trust < -25 ? 'low' : 'mid';
+}
+
+/** Human-readable both-axes summary for a bond glyph's tooltip, so the compact
+ * dot/chip (which shows affection as fill + trust as ring) is never lossy on hover. */
+export function bondTitle(name: string, affection: number, trust: number): string {
+  const a = (affection > 0 ? '+' : '') + Math.round(affection);
+  const t = (trust > 0 ? '+' : '') + Math.round(trust);
+  return `${name} \u2014 affection ${a} \u00b7 trust ${t}`;
+}
+
+/** A compact TWO-AXIS bond glyph: affection tints the fill (pos/neg/info), trust
+ * draws the ring (high/low/mid). Replaces the old affection-only dot that silently
+ * dropped the trust axis. `title` should come from bondTitle() so hover is complete. */
+export function bondDot(affection: number, trust: number, title: string): string {
+  return `<span class="vle-bonddot vle-bonddot--${affectionTone(affection)} vle-bonddot--t-${trustBand(trust)}" title="${esc(title)}"></span>`;
+}
+
 /** Short caption form of a name (first token, capped) for tight meter rows. */
 function abbr(name: string): string {
+
   const first = (name || '').trim().split(/\s+/)[0] || name || '?';
   return first.length > 8 ? first.slice(0, 7) + '\u2026' : first;
 }

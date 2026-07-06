@@ -7,8 +7,14 @@ export const STYLES = [
   // --- theme tokens (overridden at runtime by theme.ts) ---------------------
   // --vg accent (hex) + --vg-rgb its r,g,b ; --vi primary ink, --vi2 muted ink ;
   // --vserif/--vmono fonts ; --vscale chrome size multiplier ; --vsurf-* panel bg.
+  // SEMANTIC INK ROLES (alias --vi2 today; split later without touching call sites):
+  //   --vle-ink        = primary reading ink (body copy).
+  //   --vle-ink-muted  = de-emphasised interactive ink (control labels, nav, chips).
+  //   --vle-meta       = static metadata ink (turn counts, timestamps, keys).
+  //   --vle-bg-solid   = opaque panel backing for surfaces that can't blur.
   //
   // SEMANTIC COLOR CONTRACT (one meaning each — do not overload):
+
   //   --vg     gold   = brand / accent / interactive (tabs, links, focus). NOT a status.
   //   --v-pos  sage   = positive / affection / kept memory (journal).
   //   --v-info blue   = knowledge / trust / information.
@@ -17,7 +23,7 @@ export const STYLES = [
   //   --v-warn violet = the INTERNAL/AMBIGUOUS register ONLY: inner thoughts,
   //                     scars, complex sentiment, romance. If a new use isn't
   //                     "internal/ambiguous", pick another token — don't add to violet.
-  ":root{--vg:#cda84e;--vg-rgb:205,168,78;--vi:#e7d6ad;--vi2:#cdbfa0;--vserif:'Cormorant Garamond',Georgia,serif;--vmono:'JetBrains Mono',ui-monospace,monospace;--vscale:1;--vsurf-1:rgba(28,25,20,.5);--vsurf-2:rgba(18,16,12,.4);--vle-gold:var(--vg);--vle-gold-soft:rgba(var(--vg-rgb),.16);--vle-ink:var(--vi);--vle-bg:rgba(20,18,14,.55);--vg2:#9bc0e6;--vg2-rgb:155,192,230;--vai:1;--vdscale:1;--vdensity:1;--vopacity:1;--vblur:8px;--vradius:18px;--vborder:1px;--vink-e:1;--v1:4px;--v2:8px;--v3:12px;--v4:16px;--v5:20px;--v6:24px;--vr1:6px;--vr2:9px;--vr3:13px;--rpill:20px;--v-pos:#8fa67e;--v-pos-i:#a9c089;--v-neg:#c96a6a;--v-neg-i:#e09090;--v-info:#9bc0e6;--v-warn:#b48ed0;--v-press:#c8923e;--v-press-i:#dcad62;--vt-display:calc(24px * var(--vscale));--vt-title:calc(18px * var(--vscale));--vt-body:calc(14px * var(--vscale));--vt-meta:calc(11px * var(--vdscale));--vt-eyebrow:calc(10px * var(--vscale))}",
+  ":root{--vg:#cda84e;--vg-rgb:205,168,78;--vi:#e7d6ad;--vi2:#cdbfa0;--vserif:'Cormorant Garamond',Georgia,serif;--vmono:'JetBrains Mono',ui-monospace,monospace;--vscale:1;--vsurf-1:rgba(28,25,20,.5);--vsurf-2:rgba(18,16,12,.4);--vle-gold:var(--vg);--vle-gold-soft:rgba(var(--vg-rgb),.16);--vle-ink:var(--vi);--vle-ink-muted:var(--vi2);--vle-meta:var(--vi2);--vle-bg:rgba(20,18,14,.55);--vle-bg-solid:#14120e;--vg2:#9bc0e6;--vg2-rgb:155,192,230;--vai:1;--vdscale:1;--vdensity:1;--vopacity:1;--vblur:8px;--vradius:18px;--vborder:1px;--vink-e:1;--v1:4px;--v2:8px;--v3:12px;--v4:16px;--v5:20px;--v6:24px;--vr1:6px;--vr2:9px;--vr3:13px;--rpill:20px;--v-pos:#8fa67e;--v-pos-i:#a9c089;--v-neg:#c96a6a;--v-neg-i:#e09090;--v-info:#9bc0e6;--v-warn:#b48ed0;--v-press:#c8923e;--v-press-i:#dcad62;--vt-display:calc(24px * var(--vscale));--vt-title:calc(18px * var(--vscale));--vt-body:calc(14px * var(--vscale));--vt-meta:calc(11px * var(--vdscale));--vt-eyebrow:calc(10px * var(--vscale))}",
   // launcher edge + reduced-motion (set on document by theme.ts)
   "html[data-vle-launch='left'] .vlf-launch{right:auto;left:0;border-radius:0 13px 13px 0;border-right:1px solid rgba(var(--vg-rgb),.5);border-left:none;writing-mode:vertical-rl;transform:rotate(180deg)}",
   "html[data-vle-launch='left'] .vlf-launch .vlf-launch-mark,html[data-vle-launch='left'] .vlf-launch .vlf-launch-t{transform:rotate(180deg)}",
@@ -36,7 +42,13 @@ export const STYLES = [
   ".vle-head{display:flex;align-items:center;gap:9px;font-size:calc(22px * var(--vscale));letter-spacing:1.5px;padding-bottom:calc(11px * var(--vscale));border-bottom:1px solid var(--vle-gold-soft)}",
   ".vle-mark{color:var(--vle-gold);text-shadow:0 0 8px rgba(var(--vg-rgb),.4)}",
   ".vle-ver{font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;opacity:.6;color:var(--vle-gold)}",
-  ".vle-stats{margin-left:auto;font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;opacity:.6}",
+  // header stat pills: discrete labeled chips (icon + value) replacing the old
+  // `·`-joined run-on string. Each pill wears its meta ink; the icon is quieter.
+  ".vle-stats{margin-left:auto;display:flex;align-items:center;flex-wrap:wrap;gap:calc(5px * var(--vscale))}",
+  ".vle-stat{display:inline-flex;align-items:center;gap:4px;font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;color:var(--vle-meta);opacity:.85}",
+  ".vle-stat .vi{opacity:.6}",
+  ".vle-stat b{color:var(--vle-ink);font-weight:600;opacity:.9}",
+
   // tab bar
   ".vle-tabbar{display:flex;align-items:center;gap:5px;margin:calc(11px * var(--vscale)) 0 calc(5px * var(--vscale));flex-wrap:wrap}",
   ".vle-tabicons{display:flex;align-items:center;gap:5px;margin:0 0 calc(9px * var(--vscale));flex-wrap:wrap;padding-top:calc(6px * var(--vscale));border-top:1px solid rgba(var(--vg-rgb),.14)}",
@@ -354,6 +366,15 @@ export const STYLES = [
   ".vle-strip-bonds{display:inline-flex;gap:3px;margin-left:auto;margin-right:4px}",
   ".vle-strip-dot{width:7px;height:7px;border-radius:50%;background:var(--vi2)}",
   ".vle-strip-dot--pos{background:var(--v-pos)}.vle-strip-dot--neg{background:var(--v-neg)}.vle-strip-dot--info{background:var(--v-info)}",
+  // two-axis bond glyph: affection = fill (pos/neg/info), trust = the ring. A
+  // confident ring (gold, solid) reads high trust; a wary ring (red, dashed via
+  // a doubled box-shadow gap) reads low trust; mid trust wears no ring. This
+  // restores the trust axis the old affection-only dot silently dropped.
+  ".vle-bonddot{width:9px;height:9px;border-radius:50%;box-sizing:border-box;background:var(--vi2)}",
+  ".vle-bonddot--pos{background:var(--v-pos)}.vle-bonddot--neg{background:var(--v-neg)}.vle-bonddot--info{background:var(--v-info)}",
+  ".vle-bonddot--t-high{box-shadow:0 0 0 1.5px var(--vsurf-1),0 0 0 3px rgba(var(--vg-rgb),.85)}",
+  ".vle-bonddot--t-low{box-shadow:0 0 0 1.5px var(--vsurf-1),0 0 0 3px color-mix(in srgb,var(--v-neg) 70%,transparent)}",
+
   ".vle-strip .vle-card-ctl{margin-left:0}",
   // sentence-case status+role line (cast redesign): serif, italic, calm
   ".vle-card-sub{font-family:var(--vserif);font-style:italic;font-size:calc(13px * var(--vscale));color:var(--v-pos-i);opacity:.85}",
