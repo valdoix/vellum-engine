@@ -16,9 +16,10 @@
  * inner frame, cameo/tarot avatar reshape) are pure CSS keyed off the same
  * data-shape-<surface> attribute and live in styles.ts instead.
  *
- * SVGs inherit color via currentColor / the --vg accent token and use
- * vector-effect:non-scaling-stroke so strokes stay crisp under clip-path cards.
- * XML comments must never contain `--` (breaks the SVG parser); we use none.
+ * GROUNDED (mockup 36): cards are wide horizontal rows (ratio 1.2..6.7), so every
+ * SVG ornament is FIXED-SIZE and corner/strip-anchored by CSS and never stretches
+ * with the card. SVGs inherit color via the --vg accent token. XML comments must
+ * never contain `--` (breaks the SVG parser); we use none.
  */
 import type { ShapeId, Surface } from './theme.js';
 
@@ -26,43 +27,45 @@ import type { ShapeId, Surface } from './theme.js';
 const layer = (inner: string, extra = ''): string =>
   `<span class="v-ornlayer${extra}" aria-hidden="true">${inner}</span>`;
 
-// a full-bleed SVG that scales to the card via preserveAspectRatio=none
-const svg = (body: string, cls = ''): string =>
-  `<svg class="v-ornsvg${cls}" viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">${body}</svg>`;
+/**
+ * A FIXED-SIZE, corner/edge-anchored SVG (mockup 36 rule 3). Ornaments are drawn
+ * in their own px coordinate space and pinned by CSS to a corner or a strip, so
+ * they NEVER stretch with the card's ratio (the v1 bug was preserveAspectRatio
+ * =none on a full-bleed viewBox, which skewed the fold/facets on wide rows).
+ */
+const svgFixed = (w: number, h: number, body: string, cls: string): string =>
+  `<svg class="v-ornsvg ${cls}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" focusable="false">${body}</svg>`;
 
 /**
  * The ornament for a given resolved shape on a given surface, or '' when the
- * shape carries its detail purely in CSS (slab/left-spine/hex/cameo/etc.).
- * Callers pass the ACTIVE shape (see activeShape) so default chrome -> no call.
+ * shape carries its detail purely in CSS. Callers pass the ACTIVE shape (see
+ * activeShape) so the default chrome -> null -> no call and no markup.
  */
 export function shapeOrnament(shape: ShapeId | null, _surface: Surface): string {
   switch (shape) {
     case 'folio':
-      // a turned page: a triangular dog-ear fold in the top-right corner with a
-      // soft shadow crease. Two paths: the lifted corner + the crease line.
-      return layer(svg(
-        '<path class="v-fold-back" d="M100 0 L100 14 L86 0 Z"/>' +
-        '<path class="v-fold-crease" d="M86 0 L100 14" vector-effect="non-scaling-stroke"/>',
-        ' v-ornsvg--folio',
+      // turned-page dog-ear: a fixed 16px corner triangle pinned top-right, with
+      // an accent underside + crease. Fixed box => never stretches.
+      return layer(svgFixed(16, 16,
+        '<path class="v-fold-back" d="M0 0 H16 V16 Z"/>' +
+        '<path class="v-fold-crease" d="M16 0 L0 16"/>',
+        'v-ornsvg--folio',
       ));
     case 'gem':
-      // internal facet lines echoing the octagon clip, for a cut-stone read.
-      return layer(svg(
-        '<path class="v-facet" vector-effect="non-scaling-stroke" d="M50 2 L86 14 M50 2 L14 14 ' +
-        'M98 50 L86 14 M98 50 L86 86 M50 98 L86 86 M50 98 L14 86 M2 50 L14 86 M2 50 L14 14 ' +
-        'M50 2 L50 98 M2 50 L98 50"/>',
-        ' v-ornsvg--gem',
-      ));
+      // cut-stone facet sparks: four short accent hairlines just inside each
+      // beveled corner. Drawn as pure CSS pseudo-elements (see .vle-*[data-shape]
+      // gem rules in styles.ts) so no markup is needed; nothing to emit here.
+      return '';
     case 'constellation':
-      // ember bonds: a dotted arc strung with star nodes, drawn across the card.
-      return layer(svg(
-        '<path class="v-const-arc" vector-effect="non-scaling-stroke" fill="none" ' +
-        'd="M8 78 Q30 20 50 40 T92 22"/>' +
+      // ember bonds: a dotted arc + star nodes pinned to a FIXED 22px top strip
+      // so it reads the same whether the card is short or tall.
+      return layer(svgFixed(320, 22,
+        '<path class="v-const-arc" fill="none" d="M14 16 Q90 3 160 10 T306 6"/>' +
         '<g class="v-const-star">' +
-        '<circle cx="8" cy="78" r="2.2"/><circle cx="50" cy="40" r="2.6"/>' +
-        '<circle cx="72" cy="30" r="1.8"/><circle cx="92" cy="22" r="2.2"/>' +
+        '<circle cx="14" cy="16" r="2.2"/><circle cx="160" cy="10" r="2.6"/>' +
+        '<circle cx="236" cy="7" r="1.8"/><circle cx="306" cy="6" r="2.2"/>' +
         '</g>',
-        ' v-ornsvg--const',
+        'v-ornsvg--const',
       ));
     default:
       return '';
@@ -70,15 +73,13 @@ export function shapeOrnament(shape: ShapeId | null, _surface: Surface): string 
 }
 
 /**
- * Chronicle scar seam (mockup 21): a jagged polyline torn across the card,
- * solid for an OPEN scar and dotted+fading for a HEALING one. Surface-agnostic
- * helper the chronicle renderer calls directly (state -> presentation only).
+ * Chronicle scar seam: a jagged torn polyline pinned to a FIXED-height mid strip
+ * (solid=open, dotted+faded=healing). Fixed box, so it never stretches.
  */
 export function scarSeam(healing: boolean): string {
-  return layer(svg(
+  return layer(svgFixed(320, 20,
     `<path class="v-scar${healing ? ' v-scar--healing' : ''}" fill="none" ` +
-    'vector-effect="non-scaling-stroke" ' +
-    'd="M0 62 L14 54 L26 66 L40 50 L54 64 L68 48 L82 62 L100 52"/>',
-    ' v-ornsvg--scar',
+    'd="M0 12 L28 6 L52 14 L80 4 L108 12 L150 3 L200 13 L260 5 L320 11"/>',
+    'v-ornsvg--scar',
   ));
 }

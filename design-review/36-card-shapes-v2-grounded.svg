@@ -1,0 +1,274 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1560" viewBox="0 0 1120 1560" font-family="'Segoe UI',system-ui,sans-serif">
+  <!-- =====================================================================
+       CARD SHAPES v2 - GROUNDED IN REAL SIZES
+       Every VELLUM card is a WIDE HORIZONTAL ROW (width pinned ~351px in the
+       float, height driven by content). Measured live:
+         present 317x74..323 (r4.3..1.0) | cast 351x78..123 (r2.9..4.5)
+         bonds 351x195..303 (r1.2..1.8)  | beats 351x83..135 (r2.6..4.3)
+         factions 351x157..276 (r1.3..2.2)| items 351x57..104 (r3.4..6.1)
+         secrets 351x60..147 (r2.4..5.8)
+       => full-bleed polygon clips (hex/gem/diamond) CANNOT host a row.
+       Silhouette is therefore expressed as EDGE + CORNER + FRAME treatments
+       on an UNCLIPPED content box, so text/avatars/buttons never clip.
+       All samples below are drawn at the real common row size 320x72 (r4.4)
+       unless labelled otherwise. Rows carry placeholder content (avatar dot,
+       two text lines, two control dots) to prove nothing is occluded.
+       ===================================================================== -->
+  <defs>
+    <style>
+      .bg{fill:#141210}
+      .title{fill:#e7d6ad;font-size:22px;font-weight:700;letter-spacing:2px}
+      .sub{fill:#a99b7c;font-size:12.5px}
+      .lbl{fill:#cda84e;font-size:12px;font-weight:700;letter-spacing:.5px}
+      .meta{fill:#8c8478;font-size:10px;font-family:ui-monospace,monospace}
+      .card{fill:#1d1a15;stroke:#3a3325;stroke-width:1}
+      .ink{fill:#cdbfa0}
+      .inkline{fill:#6f6650}
+      .av{fill:#2a2620;stroke:#cda84e;stroke-width:1.2}
+      .dot{fill:#5a5240}
+      .accent{fill:#cda84e}
+      .accent-s{stroke:#cda84e;fill:none}
+      .neg{fill:#c96}
+      .good{fill:#7ea86a}
+      .info{fill:#6f97c9}
+      .note{fill:#6f6650;font-size:10px;font-style:italic}
+      .ok{fill:#7ea86a;font-size:10px;font-weight:700}
+      .divider{stroke:#2a2620;stroke-width:1}
+    </style>
+    <clipPath id="dogear"><path d="M0 0 H306 L320 14 V72 H0 Z"/></clipPath>
+  </defs>
+
+  <rect class="bg" width="1120" height="1560"/>
+  <text class="title" x="40" y="52">VELLUM · CARD SHAPES v2</text>
+  <text class="sub" x="40" y="76">grounded in measured row sizes · silhouette via edge/corner/frame, content box never clipped · common row 320×72 (ratio 4.4)</text>
+  <line class="divider" x1="40" y1="92" x2="1080" y2="92"/>
+
+  <!-- ================= COLUMN A ================= -->
+  <!-- ROW TEMPLATE: each group is a 320x72 card with content placeholders -->
+
+  <!-- 1 SLAB -->
+  <g transform="translate(40,120)">
+    <text class="lbl" x="0" y="-8">slab</text><text class="meta" x="60" y="-8">radius only</text>
+    <rect class="card" width="320" height="72" rx="9"/>
+    <circle class="av" cx="30" cy="36" r="15"/>
+    <rect class="ink" x="58" y="24" width="150" height="7" rx="3"/>
+    <rect class="inkline" x="58" y="40" width="210" height="5" rx="2.5"/>
+    <circle class="dot" cx="288" cy="20" r="4"/><circle class="dot" cx="304" cy="20" r="4"/>
+    <text class="ok" x="0" y="90">✓ baseline</text>
+  </g>
+
+  <!-- 2 LEFT-SPINE -->
+  <g transform="translate(40,232)">
+    <text class="lbl" x="0" y="-8">left-spine</text><text class="meta" x="90" y="-8">thick left border · present default</text>
+    <path class="card" d="M0 0 H311 a9 9 0 0 1 9 9 V63 a9 9 0 0 1 -9 9 H0 Z"/>
+    <rect class="accent" x="0" y="0" width="4" height="72"/>
+    <circle class="av" cx="34" cy="36" r="15"/>
+    <rect class="ink" x="62" y="24" width="150" height="7" rx="3"/>
+    <rect class="inkline" x="62" y="40" width="210" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ unchanged</text>
+  </g>
+
+  <!-- 3 FOLIO -->
+  <g transform="translate(40,344)">
+    <text class="lbl" x="0" y="-8">folio</text><text class="meta" x="60" y="-8">FIXED 14px dog-ear · content pads clear</text>
+    <path class="card" d="M0 0 H306 L320 14 V63 a9 9 0 0 1 -9 9 H9 a9 9 0 0 1 -9 -9 Z"/>
+    <path class="accent" opacity="0.55" d="M306 0 L320 14 L306 14 Z"/>
+    <path class="accent-s" d="M306 0 L306 14 L320 14"/>
+    <circle class="av" cx="30" cy="36" r="15"/>
+    <rect class="ink" x="58" y="24" width="140" height="7" rx="3"/>
+    <rect class="inkline" x="58" y="42" width="200" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ corner fold, fixed size (was: stretched sliver)</text>
+  </g>
+
+  <!-- 4 HEX -> hex-cut ENDS -->
+  <g transform="translate(40,456)">
+    <text class="lbl" x="0" y="-8">hex</text><text class="meta" x="55" y="-8">chamfer the two VERTICAL ENDS only (10px), full height kept</text>
+    <path class="card" d="M10 0 H310 L320 36 L310 72 H10 L0 36 Z"/>
+    <circle class="av" cx="38" cy="36" r="15"/>
+    <rect class="ink" x="66" y="24" width="140" height="7" rx="3"/>
+    <rect class="inkline" x="66" y="40" width="200" height="5" rx="2.5"/>
+    <circle class="dot" cx="286" cy="20" r="4"/><circle class="dot" cx="300" cy="52" r="4"/>
+    <text class="ok" x="0" y="90">✓ reads hexagonal on a bar (was: lopsided dented slab)</text>
+  </g>
+
+  <!-- 5 TAROT -> frame + top-heavy radius -->
+  <g transform="translate(40,568)">
+    <text class="lbl" x="0" y="-8">tarot</text><text class="meta" x="65" y="-8">bigger TOP radius + inset hairline frame (portrait feel, no clip)</text>
+    <path class="card" d="M0 20 a20 20 0 0 1 20 -20 H300 a20 20 0 0 1 20 20 V66 a6 6 0 0 1 -6 6 H6 a6 6 0 0 1 -6 -6 Z"/>
+    <rect class="accent-s" opacity="0.5" x="5" y="5" width="310" height="62" rx="12"/>
+    <circle class="av" cx="34" cy="38" r="15"/>
+    <rect class="ink" x="62" y="26" width="140" height="7" rx="3"/>
+    <rect class="inkline" x="62" y="42" width="200" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ frame overlay (was: top-heavy blob)</text>
+  </g>
+
+  <!-- 6 CAMEO -> capsule ends -->
+  <g transform="translate(40,680)">
+    <text class="lbl" x="0" y="-8">cameo</text><text class="meta" x="70" y="-8">fully rounded capsule ENDS (locket read)</text>
+    <rect class="card" width="320" height="72" rx="36"/>
+    <circle class="av" cx="42" cy="36" r="15"/>
+    <rect class="ink" x="70" y="24" width="140" height="7" rx="3"/>
+    <rect class="inkline" x="70" y="40" width="190" height="5" rx="2.5"/>
+    <circle class="dot" cx="282" cy="36" r="4"/><circle class="dot" cx="296" cy="36" r="4"/>
+    <text class="ok" x="0" y="90">✓ capsule (was: lumpy over-rounded box)</text>
+  </g>
+
+  <!-- 7 NOTCHED -> small beveled corners -->
+  <g transform="translate(40,792)">
+    <text class="lbl" x="0" y="-8">notched</text><text class="meta" x="80" y="-8">small 9px corner bevels (subtle, content-safe)</text>
+    <path class="card" d="M9 0 H311 L320 9 V63 L311 72 H9 L0 63 V9 Z"/>
+    <circle class="av" cx="34" cy="36" r="15"/>
+    <rect class="ink" x="62" y="24" width="140" height="7" rx="3"/>
+    <rect class="inkline" x="62" y="40" width="200" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ subtle cut corners</text>
+  </g>
+
+  <!-- 8 GEM -> corner facet motif (NOT full diamond) -->
+  <g transform="translate(40,904)">
+    <text class="lbl" x="0" y="-8">gem</text><text class="meta" x="55" y="-8">beveled corners + CORNER facet sparks (no full diamond)</text>
+    <path class="card" d="M12 0 H308 L320 12 V60 L308 72 H12 L0 60 V12 Z"/>
+    <path class="accent-s" opacity="0.6" d="M0 12 L12 0 M308 0 L320 12 M320 60 L308 72 M12 72 L0 60"/>
+    <path class="accent-s" opacity="0.35" d="M12 0 L24 12 M308 0 L296 12 M308 72 L296 60 M12 72 L24 60"/>
+    <circle class="av" cx="38" cy="36" r="15"/>
+    <rect class="ink" x="66" y="24" width="130" height="7" rx="3"/>
+    <rect class="inkline" x="66" y="40" width="190" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ cut-stone read (was: diamond ate 70% of the row)</text>
+  </g>
+
+  <!-- ================= COLUMN B ================= -->
+
+  <!-- 9 SPLIT -->
+  <g transform="translate(600,120)">
+    <text class="lbl" x="0" y="-8">split</text><text class="meta" x="60" y="-8">diagonal radius (2 sharp corners)</text>
+    <path class="card" d="M9 0 H320 V63 a9 9 0 0 1 -9 9 H0 V9 a9 9 0 0 1 9 -9 Z"/>
+    <circle class="av" cx="34" cy="36" r="15"/>
+    <rect class="ink" x="62" y="24" width="150" height="7" rx="3"/>
+    <rect class="inkline" x="62" y="40" width="210" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ unchanged</text>
+  </g>
+
+  <!-- 10 TICKET -> edge notches + perforation, content-safe -->
+  <g transform="translate(600,232)">
+    <text class="lbl" x="0" y="-8">ticket</text><text class="meta" x="70" y="-8">EDGE notches + dashed perforation (right stub)</text>
+    <path class="card" d="M0 9 a9 9 0 0 1 9 -9 H320 V27 a6 6 0 0 0 0 18 V72 H9 a9 9 0 0 1 -9 -9 Z"/>
+    <circle class="bg" cx="266" cy="0" r="6"/><circle class="bg" cx="266" cy="72" r="6"/>
+    <line class="accent-s" x1="266" y1="10" x2="266" y2="62" stroke-dasharray="3 4" opacity="0.7"/>
+    <circle class="av" cx="30" cy="36" r="15"/>
+    <rect class="ink" x="58" y="24" width="120" height="7" rx="3"/>
+    <rect class="inkline" x="58" y="40" width="170" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ perforation off the text (was: clipped right edge)</text>
+  </g>
+
+  <!-- 11 GLASS -->
+  <g transform="translate(600,344)">
+    <text class="lbl" x="0" y="-8">glass</text><text class="meta" x="65" y="-8">radius + frosted fill</text>
+    <rect class="card" width="320" height="72" rx="14" fill="#232019"/>
+    <rect x="1" y="1" width="318" height="30" rx="13" fill="#ffffff" opacity="0.04"/>
+    <circle class="av" cx="30" cy="36" r="15"/>
+    <rect class="ink" x="58" y="24" width="150" height="7" rx="3"/>
+    <rect class="inkline" x="58" y="40" width="210" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ unchanged</text>
+  </g>
+
+  <!-- 12 INSET -->
+  <g transform="translate(600,456)">
+    <text class="lbl" x="0" y="-8">inset</text><text class="meta" x="60" y="-8">radius + inner hairline ring</text>
+    <rect class="card" width="320" height="72" rx="7"/>
+    <rect class="accent-s" opacity="0.25" x="3" y="3" width="314" height="66" rx="5"/>
+    <circle class="av" cx="30" cy="36" r="15"/>
+    <rect class="ink" x="58" y="24" width="150" height="7" rx="3"/>
+    <rect class="inkline" x="58" y="40" width="210" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ unchanged</text>
+  </g>
+
+  <!-- 13 PETAL -> asymmetric big radius on opposite corners -->
+  <g transform="translate(600,568)">
+    <text class="lbl" x="0" y="-8">petal</text><text class="meta" x="65" y="-8">big radius on TL+BR, small on TR+BL (leaf)</text>
+    <path class="card" d="M28 0 H316 a4 4 0 0 1 4 4 V44 a28 28 0 0 1 -28 28 H4 a4 4 0 0 1 -4 -4 V28 a28 28 0 0 1 28 -28 Z"/>
+    <circle class="av" cx="40" cy="36" r="15"/>
+    <rect class="ink" x="68" y="24" width="140" height="7" rx="3"/>
+    <rect class="inkline" x="68" y="40" width="190" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ leaf read via radius (no clip)</text>
+  </g>
+
+  <!-- 14 CONSTELLATION -> fixed top strip, PAR preserved -->
+  <g transform="translate(600,680)">
+    <text class="lbl" x="0" y="-8">constellation</text><text class="meta" x="120" y="-8">dotted arc + stars in a FIXED 22px top strip</text>
+    <rect class="card" width="320" height="72" rx="9"/>
+    <path class="accent-s" opacity="0.6" d="M14 18 Q90 4 160 12 T306 8" stroke-dasharray="1.5 4"/>
+    <circle class="accent" cx="14" cy="18" r="2.2"/><circle class="accent" cx="160" cy="12" r="2.6"/>
+    <circle class="accent" cx="236" cy="9" r="1.8"/><circle class="accent" cx="306" cy="8" r="2.2"/>
+    <circle class="av" cx="30" cy="44" r="13"/>
+    <rect class="ink" x="56" y="36" width="140" height="6" rx="3"/>
+    <rect class="inkline" x="56" y="50" width="200" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ arc pinned to strip (was: stretched across whole row)</text>
+  </g>
+
+  <!-- 15 SCALLOPED -> bottom edge only, fixed bumps -->
+  <g transform="translate(600,792)">
+    <text class="lbl" x="0" y="-8">scalloped</text><text class="meta" x="85" y="-8">scallop the BOTTOM edge only (content bottom-pads clear)</text>
+    <path class="card" d="M0 9 a9 9 0 0 1 9 -9 H311 a9 9 0 0 1 9 9 V60
+      q-13.3 0 -13.3 6 q0 6 -13.3 6 q-13.3 0 -13.3 -6 q0 -6 -13.3 -6 q-13.3 0 -13.3 6 q0 6 -13.3 6 q-13.3 0 -13.3 -6 q0 -6 -13.3 -6 q-13.3 0 -13.3 6 q0 6 -13.3 6 q-13.3 0 -13.3 -6 q0 -6 -13.3 -6 q-13.3 0 -13.3 6 q0 6 -13.3 6 q-13.3 0 -13.3 -6 q0 -6 -13.3 -6 q-13.3 0 -13.3 6 q0 6 -13.3 6 q-13.3 0 -13.3 -6 q0 -6 -13.3 -6 q-13.3 0 -13.3 6 q0 6 -13.3 6 q-13.3 0 -13.3 -6 q0 -6 -13.3 -6 q-13.3 0 -13.3 6 q0 6 -13.3 6 q-13.3 0 -13.3 -6 q0 -6 -13.3 -6 q-13.3 0 -13.3 6 q0 6 -13.3 6 L0 66 Z"/>
+    <circle class="av" cx="30" cy="34" r="14"/>
+    <rect class="ink" x="56" y="24" width="150" height="7" rx="3"/>
+    <rect class="inkline" x="56" y="40" width="200" height="5" rx="2.5"/>
+    <text class="ok" x="0" y="90">✓ decorative bottom (content clears the bumps)</text>
+  </g>
+
+  <line class="divider" x1="40" y1="912" x2="560" y2="912"/>
+  <line class="divider" x1="600" y1="912" x2="1080" y2="912"/>
+
+  <!-- ================= TALL-CASE VALIDATION ================= -->
+  <text class="lbl" x="40" y="1010">TALL &amp; EXTREME CASES — same treatments hold across the measured ratio span</text>
+
+  <!-- bonds 320x232 (r1.38) with constellation -->
+  <g transform="translate(40,1030)">
+    <text class="meta" x="0" y="-6">bonds · 320×232 (r1.4) · constellation strip</text>
+    <rect class="card" width="320" height="232" rx="9"/>
+    <path class="accent-s" opacity="0.6" d="M14 18 Q90 4 160 12 T306 8" stroke-dasharray="1.5 4"/>
+    <circle class="accent" cx="14" cy="18" r="2.2"/><circle class="accent" cx="160" cy="12" r="2.6"/><circle class="accent" cx="306" cy="8" r="2.2"/>
+    <rect class="ink" x="16" y="32" width="120" height="7" rx="3"/>
+    <rect class="accent" opacity="0.5" x="220" y="30" width="84" height="14" rx="7"/>
+    <rect class="inkline" x="16" y="56" width="288" height="5" rx="2.5"/>
+    <rect class="inkline" x="16" y="70" width="240" height="5" rx="2.5"/>
+    <rect class="good" opacity="0.5" x="16" y="96" width="288" height="8" rx="4"/>
+    <rect class="info" opacity="0.5" x="16" y="120" width="288" height="8" rx="4"/>
+    <text class="ok" x="0" y="252">✓ arc still a top strip, meters full width</text>
+  </g>
+
+  <!-- items 320x48 (r6.6) EXTREME with gem -->
+  <g transform="translate(400,1030)">
+    <text class="meta" x="0" y="-6">items · 320×48 (r6.7 EXTREME) · gem corner-facet</text>
+    <path class="card" d="M10 0 H310 L320 10 V38 L310 48 H10 L0 38 V10 Z"/>
+    <path class="accent-s" opacity="0.6" d="M0 10 L10 0 M310 0 L320 10 M320 38 L310 48 M10 48 L0 38"/>
+    <rect class="ink" x="16" y="16" width="150" height="7" rx="3"/>
+    <rect class="inkline" x="16" y="30" width="110" height="5" rx="2.5"/>
+    <circle class="dot" cx="292" cy="24" r="4"/><circle class="dot" cx="306" cy="24" r="4"/>
+    <text class="ok" x="0" y="70">✓ works even at r6.7 (diamond was impossible here)</text>
+    <text class="note" x="0" y="86">the whole point: corner treatment scales to any ratio</text>
+  </g>
+
+  <!-- faction 320x180 (r1.78) with hex ends -->
+  <g transform="translate(760,1030)">
+    <text class="meta" x="0" y="-6">faction · 320×180 (r1.8) · hex ends</text>
+    <path class="card" d="M10 0 H310 L320 90 L310 180 H10 L0 90 Z"/>
+    <circle class="av" cx="40" cy="34" r="15"/>
+    <rect class="ink" x="66" y="24" width="120" height="7" rx="3"/>
+    <rect class="inkline" x="20" y="60" width="280" height="5" rx="2.5"/>
+    <rect class="info" opacity="0.5" x="20" y="84" width="200" height="8" rx="4"/>
+    <rect class="dot" x="20" y="110" width="70" height="18" rx="9"/>
+    <rect class="dot" x="98" y="110" width="70" height="18" rx="9"/>
+    <text class="ok" x="0" y="200">✓ chamfer scales with height</text>
+  </g>
+
+  <line class="divider" x1="40" y1="1310" x2="1080" y2="1310"/>
+
+  <!-- ================= PRINCIPLES ================= -->
+  <text class="lbl" x="40" y="1352">DESIGN RULES (v2)</text>
+  <text class="sub" x="40" y="1380">1 · The content box is NEVER clipped. Silhouette lives on a frame/overlay layer or as edge/corner geometry only.</text>
+  <text class="sub" x="40" y="1404">2 · Every treatment must survive ratio 1.2 → 6.7. Corner/edge motifs scale; full-bleed polygons do not.</text>
+  <text class="sub" x="40" y="1428">3 · SVG ornaments are FIXED-SIZE and corner-anchored (drop preserveAspectRatio=none) so they never stretch.</text>
+  <text class="sub" x="40" y="1452">4 · Decorative edges (ticket perforation, scallop) sit in padding/margins the content already clears.</text>
+  <text class="sub" x="40" y="1476">5 · Default chrome still emits no shape attribute → byte-identical, zero ornament markup.</text>
+  <text class="note" x="40" y="1512">Shapes reclassified: EDGE-END (hex) · CORNER (folio/notched/gem/split/petal) · CAPSULE (cameo) · FRAME (tarot/inset) · STRIP (constellation) · BOTTOM (scalloped) · EDGE-STUB (ticket) · FILL (slab/left-spine/glass)</text>
+</svg>

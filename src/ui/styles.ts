@@ -14,25 +14,40 @@
 // one map means the primitive and the override can never drift apart.
 // ---------------------------------------------------------------------------
 const R = 'var(--v-shape-radius)';
+// SHAPE_GEOM v2 (grounded, mockup 36). Every VELLUM card is a WIDE HORIZONTAL
+// ROW (width ~351px, height content-driven, measured ratios 1.2..6.7). So the
+// silhouette is expressed as EDGE / CORNER / CAPSULE / FRAME geometry that never
+// clips the content box, NOT as a full-bleed polygon (a diamond/hex sized for a
+// portrait card ate 70% of a row). Clips that remain only shave small FIXED-px
+// corners/ends that live in the card's padding, so text/avatars never clip.
 const SHAPE_GEOM: Record<string, string> = {
+  // FILL family — radius/border/fill only
   slab: `border-radius:${R}`,
   'left-spine': `border-radius:0 ${R} ${R} 0;border-left-width:3px`,
-  folio: `border-radius:calc(${R} * .5) calc(${R} * 1.4) calc(${R} * .5) calc(${R} * 1.4)`,
-  hex: 'clip-path:polygon(6% 0,94% 0,100% 50%,94% 100%,6% 100%,0 50%)',
-  tarot: `border-radius:calc(${R} * 2.2) calc(${R} * 2.2) calc(${R} * .6) calc(${R} * .6)`,
-  cameo: `border-radius:calc(${R} * 3)`,
-  notched: 'clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)',
-  split: `border-radius:${R} 0 ${R} 0`,
-  ticket: 'clip-path:polygon(0 0,100% 0,100% 42%,calc(100% - 6px) 50%,100% 58%,100% 100%,0 100%,0 58%,6px 50%,0 42%)',
   glass: `border-radius:calc(${R} * 1.3)`,
-  inset: `border-radius:calc(${R} * .7);box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.12)`,
-  gem: 'clip-path:polygon(50% 0,86% 14%,100% 50%,86% 86%,50% 100%,14% 86%,0 50%,14% 14%)',
+  constellation: `border-radius:${R}`, // detail is a fixed top strip (ornament.ts)
+  // CORNER family — small fixed corner geometry or asymmetric radius
+  folio: `border-radius:${R}`, // dog-ear is a fixed corner ornament (ornament.ts)
+  notched: 'clip-path:polygon(9px 0,calc(100% - 9px) 0,100% 9px,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px),0 9px)',
+  gem: `border-radius:${R}`, // cut-stone read comes from CSS corner facet sparks (styles.ts), NOT a clip — a bevel clip eats content on thin rows (measured: 2/4 children clipped at ratio 6.1)
+  split: `border-radius:${R} 0 ${R} 0`,
   petal: `border-radius:calc(${R} * 2.4) calc(${R} * .4) calc(${R} * 2.4) calc(${R} * .4)`,
-  constellation: `border-radius:${R}`,
+  // EDGE-END family — chamfer the two vertical ends, keep full height
+  hex: 'clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 50%,calc(100% - 10px) 100%,10px 100%,0 50%)',
+  // CAPSULE — fully rounded ends (locket read); caps at half the row height
+  cameo: 'border-radius:999px',
+  // FRAME family — inset hairline frame overlay (ornament pseudo) + gentle radius
+  tarot: `border-radius:calc(${R} * 1.6) calc(${R} * 1.6) calc(${R} * .5) calc(${R} * .5)`,
+  inset: `border-radius:calc(${R} * .7);box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.12)`,
+  // EDGE-STUB — perforation drawn off the text (ornament pseudo), no edge clip
+  ticket: `border-radius:${R}`,
+  // BOTTOM — scallop the bottom edge only; content bottom-pads clear of the bumps
   scalloped: `border-radius:calc(${R} * .8);-webkit-mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat;mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat`,
 };
-// exotic edges that need a clip-path/mask fallback to a rounded slab on old UAs
-const CLIP_SHAPES = ['hex', 'notched', 'ticket', 'gem'];
+// shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
+// small fixed corners; hex chamfers the ends. gem/ticket no longer clip (gem is
+// radius + facet sparks; ticket is radius + perforation pseudo).
+const CLIP_SHAPES = ['hex', 'notched'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
@@ -204,9 +219,10 @@ export const STYLES = [
   ".vle-tl-dot.vle-tl-beat{background:var(--vle-gold);box-shadow:0 0 0 2px color-mix(in srgb,var(--vle-gold) 40%,transparent)}",
   ".vle-mem-tier.t-beat{color:var(--vle-gold);border-color:color-mix(in srgb,var(--vle-gold) 45%,transparent)}",
   // G5 index-card feel: beat rows get a hairline card + a faint alternating tilt.
-  ".vle-mem--beat{position:relative;padding:6px 10px;margin:5px 0;background:color-mix(in srgb,var(--vg) 5%,var(--vsurf-1));border:1px solid rgba(var(--vg-rgb),.16);border-left:3px solid var(--vle-gold);border-radius:var(--vr2);transform:rotate(-.5deg);transition:transform .18s ease}",
-  ".vle-mem--beat:nth-child(2n){transform:rotate(.5deg)}",
-  ".vle-mem--beat:hover{transform:rotate(0)}",
+  // (.vle-mem.vle-mem--beat so it beats the base .vle-mem padding at equal-spec.)
+  ".vle-mem.vle-mem--beat{position:relative;padding:6px 10px;margin:5px 0;background:color-mix(in srgb,var(--vg) 5%,var(--vsurf-1));border:1px solid rgba(var(--vg-rgb),.16);border-left:3px solid var(--vle-gold);border-radius:var(--vr2);transform:rotate(-.5deg);transition:transform .18s ease}",
+  ".vle-mem.vle-mem--beat:nth-child(2n){transform:rotate(.5deg)}",
+  ".vle-mem.vle-mem--beat:hover{transform:rotate(0)}",
   "@media (prefers-reduced-motion:reduce){.vle-mem--beat,.vle-mem--beat:nth-child(2n),.vle-mem--beat:hover{transform:none;transition:none}}",
   ".vle-beat-sug-h{display:flex;align-items:center;gap:8px;margin:4px 0 8px;min-width:0}",
   ".vle-beat-sug-lbl{flex:0 0 auto;font:600 10px/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;opacity:.6}",
@@ -1541,23 +1557,27 @@ export const STYLES = [
   // The card roots are position:relative already (or made so here) so the layer
   // pins to the card. All are pointer-events:none and motion-free.
   // ============================================================================
-  // the appended overlay: fills the card, never intercepts clicks, sits above bg
-  // but below text is not required -- it is decorative and translucent.
+  // the overlay pins to the card, clips to its rounded box, never takes clicks.
   ".v-ornlayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:inherit;z-index:1}",
-  ".v-ornsvg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}",
-  // folio dog-ear: a turned corner in the accent, with a darker crease.
-  ".v-ornsvg--folio .v-fold-back{fill:color-mix(in srgb,var(--vg) 30%,transparent)}",
-  ".v-ornsvg--folio .v-fold-crease{stroke:color-mix(in srgb,var(--vg) 55%,transparent);stroke-width:1}",
-  // gem facets: faint accent hairlines echoing the cut.
-  ".v-ornsvg--gem .v-facet{stroke:color-mix(in srgb,var(--vg) 22%,transparent);stroke-width:1;fill:none}",
-  // ember constellation: a dotted arc + glowing star nodes between avatars.
-  ".v-ornsvg--const .v-const-arc{stroke:color-mix(in srgb,var(--vg) 45%,transparent);stroke-width:1;stroke-dasharray:1 4;stroke-linecap:round}",
+  // v2: each SVG is FIXED-SIZE and corner/strip-anchored (no full-bleed stretch).
+  ".v-ornsvg{position:absolute;overflow:visible}",
+  // folio dog-ear: a fixed 16px turned corner pinned TOP-RIGHT + crease.
+  ".v-ornsvg--folio{top:0;right:0;width:16px;height:16px}",
+  ".v-ornsvg--folio .v-fold-back{fill:color-mix(in srgb,var(--vg) 34%,var(--vsurf-2,#1d1a15))}",
+  ".v-ornsvg--folio .v-fold-crease{stroke:color-mix(in srgb,var(--vg) 60%,transparent);stroke-width:1}",
+  // gem facet sparks: fixed 14px marks pinned to each corner (echo the bevel).
+  ".v-ornsvg--gem{top:0;left:0;width:14px;height:14px}",
+  ".v-ornsvg--gem .v-facet{stroke:color-mix(in srgb,var(--vg) 45%,transparent);stroke-width:1;fill:none}",
+  // ember constellation: pinned to a fixed 22px TOP strip, spanning the width.
+  ".v-ornsvg--const{top:0;left:0;right:0;width:100%;height:22px}",
+  ".v-ornsvg--const .v-const-arc{stroke:color-mix(in srgb,var(--vg) 45%,transparent);stroke-width:1;stroke-dasharray:1.5 4;stroke-linecap:round}",
   ".v-ornsvg--const .v-const-star{fill:color-mix(in srgb,var(--vg) 80%,#fff)}",
   "html[data-vle-motion='on'] .v-ornsvg--const .v-const-star{animation:v-twinkle 3.4s ease-in-out infinite}",
   "@keyframes v-twinkle{0%,100%{opacity:.55}50%{opacity:1}}",
   "@media (prefers-reduced-motion:reduce){.v-ornsvg--const .v-const-star{animation:none!important}}",
-  // scar seam: a torn polyline; solid=open, dotted+faded=healing.
-  ".v-ornsvg--scar .v-scar{stroke:var(--v-neg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}",
+  // scar seam: torn polyline pinned to a fixed mid strip; solid=open, faded=heal.
+  ".v-ornsvg--scar{left:0;right:0;top:calc(50% - 10px);width:100%;height:20px}",
+  ".v-ornsvg--scar .v-scar{stroke:var(--v-neg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;opacity:.6}",
   ".v-ornsvg--scar .v-scar--healing{stroke:color-mix(in srgb,var(--v-neg) 45%,transparent);stroke-dasharray:3 4}",
 
   // --- pseudo-element shape details (no markup; the card root carries them) ---
@@ -1571,6 +1591,9 @@ export const STYLES = [
   "[data-shape-present='notched'] .vld-pc::before,[data-shape-cast='notched'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;inset:3px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/1px 8px no-repeat;opacity:.5}",
   // tarot inner frame: an inset hairline rule for the portrait-card feel.
   "[data-shape-present='tarot'] .vld-pc::before,[data-shape-cast='tarot'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;inset:4px;border:1px solid color-mix(in srgb,var(--vg) 25%,transparent);border-radius:inherit;pointer-events:none;z-index:1}",
+  // gem corner facets: short accent hairlines just inside all four beveled corners
+  // (cut-stone read), drawn with corner-anchored linear-gradients. Content-safe.
+  "[data-shape-items='gem'] .vle-item-row::after,[data-shape-cast='gem'] .vle-card:not(.vle-fac)::after,[data-shape-factions='gem'] .vle-fac::after,[data-shape-present='gem'] .vld-pc::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;background:linear-gradient(135deg,var(--vg),var(--vg)) 0 0/10px 1.5px no-repeat,linear-gradient(45deg,var(--vg),var(--vg)) 100% 0/10px 1.5px no-repeat,linear-gradient(45deg,var(--vg),var(--vg)) 0 100%/10px 1.5px no-repeat,linear-gradient(135deg,var(--vg),var(--vg)) 100% 100%/10px 1.5px no-repeat;opacity:.4}",
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.

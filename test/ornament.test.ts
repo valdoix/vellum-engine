@@ -9,7 +9,9 @@ import { SHAPE_IDS, SURFACES } from '../src/ui/theme.js';
  * --vmotion), no `--` inside SVG (would break XML parsing), always non-interactive.
  */
 
-const HAS_ORNAMENT = new Set(['folio', 'gem', 'constellation']);
+// v2: gem's facets are pure-CSS corner sparks (no markup), so only folio and
+// constellation emit an SVG snippet from shapeOrnament.
+const HAS_ORNAMENT = new Set(['folio', 'constellation']);
 
 describe('shapeOrnament', () => {
   it('returns a snippet only for shapes with a drawn SVG detail', () => {
