@@ -32,7 +32,8 @@ export interface Theme {
   surf2c: string;      // '' = skin surface; else hex overriding card surface 2
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
-  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier' | 'glimmerwood' | 'marginalia'; // window ornamentation, orthogonal to skin
+  mode: 'dark' | 'light'; // color mode; picks the chrome's dark/light skin
+  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember'; // window ornamentation, orthogonal to skin
 
   // display flags
   tensionStyle: 'bar' | 'num' | 'both';
@@ -48,13 +49,10 @@ export interface Skin { id: string; name: string; blurb: string; theme: Pick<The
 const F_SERIF = "'Cormorant Garamond',Georgia,serif";
 const F_MONO = "'JetBrains Mono',ui-monospace,monospace";
 const F_SANS = "'Inter',system-ui,-apple-system,\"Segoe UI\",sans-serif";
-const F_DISPLAY = "'Cinzel','Cormorant Garamond',Georgia,serif"; // Fantasy display
 const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
 const F_ETHEREAL = "'Cormorant Garamond','Quicksand',Georgia,serif"; // Ember display — airy serif with a dreamy italic lean
-const F_ACADEMIA = "'Cinzel','EB Garamond',Georgia,'Times New Roman',serif"; // Atelier display — engraved museum-placard caps over an old-book body
-const F_MARGINALIA = "'Cormorant Garamond','EB Garamond',Georgia,serif"; // Marginalia display — a soft, gentle old-book serif with a dreamy italic (light academia)
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'nocturne' | 'atelier' | 'glimmerwood' | 'marginalia';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember';
 
 
 /**
@@ -62,36 +60,23 @@ export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloo
  * sensible window-knob defaults. It is orthogonal to skin: any mode composes with any
  * palette. After picking, every knob is still individually overridable.
  */
-export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme>; form: string; skin?: string }
+export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme>; form: string; skin?: string; skinDark: string; skinLight: string }
+// Six chromes, each with a paired dark + light skin. `skin` is the mode's
+// recommended (dark) palette for back-compat; setMode picks dark/light by the
+// active color mode. Philosophy: STORY (the scene leads) · BEAUTY (each chrome
+// is a distinct world, ornament that encodes state) · MEMORY (the margin holds).
 export const MODES: Mode[] = [
-  { id: 'default', name: 'Default', blurb: 'Calm &amp; legible \u2014 hierarchy first, quiet gold, the refined baseline.', patch: { chrome: 'default', radius: 14, border: 1, texture: '', serif: F_SERIF }, form: 'dashboard', skin: 'illuminated' },
-  { id: 'illuminated', name: 'Fantasy', blurb: 'An open codex \u2014 warm parchment, brown ink, rubric headers, a wax seal.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: 'parchment', serif: F_SERIF }, form: 'codex', skin: 'parchment' },
-  { id: 'modern', name: 'Modern', blurb: 'A calm card app \u2014 flat, sans, one smooth scroll of rounded cards.', patch: { chrome: 'modern', radius: 16, border: 1, texture: '', serif: F_SANS }, form: 'dashboard', skin: 'moonlit' },
-  { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 cyan telemetry, reticle avatars, a live bond radar.', patch: { chrome: 'futuristic', radius: 2, border: 1, texture: 'grid', serif: F_HUD, accent: '#28e0d8', accent2: '#7a5cff' }, form: 'hud', skin: 'noir' },
-  { id: 'bloom', name: 'Bloom', blurb: 'A pressed-flower garden \u2014 blush pink &amp; sage, petals, lace, a cozy romance.', patch: { chrome: 'bloom', radius: 20, border: 1, texture: 'petals', serif: F_SERIF, accent: '#d98cab', accent2: '#8fbf7f' }, form: 'dashboard', skin: 'blush' },
+  { id: 'default', name: 'Default', blurb: 'Calm &amp; legible \u2014 hierarchy first, quiet gold, the refined baseline.', patch: { chrome: 'default', radius: 14, border: 1, texture: '', serif: F_SERIF }, form: 'dashboard', skin: 'illuminated', skinDark: 'illuminated', skinLight: 'parchment' },
+  { id: 'illuminated', name: 'Fantasy', blurb: 'An open codex \u2014 warm parchment, brown ink, rubric headers, a wax seal.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: 'parchment', serif: F_SERIF }, form: 'codex', skin: 'vellum-dark', skinDark: 'vellum-dark', skinLight: 'parchment' },
+  { id: 'modern', name: 'Modern', blurb: 'A calm card app \u2014 flat, sans, one smooth scroll of rounded cards.', patch: { chrome: 'modern', radius: 16, border: 1, texture: '', serif: F_SANS }, form: 'dashboard', skin: 'moonlit', skinDark: 'moonlit', skinLight: 'daylit' },
+  { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 cyan telemetry, reticle avatars, a live bond radar.', patch: { chrome: 'futuristic', radius: 2, border: 1, texture: 'grid', serif: F_HUD, accent: '#28e0d8', accent2: '#7a5cff' }, form: 'hud', skin: 'noir', skinDark: 'noir', skinLight: 'chrome-light' },
+  { id: 'bloom', name: 'Bloom', blurb: 'A pressed-flower garden \u2014 blush pink &amp; sage, petals, lace, a cozy romance.', patch: { chrome: 'bloom', radius: 20, border: 1, texture: 'petals', serif: F_SERIF, accent: '#d98cab', accent2: '#8fbf7f' }, form: 'dashboard', skin: 'blush-noir', skinDark: 'blush-noir', skinLight: 'blush' },
   // EMBER — "the night sky dreaming": a deep indigo void, drifting fireflies &
   // slow-rising bubbles, scattered pastel starlight, glowing soft-edged cards.
   // Distinct from Bloom (light/cozy) and Futuristic (hard/telemetry): Ember is
   // dark, soft, ethereal, and animated — pastels that glow on a midnight field.
-  { id: 'ember', name: 'Ember', blurb: 'A starlit night dreaming \u2014 indigo void, fireflies, rising bubbles, pastel starlight.', patch: { chrome: 'ember', radius: 22, border: 1, texture: 'starfall', serif: F_ETHEREAL, accent: '#b8a9ff', accent2: '#8fd6c8', opacity: 0.92, blur: 12 }, form: 'dashboard', skin: 'starfall' },
-  { id: 'nocturne', name: 'Nocturne', blurb: 'A midnight botanical salon \u2014 silver lace, blue lilies, constellations, and inlaid panels.', patch: { chrome: 'nocturne', radius: 8, border: 1.5, texture: 'midnight-lace', serif: F_DISPLAY, accent: '#b9cfee', accent2: '#466da8', opacity: 0.97, blur: 10 }, form: 'salon', skin: 'nocturne' },
-  // ATELIER — "the dark-academia study": a dim museum gallery hung with oil
-  // paintings. Warm walnut walls, an ornate GILT PICTURE-FRAME around the float,
-  // engraved brass placard headers, statue-niche avatars, and a shelf of book
-  // spines for the Latest feed. Autumn palette (oxblood, olive, ochre, gilt) over
-  // aged canvas. Static & scholarly with only slow drifting dust motes in the
-  // gallery light — deliberately warm/brown to stand apart from Bloom (light
-  // pastel), Ember (glowing indigo), and Nocturne (cold navy architecture).
-  { id: 'atelier', name: 'Atelier', blurb: 'A dark-academia gallery \u2014 gilt-framed oil paintings, brass placards, marble busts, autumn &amp; old books.', patch: { chrome: 'atelier', radius: 4, border: 1.5, texture: 'canvas', serif: F_ACADEMIA, accent: '#b08840', accent2: '#7d3b2e', opacity: 0.98, blur: 6 }, form: 'gallery', skin: 'atelier' },
-  { id: 'glimmerwood', name: 'Glimmerwood', blurb: 'An ethereal fairy glade \u2014 moss glass, gauzy light, golden fireflies, and leaf-soft storybook forms.', patch: { chrome: 'glimmerwood', radius: 24, border: 1, texture: 'firefly-grove', serif: F_ETHEREAL, accent: '#f3c66b', accent2: '#668f88', opacity: 0.9, blur: 14, bg: '', surf1c: '', surf2c: '' }, form: 'glade', skin: 'glimmerwood' },
-  // MARGINALIA — "the light-academia study at night": a soft pressed-flower
-  // notebook. Deep dusk-lilac paper, warm cream ink, pastel botanicals (mauve,
-  // sage, dusty rose, honey). EVERYTHING is soft — max radius, thin borders, big
-  // blur, pillowy cards, dotted-ink rules, pressed-flower texture, a little
-  // ribbon bookmark and inky-bloom flourishes. Deliberately gentle & low-contrast
-  // to stand apart from Atelier (hard warm gilt frames), Bloom (bright light
-  // pink), Ember (glowing indigo) and Nocturne (cold navy architecture).
-  { id: 'marginalia', name: 'Marginalia', blurb: 'A light-academia notebook at night \u2014 soft lilac paper, cream ink, pressed flowers, no hard edges.', patch: { chrome: 'marginalia', radius: 24, border: 1, texture: 'pressed-flowers', serif: F_MARGINALIA, accent: '#c9a7d6', accent2: '#a3c090', opacity: 0.94, blur: 13 }, form: 'dashboard', skin: 'marginalia' },
+  // Its light twin is a pale dawn sky (starfall-dawn).
+  { id: 'ember', name: 'Ember', blurb: 'A starlit night dreaming \u2014 indigo void, fireflies, rising bubbles, pastel starlight.', patch: { chrome: 'ember', radius: 22, border: 1, texture: 'starfall', serif: F_ETHEREAL, accent: '#b8a9ff', accent2: '#8fd6c8', opacity: 0.92, blur: 12 }, form: 'dashboard', skin: 'starfall', skinDark: 'starfall', skinLight: 'starfall-dawn' },
 ];
 
 
@@ -117,17 +102,15 @@ export const SKINS: Skin[] = [
   // pastel ink (lilac & mint), pastel starlight semantics that glow against the
   // void. The recommended skin for the Ember chrome; composes with any chrome.
   { id: 'starfall', name: 'Ember Sky', blurb: 'A starlit indigo void — pastel lilac & mint starlight, fireflies, soft glow.', theme: { accent: '#b8a9ff', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(24,24,40,.62)', surf2: 'rgba(15,15,28,.58)', ink: '#e6e0f5', ink2: '#b0a8d0', glass: 'linear-gradient(168deg,rgba(20,20,36,.97),rgba(12,12,24,.985))', ...SEM, pos: '#9cd6a8', posInk: '#c0e8cc', neg: '#f0a8b8', negInk: '#f8c4d0', info: '#9bc8e8', warn: '#d8b0e8', press: '#f0c878', pressInk: '#f8dc9a' } },
-  { id: 'nocturne', name: 'Nocturne Blue', blurb: 'Ink-black navy with porcelain blue, tarnished silver, and botanical shadows.', theme: { accent: '#b9cfee', serif: F_DISPLAY, mono: F_MONO, surf1: 'rgba(8,18,39,.84)', surf2: 'rgba(3,9,23,.9)', ink: '#e8f0fb', ink2: '#9eb2ce', glass: 'linear-gradient(145deg,rgba(9,22,48,.985),rgba(2,8,22,.995))', ...SEM, pos: '#82afaa', posInk: '#a7d3ce', neg: '#bb7182', negInk: '#df9aaa', info: '#78a8de', warn: '#a49aca', press: '#bda46c', pressInk: '#dcc88f' } },
-  // Dark-academia gallery — dim walnut-brown walls, aged-canvas ink, tarnished
-  // gilt accent, autumn semantics (moss-olive, oxblood, faded slate-teal, dusty
-  // plum, ochre). The recommended skin for the Atelier chrome; composes anywhere.
-  { id: 'atelier', name: 'Old Masters', blurb: 'A dim gallery at dusk — walnut walls, gilt frames, aged canvas, autumn oils.', theme: { accent: '#b08840', serif: F_ACADEMIA, mono: F_MONO, surf1: 'rgba(38,29,21,.9)', surf2: 'rgba(26,19,13,.94)', ink: '#ece0c8', ink2: '#b6a487', glass: 'linear-gradient(160deg,rgba(34,26,19,.99),rgba(20,15,10,.995))', ...SEM, pos: '#8a9463', posInk: '#a9b382', neg: '#a4503f', negInk: '#c87a63', info: '#6f9a99', warn: '#9a7ea0', press: '#c08a3c', pressInk: '#d9a856' } },
-  { id: 'glimmerwood', name: 'Glimmerwood', blurb: 'Mist-soft moss and teal glass lit by warm fireflies and pearly woodland ink.', theme: { accent: '#f3c66b', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(38,58,49,.66)', surf2: 'rgba(24,40,35,.72)', ink: '#eee9d7', ink2: '#bdcbbd', glass: 'linear-gradient(155deg,rgba(39,59,50,.94),rgba(18,34,30,.97))', ...SEM, pos: '#8fc397', posInk: '#b7ddb7', neg: '#cf806d', negInk: '#e9a28e', info: '#83b8b0', warn: '#aaa3bd', press: '#d99662', pressInk: '#efb982' } },
-  // Marginalia — the light-academia study at night: a soft dusk-lilac notebook,
-  // warm cream ink, pressed-flower pastels (mauve, sage, dusty rose, honey). Deep
-  // muted plum-charcoal paper with NO harsh contrast — everything gentle and inky.
-  // The recommended skin for the Marginalia chrome; composes with any chrome.
-  { id: 'marginalia', name: 'Pressed Petals', blurb: 'A light-academia notebook at night — dusk lilac, cream ink, pressed-flower pastels.', theme: { accent: '#c9a7d6', serif: F_MARGINALIA, mono: F_MONO, surf1: 'rgba(44,38,52,.6)', surf2: 'rgba(31,27,39,.56)', ink: '#efe6d7', ink2: '#bcafc2', glass: 'linear-gradient(168deg,rgba(40,34,48,.97),rgba(26,22,32,.985))', ...SEM, pos: '#a3c090', posInk: '#c0d8ac', neg: '#d68ea2', negInk: '#e8adbc', info: '#a9bce4', warn: '#c8a6dc', press: '#d9bd80', pressInk: '#ecd39c' } },
+  // --- LIGHT skins: the paired daytime twin for a chrome's dark default. Light
+  // surfaces, dark ink, semantics preserved & darkened enough to read on white.
+  // Modern's day face — clean paper white, cool slate ink, calm blue accent.
+  { id: 'daylit', name: 'Daylit', blurb: 'A clean daytime card app — paper white, slate ink, cool blue.', theme: { accent: '#3f6fb0', serif: F_SANS, mono: F_MONO, surf1: 'rgba(255,255,255,.92)', surf2: 'rgba(240,243,248,.92)', ink: '#20242c', ink2: '#5a6472', glass: 'linear-gradient(168deg,#ffffff,#eef1f6)', ...SEM, pos: '#4f8a3f', posInk: '#3d7030', neg: '#c0504a', negInk: '#a63f3a', info: '#3f6fb0', warn: '#8a5aa8', press: '#c07f2a', pressInk: '#a5661a' } },
+  // Futuristic's day face — bright chrome-white terminal, deep ink, teal HUD.
+  { id: 'chrome-light', name: 'Daylight HUD', blurb: 'A bright command console — chrome white, deep ink, teal telemetry.', theme: { accent: '#0f9c94', serif: F_HUD, mono: F_MONO, surf1: 'rgba(244,247,248,.94)', surf2: 'rgba(228,234,236,.94)', ink: '#12201f', ink2: '#4a5c5a', glass: 'linear-gradient(168deg,#f4f7f8,#e2e9ea)', ...SEM, pos: '#3f8a5a', posInk: '#2f7048', neg: '#c0504a', negInk: '#a63f3a', info: '#0f7fa0', warn: '#6a5aa8', press: '#b57a1e', pressInk: '#9a6410' } },
+  // Ember's day face — a pale dawn sky: soft lilac-white paper, plum ink, the
+  // same lilac/mint accents so the chrome's fireflies & seal still read.
+  { id: 'starfall-dawn', name: 'Ember Dawn', blurb: 'A pale dawn sky — soft lilac-white paper, plum ink, waking pastels.', theme: { accent: '#7a5fd0', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(250,247,255,.9)', surf2: 'rgba(240,235,250,.9)', ink: '#2a2340', ink2: '#6a5f88', glass: 'linear-gradient(168deg,#faf7ff,#efeafb)', ...SEM, pos: '#4f8a5f', posInk: '#3d7048', neg: '#c8607a', negInk: '#a84a62', info: '#4f7fb8', warn: '#9a6ac0', press: '#c08a2e', pressInk: '#a5701a' } },
 ];
 
 
@@ -172,8 +155,17 @@ const DEFAULT: Theme = {
   skin: 'illuminated', accent2: '#9bc0e6', accentIntensity: 1,
   scale: 1.12, dataScale: 1, density: 1,
   opacity: 1, blur: 8, radius: 18, border: 1, inkEmphasis: 1, texture: '', bg: '', surf1c: '', surf2c: '', motion: true,
-  launcher: 'right', chrome: 'default', tensionStyle: 'both',
+  launcher: 'right', mode: 'dark', chrome: 'default', tensionStyle: 'both',
   ...SKINS[0]!.theme,
+};
+
+// Chromes cut in the six-chrome redesign remap to their nearest survivor so a
+// saved theme never lands on an invalid chrome after update.
+const CHROME_REMAP: Record<string, Chrome> = {
+  nocturne: 'futuristic', atelier: 'illuminated', glimmerwood: 'bloom', marginalia: 'bloom',
+};
+const SKIN_REMAP: Record<string, string> = {
+  nocturne: 'moonlit', atelier: 'vellum-dark', glimmerwood: 'blush-noir', marginalia: 'blush-noir',
 };
 
 const clamp = (v: number, lo: number, hi: number, d: number): number => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
@@ -189,15 +181,20 @@ function safeTexture(t: string): string {
 
 let _theme: Theme = load();
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember'] as const;
 function sanitize(t: Theme): Theme {
-  return { ...t,
+  // migrate a cut chrome/skin to its nearest survivor before validating
+  const rawChrome = t.chrome as string;
+  const chrome = CHROMES.includes(t.chrome) ? t.chrome : (CHROME_REMAP[rawChrome] ?? 'default');
+  const skin = SKIN_REMAP[t.skin as string] ?? t.skin;
+  return { ...t, skin,
     accentIntensity: clamp(t.accentIntensity, 0.5, 1.6, 1), scale: clamp(t.scale, 0.85, 1.5, 1.12), dataScale: clamp(t.dataScale, 0.85, 1.3, 1),
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
     bg: safeHexOpt(t.bg), surf1c: safeHexOpt(t.surf1c), surf2c: safeHexOpt(t.surf2c),
-    chrome: (['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'nocturne', 'atelier', 'glimmerwood', 'marginalia'] as const).includes(t.chrome) ? t.chrome : 'default',
-
+    mode: t.mode === 'light' ? 'light' : 'dark',
+    chrome,
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
@@ -244,6 +241,7 @@ export function applyTheme(scope: HTMLElement | null): void {
   set(document.documentElement);
   document.documentElement.setAttribute('data-vle-launch', t.launcher);
   document.documentElement.setAttribute('data-vle-chrome', t.chrome);
+  document.documentElement.setAttribute('data-vle-mode', t.mode);
   document.documentElement.toggleAttribute('data-vle-bg', !!t.bg);
   document.documentElement.setAttribute('data-vle-motion', t.motion ? 'on' : 'off');
 }
@@ -252,12 +250,26 @@ export function setSkin(id: string): void { const s = SKINS.find((x) => x.id ===
 export function setMode(id: string): void {
   const m = MODES.find((x) => x.id === id);
   if (!m) return;
-  // a mode is a one-click bundle: recommended skin palette first, then the
-  // mode's own patch (chrome/radius/fonts/accent) which wins over the skin.
-  const skin = m.skin ? SKINS.find((x) => x.id === m.skin) : undefined;
+  // a mode is a one-click bundle: the chrome's skin for the CURRENT color mode
+  // (dark/light) first, then the mode's own patch (chrome/radius/fonts/accent)
+  // which wins over the skin.
+  const skinId = _theme.mode === 'light' ? m.skinLight : m.skinDark;
+  const skin = SKINS.find((x) => x.id === skinId);
   _theme = sanitize({ ..._theme, ...(skin ? { skin: skin.id, ...skin.theme } : {}), ...m.patch });
   save(); setLayout(m.form);
 }
+/** Flip the whole theme between dark and light, re-resolving the active chrome's
+ * paired skin. Keeps chrome/layout; swaps only the palette. */
+export function setColorMode(mode: 'dark' | 'light'): void {
+  _theme = sanitize({ ..._theme, mode });
+  const m = MODES.find((x) => x.id === _theme.chrome);
+  if (m) {
+    const skin = SKINS.find((x) => x.id === (mode === 'light' ? m.skinLight : m.skinDark));
+    if (skin) _theme = sanitize({ ..._theme, skin: skin.id, ...skin.theme, ...m.patch });
+  }
+  save();
+}
+export function getColorMode(): 'dark' | 'light' { return _theme.mode; }
 export function patchTheme(patch: Partial<Theme>): void { _theme = sanitize({ ..._theme, ...patch }); save(); }
 export function resetTheme(): void { _theme = { ...DEFAULT }; save(); }
 export function exportTheme(): string { return JSON.stringify(_theme, null, 2); }
@@ -293,11 +305,11 @@ export function customizePanel(tab: CzTab = 'look'): string {
     futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
     bloom: '<span class="vle-mode-sk sk-bloom"><i></i><i></i><i></i></span>',
     ember: '<span class="vle-mode-sk sk-ember"><i></i><i></i><i></i></span>',
-    nocturne: '<span class="vle-mode-sk sk-nocturne"><i></i><i></i><i></i></span>',
-    atelier: '<span class="vle-mode-sk sk-atelier"><i></i><i></i></span>',
-    glimmerwood: '<span class="vle-mode-sk sk-glimmerwood"><i></i><i></i><i></i></span>',
-    marginalia: '<span class="vle-mode-sk sk-marginalia"><i></i><i></i><i></i></span>',
   };
+  // dark/light segmented toggle — flips every chrome to its paired skin
+  const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'
+    + (['dark', 'light'] as const).map((mm) => `<button class="vle-fb-btn${t.mode === mm ? ' on' : ''}" data-cz-colormode="${mm}">${mm}</button>`).join('')
+    + '</div>';
 
   const themeCards = MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
     + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('');
@@ -305,8 +317,9 @@ export function customizePanel(tab: CzTab = 'look'): string {
   if (tab === 'look') {
     // the approachable front: pick a theme + set size. Everything else is Advanced.
     body = '<div class="vle-cz-h">Theme</div><div class="vle-modes">' + themeCards + '</div>'
+      + modeToggle
       + slider('scale', 'Interface size', 0.85, 1.5, 0.05, t.scale, pct)
-      + '<div class="vle-cz-note">Pick a look and size \u2014 that\u2019s usually all you need. For palettes, fonts, layout and window controls, open <b>Advanced</b> above.</div>';
+      + '<div class="vle-cz-note">Pick a look, a dark/light mode and size \u2014 that\u2019s usually all you need. For palettes, fonts, layout and window controls, open <b>Advanced</b> above.</div>';
   } else if (tab === 'skin') {
     body = '<div class="vle-cz-h">Skins</div><div class="vle-skins">'
       + SKINS.map((s) => `<button class="vle-skin${t.skin === s.id ? ' on' : ''}" data-skin="${s.id}" title="${s.blurb}" style="--sw:${s.theme.accent}"><span class="vle-skin-sw"></span><span class="vle-skin-n">${s.name}</span></button>`).join('')
@@ -399,6 +412,7 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
     if (t.closest('[data-cz-import]')) { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json,.json'; inp.addEventListener('change', () => { const f = inp.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { if (importTheme(String(r.result))) { rerender('skin'); reapply(); } }; r.readAsText(f); }); inp.click(); return; }
     const sk = t.closest('[data-skin]'); if (sk) { setSkin(sk.getAttribute('data-skin')!); rerender('skin'); reapply(); return; }
     const md = t.closest('[data-mode]'); if (md) { setMode(md.getAttribute('data-mode')!); rerender('mode'); reapply(); return; }
+    const cm = t.closest('[data-cz-colormode]'); if (cm) { setColorMode(cm.getAttribute('data-cz-colormode') as 'dark' | 'light'); rerender(curTab()); reapply(); return; }
     const lp = t.closest('[data-layout-pick]'); if (lp) { setLayout(lp.getAttribute('data-layout-pick')!); rerender('layout'); onChange(); return; }
     const dp = t.closest('[data-density-pick]'); if (dp) { setDensityOverride(dp.getAttribute('data-density-pick') as 'compact' | 'comfortable' | 'roomy'); rerender('layout'); onChange(); return; }
     const an = t.closest('[data-cz-autoname]'); if (an) { setAutoNameMode(an.getAttribute('data-cz-autoname') as 'off' | 'solid' | 'gradient'); rerender('color'); onChange(); return; }

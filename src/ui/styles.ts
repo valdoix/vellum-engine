@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Themed CSS for the VELLUM shell + components. Illuminated-manuscript palette
  * via CSS variables so skins/host theme can override. Single string loaded via
  * spindle.dom.addStyle.
@@ -750,11 +750,62 @@ export const STYLES = [
   ".vld-stat b{color:var(--vle-gold);font-weight:600;opacity:.85}",
   ".vld-loc{font-family:var(--vserif);font-size:calc(18px * var(--vscale));color:var(--vi);font-style:italic;line-height:1.3}",
   // redesigned hero scene block + single quiet meta line (replaces the 4 pills)
-  ".vld-sec--hero{gap:calc(6px * var(--vscale))}",
+  ".vld-sec--hero{gap:calc(6px * var(--vscale));position:relative;overflow:hidden;isolation:isolate}",
+  // hero text + meta ride ABOVE the illustrated band
+  ".vld-sec--hero>*{position:relative;z-index:1}",
+  ".vld-sec--hero>.vld-band{z-index:0}",
+
+  // ===== illustrated, weather-reactive SCENE BAND (Story·Beauty·Memory: BEAUTY) =====
+  // A layered picture behind the hero: sky (time of day) + light orb + weather
+  // particles + a horizon line. Pure CSS; all motion honours --vmotion & reduced-motion.
+  ".vld-band{position:absolute;inset:0;pointer-events:none;border-radius:inherit;opacity:.9}",
+  ".vld-band>span{position:absolute;inset:0;display:block}",
+  // --- SKY by time of day (default; chromes may tint via their own --sky vars) ---
+  ".vld-band-sky{background:linear-gradient(180deg,var(--sky-top,#243244),var(--sky-mid,#1a2230) 55%,var(--sky-base,#12151c))}",
+  ".vld-band[data-tod='dawn']{--sky-top:#3a3350;--sky-mid:#6b4a5a;--sky-base:#c98a6a}",
+  ".vld-band[data-tod='day']{--sky-top:#3f6fa8;--sky-mid:#5a86bd;--sky-base:#9fb8d4}",
+  ".vld-band[data-tod='dusk']{--sky-top:#2b2450;--sky-mid:#5a3f6a;--sky-base:#c07a5a}",
+  ".vld-band[data-tod='night']{--sky-top:#141428;--sky-mid:#171a30;--sky-base:#0c0c18}",
+  // --- LIGHT ORB (sun/moon) positioned by tod; a soft radial glow ---
+  ".vld-band-orb{background:radial-gradient(circle at var(--orb-x,80%) var(--orb-y,28%),var(--orb-c,rgba(255,240,200,.5)) 0,transparent var(--orb-r,26%))}",
+  ".vld-band[data-tod='dawn']{--orb-x:78%;--orb-y:62%;--orb-c:rgba(255,200,150,.55);--orb-r:30%}",
+  ".vld-band[data-tod='day']{--orb-x:82%;--orb-y:24%;--orb-c:rgba(255,246,214,.6);--orb-r:24%}",
+  ".vld-band[data-tod='dusk']{--orb-x:22%;--orb-y:64%;--orb-c:rgba(255,168,120,.5);--orb-r:32%}",
+  ".vld-band[data-tod='night']{--orb-x:76%;--orb-y:26%;--orb-c:rgba(210,224,255,.4);--orb-r:18%}",
+  // --- HORIZON: a faint ground/water line low in the band ---
+  ".vld-band-horizon{top:auto;height:34%;background:linear-gradient(180deg,transparent,rgba(0,0,0,.28));box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}",
+  // scrim so hero text always reads over the busiest sky
+  ".vld-band::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,rgba(0,0,0,.42),rgba(0,0,0,.12) 60%,transparent);z-index:1}",
+  ".vld-band>span{z-index:0}",
+
+  // --- WEATHER PARTICLES on .vld-band-fx (repeating gradients; animated) ---
+  // clear: a few faint stars/sparkles (mostly for night/dusk)
+  ".vld-band[data-weather='clear'] .vld-band-fx{background-image:radial-gradient(1px 1px at 18% 30%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 62% 22%,rgba(255,255,255,.35),transparent),radial-gradient(1.5px 1.5px at 82% 44%,rgba(255,255,255,.4),transparent);opacity:.5}",
+  // cloud: soft drifting light bands
+  ".vld-band[data-weather='cloud'] .vld-band-fx{background:linear-gradient(100deg,transparent 0 40%,rgba(255,255,255,.06) 46%,transparent 54%),linear-gradient(100deg,transparent 0 60%,rgba(255,255,255,.05) 66%,transparent 74%);animation:vld-clouds 40s linear infinite}",
+  // rain: diagonal streaks
+  ".vld-band[data-weather='rain'] .vld-band-fx{background-image:repeating-linear-gradient(102deg,rgba(155,200,232,.28) 0 1px,transparent 1px 7px);background-size:auto 22px;animation:vld-rain .5s linear infinite}",
+  // storm: denser rain + an occasional flash on the sky
+  ".vld-band[data-weather='storm'] .vld-band-fx{background-image:repeating-linear-gradient(100deg,rgba(180,210,240,.36) 0 1.5px,transparent 1.5px 6px);background-size:auto 24px;animation:vld-rain .38s linear infinite}",
+  ".vld-band[data-weather='storm'] .vld-band-sky{animation:vld-flash 7s steps(1) infinite}",
+  // snow: slow drifting dots
+  ".vld-band[data-weather='snow'] .vld-band-fx{background-image:radial-gradient(2px 2px at 20% 20%,rgba(255,255,255,.8),transparent),radial-gradient(1.5px 1.5px at 66% 40%,rgba(255,255,255,.7),transparent),radial-gradient(2px 2px at 44% 70%,rgba(255,255,255,.75),transparent),radial-gradient(1.5px 1.5px at 84% 84%,rgba(255,255,255,.65),transparent);background-size:120px 120px;animation:vld-snow 9s linear infinite}",
+  // fog: soft horizontal haze bands
+  ".vld-band[data-weather='fog'] .vld-band-fx{background:linear-gradient(0deg,rgba(200,205,215,.16),transparent 40%),linear-gradient(180deg,rgba(200,205,215,.12),transparent 50%);animation:vld-fog 26s ease-in-out infinite alternate}",
+
+  "@keyframes vld-rain{0%{background-position:0 0}100%{background-position:0 22px}}",
+  "@keyframes vld-snow{0%{background-position:0 0}100%{background-position:20px 120px}}",
+  "@keyframes vld-clouds{0%{background-position:0 0,0 0}100%{background-position:300px 0,-260px 0}}",
+  "@keyframes vld-fog{0%{opacity:.5;transform:translateX(-4%)}100%{opacity:.85;transform:translateX(4%)}}",
+  "@keyframes vld-flash{0%,96%,100%{filter:none}97%,98%{filter:brightness(1.9)}}",
+  // motion kill-switch: freeze every band animation
+  "html[data-vle-motion='off'] .vld-band-fx,html[data-vle-motion='off'] .vld-band-sky{animation:none!important}",
+  "@media (prefers-reduced-motion:reduce){.vld-band-fx,.vld-band-sky{animation:none!important}}",
+
   ".vld-hero{font-size:var(--vt-display);line-height:1.18}",
   ".vld-hero:not(.vld-loc--none)::before{content:'\\25C8 ';color:var(--vg);opacity:.7;font-style:normal}",
   ".vld-loc--none{opacity:.5}",
-  ".vld-meta{font:600 var(--vt-meta)/1.4 var(--vmono);letter-spacing:.5px;color:var(--vi2);opacity:.7}",
+  ".vld-meta{font:600 var(--vt-meta)/1.4 var(--vmono);letter-spacing:.5px;color:var(--vi2);opacity:.7;text-transform:uppercase}",
   // world-calendar epoch token — reads as an occasion under the meta line
   ".vld-epoch{margin-top:calc(4px * var(--vscale));font-family:var(--vserif);font-style:italic;font-size:calc(14px * var(--vscale));color:var(--v-press-i);letter-spacing:.3px}",
   "html[data-vle-chrome='illuminated'] .vld-epoch{color:var(--v-neg-i);font-variant:small-caps;letter-spacing:1px}",
@@ -774,6 +825,19 @@ export const STYLES = [
   ".vld-tension{position:relative;flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}",
   ".vld-tension-f{position:absolute;left:0;top:0;height:8px;border-radius:5px;transition:width .3s;box-shadow:0 0 8px currentColor}",
   ".vld-tension-n{flex:none;min-width:38px;text-align:right;font:600 calc(11px * var(--vscale))/1 var(--vmono);opacity:.7}",
+  // ===== tension EMBER GAUGE (default): motes that grow hotter as tension climbs =====
+  ".vld-tension-read{font:600 calc(9.5px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;opacity:.75;margin-left:8px;color:var(--v-press-i)}",
+  ".vld-gauge{display:flex;align-items:center;gap:calc(5px * var(--vscale));min-height:16px;margin:calc(3px * var(--vscale)) 0}",
+  // base mote = a cold, small ember; lit motes scale up and heat by index --i
+  ".vld-gauge .vld-mote{width:calc(5px * var(--vscale));height:calc(5px * var(--vscale));border-radius:50%;background:rgba(255,255,255,.1);flex:none;transition:background .3s,box-shadow .3s,transform .3s}",
+  // heat ramp: low index = press-amber, high index = danger-red (only when LIT).
+  ".vld-gauge .vld-mote.on{--heat:calc(var(--i) / 9);background:color-mix(in srgb,var(--v-neg) calc(var(--heat) * 100%),var(--v-press));width:calc((5px + var(--i) * 0.7px) * var(--vscale));height:calc((5px + var(--i) * 0.7px) * var(--vscale));box-shadow:0 0 calc((5px + var(--i) * 1px)) color-mix(in srgb,var(--v-press) 70%,transparent);animation:vld-mote-pulse 2.4s ease-in-out infinite;animation-delay:calc(var(--i) * -0.18s)}",
+  "@keyframes vld-mote-pulse{0%,100%{opacity:.82;transform:translateY(0)}50%{opacity:1;transform:translateY(-1px)}}",
+  ".vld-tension-tr{margin-left:4px;font-size:calc(11px * var(--vscale));line-height:1}",
+  ".vld-tension-tr.up{color:var(--v-neg-i)}.vld-tension-tr.down{color:var(--v-info)}",
+  ".vld-tension-word{font-family:var(--vserif);font-style:italic;font-size:calc(12px * var(--vscale));color:var(--vi2);opacity:.72;margin-top:calc(2px * var(--vscale))}",
+  "html[data-vle-motion='off'] .vld-gauge .vld-mote.on{animation:none!important}",
+  "@media (prefers-reduced-motion:reduce){.vld-gauge .vld-mote.on{animation:none!important}}",
   ".vld-pc{display:flex;gap:11px;align-items:flex-start;border:1px solid rgba(var(--vg-rgb),.16);border-left:3px solid var(--v-pos);border-radius:0 var(--vr3) var(--vr3) 0;background:rgba(var(--vg-rgb),.05);padding:calc(10px * var(--vscale)) calc(12px * var(--vscale))}",
   ".vld-pc+.vld-pc{margin-top:7px}",
   // portrait medallion + presence dot (mockup 09)
@@ -893,7 +957,6 @@ export const STYLES = [
   ".vle-mode-sk.sk-hud{flex-direction:column;gap:4px}.vle-mode-sk.sk-hud i{height:5px;width:70%}.vle-mode-sk.sk-hud i:last-child{width:45%}",
   ".vle-mode-sk.sk-bloom{flex-direction:column;gap:5px;background:linear-gradient(160deg,#fff4f8,#f0e2ea)}.vle-mode-sk.sk-bloom i{height:8px;border-radius:9px;background:linear-gradient(90deg,rgba(217,140,171,.5),rgba(143,191,127,.45))}.vle-mode-sk.sk-bloom i:first-child{height:11px}",
   ".vle-mode-sk.sk-ember{flex-direction:column;gap:4px;background:radial-gradient(80% 60% at 30% 20%,rgba(184,169,255,.18),transparent),linear-gradient(160deg,#141428,#0a0a18)}.vle-mode-sk.sk-ember i{height:6px;border-radius:5px;background:linear-gradient(90deg,rgba(184,169,255,.55),rgba(143,214,200,.45));box-shadow:0 0 4px rgba(184,169,255,.4)}.vle-mode-sk.sk-ember i:first-child{height:9px}.vle-mode-sk.sk-ember i:last-child{width:60%}",
-  ".vle-mode-sk.sk-nocturne{flex-direction:column;gap:5px;padding:8px;background:radial-gradient(circle at 85% 18%,#b9cfee 0 1px,transparent 2px),linear-gradient(145deg,#0c2348,#020817);box-shadow:inset 0 0 0 3px #122d55,inset 0 0 0 4px rgba(185,207,238,.55)}.vle-mode-sk.sk-nocturne i{height:7px;border:1px solid rgba(185,207,238,.42);background:linear-gradient(90deg,rgba(70,109,168,.5),rgba(185,207,238,.14))}.vle-mode-sk.sk-nocturne i:first-child{height:10px}.vle-mode-sk.sk-nocturne i:last-child{width:72%}",
 
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
@@ -1046,7 +1109,7 @@ export const STYLES = [
   "html[data-vle-chrome='modern'] .vld-inner{display:flex;flex-direction:column;gap:calc(20px * var(--vscale))}",
   "html[data-vle-chrome='modern'] .vld-sec{border:none!important;background:none!important;box-shadow:none!important;padding:0!important;gap:calc(10px * var(--vscale))}",
   // section label = a quiet heading above the group (not a chip inside a box)
-  "html[data-vle-chrome='modern'] .vld-h{font:700 calc(16px * var(--vscale))/1.2 var(--vserif);letter-spacing:0;text-transform:none;color:var(--vi);opacity:1;padding:0 calc(4px * var(--vscale));margin-bottom:calc(2px * var(--vscale))}",
+  "html[data-vle-chrome='modern'] .vld-h{font:700 calc(13px * var(--vscale))/1.2 var(--vserif);letter-spacing:1px;text-transform:uppercase;color:var(--vi);opacity:1;padding:0 calc(4px * var(--vscale));margin-bottom:calc(2px * var(--vscale))}",
   "html[data-vle-chrome='modern'] .vld-h::before{display:none!important}",
   "html[data-vle-chrome='modern'] .vld-n{font:700 calc(13px * var(--vscale))/1 var(--vserif);color:var(--vg);background:none;padding:0;margin-left:6px}",
   // the HERO is itself a real card (the only section that is a box)
@@ -1097,7 +1160,7 @@ export const STYLES = [
   "html[data-vle-chrome='illuminated'] .vld-hero::before{content:none}",
   "html[data-vle-chrome='illuminated'] .vld-hero::first-letter{font-size:2.6em;line-height:.8;float:left;margin:4px 8px 0 0;padding:4px 8px;color:var(--v-neg-i);background:color-mix(in srgb,var(--v-neg) 14%,transparent);border:1px solid color-mix(in srgb,var(--v-neg) 30%,transparent);border-radius:var(--vr1);font-family:'Cinzel',var(--vserif);font-style:normal}",
   // --- rubric section eyebrows: small-caps, red, hairline rule + fleurons ---
-  "html[data-vle-chrome='illuminated'] .vld-h,html[data-vle-chrome='illuminated'] .vle-sec-h{color:var(--v-neg-i);font-variant:small-caps;letter-spacing:2px}",
+  "html[data-vle-chrome='illuminated'] .vld-h,html[data-vle-chrome='illuminated'] .vle-sec-h{color:var(--v-neg-i);font-variant:normal;text-transform:uppercase;letter-spacing:2px}",
   "html[data-vle-chrome='illuminated'] .vld-h::before,html[data-vle-chrome='illuminated'] .vle-sec-h::before{content:'\\2766 ';opacity:.7}",
   // --- portrait medallions: present-cast avatars round, double-gilt, haloed ---
   "html[data-vle-chrome='illuminated'] .vle-av{border-radius:50%;box-shadow:0 0 0 1px rgba(var(--vg-rgb),.6),0 0 0 4px rgba(0,0,0,.25),0 0 0 5px rgba(var(--vg-rgb),.3)}",
@@ -1186,7 +1249,7 @@ export const STYLES = [
   // --- cards → pillowy, light, softly shadowed; hairlines become blush ---
   "html[data-vle-chrome='bloom'] .vle-card,html[data-vle-chrome='bloom'] .vle-rel-card,html[data-vle-chrome='bloom'] .vld-sec,html[data-vle-chrome='bloom'] .vld-pc{border-radius:18px;border-color:color-mix(in srgb,var(--vg) 20%,transparent);box-shadow:0 2px 10px rgba(180,120,150,.14)}",
   // --- section eyebrows → romantic script small-caps with a fleuron ---
-  "html[data-vle-chrome='bloom'] .vld-h,html[data-vle-chrome='bloom'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1.5px;color:var(--vg);text-transform:none}",
+  "html[data-vle-chrome='bloom'] .vld-h,html[data-vle-chrome='bloom'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:normal;letter-spacing:1.5px;color:var(--vg);text-transform:uppercase}",
   "html[data-vle-chrome='bloom'] .vld-h::before,html[data-vle-chrome='bloom'] .vle-sec-h::before{content:'\\2740 ';color:var(--vg2);opacity:.75}",
   // --- hero scene line → dreamy italic serif with a soft rosy glow ---
   "html[data-vle-chrome='bloom'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.2px;text-shadow:0 1px 10px rgba(var(--vg-rgb),.3)}",
@@ -1252,7 +1315,7 @@ export const STYLES = [
   "html[data-vle-chrome='ember'] .vle-card,html[data-vle-chrome='ember'] .vle-rel-card,html[data-vle-chrome='ember'] .vld-sec,html[data-vle-chrome='ember'] .vld-pc{border-radius:18px;border-color:color-mix(in srgb,var(--vg) 22%,transparent);background:linear-gradient(168deg,rgba(24,24,40,.62),rgba(15,15,28,.58));box-shadow:0 0 18px rgba(var(--vg-rgb),.06),0 4px 18px rgba(0,0,0,.3)}",
   "html[data-vle-chrome='ember'] .vle-card:hover,html[data-vle-chrome='ember'] .vle-rel-card:hover{box-shadow:0 0 26px rgba(var(--vg-rgb),.14),0 6px 22px rgba(0,0,0,.36)}",
   // --- section eyebrows -> ethereal italic small-caps with a four-point star ---
-  "html[data-vle-chrome='ember'] .vld-h,html[data-vle-chrome='ember'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1.5px;color:var(--vg);text-transform:none;text-shadow:0 0 10px rgba(var(--vg-rgb),.3)}",
+  "html[data-vle-chrome='ember'] .vld-h,html[data-vle-chrome='ember'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:normal;letter-spacing:1.5px;color:var(--vg);text-transform:uppercase;text-shadow:0 0 10px rgba(var(--vg-rgb),.3)}",
   "html[data-vle-chrome='ember'] .vld-h::before,html[data-vle-chrome='ember'] .vle-sec-h::before{content:'\\2726 ';color:var(--vg2);opacity:.8}",
   // --- hero scene line -> dreamy italic serif wreathed in soft starlight ---
   "html[data-vle-chrome='ember'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.3px;text-shadow:0 0 16px rgba(var(--vg-rgb),.32),0 0 32px rgba(var(--vg2-rgb),.18)}",
@@ -1282,266 +1345,6 @@ export const STYLES = [
   "html[data-vle-chrome='ember'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,var(--vg),color-mix(in srgb,var(--vg) 55%,#1a1a30));border:1px solid color-mix(in srgb,var(--vg) 55%,transparent);color:#1a1a30;box-shadow:0 0 12px rgba(var(--vg-rgb),.45)}",
   "html[data-vle-chrome='ember'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,var(--vg2),color-mix(in srgb,var(--vg2) 55%,#1a1a30));border-color:color-mix(in srgb,var(--vg2) 55%,transparent);color:#1a1a30;box-shadow:0 0 14px rgba(var(--vg2-rgb),.5)}",
   "html[data-vle-chrome='ember'] .vlf-bar::before{content:'\\2726';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg2);opacity:.6;font-size:12px;pointer-events:none;text-shadow:0 0 8px rgba(var(--vg2-rgb),.5)}",
-
-  // NOCTURNE — midnight botanical salon: static, engraved, architectural.
-  "html[data-vle-chrome='nocturne'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(circle at 12% 8%,rgba(185,207,238,.09) 0 1px,transparent 2px),radial-gradient(circle at 82% 16%,rgba(185,207,238,.12) 0 1px,transparent 2px),linear-gradient(145deg,rgba(12,34,70,.38),transparent 42%)}",
-  "html[data-vle-chrome='nocturne'] .vlf-frame{border-color:rgba(var(--vg-rgb),.55);border-radius:var(--vradius);box-shadow:0 24px 70px rgba(0,3,14,.78),0 0 0 4px #07152d,0 0 0 5px rgba(var(--vg-rgb),.28),inset 0 0 38px rgba(20,58,111,.2)}",
-  "html[data-vle-chrome='nocturne'] .vlf-frame::before{content:'';position:absolute;z-index:2;inset:7px;border:1px solid rgba(var(--vg-rgb),.32);box-shadow:inset 0 0 0 3px rgba(3,10,25,.72);pointer-events:none}",
-  "html[data-vle-chrome='nocturne'] .vlf-frame::after{content:'✦  ·  ✧  ·  ✦';position:absolute;z-index:2;left:50%;bottom:7px;transform:translateX(-50%);color:rgba(var(--vg-rgb),.42);font-size:8px;letter-spacing:5px;white-space:nowrap;pointer-events:none}",
-  "html[data-vle-chrome='nocturne'] .vlf-bar{background:linear-gradient(90deg,rgba(3,10,25,.95),rgba(31,67,119,.48),rgba(3,10,25,.95));border-bottom:3px double rgba(var(--vg-rgb),.34)}",
-  "html[data-vle-chrome='nocturne'] .vlf-title,html[data-vle-chrome='nocturne'] .vle-head{font-family:var(--vserif);font-variant:small-caps;letter-spacing:2.2px;text-transform:none;text-shadow:0 1px 0 #000,0 0 12px rgba(var(--vg-rgb),.22)}",
-  "html[data-vle-chrome='nocturne'] .vlf-bar::before{content:'❧';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%) rotate(-18deg);color:var(--vg);opacity:.62;font-size:15px}",
-  "html[data-vle-chrome='nocturne'] .vlf-x{border-radius:2px;border:1px solid rgba(var(--vg-rgb),.48);background:#07152d;color:var(--vg);box-shadow:inset 0 0 0 2px #020817}",
-  "html[data-vle-chrome='nocturne'] .vle-tabs{border-bottom:3px double rgba(var(--vg-rgb),.22)}",
-  "html[data-vle-chrome='nocturne'] .vle-tabbtn{border-radius:2px;font-family:var(--vserif);font-variant:small-caps;letter-spacing:1px}",
-  "html[data-vle-chrome='nocturne'] .vle-tabbtn.on{background:linear-gradient(180deg,rgba(var(--vg2-rgb),.42),rgba(2,8,23,.25));border-color:rgba(var(--vg-rgb),.5);box-shadow:inset 0 -2px 0 var(--vg)}",
-  "html[data-vle-chrome='nocturne'] .vle-card,html[data-vle-chrome='nocturne'] .vle-rel-card,html[data-vle-chrome='nocturne'] .vld-sec,html[data-vle-chrome='nocturne'] .vld-pc{border-radius:3px;border:1px solid rgba(var(--vg-rgb),.24);background:linear-gradient(145deg,rgba(12,32,64,.78),rgba(3,10,25,.88));box-shadow:inset 0 0 0 2px rgba(2,8,23,.7),0 5px 16px rgba(0,0,0,.28)}",
-  "html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'][data-cols='2']{grid-template-columns:minmax(0,1.65fr) minmax(180px,.8fr);align-items:start;position:relative;padding:calc(8px * var(--vscale))}",
-  "html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'][data-cols='2']::before{content:'';position:absolute;top:8px;bottom:8px;left:calc(67.3% - 4px);width:3px;border-left:1px solid rgba(var(--vg-rgb),.38);border-right:1px solid rgba(var(--vg-rgb),.16);pointer-events:none}",
-  "html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'] .vld-sec--hero{grid-column:1/-1;border:3px double rgba(var(--vg-rgb),.38)!important;background:radial-gradient(100% 160% at 50% 0,rgba(var(--vg2-rgb),.35),rgba(3,10,25,.9) 62%)!important;box-shadow:inset 0 0 28px rgba(70,109,168,.2)!important}",
-  "html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'] .vld-sec:nth-child(n+5){grid-column:2}",
-  "html[data-vle-chrome='nocturne'] .vld-h,html[data-vle-chrome='nocturne'] .vle-sec-h{font-family:var(--vserif);font-variant:small-caps;letter-spacing:1.8px;color:var(--vg);border-bottom:1px solid rgba(var(--vg-rgb),.2)}",
-  "html[data-vle-chrome='nocturne'] .vld-h::before,html[data-vle-chrome='nocturne'] .vle-sec-h::before{content:'❦ ';color:var(--vg2)}",
-  "html[data-vle-chrome='nocturne'] .vld-hero{font-family:var(--vserif);font-style:italic;text-shadow:0 2px 0 #000}",
-  "html[data-vle-chrome='nocturne'] .vle-av,html[data-vle-chrome='nocturne'] .vld-pc-av{border-radius:50% 50% 46% 46%;border:3px double rgba(var(--vg-rgb),.55);background:radial-gradient(circle at 40% 35%,rgba(var(--vg-rgb),.2),#06142d 68%);box-shadow:0 0 0 2px #020817}",
-  "html[data-vle-chrome='nocturne'] .vld-rec{border-left:1px solid rgba(var(--vg-rgb),.32);padding-left:18px;position:relative}",
-  "html[data-vle-chrome='nocturne'] .vld-rec::before{content:'✦';position:absolute;left:-5px;color:var(--vg);font-size:8px;background:#06142d;padding:2px 0}",
-  "html[data-vle-chrome='nocturne'] .v-chip{border-radius:2px;background:rgba(3,10,25,.55)}",
-  "html[data-vle-chrome='nocturne'] .vlfm{border-radius:4px;border:3px double rgba(var(--vg-rgb),.5);box-shadow:0 25px 80px rgba(0,3,14,.8)}",
-  "html[data-vle-chrome='nocturne'] .vlfm-head{font-family:var(--vserif);font-variant:small-caps;letter-spacing:2px;border-bottom:3px double rgba(var(--vg-rgb),.3)}",
-  "@media(max-width:620px){html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'][data-cols='2']{grid-template-columns:1fr}html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'][data-cols='2']::before{display:none}html[data-vle-chrome='nocturne'] .vld-inner[data-layout='salon'] .vld-sec{grid-column:1!important}}",
-
-  // ================= THEME: ATELIER ("The Dark-Academia Gallery") — float + drawer =================
-  // A dim museum study at dusk hung with oil paintings. The float becomes a
-  // GILT-FRAMED CANVAS (carved gold picture frame + inner mat + hanging cord);
-  // headers are engraved BRASS PLACARDS; avatars sit in STATUE NICHES; the
-  // Latest feed is a shelf of BOOK SPINES; tension reads as warm GALLERY LIGHTS.
-  // Warm walnut/oxblood/olive/ochre — static & scholarly, only slow dust motes
-  // drifting in a shaft of light. Distinct from Bloom(pastel), Ember(indigo glow),
-  // Nocturne(cold navy). All chrome-scoped so BOTH surfaces re-skin.
-  // --- theme-gallery picker tile: a tiny gilt frame with two hung plates ---
-  ".vle-mode-sk.sk-atelier{flex-direction:column;gap:5px;padding:7px;background:linear-gradient(160deg,#2a2015,#160f09);box-shadow:inset 0 0 0 3px #6b4f22,inset 0 0 0 4px rgba(200,160,80,.6),inset 0 0 0 5px #2a2015}.vle-mode-sk.sk-atelier i{height:8px;border:1px solid rgba(176,136,64,.5);background:linear-gradient(90deg,rgba(164,80,63,.45),rgba(138,148,99,.4))}.vle-mode-sk.sk-atelier i:first-child{height:12px;background:linear-gradient(120deg,rgba(176,136,64,.5),rgba(125,59,46,.4))}",
-
-  // --- shared: dim walnut gallery wall with a soft raking light from top-left ---
-  "html[data-vle-chrome='atelier'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(120% 80% at 8% -5%,rgba(176,136,64,.1),transparent 46%),radial-gradient(130% 100% at 100% 110%,rgba(0,0,0,.34),transparent 55%),linear-gradient(180deg,rgba(50,38,26,.32),rgba(18,13,9,.5))}",
-  "html[data-vle-chrome='atelier'] .vlf-body{background-image:radial-gradient(120% 70% at 8% -5%,rgba(176,136,64,.08),transparent 46%),radial-gradient(130% 90% at 100% 110%,rgba(0,0,0,.3),transparent 55%)}",
-  // --- the signature FLOAT frame: a carved gilt picture frame around an oil canvas ---
-  "html[data-vle-chrome='atelier'] .vlf-frame{border:none;border-radius:3px;box-shadow:0 0 0 3px #120c07,0 0 0 10px #3a2a15,0 0 0 12px #6e5324,0 0 0 15px #c9a955,0 0 0 17px #7a5c28,0 0 0 19px #2a1e10,0 26px 70px rgba(0,0,0,.72),inset 0 0 60px rgba(0,0,0,.5),inset 0 0 0 1px rgba(200,160,80,.28)}",
-  // carved bead-and-reel highlight along the gilt (a bright inner bevel line)
-  "html[data-vle-chrome='atelier'] .vlf-frame::before{content:'';position:absolute;z-index:2;inset:5px;border-radius:2px;border:1px solid rgba(210,175,95,.4);box-shadow:inset 0 0 0 2px rgba(0,0,0,.45),inset 0 2px 14px rgba(0,0,0,.4);pointer-events:none}",
-  // engraved museum placard hung below the frame + a hanging cord to a nail above
-  "html[data-vle-chrome='atelier'] .vlf-frame::after{content:'A T E L I E R';position:absolute;z-index:3;left:50%;bottom:-2px;transform:translateX(-50%);font:600 7px/1 var(--vmono);letter-spacing:3px;color:#3a2c16;background:linear-gradient(180deg,#c9a955,#8a6a2c);border:1px solid #5f471f;border-radius:2px;padding:3px 10px;box-shadow:0 2px 5px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,235,180,.5);pointer-events:none;white-space:nowrap}",
-  // title bar = a dim brass nameplate rail
-  "html[data-vle-chrome='atelier'] .vlf-bar{background:linear-gradient(180deg,rgba(58,44,26,.6),rgba(30,22,14,.35));border-bottom:1px solid rgba(176,136,64,.35);box-shadow:inset 0 -1px 0 rgba(0,0,0,.4)}",
-  "html[data-vle-chrome='atelier'] .vlf-title{font-family:var(--vserif);font-weight:600;font-size:calc(16px * var(--vscale));letter-spacing:4px;text-transform:uppercase;color:var(--vi);text-shadow:0 1px 0 #000,0 0 1px rgba(200,160,80,.5)}",
-  "html[data-vle-chrome='atelier'] .vlf-mark{color:var(--vg);text-shadow:0 1px 0 #000}",
-  // a small carved rosette flanking the title
-  "html[data-vle-chrome='atelier'] .vlf-bar::before{content:'\\2766';position:absolute;left:calc(15px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg);opacity:.7;font-size:14px;text-shadow:0 1px 0 #000}",
-  // wax/brass close stud
-  "html[data-vle-chrome='atelier'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,#c9a955,#6e5324);border:1px solid #5f471f;color:#2a1e10;box-shadow:0 1px 3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,235,180,.5)}",
-  "html[data-vle-chrome='atelier'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,#c87a63,#7d3b2e);border-color:#4a2018;color:#160b08}",
-  "html[data-vle-chrome='atelier'] .vlf-grip{background:none;border:none;right:9px;bottom:9px;width:11px;height:11px;border-right:2px solid rgba(200,160,80,.6);border-bottom:2px solid rgba(200,160,80,.6);border-radius:0}",
-  "html[data-vle-chrome='atelier'] .vlf-launch{border-radius:0;border:1px solid #6e5324;border-right:none;box-shadow:-4px 4px 18px rgba(0,0,0,.5),inset 0 0 0 2px rgba(200,160,80,.35)}",
-
-  // --- slow drifting dust motes in a shaft of gallery light (motion-gated) ---
-  "html[data-vle-chrome='atelier'] .vle-body,html[data-vle-chrome='atelier'] .vlf-body{position:relative}",
-  "html[data-vle-chrome='atelier'] .vle-body::after,html[data-vle-chrome='atelier'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(1.5px 1.5px at 20% 30%,rgba(230,205,150,.5),transparent),radial-gradient(1px 1px at 66% 22%,rgba(230,205,150,.4),transparent),radial-gradient(1.5px 1.5px at 44% 74%,rgba(210,180,120,.4),transparent),radial-gradient(1px 1px at 82% 60%,rgba(230,205,150,.35),transparent);background-repeat:no-repeat;opacity:.5;animation:vle-atelier-dust 26s linear infinite}",
-  "html[data-vle-chrome='atelier'] .vle-body>*,html[data-vle-chrome='atelier'] .vlf-body>*{position:relative;z-index:1}",
-  "@keyframes vle-atelier-dust{0%{transform:translate(0,0);opacity:.5}50%{opacity:.28}100%{transform:translate(6px,-14px);opacity:.5}}",
-  "html[data-vle-chrome='atelier'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='atelier'][data-vle-motion='off'] .vlf-body::after{animation:none;opacity:.32}",
-  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='atelier'] .vle-body::after,html[data-vle-chrome='atelier'] .vlf-body::after{animation:none;opacity:.32}}",
-
-  // --- drawer head -> an engraved museum wall-text with a gilt underrule ---
-  "html[data-vle-chrome='atelier'] .vle-head{font-family:var(--vserif);font-weight:600;letter-spacing:3px;text-transform:uppercase;font-size:calc(20px * var(--vscale));border-bottom:1px solid rgba(176,136,64,.4);box-shadow:0 2px 0 rgba(176,136,64,.14);text-shadow:0 1px 0 #000}",
-  "html[data-vle-chrome='atelier'] .vle-mark{color:var(--vg);text-shadow:0 1px 0 #000}",
-  "html[data-vle-chrome='atelier'] .vle-mark::after{content:'\\2766';margin-left:8px;color:var(--vg2);opacity:.7;font-size:.72em}",
-  "html[data-vle-chrome='atelier'] .vle-stats{font-family:var(--vserif);font-variant:small-caps;letter-spacing:1.4px;text-transform:lowercase;opacity:.7}",
-
-  // --- tab bar -> incised brass gallery-room labels; active = a lit gilt plaque ---
-  "html[data-vle-chrome='atelier'] .vle-tabs{border-bottom:1px solid rgba(176,136,64,.22)}",
-  "html[data-vle-chrome='atelier'] .vle-tabbtn{border-radius:2px;font-family:var(--vserif);font-variant:small-caps;letter-spacing:1.2px;text-transform:none;font-size:calc(12.5px * var(--vscale))}",
-  "html[data-vle-chrome='atelier'] .vle-tabbtn:hover{background:rgba(176,136,64,.1);color:var(--vi)}",
-  "html[data-vle-chrome='atelier'] .vle-tabbtn.on{color:#2a1e10;border-color:#5f471f;background:linear-gradient(180deg,#c9a955,#9a7530);box-shadow:0 1px 3px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,235,180,.5);text-shadow:0 1px 0 rgba(255,235,180,.4)}",
-  "html[data-vle-chrome='atelier'] .vle-tabicon.on{color:var(--vg);border-color:rgba(176,136,64,.5);background:rgba(176,136,64,.16)}",
-  "html[data-vle-chrome='atelier'] .vlf-tab.on{color:var(--vg);background:rgba(176,136,64,.14);border-color:rgba(176,136,64,.4);border-bottom-color:transparent}",
-
-  // --- cards -> framed plates: a thin gilt liner on a canvas ground, hung with a top shadow ---
-  "html[data-vle-chrome='atelier'] .vle-card,html[data-vle-chrome='atelier'] .vle-rel-card,html[data-vle-chrome='atelier'] .vld-sec,html[data-vle-chrome='atelier'] .vld-pc{border-radius:2px;border:1px solid rgba(176,136,64,.45);background:linear-gradient(160deg,rgba(38,29,21,.9),rgba(24,18,12,.94));box-shadow:inset 0 0 0 2px rgba(20,14,9,.85),inset 0 0 0 3px rgba(176,136,64,.18),0 6px 16px rgba(0,0,0,.4)}",
-  "html[data-vle-chrome='atelier'] .vle-card:hover,html[data-vle-chrome='atelier'] .vle-rel-card:hover{border-color:rgba(200,160,80,.7);box-shadow:inset 0 0 0 2px rgba(20,14,9,.85),inset 0 0 0 3px rgba(200,160,80,.3),0 8px 20px rgba(0,0,0,.46)}",
-
-  // --- section eyebrows -> engraved brass placards (incised small-caps + a chisel mark) ---
-  "html[data-vle-chrome='atelier'] .vld-h,html[data-vle-chrome='atelier'] .vle-sec-h{font-family:var(--vserif);font-variant:small-caps;letter-spacing:2px;text-transform:none;color:var(--vg);border-bottom:1px solid rgba(176,136,64,.2);padding-bottom:calc(3px * var(--vscale));text-shadow:0 1px 0 #000}",
-  "html[data-vle-chrome='atelier'] .vld-h::before,html[data-vle-chrome='atelier'] .vle-sec-h::before{content:'\\29C9 ';color:var(--vg2);opacity:.75}",
-
-  // --- hero scene -> the centerpiece oil: a richly framed canvas, brushed serif title ---
-  "html[data-vle-chrome='atelier'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.2px;text-shadow:0 2px 4px rgba(0,0,0,.6)}",
-  "html[data-vle-chrome='atelier'] .vld-hero::first-letter{font-family:var(--vserif);font-weight:700;font-size:2.1em;line-height:.8;float:left;margin:2px 8px 0 0;color:var(--vg);text-shadow:0 2px 3px rgba(0,0,0,.7)}",
-  "html[data-vle-chrome='atelier'] .vld-sec--hero{border:none!important;border-radius:2px!important;background:radial-gradient(120% 150% at 30% 0%,rgba(70,52,30,.6),rgba(22,16,10,.96) 70%)!important;box-shadow:0 0 0 2px #120c07,0 0 0 7px #4a3717,0 0 0 9px #8a6a2c,0 0 0 11px #3a2a15,inset 0 0 40px rgba(0,0,0,.55)!important;padding:calc(18px * var(--vscale)) calc(20px * var(--vscale))!important;margin:calc(4px * var(--vscale)) 0 calc(10px * var(--vscale))!important}",
-
-  // --- tension -> a row of warm gallery picture-lights (unlit = dim bulbs) ---
-  "html[data-vle-chrome='atelier'] .vld-dot{border-radius:50% 50% 40% 40%;background:rgba(176,136,64,.12)}",
-  "html[data-vle-chrome='atelier'] .vld-dot.on{background:radial-gradient(circle at 50% 30%,#ffe6a6,var(--vg) 70%);box-shadow:0 0 8px rgba(200,160,80,.6),0 3px 5px rgba(0,0,0,.4)}",
-
-  // --- avatars -> marble busts in arched statue niches (double gilt ring when present) ---
-  "html[data-vle-chrome='atelier'] .vle-av,html[data-vle-chrome='atelier'] .vld-pc-av,html[data-vle-chrome='atelier'] .vle-strip-av{border-radius:50% 50% 46% 46%;background:radial-gradient(60% 55% at 40% 30%,rgba(236,224,200,.28),rgba(30,22,14,.9) 72%);border:1px solid rgba(176,136,64,.55);color:var(--vi);box-shadow:inset 0 -3px 8px rgba(0,0,0,.5),0 0 0 3px rgba(20,14,9,.8)}",
-  "html[data-vle-chrome='atelier'] .vle-card--present .vle-av{box-shadow:inset 0 -3px 8px rgba(0,0,0,.5),0 0 0 2px var(--vg),0 0 0 4px #2a1e10,0 0 0 6px rgba(176,136,64,.4)}",
-
-  // --- twin bond meters -> inlaid enamel strips (olive affection, slate-teal trust) ---
-  "html[data-vle-chrome='atelier'] .vle-tw-t{height:8px;border-radius:1px;background:rgba(0,0,0,.4);box-shadow:inset 0 0 0 1px rgba(176,136,64,.2)}",
-  "html[data-vle-chrome='atelier'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--v-pos) 60%,transparent),var(--v-pos-i))}",
-  "html[data-vle-chrome='atelier'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--v-info) 60%,transparent),var(--v-info))}",
-
-  // --- 'Latest' feed -> a shelf of leaning book spines (gilt-lettered, ribbon markers) ---
-  "html[data-vle-chrome='atelier'] .vld-rec{position:relative;margin-left:calc(6px * var(--vscale));padding:calc(4px * var(--vscale)) calc(4px * var(--vscale)) calc(10px * var(--vscale)) calc(18px * var(--vscale));border-left:5px solid var(--vg);border-top:none;box-shadow:inset 3px 0 0 rgba(20,14,9,.6),inset 8px 0 0 rgba(176,136,64,.28)}",
-  "html[data-vle-chrome='atelier'] .vld-rec::before{content:'';position:absolute;left:-5px;top:0;bottom:6px;width:5px;background:repeating-linear-gradient(180deg,transparent 0 5px,rgba(0,0,0,.25) 5px 6px)}",
-  "html[data-vle-chrome='atelier'] .vld-rec--journal{border-left-color:var(--v-pos)}html[data-vle-chrome='atelier'] .vld-rec--knew{border-left-color:var(--v-info)}html[data-vle-chrome='atelier'] .vld-rec--secret{border-left-color:var(--v-neg)}html[data-vle-chrome='atelier'] .vld-rec--shift{border-left-color:var(--v-press)}",
-
-  // --- chips -> incised brass tags (square, hairline gilt) ---
-  "html[data-vle-chrome='atelier'] .v-chip{border-radius:2px;background:rgba(176,136,64,.1);box-shadow:inset 0 0 0 1px rgba(0,0,0,.4)}",
-
-  // --- GALLERY layout: hung plates spaced on the wall; hero is the centerpiece ---
-  "html[data-vle-chrome='atelier'] .vld-inner[data-layout='gallery']{gap:calc(20px * var(--vscale))}",
-  "html[data-vle-chrome='atelier'] .vld-inner[data-layout='gallery'] .vld-sec{position:relative}",
-  // each plate wears a small brass hanging-nail above it (except the hero, which is self-framed)
-  "html[data-vle-chrome='atelier'] .vld-inner[data-layout='gallery'] .vld-sec:not(.vld-sec--hero)::before{content:'';position:absolute;top:-11px;left:50%;transform:translateX(-50%);width:6px;height:6px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#e6cd96,#7a5c28);box-shadow:0 1px 2px rgba(0,0,0,.6)}",
-
-  // --- modal + toasts pick up the framed brass treatment (read document attr) ---
-  "html[data-vle-chrome='atelier'] .vlfm{border-radius:3px;border:none;box-shadow:0 0 0 2px #120c07,0 0 0 8px #4a3717,0 0 0 10px #8a6a2c,0 0 0 12px #2a1e10,0 26px 80px rgba(0,0,0,.75)}",
-  "html[data-vle-chrome='atelier'] .vlfm-head{font-family:var(--vserif);font-variant:small-caps;letter-spacing:2px;text-transform:none;border-bottom:1px solid rgba(176,136,64,.3)}",
-
-  // ================= THEME: GLIMMERWOOD (the ethereal fairy glade) =================
-  // Soft moss glass, gauzy teal mist, warm fairy lamps and organic leaf forms.
-  // Unlike Bloom it is dusky and woodland; unlike Ember it is warm, earthy and
-  // botanical. Motion is limited to slow firefly drift and honors reduced motion.
-  ".vle-mode-sk.sk-glimmerwood{flex-direction:column;gap:4px;padding:8px;background:radial-gradient(circle at 76% 24%,#ffe7a4 0 2px,transparent 5px),radial-gradient(circle at 22% 72%,rgba(243,198,107,.8) 0 1px,transparent 4px),linear-gradient(145deg,#365248,#182e29);box-shadow:inset 0 0 18px rgba(243,198,107,.16)}.vle-mode-sk.sk-glimmerwood i{height:7px;border-radius:50% 35% 55% 35%;background:linear-gradient(90deg,rgba(102,143,136,.5),rgba(243,198,107,.32));border:1px solid rgba(232,226,203,.18)}.vle-mode-sk.sk-glimmerwood i:first-child{height:11px;border-radius:14px 14px 50% 50%}.vle-mode-sk.sk-glimmerwood i:last-child{width:68%}",
-  "html[data-vle-chrome='glimmerwood'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(100% 70% at 50% -10%,rgba(243,198,107,.13),transparent 50%),radial-gradient(90% 80% at 100% 100%,rgba(102,143,136,.18),transparent 58%)}",
-  "html[data-vle-chrome='glimmerwood'] .vlf-frame{border-color:rgba(var(--vg-rgb),.32);border-radius:calc(var(--vradius) + 12px);box-shadow:0 22px 65px rgba(6,20,17,.62),0 0 34px rgba(var(--vg-rgb),.12),inset 0 0 45px rgba(var(--vg2-rgb),.1);overflow:visible}",
-  "html[data-vle-chrome='glimmerwood'] .vlf-frame::before{content:'';position:absolute;z-index:2;inset:6px;border:1px solid rgba(232,226,203,.14);border-radius:calc(var(--vradius) + 7px);box-shadow:inset 0 0 24px rgba(var(--vg-rgb),.08);pointer-events:none}",
-  "html[data-vle-chrome='glimmerwood'] .vlf-frame::after{content:'✦  ·  ✧  ·  ✦';position:absolute;z-index:3;left:50%;bottom:7px;transform:translateX(-50%);font-size:8px;letter-spacing:7px;color:rgba(var(--vg-rgb),.55);text-shadow:0 0 8px rgba(var(--vg-rgb),.7);pointer-events:none;white-space:nowrap}",
-  "html[data-vle-chrome='glimmerwood'] .vlf-bar{background:linear-gradient(180deg,rgba(232,226,203,.09),rgba(34,55,47,.16));border-bottom:1px solid rgba(var(--vg-rgb),.18);border-radius:calc(var(--vradius) + 10px) calc(var(--vradius) + 10px) 45% 45%}",
-  "html[data-vle-chrome='glimmerwood'] .vlf-title,html[data-vle-chrome='glimmerwood'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:1.4px;text-transform:none;text-shadow:0 0 14px rgba(var(--vg-rgb),.24)}",
-  "html[data-vle-chrome='glimmerwood'] .vlf-bar::before{content:'🦋';position:absolute;left:calc(15px * var(--vscale));top:50%;transform:translateY(-50%) rotate(-12deg);font-size:12px;filter:sepia(.3);opacity:.72}",
-  "html[data-vle-chrome='glimmerwood'] .vlf-x{border-radius:50%;border:1px solid rgba(var(--vg-rgb),.35);background:rgba(41,67,57,.72);color:var(--vi);box-shadow:0 0 10px rgba(var(--vg-rgb),.15)}",
-  "html[data-vle-chrome='glimmerwood'] .vle-body,html[data-vle-chrome='glimmerwood'] .vlf-body{position:relative}",
-  "html[data-vle-chrome='glimmerwood'] .vle-body::after,html[data-vle-chrome='glimmerwood'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(2px 2px at 14% 23%,rgba(255,226,145,.85),transparent),radial-gradient(1.5px 1.5px at 72% 18%,rgba(255,226,145,.7),transparent),radial-gradient(2px 2px at 44% 68%,rgba(243,198,107,.65),transparent),radial-gradient(1px 1px at 86% 77%,rgba(232,226,203,.7),transparent);filter:drop-shadow(0 0 5px rgba(243,198,107,.7));opacity:.58;animation:vle-glimmer-drift 20s ease-in-out infinite alternate}",
-  "html[data-vle-chrome='glimmerwood'] .vle-body>*,html[data-vle-chrome='glimmerwood'] .vlf-body>*{position:relative;z-index:1}",
-  "@keyframes vle-glimmer-drift{0%{transform:translate(0,2px);opacity:.42}50%{opacity:.7}100%{transform:translate(8px,-12px);opacity:.5}}",
-  "html[data-vle-chrome='glimmerwood'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='glimmerwood'][data-vle-motion='off'] .vlf-body::after{animation:none;opacity:.48}",
-  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='glimmerwood'] .vle-body::after,html[data-vle-chrome='glimmerwood'] .vlf-body::after{animation:none;opacity:.48}}",
-  "html[data-vle-chrome='glimmerwood'] .vle-mark::after{content:' ✧';color:var(--vg);font-style:normal;text-shadow:0 0 8px rgba(var(--vg-rgb),.65)}",
-  "html[data-vle-chrome='glimmerwood'] .vle-tabs{border-bottom:1px solid rgba(var(--vg-rgb),.15)}",
-  "html[data-vle-chrome='glimmerwood'] .vle-tabbtn{border-radius:60% 35% 55% 32%;font-family:var(--vserif);font-size:calc(13px * var(--vscale));text-transform:none;letter-spacing:.4px}",
-  "html[data-vle-chrome='glimmerwood'] .vle-tabbtn.on,html[data-vle-chrome='glimmerwood'] .vle-tabicon.on,html[data-vle-chrome='glimmerwood'] .vlf-tab.on{color:var(--vi);border-color:rgba(var(--vg-rgb),.3);background:linear-gradient(135deg,rgba(var(--vg-rgb),.18),rgba(var(--vg2-rgb),.2));box-shadow:0 0 14px rgba(var(--vg-rgb),.12)}",
-  "html[data-vle-chrome='glimmerwood'] .vle-card,html[data-vle-chrome='glimmerwood'] .vle-rel-card,html[data-vle-chrome='glimmerwood'] .vld-sec,html[data-vle-chrome='glimmerwood'] .vld-pc{border-radius:22px 12px 24px 10px;border:1px solid rgba(232,226,203,.13);background:linear-gradient(145deg,rgba(56,82,69,.57),rgba(24,43,37,.66));box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 8px 22px rgba(6,20,17,.2);backdrop-filter:blur(8px)}",
-  "html[data-vle-chrome='glimmerwood'] .vle-card:hover,html[data-vle-chrome='glimmerwood'] .vle-rel-card:hover{border-color:rgba(var(--vg-rgb),.3);box-shadow:0 0 22px rgba(var(--vg-rgb),.09),0 9px 24px rgba(6,20,17,.28)}",
-  "html[data-vle-chrome='glimmerwood'] .vld-h,html[data-vle-chrome='glimmerwood'] .vle-sec-h{font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:1px;color:var(--vi);border-bottom:1px solid rgba(var(--vg-rgb),.14)}",
-  "html[data-vle-chrome='glimmerwood'] .vld-h::before,html[data-vle-chrome='glimmerwood'] .vle-sec-h::before{content:'❧ ';color:var(--vg);text-shadow:0 0 7px rgba(var(--vg-rgb),.5)}",
-  "html[data-vle-chrome='glimmerwood'] .vld-sec--hero{border-radius:50% 50% 24px 24px!important;border-color:rgba(var(--vg-rgb),.24)!important;background:radial-gradient(110% 150% at 50% 0,rgba(243,198,107,.18),rgba(57,86,72,.54) 38%,rgba(20,39,34,.78) 78%)!important;box-shadow:inset 0 0 36px rgba(var(--vg-rgb),.08),0 10px 30px rgba(5,20,16,.24)!important;padding-top:calc(22px * var(--vscale))!important;text-align:center}",
-  "html[data-vle-chrome='glimmerwood'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:500;text-shadow:0 0 16px rgba(var(--vg-rgb),.22)}",
-  "html[data-vle-chrome='glimmerwood'] .vle-av,html[data-vle-chrome='glimmerwood'] .vld-pc-av,html[data-vle-chrome='glimmerwood'] .vle-strip-av{border-radius:50% 50% 46% 46%;border:1px solid rgba(var(--vg-rgb),.38);background:radial-gradient(circle at 42% 32%,rgba(232,226,203,.16),rgba(39,65,55,.78));box-shadow:0 0 0 3px rgba(var(--vg2-rgb),.1),0 0 14px rgba(var(--vg-rgb),.1)}",
-  "html[data-vle-chrome='glimmerwood'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.12),0 0 20px rgba(var(--vg-rgb),.32)}",
-  "html[data-vle-chrome='glimmerwood'] .vld-dot{border-radius:50% 35% 50% 35%;transform:rotate(45deg);background:rgba(var(--vg-rgb),.1)}html[data-vle-chrome='glimmerwood'] .vld-dot.on{background:radial-gradient(circle,#fff2bd,var(--vg) 68%);box-shadow:0 0 9px rgba(var(--vg-rgb),.7)}",
-  "html[data-vle-chrome='glimmerwood'] .vle-tw-t{height:8px;border-radius:50%;background:rgba(232,226,203,.06)}html[data-vle-chrome='glimmerwood'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,var(--v-pos),var(--vg))}html[data-vle-chrome='glimmerwood'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,var(--vg2),var(--v-info))}",
-  "html[data-vle-chrome='glimmerwood'] .vld-rec{position:relative;margin-left:8px;padding:3px 4px 13px 20px;border-left:1px dashed rgba(var(--vg-rgb),.32)}html[data-vle-chrome='glimmerwood'] .vld-rec::before{content:'✦';position:absolute;left:-5px;top:2px;color:var(--vg);font-size:9px;text-shadow:0 0 7px rgba(var(--vg-rgb),.8)}",
-  "html[data-vle-chrome='glimmerwood'] .v-chip{border-radius:50% 35% 50% 35%;background:rgba(102,143,136,.1)}",
-  "html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'][data-cols='2']{grid-template-columns:minmax(0,1.7fr) minmax(180px,.72fr);align-items:start;gap:calc(16px * var(--vscale));position:relative}",
-  "html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'] .vld-sec--hero{grid-column:1/-1}",
-  "html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'] .vld-sec:nth-child(2),html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'] .vld-sec:nth-child(3){grid-column:1}",
-  "html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'] .vld-sec:nth-child(n+4){grid-column:2}",
-  "html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'] .vld-sec:nth-child(2){border-radius:42% 18px 26px 18px}html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'] .vld-sec:nth-child(3){border-radius:18px 38% 18px 26px}",
-  "html[data-vle-chrome='glimmerwood'] .vlfm{border-radius:26px 16px 28px 14px;border-color:rgba(var(--vg-rgb),.25);box-shadow:0 0 30px rgba(var(--vg-rgb),.1),0 24px 70px rgba(6,20,17,.58)}html[data-vle-chrome='glimmerwood'] .vlfm-head{font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:1px;border-bottom:1px solid rgba(var(--vg-rgb),.2)}",
-  "@media(max-width:620px){html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'][data-cols='2']{grid-template-columns:1fr}html[data-vle-chrome='glimmerwood'] .vld-inner[data-layout='glade'] .vld-sec{grid-column:1!important}}",
-
-  // ================= THEME: MARGINALIA ("The Light-Academia Notebook at Night") — float + drawer =================
-  // A soft pressed-flower study journal after dusk. Deep dusk-lilac paper, warm
-  // cream ink, pastel botanicals (mauve, sage, dusty rose, honey). The whole
-  // point is SOFTNESS: no hard edges anywhere — pillowy max-radius cards, hairline
-  // dotted-ink rules, a torn-deckle notebook edge on the float, a ribbon bookmark,
-  // pressed-flower texture, inky ❦/❀ flourishes, and only the faintest drifting
-  // pollen. Deliberately gentle & LOW-contrast to stand apart from Atelier (hard
-  // gilt frames), Bloom (bright light pink), Ember (glowing indigo), Nocturne
-  // (cold navy). All chrome-scoped so it re-skins BOTH the float and the drawer.
-  // --- theme-gallery picker tile: a soft lilac page with a pressed bloom + leaf ---
-  ".vle-mode-sk.sk-marginalia{flex-direction:column;gap:5px;padding:8px;border-radius:12px;background:radial-gradient(circle at 74% 26%,rgba(201,167,214,.5) 0 3px,transparent 6px),radial-gradient(circle at 26% 74%,rgba(163,192,144,.4) 0 2px,transparent 5px),linear-gradient(160deg,#2c2634,#1f1b27);box-shadow:inset 0 0 0 1px rgba(201,167,214,.25)}.vle-mode-sk.sk-marginalia i{height:6px;border-radius:20px;background:linear-gradient(90deg,rgba(201,167,214,.45),rgba(163,192,144,.3));border:none}.vle-mode-sk.sk-marginalia i:first-child{height:9px;width:70%;background:linear-gradient(90deg,rgba(201,167,214,.6),rgba(232,173,188,.35))}.vle-mode-sk.sk-marginalia i:last-child{width:52%}",
-
-  // --- shared: soft dusk wash of lilac + sage bloom, no hard gradients ---
-  "html[data-vle-chrome='marginalia'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(130% 90% at 8% 4%,rgba(var(--vg-rgb),.1),transparent 52%),radial-gradient(130% 95% at 96% 100%,rgba(var(--vg2-rgb),.09),transparent 55%)}",
-  "html[data-vle-chrome='marginalia'] .vlf-body{background-image:radial-gradient(130% 85% at 8% 4%,rgba(var(--vg-rgb),.08),transparent 52%),radial-gradient(130% 90% at 96% 100%,rgba(var(--vg2-rgb),.07),transparent 55%)}",
-
-  // --- the signature FLOAT frame: a soft notebook page — big pillowy radius, a
-  // faint pressed-flower inner border, and a hanging ribbon bookmark (no hard edge) ---
-  "html[data-vle-chrome='marginalia'] .vlf-frame{border-color:rgba(var(--vg-rgb),.28);border-radius:calc(var(--vradius) + 10px);box-shadow:0 26px 70px rgba(18,14,24,.6),0 0 30px rgba(var(--vg-rgb),.08),inset 0 0 50px rgba(var(--vg2-rgb),.05);overflow:visible}",
-  "html[data-vle-chrome='marginalia'] .vlf-frame::before{content:'';position:absolute;z-index:2;inset:7px;border:1px dashed rgba(var(--vg-rgb),.24);border-radius:calc(var(--vradius) + 5px);pointer-events:none}",
-  // a soft satin ribbon bookmark slipping over the top-right corner
-  "html[data-vle-chrome='marginalia'] .vlf-frame::after{content:'';position:absolute;z-index:3;top:-3px;right:26px;width:13px;height:34px;background:linear-gradient(180deg,var(--vg),color-mix(in srgb,var(--vg) 55%,transparent));border-radius:3px 3px 0 0;box-shadow:0 3px 5px rgba(0,0,0,.28);clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);pointer-events:none;opacity:.85}",
-  "html[data-vle-chrome='marginalia'] .vlf-bar{background:linear-gradient(180deg,rgba(var(--vg-rgb),.1),rgba(var(--vg2-rgb),.05));border-bottom:1px dashed rgba(var(--vg-rgb),.22);border-radius:calc(var(--vradius) + 8px) calc(var(--vradius) + 8px) 0 0}",
-  "html[data-vle-chrome='marginalia'] .vlf-title,html[data-vle-chrome='marginalia'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:.8px;text-transform:none;text-shadow:0 0 12px rgba(var(--vg-rgb),.2)}",
-  "html[data-vle-chrome='marginalia'] .vlf-bar::before{content:'\\2740';position:absolute;left:calc(15px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg2);opacity:.62;font-size:13px}",
-  // a soft round pressed-wax close bud — no hard border
-  "html[data-vle-chrome='marginalia'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,color-mix(in srgb,var(--vg) 75%,#fff),var(--vg));border:none;color:#2a2233;box-shadow:0 2px 7px rgba(var(--vg-rgb),.4)}",
-  "html[data-vle-chrome='marginalia'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,color-mix(in srgb,var(--vg2) 75%,#fff),var(--vg2));color:#22281c}",
-  "html[data-vle-chrome='marginalia'] .vlf-grip{background:none;border:none;right:10px;bottom:10px;width:10px;height:10px;border-right:2px solid rgba(var(--vg-rgb),.45);border-bottom:2px solid rgba(var(--vg-rgb),.45);border-radius:0 0 4px 0}",
-  "html[data-vle-chrome='marginalia'] .vlf-launch{border-radius:14px 0 0 14px;border:1px solid rgba(var(--vg-rgb),.3);border-right:none;box-shadow:-4px 4px 16px rgba(18,14,24,.4)}",
-
-  // --- the faintest drifting pollen motes in soft light (motion-gated) ---
-  "html[data-vle-chrome='marginalia'] .vle-body,html[data-vle-chrome='marginalia'] .vlf-body{position:relative}",
-  "html[data-vle-chrome='marginalia'] .vle-body::after,html[data-vle-chrome='marginalia'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(1.5px 1.5px at 18% 26%,rgba(var(--vg-rgb),.5),transparent),radial-gradient(1px 1px at 70% 20%,rgba(var(--vg2-rgb),.42),transparent),radial-gradient(1.5px 1.5px at 46% 72%,rgba(232,173,188,.4),transparent),radial-gradient(1px 1px at 84% 66%,rgba(var(--vg-rgb),.38),transparent);background-repeat:no-repeat;opacity:.5;animation:vle-marg-pollen 24s ease-in-out infinite alternate}",
-  "html[data-vle-chrome='marginalia'] .vle-body>*,html[data-vle-chrome='marginalia'] .vlf-body>*{position:relative;z-index:1}",
-  "@keyframes vle-marg-pollen{0%{transform:translate(0,2px);opacity:.34}50%{opacity:.56}100%{transform:translate(7px,-11px);opacity:.4}}",
-  "html[data-vle-chrome='marginalia'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='marginalia'][data-vle-motion='off'] .vlf-body::after{animation:none;opacity:.4}",
-  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='marginalia'] .vle-body::after,html[data-vle-chrome='marginalia'] .vlf-body::after{animation:none;opacity:.4}}",
-
-  // --- drawer head -> a soft journal title with a dotted-ink underrule + pressed bloom ---
-  "html[data-vle-chrome='marginalia'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:.6px;border-bottom:1px dashed rgba(var(--vg-rgb),.3)}",
-  "html[data-vle-chrome='marginalia'] .vle-mark{text-shadow:0 0 12px rgba(var(--vg-rgb),.4)}",
-  "html[data-vle-chrome='marginalia'] .vle-mark::after{content:'\\2740';margin-left:7px;color:var(--vg2);opacity:.72;font-size:.78em}",
-  "html[data-vle-chrome='marginalia'] .vle-stats{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1px;text-transform:lowercase;opacity:.68}",
-
-  // --- tab bar -> soft rounded ink-lozenges; active = a gentle two-tone wash, no border ---
-  "html[data-vle-chrome='marginalia'] .vle-tabs{border-bottom:1px dashed rgba(var(--vg-rgb),.18)}",
-  "html[data-vle-chrome='marginalia'] .vle-tabbtn{border-radius:var(--rpill);text-transform:none;letter-spacing:.3px;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-weight:500}",
-  "html[data-vle-chrome='marginalia'] .vle-tabbtn:hover{background:color-mix(in srgb,var(--vg) 9%,transparent);color:var(--vi)}",
-  "html[data-vle-chrome='marginalia'] .vle-tabbtn.on,html[data-vle-chrome='marginalia'] .vlf-tab.on{color:var(--vg);border-color:transparent;background:linear-gradient(120deg,color-mix(in srgb,var(--vg) 20%,transparent),color-mix(in srgb,var(--vg2) 16%,transparent))}",
-  "html[data-vle-chrome='marginalia'] .vle-tabicon.on{color:var(--vg);border-color:transparent;background:color-mix(in srgb,var(--vg) 14%,transparent)}",
-
-  // --- cards -> pillowy soft notebook leaves: big radius, hairline dashed edge, soft shadow ---
-  "html[data-vle-chrome='marginalia'] .vle-card,html[data-vle-chrome='marginalia'] .vle-rel-card,html[data-vle-chrome='marginalia'] .vld-sec,html[data-vle-chrome='marginalia'] .vld-pc{border-radius:20px;border:1px solid rgba(var(--vg-rgb),.18);background:linear-gradient(168deg,rgba(44,38,52,.6),rgba(31,27,39,.56));box-shadow:0 3px 16px rgba(18,14,24,.24),inset 0 1px 0 rgba(255,255,255,.03)}",
-  "html[data-vle-chrome='marginalia'] .vle-card:hover,html[data-vle-chrome='marginalia'] .vle-rel-card:hover{border-color:rgba(var(--vg-rgb),.32);box-shadow:0 5px 22px rgba(18,14,24,.3),0 0 16px rgba(var(--vg-rgb),.06)}",
-
-  // --- section eyebrows -> soft italic small-caps with a pressed-flower fleuron ---
-  "html[data-vle-chrome='marginalia'] .vld-h,html[data-vle-chrome='marginalia'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1.4px;color:var(--vg);text-transform:none;border-bottom:1px dashed rgba(var(--vg-rgb),.16);padding-bottom:calc(3px * var(--vscale))}",
-  "html[data-vle-chrome='marginalia'] .vld-h::before,html[data-vle-chrome='marginalia'] .vle-sec-h::before{content:'\\2766 ';color:var(--vg2);opacity:.72}",
-
-  // --- hero scene -> a dreamy italic journal entry with a soft inky drop-cap ---
-  "html[data-vle-chrome='marginalia'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:.2px;text-shadow:0 1px 12px rgba(var(--vg-rgb),.24)}",
-  "html[data-vle-chrome='marginalia'] .vld-hero::first-letter{font-family:var(--vserif);font-weight:600;font-style:normal;font-size:2em;line-height:.82;float:left;margin:3px 8px 0 0;color:var(--vg);text-shadow:0 0 10px rgba(var(--vg-rgb),.3)}",
-  "html[data-vle-chrome='marginalia'] .vld-sec--hero{background:radial-gradient(120% 150% at 30% 0,color-mix(in srgb,var(--vg) 12%,transparent),color-mix(in srgb,var(--vg2) 7%,transparent) 60%)!important;border:1px dashed rgba(var(--vg-rgb),.24)!important;border-radius:24px!important;box-shadow:inset 0 0 30px rgba(var(--vg-rgb),.06)!important}",
-
-  // --- tension -> soft pressed-flower buds (lilac->sage), never alarming ---
-  "html[data-vle-chrome='marginalia'] .vld-dot{border-radius:50%;background:rgba(var(--vg-rgb),.12)}",
-  "html[data-vle-chrome='marginalia'] .vld-dot.on{background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--vg) 85%,#fff),var(--vg2));box-shadow:0 0 7px rgba(var(--vg-rgb),.45)}",
-
-  // --- avatars -> soft pressed-flower medallions with a gentle petal halo when present ---
-  "html[data-vle-chrome='marginalia'] .vle-av,html[data-vle-chrome='marginalia'] .vld-pc-av,html[data-vle-chrome='marginalia'] .vle-strip-av{border-radius:50%;background:radial-gradient(60% 55% at 40% 34%,color-mix(in srgb,var(--vg) 30%,transparent),color-mix(in srgb,var(--vg2) 20%,transparent));border:1px solid rgba(var(--vg-rgb),.4);color:var(--vi);box-shadow:0 0 10px rgba(var(--vg-rgb),.14)}",
-  "html[data-vle-chrome='marginalia'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.18),0 0 14px rgba(var(--vg-rgb),.34)}",
-
-  // --- twin bond meters -> soft rounded strands (lilac affection, sage trust) ---
-  "html[data-vle-chrome='marginalia'] .vle-tw-t{height:8px;border-radius:6px;background:rgba(var(--vg-rgb),.08)}",
-  "html[data-vle-chrome='marginalia'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 55%,transparent),var(--vg))}",
-  "html[data-vle-chrome='marginalia'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 55%,transparent),var(--vg2))}",
-
-  // --- 'Latest' feed -> a pressed-flower stem: soft dashed lilac vine with bloom nodes ---
-  "html[data-vle-chrome='marginalia'] .vld-rec{position:relative;margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(11px * var(--vscale)) calc(18px * var(--vscale));border-left:1.5px dashed rgba(var(--vg-rgb),.26)}",
-  "html[data-vle-chrome='marginalia'] .vld-rec:last-child{border-left-color:transparent}",
-  "html[data-vle-chrome='marginalia'] .vld-rec::before{content:'\\2740';position:absolute;left:-8px;top:calc(1px * var(--vscale));font-size:11px;color:var(--vg2)}",
-  "html[data-vle-chrome='marginalia'] .vld-rec--journal::before{color:var(--v-pos-i)}html[data-vle-chrome='marginalia'] .vld-rec--knew::before{color:var(--v-info)}html[data-vle-chrome='marginalia'] .vld-rec--secret::before{color:var(--v-neg-i)}html[data-vle-chrome='marginalia'] .vld-rec--shift::before{color:var(--v-press-i)}",
-
-  // --- chips soften to fully-rounded pastel lozenges ---
-  "html[data-vle-chrome='marginalia'] .v-chip{border-radius:var(--rpill)}",
-
-  // --- modal + toasts pick up the soft dashed notebook treatment (read document attr) ---
-  "html[data-vle-chrome='marginalia'] .vlfm{border-radius:22px;border:1px dashed rgba(var(--vg-rgb),.3);box-shadow:0 24px 70px rgba(18,14,24,.55),0 0 30px rgba(var(--vg-rgb),.1)}",
-  "html[data-vle-chrome='marginalia'] .vlfm-head{font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:.6px;border-bottom:1px dashed rgba(var(--vg-rgb),.26)}",
 
 ].join('\n');
 

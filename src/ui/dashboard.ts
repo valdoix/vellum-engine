@@ -13,6 +13,7 @@ import { formatDate } from '../domain/date-format.js';
 
 import { getLayout, type LayoutDef, type SectionId } from './layout-defs.js';
 import { getTheme } from './theme.js';
+import { sceneVisual } from './scene-visual.js';
 
 /** Section registry — each block is a pure (state) → html function. Layouts
  * compose these by id; the functions never change, the layout owns structure. */
@@ -121,7 +122,37 @@ function statusBar(s: ChronicleState): string {
   }
   // world-calendar epoch: makes "Day 47" read as an occasion (e.g. ✦ Feast of Ash)
   const epoch = _calendar ? `<div class="vld-epoch">\u2726 ${esc(_calendar)}</div>` : '';
-  return `<div class="vld-sec vld-sec--hero">${pill}${eyebrow}${loc}<div class="vld-meta">${meta}</div>${epoch}</div>`;
+  return `<div class="vld-sec vld-sec--hero">${sceneBand(s)}${pill}${eyebrow}${loc}<div class="vld-meta">${meta}</div>${epoch}</div>`;
+}
+
+/**
+ * The illustrated, weather-reactive scene band that sits BEHIND the hero text.
+ * Pure CSS/SVG layers (sky gradient + weather particles + light source) switched
+ * by data-weather / data-tod, keyed off the model's free scene.weather+time via
+ * the classifier. All motion is CSS and honours --vmotion / prefers-reduced-motion.
+ * Text stays above via z-index (see styles.ts .vld-sec--hero>*).
+ */
+function sceneBand(s: ChronicleState): string {
+  const v = sceneVisual(s.scene.weather, s.scene.time);
+  // particle layer content differs per weather; the light 'orb' is placed by tod.
+  return `<div class="vld-band" data-weather="${v.weather}" data-tod="${v.tod}" aria-hidden="true">`
+    + '<span class="vld-band-sky"></span>'
+    + '<span class="vld-band-orb"></span>'
+    + '<span class="vld-band-fx"></span>'
+    + '<span class="vld-band-horizon"></span>'
+    + '</div>';
+}
+
+// Remember the previous tension reading so the gauge can show a rising/falling
+// trend. Keyed by turn so a re-render of the same turn doesn't fake a change;
+// only an actual turn advance updates the baseline.
+let _prevTension = { turn: -1, value: 0 };
+function tensionTrend(turn: number, value: number): '' | 'up' | 'down' {
+  const prev = _prevTension;
+  let trend: '' | 'up' | 'down' = '';
+  if (prev.turn >= 0 && turn > prev.turn) trend = value > prev.value ? 'up' : value < prev.value ? 'down' : '';
+  if (turn !== prev.turn) _prevTension = { turn, value }; // advance baseline once per turn
+  return trend;
 }
 
 function tensionBar(s: ChronicleState): string {
@@ -131,14 +162,30 @@ function tensionBar(s: ChronicleState): string {
   // section so the scroll isn't broken by a near-empty card.
   if (getTheme().chrome === 'modern') return '';
   const style = getTheme().tensionStyle;
-  // amber dot-meter (--v-press): tension no longer borrows danger-red
-  const dots = Array.from({ length: 10 }, (_, i) =>
-    `<span class="vld-dot${i < t ? ' on' : ''}"></span>`).join('');
-  const meter = `<div class="vld-dots" role="img" aria-label="tension ${t} of 10">${dots}</div>`;
-  const num = `<span class="vld-tension-n">${t}/10</span>`;
-  const inner = style === 'num' ? `<span class="vld-tension-n" style="min-width:auto">${t}/10</span>`
-    : style === 'bar' ? meter : meter + num;
-  return `<div class="vld-sec vld-sec--tension"><div class="vld-h">Tension</div><div class="vld-tension-row">${inner}</div></div>`;
+  // 'num' / 'bar' remain as plain downgrades for users who set them.
+  if (style === 'num') {
+    return `<div class="vld-sec vld-sec--tension"><div class="vld-h">Tension</div><div class="vld-tension-row"><span class="vld-tension-n" style="min-width:auto">${t}/10</span></div></div>`;
+  }
+  if (style === 'bar') {
+    const dots = Array.from({ length: 10 }, (_, i) => `<span class="vld-dot${i < t ? ' on' : ''}"></span>`).join('');
+    return `<div class="vld-sec vld-sec--tension"><div class="vld-h">Tension</div><div class="vld-tension-row"><div class="vld-dots" role="img" aria-label="tension ${t} of 10">${dots}</div></div></div>`;
+  }
+  // DEFAULT: the ember GAUGE — 10 motes on a track. Lit motes glow and grow
+  // hotter (amber→red) by index; unlit stay cold. Encodes tension as heat, not a
+  // borrowed danger-red bar. A trend caret + one line of voice complete the read.
+  const trend = tensionTrend(s.turns ?? 0, t);
+  const motes = Array.from({ length: 10 }, (_, i) =>
+    `<span class="vld-mote${i < t ? ' on' : ''}" style="--i:${i}"></span>`).join('');
+  const caret = trend === 'up' ? '<span class="vld-tension-tr up" title="rising">\u25B2</span>'
+    : trend === 'down' ? '<span class="vld-tension-tr down" title="easing">\u25BC</span>' : '';
+  const word = t >= 9 ? 'at breaking point' : t >= 7 ? 'the swarm gathers \u2014 a break is near'
+    : t >= 4 ? 'a charge builds in the air' : 'quiet, for now';
+  const rank = trend === 'up' ? ' \u00b7 RISING' : trend === 'down' ? ' \u00b7 EASING' : '';
+  return `<div class="vld-sec vld-sec--tension">`
+    + `<div class="vld-h">Tension <span class="vld-tension-read">${t}/10${rank}</span></div>`
+    + `<div class="vld-gauge" role="img" aria-label="tension ${t} of 10${rank}">${motes}${caret}</div>`
+    + `<div class="vld-tension-word">${word}</div>`
+    + `</div>`;
 }
 
 function presentBlock(s: ChronicleState): string {

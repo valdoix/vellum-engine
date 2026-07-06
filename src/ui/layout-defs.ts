@@ -70,26 +70,6 @@ export const LAYOUTS: LayoutDef[] = [
     order: ['present', 'status', 'tension', 'relations', 'threads', 'parallel', 'recent'],
     hidden: [], collapsed: [], density: 'comfortable', columns: 1, mode: 'switch',
   },
-  {
-    id: 'salon', name: 'Midnight Salon', blurb: 'A formal scene portrait with a narrow chronicle rail (Nocturne chrome).', glyph: '\u2725',
-    order: ['status', 'present', 'tension', 'relations', 'threads', 'parallel', 'recent', 'stats'],
-    hidden: [], collapsed: ['parallel', 'stats'], density: 'comfortable', columns: 2,
-  },
-  {
-    // A single wall of hung paintings — the hero scene reads as the gallery's
-    // centerpiece canvas, each section below is its own framed plate on the wall.
-    // One tall column by design (Atelier chrome). Roomy so the frames can breathe.
-    id: 'gallery', name: 'Gallery Wall', blurb: 'A hung wall of framed plates \u2014 the scene as centerpiece canvas (Atelier chrome).', glyph: '\u25A6',
-    order: ['status', 'present', 'tension', 'relations', 'recent', 'threads', 'parallel', 'stats'],
-    hidden: [], collapsed: ['parallel', 'stats'], density: 'roomy', columns: 1,
-  },
-  {
-    // An organic clearing: the scene opens wide, present cast and bonds form the
-    // living center, while plot and recent activity trail down a narrow side path.
-    id: 'glade', name: 'Fairy Glade', blurb: 'An open clearing with leaf clusters and a narrow firefly trail (Glimmerwood chrome).', glyph: '\u273E',
-    order: ['status', 'present', 'relations', 'tension', 'recent', 'threads', 'parallel', 'stats'],
-    hidden: [], collapsed: ['parallel', 'stats'], density: 'roomy', columns: 2,
-  },
 ];
 
 void ALL;

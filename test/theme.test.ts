@@ -23,13 +23,15 @@ describe('theme system', () => {
     }
   });
 
-  it('MODES cover the default baseline + three world themes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['atelier', 'bloom', 'default', 'ember', 'futuristic', 'glimmerwood', 'illuminated', 'marginalia', 'modern', 'nocturne']);
-
+  it('MODES are exactly the six chromes', () => {
+    expect(MODES.map((m) => m.id).sort()).toEqual(['bloom', 'default', 'ember', 'futuristic', 'illuminated', 'modern']);
   });
 
-  it("each mode's recommended skin exists", () => {
-    for (const m of MODES) if (m.skin) expect(SKINS.some((s) => s.id === m.skin), m.skin).toBe(true);
+  it("each mode's dark + light skins exist", () => {
+    for (const m of MODES) {
+      expect(SKINS.some((s) => s.id === m.skinDark), `${m.id} dark ${m.skinDark}`).toBe(true);
+      expect(SKINS.some((s) => s.id === m.skinLight), `${m.id} light ${m.skinLight}`).toBe(true);
+    }
   });
 
   it('setMode applies the chrome and its recommended skin palette', () => {
