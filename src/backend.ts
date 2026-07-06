@@ -808,8 +808,13 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
   if (turnMems < threshold) return; // threshold (user-tunable); keeps recent turns verbatim
   _summarizing.add(chatId);
   try {
+    // tell the UI a pass actually STARTED (auto runs off the response path, so the
+    // user otherwise has no signal it's happening). The manual button already
+    // toasts on click; this covers the automatic cadence.
+    spindle.sendToFrontend?.({ type: 'vellum_summarize_start', chatId, auto: true }, userId ?? currentUser());
     const evs = await summarizeOnce(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg);
     if (evs.length) {
+
       await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, userId);
       spindle.log?.info?.('[vellum_engine] auto-summarized a chapter');
       void maybeChapterVault(chatId, userId); // project the new chapter's detail to the vault

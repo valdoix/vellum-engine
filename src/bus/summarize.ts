@@ -163,34 +163,55 @@ export async function summarizeFromPlan(
   return { events, tokens };
 }
 
+// Even the largest detailCap (~20k chars) is only ~6k output tokens, and most
+// providers REJECT or tear down a request whose max_tokens exceeds the model's
+// output cap — surfacing to us as "Generation aborted", NOT as empty content. So
+// we never ask for a budget above this sane ceiling, however high genMaxTokens
+// is clamped in the config (its range tops out at 32000).
+const OUTPUT_CEIL = 8000;
+
+/** True when a host-generation error is an abort/timeout (the request never
+ * completed) rather than a completed-but-empty return. tryCatchAsync surfaces
+ * AbortSignal.timeout as "Generation aborted" (see host/generation.ts). */
+function isAbort(err: string): boolean { return /abort|timeout|timed out/i.test(err); }
+
 /**
- * Run the DETAIL+KEYS pass with an ESCALATING retry. The first attempt is
- * cheap: reasoning OFF at the configured budget. If it comes back empty — the
- * dominant failure on providers that IGNORE `reasoning: off`, where the whole
- * token budget is spent on hidden thinking and `content` is empty — the retry
- * is NOT identical: it (a) raises the output budget substantially so think+write
- * both fit, and (b) STOPS forcing reasoning off, so the answer is allowed to
- * land in the reasoning channel that extractGenContent already harvests. A
- * generous wall-clock timeout on each attempt prevents a stalled provider from
- * hanging the pass. Returns the cleaned text ('' when both attempts fail) and a
- * token estimate for the usage toast.
+ * Run the DETAIL+KEYS pass with a FAILURE-AWARE retry. Attempt 1 is cheap:
+ * reasoning OFF at the (clamped) configured budget under a generous wall-clock.
+ * The retry is NOT a blind escalation — it branches on HOW attempt 1 failed,
+ * because the two failure modes need OPPOSITE fixes:
+ *
+ *   • ABORTED (timeout / provider tore the request down): the request never
+ *     completed. Inflating the budget only makes it slower and more likely to be
+ *     rejected again. So we LOWER max_tokens (a smaller output finishes sooner)
+ *     AND RAISE the wall-clock (give a genuinely slow provider room to land).
+ *
+ *   • EMPTY (ok, but no content): the dominant cause is a provider that ignores
+ *     `reasoning: off` and spends the whole budget on hidden thinking. Here we
+ *     ALLOW reasoning so the answer surfaces via extractGenContent's
+ *     reasoning-channel read, with a modest (still model-valid) budget and more
+ *     time.
+ *
+ * Returns the cleaned text ('' when both attempts fail) + a token estimate.
  */
 async function generateDetail(sys: string, src: string, cfg: SummarizerCfg, userId: string | null): Promise<{ text: string; tokens: number }> {
   const msgs = [{ role: 'system' as const, content: sys }, { role: 'user' as const, content: src }];
   let tokens = 0;
-  // attempt 1 — cheap: reasoning off, configured budget, 45s wall-clock.
-  const a1 = await internalGenerate(msgs, { temperature: cfg.temperature, max_tokens: cfg.genMaxTokens }, userId, { reasoningOff: true, timeoutMs: 45000 });
+  // attempt 1 — cheap: reasoning off, budget clamped to a model-valid ceiling, 45s wall-clock.
+  const budget = Math.min(cfg.genMaxTokens, OUTPUT_CEIL);
+  const a1 = await internalGenerate(msgs, { temperature: cfg.temperature, max_tokens: budget }, userId, { reasoningOff: true, timeoutMs: 45000 });
   tokens += approxTokens(sys.length + src.length + (a1.ok ? a1.value.length : 0));
   if (a1.ok && a1.value.trim()) return { text: a1.value, tokens };
-  // attempt 2 — ESCALATE: 3× budget (floored for reasoning models) AND allow the
-  // model to reason, so a provider that ignores `off` can complete its thinking
-  // and the answer surfaces via extractGenContent's reasoning-channel read.
-  const escalated = Math.max(cfg.genMaxTokens * 3, 8000);
-  if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: attempt 1 empty (${a1.ok ? 'no content/reasoning' : a1.error}); escalating to max_tokens=${escalated} with reasoning allowed`);
-  const a2 = await internalGenerate(msgs, { temperature: cfg.temperature, max_tokens: escalated }, userId, { reasoningOff: false, timeoutMs: 60000 });
+  // decide the retry SHAPE from the failure type (see the doc comment above).
+  const aborted = !a1.ok && isAbort(a1.error);
+  const retryBudget = aborted ? Math.max(1500, Math.min(budget, 4000)) : Math.min(Math.max(budget, 6000), OUTPUT_CEIL);
+  const retryTimeoutMs = 90000;       // both paths RAISE the wall-clock over attempt 1's 45s
+  const retryReasoningOff = aborted;  // keep reasoning off on a timeout; allow it on an empty return
+  if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: attempt 1 ${aborted ? 'aborted' : 'empty'} (${a1.ok ? 'no content/reasoning' : a1.error}); retrying with max_tokens=${retryBudget}, timeout=${retryTimeoutMs}ms${retryReasoningOff ? '' : ', reasoning allowed'}`);
+  const a2 = await internalGenerate(msgs, { temperature: cfg.temperature, max_tokens: retryBudget }, userId, { reasoningOff: retryReasoningOff, timeoutMs: retryTimeoutMs });
   tokens += approxTokens(a2.ok ? a2.value.length : 0);
   if (a2.ok && a2.value.trim()) return { text: a2.value, tokens };
-  if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: attempt 2 also empty (${a2.ok ? 'no content/reasoning' : a2.error})`);
+  if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: attempt 2 also failed (${a2.ok ? 'no content/reasoning' : a2.error})`);
   return { text: '', tokens };
 }
 

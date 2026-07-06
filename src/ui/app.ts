@@ -823,6 +823,11 @@ export function setup(ctx: Ctx): () => void {
         setQolBusy('exportmd', false);
         downloadText(`vellum-${p.chatId ?? 'chronicle'}.md`, p.markdown, 'text/markdown');
         notify(ctx, 'success', 'Story exported as Markdown.');
+      } else if (p?.type === 'vellum_summarize_start') {
+        // a summarize pass actually STARTED. The manual button already toasts on
+        // click; this is the signal for the AUTOMATIC cadence (which runs off the
+        // response path, so the user otherwise had no indication it kicked off).
+        if (p.auto) notify(ctx, 'info', 'Summarizing older turns\u2026');
       } else if (p?.type === 'vellum_summarize_progress') {
         // live count + running token usage as each window is summarized.
         const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
