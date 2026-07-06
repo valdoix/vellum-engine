@@ -95,6 +95,16 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.yearSuffix !== undefined) s.yearSuffix = e.yearSuffix || undefined;
       break;
     }
+    case 'tone.set': {
+      // last-write-wins per dial: an event may carry only the dial(s) that
+      // changed, so absent fields leave the current value intact. Invalid values
+      // can't reach here (zod-validated at load), so no re-parse is needed.
+      if (e.romance !== undefined) s.tone.romance = e.romance;
+      if (e.disposition !== undefined) s.tone.disposition = e.disposition;
+      if (e.social !== undefined) s.tone.social = e.social;
+      if (e.politics !== undefined) s.tone.politics = e.politics;
+      break;
+    }
     case 'scene.set': {
       // MERGE MODE (prose extractor recovery): never rewrite the scene wholesale
       // or demote anyone — only ADD missing present ids and FILL empty detail

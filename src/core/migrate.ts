@@ -110,6 +110,15 @@ export function migrate(raw: unknown): unknown {
     version = 14;
   }
 
+  // v14 → v15: tone dials moved into the log (tone.set / state.tone) so they
+  // persist like config.set instead of a transient host chat var. Additive — old
+  // logs have no tone.set event and reduce to DEFAULT_TONE; the backend performs
+  // a one-time migration of any legacy `vellum_*` tone chat vars into a tone.set
+  // event on first load, so a user's existing dials are preserved.
+  if (version < 15) {
+    version = 15;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

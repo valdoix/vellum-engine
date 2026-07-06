@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 14 as const;
+export const SCHEMA_VERSION = 15 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -44,6 +44,16 @@ export const EvTurnFold = z.object({ ...base, kind: z.literal('turn.fold'), sig:
 export const DateFormat = z.enum(['day', 'month-day-year', 'month-day', 'month', 'week', 'month-year', 'year']);
 export type DateFormat = z.infer<typeof DateFormat>;
 export const EvConfigSet = z.object({ ...base, kind: z.literal('config.set'), dateFormat: DateFormat.optional(), dateEpoch: z.string().optional(), monthNames: z.array(z.string()).optional(), monthNamesShort: z.array(z.string()).optional(), yearPrefix: z.string().optional(), yearSuffix: z.string().optional() });
+// --- Tone dials: the user's romance/disposition/social/politics preferences,
+// persisted in the log (like config.set) so they survive regen/chat-switch/
+// reload and flow to every reduce() consumer, instead of a flaky host chat var.
+// Each field optional so a set can move one dial; reduce keeps the last value.
+// Enums mirror domain/tone.ts (kept inline so events.ts imports no domain code).
+export const ToneRomance = z.enum(['off', 'slow_burn', 'medium', 'fast', 'erotic']);
+export const ToneDisposition = z.enum(['kind', 'warm', 'fair', 'harsh', 'brutal']);
+export const ToneSocial = z.enum(['off', 'reactive', 'living', 'autonomous']);
+export const TonePolitics = z.enum(['off', 'living', 'autonomous']);
+export const EvToneSet = z.object({ ...base, kind: z.literal('tone.set'), romance: ToneRomance.optional(), disposition: ToneDisposition.optional(), social: ToneSocial.optional(), politics: TonePolitics.optional() });
 export const PresentDetail = z.object({ id: z.string(), name: z.string().optional(), mood: z.string().optional(), doing: z.string().optional(), condition: z.string().optional(), thought: z.string().optional() });
 // `mergeDetail` = a NON-authoritative scene event (from the prose extractor): it
 // only FILLS GAPS in the current scene's present list + per-character detail
@@ -189,7 +199,7 @@ export const EvOffscreenLink = z.object({ ...base, kind: z.literal('offscreen.li
 export const EvOffscreenDrop = z.object({ ...base, kind: z.literal('offscreen.drop'), id: z.string() });
 
 export const VellumEvent = z.discriminatedUnion('kind', [
-  EvTurnFold, EvConfigSet, EvSceneSet,
+  EvTurnFold, EvConfigSet, EvToneSet, EvSceneSet,
   EvCastSeen, EvCastEdit, EvCastDrop,
   EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding, EvFactionRel, EvFactionRelDrop,
   EvBondDelta, EvBondDrop,

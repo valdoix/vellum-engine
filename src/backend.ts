@@ -1,7 +1,7 @@
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar, invalidateChatVars } from './host/chats.js';
-import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, truncateAfterTurn, turnSigs, recoverFromBackup, loadLog } from './store/chronicle.js';
+import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logHasKind, truncateAfterTurn, turnSigs, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
@@ -39,7 +39,7 @@ import { resolveCategory, settingsToEntryFields, customCategory, type EntrySetti
 import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
 import { reconcileFactionEntries } from './domain/faction-vault.js';
 import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
-import { parseTone, type Tone } from './domain/tone.js';
+import { parseTone, isDefaultTone, DEFAULT_TONE, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, lockInjection, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
 import { checkContinuity } from './domain/continuity.js';
@@ -202,15 +202,55 @@ async function divergedTurn(chatId: string, msgs: string[], foldedTurns: number,
   return null;
 }
 
-/** Read the per-chat tone dials (romance pace + world disposition) the user set
- * via the Tone control. Defaults to neutral (medium/fair) Ã¢â€ â€™ today's behavior. */
+// Chats whose legacy chat-var tone has already been considered for migration
+// this session, so the one-time seed runs at most once per chat (readTone is
+// called from several paths, sometimes in parallel via Promise.all).
+const _toneMigrated = new Set<string>();
+
+/**
+ * One-time migration: earlier builds stored the tone dials in host chat vars
+ * (vellum_romance/disposition/social/politics), which reverted to default on
+ * regen/chat-switch/reload. Tone now lives in the durable event log (tone.set).
+ * On first read of a chat whose log has NO tone.set yet, seed one from any
+ * non-default legacy chat var so an existing user's dials are preserved. A log
+ * that already carries a tone.set (or only default legacy vars) is left alone.
+ * turn:0 so a later regenerate/edit rollback (truncateAfterTurn) never drops it.
+ */
+async function migrateLegacyTone(chatId: string): Promise<void> {
+  if (_toneMigrated.has(chatId)) return;
+  _toneMigrated.add(chatId);
+  try {
+    await loadLog(chatId); // ensure the log is in cache so logHasKind is accurate
+    if (logHasKind(chatId, 'tone.set')) return; // already migrated / natively set
+    const r = await getChatVar(chatId, 'vellum_romance');
+    const d = await getChatVar(chatId, 'vellum_disposition');
+    const s = await getChatVar(chatId, 'vellum_social');
+    const p = await getChatVar(chatId, 'vellum_politics');
+    const legacy = parseTone(r, d, s, p);
+    // retire the legacy keys either way so they can never re-seed tone on a later
+    // session (e.g. after an explicit clear) now that the log is authoritative.
+    const retireLegacy = async (): Promise<void> => {
+      for (const k of ['vellum_romance', 'vellum_disposition', 'vellum_social', 'vellum_politics']) {
+        try { await setChatVar(chatId, k, ''); } catch { /* best effort */ }
+      }
+    };
+    if (isDefaultTone(legacy)) { await retireLegacy(); return; } // nothing worth preserving
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'tone.set', romance: legacy.romance, disposition: legacy.disposition, social: legacy.social, politics: legacy.politics } as VellumEvent]);
+    invalidateIndex(chatId);
+    await retireLegacy();
+    spindle.log?.info?.('[vellum_engine] migrated legacy chat-var tone into the log for ' + chatId);
+  } catch { /* best effort — a failed migration just falls back to DEFAULT_TONE */ }
+}
+
+/** Read the per-chat tone dials (romance / disposition / social / politics) the
+ * user set via the Tone control. Now sourced from the durable event log
+ * (state.tone, derived from tone.set events) so it survives regen/chat-switch/
+ * reload; defaults to DEFAULT_TONE when the user never changed it. */
 async function readTone(chatId: string, userId: string | null): Promise<Tone> {
   void userId;
-  const r = await getChatVar(chatId, 'vellum_romance');
-  const d = await getChatVar(chatId, 'vellum_disposition');
-  const s = await getChatVar(chatId, 'vellum_social');
-  const p = await getChatVar(chatId, 'vellum_politics');
-  return parseTone(r, d, s, p);
+  await migrateLegacyTone(chatId);
+  const state = await loadState(chatId);
+  return state.tone ?? DEFAULT_TONE;
 }
 
 /** Read + sanitize the per-chat relation locks (Plot Director). */
@@ -1015,7 +1055,15 @@ const dispatch: Record<string, Handler> = {
     const messagesOnly = !!p?.messagesOnly;
     try {
       const msgs = await allTurnContents(chatId);
-      if (!messagesOnly) { await clearLog(chatId); lastSigByChat.delete(chatId); invalidateMood(chatId); }
+      // full rebuild wipes the log; capture the durable tone first so a recovery
+      // reconstruction re-seeds the user's dials (legacy chat vars are no longer
+      // written, so there's nothing else to recover them from).
+      const preTone = messagesOnly ? null : await readTone(chatId, uid);
+      if (!messagesOnly) { await clearLog(chatId); lastSigByChat.delete(chatId); invalidateMood(chatId); _toneMigrated.delete(chatId); }
+      if (preTone && !isDefaultTone(preTone)) {
+        await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'user', kind: 'tone.set', romance: preTone.romance, disposition: preTone.disposition, social: preTone.social, politics: preTone.politics } as VellumEvent]);
+        _toneMigrated.add(chatId); // the log now carries tone.set — skip re-migration
+      }
       let prior = await loadState(chatId);
       const tone = await readTone(chatId, uid);
       const names = await chatNames(chatId, uid);
@@ -1665,13 +1713,19 @@ const dispatch: Record<string, Handler> = {
   vellum_set_tone: async (p, uid) => {
     // persist romance pace + world disposition; they steer the fold (bond seed/
     // clamp/strip) and the preset prose. Validated via parseTone (neutral default).
+    // Stored as a DURABLE tone.set event in the log (not a host chat var) so the
+    // dials survive regen/chat-switch/reload instead of reverting to default.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const tone = parseTone(p?.romance, p?.disposition, p?.social, p?.politics);
-    try { await setChatVar(chatId, 'vellum_romance', tone.romance); } catch { /* best effort */ }
-    try { await setChatVar(chatId, 'vellum_disposition', tone.disposition); } catch { /* best effort */ }
-    try { await setChatVar(chatId, 'vellum_social', tone.social); } catch { /* best effort */ }
-    try { await setChatVar(chatId, 'vellum_politics', tone.politics); } catch { /* best effort */ }
+    // ensure the log is loaded (so logHasKind sees it) and the legacy seed ran,
+    // so this explicit set is the authoritative last tone.set either way.
+    await migrateLegacyTone(chatId);
+    const state = await loadState(chatId);
+    // turn:0 so a regenerate/edit rollback (truncateAfterTurn) never drops the
+    // user's chosen tone; last-write-wins in reduce keeps the newest value.
+    await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: state.day || 0, src: 'user', kind: 'tone.set', romance: tone.romance, disposition: tone.disposition, social: tone.social, politics: tone.politics } as VellumEvent]);
+    invalidateIndex(chatId);
     spindle.sendToFrontend?.({ type: 'vellum_tone_done', ok: true, romance: tone.romance, disposition: tone.disposition, social: tone.social, politics: tone.politics }, uid);
   },
   vellum_set_locks: async (p, uid) => {

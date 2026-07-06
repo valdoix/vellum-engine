@@ -3,6 +3,8 @@ import { adjustBond, parseTone, DEFAULT_TONE, type Tone } from '../src/domain/to
 import { coreFeature } from '../src/domain/core-feature.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
+import { SCHEMA_VERSION, VellumEvent as VellumEventSchema, type VellumEvent } from '../src/core/events.js';
+import { nextSeq } from '../src/core/ids.js';
 
 const facts = (o: Partial<{ userId: string; relExists: boolean; romantic: boolean }> = {}) =>
   ({ userId: o.userId ?? '', relExists: o.relExists ?? false, romantic: o.romantic ?? false });
@@ -63,6 +65,45 @@ describe('adjustBond — disposition seed (first impression)', () => {
 
   it('fair (default) seeds nothing', () => {
     expect(adjustBond({ a: 'anne', b: 'ned', aff: 5 }, T('fair'), facts({ userId: 'anne', relExists: false }))!.aff).toBe(5);
+  });
+});
+
+describe('tone.set event — durable tone in the log (reduce)', () => {
+  const ev = (o: Partial<VellumEvent> & { kind: string }): VellumEvent =>
+    ({ seq: nextSeq(), turn: 0, day: 0, src: 'user', ...o } as VellumEvent);
+
+  it('state.tone defaults to DEFAULT_TONE with no tone.set', () => {
+    expect(freshState().tone).toEqual(DEFAULT_TONE);
+    expect(reduce([], freshState()).tone).toEqual(DEFAULT_TONE);
+  });
+
+  it('a tone.set event drives state.tone through reduce()', () => {
+    const s = reduce([
+      ev({ kind: 'tone.set', romance: 'slow_burn', disposition: 'brutal', social: 'autonomous', politics: 'living' } as any),
+    ], freshState());
+    expect(s.tone).toEqual({ romance: 'slow_burn', disposition: 'brutal', social: 'autonomous', politics: 'living' });
+  });
+
+  it('later tone.set overrides earlier per dial (last write wins)', () => {
+    const s = reduce([
+      ev({ kind: 'tone.set', romance: 'fast', disposition: 'kind', social: 'off', politics: 'off' } as any),
+      ev({ kind: 'tone.set', romance: 'off' } as any), // partial: only romance changes
+    ], freshState());
+    expect(s.tone).toEqual({ romance: 'off', disposition: 'kind', social: 'off', politics: 'off' });
+  });
+
+  it('the tone.set schema round-trips (survives a log reload)', () => {
+    const parsed = VellumEventSchema.safeParse(
+      ev({ kind: 'tone.set', romance: 'erotic', disposition: 'harsh', social: 'reactive', politics: 'autonomous' } as any),
+    );
+    expect(parsed.success).toBe(true);
+    // schema is at/above the tone-in-log version
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(15);
+  });
+
+  it('an invalid dial value is rejected by the schema (never reaches reduce)', () => {
+    const bad = VellumEventSchema.safeParse(ev({ kind: 'tone.set', romance: 'bogus' } as any));
+    expect(bad.success).toBe(false);
   });
 });
 

@@ -300,6 +300,15 @@ export async function turnSigs(chatId: string): Promise<Map<number, string>> {
  * key the recall index so in-place content edits invalidate it (Fix 20). */
 export function logVersion(chatId: string): number { return _cache.get(chatId)?.log.events.length ?? 0; }
 
+/** Does the chat's log already contain at least one event of this kind? Used by
+ * the backend's one-time legacy migrations (e.g. seeding a tone.set from an old
+ * host chat var) so they run only when the log has no such event yet. Assumes
+ * the log is already loaded (callers loadState/loadLog first). */
+export function logHasKind(chatId: string, kind: VellumEvent['kind']): boolean {
+  const c = _cache.get(chatId);
+  return c ? c.log.events.some((e) => e.kind === kind) : false;
+}
+
 /**
  * Fix 10 — UNDO: drop every event whose turn is greater than `turn` (so
  * `truncateAfterTurn(c, n)` keeps turns 1..n). Honors the read-only durability

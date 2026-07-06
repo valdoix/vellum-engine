@@ -1,4 +1,5 @@
 import type { Category } from '../core/events.js';
+import { type Tone, DEFAULT_TONE } from './tone.js';
 
 /**
  * Derived state shapes. These are what reduce(events) produces and what the UI
@@ -296,6 +297,10 @@ export interface ChronicleState {
   scene: Scene;
   day: number;
   turns: number;
+  // User tone dials (romance/disposition/social/politics), derived from tone.set
+  // events so they persist in the log and never revert to default on reload/
+  // chat-switch. Defaults to DEFAULT_TONE when no tone.set has ever been written.
+  tone: Tone;
   dateFormat: 'day' | 'month-day-year' | 'month-day' | 'month' | 'week' | 'month-year' | 'year';
   dateEpoch?: Date; // Optional: reference date for calendar conversion
   // Fantasy calendar naming (Tier 1): rename the display labels while keeping the
@@ -347,6 +352,7 @@ export function freshState(): ChronicleState {
     scene: { location: '', time: '', tension: 0, weather: '', present: [], detail: [] },
     day: 0,
     turns: 0,
+    tone: { ...DEFAULT_TONE },
     dateFormat: 'day',
   };
 }
