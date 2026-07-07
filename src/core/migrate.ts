@@ -119,6 +119,53 @@ export function migrate(raw: unknown): unknown {
     version = 15;
   }
 
+  // v15 → v16: chapter/arc memory.record + their folded memory.drop events were
+  // stamped with the turn count at creation time, not the covered range end
+  // (plan.covers[1]). truncateAfterTurn keys on e.turn, so a rollback between the
+  // covered range and the creation stamp destroyed the chapter while keeping its
+  // subsumed turn records (chapters "reverted to turns" after regeneration).
+  // Re-stamp each chapter/arc record and ITS associated fold-drops to covers[1]
+  // so the bundle truncates atomically with the range it covers.
+  if (version < 16) {
+    if (Array.isArray(obj.events)) {
+      const events = obj.events as unknown[];
+      for (let i = 0; i < events.length; i++) {
+        const e = events[i];
+        if (!e || typeof e !== 'object') continue;
+        const ev = e as Record<string, unknown>;
+        if (ev.kind !== 'memory.record') continue;
+        const tier = ev.tier;
+        if (tier !== 'chapter' && tier !== 'arc') continue;
+        const covers = ev.covers;
+        if (!Array.isArray(covers) || typeof covers[1] !== 'number') continue;
+        const end = covers[1] as number;
+        ev.turn = end;
+        // re-stamp THIS record's fold-drops: the contiguous run of folded
+        // memory.drop events that immediately follow it in the log and whose
+        // id appears in this record's subsumed list (chapterEvents/arcEvents
+        // emit the record first, then its fold-drops contiguously; they are
+        // not interleaved with other events).
+        const subsumedIds = new Set<string>();
+        if (Array.isArray(ev.subsumed)) {
+          for (const s of ev.subsumed) {
+            if (s && typeof s === 'object' && typeof (s as Record<string, unknown>).id === 'string') {
+              subsumedIds.add((s as Record<string, unknown>).id as string);
+            }
+          }
+        }
+        for (let j = i + 1; j < events.length; j++) {
+          const f = events[j] as Record<string, unknown> | null;
+          if (!f || typeof f !== 'object') break;
+          if (f.kind !== 'memory.drop') break;
+          if (f.folded !== true) break;
+          if (typeof f.id !== 'string' || !subsumedIds.has(f.id)) break;
+          f.turn = end;
+        }
+      }
+    }
+    version = 16;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

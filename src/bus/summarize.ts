@@ -158,7 +158,7 @@ export async function summarizeFromPlan(
   const events = build(
     plan,
     { gist: capText(finalGist || gist, cfg.gistCap), detail: capText(detail, cfg.detailCap), keys },
-    state.turns || plan.covers[1], state.day || 0, nextSeq,
+    plan.covers[1], state.day || 0, nextSeq,
   );
   return { events, tokens };
 }

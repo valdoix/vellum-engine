@@ -69,3 +69,66 @@ describe('regeneration reconcile — turnSigs + rollback/re-fold', () => {
     expect((await loadState(chatId)).relations[0]!.affection).toBe(5); // 10 + (-5), old +20 dropped
   });
 });
+
+describe('chapter truncation — regeneration revert fix', () => {
+  // Mirrors what chapterEvents (src/domain/memory.ts) produces when the caller
+  // stamps at covers[1] (the value summarize.ts now passes): the record + its
+  // folded memory.drop events all share plan.covers[1] as their turn.
+  function chapterEventsAtCoversEnd(plan: { sourceIds: string[]; covers: [number, number] }, summary: { gist: string; detail: string; keys: string[] }, turn: number, day: number, seq0: number): any[] {
+    let seq = seq0;
+    const id = 'chap_test';
+    const events: any[] = [
+      { seq: seq++, turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.sourceIds.map((sid) => ({ id: sid })) },
+    ];
+    for (const sid of plan.sourceIds) {
+      events.push({ seq: seq++, turn, day, src: 'system', kind: 'memory.drop', id: sid, folded: true });
+    }
+    return events;
+  }
+
+  it('keeps a chapter whose covered range is before the rollback (regen of a later turn)', async () => {
+    const { append, truncateAfterTurn, loadState } = await import('../src/store/chronicle.js');
+    const chatId = 'chapregen_' + Math.random().toString(36).slice(2);
+    // turns 1..8 each record a turn-tier memory at their own turn number
+    const turnMems = Array.from({ length: 8 }, (_, i) => ({
+      seq: i + 1, turn: i + 1, day: 0, src: 'system',
+      kind: 'memory.record' as const, id: `turn_${i + 1}`, tier: 'turn' as const,
+      text: `turn ${i + 1}`, keys: [],
+    }));
+    // chapter covering [1,8], stamped at covers[1] = 8, plus its 8 fold-drops at 8
+    const chapEvents = chapterEventsAtCoversEnd(
+      { sourceIds: turnMems.map((m) => m.id), covers: [1, 8] },
+      { gist: 'chapter one', detail: 'detail', keys: [] }, 8, 0, 1000,
+    );
+    await append(chatId, [...turnMems, ...chapEvents]);
+    // simulate regenerate turn 15 → rollback to 14. Chapter covers 1-8, far below 14.
+    await truncateAfterTurn(chatId, 14);
+    const s = await loadState(chatId);
+    const chapters = s.memories.filter((m) => m.tier === 'chapter');
+    const turns = s.memories.filter((m) => m.tier === 'turn');
+    expect(chapters).toHaveLength(1);
+    expect(chapters[0]!.covers).toEqual([1, 8]);
+    expect(turns).toHaveLength(0); // all folded, none resurrected
+  });
+
+  it('dissolves a chapter when the rollback cuts into its covered range', async () => {
+    const { append, truncateAfterTurn, loadState } = await import('../src/store/chronicle.js');
+    const chatId = 'chapregen2_' + Math.random().toString(36).slice(2);
+    const turnMems = Array.from({ length: 8 }, (_, i) => ({
+      seq: i + 1, turn: i + 1, day: 0, src: 'system',
+      kind: 'memory.record' as const, id: `turn_${i + 1}`, tier: 'turn' as const,
+      text: `turn ${i + 1}`, keys: [],
+    }));
+    const chapEvents = chapterEventsAtCoversEnd(
+      { sourceIds: turnMems.map((m) => m.id), covers: [1, 8] },
+      { gist: 'chapter one', detail: 'detail', keys: [] }, 8, 0, 1000,
+    );
+    await append(chatId, [...turnMems, ...chapEvents]);
+    // regenerate turn 5 → rollback to 4. Chapter covers 1-8; 8 > 4 so it is dropped.
+    await truncateAfterTurn(chatId, 4);
+    const s = await loadState(chatId);
+    expect(s.memories.filter((m) => m.tier === 'chapter')).toHaveLength(0);
+    // turns 1-4 survive as loose turns (their fold-drops at turn 8 were dropped)
+    expect(s.memories.filter((m) => m.tier === 'turn')).toHaveLength(4);
+  });
+});
