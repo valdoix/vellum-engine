@@ -45,7 +45,8 @@ function dominantSentiment(entries: JournalEntry[]): string {
 }
 
 export const journalTab: Component<ChronicleState> = {
-  version: (s) => s.journal.length + ':' + Object.keys(s.cast).length + ':' + (_openBook ?? ''),
+  version: (s) => s.journal.length + ':' + Object.keys(s.cast).length + ':' + (_openBook ?? '')
+    + ':' + s.journal.map((j) => j.id + (j.who ?? '') + (j.memory ?? '').length + (j.kind ?? '') + (j.weight ?? '') + (j.sentiment ?? '') + (j.day ?? '') + (j.about ?? '')).join(','),
   render(s) {
     if (_openBook) return bookView(s, _openBook);
     const header = sectionHeader('', { action: '<button class="vle-add" data-jr-add>+ Memory</button>' });

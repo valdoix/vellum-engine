@@ -27,7 +27,7 @@ export function setRelationLocks(locks: UILock[]): void { _locks = Array.isArray
 function lockFor(a: string, b: string): UILock | undefined { const k = pairKey(a, b); return _locks.find((l) => l.key === k); }
 
 export const relationsTab: Component<ChronicleState> = {
-  version: (s) => s.relations.length + ':' + s.relations.reduce((a, r) => a + r.affection + r.trust + r.categories.length, 0) + ':L' + _locks.length + _locks.reduce((a, l) => a + l.forbid.length + l.pin.length, 0),
+  version: (s) => s.relations.length + ':' + s.relations.reduce((a, r) => a + r.affection + r.trust + r.categories.length, 0) + ':L' + _locks.length + _locks.map((l) => l.key + ':' + l.forbid.slice().sort().join('+') + ':' + l.pin.slice().sort().join('+')).join(';'),
   render(s) {
     const header = sectionHeader('', { action: '<button class="vle-add" data-rel-add>+ Relation</button>' });
     if (!s.relations.length) return header + emptyState('No bonds recorded yet.', 'Relationships appear as characters interact.');

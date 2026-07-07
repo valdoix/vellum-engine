@@ -63,8 +63,8 @@ function sortItems<T extends CastCard | Faction>(items: T[], sort: Sort): T[] {
 
 export const castTab: Component<ChronicleState> = {
   version: (s) => {
-    const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${c.disposition ?? ''}|${(c.traits ?? []).join(',')}|${(c.aka ?? []).join(',')}|${c.lastTurn}|${c.color ?? ''}|${c.colorTo ?? ''}|${c.deceased ? 'd' : ''}`).join(';');
-    const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}|${f.seat ?? ''}`).join(';');
+    const cv = Object.values(s.cast).map((c) => `${c.id}|${c.name}|${c.status}|${c.role}|${c.age}|${c.appearance}|${c.note}|${c.disposition ?? ''}|${(c.traits ?? []).join(',')}|${(c.aka ?? []).join(',')}|${c.lastTurn}|${c.color ?? ''}|${c.colorTo ?? ''}|${c.deceased ? 'd' : ''}|${c.userEdited ? 'u' : ''}|${c.imageUrl ?? ''}`).join(';');
+    const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}|${f.seat ?? ''}|${f.userEdited ? 'u' : ''}`).join(';');
     const mv = s.memberships.map((m) => `${m.char}>${m.faction}:${m.role ?? ''}`).join(',')
       + '~' + (s.factionRelations ?? []).map((r) => `${r.a}>${r.b}:${r.kind}:${r.standing}`).join(',');
     return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode() + '#' + _density + '#' + Array.from(_expanded).sort().join(',') + '#' + (s.traitHistory ?? []).length;
