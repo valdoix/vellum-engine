@@ -110,7 +110,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -124,12 +124,14 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     readNextScene(chatId),
     readHardLimits(chatId),
     readCalendar(chatId),
+    readTheme(),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
   const hide = !!hideRaw;
   const traversalMode = travOn ? (travModeRaw === 'tree' ? 'tree' : 'flat') : 'off';
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar }, userId ?? currentUser());
+  const theme = themeRaw ?? null;
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ events ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ append ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ broadcast. */
@@ -1013,6 +1015,16 @@ try {
   spindle.on?.('CHAT_SWITCHED', (p: any) => { rememberUser(p?.userId); invalidateChatCaps(); invalidateChatVars(); invalidateConnCache(); if (p?.chatId) invalidate(); });
 } catch { /* events optional */ }
 
+// --- theme persistence ----------------------------------------------------
+const THEME_PATH = 'vellum/theme.json';
+async function readTheme(): Promise<string | null> {
+  try { if (spindle.storage?.exists && (await spindle.storage.exists(THEME_PATH))) return await spindle.storage.read(THEME_PATH); } catch { /* ignore */ }
+  return null;
+}
+async function writeTheme(json: string): Promise<void> {
+  try { await spindle.storage?.write?.(THEME_PATH, json); } catch { /* ignore */ }
+}
+
 // --- frontend dispatch table ---------------------------------------------
 // Each entry is isolated; a throw in one handler can't affect the others.
 type Handler = (payload: any, userId: string | null) => Promise<void> | void;
@@ -1844,6 +1856,8 @@ const dispatch: Record<string, Handler> = {
     const nameOf = (id: string): string => state.cast[id]?.name ?? id;
     spindle.sendToFrontend?.({ type: 'vellum_turnlog', turns: turnLog(log.events, nameOf), maxTurn: state.turns || 0 }, uid);
   },
+  vellum_set_theme: async (p) => { if (typeof p?.theme === 'string') await writeTheme(p.theme); },
+  vellum_get_theme: async (_p, uid) => { const t = await readTheme(); spindle.sendToFrontend?.({ type: 'vellum_theme', theme: t }, uid ?? currentUser()); },
 };
 
 try {

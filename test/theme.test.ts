@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel, resolveShape, sanitizeCardShapes, CHROME_SHAPES, SHAPE_IDS, SURFACES } from '../src/ui/theme.js';
+import { describe, it, expect, vi } from 'vitest';
+import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel, resolveShape, sanitizeCardShapes, CHROME_SHAPES, SHAPE_IDS, SURFACES, setThemePersist, hydrateTheme } from '../src/ui/theme.js';
 import { renderBondRadar } from '../src/ui/theme-render.js';
 import { freshState } from '../src/domain/types.js';
 
@@ -157,5 +157,36 @@ describe('bond radar (futuristic render branch)', () => {
 
   it('returns "" for an empty group so the caller falls back to twin meters', () => {
     expect(renderBondRadar(freshState(), [])).toBe('');
+  });
+});
+
+describe('theme persistence (spindle.storage round-trip)', () => {
+  it('hydrateTheme(null) is a no-op', () => {
+    const before = JSON.stringify(getTheme());
+    hydrateTheme(null);
+    expect(JSON.stringify(getTheme())).toBe(before);
+  });
+
+  it('hydrateTheme(invalid JSON) is a no-op', () => {
+    const before = JSON.stringify(getTheme());
+    hydrateTheme('not valid json {{{');
+    expect(JSON.stringify(getTheme())).toBe(before);
+  });
+
+  it('hydrateTheme(valid JSON) updates _theme', () => {
+    hydrateTheme(JSON.stringify({ accent: '#123456', skin: 'noir' }));
+    const t = getTheme();
+    expect(t.accent).toBe('#123456');
+    expect(t.skin).toBe('noir');
+  });
+
+  it('save() calls the registered persist callback with the theme JSON', () => {
+    const spy = vi.fn();
+    setThemePersist(spy);
+    patchTheme({ accent: '#654321' });
+    expect(spy).toHaveBeenCalled();
+    const arg = spy.mock.calls![0]![0];
+    expect(typeof arg).toBe('string');
+    expect(JSON.parse(arg).accent).toBe('#654321');
   });
 });

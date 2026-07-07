@@ -276,6 +276,13 @@ function safeTexture(t: string): string {
 }
 
 let _theme: Theme = load();
+let themePersistCb: (json: string) => void = () => {};
+export function setThemePersist(cb: (json: string) => void): void { themePersistCb = cb; }
+function persistTheme(): void { try { themePersistCb(JSON.stringify(_theme)); } catch { /* ignore */ } }
+export function hydrateTheme(json: string | null): void {
+  if (!json) return;
+  try { const t = JSON.parse(json); if (t && t.accent) { _theme = sanitize({ ...DEFAULT, ...t }); } } catch { /* ignore */ }
+}
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
 const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild'] as const;
 function sanitize(t: Theme): Theme {
@@ -294,7 +301,7 @@ function sanitize(t: Theme): Theme {
     cardShapes: sanitizeCardShapes(t.cardShapes),
   };
 }
-function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } }
+function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } persistTheme(); }
 
 export function getTheme(): Theme { return _theme; }
 

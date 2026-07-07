@@ -11,7 +11,7 @@ import { journalTab } from './tabs/journal.js';
 import { injectionTab, setInjectionLog, pushInjectionRecord } from './tabs/injection.js';
 import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
-import { applyTheme, customizePanel, wireCustomize } from './theme.js';
+import { applyTheme, customizePanel, wireCustomize, setThemePersist, hydrateTheme } from './theme.js';
 import { dashboardHtml, setPhoneSection, setSysInfo, setDashCalendar } from './dashboard.js';
 import { formatDate } from '../domain/date-format.js';
 import { visibleCast } from '../domain/cast-hygiene.js';
@@ -696,6 +696,7 @@ function downloadText(name: string, text: string, mime = 'text/plain'): void {
 
 export function setup(ctx: Ctx): () => void {
   _ctxRef = ctx;
+  setThemePersist((json) => ctx.sendToBackend({ type: 'vellum_set_theme', theme: json }));
   const style = ctx.dom.addStyle(FONT_FACES + '\n' + STYLES);
   let state: ChronicleState = freshState();
   const getState = (): ChronicleState => state;
@@ -803,6 +804,7 @@ export function setup(ctx: Ctx): () => void {
           document.querySelectorAll('[data-qol=\'traverse\']').forEach((b) => b.classList.toggle('on', _traverseMode !== 'off'));
         }
         setSysInfo({ recall: _traverseMode === 'off' ? 'off' : _traverseMode === 'tree' ? `tree\u00b7${axisLabel(_traverseAxis)}` : 'flat' });
+        if (typeof p.theme === 'string' && p.theme) { hydrateTheme(p.theme); applyTheme(drawer.root); }
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_fold_progress') {
         // Two-phase fold: phase 1 = the live scene is in (fast); phase 2 = the
