@@ -257,11 +257,11 @@ export function bar(label: string, v: number): string {
 
 /** One diverging row inside a bondMeter: a short caption + a bar from a shared
  * center zero. axis picks the fill color (aff=--v-pos, trust=--v-info). */
-function bondRow(caption: string, v: number, axis: 'aff' | 'trust'): string {
+function bondRow(captionHtml: string, v: number, axis: 'aff' | 'trust'): string {
   const n = Math.max(-100, Math.min(100, v || 0));
   const pct = Math.abs(n) / 2; const pos = n >= 0;
   const fill = axis === 'aff' ? 'tw-aff' : 'tw-trust';
-  return '<div class="vle-bm-row"><span class="vle-bm-cap">' + esc(caption) + '</span>'
+  return '<div class="vle-bm-row"><span class="vle-bm-cap">' + captionHtml + '</span>'
     + '<span class="vle-tw-t"><span class="vle-tw-mid"></span>'
     + '<span class="vle-tw-f ' + fill + (pos ? '' : ' neg') + '" style="' + (pos ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%') + '"></span></span>'
     + '<span class="vle-tw-v">' + (n > 0 ? '+' : '') + n + '</span></div>';
@@ -275,7 +275,11 @@ function bondRow(caption: string, v: number, axis: 'aff' | 'trust'): string {
  * (radar/shield) replace this in their renderers, defaults/modern use it. */
 export function bondMeter(dirs: { a: string; b: string; affection: number; trust: number }[], nameFor: (id: string) => string): string {
   if (!dirs.length) return '';
-  const cap = (d: { a: string; b: string }): string => abbr(nameFor(d.a)) + '\u2192' + abbr(nameFor(d.b));
+  // caption = A -> B with an elegant hairline serif arrow (see .vle-bm-arrow).
+  const cap = (d: { a: string; b: string }): string =>
+    '<span class="vle-bm-nm">' + esc(abbr(nameFor(d.a))) + '</span>'
+    + '<span class="vle-bm-arrow">\u2192</span>'
+    + '<span class="vle-bm-nm">' + esc(abbr(nameFor(d.b))) + '</span>';
   const aff = dirs.map((d) => bondRow(cap(d), d.affection, 'aff')).join('');
   const tru = dirs.map((d) => bondRow(cap(d), d.trust, 'trust')).join('');
   // .vle-bm-zero is a continuous dashed center rule spanning all rows in an axis

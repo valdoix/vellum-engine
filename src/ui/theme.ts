@@ -62,16 +62,19 @@ export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloo
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
 // override the shape per surface; anything unset uses the chrome's default map.
-// v3: the ugly/clipping silhouettes (folio, hex, cameo, glass, gem, constellation,
-// ticket) were cut; tarot + petal were fixed; six new content-safe treatments were
-// added (aperture, ribbon, chamfer, arch, deckle, rule). Every survivor expresses
-// its read via radius / a small fixed-corner clip / an edge accent / a masked edge
-// — never a full-bleed polygon — so a wide row never clips its content.
+// v4: the shape vocabulary is the content-safe survivors only. Cut over rounds:
+// folio/hex/cameo/glass/gem/constellation/ticket (round 1), then ribbon/rule/
+// arch/petal/chamfer (round 2). Added this round: stitch (inset dashed border),
+// gilt-edge (thin keyline all sides), binding (ledger holes down the left),
+// studs (four corner registration dots), bracket (end [ ] brackets). Every shape
+// expresses its read via radius / a small fixed-corner clip / an edge accent / a
+// masked edge / a padding-anchored pseudo — never a full-bleed polygon — so a
+// wide row never clips its content.
 export type ShapeId =
-  | 'slab' | 'left-spine' | 'tarot' | 'notched' | 'split' | 'inset' | 'petal' | 'scalloped'
-  | 'aperture' | 'ribbon' | 'chamfer' | 'arch' | 'deckle' | 'rule';
+  | 'slab' | 'left-spine' | 'tarot' | 'notched' | 'split' | 'inset' | 'scalloped'
+  | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket';
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items' | 'secrets';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'petal', 'scalloped', 'aperture', 'ribbon', 'chamfer', 'arch', 'deckle', 'rule'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items', 'secrets'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -82,11 +85,15 @@ export const SURFACE_LABELS: Record<Surface, string> = {
 // chosen. Each chrome styles its own palette/type; shape is orthogonal.
 export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   default: { present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' },
-  illuminated: { present: 'arch', bonds: 'ribbon', cast: 'tarot', beats: 'left-spine', factions: 'chamfer', items: 'rule', secrets: 'slab' },
+  // manuscript: gilt keylines, a framed portrait cast, a bound ledger of items/secrets
+  illuminated: { present: 'gilt-edge', bonds: 'gilt-edge', cast: 'tarot', beats: 'left-spine', factions: 'binding', items: 'binding', secrets: 'slab' },
   modern: { present: 'slab', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' },
-  futuristic: { present: 'notched', bonds: 'aperture', cast: 'notched', beats: 'chamfer', factions: 'aperture', items: 'notched', secrets: 'notched' },
-  bloom: { present: 'arch', bonds: 'petal', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'petal', secrets: 'arch' },
-  ember: { present: 'tarot', bonds: 'ribbon', cast: 'slab', beats: 'deckle', factions: 'arch', items: 'rule', secrets: 'tarot' },
+  // HUD: reticle notches, viewfinder brackets, registration studs, end brackets
+  futuristic: { present: 'notched', bonds: 'aperture', cast: 'notched', beats: 'bracket', factions: 'studs', items: 'bracket', secrets: 'notched' },
+  // cozy garden: stitched borders, a framed portrait cast, a scalloped faction card
+  bloom: { present: 'stitch', bonds: 'stitch', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'stitch', secrets: 'stitch' },
+  // dreamy night: soft portrait, a torn deckle beat, plain-slab secrets (per request)
+  ember: { present: 'tarot', bonds: 'gilt-edge', cast: 'slab', beats: 'deckle', factions: 'tarot', items: 'deckle', secrets: 'slab' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {

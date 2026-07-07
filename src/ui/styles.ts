@@ -14,17 +14,15 @@
 // one map means the primitive and the override can never drift apart.
 // ---------------------------------------------------------------------------
 const R = 'var(--v-shape-radius)';
-// SHAPE_GEOM v3 (grounded, mockup 37). Every VELLUM card is a WIDE HORIZONTAL
+// SHAPE_GEOM v4 (grounded, mockups 36-38). Every VELLUM card is a WIDE HORIZONTAL
 // ROW (width ~351px, height content-driven, measured ratios 1.2..6.7). So the
 // silhouette is expressed as EDGE / CORNER / FRAME / MASKED-EDGE geometry that
-// NEVER clips the content box, NOT as a full-bleed polygon. The v2 review cut the
-// silhouettes that read badly on a wide row (folio, hex, cameo, glass, gem,
-// constellation) plus ticket, fixed tarot + petal (content was hugging the
-// border), and added six treatments that keep their detail in the card PADDING:
-//   aperture (corner viewfinder brackets), ribbon (top accent band), chamfer
-//   (one small corner cut), arch (doorway top curve), deckle (torn left edge),
-//   rule (double editorial base rule). Shapes that need room reserve it with a
-//   side padding so text/avatars always clear the decoration.
+// NEVER clips the content box, NOT as a full-bleed polygon. Round 2 of the review
+// cut ribbon/rule/arch/petal/chamfer and added five treatments that keep their
+// detail in the card PADDING or as an inset pseudo: stitch (inset dashed border),
+// gilt-edge (thin keyline all sides), binding (ledger holes down the left), studs
+// (four corner registration dots), bracket (end [ ] brackets). Shapes that need
+// room reserve it with side padding so text/avatars always clear the decoration.
 const SHAPE_GEOM: Record<string, string> = {
   // FILL family — radius/border/fill only
   slab: `border-radius:${R}`,
@@ -33,30 +31,25 @@ const SHAPE_GEOM: Record<string, string> = {
   inset: `border-radius:calc(${R} * .7);box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.12)`,
   // CORNER family — small fixed corner clip (lives in padding) or asymmetric radius
   notched: 'clip-path:polygon(9px 0,calc(100% - 9px) 0,100% 9px,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px),0 9px)',
-  chamfer: 'clip-path:polygon(0 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%);padding-right:16px;padding-bottom:12px',
   aperture: `border-radius:calc(${R} * .5);padding:12px 14px`, // detail = corner brackets (styles.ts)
-  // FRAME family — inset hairline frame overlay (pseudo) + generous inner padding
-  // so content clears the frame (v2 fix: tarot text was hugging the border).
+  studs: `border-radius:${R};padding:11px 13px`, // detail = four corner dots (styles.ts)
+  // FRAME family — inset hairline frame/keyline overlay (pseudo) + generous inner
+  // padding so content clears the frame (fix: tarot text was hugging the border).
   tarot: `border-radius:calc(${R} * 1.5) calc(${R} * 1.5) calc(${R} * .5) calc(${R} * .5);padding:13px 14px`,
-  // ARCH — a doorway/window top; strong top radius, calm base. Extra top padding
-  // clears the curve so the first line never rides into the arch.
-  arch: `border-radius:calc(${R} * 2.4) calc(${R} * 2.4) calc(${R} * .5) calc(${R} * .5);padding-top:16px`,
-  // PETAL — soft leaf corners (v2 fix: radius eased + padding so text clears them)
-  petal: `border-radius:calc(${R} * 1.7) calc(${R} * .5) calc(${R} * 1.7) calc(${R} * .5);padding:12px 15px`,
-  // EDGE-BAND — a full-width accent ribbon across the top (pseudo); top padding
-  // reserves the band so content sits below it.
-  ribbon: `border-radius:${R};padding-top:20px`,
-  // BASE-RULE — a double editorial rule along the bottom (pseudo); bottom padding
-  // reserves it.
-  rule: `border-radius:calc(${R} * .8);padding-bottom:15px`,
+  stitch: `border-radius:${R};padding:11px 13px`, // detail = inset dashed border (styles.ts)
+  'gilt-edge': `border-radius:${R};padding:11px 13px`, // detail = thin keyline all sides (styles.ts)
+  // END-BRACKET — square [ ] brackets on the two vertical ends (pseudo); side pad.
+  bracket: `border-radius:calc(${R} * .3);padding:10px 16px`,
+  // LEFT-BINDING — ledger binding holes down the left edge (pseudo); left padding.
+  binding: `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:20px`,
   // MASKED-EDGE — a torn deckle down the LEFT edge (mask); left padding clears it.
   deckle: `border-radius:0 ${R} ${R} 0;padding-left:16px;-webkit-mask:radial-gradient(circle 4px at 0 4px,transparent 98%,#000) 0 0/8px 8px repeat-y,linear-gradient(#000,#000) 4px 0/calc(100% - 4px) 100% no-repeat;mask:radial-gradient(circle 4px at 0 4px,transparent 98%,#000) 0 0/8px 8px repeat-y,linear-gradient(#000,#000) 4px 0/calc(100% - 4px) 100% no-repeat`,
   // BOTTOM — scallop the bottom edge only; content bottom-pads clear of the bumps
   scalloped: `border-radius:calc(${R} * .8);-webkit-mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat;mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat`,
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
-// small fixed corners; chamfer cuts one bottom-right corner. Both live in padding.
-const CLIP_SHAPES = ['notched', 'chamfer'];
+// small fixed corners that live in padding.
+const CLIP_SHAPES = ['notched'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
@@ -640,7 +633,10 @@ export const STYLES = [
   ".vle-bm-axis{display:flex;flex-direction:column;gap:3px}",
   ".vle-bm-axl{font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--vi2);opacity:.55}",
   ".vle-bm-row{display:flex;align-items:center;gap:7px}",
-  ".vle-bm-cap{flex:none;width:84px;font:600 var(--vt-meta)/1.1 var(--vmono);color:var(--vi2);opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+  ".vle-bm-cap{flex:none;width:84px;display:inline-flex;align-items:baseline;gap:1px;font-family:var(--vserif);font-size:calc(12px * var(--vscale));font-weight:600;color:var(--vi2);opacity:.9;white-space:nowrap;overflow:hidden}",
+  ".vle-bm-nm{overflow:hidden;text-overflow:ellipsis;min-width:0}",
+  // elegant hairline serif connective between the two names in a bond-meter row
+  ".vle-bm-arrow{flex:none;font-family:var(--vserif);font-weight:400;color:var(--vg);opacity:.7;margin:0 .28em;font-size:.95em}",
   // error boundary
   ".vlm-comp-error{padding:8px;font-size:11px;color:#e09090;border:1px solid rgba(201,106,106,.3);border-radius:8px;background:rgba(201,106,106,.08)}",
   ".vlm-comp-error span{opacity:.7;font-size:10px}",
@@ -1624,14 +1620,16 @@ export const STYLES = [
   ...shapeDetail('tarot', "content:'';position:absolute;inset:4px;border:1px solid color-mix(in srgb,var(--vg) 25%,transparent);border-radius:inherit;pointer-events:none;z-index:1", '::before'),
   // aperture: four L-shaped viewfinder brackets pinned to the corners (in padding).
   ...shapeDetail('aperture', "content:'';position:absolute;inset:5px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/11px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/2px 11px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/11px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/2px 11px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/11px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/2px 11px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/11px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/2px 11px no-repeat;opacity:.55", '::before'),
-  // ribbon: a full-width accent band across the top edge (in the reserved top pad).
-  ...shapeDetail('ribbon', "content:'';position:absolute;left:0;right:0;top:0;height:6px;pointer-events:none;z-index:1;background:linear-gradient(90deg,var(--vg),color-mix(in srgb,var(--vg2,var(--vg)) 80%,var(--vg)));border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;opacity:.8", '::before'),
-  // arch: a soft top-curve keyline echoing the doorway (in the reserved top pad).
-  ...shapeDetail('arch', "content:'';position:absolute;left:8px;right:8px;top:5px;height:14px;pointer-events:none;z-index:1;border:1px solid color-mix(in srgb,var(--vg) 30%,transparent);border-bottom:none;border-radius:999px 999px 0 0;opacity:.7", '::before'),
-  // rule: a double editorial rule along the bottom edge (in the reserved base pad).
-  ...shapeDetail('rule', "content:'';position:absolute;left:10px;right:10px;bottom:6px;height:3px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/100% 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/100% 1px no-repeat;opacity:.6", '::after'),
-  // petal: a small leaf-vein spark tucked into the soft top-left corner.
-  ...shapeDetail('petal', "content:'';position:absolute;left:6px;top:6px;width:12px;height:12px;pointer-events:none;z-index:1;border-left:2px solid color-mix(in srgb,var(--vg) 45%,transparent);border-top:2px solid color-mix(in srgb,var(--vg) 45%,transparent);border-top-left-radius:12px;opacity:.7", '::before'),
+  // stitch: an inset dashed 'stitched' border sitting inside the reserved padding.
+  ...shapeDetail('stitch', "content:'';position:absolute;inset:5px;pointer-events:none;z-index:1;border:1.5px dashed color-mix(in srgb,var(--vg) 42%,transparent);border-radius:calc(var(--v-shape-radius) * .7)", '::before'),
+  // gilt-edge: a thin keyline hugging all four sides, just inside the padding.
+  ...shapeDetail('gilt-edge', "content:'';position:absolute;inset:3px;pointer-events:none;z-index:1;border:1px solid color-mix(in srgb,var(--vg) 40%,transparent);border-radius:calc(var(--v-shape-radius) * .8)", '::before'),
+  // studs: four small registration dots pinned inside the corners (in padding).
+  ...shapeDetail('studs', "content:'';position:absolute;inset:6px;pointer-events:none;z-index:1;background:radial-gradient(circle 2.4px at 0 0,var(--vg) 98%,transparent) 0 0/6px 6px no-repeat,radial-gradient(circle 2.4px at 100% 0,var(--vg) 98%,transparent) 100% 0/6px 6px no-repeat,radial-gradient(circle 2.4px at 0 100%,var(--vg) 98%,transparent) 0 100%/6px 6px no-repeat,radial-gradient(circle 2.4px at 100% 100%,var(--vg) 98%,transparent) 100% 100%/6px 6px no-repeat;opacity:.7", '::before'),
+  // bracket: square [ ] brackets on the two vertical ends (in the side padding).
+  ...shapeDetail('bracket', "content:'';position:absolute;top:9px;bottom:9px;left:5px;right:5px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/2px 100% no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/8px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/8px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/2px 100% no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/8px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/8px 2px no-repeat;opacity:.6", '::before'),
+  // binding: three ledger binding holes down the left edge (in the left padding).
+  ...shapeDetail('binding', "content:'';position:absolute;left:7px;top:0;bottom:0;width:5px;pointer-events:none;z-index:1;background:radial-gradient(circle 2.6px at 50% 50%,color-mix(in srgb,var(--vg) 55%,transparent) 98%,transparent);background-size:5px 33.33%;background-repeat:repeat-y;opacity:.8", '::before'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.

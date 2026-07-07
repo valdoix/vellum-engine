@@ -95,11 +95,12 @@ describe('card shapes (per-surface silhouette overrides)', () => {
     }
   });
 
-  it('CHROME_SHAPES uses only content-safe v3 shapes (no cut silhouettes)', () => {
-    // v3 review cut folio/hex/cameo/glass/gem/constellation/ticket; every chrome
-    // default must now be one of the survivors + the six new treatments. default
-    // is left at the live look so the default theme stays byte-identical.
-    const CUT = new Set(['folio', 'hex', 'cameo', 'glass', 'gem', 'constellation', 'ticket']);
+  it('CHROME_SHAPES uses only content-safe v4 shapes (no cut silhouettes)', () => {
+    // rounds of review cut folio/hex/cameo/glass/gem/constellation/ticket then
+    // ribbon/rule/arch/petal/chamfer; every chrome default must now be a survivor
+    // or a v4 addition. default is left at the live look so the default theme
+    // stays byte-identical.
+    const CUT = new Set(['folio', 'hex', 'cameo', 'glass', 'gem', 'constellation', 'ticket', 'ribbon', 'rule', 'arch', 'petal', 'chamfer']);
     for (const [chrome, map] of Object.entries(CHROME_SHAPES)) {
       for (const [surface, id] of Object.entries(map)) {
         expect(SHAPE_IDS, `${chrome}.${surface}=${id}`).toContain(id);
@@ -107,7 +108,8 @@ describe('card shapes (per-surface silhouette overrides)', () => {
       }
     }
     expect(CHROME_SHAPES.default).toEqual({ present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' });
-    expect(CHROME_SHAPES.ember).toEqual({ present: 'tarot', bonds: 'ribbon', cast: 'slab', beats: 'deckle', factions: 'arch', items: 'rule', secrets: 'tarot' });
+    // ember secrets is a plain slab (per request); no cut shapes anywhere.
+    expect(CHROME_SHAPES.ember.secrets).toBe('slab');
   });
 
   it('resolveShape: override wins, else falls back to the chrome default', () => {
