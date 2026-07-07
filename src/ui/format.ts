@@ -255,41 +255,6 @@ export function bar(label: string, v: number): string {
     + '<span class="vle-bar-v ' + (pos ? 'pos' : 'neg') + '">' + (n > 0 ? '+' : '') + n + '</span></div>';
 }
 
-/** One diverging row inside a bondMeter: a short caption + a bar from a shared
- * center zero. axis picks the fill color (aff=--v-pos, trust=--v-info). */
-function bondRow(captionHtml: string, v: number, axis: 'aff' | 'trust'): string {
-  const n = Math.max(-100, Math.min(100, v || 0));
-  const pct = Math.abs(n) / 2; const pos = n >= 0;
-  const fill = axis === 'aff' ? 'tw-aff' : 'tw-trust';
-  return '<div class="vle-bm-row"><span class="vle-bm-cap">' + captionHtml + '</span>'
-    + '<span class="vle-tw-t"><span class="vle-tw-mid"></span>'
-    + '<span class="vle-tw-f ' + fill + (pos ? '' : ' neg') + '" style="' + (pos ? 'left:50%;width:' + pct + '%' : 'right:50%;width:' + pct + '%') + '"></span></span>'
-    + '<span class="vle-tw-v">' + (n > 0 ? '+' : '') + n + '</span></div>';
-}
-
-/**
- * The shared bond meter (mockup 06): BOTH directions of a pair interleaved per
- * axis against one visible center zero, so asymmetry (she mistrusts, he trusts)
- * reads at a glance. `dirs` is 1–2 directed edges (A→B and/or B→A). `lead` is the
- * stable first endpoint id so captions read consistently. Pure HTML; theme skins
- * (radar/shield) replace this in their renderers, defaults/modern use it. */
-export function bondMeter(dirs: { a: string; b: string; affection: number; trust: number }[], nameFor: (id: string) => string): string {
-  if (!dirs.length) return '';
-  // caption = A -> B with an elegant hairline serif arrow (see .vle-bm-arrow).
-  const cap = (d: { a: string; b: string }): string =>
-    '<span class="vle-bm-nm">' + esc(abbr(nameFor(d.a))) + '</span>'
-    + '<span class="vle-bm-arrow">\u2192</span>'
-    + '<span class="vle-bm-nm">' + esc(abbr(nameFor(d.b))) + '</span>';
-  const aff = dirs.map((d) => bondRow(cap(d), d.affection, 'aff')).join('');
-  const tru = dirs.map((d) => bondRow(cap(d), d.trust, 'trust')).join('');
-  // .vle-bm-zero is a continuous dashed center rule spanning all rows in an axis
-  // (K2) so the shared zero reads as one line, not a per-row tick.
-  return '<div class="vle-bm">'
-    + '<div class="vle-bm-axis"><span class="vle-bm-zero" aria-hidden="true"></span><span class="vle-bm-axl">affection</span>' + aff + '</div>'
-    + '<div class="vle-bm-axis"><span class="vle-bm-zero" aria-hidden="true"></span><span class="vle-bm-axl">trust</span>' + tru + '</div>'
-    + '</div>';
-}
-
 /**
  * A single glanceable VERDICT word for a bond (mockup 20 panel 2), derived from
  * the pair's dominant category + sentiment + the sign of average affection/trust.
@@ -319,6 +284,115 @@ export function bondVerdict(dirs: { affection: number; trust: number; sentiment?
     default:
       return hostile ? 'hostility' : warm && trusts ? 'close bond' : cold ? 'cold distance' : wary ? 'wary acquaintance' : 'acquaintance';
   }
+}
+
+// ---------------------------------------------------------------------------
+// SHARED BOND COMPONENT (relations refactor). ONE renderer for both the Now
+// block (compact) and the Bonds tab (full), plus a strip form for dense lists.
+// Presentation-only: derives everything from the given directed edges, invents
+// no state. The Bonds tab passes CRUD controls + the (promoted) sparkline and
+// numeric history via `opts`; the Now block passes none.
+// ---------------------------------------------------------------------------
+export type BondDensity = 'full' | 'compact' | 'strip';
+type BondDir = { a: string; b: string; affection: number; trust: number; sentiment?: string; category?: string; categories?: string[]; label?: string; status?: string };
+
+/** Map a -100..100 score to a 0..100 position on a center-zero track (50%=zero). */
+function scorePct(v: number): number { return 50 + Math.max(-100, Math.min(100, v || 0)) / 2; }
+
+/**
+ * True when a pair's two directions disagree enough to be worth flagging — an
+ * opposite-sign axis, or a wide gap on either axis. One-sided pairs are never
+ * "asymmetric" (there's nothing to compare). Threshold is intentionally coarse.
+ */
+export function isAsymmetric(dirs: BondDir[]): boolean {
+  if (dirs.length < 2) return false;
+  const [x, y] = dirs as [BondDir, BondDir];
+  const opp = (a: number, b: number): boolean => (a > 15 && b < -15) || (a < -15 && b > 15);
+  return opp(x.affection, y.affection) || opp(x.trust, y.trust)
+    || Math.abs(x.affection - y.affection) > 40 || Math.abs(x.trust - y.trust) > 40;
+}
+
+/** One axis of the dumbbell meter: a single shared track with a dot per direction
+ * and a connector between them (its length = the asymmetry). Values show inline in
+ * `full`; otherwise they live on the dot's hover title so it's never lossy. */
+function bondDumbbell(dA: BondDir | undefined, dB: BondDir | undefined, axis: 'affection' | 'trust', nameFor: (id: string) => string, density: BondDensity): string {
+  const cls = axis === 'affection' ? 'aff' : 'trust';
+  const positions: number[] = [];
+  const dot = (d: BondDir | undefined, which: 'a' | 'b'): string => {
+    if (!d) return '';
+    const v = axis === 'affection' ? d.affection : d.trust;
+    const pct = scorePct(v);
+    positions.push(pct);
+    const lbl = (v > 0 ? '+' : '') + Math.round(v);
+    const title = abbr(nameFor(d.a)) + '\u2192' + abbr(nameFor(d.b)) + ' \u00b7 ' + axis + ' ' + lbl;
+    return `<span class="vle-bc-dot vle-bc-dot--${cls} vle-bc-dot--${which}" style="left:${pct.toFixed(1)}%" title="${esc(title)}">`
+      + (density === 'full' ? `<span class="vle-bc-val">${esc(lbl)}</span>` : '') + '</span>';
+  };
+  const dots = dot(dA, 'a') + dot(dB, 'b');
+  let conn = '';
+  if (positions.length === 2) {
+    const lo = Math.min(positions[0]!, positions[1]!), hi = Math.max(positions[0]!, positions[1]!);
+    conn = `<span class="vle-bc-conn vle-bc-conn--${cls}" style="left:${lo.toFixed(1)}%;width:${(hi - lo).toFixed(1)}%"></span>`;
+  }
+  return '<div class="vle-bc-axis">'
+    + (density !== 'strip' ? `<span class="vle-bc-axl vle-bc-axl--${cls}">${axis}</span>` : '')
+    + '<span class="vle-bc-track"><span class="vle-bc-zero" aria-hidden="true"></span>' + conn + dots + '</span></div>';
+}
+
+/**
+ * The shared bond card. `group` is the 1–2 directed edges of one pair. `density`
+ * picks the form; `opts` supplies the Bonds-tab-only extras (CRUD control slot,
+ * lock badge, the promoted sparkline `arc`, and the numeric `history` disclosure).
+ * Keeps `.vle-rel-card` as the outer class so the card-shape system still applies.
+ */
+export function bondCard(state: ChronicleState, group: Relation[], density: BondDensity, opts: { ctl?: string; badge?: string; arc?: string; history?: string } = {}): string {
+  if (!group.length) return '';
+  const nameFor = (id: string): string => nameOf(state, id);
+  const g0 = group[0]!;
+  const [pa, pb] = g0.a <= g0.b ? [g0.a, g0.b] : [g0.b, g0.a];
+  const dA = group.find((r) => r.a === pa && r.b === pb);
+  const dB = group.find((r) => r.a === pb && r.b === pa);
+  const dirs = [dA, dB].filter(Boolean) as Relation[];
+  // warmth spine: dominant (first non-neutral) category color, else neutral.
+  const allCats = Array.from(new Set(dirs.flatMap(catsOf)));
+  const domCat = allCats.find((c) => c !== 'neutral') ?? allCats[0] ?? 'neutral';
+  const spine = CAT_COLORS[domCat] || '#8c8478';
+  const asym = isAsymmetric(dirs);
+  const asymBadge = asym ? '<span class="vle-bc-asym" title="the two directions disagree">\u21AF asymmetric</span>' : '';
+  const pair = '<span class="vle-bc-pair">' + nameHtml(state, pa) + '<span class="vle-rel-arrow">\u21C4</span>' + nameHtml(state, pb) + '</span>';
+
+  if (density === 'strip') {
+    const dots = dirs.map((d) => bondDot(d.affection, d.trust, bondTitle(abbr(nameFor(d.a)) + '\u2192' + abbr(nameFor(d.b)), d.affection, d.trust))).join('');
+    return '<div class="vle-rel-card vle-bc vle-bc--strip" style="--spine:' + spine + '"><span class="vle-bc-spine" aria-hidden="true"></span>'
+      + pair + '<span class="vle-bc-dots">' + dots + '</span>'
+      + '<span class="vle-bc-verdict">' + esc(bondVerdict(dirs)) + '</span></div>';
+  }
+
+  // per-direction verdict reads (full only) — this is where asymmetry becomes the
+  // headline instead of an averaged single word.
+  const read = (d: Relation | undefined, which: 'a' | 'b'): string => d
+    ? `<span class="vle-bc-read vle-bc-read--${which}"><b>${esc(abbr(nameFor(d.a)))}</b> ${esc(bondVerdict([d]))}</span>` : '';
+  const reads = density === 'full' ? '<span class="vle-bc-reads">' + read(dA, 'a') + read(dB, 'b') + '</span>' : '';
+
+  const meters = bondDumbbell(dA, dB, 'affection', nameFor, density) + bondDumbbell(dA, dB, 'trust', nameFor, density);
+
+  let foot = '';
+  if (density === 'full') {
+    const labels = dirs.map((d) => d.label).filter(Boolean).map((l) => '\u201C' + esc(l!) + '\u201D').join(' \u00b7 ');
+    const cats = allCats.length ? '<div class="vle-rel-catfoot">' + allCats.map((c) => '<span class="vle-cat" style="--c:' + (CAT_COLORS[c] || '#888') + '">' + esc(c) + '</span>').join('') + '</div>' : '';
+    const oneSided = dirs.length === 1 ? `<div class="vle-rel-onesided">no reciprocal bond from ${esc(nameFor(dirs[0]!.b))} yet</div>` : '';
+    foot = (labels ? '<div class="vle-bc-labels">' + labels + '</div>' : '') + cats + oneSided;
+  }
+
+  return '<div class="vle-rel-card vle-bc vle-bc--' + density + '" style="--spine:' + spine + '"><span class="vle-bc-spine" aria-hidden="true"></span>'
+    + '<div class="vle-bc-head">' + pair + reads + asymBadge
+    + (opts.badge || opts.ctl ? '<span class="vle-rel-ctl">' + (opts.badge ?? '') + (opts.ctl ?? '') + '</span>' : '')
+    + '</div>'
+    + '<div class="vle-bc-meters">' + meters + '</div>'
+    + (opts.arc ?? '')
+    + foot
+    + (opts.history ?? '')
+    + '</div>';
 }
 
 /** Sentiment tone from the affection axis alone (fill color of a bond glyph). */

@@ -1,5 +1,5 @@
 import type { ChronicleState, PresentChar, Relation } from '../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, byRecent, nameHtml, bondMeter, initials, avatarParts } from './format.js';
+import { esc, nameOf, byRecent, nameHtml, bondCard, initials, avatarParts } from './format.js';
 import { storyStats } from '../domain/stats.js';
 import { formatDate } from '../domain/date-format.js';
 
@@ -235,19 +235,15 @@ function relationsBlock(s: ChronicleState): string {
   const present = new Set(s.scene.present);
   const rels = s.relations.filter((r) => !present.size || present.has(r.a) || present.has(r.b)).sort(byRecent);
   if (!rels.length) return '';
-  // group directed edges into unordered pairs so both directions share one meter
+  // group directed edges into unordered pairs so both directions share one card
   const pairs = new Map<string, typeof rels>();
   for (const r of rels) {
     const key = r.a <= r.b ? r.a + '\u0000' + r.b : r.b + '\u0000' + r.a;
     (pairs.get(key) ?? pairs.set(key, []).get(key)!).push(r);
   }
-  const rows = Array.from(pairs.values()).slice(0, 5).map((group) => {
-    const lead = group[0]!;
-    const [pa, pb] = lead.a <= lead.b ? [lead.a, lead.b] : [lead.b, lead.a];
-    const cats = catsOf(lead).map((c) => `<span class="vld-cat" style="--c:${CAT_COLORS[c] || '#888'}">${esc(c)}</span>`).join('');
-    const meter = bondMeter(group, (id) => nameOf(s, id));
-    return `<div class="vld-rel"><span class="vld-rel-p">${nameHtml(s, pa)} \u2194 ${nameHtml(s, pb)}</span>${cats}<span class="vld-rel-s">${esc(SENT_LABEL[lead.sentiment] || lead.sentiment)}</span></div>${meter}`;
-  }).join('');
+  // the same shared bondCard as the Bonds tab, in compact density (no CRUD,
+  // no sparkline/history) — one code path, so the two surfaces can't drift.
+  const rows = Array.from(pairs.values()).slice(0, 5).map((group) => bondCard(s, group, 'compact')).join('');
   return `<div class="vld-sec"><div class="vld-h">Relations</div>${rows}</div>`;
 }
 

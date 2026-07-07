@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { bondVerdict, bondMeter } from '../src/ui/format.js';
+import { bondVerdict, isAsymmetric } from '../src/ui/format.js';
 
 /**
- * Bond-summary helpers (Bonds digestibility, Part 4). bondVerdict maps a pair's
- * category + sentiment + score sign to a stable verdict word; bondMeter still
- * returns both axes / both directions and '' for empty. Pure, DOM-free.
+ * Bond-summary helpers. bondVerdict maps a pair's category + sentiment + score
+ * sign to a stable verdict word; isAsymmetric flags when a pair's two directions
+ * disagree enough to headline (the relations refactor's dumbbell/badge). Pure,
+ * DOM-free.
  */
 
 describe('bondVerdict', () => {
@@ -36,26 +37,29 @@ describe('bondVerdict', () => {
   });
 });
 
-describe('bondMeter', () => {
-  const nameFor = (id: string): string => id;
-
-  it("returns '' for no directions", () => {
-    expect(bondMeter([], nameFor)).toBe('');
+describe('isAsymmetric', () => {
+  it('is false for a one-sided pair (nothing to compare)', () => {
+    expect(isAsymmetric([{ a: 'x', b: 'y', affection: 80, trust: 80 }])).toBe(false);
   });
 
-  it('renders both axes and a continuous center-zero rule', () => {
-    const out = bondMeter([{ a: 'x', b: 'y', affection: 40, trust: -20 }], nameFor);
-    expect(out).toContain('affection');
-    expect(out).toContain('trust');
-    expect(out).toContain('vle-bm-zero');
+  it('is false when both directions roughly agree', () => {
+    expect(isAsymmetric([
+      { a: 'x', b: 'y', affection: 60, trust: 40 },
+      { a: 'y', b: 'x', affection: 55, trust: 50 },
+    ])).toBe(false);
   });
 
-  it('renders one row per direction per axis', () => {
-    const out = bondMeter([
-      { a: 'x', b: 'y', affection: 40, trust: 10 },
-      { a: 'y', b: 'x', affection: -10, trust: 30 },
-    ], nameFor);
-    // 2 directions x 2 axes = 4 rows
-    expect((out.match(/vle-bm-row/g) || []).length).toBe(4);
+  it('flags an opposite-sign axis (she wary, he trusting)', () => {
+    expect(isAsymmetric([
+      { a: 'x', b: 'y', affection: 50, trust: -40 },
+      { a: 'y', b: 'x', affection: 60, trust: 50 },
+    ])).toBe(true);
+  });
+
+  it('flags a wide same-sign gap on either axis', () => {
+    expect(isAsymmetric([
+      { a: 'x', b: 'y', affection: 10, trust: 20 },
+      { a: 'y', b: 'x', affection: 80, trust: 25 },
+    ])).toBe(true);
   });
 });

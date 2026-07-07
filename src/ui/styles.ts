@@ -135,7 +135,7 @@ export const STYLES = [
   ".v-chip--solid{background:color-mix(in srgb,var(--v-chip-c,var(--vg)) 16%,transparent)}",
   ".v-chip--gold{--v-chip-c:var(--vg)}.v-chip--pos{--v-chip-c:var(--v-pos-i)}.v-chip--neg{--v-chip-c:var(--v-neg-i)}.v-chip--info{--v-chip-c:var(--v-info)}.v-chip--warn{--v-chip-c:var(--v-warn)}.v-chip--press{--v-chip-c:var(--v-press-i)}.v-chip--muted{--v-chip-c:#8c8478}",
   // mono/data text honors its own scale; ink emphasis tints body text
-  ".vld-stat,.vld-h,.vld-mood,.vld-cond,.vld-rel-s,.vld-cat,.vld-thread-s,.vld-par-w,.vld-rec-k{font-size:calc(1em * var(--vdscale))}",
+  ".vld-stat,.vld-h,.vld-mood,.vld-cond,.vld-thread-s,.vld-par-w,.vld-rec-k{font-size:calc(1em * var(--vdscale))}",
   ".vle-root,.vlf-body{opacity:1}",
   ".vle-root{font-family:var(--vserif);color:var(--vle-ink);padding:calc(13px * var(--vscale)) calc(15px * var(--vscale))}",
   // H3 nav panel (mockup 20): header + tab rail grouped into one framed block.
@@ -595,30 +595,10 @@ export const STYLES = [
   // elegant spaced connective between two names (A <-> B / A -> B). A hairline
   // serif glyph in the accent, generous side spacing, gently raised.
   ".vle-rel-arrow{font-family:var(--vserif);font-weight:400;color:var(--vg);opacity:.7;margin:0 .5em;font-size:.92em;vertical-align:.02em}",
-  // K1 verdict word: the glanceable one-line read, between pair name and controls
-  ".vle-rel-verdict{margin-right:auto;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vg);opacity:.85;padding:2px 7px;border-radius:var(--vr1);border:1px solid rgba(var(--vg-rgb),.3);background:rgba(var(--vg-rgb),.08)}",
-  // K3 one-line direction: from→to · sentiment · label quote · controls
-  ".vle-rel-dirline{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:12px;flex-wrap:wrap}",
-  ".vle-rel-dirline .vle-rel-label{margin:0;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-  ".vle-rel-dirline .vle-rel-ctl{margin-left:auto}",
-  // K3 category chips shown ONCE at the card foot (union of both directions)
+  // category chips shown ONCE at the card foot (union of both directions)
   ".vle-rel-catfoot{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}",
-  // K2 continuous dashed center-zero across an axis's rows. Track 50% = the fixed
-  // caption(120)+gap(7) offset plus half the remaining width minus value(30)+gap(7).
-  ".vle-bm-axis{position:relative}",
-  ".vle-bm-zero{position:absolute;left:calc(50% + 45px);top:16px;bottom:1px;width:0;border-left:1px dashed rgba(255,255,255,.28);pointer-events:none;z-index:0}",
-  ".vle-bm-row .vle-tw-mid{display:none}",
-  // paired card: A↔B header, then a directional row per edge
-  ".vle-rel-dir{margin-top:7px;padding-top:7px;border-top:1px dashed rgba(var(--vg-rgb),.16)}",
-  ".vle-rel-dir:first-of-type{border-top:none;margin-top:5px;padding-top:0}",
-  ".vle-rel-dirtop{display:flex;align-items:center;gap:8px}",
-  ".vle-rel-dirn{font-size:12px;font-weight:600;margin-right:auto}",
   ".vle-rel-onesided{margin-top:7px;font:600 9px/1.4 var(--vmono);opacity:.5;font-style:italic}",
-  ".vle-rel-sent{font:600 9px/1 var(--vmono);opacity:.7}",
-  ".vle-rel-label{font-size:12px;font-style:italic;opacity:.75;margin:3px 0}",
-  ".vle-cats{display:flex;flex-wrap:wrap;gap:4px;margin:5px 0}",
   ".vle-cat{font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;border-radius:var(--vr1);color:var(--c);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}",
-  ".vle-st{font:600 9px/1 var(--vmono);text-transform:uppercase;padding:2px 6px;border-radius:var(--vr1);opacity:.6;border:1px solid var(--vle-gold-soft)}",
   ".vle-bars{display:flex;flex-direction:column;gap:3px;margin-top:4px}",
   ".vle-bar{display:flex;align-items:center;gap:6px}",
   ".vle-bar-l{flex:none;width:30px;font:600 9px/1 var(--vmono);opacity:.6}",
@@ -628,25 +608,47 @@ export const STYLES = [
   ".vle-bar-f.pos{background:var(--v-pos)}.vle-bar-f.neg{background:var(--v-neg)}",
   ".vle-bar-v{flex:none;width:30px;text-align:right;font:600 9px/1 var(--vmono)}",
   ".vle-bar-v.pos{color:var(--v-pos-i)}.vle-bar-v.neg{color:var(--v-neg-i)}",
-  // twin meter (compact aff/trust, used on the redesigned bond + dashboard)
-  ".vle-tw{display:flex;align-items:center;gap:6px;margin-top:3px}",
-  ".vle-tw-l{flex:none;width:34px;font:600 var(--vt-meta)/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;opacity:.6}",
-  ".vle-tw-t{position:relative;flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.06)}",
-  ".vle-tw-mid{position:absolute;left:50%;top:-1px;width:1px;height:10px;background:rgba(255,255,255,.22)}",
-  ".vle-tw-f{position:absolute;top:0;height:8px;border-radius:5px}",
-  ".vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--v-pos) 70%,transparent),var(--v-pos-i))}",
-  ".vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--v-info) 70%,transparent),var(--v-info))}",
-  ".vle-tw-f.neg{filter:saturate(.7) brightness(.92)}",
-  ".vle-tw-v{flex:none;width:30px;text-align:right;font:600 var(--vt-meta)/1 var(--vmono)}",
-  // shared bond meter (mockup 06): both directions per axis vs one center zero
-  ".vle-bm{display:flex;flex-direction:column;gap:7px;margin-top:6px}",
-  ".vle-bm-axis{display:flex;flex-direction:column;gap:3px}",
-  ".vle-bm-axl{font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--vi2);opacity:.55}",
-  ".vle-bm-row{display:flex;align-items:center;gap:7px}",
-  ".vle-bm-cap{flex:none;width:120px;display:inline-flex;align-items:baseline;gap:1px;font-family:var(--vserif);font-size:calc(12px * var(--vscale));font-weight:600;color:var(--vi2);opacity:.9;white-space:nowrap;overflow:hidden}",
-  ".vle-bm-nm{overflow:hidden;text-overflow:ellipsis;min-width:0}",
-  // elegant hairline serif connective between the two names in a bond-meter row
-  ".vle-bm-arrow{flex:none;font-family:var(--vserif);font-weight:400;color:var(--vg);opacity:.7;margin:0 .28em;font-size:.95em}",
+  // ---- shared BOND CARD (relations refactor): one renderer, three densities ----
+  // Outer class stays .vle-rel-card so the card-shape system (data-shape-bonds)
+  // still applies. --spine carries the dominant-category warmth color.
+  ".vle-bc{position:relative;padding-left:calc(10px + 4px)}",
+  ".vle-bc-spine{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:var(--vr1) 0 0 var(--vr1);background:var(--spine,var(--vle-gold-soft));opacity:.85}",
+  ".vle-bc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
+  ".vle-bc-pair{font-family:var(--vserif);font-size:calc(15px * var(--vscale));font-weight:600;letter-spacing:.2px}",
+  ".vle-bc-reads{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}",
+  ".vle-bc-read{font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);padding:2px 7px;border-radius:var(--vr1);border:1px solid rgba(var(--vg-rgb),.22)}",
+  ".vle-bc-read b{color:var(--vi);font-weight:700;margin-right:3px}",
+  ".vle-bc-read--a{border-left:3px solid var(--v-pos)}.vle-bc-read--b{border-left:3px solid var(--v-info)}",
+  ".vle-bc-asym{font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--v-warn);opacity:.85}",
+  ".vle-bc-verdict{margin-left:auto;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vg);opacity:.8}",
+  ".vle-bc .vle-rel-ctl{margin-left:auto}",
+  // meters: one shared center-zero track per axis, a dot per direction, a
+  // connector whose length reads as the asymmetry between the two directions.
+  ".vle-bc-meters{display:flex;flex-direction:column;gap:calc(9px * var(--vscale));margin-top:8px}",
+  ".vle-bc-axis{display:flex;align-items:center;gap:8px}",
+  ".vle-bc-axl{flex:none;width:64px;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;opacity:.55}",
+  ".vle-bc-axl--aff{color:var(--v-pos-i)}.vle-bc-axl--trust{color:var(--v-info)}",
+  ".vle-bc-track{position:relative;flex:1;height:6px;border-radius:4px;background:rgba(255,255,255,.06)}",
+  ".vle-bc-zero{position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:rgba(255,255,255,.24)}",
+  ".vle-bc-conn{position:absolute;top:1px;height:4px;border-radius:3px;opacity:.5}",
+  ".vle-bc-conn--aff{background:var(--v-pos)}.vle-bc-conn--trust{background:var(--v-info)}",
+  // dots sit ON the track; translate -50% centers them over their % position.
+  ".vle-bc-dot{position:absolute;top:50%;width:12px;height:12px;margin-left:-6px;transform:translateY(-50%);border-radius:50%;box-sizing:border-box;border:1.5px solid var(--vsurf-1);cursor:default}",
+  ".vle-bc-dot--a{z-index:1}.vle-bc-dot--b{z-index:2}", // b on top so a full overlap still shows two rings
+  ".vle-bc-dot--aff.vle-bc-dot--a{background:color-mix(in srgb,var(--v-pos) 70%,transparent)}.vle-bc-dot--aff.vle-bc-dot--b{background:var(--v-pos-i)}",
+  ".vle-bc-dot--trust.vle-bc-dot--a{background:color-mix(in srgb,var(--v-info) 70%,transparent)}.vle-bc-dot--trust.vle-bc-dot--b{background:var(--v-info)}",
+  // inline value chip (full density) floats just above its dot
+  ".vle-bc-val{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font:600 8.5px/1 var(--vmono);white-space:nowrap;color:var(--vi2);opacity:.8}",
+  ".vle-bc-dot--b .vle-bc-val{top:14px;bottom:auto}", // second value drops below to avoid collision
+  ".vle-bc-labels{margin-top:8px;font-family:var(--vserif);font-style:italic;font-size:calc(12.5px * var(--vscale));color:var(--vi2);opacity:.8;line-height:1.4}",
+  // strip form: a single dense row (pair + two-axis dots + verdict)
+  ".vle-bc--strip{display:flex;align-items:center;gap:8px;padding:5px 10px 5px 14px}",
+  ".vle-bc--strip .vle-bc-pair{font-size:calc(13.5px * var(--vscale))}",
+  ".vle-bc-dots{display:inline-flex;gap:5px;margin-left:4px}",
+  ".vle-bc--strip .vle-bc-verdict{margin-left:auto}",
+  ".vle-bc--full{padding-top:2px}",
+  // full-density value chips need vertical room above/below the track
+  ".vle-bc--full .vle-bc-meters{gap:calc(20px * var(--vscale));margin-top:14px}",
   // error boundary
   ".vlm-comp-error{padding:8px;font-size:11px;color:#e09090;border:1px solid rgba(201,106,106,.3);border-radius:8px;background:rgba(201,106,106,.08)}",
   ".vlm-comp-error span{opacity:.7;font-size:10px}",
@@ -994,8 +996,6 @@ export const STYLES = [
   ".vld-dots{display:flex;gap:4px;align-items:center;flex:1}",
   ".vld-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.1)}",
   ".vld-dot.on{background:var(--v-press);box-shadow:0 0 6px color-mix(in srgb,var(--v-press) 60%,transparent)}",
-  // twin meters under a dashboard relation row
-  ".vld-rel-meters{display:flex;flex-direction:column;gap:2px;margin:1px 0 6px;padding-left:2px}",
   // colored left spine per recent-event kind (scannable mixed feed)
   ".vld-rec--journal{border-left:3px solid var(--v-pos)}",
   ".vld-rec--knew{border-left:3px solid var(--v-info)}",
@@ -1037,10 +1037,7 @@ export const STYLES = [
   ".vld-thought-q{font-family:var(--vserif);font-style:italic;font-size:calc(12.5px * var(--vscale));color:var(--vi2);line-height:1.5}",
   // narrow float reflow: smaller medallion, name+status share a line, thought truncates
   "@container (max-width:360px){.vld-pc{gap:9px}.vld-pc-av{width:calc(30px * var(--vscale));height:calc(30px * var(--vscale));font-size:calc(12px * var(--vscale))}.vld-pc-n{font-size:calc(15px * var(--vscale))}.vld-thought-q{font-size:calc(11.5px * var(--vscale))}}",
-  ".vld-rel{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:calc(13px * var(--vscale));padding:5px 0;border-top:1px solid rgba(var(--vg-rgb),.08)}",
-  ".vld-rel:first-child{border-top:none}",
-  ".vld-rel-p{color:var(--vi)}.vld-rel-s{margin-left:auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);opacity:.6}",
-  ".vld-cat{font:600 calc(9px * var(--vscale))/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:5px;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}",
+
   ".vld-thread{display:flex;justify-content:space-between;gap:8px;font-size:calc(13px * var(--vscale));padding:4px 0 4px 9px;border-left:2px solid rgba(var(--vg-rgb),.3)}",
   ".vld-thread+.vld-thread{border-top:1px solid rgba(var(--vg-rgb),.08)}",
   ".vld-thread-s{font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--vle-gold);opacity:.75}",
@@ -1248,7 +1245,7 @@ export const STYLES = [
   "html[data-vle-chrome='futuristic'] .vlf .vld-h::before{content:'\u25B7';position:absolute;left:0;color:var(--vg);font-size:9px;top:1px}",
   "html[data-vle-chrome='futuristic'] .vlf .vld-pc{border:none;border-radius:0;border-left:2px solid rgba(var(--vg-rgb),.45);background:linear-gradient(90deg,rgba(var(--vg-rgb),.06),transparent)}",
   "html[data-vle-chrome='futuristic'] .vlf .vld-loc{font-family:var(--vmono);letter-spacing:1px;text-transform:uppercase}",
-  "html[data-vle-chrome='futuristic'] .vlf .vld-thread-s,html[data-vle-chrome='futuristic'] .vlf .vld-rel-s{font-family:var(--vmono);text-transform:uppercase;letter-spacing:.5px}",
+  "html[data-vle-chrome='futuristic'] .vlf .vld-thread-s{font-family:var(--vmono);text-transform:uppercase;letter-spacing:.5px}",
   // HUD system footer (recall mode + injection chars), rendered by dashboard
   ".vld-sysfoot{margin-top:calc(10px * var(--vscale));padding-top:8px;border-top:1px solid rgba(var(--vg-rgb),.25);font:600 8.5px/1.4 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vg);opacity:.7;display:flex;gap:14px;flex-wrap:wrap}",
   "html:not([data-vle-chrome='futuristic']) .vlf .vld-sysfoot{display:none}",
@@ -1353,9 +1350,6 @@ export const STYLES = [
   // present cast → notification cards; avatars fully round with presence ring
   "html[data-vle-chrome='modern'] .vld-pc{border:none;border-radius:18px;background:color-mix(in srgb,var(--vi) 5%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.22);padding:calc(13px * var(--vscale)) calc(15px * var(--vscale))}",
   "html[data-vle-chrome='modern'] .vld-pc+.vld-pc{margin-top:calc(10px * var(--vscale))}",
-  // relation 'spotlight' rows → a rounded card each
-  "html[data-vle-chrome='modern'] .vld-rel{border-radius:18px;background:color-mix(in srgb,var(--vi) 5%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.22);padding:calc(13px * var(--vscale)) calc(15px * var(--vscale));margin:0}",
-  "html[data-vle-chrome='modern'] .vld-rel+.vle-bm{margin:calc(-4px * var(--vscale)) 0 calc(10px * var(--vscale));padding:0 calc(15px * var(--vscale))}",
   // threads + parallel → soft pill rows
   "html[data-vle-chrome='modern'] .vld-thread,html[data-vle-chrome='modern'] .vld-par{border-radius:14px;background:color-mix(in srgb,var(--vi) 4%,transparent);padding:calc(10px * var(--vscale)) calc(13px * var(--vscale));margin-bottom:calc(7px * var(--vscale))}",
   // 'Latest' → a real activity feed: a connector line + colored nodes
@@ -1365,14 +1359,10 @@ export const STYLES = [
   "html[data-vle-chrome='modern'] .vld-rec::before{content:'';position:absolute;left:-6px;top:calc(3px * var(--vscale));width:10px;height:10px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px var(--vsurf-1)}",
   "html[data-vle-chrome='modern'] .vld-rec--journal::before{color:var(--v-pos-i)}html[data-vle-chrome='modern'] .vld-rec--knew::before{color:var(--v-info)}html[data-vle-chrome='modern'] .vld-rec--secret::before{color:var(--v-neg-i)}html[data-vle-chrome='modern'] .vld-rec--shift::before{color:var(--v-press-i)}",
   "html[data-vle-chrome='modern'] .vld-rec-k{display:block;font:700 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vi2);opacity:.7;margin-bottom:3px}",
-  // twin meters fully rounded + a touch taller in modern
-  "html[data-vle-chrome='modern'] .vle-tw-t{height:9px;border-radius:6px}",
   // float frame already flat (existing rules); round the drawer launcher too
   "html[data-vle-chrome='modern'] .vlf-title{font-weight:700}",
-  // bond meter theme skins (shared layout, themed material)
-  "html[data-vle-chrome='modern'] .vle-bm .vle-tw-t{height:10px;border-radius:6px}",
-  "html[data-vle-chrome='illuminated'] .vle-bm-axl{color:var(--v-neg-i);font-variant:small-caps;letter-spacing:1.5px;opacity:.8}",
-  "html[data-vle-chrome='illuminated'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 50%,transparent),var(--vg))}",
+  // bond card axis labels take the illuminated rubric treatment
+  "html[data-vle-chrome='illuminated'] .vle-bc-axl{font-variant:small-caps;letter-spacing:1.5px;opacity:.8}",
   // present-card avatar theme skins (shared structure, themed material)
   "html[data-vle-chrome='illuminated'] .vld-pc-av{border-radius:50%;background:radial-gradient(40% 35% at 40% 35%,#b8403a,#6e1f1c);border-color:#4a1513;color:#f0c4c0}",
   "html[data-vle-chrome='modern'] .vld-pc-av{border-width:2px}",
@@ -1494,9 +1484,9 @@ export const STYLES = [
   "html[data-vle-chrome='bloom'] .vle-av,html[data-vle-chrome='bloom'] .vld-pc-av{border-radius:50%;background:radial-gradient(60% 55% at 40% 35%,color-mix(in srgb,var(--vg) 30%,transparent),color-mix(in srgb,var(--vg2) 22%,transparent));border:2px solid color-mix(in srgb,var(--vg) 45%,transparent);color:var(--vi)}",
   "html[data-vle-chrome='bloom'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.22),0 0 12px rgba(var(--vg-rgb),.4)}",
   // --- twin bond meters → fully rounded, pink (affection) & sage (trust) ---
-  "html[data-vle-chrome='bloom'] .vle-tw-t{height:9px;border-radius:6px}",
-  "html[data-vle-chrome='bloom'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 55%,transparent),var(--vg))}",
-  "html[data-vle-chrome='bloom'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 55%,transparent),var(--vg2))}",
+  // bond card: bloom recolors the two axes to its blush/sage accents
+  "html[data-vle-chrome='bloom'] .vle-bc-dot--aff.vle-bc-dot--b,html[data-vle-chrome='bloom'] .vle-bc-conn--aff{background:var(--vg)}",
+  "html[data-vle-chrome='bloom'] .vle-bc-dot--trust.vle-bc-dot--b,html[data-vle-chrome='bloom'] .vle-bc-conn--trust{background:var(--vg2)}",
   // --- 'Latest' feed → a garland: dashed blush stem with petal nodes ---
   "html[data-vle-chrome='bloom'] .vld-rec{position:relative;margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(11px * var(--vscale)) calc(18px * var(--vscale));border-left:2px dashed color-mix(in srgb,var(--vg) 26%,transparent)}",
   "html[data-vle-chrome='bloom'] .vld-rec:last-child{border-left-color:transparent}",
@@ -1561,9 +1551,9 @@ export const STYLES = [
   "html[data-vle-chrome='ember'] .vle-av,html[data-vle-chrome='ember'] .vld-pc-av{border-radius:50%;background:radial-gradient(60% 55% at 40% 35%,color-mix(in srgb,var(--vg) 28%,transparent),color-mix(in srgb,var(--vg2) 20%,transparent));border:2px solid color-mix(in srgb,var(--vg) 42%,transparent);color:var(--vi);box-shadow:0 0 12px rgba(var(--vg-rgb),.2)}",
   "html[data-vle-chrome='ember'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.2),0 0 18px rgba(var(--vg-rgb),.5)}",
   // --- twin bond meters -> glowing pastel strands (lilac affection, mint trust) ---
-  "html[data-vle-chrome='ember'] .vle-tw-t{height:9px;border-radius:6px;background:rgba(255,255,255,.06)}",
-  "html[data-vle-chrome='ember'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 55%,transparent),var(--vg));box-shadow:0 0 8px rgba(var(--vg-rgb),.35)}",
-  "html[data-vle-chrome='ember'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 55%,transparent),var(--vg2));box-shadow:0 0 8px rgba(var(--vg2-rgb),.3)}",
+  // bond card: ember's dots glow softly, matching its luminous aesthetic
+  "html[data-vle-chrome='ember'] .vle-bc-dot--aff.vle-bc-dot--b,html[data-vle-chrome='ember'] .vle-bc-conn--aff{background:var(--vg);box-shadow:0 0 8px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='ember'] .vle-bc-dot--trust.vle-bc-dot--b,html[data-vle-chrome='ember'] .vle-bc-conn--trust{background:var(--vg2);box-shadow:0 0 8px rgba(var(--vg2-rgb),.35)}",
   // --- 'Latest' feed -> a stardust trail: dotted lilac stem with star nodes ---
   "html[data-vle-chrome='ember'] .vld-rec{position:relative;margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(11px * var(--vscale)) calc(18px * var(--vscale));border-left:2px dotted color-mix(in srgb,var(--vg) 28%,transparent)}",
   "html[data-vle-chrome='ember'] .vld-rec:last-child{border-left-color:transparent}",
@@ -1629,9 +1619,9 @@ export const STYLES = [
   "html[data-vle-chrome='faewild'] .vle-av,html[data-vle-chrome='faewild'] .vld-pc-av{border-radius:50%;background:radial-gradient(60% 55% at 40% 35%,color-mix(in srgb,var(--vg) 28%,transparent),color-mix(in srgb,var(--vg2) 20%,transparent));border:2px solid color-mix(in srgb,var(--vg) 42%,transparent);color:var(--vi);box-shadow:0 0 12px rgba(var(--vg-rgb),.2)}",
   "html[data-vle-chrome='faewild'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.2),0 0 18px rgba(var(--vg-rgb),.5)}",
   // --- twin bond meters -> vine strands (sage affection, lilac trust) ---
-  "html[data-vle-chrome='faewild'] .vle-tw-t{height:9px;border-radius:6px;background:rgba(255,255,255,.06)}",
-  "html[data-vle-chrome='faewild'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 55%,transparent),var(--vg));box-shadow:0 0 8px rgba(var(--vg-rgb),.35)}",
-  "html[data-vle-chrome='faewild'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 55%,transparent),var(--vg2));box-shadow:0 0 8px rgba(var(--vg2-rgb),.3)}",
+  // bond card: faewild's dots glow softly, matching its luminous aesthetic
+  "html[data-vle-chrome='faewild'] .vle-bc-dot--aff.vle-bc-dot--b,html[data-vle-chrome='faewild'] .vle-bc-conn--aff{background:var(--vg);box-shadow:0 0 8px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='faewild'] .vle-bc-dot--trust.vle-bc-dot--b,html[data-vle-chrome='faewild'] .vle-bc-conn--trust{background:var(--vg2);box-shadow:0 0 8px rgba(var(--vg2-rgb),.35)}",
   // --- 'Latest' feed -> a climbing-vine trail: dashed sage stem with leaf nodes ---
   "html[data-vle-chrome='faewild'] .vld-rec{position:relative;margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(11px * var(--vscale)) calc(18px * var(--vscale));border-left:2px dashed color-mix(in srgb,var(--vg) 30%,transparent)}",
   "html[data-vle-chrome='faewild'] .vld-rec:last-child{border-left-color:transparent}",

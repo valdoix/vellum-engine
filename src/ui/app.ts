@@ -104,7 +104,9 @@ const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000
 // and the floating window share one language (float = Now alone; drawer = Now +
 // the archive tabs). Same composable section engine as the float (dashboard.ts).
 const nowTab: Component<ChronicleState> = {
-  version: (s) => `${s.turns}:${s.day}:${s.scene.location ?? ''}:${s.scene.tension ?? 0}:${s.scene.present.join(',')}:${s.relations.length}:${s.scene.weather ?? ''}:${s.scene.time ?? ''}:${(s.scene.detail ?? []).map((d) => d.id + (d.mood ?? '') + (d.condition ?? '') + (d.doing ?? '') + (d.thought ?? '')).join(',')}`,
+  // rel term includes the affection/trust sum so the compact bond cards repaint
+  // when scores shift on a turn even if the relation COUNT is unchanged.
+  version: (s) => `${s.turns}:${s.day}:${s.scene.location ?? ''}:${s.scene.tension ?? 0}:${s.scene.present.join(',')}:${s.relations.length}:${s.relations.reduce((a, r) => a + r.affection + r.trust, 0)}:${s.scene.weather ?? ''}:${s.scene.time ?? ''}:${(s.scene.detail ?? []).map((d) => d.id + (d.mood ?? '') + (d.condition ?? '') + (d.doing ?? '') + (d.thought ?? '')).join(',')}`,
   render: (s) => `<div class="vld">${dashboardHtml(s)}</div>`,
   mount: (host) => host.addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-phone-sec]'); if (d) { setPhoneSection(d.getAttribute('data-phone-sec')!); refreshUI(); } }),
 };

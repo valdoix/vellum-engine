@@ -1,10 +1,9 @@
 import type { Component } from '../component.js';
 import type { ChronicleState, Relation } from '../../domain/types.js';
-import { esc, nameOf, catsOf, CAT_COLORS, SENT_LABEL, bondMeter, bondVerdict, emptyState, sectionHeader, nameHtml } from '../format.js';
+import { esc, nameOf, catsOf, bondCard, emptyState, sectionHeader } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, filterOf } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
-import { getTheme, activeShape } from '../theme.js';
-import { shapeOrnament } from '../ornament.js';
+import { getTheme } from '../theme.js';
 import { renderBondRadar } from '../theme-render.js';
 
 /**
@@ -118,9 +117,10 @@ function relForm(title: string, v: Record<string, string>): void {
   });
 }
 
-/** A paired relation card: the A↔B header + lock, then one directional row per
- * existing edge (A→B and/or B→A), each with its own label/cats/bars/edit/delete/
- * history. Directed edges stay distinct so asymmetry (she devoted, he wary) shows. */
+/** A paired relation card: delegates to the shared bondCard (full density),
+ * supplying the Bonds-tab-only extras — the Plot Director lock badge + button,
+ * per-direction edit/delete controls, the promoted aff/trust sparkline, and the
+ * numeric change-history disclosure. Futuristic keeps its dual-axis radar. */
 function card(s: ChronicleState, group: Relation[]): string {
   const A = (x: unknown): string => esc(x);
   // stable endpoint order from the sorted pair key, so the header reads the same
@@ -131,65 +131,40 @@ function card(s: ChronicleState, group: Relation[]): string {
   const byDir = (from: string, to: string): Relation | undefined => group.find((r) => r.a === from && r.b === to);
   const dirs = [byDir(pa, pb), byDir(pb, pa)].filter(Boolean) as Relation[];
 
-  // K3: each direction collapses to ONE line — from→to · sentiment + label quote
-  // + edit/del. Category chips move to the card foot (shown once), not per row.
-  const dirLine = (r: Relation): string => {
+  // per-direction edit/delete + the shared lock button, packed into the ctl slot.
+  const ctl = dirs.map((r) => {
     const an = nameOf(s, r.a), bn = nameOf(s, r.b);
-    const cats = catsOf(r);
-    return '<div class="vle-rel-dirline">'
-      + '<span class="vle-rel-dirn">' + nameHtml(s, r.a) + '<span class="vle-rel-arrow">\u2192</span>' + nameHtml(s, r.b) + '</span>'
-      + '<span class="vle-rel-sent">' + esc(SENT_LABEL[r.sentiment] || r.sentiment) + '</span>'
-      + (r.label ? '<span class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</span>' : '')
-      + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '')
-      + '<span class="vle-rel-ctl">'
-      + `<button class="vle-mini" data-rel-edit data-a="${A(an)}" data-b="${A(bn)}" data-label="${A(r.label)}" data-cats="${A(cats.join(','))}" data-aff="${r.affection}" data-trust="${r.trust}" title="Edit">\u270E</button>`
-      + `<button class="vle-mini del" data-rel-del data-a="${A(an)}" data-b="${A(bn)}" title="Delete">\u2715</button>`
-      + '</span></div>';
-  };
-  // category chips: the UNION of both directions, rendered once at the card foot.
-  const allCats = Array.from(new Set(dirs.flatMap((r) => catsOf(r))));
-  const catFoot = allCats.length
-    ? '<div class="vle-rel-catfoot">' + allCats.map((c) => '<span class="vle-cat" style="--c:' + (CAT_COLORS[c] || '#888') + '">' + esc(c) + '</span>').join('') + '</div>'
-    : '';
-  // K1 verdict word — the one-line read of the pair.
-  const verdict = bondVerdict(dirs);
+    return `<button class="vle-mini" data-rel-edit data-a="${A(an)}" data-b="${A(bn)}" data-label="${A(r.label)}" data-cats="${A(catsOf(r).join(','))}" data-aff="${r.affection}" data-trust="${r.trust}" title="Edit ${A(an)}\u2192${A(bn)}">\u270E</button>`
+      + `<button class="vle-mini del" data-rel-del data-a="${A(an)}" data-b="${A(bn)}" title="Delete ${A(an)}\u2192${A(bn)}">\u2715</button>`;
+  }).join('')
+    + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(pa)}" data-b="${A(pb)}" data-an="${A(nameOf(s, pa))}" data-bn="${A(nameOf(s, pb))}" title="Plot Director lock">\uD83D\uDD12</button>`;
 
-  const reverseMissing = dirs.length === 1
-    ? `<div class="vle-rel-onesided">no reciprocal bond from ${esc(nameOf(s, dirs[0]!.b))} yet</div>`
-    : '';
-  // bond visualization: futuristic = radar; everyone else = the shared diverging
-  // bondMeter (both directions per axis vs one zero). Boundary-safe; '' degrades.
-  const viz = getTheme().chrome === 'futuristic'
-    ? renderBondRadar(s, group)
-    : bondMeter(dirs, (id) => nameOf(s, id));
-  return '<div class="vle-rel-card">'
-    + shapeOrnament(activeShape('bonds'), 'bonds')
-    // K1 verdict header: A ⇄ B + one verdict word + lock badge/button.
-    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, pa) + '<span class="vle-rel-arrow">\u2194</span>' + nameHtml(s, pb) + '</span>'
-    + '<span class="vle-rel-verdict">' + esc(verdict) + '</span>'
-    + '<span class="vle-rel-ctl">' + lockBadge
-    + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(pa)}" data-b="${A(pb)}" data-an="${A(nameOf(s, pa))}" data-bn="${A(nameOf(s, pb))}" title="Plot Director lock">\uD83D\uDD12</button>`
-    + '</span></div>'
-    + viz
-    + dirs.map(dirLine).join('')
-    + catFoot
-    + reverseMissing
-    // K4 history as one quiet disclosure per PAIR (both directions combined).
-    + pairHistoryHtml(dirs)
-    + '</div>';
+  // bond visualization: futuristic = radar (both axes as vectors); everyone else
+  // uses the dumbbell built into bondCard, so no viz is injected there. The
+  // sparkline (promoted out of the disclosure) is injected as `arc` for all.
+  const radar = getTheme().chrome === 'futuristic' ? renderBondRadar(s, group) : '';
+  const arc = radar + promotedSparkline(dirs);
+
+  return bondCard(s, group, 'full', { ctl, badge: lockBadge, arc, history: pairHistoryHtml(dirs) });
 }
 
-/** K4: ONE quiet change-history disclosure per PAIR (both directions combined),
- * with the richest direction's sparkline. Category transitions + score samples,
- * merged and time-ordered so the margin holds one history, not two. */
+/** The promoted aff/trust sparkline — the "arc of the bond", now shown inline
+ * (was buried in the change-history disclosure). Empty until there are ≥2 samples. */
+function promotedSparkline(dirs: Relation[]): string {
+  const richest = dirs.slice().sort((a, b) => (b.history?.length ?? 0) - (a.history?.length ?? 0))[0];
+  const scores = richest?.history ?? [];
+  return scores.length >= 2 ? arcSparkline(scores) : '';
+}
+
+/** ONE quiet change-history disclosure per PAIR (both directions combined) — the
+ * numeric trails only now; the sparkline has been promoted out (promotedSparkline).
+ * Category transitions + score samples, merged and time-ordered. */
 function pairHistoryHtml(dirs: Relation[]): string {
   const cat = dirs.flatMap((r) => (r.categoryHistory ?? []).filter((h) => h.op === 'add' || h.op === 'remove'))
     .sort((a, b) => (a.day || 0) - (b.day || 0));
-  // sparkline follows the direction with the most samples (fullest arc)
   const richest = dirs.slice().sort((a, b) => (b.history?.length ?? 0) - (a.history?.length ?? 0))[0];
   const scores = richest?.history ?? [];
   if (cat.length < 1 && scores.length < 2) return '';
-  const spark = scores.length >= 2 ? arcSparkline(scores) : '';
   const catRows = cat.slice(-8).map((h) => {
     const sign = h.op === 'remove' ? '\u2212' : '+';
     const cls = h.op === 'remove' ? 'rm' : 'add';
@@ -200,7 +175,6 @@ function pairHistoryHtml(dirs: Relation[]): string {
     return `<div class="vle-hist-row"><span class="vle-hist-t">t${s.turn}</span><span class="vle-hist-sc">aff ${aff} \u00b7 trust ${tr}</span>${s.reason ? `<span class="vle-hist-why">${esc(s.reason)}</span>` : ''}</div>`;
   }).join('');
   return '<details class="vle-hist"><summary>\u25B8 change history</summary>'
-    + spark
     + (catRows ? '<div class="vle-hist-sec">bond shifts</div>' + catRows : '')
     + (scoreRows ? '<div class="vle-hist-sec">score trail</div>' + scoreRows : '')
     + '</details>';
