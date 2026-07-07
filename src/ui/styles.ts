@@ -594,9 +594,9 @@ export const STYLES = [
   // K3 category chips shown ONCE at the card foot (union of both directions)
   ".vle-rel-catfoot{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}",
   // K2 continuous dashed center-zero across an axis's rows. Track 50% = the fixed
-  // caption(84)+gap(7) offset plus half the remaining width minus value(30)+gap(7).
+  // caption(120)+gap(7) offset plus half the remaining width minus value(30)+gap(7).
   ".vle-bm-axis{position:relative}",
-  ".vle-bm-zero{position:absolute;left:calc(50% + 27px);top:16px;bottom:1px;width:0;border-left:1px dashed rgba(255,255,255,.28);pointer-events:none;z-index:0}",
+  ".vle-bm-zero{position:absolute;left:calc(50% + 45px);top:16px;bottom:1px;width:0;border-left:1px dashed rgba(255,255,255,.28);pointer-events:none;z-index:0}",
   ".vle-bm-row .vle-tw-mid{display:none}",
   // paired card: A↔B header, then a directional row per edge
   ".vle-rel-dir{margin-top:7px;padding-top:7px;border-top:1px dashed rgba(var(--vg-rgb),.16)}",
@@ -633,7 +633,7 @@ export const STYLES = [
   ".vle-bm-axis{display:flex;flex-direction:column;gap:3px}",
   ".vle-bm-axl{font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--vi2);opacity:.55}",
   ".vle-bm-row{display:flex;align-items:center;gap:7px}",
-  ".vle-bm-cap{flex:none;width:84px;display:inline-flex;align-items:baseline;gap:1px;font-family:var(--vserif);font-size:calc(12px * var(--vscale));font-weight:600;color:var(--vi2);opacity:.9;white-space:nowrap;overflow:hidden}",
+  ".vle-bm-cap{flex:none;width:120px;display:inline-flex;align-items:baseline;gap:1px;font-family:var(--vserif);font-size:calc(12px * var(--vscale));font-weight:600;color:var(--vi2);opacity:.9;white-space:nowrap;overflow:hidden}",
   ".vle-bm-nm{overflow:hidden;text-overflow:ellipsis;min-width:0}",
   // elegant hairline serif connective between the two names in a bond-meter row
   ".vle-bm-arrow{flex:none;font-family:var(--vserif);font-weight:400;color:var(--vg);opacity:.7;margin:0 .28em;font-size:.95em}",
