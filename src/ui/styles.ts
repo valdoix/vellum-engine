@@ -46,6 +46,16 @@ const SHAPE_GEOM: Record<string, string> = {
   deckle: `border-radius:0 ${R} ${R} 0;padding-left:16px;-webkit-mask:radial-gradient(circle 4px at 0 4px,transparent 98%,#000) 0 0/8px 8px repeat-y,linear-gradient(#000,#000) 4px 0/calc(100% - 4px) 100% no-repeat;mask:radial-gradient(circle 4px at 0 4px,transparent 98%,#000) 0 0/8px 8px repeat-y,linear-gradient(#000,#000) 4px 0/calc(100% - 4px) 100% no-repeat`,
   // BOTTOM — scallop the bottom edge only; content bottom-pads clear of the bumps
   scalloped: `border-radius:calc(${R} * .8);-webkit-mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat;mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat`,
+  // FAEWILD family (mockup 39) — nature silhouettes; detail lives in reserved padding.
+  // toadstool: a domed mushroom-cap top (big top radius) + extra top padding so the
+  // spotted cap band (pseudo) never touches content.
+  toadstool: `border-radius:calc(${R} * 2) calc(${R} * 2) calc(${R} * .5) calc(${R} * .5);padding:16px 13px 11px`,
+  // trellis: a climbing-vine left rail lives in the left padding (pseudo draws it).
+  trellis: `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:20px`,
+  // bramble: a leafy-wreath sprig tucks into two corners (pseudo, in the padding).
+  bramble: `border-radius:${R};padding:11px 14px`,
+  // lantern: a hanging bulb tag — a warm inset glow + a top hook pseudo above it.
+  lantern: `border-radius:calc(${R} * .8);padding:11px 13px`,
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
 // small fixed corners that live in padding.
@@ -1127,6 +1137,9 @@ export const STYLES = [
   ".vle-mode-sk.sk-hud{flex-direction:column;gap:4px}.vle-mode-sk.sk-hud i{height:5px;width:70%}.vle-mode-sk.sk-hud i:last-child{width:45%}",
   ".vle-mode-sk.sk-bloom{flex-direction:column;gap:5px;background:linear-gradient(160deg,#fff4f8,#f0e2ea)}.vle-mode-sk.sk-bloom i{height:8px;border-radius:9px;background:linear-gradient(90deg,rgba(217,140,171,.5),rgba(143,191,127,.45))}.vle-mode-sk.sk-bloom i:first-child{height:11px}",
   ".vle-mode-sk.sk-ember{flex-direction:column;gap:4px;background:radial-gradient(80% 60% at 30% 20%,rgba(184,169,255,.18),transparent),linear-gradient(160deg,#141428,#0a0a18)}.vle-mode-sk.sk-ember i{height:6px;border-radius:5px;background:linear-gradient(90deg,rgba(184,169,255,.55),rgba(143,214,200,.45));box-shadow:0 0 4px rgba(184,169,255,.4)}.vle-mode-sk.sk-ember i:first-child{height:9px}.vle-mode-sk.sk-ember i:last-child{width:60%}",
+  // faewild sketch: a twilight glade with a fairy-light dot-string across the top
+  // and pastel sage/lilac vine-bars; the first bar domes like a toadstool cap.
+  ".vle-mode-sk.sk-faewild{flex-direction:column;gap:4px;background:radial-gradient(70% 60% at 80% 15%,rgba(240,198,90,.16),transparent),linear-gradient(160deg,#1e2422,#101a18)}.vle-mode-sk.sk-faewild i{height:6px;border-radius:5px;background:linear-gradient(90deg,rgba(143,191,136,.6),rgba(201,182,240,.45));box-shadow:0 0 4px rgba(143,191,136,.4)}.vle-mode-sk.sk-faewild i:first-child{height:9px;border-radius:9px 9px 4px 4px}.vle-mode-sk.sk-faewild i:last-child{width:55%}",
 
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
@@ -1566,6 +1579,80 @@ export const STYLES = [
   "html[data-vle-chrome='ember'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,var(--vg2),color-mix(in srgb,var(--vg2) 55%,#1a1a30));border-color:color-mix(in srgb,var(--vg2) 55%,transparent);color:#1a1a30;box-shadow:0 0 14px rgba(var(--vg2-rgb),.5)}",
   "html[data-vle-chrome='ember'] .vlf-bar::before{content:'\\2726';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg2);opacity:.6;font-size:12px;pointer-events:none;text-shadow:0 0 8px rgba(var(--vg2-rgb),.5)}",
 
+  // ================= THEME: FAEWILD ("Twilight Storybook Glade") - float + drawer =================
+  // A fairy-tale wood at dusk: pastel sage & lilac on a deep blue-green glade,
+  // climbing-vine borders, and fairy-light garlands that catch in the dark
+  // (presence & tension read as warm bulbs). Signature: drifting fireflies + a
+  // faint glade wash + a leaf/bulb-dressed shell. Distinct from Bloom (indoor
+  // cozy garden, static) and Ember (indigo night sky): Faewild is green-led,
+  // vined, storybook. All chrome-scoped so it re-skins BOTH the float and drawer;
+  // animations honor html[data-vle-motion='off'] + prefers-reduced-motion.
+  // --- shared: a soft glade wash (sage/lilac) behind both surfaces ---
+  "html[data-vle-chrome='faewild'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(120% 90% at 15% 8%,rgba(var(--vg-rgb),.1),transparent 52%),radial-gradient(120% 90% at 85% 92%,rgba(var(--vg2-rgb),.09),transparent 52%)}",
+  "html[data-vle-chrome='faewild'] .vlf-body{background-image:radial-gradient(120% 80% at 15% 8%,rgba(var(--vg-rgb),.07),transparent 52%),radial-gradient(120% 80% at 85% 92%,rgba(var(--vg2-rgb),.06),transparent 52%)}",
+  // --- the signature: drifting fireflies (warm butter + sage motes), motion-gated ---
+  "html[data-vle-chrome='faewild'] .vle-body{position:relative}",
+  "html[data-vle-chrome='faewild'] .vlf-body{position:relative}",
+  "html[data-vle-chrome='faewild'] .vle-body::after,html[data-vle-chrome='faewild'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(1.6px 1.6px at 14% 20%,rgba(240,198,90,.6),transparent),radial-gradient(1px 1px at 72% 30%,rgba(var(--vg-rgb),.5),transparent),radial-gradient(2px 2px at 40% 66%,rgba(240,198,90,.45),transparent),radial-gradient(1px 1px at 86% 76%,rgba(var(--vg2-rgb),.5),transparent),radial-gradient(1.5px 1.5px at 54% 14%,rgba(var(--vg-rgb),.4),transparent),radial-gradient(1px 1px at 26% 86%,rgba(240,198,90,.4),transparent);background-repeat:no-repeat;opacity:.6;animation:vle-fae-flit 20s ease-in-out infinite}",
+  "html[data-vle-chrome='faewild'] .vle-body>*,html[data-vle-chrome='faewild'] .vlf-body>*{position:relative;z-index:1}",
+  // a faint climbing-vine wash rising from the bottom (a second, slow layer)
+  "html[data-vle-chrome='faewild'] .vle-body::before,html[data-vle-chrome='faewild'] .vlf-body::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(circle at 20% 100%,transparent 4px,rgba(var(--vg-rgb),.12) 4.5px,transparent 6px),radial-gradient(circle at 64% 100%,transparent 5px,rgba(var(--vg2-rgb),.1) 5.5px,transparent 7px),radial-gradient(circle at 90% 100%,transparent 3px,rgba(240,198,90,.12) 3.5px,transparent 5px);background-repeat:no-repeat;animation:vle-fae-rise 24s linear infinite;opacity:.45}",
+  "@keyframes vle-fae-flit{0%{transform:translate(0,0);opacity:.6} 33%{transform:translate(6px,-8px);opacity:.4} 66%{transform:translate(-5px,-4px);opacity:.55} 100%{transform:translate(0,0);opacity:.6}}",
+  "@keyframes vle-fae-rise{0%{transform:translateY(0);opacity:0} 12%{opacity:.45} 88%{opacity:.35} 100%{transform:translateY(-150px);opacity:0}}",
+  "html[data-vle-chrome='faewild'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='faewild'][data-vle-motion='off'] .vlf-body::after,html[data-vle-chrome='faewild'][data-vle-motion='off'] .vle-body::before,html[data-vle-chrome='faewild'][data-vle-motion='off'] .vlf-body::before{animation:none;opacity:.4}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='faewild'] .vle-body::after,html[data-vle-chrome='faewild'] .vlf-body::after,html[data-vle-chrome='faewild'] .vle-body::before,html[data-vle-chrome='faewild'] .vlf-body::before{animation:none;opacity:.4}}",
+  // --- drawer head -> a storybook title with a soft glade glow + a leaf mark ---
+  "html[data-vle-chrome='faewild'] .vle-navpanel{border-radius:calc(var(--vradius) + 6px);border-color:color-mix(in srgb,var(--vg) 28%,transparent);background:radial-gradient(140% 160% at 50% 0%,color-mix(in srgb,var(--vg) 12%,transparent),transparent 62%);box-shadow:0 0 20px color-mix(in srgb,var(--vg) 12%,transparent)}",
+  "html[data-vle-chrome='faewild'] .vle-head{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:1px;border-bottom:1.5px dashed color-mix(in srgb,var(--vg) 30%,transparent)}",
+  "html[data-vle-chrome='faewild'] .vle-mark{text-shadow:0 0 14px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='faewild'] .vle-mark::after{content:'\\1F343';margin-left:7px;color:var(--vg);opacity:.8;font-size:.78em}",
+  "html[data-vle-chrome='faewild'] .vle-stats{font-family:var(--vserif);font-style:italic;font-variant:small-caps;letter-spacing:1px;text-transform:lowercase;opacity:.65}",
+  // --- tab bar -> toadstool-cap pills; active = a luminous sage/lilac glow ---
+  "html[data-vle-chrome='faewild'] .vle-tabbtn{border-radius:calc(var(--rpill)) calc(var(--rpill)) 8px 8px;text-transform:none;letter-spacing:.4px;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-weight:500}",
+  "html[data-vle-chrome='faewild'] .vle-tabbtn:hover{background:color-mix(in srgb,var(--vg) 10%,transparent);color:var(--vi)}",
+  "html[data-vle-chrome='faewild'] .vle-tabbtn.on{color:var(--vg);border-color:transparent;background:linear-gradient(120deg,color-mix(in srgb,var(--vg) 20%,transparent),color-mix(in srgb,var(--vg2) 18%,transparent));box-shadow:0 0 14px rgba(var(--vg-rgb),.22)}",
+  "html[data-vle-chrome='faewild'] .vle-tabicon.on{color:var(--vg);border-color:color-mix(in srgb,var(--vg) 40%,transparent);background:color-mix(in srgb,var(--vg) 16%,transparent);box-shadow:0 0 12px rgba(var(--vg-rgb),.2)}",
+  // --- cards -> soft-edged glade panels with a faint pastel glow ---
+  "html[data-vle-chrome='faewild'] .vle-card,html[data-vle-chrome='faewild'] .vle-rel-card,html[data-vle-chrome='faewild'] .vld-sec,html[data-vle-chrome='faewild'] .vld-pc{border-radius:18px;border-color:color-mix(in srgb,var(--vg) 24%,transparent);background:linear-gradient(168deg,rgba(30,36,34,.62),rgba(20,26,26,.58));box-shadow:0 0 18px rgba(var(--vg-rgb),.06),0 4px 18px rgba(0,0,0,.28)}",
+  "html[data-vle-chrome='faewild'] .vle-card:hover,html[data-vle-chrome='faewild'] .vle-rel-card:hover{box-shadow:0 0 26px rgba(var(--vg-rgb),.14),0 6px 22px rgba(0,0,0,.34)}",
+  // --- section eyebrows -> storybook italic small-caps with a leaf fleuron ---
+  "html[data-vle-chrome='faewild'] .vld-h,html[data-vle-chrome='faewild'] .vle-sec-h{font-family:var(--vserif);font-style:italic;font-variant:normal;letter-spacing:1.5px;color:var(--vg);text-transform:uppercase;text-shadow:0 0 10px rgba(var(--vg-rgb),.28)}",
+  "html[data-vle-chrome='faewild'] .vld-h::before,html[data-vle-chrome='faewild'] .vle-sec-h::before{content:'\\1F33F ';color:var(--vg);opacity:.8}",
+  // --- hero scene line -> dreamy italic serif wreathed in a soft glade glow ---
+  "html[data-vle-chrome='faewild'] .vld-hero{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.3px;text-shadow:0 0 16px rgba(var(--vg-rgb),.3),0 0 32px rgba(var(--vg2-rgb),.16)}",
+  "html[data-vle-chrome='faewild'] .vld-hero::before{content:'\\275B ';color:var(--vg2);opacity:.7;font-style:normal}",
+  "html[data-vle-chrome='faewild'] .vld-sec--hero{background:linear-gradient(160deg,rgba(var(--vg-rgb),.12),rgba(var(--vg2-rgb),.1))!important;border-color:color-mix(in srgb,var(--vg) 26%,transparent)!important;border-radius:22px!important;box-shadow:0 0 30px rgba(var(--vg-rgb),.1)!important}",
+  // --- tension -> warm fairy-light bulbs (butter glow), not alarming dots ---
+  "html[data-vle-chrome='faewild'] .vld-dot{border-radius:50%}",
+  "html[data-vle-chrome='faewild'] .vld-dot.on{background:radial-gradient(circle at 40% 35%,#ffe6a0,color-mix(in srgb,var(--v-press) 60%,transparent));box-shadow:0 0 8px rgba(240,200,120,.6)}",
+  // --- avatars -> luminous glade medallions with a sage halo when present ---
+  "html[data-vle-chrome='faewild'] .vle-av,html[data-vle-chrome='faewild'] .vld-pc-av{border-radius:50%;background:radial-gradient(60% 55% at 40% 35%,color-mix(in srgb,var(--vg) 28%,transparent),color-mix(in srgb,var(--vg2) 20%,transparent));border:2px solid color-mix(in srgb,var(--vg) 42%,transparent);color:var(--vi);box-shadow:0 0 12px rgba(var(--vg-rgb),.2)}",
+  "html[data-vle-chrome='faewild'] .vle-card--present .vle-av{box-shadow:0 0 0 2px var(--vg),0 0 0 5px rgba(var(--vg-rgb),.2),0 0 18px rgba(var(--vg-rgb),.5)}",
+  // --- twin bond meters -> vine strands (sage affection, lilac trust) ---
+  "html[data-vle-chrome='faewild'] .vle-tw-t{height:9px;border-radius:6px;background:rgba(255,255,255,.06)}",
+  "html[data-vle-chrome='faewild'] .vle-bm .vle-tw-f.tw-aff{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 55%,transparent),var(--vg));box-shadow:0 0 8px rgba(var(--vg-rgb),.35)}",
+  "html[data-vle-chrome='faewild'] .vle-bm .vle-tw-f.tw-trust{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 55%,transparent),var(--vg2));box-shadow:0 0 8px rgba(var(--vg2-rgb),.3)}",
+  // --- 'Latest' feed -> a climbing-vine trail: dashed sage stem with leaf nodes ---
+  "html[data-vle-chrome='faewild'] .vld-rec{position:relative;margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(11px * var(--vscale)) calc(18px * var(--vscale));border-left:2px dashed color-mix(in srgb,var(--vg) 30%,transparent)}",
+  "html[data-vle-chrome='faewild'] .vld-rec:last-child{border-left-color:transparent}",
+  "html[data-vle-chrome='faewild'] .vld-rec::before{content:'\\1F343';position:absolute;left:-9px;top:calc(1px * var(--vscale));font-size:11px;color:var(--vg)}",
+  "html[data-vle-chrome='faewild'] .vld-rec--journal::before{color:var(--v-pos-i)}html[data-vle-chrome='faewild'] .vld-rec--knew::before{color:var(--v-info)}html[data-vle-chrome='faewild'] .vld-rec--secret::before{color:var(--v-neg-i)}html[data-vle-chrome='faewild'] .vld-rec--shift::before{color:var(--v-press-i)}",
+  // --- chips soften to fully-rounded pastel lozenges with a faint glow ---
+  "html[data-vle-chrome='faewild'] .v-chip{border-radius:var(--rpill);box-shadow:0 0 8px rgba(var(--vg-rgb),.1)}",
+  // --- modal + toasts pick up the luminous glade treatment (read document attr) ---
+  "html[data-vle-chrome='faewild'] .vlfm{border-radius:22px;border-color:color-mix(in srgb,var(--vg) 34%,transparent);box-shadow:0 0 40px rgba(var(--vg-rgb),.16),0 24px 70px rgba(0,0,0,.55)}",
+  "html[data-vle-chrome='faewild'] .vlfm-head{font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:1px;border-bottom:1.5px dashed color-mix(in srgb,var(--vg) 30%,transparent)}",
+  // --- float-only: a glowing fairy-lantern close button + a leaf flanking the title ---
+  "html[data-vle-chrome='faewild'] .vlf-frame{border-radius:calc(var(--vradius) + 10px);border-color:color-mix(in srgb,var(--vg) 38%,transparent);box-shadow:0 0 24px rgba(var(--vg-rgb),.16),0 0 60px rgba(var(--vg2-rgb),.12),0 18px 60px rgba(8,20,16,.55),inset 0 0 0 1px rgba(255,255,255,.05)}",
+  "html[data-vle-chrome='faewild'] .vlf-bar{background:linear-gradient(180deg,rgba(var(--vg-rgb),.1),transparent);border-bottom:1.5px dashed color-mix(in srgb,var(--vg) 24%,transparent)}",
+  "html[data-vle-chrome='faewild'] .vlf-title{font-family:var(--vserif);font-style:italic;font-weight:500;font-size:calc(17px * var(--vscale));letter-spacing:1px;text-transform:none;text-shadow:0 0 12px rgba(var(--vg-rgb),.35)}",
+  "html[data-vle-chrome='faewild'] .vlf-frame::before{content:'';position:absolute;z-index:1;inset:6px;border-radius:calc(var(--vradius) + 4px);box-shadow:inset 0 0 22px rgba(var(--vg-rgb),.09),inset 0 0 40px rgba(var(--vg2-rgb),.06);pointer-events:none}",
+  "html[data-vle-chrome='faewild'] .vlf-grip{background:none;border:none;right:7px;bottom:7px;width:12px;height:12px;border-right:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-bottom:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-radius:0 0 10px 0;opacity:.7}",
+  "html[data-vle-chrome='faewild'] .vlf-launch{border-radius:18px 0 0 18px;box-shadow:-5px 4px 22px rgba(0,0,0,.45),0 0 18px rgba(var(--vg-rgb),.18)}",
+  "html[data-vle-chrome='faewild'] .vlf-x{border-radius:50%;background:radial-gradient(50% 45% at 40% 35%,#ffe6a0,color-mix(in srgb,var(--v-press) 55%,#1a2018));border:1px solid color-mix(in srgb,var(--vg) 55%,transparent);color:#1a2018;box-shadow:0 0 12px rgba(240,200,120,.5)}",
+  "html[data-vle-chrome='faewild'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,#fff2c4,color-mix(in srgb,var(--v-press) 40%,#1a2018));border-color:color-mix(in srgb,var(--v-press) 55%,transparent);color:#1a2018;box-shadow:0 0 14px rgba(240,200,120,.6)}",
+  "html[data-vle-chrome='faewild'] .vlf-bar::before{content:'\\1F343';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg);opacity:.7;font-size:12px;pointer-events:none}",
+
   // ============================================================================
   // CARD SHAPE PRIMITIVES + per-surface overrides (mockup 24 / 30-35).
   // Both are generated from the single SHAPE_GEOM map above (geometry only, never
@@ -1630,6 +1717,19 @@ export const STYLES = [
   ...shapeDetail('bracket', "content:'';position:absolute;top:9px;bottom:9px;left:5px;right:5px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/2px 100% no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/8px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/8px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/2px 100% no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/8px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/8px 2px no-repeat;opacity:.6", '::before'),
   // binding: three ledger binding holes down the left edge (in the left padding).
   ...shapeDetail('binding', "content:'';position:absolute;left:7px;top:0;bottom:0;width:5px;pointer-events:none;z-index:1;background:radial-gradient(circle 2.6px at 50% 50%,color-mix(in srgb,var(--vg) 55%,transparent) 98%,transparent);background-size:5px 33.33%;background-repeat:repeat-y;opacity:.8", '::before'),
+  // --- FAEWILD shape details (mockup 39). Nature ornaments in reserved padding. ---
+  // toadstool: a spotted cap band arcs across the reserved top padding (dots =
+  // toadstool speckles), tinted with the 2nd accent so the dome reads as a cap.
+  ...shapeDetail('toadstool', "content:'';position:absolute;top:5px;left:12px;right:12px;height:6px;pointer-events:none;z-index:1;border-radius:0 0 60% 60%/0 0 100% 100%;background:radial-gradient(circle 1.5px at 30% 60%,color-mix(in srgb,var(--vsurf-1,#fff) 70%,var(--vg2)) 98%,transparent),radial-gradient(circle 1.5px at 62% 40%,color-mix(in srgb,var(--vsurf-1,#fff) 70%,var(--vg2)) 98%,transparent);background-repeat:no-repeat;border-top:2px solid color-mix(in srgb,var(--vg2) 55%,transparent);opacity:.7", '::before'),
+  // trellis: a climbing vine — a wavy stem down the left rail with two leaf nubs,
+  // sitting in the reserved left padding so it never crosses content.
+  ...shapeDetail('trellis', "content:'';position:absolute;left:8px;top:6px;bottom:6px;width:8px;pointer-events:none;z-index:1;background:linear-gradient(color-mix(in srgb,var(--vg) 60%,transparent),color-mix(in srgb,var(--vg) 60%,transparent)) 3px 0/2px 100% no-repeat,radial-gradient(circle 3px at 100% 22%,color-mix(in srgb,var(--vg) 55%,transparent) 96%,transparent),radial-gradient(circle 3px at 0 58%,color-mix(in srgb,var(--vg) 55%,transparent) 96%,transparent),radial-gradient(circle 3px at 100% 86%,color-mix(in srgb,var(--vg) 55%,transparent) 96%,transparent);background-repeat:no-repeat;opacity:.8", '::before'),
+  // bramble: a leafy sprig tucked into the top-left & bottom-right corners (in pad).
+  ...shapeDetail('bramble', "content:'';position:absolute;inset:5px;pointer-events:none;z-index:1;background:radial-gradient(circle 3px at 0 0,color-mix(in srgb,var(--vg) 55%,transparent) 96%,transparent),radial-gradient(circle 2px at 9px 4px,color-mix(in srgb,var(--vg) 45%,transparent) 96%,transparent),radial-gradient(circle 2px at 4px 9px,color-mix(in srgb,var(--vg) 45%,transparent) 96%,transparent),radial-gradient(circle 3px at 100% 100%,color-mix(in srgb,var(--vg) 55%,transparent) 96%,transparent),radial-gradient(circle 2px at calc(100% - 9px) calc(100% - 4px),color-mix(in srgb,var(--vg) 45%,transparent) 96%,transparent),radial-gradient(circle 2px at calc(100% - 4px) calc(100% - 9px),color-mix(in srgb,var(--vg) 45%,transparent) 96%,transparent);background-repeat:no-repeat;opacity:.75", '::before'),
+  // lantern: a warm bulb glow gathered at the top-center + a little hanging hook
+  // drawn just inside the top padding (the '::after' hook rides above the glow).
+  ...shapeDetail('lantern', "content:'';position:absolute;top:0;left:0;right:0;height:16px;pointer-events:none;z-index:1;background:radial-gradient(ellipse 40% 120% at 50% 0,color-mix(in srgb,var(--vg2) 40%,transparent),transparent 70%);opacity:.7", '::before'),
+  ...shapeDetail('lantern', "content:'';position:absolute;top:2px;left:calc(50% - 4px);width:8px;height:5px;pointer-events:none;z-index:1;border:1.5px solid color-mix(in srgb,var(--vg2) 60%,transparent);border-bottom:none;border-radius:5px 5px 0 0;opacity:.8", '::after'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.

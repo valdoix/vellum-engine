@@ -33,7 +33,7 @@ export interface Theme {
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'hidden';
   mode: 'dark' | 'light'; // color mode; picks the chrome's dark/light skin
-  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember'; // window ornamentation, orthogonal to skin
+  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild'; // window ornamentation, orthogonal to skin
 
   // per-surface card shape overrides. {} = use the chrome's default shape for
   // every surface (so the default theme is visually unchanged). A missing/unknown
@@ -57,7 +57,7 @@ const F_SANS = "'Inter',system-ui,-apple-system,\"Segoe UI\",sans-serif";
 const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
 const F_ETHEREAL = "'Quicksand','Cormorant Garamond',Georgia,serif"; // Ember display — airy rounded geometric (bundled), Cormorant as graceful fallback
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild';
 
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
@@ -70,11 +70,16 @@ export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloo
 // expresses its read via radius / a small fixed-corner clip / an edge accent / a
 // masked edge / a padding-anchored pseudo — never a full-bleed polygon — so a
 // wide row never clips its content.
+// Faewild round (mockups 39 / mode-4): four nature silhouettes, same content-safe
+// discipline — toadstool (mushroom-cap dome top + top padding), trellis (climbing
+// -vine left rail, left padding), bramble (leafy-wreath corner sprigs in padding),
+// lantern (a hanging bulb tag: top hook pseudo + warm inset glow).
 export type ShapeId =
   | 'slab' | 'left-spine' | 'tarot' | 'notched' | 'split' | 'inset' | 'scalloped'
-  | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket';
+  | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket'
+  | 'toadstool' | 'trellis' | 'bramble' | 'lantern';
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items' | 'secrets';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items', 'secrets'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -94,6 +99,10 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   bloom: { present: 'stitch', bonds: 'stitch', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'stitch', secrets: 'stitch' },
   // dreamy night: soft portrait, a torn deckle beat, plain-slab secrets (per request)
   ember: { present: 'tarot', bonds: 'gilt-edge', cast: 'slab', beats: 'deckle', factions: 'tarot', items: 'deckle', secrets: 'slab' },
+  // twilight storybook glade: a toadstool-dome present, a bramble-wreath bond, a
+  // tarot cast plate, a climbing-vine trellis beat, a scalloped faction, a hanging
+  // fairy-lantern item; secrets stay a quiet slab (the sealed thing in the dark).
+  faewild: { present: 'toadstool', bonds: 'bramble', cast: 'tarot', beats: 'trellis', factions: 'scalloped', items: 'lantern', secrets: 'slab' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -134,7 +143,7 @@ export function sanitizeCardShapes(raw: unknown): Partial<Record<Surface, ShapeI
  * palette. After picking, every knob is still individually overridable.
  */
 export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme>; form: string; skin?: string; skinDark: string; skinLight: string }
-// Six chromes, each with a paired dark + light skin. `skin` is the mode's
+// Seven chromes, each with a paired dark + light skin. `skin` is the mode's
 // recommended (dark) palette for back-compat; setMode picks dark/light by the
 // active color mode. Philosophy: STORY (the scene leads) · BEAUTY (each chrome
 // is a distinct world, ornament that encodes state) · MEMORY (the margin holds).
@@ -150,6 +159,12 @@ export const MODES: Mode[] = [
   // dark, soft, ethereal, and animated — pastels that glow on a midnight field.
   // Its light twin is a pale dawn sky (starfall-dawn).
   { id: 'ember', name: 'Ember', blurb: 'A starlit night dreaming \u2014 indigo void, fireflies, rising bubbles, pastel starlight.', patch: { chrome: 'ember', radius: 22, border: 1, texture: 'starfall', serif: F_ETHEREAL, accent: '#b8a9ff', accent2: '#8fd6c8', opacity: 0.92, blur: 12 }, form: 'dashboard', skin: 'starfall', skinDark: 'starfall', skinLight: 'starfall-dawn' },
+  // FAEWILD — "the twilight storybook glade": a fairy-tale wood at dusk. Climbing
+  // vines frame the window, fairy-light garlands catch in the dark (presence &
+  // tension), toadstool tabs, pastel sage & lilac on a deep glade. Nature objects
+  // dress every card. Distinct from Bloom (indoor cozy garden) & Ember (night sky):
+  // Faewild is an enchanted forest — green-led, vined, storybook. Light twin = dawn glade.
+  { id: 'faewild', name: 'Faewild', blurb: 'A twilight storybook glade \u2014 fairy lights, climbing vines, pastel sage &amp; lilac, toadstool tabs.', patch: { chrome: 'faewild', radius: 22, border: 1, texture: 'firefly-grove', serif: F_ETHEREAL, accent: '#8fbf88', accent2: '#c9b6f0', opacity: 0.94, blur: 10 }, form: 'dashboard', skin: 'faewild-dusk', skinDark: 'faewild-dusk', skinLight: 'faewild-dawn' },
 ];
 
 
@@ -175,6 +190,10 @@ export const SKINS: Skin[] = [
   // pastel ink (lilac & mint), pastel starlight semantics that glow against the
   // void. The recommended skin for the Ember chrome; composes with any chrome.
   { id: 'starfall', name: 'Ember Sky', blurb: 'A starlit indigo void — pastel lilac & mint starlight, fireflies, soft glow.', theme: { accent: '#b8a9ff', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(24,24,40,.62)', surf2: 'rgba(15,15,28,.58)', ink: '#e6e0f5', ink2: '#b0a8d0', glass: 'linear-gradient(168deg,rgba(20,20,36,.97),rgba(12,12,24,.985))', ...SEM, pos: '#9cd6a8', posInk: '#c0e8cc', neg: '#f0a8b8', negInk: '#f8c4d0', info: '#9bc8e8', warn: '#d8b0e8', press: '#f0c878', pressInk: '#f8dc9a' } },
+  // Faewild Dusk — the twilight glade: a deep blue-green forest field, luminous
+  // sage & lilac ink, warm-butter fairy-light glow, pastel-green semantics that
+  // read against the wood. The recommended (dark) palette for the Faewild chrome.
+  { id: 'faewild-dusk', name: 'Faewild Dusk', blurb: 'A twilight forest glade — deep blue-green field, sage & lilac ink, warm fairy-light glow.', theme: { accent: '#8fbf88', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(30,36,34,.62)', surf2: 'rgba(20,26,26,.58)', ink: '#e6efe0', ink2: '#aec2ac', glass: 'linear-gradient(168deg,rgba(24,32,32,.97),rgba(14,22,22,.985))', ...SEM, pos: '#a6d6a0', posInk: '#c2e8bc', neg: '#e79ab0', negInk: '#f2bccb', info: '#9bc8e8', warn: '#c9b6f0', press: '#f0c878', pressInk: '#f8dc9a' } },
   // --- LIGHT skins: the paired daytime twin for a chrome's dark default. Light
   // surfaces, dark ink, semantics preserved & darkened enough to read on white.
   // Modern's day face — clean paper white, cool slate ink, calm blue accent.
@@ -184,6 +203,9 @@ export const SKINS: Skin[] = [
   // Ember's day face — a pale dawn sky: soft lilac-white paper, plum ink, the
   // same lilac/mint accents so the chrome's fireflies & seal still read.
   { id: 'starfall-dawn', name: 'Ember Dawn', blurb: 'A pale dawn sky — soft lilac-white paper, plum ink, waking pastels.', theme: { accent: '#7a5fd0', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(250,247,255,.9)', surf2: 'rgba(240,235,250,.9)', ink: '#2a2340', ink2: '#6a5f88', glass: 'linear-gradient(168deg,#faf7ff,#efeafb)', ...SEM, pos: '#4f8a5f', posInk: '#3d7048', neg: '#c8607a', negInk: '#a84a62', info: '#4f7fb8', warn: '#9a6ac0', press: '#c08a2e', pressInk: '#a5701a' } },
+  // Faewild's day face — a dawn glade: soft mint-white paper, mossy-green ink, the
+  // same sage/lilac accents so the chrome's vines & fairy lights still read.
+  { id: 'faewild-dawn', name: 'Faewild Dawn', blurb: 'A dawn glade — soft mint-white paper, mossy-green ink, waking woodland pastels.', theme: { accent: '#4f8a5f', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(247,252,246,.9)', surf2: 'rgba(236,246,235,.9)', ink: '#22301f', ink2: '#5c6f57', glass: 'linear-gradient(168deg,#f7fcf6,#eaf4e8)', ...SEM, pos: '#4f8a5f', posInk: '#3d7048', neg: '#c8607a', negInk: '#a84a62', info: '#4f7fb8', warn: '#7a5fd0', press: '#c08a2e', pressInk: '#a5701a' } },
 ];
 
 
@@ -255,7 +277,7 @@ function safeTexture(t: string): string {
 
 let _theme: Theme = load();
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
-const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember'] as const;
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild'] as const;
 function sanitize(t: Theme): Theme {
   // migrate a cut chrome/skin to its nearest survivor before validating
   const rawChrome = t.chrome as string;
@@ -392,6 +414,7 @@ export function customizePanel(tab: CzTab = 'look'): string {
     futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
     bloom: '<span class="vle-mode-sk sk-bloom"><i></i><i></i><i></i></span>',
     ember: '<span class="vle-mode-sk sk-ember"><i></i><i></i><i></i></span>',
+    faewild: '<span class="vle-mode-sk sk-faewild"><i></i><i></i><i></i></span>',
   };
   // dark/light segmented toggle — flips every chrome to its paired skin
   const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'
