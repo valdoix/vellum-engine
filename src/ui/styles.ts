@@ -14,52 +14,74 @@
 // one map means the primitive and the override can never drift apart.
 // ---------------------------------------------------------------------------
 const R = 'var(--v-shape-radius)';
-// SHAPE_GEOM v2 (grounded, mockup 36). Every VELLUM card is a WIDE HORIZONTAL
+// SHAPE_GEOM v3 (grounded, mockup 37). Every VELLUM card is a WIDE HORIZONTAL
 // ROW (width ~351px, height content-driven, measured ratios 1.2..6.7). So the
-// silhouette is expressed as EDGE / CORNER / CAPSULE / FRAME geometry that never
-// clips the content box, NOT as a full-bleed polygon (a diamond/hex sized for a
-// portrait card ate 70% of a row). Clips that remain only shave small FIXED-px
-// corners/ends that live in the card's padding, so text/avatars never clip.
+// silhouette is expressed as EDGE / CORNER / FRAME / MASKED-EDGE geometry that
+// NEVER clips the content box, NOT as a full-bleed polygon. The v2 review cut the
+// silhouettes that read badly on a wide row (folio, hex, cameo, glass, gem,
+// constellation) plus ticket, fixed tarot + petal (content was hugging the
+// border), and added six treatments that keep their detail in the card PADDING:
+//   aperture (corner viewfinder brackets), ribbon (top accent band), chamfer
+//   (one small corner cut), arch (doorway top curve), deckle (torn left edge),
+//   rule (double editorial base rule). Shapes that need room reserve it with a
+//   side padding so text/avatars always clear the decoration.
 const SHAPE_GEOM: Record<string, string> = {
   // FILL family — radius/border/fill only
   slab: `border-radius:${R}`,
   'left-spine': `border-radius:0 ${R} ${R} 0;border-left-width:3px`,
-  glass: `border-radius:calc(${R} * 1.3)`,
-  constellation: `border-radius:${R}`, // detail is a fixed top strip (ornament.ts)
-  // CORNER family — small fixed corner geometry or asymmetric radius
-  folio: `border-radius:${R}`, // dog-ear is a fixed corner ornament (ornament.ts)
-  notched: 'clip-path:polygon(9px 0,calc(100% - 9px) 0,100% 9px,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px),0 9px)',
-  gem: `border-radius:${R}`, // cut-stone read comes from CSS corner facet sparks (styles.ts), NOT a clip — a bevel clip eats content on thin rows (measured: 2/4 children clipped at ratio 6.1)
   split: `border-radius:${R} 0 ${R} 0`,
-  petal: `border-radius:calc(${R} * 2.4) calc(${R} * .4) calc(${R} * 2.4) calc(${R} * .4)`,
-  // EDGE-END family — chamfer the two vertical ends, keep full height
-  hex: 'clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 50%,calc(100% - 10px) 100%,10px 100%,0 50%)',
-  // CAPSULE — fully rounded ends (locket read); caps at half the row height
-  cameo: 'border-radius:999px',
-  // FRAME family — inset hairline frame overlay (ornament pseudo) + gentle radius
-  tarot: `border-radius:calc(${R} * 1.6) calc(${R} * 1.6) calc(${R} * .5) calc(${R} * .5)`,
   inset: `border-radius:calc(${R} * .7);box-shadow:inset 0 0 0 1px rgba(var(--vg-rgb),.12)`,
-  // EDGE-STUB — perforation drawn off the text (ornament pseudo), no edge clip
-  ticket: `border-radius:${R}`,
+  // CORNER family — small fixed corner clip (lives in padding) or asymmetric radius
+  notched: 'clip-path:polygon(9px 0,calc(100% - 9px) 0,100% 9px,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px),0 9px)',
+  chamfer: 'clip-path:polygon(0 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%);padding-right:16px;padding-bottom:12px',
+  aperture: `border-radius:calc(${R} * .5);padding:12px 14px`, // detail = corner brackets (styles.ts)
+  // FRAME family — inset hairline frame overlay (pseudo) + generous inner padding
+  // so content clears the frame (v2 fix: tarot text was hugging the border).
+  tarot: `border-radius:calc(${R} * 1.5) calc(${R} * 1.5) calc(${R} * .5) calc(${R} * .5);padding:13px 14px`,
+  // ARCH — a doorway/window top; strong top radius, calm base. Extra top padding
+  // clears the curve so the first line never rides into the arch.
+  arch: `border-radius:calc(${R} * 2.4) calc(${R} * 2.4) calc(${R} * .5) calc(${R} * .5);padding-top:16px`,
+  // PETAL — soft leaf corners (v2 fix: radius eased + padding so text clears them)
+  petal: `border-radius:calc(${R} * 1.7) calc(${R} * .5) calc(${R} * 1.7) calc(${R} * .5);padding:12px 15px`,
+  // EDGE-BAND — a full-width accent ribbon across the top (pseudo); top padding
+  // reserves the band so content sits below it.
+  ribbon: `border-radius:${R};padding-top:20px`,
+  // BASE-RULE — a double editorial rule along the bottom (pseudo); bottom padding
+  // reserves it.
+  rule: `border-radius:calc(${R} * .8);padding-bottom:15px`,
+  // MASKED-EDGE — a torn deckle down the LEFT edge (mask); left padding clears it.
+  deckle: `border-radius:0 ${R} ${R} 0;padding-left:16px;-webkit-mask:radial-gradient(circle 4px at 0 4px,transparent 98%,#000) 0 0/8px 8px repeat-y,linear-gradient(#000,#000) 4px 0/calc(100% - 4px) 100% no-repeat;mask:radial-gradient(circle 4px at 0 4px,transparent 98%,#000) 0 0/8px 8px repeat-y,linear-gradient(#000,#000) 4px 0/calc(100% - 4px) 100% no-repeat`,
   // BOTTOM — scallop the bottom edge only; content bottom-pads clear of the bumps
   scalloped: `border-radius:calc(${R} * .8);-webkit-mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat;mask:radial-gradient(circle 5px at 5px 100%,transparent 98%,#000) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 6px) no-repeat`,
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
-// small fixed corners; hex chamfers the ends. gem/ticket no longer clip (gem is
-// radius + facet sparks; ticket is radius + perforation pseudo).
-const CLIP_SHAPES = ['hex', 'notched'];
+// small fixed corners; chamfer cuts one bottom-right corner. Both live in padding.
+const CLIP_SHAPES = ['notched', 'chamfer'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
   present: '.vld-pc', bonds: '.vle-rel-card', cast: '.vle-card:not(.vle-fac)',
   beats: '.vle-mem--beat', factions: '.vle-fac', items: '.vle-item-row', secrets: '.vle-mem--secret',
 };
+// shapes whose edge is a CSS mask; on old UAs they drop the mask and round off.
+const MASK_SHAPES = ['scalloped', 'deckle'];
 const shapePrimitives = (): string[] => [
   `:root{--v-shape-radius:var(--vradius)}`,
   ...Object.entries(SHAPE_GEOM).map(([id, body]) => `.v-shape--${id}{${body}}`),
   `@supports not (clip-path: polygon(0 0,100% 0,100% 100%)){${CLIP_SHAPES.map((id) => `.v-shape--${id}`).join(',')}{clip-path:none;border-radius:${R}}}`,
-  `@supports not ((-webkit-mask:radial-gradient(#000,#000)) or (mask:radial-gradient(#000,#000))){.v-shape--scalloped{-webkit-mask:none;mask:none;border-radius:${R}}}`,
+  `@supports not ((-webkit-mask:radial-gradient(#000,#000)) or (mask:radial-gradient(#000,#000))){${MASK_SHAPES.map((id) => `.v-shape--${id}`).join(',')}{-webkit-mask:none;mask:none;border-radius:${R}}}`,
 ];
+// Emit a pseudo-element shape DETAIL for a given shape id across EVERY surface
+// root, so whichever surface resolves to that shape gets the decoration. The
+// detail lives in the padding reserved by SHAPE_GEOM, so it never overlaps text.
+// secrets is excluded (it owns its ::before/::after for the G3 medallion/seal).
+const shapeDetail = (id: string, decl: string, pseudo: '::before' | '::after'): string[] => {
+  const sel = Object.entries(SHAPE_SURFACE_ROOT)
+    .filter(([surface]) => surface !== 'secrets')
+    .map(([surface, root]) => `[data-shape-${surface}='${id}'] ${root}${pseudo}`)
+    .join(',');
+  return [`${sel}{${decl}}`];
+};
 const shapeOverrides = (): string[] => {
   const rules: string[] = [];
   // Specificity booster: chrome card rules reach (0,3,1) via `html[chrome] .vlf
@@ -72,7 +94,7 @@ const shapeOverrides = (): string[] => {
     }
     // per-surface fallbacks so an override degrades the same way the primitive does
     rules.push(`@supports not (clip-path: polygon(0 0,100% 0,100% 100%)){${CLIP_SHAPES.map((id) => `html${at(surface, id)} ${root}`).join(',')}{clip-path:none;border-radius:${R}}}`);
-    rules.push(`@supports not ((-webkit-mask:radial-gradient(#000,#000)) or (mask:radial-gradient(#000,#000))){html${at(surface, 'scalloped')} ${root}{-webkit-mask:none;mask:none;border-radius:${R}}}`);
+    rules.push(`@supports not ((-webkit-mask:radial-gradient(#000,#000)) or (mask:radial-gradient(#000,#000))){${MASK_SHAPES.map((id) => `html${at(surface, id)} ${root}`).join(',')}{-webkit-mask:none;mask:none;border-radius:${R}}}`);
   }
   return rules;
 };
@@ -306,9 +328,10 @@ export const STYLES = [
   ".vle-dir-when,.vle-dir-ttl{font-family:var(--vmono);font-size:10px;color:var(--vi2);opacity:.65}",
   ".vle-loc-grp{margin:0 0 10px}",
   ".vle-loc-grp-h{font:600 11px/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vle-gold);opacity:.8;margin:0 0 5px;padding-bottom:3px;border-bottom:1px solid rgba(var(--vg-rgb),.16)}",
-  ".vle-loc-row{position:relative;display:flex;align-items:center;gap:8px;padding:5px 2px}",
+  ".vle-loc-row{position:relative;display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:var(--vr1);transition:background .12s}",
+  ".vle-loc-row:hover{background:rgba(var(--vg-rgb),.06)}",
   ".vle-loc-mark{flex:0 0 auto;color:var(--vle-gold)}",
-  ".vle-loc-name{font-family:var(--vserif);font-size:calc(14px * var(--vscale));color:var(--vi)}",
+  ".vle-loc-name{font-family:var(--vserif);font-size:calc(14.5px * var(--vscale));color:var(--vi);font-weight:600}",
   ".vle-loc-note{flex:1 1 auto;min-width:0;font-size:calc(12px * var(--vscale));color:var(--vi2);opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
   ".vle-loc-tree{margin:0 0 6px}",
   ".vle-loc-node{position:relative}",
@@ -321,7 +344,7 @@ export const STYLES = [
   ".vle-loc-kids>.vle-loc-node:not(:last-child)::before{height:100%}",
   // elbow: from the rail across to the dot
   ".vle-loc-kids>.vle-loc-node>.vle-loc-row::before{content:'';position:absolute;left:-7px;top:15px;width:13px;height:2px;background:rgba(var(--vg-rgb),.28)}",
-  ".vle-loc-dot{position:relative;flex:0 0 auto;display:inline-grid;place-items:center;width:18px;height:18px;font-size:calc(11px * var(--vscale));color:var(--vle-gold);background:var(--vsurf-1);border-radius:50%;box-shadow:0 0 0 3px var(--vsurf-1)}",
+  ".vle-loc-dot{position:relative;flex:0 0 auto;display:inline-grid;place-items:center;width:19px;height:19px;font-size:calc(11px * var(--vscale));color:var(--vle-gold);background:var(--vsurf-1);border:1px solid rgba(var(--vg-rgb),.3);border-radius:50%;box-shadow:0 0 0 3px var(--vsurf-1)}",
   ".vle-loc-caret{flex:0 0 auto;width:16px;height:16px;display:inline-grid;place-items:center;padding:0;font-size:calc(10px * var(--vscale));line-height:1;color:var(--vle-gold);background:transparent;border:none;border-radius:4px;cursor:pointer;opacity:.7;transition:transform .12s,opacity .12s}",
   ".vle-loc-caret:hover{opacity:1;background:rgba(var(--vg-rgb),.14)}",
   ".vle-loc-caret.closed{transform:rotate(-90deg)}",
@@ -412,7 +435,21 @@ export const STYLES = [
   // section headers + counts
   ".vle-sec-h{font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1.2px;text-transform:uppercase;color:var(--vg);opacity:.7;margin:calc(15px * var(--vscale)) 0 calc(8px * var(--vscale));display:flex;align-items:center;gap:7px}",
   ".vle-n{font-size:calc(9px * var(--vscale));background:var(--vle-gold-soft);color:var(--vle-gold);border-radius:9px;padding:2px 7px}",
-  ".vle-scene{font-size:calc(15px * var(--vscale));font-style:italic;opacity:.85;padding:5px 2px}",
+  // World scene banner: a framed "you are here" plate — location leads in serif,
+  // tension reads as a 10-pip gauge that warms with the level. Accent tints hot.
+  ".vle-scene{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 12px;margin-bottom:8px;border:1px solid rgba(var(--vg-rgb),.22);border-left:3px solid var(--vg);border-radius:var(--vr2);background:linear-gradient(100deg,color-mix(in srgb,var(--vg) 9%,transparent),transparent 70%)}",
+  ".vle-scene.warm{border-left-color:var(--v-press);background:linear-gradient(100deg,color-mix(in srgb,var(--v-press) 10%,transparent),transparent 72%)}",
+  ".vle-scene.hot{border-left-color:var(--v-neg);background:linear-gradient(100deg,color-mix(in srgb,var(--v-neg) 12%,transparent),transparent 74%)}",
+  ".vle-scene-pin{flex:0 0 auto;color:var(--vg);font-size:calc(13px * var(--vscale));opacity:.85}",
+  ".vle-scene.warm .vle-scene-pin{color:var(--v-press)}.vle-scene.hot .vle-scene-pin{color:var(--v-neg)}",
+  ".vle-scene-loc{flex:1 1 auto;min-width:0;font-family:var(--vserif);font-size:calc(16px * var(--vscale));font-style:italic;color:var(--vi);overflow-wrap:anywhere}",
+  ".vle-scene-gauge{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px}",
+  ".vle-scene-gauge i{width:4px;height:11px;border-radius:1px;background:rgba(var(--vg-rgb),.18)}",
+  ".vle-scene-gauge i.on{background:var(--vg)}",
+  ".vle-scene-gauge.warm i.on{background:var(--v-press)}.vle-scene-gauge.hot i.on{background:var(--v-neg)}",
+  ".vle-scene-gauge b{margin-left:5px;font:700 calc(11px * var(--vscale))/1 var(--vmono);color:var(--vg)}",
+  ".vle-scene-gauge.warm b{color:var(--v-press)}.vle-scene-gauge.hot b{color:var(--v-neg)}",
+  // legacy inline tension pill (still used elsewhere) kept minimal
   ".vle-tension{font:600 calc(10px * var(--vscale))/1 var(--vmono);color:var(--v-neg);letter-spacing:.5px;margin-left:6px}",
   // cast cards
   ".vle-cards{display:flex;flex-direction:column;gap:calc(7px * var(--vscale))}",
@@ -487,6 +524,11 @@ export const STYLES = [
   ".vle-trk-grid{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}",
   ".vle-trk{display:flex;flex-direction:column;gap:6px;padding:10px 11px;border:1px solid rgba(var(--vg-rgb),.18);border-left:3px solid var(--vle-gold-soft);border-radius:var(--vr2);background:color-mix(in srgb,var(--vi) 3%,transparent)}",
   ".vle-trk--done{opacity:.6;border-left-color:rgba(var(--vg-rgb),.3)}",
+  // arcs (long story movements) read as gilt spine; threads (looser subplots) as
+  // a cooler info spine with a dotted lead-in, so the two kinds glance apart.
+  ".vle-trk--arc{border-left-color:var(--vg);background:linear-gradient(100deg,color-mix(in srgb,var(--vg) 6%,transparent),transparent 60%)}",
+  ".vle-trk--thread{border-left-style:dashed;border-left-color:color-mix(in srgb,var(--v-info) 60%,transparent);background:color-mix(in srgb,var(--v-info) 4%,transparent)}",
+  ".vle-trk--arc.vle-trk--done,.vle-trk--thread.vle-trk--done{border-left-color:rgba(var(--vg-rgb),.3)}",
   ".vle-trk-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px}",
   ".vle-trk-n{font-family:var(--vserif);font-size:calc(14px * var(--vscale));line-height:1.3;color:var(--vi);overflow-wrap:anywhere}",
   ".vle-trk-pill{align-self:flex-start;font:600 8.5px/1.4 var(--vmono);letter-spacing:.3px;text-transform:uppercase;color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 12%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 32%,transparent);border-radius:999px;padding:2px 8px;max-width:100%;overflow-wrap:break-word}",
@@ -498,15 +540,19 @@ export const STYLES = [
   ".vle-trk-beat{margin-top:2px;color:var(--vi2);opacity:.85;line-height:1.45}",
   ".vle-trk-ctl{display:flex;gap:4px;justify-content:flex-end;margin-top:2px;padding-top:6px;border-top:1px solid rgba(var(--vg-rgb),.1)}",
   ".vle-os-link{font:600 9px/1.3 var(--vmono);color:var(--vle-gold);background:rgba(var(--vg-rgb),.12);border-radius:999px;padding:2px 7px;white-space:nowrap}",
-  // off-screen subplots (the sim) in the World view
-  ".vle-os{border-left:2px solid color-mix(in srgb,var(--v-info) 50%,transparent);background:color-mix(in srgb,var(--v-info) 6%,transparent);border-radius:0 var(--vr1) var(--vr1) 0;padding:6px 10px;margin-bottom:5px}",
+  // off-screen subplots (the sim): a proper "meanwhile, elsewhere" card. A cool
+  // info spine + faint wash reads as parallel/away-from-scene; the name leads in
+  // serif with a small satellite glyph, the latest beat sits as a quiet gist.
+  ".vle-os{position:relative;border:1px solid color-mix(in srgb,var(--v-info) 22%,transparent);border-left:3px solid color-mix(in srgb,var(--v-info) 60%,transparent);background:linear-gradient(100deg,color-mix(in srgb,var(--v-info) 7%,transparent),transparent 66%);border-radius:var(--vr2);padding:8px 11px;margin-bottom:6px}",
+  ".vle-os::before{content:'\\2748';position:absolute;left:-1px;top:-1px;font-size:9px;color:color-mix(in srgb,var(--v-info) 80%,var(--vi));opacity:.5;transform:translate(-40%,-40%)}",
+  ".vle-os--done{opacity:.6;border-left-color:rgba(var(--vg-rgb),.3);background:rgba(var(--vg-rgb),.03)}",
   ".vle-os--narr{border-left-color:var(--vle-gold-soft);background:rgba(var(--vg-rgb),.04)}",
   ".vle-os-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}",
-  ".vle-os-n{font-family:var(--vserif);font-size:calc(14px * var(--vscale))}",
-  ".vle-os-who{font:600 9px/1.3 var(--vmono);color:var(--v-info)}",
-  ".vle-os-w{font:600 9px/1.3 var(--vmono);opacity:.55}",
-  ".vle-os-gist{font-size:12px;line-height:1.45;opacity:.9;margin-top:2px}",
-  ".vle-os-h{margin-top:4px;font-size:11px;opacity:.6}.vle-os-h summary{cursor:pointer;font:600 9px/1.3 var(--vmono);text-transform:uppercase;letter-spacing:.4px}.vle-os-h div{padding:2px 0 0 8px}",
+  ".vle-os-n{font-family:var(--vserif);font-size:calc(14.5px * var(--vscale));color:var(--vi);font-weight:600}",
+  ".vle-os-who{font:600 9px/1.3 var(--vmono);color:var(--v-info);background:color-mix(in srgb,var(--v-info) 12%,transparent);border-radius:999px;padding:2px 7px}",
+  ".vle-os-w{font:600 9px/1.3 var(--vmono);opacity:.6}",
+  ".vle-os-gist{font-family:var(--vserif);font-style:italic;font-size:calc(12.5px * var(--vscale));line-height:1.5;color:var(--vi2);opacity:.92;margin-top:3px}",
+  ".vle-os-h{margin-top:5px;font-size:11px;opacity:.7}.vle-os-h summary{cursor:pointer;color:var(--vi2);font:600 9px/1.3 var(--vmono);text-transform:uppercase;letter-spacing:.4px}.vle-os-h div{padding:2px 0 0 10px;border-left:1px dotted rgba(var(--vg-rgb),.3);margin-left:2px;line-height:1.5}",
   ".vle-mem{display:flex;gap:7px;font-size:12px;padding:4px 0;line-height:1.45;align-items:baseline}",
   // per-type record identity: a colored left spine so Knowledge/Secrets/Scars/
   // Codex read as different kinds down a long list (not one flat texture).
@@ -542,7 +588,10 @@ export const STYLES = [
   ".vle-rel-grid{display:flex;flex-direction:column;gap:7px}",
   ".vle-rel-card{position:relative;border:1px solid var(--vle-gold-soft);border-radius:9px;padding:8px 10px;background:rgba(22,20,16,.4)}",
   ".vle-rel-top{display:flex;justify-content:space-between;align-items:center;gap:8px}",
-  ".vle-rel-pair{font-size:14px}",
+  ".vle-rel-pair{font-family:var(--vserif);font-size:calc(15px * var(--vscale));font-weight:600;letter-spacing:.2px}",
+  // elegant spaced connective between two names (A <-> B / A -> B). A hairline
+  // serif glyph in the accent, generous side spacing, gently raised.
+  ".vle-rel-arrow{font-family:var(--vserif);font-weight:400;color:var(--vg);opacity:.7;margin:0 .5em;font-size:.92em;vertical-align:.02em}",
   // K1 verdict word: the glanceable one-line read, between pair name and controls
   ".vle-rel-verdict{margin-right:auto;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--vg);opacity:.85;padding:2px 7px;border-radius:var(--vr1);border:1px solid rgba(var(--vg-rgb),.3);background:rgba(var(--vg-rgb),.08)}",
   // K3 one-line direction: from→to · sentiment · label quote · controls
@@ -979,9 +1028,9 @@ export const STYLES = [
   // the inner thought = focal point: own quoted block, violet key
   ".vld-thought{margin-top:7px;padding-left:11px;border-left:2px solid color-mix(in srgb,var(--v-warn) 55%,transparent)}",
   ".vld-thought-k{display:block;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--v-warn);opacity:.8;margin-bottom:2px}",
-  ".vld-thought-q{font-family:var(--vserif);font-style:italic;font-size:calc(14.5px * var(--vscale));color:var(--vi2);line-height:1.5}",
+  ".vld-thought-q{font-family:var(--vserif);font-style:italic;font-size:calc(12.5px * var(--vscale));color:var(--vi2);line-height:1.5}",
   // narrow float reflow: smaller medallion, name+status share a line, thought truncates
-  "@container (max-width:360px){.vld-pc{gap:9px}.vld-pc-av{width:calc(30px * var(--vscale));height:calc(30px * var(--vscale));font-size:calc(12px * var(--vscale))}.vld-pc-n{font-size:calc(15px * var(--vscale))}.vld-thought-q{font-size:calc(13px * var(--vscale))}}",
+  "@container (max-width:360px){.vld-pc{gap:9px}.vld-pc-av{width:calc(30px * var(--vscale));height:calc(30px * var(--vscale));font-size:calc(12px * var(--vscale))}.vld-pc-n{font-size:calc(15px * var(--vscale))}.vld-thought-q{font-size:calc(11.5px * var(--vscale))}}",
   ".vld-rel{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:calc(13px * var(--vscale));padding:5px 0;border-top:1px solid rgba(var(--vg-rgb),.08)}",
   ".vld-rel:first-child{border-top:none}",
   ".vld-rel-p{color:var(--vi)}.vld-rel-s{margin-left:auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);opacity:.6}",
@@ -1558,51 +1607,39 @@ export const STYLES = [
   // pins to the card. All are pointer-events:none and motion-free.
   // ============================================================================
   // the overlay pins to the card, clips to its rounded box, never takes clicks.
+  // (Kept for the scar-strikethrough helper; shape details are now pure CSS.)
   ".v-ornlayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:inherit;z-index:1}",
-  // v2: each SVG is FIXED-SIZE and corner/strip-anchored (no full-bleed stretch).
   ".v-ornsvg{position:absolute;overflow:visible}",
-  // folio dog-ear: a fixed 16px turned corner pinned TOP-RIGHT + crease.
-  ".v-ornsvg--folio{top:0;right:0;width:16px;height:16px}",
-  ".v-ornsvg--folio .v-fold-back{fill:color-mix(in srgb,var(--vg) 34%,var(--vsurf-2,#1d1a15))}",
-  ".v-ornsvg--folio .v-fold-crease{stroke:color-mix(in srgb,var(--vg) 60%,transparent);stroke-width:1}",
-  // gem facet sparks: fixed 14px marks pinned to each corner (echo the bevel).
-  ".v-ornsvg--gem{top:0;left:0;width:14px;height:14px}",
-  ".v-ornsvg--gem .v-facet{stroke:color-mix(in srgb,var(--vg) 45%,transparent);stroke-width:1;fill:none}",
-  // ember constellation: pinned to a fixed 22px TOP strip, spanning the width.
-  ".v-ornsvg--const{top:0;left:0;right:0;width:100%;height:22px}",
-  ".v-ornsvg--const .v-const-arc{stroke:color-mix(in srgb,var(--vg) 45%,transparent);stroke-width:1;stroke-dasharray:1.5 4;stroke-linecap:round}",
-  ".v-ornsvg--const .v-const-star{fill:color-mix(in srgb,var(--vg) 80%,#fff)}",
-  "html[data-vle-motion='on'] .v-ornsvg--const .v-const-star{animation:v-twinkle 3.4s ease-in-out infinite}",
-  "@keyframes v-twinkle{0%,100%{opacity:.55}50%{opacity:1}}",
-  "@media (prefers-reduced-motion:reduce){.v-ornsvg--const .v-const-star{animation:none!important}}",
-  // scar seam: torn polyline pinned to a fixed mid strip; solid=open, faded=heal.
-  ".v-ornsvg--scar{left:0;right:0;top:calc(50% - 10px);width:100%;height:20px}",
-  ".v-ornsvg--scar .v-scar{stroke:var(--v-neg);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;opacity:.6}",
-  ".v-ornsvg--scar .v-scar--healing{stroke:color-mix(in srgb,var(--v-neg) 45%,transparent);stroke-dasharray:3 4}",
 
   // --- pseudo-element shape details (no markup; the card root carries them) ---
+  // Each new v3 silhouette keeps its decoration in the card PADDING (reserved in
+  // SHAPE_GEOM) so text/avatars never touch it. A shared per-surface selector
+  // helper (built below via SD()) applies each detail to whatever surface resolves
+  // to that shape.
   // ensure the shape-driven roots can host absolute children.
   "html[data-shape-present] .vld-pc,html[data-shape-bonds] .vle-rel-card,html[data-shape-cast] .vle-card:not(.vle-fac),html[data-shape-beats] .vle-mem--beat,html[data-shape-factions] .vle-fac,html[data-shape-items] .vle-item-row,html[data-shape-secrets] .vle-mem--secret{position:relative}",
-  // ticket perforation: a vertical dashed tear line near the right edge, echoing
-  // the ticket clip stub. Applied to whichever surface resolves to 'ticket'.
-  "[data-shape-present='ticket'] .vld-pc::after,[data-shape-cast='ticket'] .vle-card:not(.vle-fac)::after,[data-shape-beats='ticket'] .vle-mem--beat::after,[data-shape-items='ticket'] .vle-item-row::after,[data-shape-factions='ticket'] .vle-fac::after{content:'';position:absolute;top:8%;bottom:8%;right:12px;width:0;border-left:1.5px dashed color-mix(in srgb,var(--vg) 42%,transparent);pointer-events:none;z-index:1}",
-  // futuristic reticle: four corner crosshair ticks on notched cards.
-  // (secrets surface is excluded here -- it carries its own G3 left medallion.)
-  "[data-shape-present='notched'] .vld-pc::before,[data-shape-cast='notched'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;inset:3px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/1px 8px no-repeat;opacity:.5}",
-  // tarot inner frame: an inset hairline rule for the portrait-card feel.
-  "[data-shape-present='tarot'] .vld-pc::before,[data-shape-cast='tarot'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;inset:4px;border:1px solid color-mix(in srgb,var(--vg) 25%,transparent);border-radius:inherit;pointer-events:none;z-index:1}",
-  // gem corner facets: short accent hairlines just inside all four beveled corners
-  // (cut-stone read), drawn with corner-anchored linear-gradients. Content-safe.
-  "[data-shape-items='gem'] .vle-item-row::after,[data-shape-cast='gem'] .vle-card:not(.vle-fac)::after,[data-shape-factions='gem'] .vle-fac::after,[data-shape-present='gem'] .vld-pc::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;background:linear-gradient(135deg,var(--vg),var(--vg)) 0 0/10px 1.5px no-repeat,linear-gradient(45deg,var(--vg),var(--vg)) 100% 0/10px 1.5px no-repeat,linear-gradient(45deg,var(--vg),var(--vg)) 0 100%/10px 1.5px no-repeat,linear-gradient(135deg,var(--vg),var(--vg)) 100% 100%/10px 1.5px no-repeat;opacity:.4}",
+  // notched: four corner crosshair ticks (reticle) — sits inside the fixed clip.
+  ...shapeDetail('notched', "content:'';position:absolute;inset:3px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/1px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/8px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/1px 8px no-repeat;opacity:.5", '::before'),
+  // tarot: inset hairline frame for the portrait-card feel (sits in the padding).
+  ...shapeDetail('tarot', "content:'';position:absolute;inset:4px;border:1px solid color-mix(in srgb,var(--vg) 25%,transparent);border-radius:inherit;pointer-events:none;z-index:1", '::before'),
+  // aperture: four L-shaped viewfinder brackets pinned to the corners (in padding).
+  ...shapeDetail('aperture', "content:'';position:absolute;inset:5px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/11px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/2px 11px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/11px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/2px 11px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/11px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/2px 11px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/11px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/2px 11px no-repeat;opacity:.55", '::before'),
+  // ribbon: a full-width accent band across the top edge (in the reserved top pad).
+  ...shapeDetail('ribbon', "content:'';position:absolute;left:0;right:0;top:0;height:6px;pointer-events:none;z-index:1;background:linear-gradient(90deg,var(--vg),color-mix(in srgb,var(--vg2,var(--vg)) 80%,var(--vg)));border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;opacity:.8", '::before'),
+  // arch: a soft top-curve keyline echoing the doorway (in the reserved top pad).
+  ...shapeDetail('arch', "content:'';position:absolute;left:8px;right:8px;top:5px;height:14px;pointer-events:none;z-index:1;border:1px solid color-mix(in srgb,var(--vg) 30%,transparent);border-bottom:none;border-radius:999px 999px 0 0;opacity:.7", '::before'),
+  // rule: a double editorial rule along the bottom edge (in the reserved base pad).
+  ...shapeDetail('rule', "content:'';position:absolute;left:10px;right:10px;bottom:6px;height:3px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/100% 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/100% 1px no-repeat;opacity:.6", '::after'),
+  // petal: a small leaf-vein spark tucked into the soft top-left corner.
+  ...shapeDetail('petal', "content:'';position:absolute;left:6px;top:6px;width:12px;height:12px;pointer-events:none;z-index:1;border-left:2px solid color-mix(in srgb,var(--vg) 45%,transparent);border-top:2px solid color-mix(in srgb,var(--vg) 45%,transparent);border-top-left-radius:12px;opacity:.7", '::before'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.
   "html[data-vle-chrome='modern'] .vle-mem--beat,html[data-vle-chrome='modern'] .vle-fac,html[data-vle-chrome='modern'] .vle-card:not(.vle-fac),html[data-vle-chrome='modern'] .vle-item-row{position:relative;background:color-mix(in srgb,var(--vg) 4%,var(--vsurf1,transparent))}",
   "html[data-vle-chrome='modern'] .vle-mem--beat::before,html[data-vle-chrome='modern'] .vle-fac::before,html[data-vle-chrome='modern'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--vg);opacity:.8;pointer-events:none;z-index:1}",
   "html[data-vle-chrome='modern'] .vle-fac::before{background:var(--v-info)}",
-  // --- F4 avatar reshape: cameo => oval portrait, tarot => taller medallion ---
-  "[data-shape-present='cameo'] .vld-pc .vld-pc-av,[data-shape-items='cameo'] .vle-item-row .vle-av,[data-shape-cast='cameo'] .vle-card:not(.vle-fac) .vle-av{border-radius:46% / 52%}",
-  "[data-shape-cast='tarot'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='tarot'] .vld-pc .vld-pc-av{border-radius:44% / 40%}",
+  // --- avatar reshape: tarot + arch => taller portrait medallion ---
+  "[data-shape-cast='tarot'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='tarot'] .vld-pc .vld-pc-av,[data-shape-cast='arch'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='arch'] .vld-pc .vld-pc-av{border-radius:44% / 40%}",
 
 ].join('\n');
 

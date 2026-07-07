@@ -62,11 +62,16 @@ export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloo
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
 // override the shape per surface; anything unset uses the chrome's default map.
+// v3: the ugly/clipping silhouettes (folio, hex, cameo, glass, gem, constellation,
+// ticket) were cut; tarot + petal were fixed; six new content-safe treatments were
+// added (aperture, ribbon, chamfer, arch, deckle, rule). Every survivor expresses
+// its read via radius / a small fixed-corner clip / an edge accent / a masked edge
+// — never a full-bleed polygon — so a wide row never clips its content.
 export type ShapeId =
-  | 'slab' | 'left-spine' | 'folio' | 'hex' | 'tarot' | 'cameo' | 'notched'
-  | 'split' | 'ticket' | 'glass' | 'inset' | 'gem' | 'petal' | 'constellation' | 'scalloped';
+  | 'slab' | 'left-spine' | 'tarot' | 'notched' | 'split' | 'inset' | 'petal' | 'scalloped'
+  | 'aperture' | 'ribbon' | 'chamfer' | 'arch' | 'deckle' | 'rule';
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items' | 'secrets';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'folio', 'hex', 'tarot', 'cameo', 'notched', 'split', 'ticket', 'glass', 'inset', 'gem', 'petal', 'constellation', 'scalloped'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'petal', 'scalloped', 'aperture', 'ribbon', 'chamfer', 'arch', 'deckle', 'rule'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items', 'secrets'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -76,12 +81,12 @@ export const SURFACE_LABELS: Record<Surface, string> = {
 // `default` keeps the current look so nothing changes until a chrome/override is
 // chosen. Each chrome styles its own palette/type; shape is orthogonal.
 export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
-  default: { present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'folio', factions: 'hex', items: 'cameo', secrets: 'slab' },
-  illuminated: { present: 'folio', bonds: 'cameo', cast: 'tarot', beats: 'left-spine', factions: 'hex', items: 'ticket', secrets: 'slab' },
-  modern: { present: 'glass', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' },
-  futuristic: { present: 'notched', bonds: 'gem', cast: 'notched', beats: 'ticket', factions: 'hex', items: 'gem', secrets: 'notched' },
-  bloom: { present: 'cameo', bonds: 'petal', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'ticket', secrets: 'cameo' },
-  ember: { present: 'tarot', bonds: 'constellation', cast: 'slab', beats: 'folio', factions: 'hex', items: 'gem', secrets: 'tarot' },
+  default: { present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' },
+  illuminated: { present: 'arch', bonds: 'ribbon', cast: 'tarot', beats: 'left-spine', factions: 'chamfer', items: 'rule', secrets: 'slab' },
+  modern: { present: 'slab', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' },
+  futuristic: { present: 'notched', bonds: 'aperture', cast: 'notched', beats: 'chamfer', factions: 'aperture', items: 'notched', secrets: 'notched' },
+  bloom: { present: 'arch', bonds: 'petal', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'petal', secrets: 'arch' },
+  ember: { present: 'tarot', bonds: 'ribbon', cast: 'slab', beats: 'deckle', factions: 'arch', items: 'rule', secrets: 'tarot' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {

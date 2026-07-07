@@ -6,7 +6,7 @@ import { formModal, confirmModal } from '../modal.js';
 import { linkedOffscreen } from '../../domain/offscreen.js';
 import { formatDate } from '../../domain/date-format.js';
 import { activeShape } from '../theme.js';
-import { shapeOrnament, scarSeam } from '../ornament.js';
+import { shapeOrnament } from '../ornament.js';
 
 
 /**
@@ -268,8 +268,19 @@ export const chronicleTab: Component<ChronicleState> = {
 
 function scene(s: ChronicleState): string {
   if (!s.scene.location && !s.scene.tension) return '';
-  return '<div class="vle-scene">' + esc(s.scene.location || '\u2014')
-    + (s.scene.tension ? ' <span class="vle-tension">tension ' + esc(s.scene.tension) + '/10</span>' : '') + '</div>';
+  const tension = Number(s.scene.tension) || 0;
+  // tension as a 10-pip gauge (filled to level) so it reads at a glance, plus the
+  // number for precision. Level tints the banner accent (calm -> charged).
+  const lvl = tension >= 8 ? ' hot' : tension >= 5 ? ' warm' : '';
+  const gauge = s.scene.tension
+    ? '<span class="vle-scene-gauge' + lvl + '" title="scene tension ' + esc(s.scene.tension) + '/10">'
+      + Array.from({ length: 10 }, (_, i) => `<i${i < tension ? ' class="on"' : ''}></i>`).join('')
+      + '<b>' + esc(s.scene.tension) + '</b></span>'
+    : '';
+  return '<div class="vle-scene' + lvl + '">'
+    + '<span class="vle-scene-pin" aria-hidden="true">\u25C9</span>'
+    + '<span class="vle-scene-loc">' + esc(s.scene.location || '\u2014') + '</span>'
+    + gauge + '</div>';
 }
 
 function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s: ChronicleState): string {
@@ -294,7 +305,7 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     // beats history, controls) lives in a body wrapper strictly after the head.
     const head = `<div class="vle-trk-head"><div class="vle-trk-n">${esc(t.name)}</div>${pill}</div>`;
     const body = `<div class="vle-trk-body">${offBeat}${hist}${ctl}</div>`;
-    return `<div class="vle-trk${resolved ? ' vle-trk--done' : ''}">${head}${body}</div>`;
+    return `<div class="vle-trk ${kindArc ? 'vle-trk--arc' : 'vle-trk--thread'}${resolved ? ' vle-trk--done' : ''}">${head}${body}</div>`;
   }).join('');
   const body = cards ? `<div class="vle-trk-grid">${cards}</div>` : emptyState(`No ${kindArc ? 'arcs' : 'threads'} yet.`, 'They fill in as the story unfolds; add one by hand too.');
   return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
@@ -515,7 +526,7 @@ function scars(s: ChronicleState): string {
   const bar = filterBar('scars', { whos, whoCounts });
   const filtered = applyFilter('scars', list, { who: (x) => x.who });
   const { slice, page, pages } = paginate('scars', filtered);
-  const rows = slice.map((x) => '<div class="vle-mem vle-mem--scar">' + scarSeam(false) + '<span class="vle-mem-tier t-turn">' + esc(nameOf(s, x.who)) + '</span>'
+  const rows = slice.map((x) => '<div class="vle-mem vle-mem--scar">' + '<span class="vle-mem-tier t-turn">' + esc(nameOf(s, x.who)) + '</span>'
     + '<span class="vle-mem-t"><span class="vle-scar-was">' + esc(x.was) + '</span>' + (x.about ? ' <em>(about ' + esc(nameOf(s, x.about)) + ')</em>' : '') + '</span>'
     + `<button class="vle-mini del" data-scar-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
   if (!slice.length) return head + bar + emptyState('No scars match this filter.');

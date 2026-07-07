@@ -95,20 +95,24 @@ describe('card shapes (per-surface silhouette overrides)', () => {
     }
   });
 
-  it('CHROME_SHAPES matches the card gallery (mockups 30-35)', () => {
-    // default is intentionally left at the live look (left-spine present) so the
-    // default theme stays byte-identical; the other five are transcribed from
-    // their mockup captions.
-    expect(CHROME_SHAPES.illuminated).toEqual({ present: 'folio', bonds: 'cameo', cast: 'tarot', beats: 'left-spine', factions: 'hex', items: 'ticket', secrets: 'slab' });
-    expect(CHROME_SHAPES.modern).toEqual({ present: 'glass', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' });
-    expect(CHROME_SHAPES.futuristic).toEqual({ present: 'notched', bonds: 'gem', cast: 'notched', beats: 'ticket', factions: 'hex', items: 'gem', secrets: 'notched' });
-    expect(CHROME_SHAPES.bloom).toEqual({ present: 'cameo', bonds: 'petal', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'ticket', secrets: 'cameo' });
-    expect(CHROME_SHAPES.ember).toEqual({ present: 'tarot', bonds: 'constellation', cast: 'slab', beats: 'folio', factions: 'hex', items: 'gem', secrets: 'tarot' });
+  it('CHROME_SHAPES uses only content-safe v3 shapes (no cut silhouettes)', () => {
+    // v3 review cut folio/hex/cameo/glass/gem/constellation/ticket; every chrome
+    // default must now be one of the survivors + the six new treatments. default
+    // is left at the live look so the default theme stays byte-identical.
+    const CUT = new Set(['folio', 'hex', 'cameo', 'glass', 'gem', 'constellation', 'ticket']);
+    for (const [chrome, map] of Object.entries(CHROME_SHAPES)) {
+      for (const [surface, id] of Object.entries(map)) {
+        expect(SHAPE_IDS, `${chrome}.${surface}=${id}`).toContain(id);
+        expect(CUT.has(id), `${chrome}.${surface} must not use a cut shape (${id})`).toBe(false);
+      }
+    }
+    expect(CHROME_SHAPES.default).toEqual({ present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' });
+    expect(CHROME_SHAPES.ember).toEqual({ present: 'tarot', bonds: 'ribbon', cast: 'slab', beats: 'deckle', factions: 'arch', items: 'rule', secrets: 'tarot' });
   });
 
   it('resolveShape: override wins, else falls back to the chrome default', () => {
     expect(resolveShape('present', 'ember', {})).toBe(CHROME_SHAPES.ember.present);
-    expect(resolveShape('present', 'ember', { present: 'gem' })).toBe('gem');
+    expect(resolveShape('present', 'ember', { present: 'aperture' })).toBe('aperture');
     // an invalid override is ignored -> chrome default
     // @ts-expect-error deliberately bad shape id
     expect(resolveShape('present', 'default', { present: 'bogus' })).toBe(CHROME_SHAPES.default.present);
@@ -122,8 +126,8 @@ describe('card shapes (per-surface silhouette overrides)', () => {
 
   it('patchTheme sanitizes a bogus cardShapes map down to valid entries', () => {
     // @ts-expect-error feeding junk past the type
-    patchTheme({ cardShapes: { present: 'bogus', zzz: 'slab', bonds: 'hex' } });
-    expect(getTheme().cardShapes).toEqual({ bonds: 'hex' });
+    patchTheme({ cardShapes: { present: 'bogus', zzz: 'slab', bonds: 'aperture' } });
+    expect(getTheme().cardShapes).toEqual({ bonds: 'aperture' });
     patchTheme({ cardShapes: {} }); // reset for other tests
   });
 

@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1180" viewBox="0 0 1120 1180" font-family="'Segoe UI',system-ui,sans-serif">
+  <!-- =====================================================================
+       CARD SHAPES v3 - SIX NEW CONTENT-SAFE TREATMENTS (mockup 37)
+       The v2 review cut the silhouettes that read badly on a wide row
+       (folio, hex, cameo, glass, gem, constellation) plus ticket, and kept
+       tarot + petal (both fixed: content was hugging the border). These six
+       replace them. Design rule (same as v2): a VELLUM card is a WIDE
+       HORIZONTAL ROW (~320x72 shown, real ratios 1.2..6.7); the silhouette
+       lives on EDGES / CORNERS / a masked edge / an inset frame, and any
+       decoration sits in RESERVED PADDING so text/avatars never touch it.
+       Each sample carries a placeholder avatar dot + two text lines + two
+       control dots to prove nothing is occluded.
+       ===================================================================== -->
+  <defs>
+    <style>
+      .bg{fill:#141210}
+      .title{fill:#e7d6ad;font-size:22px;font-weight:700;letter-spacing:2px}
+      .cap{fill:#cda84e;font-size:15px;font-weight:600;letter-spacing:.5px}
+      .sub{fill:#9a8f78;font-size:12px}
+      .card{fill:#1c1914;stroke:#3a3222;stroke-width:1}
+      .accent{fill:#cda84e}
+      .accent2{fill:#9bc0e6}
+      .ink{fill:#e7d6ad}
+      .ink2{fill:#b6a883}
+      .av{fill:#3a331f;stroke:#cda84e;stroke-width:1.5}
+      .line{fill:#5a5240;rx:2}
+      .ctl{fill:#4a4230}
+      .g{stroke:#cda84e;stroke-width:2;fill:none;opacity:.65}
+    </style>
+    <!-- placeholder content group, drawn on top of any card, x/y = card origin -->
+  </defs>
+
+  <rect class="bg" width="1120" height="1180"/>
+  <text class="title" x="40" y="52">VELLUM · CARD SHAPES v3 · six new content-safe treatments</text>
+  <text class="sub" x="40" y="78">drawn at the real common row size 320×72 · decoration lives in reserved padding · nothing clips content</text>
+
+  <!-- ============ ROW 1 ============ -->
+
+  <!-- 1. APERTURE : four L-shaped viewfinder brackets pinned in the corner padding -->
+  <g transform="translate(40,120)">
+    <text class="cap" x="0" y="-14">aperture</text>
+    <text class="sub" x="120" y="-14">corner viewfinder brackets · futuristic bonds/factions</text>
+    <rect class="card" width="320" height="72" rx="7"/>
+    <!-- brackets in padding (inset 5px) -->
+    <g class="g">
+      <path d="M8 8 h13 M8 8 v13"/>
+      <path d="M312 8 h-13 M312 8 v13"/>
+      <path d="M8 64 h13 M8 64 v-13"/>
+      <path d="M312 64 h-13 M312 64 v-13"/>
+    </g>
+    <!-- content, kept inside the 14px padding -->
+    <circle class="av" cx="34" cy="36" r="15"/>
+    <rect class="line" x="60" y="22" width="150" height="9"/>
+    <rect class="line" x="60" y="40" width="210" height="7" opacity=".7"/>
+  </g>
+
+  <!-- 2. RIBBON : full-width accent band across the top, content sits below -->
+  <g transform="translate(420,120)">
+    <text class="cap" x="0" y="-14">ribbon</text>
+    <text class="sub" x="95" y="-14">top accent band · illuminated/ember bonds</text>
+    <rect class="card" width="320" height="72" rx="7"/>
+    <path d="M0 0 h320 v6 h-320 z" fill="#cda84e" opacity=".85"/>
+    <circle class="av" cx="34" cy="42" r="14"/>
+    <rect class="line" x="58" y="26" width="150" height="9"/>
+    <rect class="line" x="58" y="44" width="200" height="7" opacity=".7"/>
+    <circle class="ctl" cx="296" cy="26" r="5"/>
+    <circle class="ctl" cx="278" cy="26" r="5"/>
+  </g>
+
+  <!-- 3. CHAMFER : one small diagonal cut at the bottom-right, in the padding -->
+  <g transform="translate(800,120)">
+    <text class="cap" x="0" y="-14">chamfer</text>
+    <text class="sub" x="110" y="-14">one cut corner · default/futuristic factions</text>
+    <path class="card" d="M0 0 H320 V59 L307 72 H0 Z"/>
+    <circle class="av" cx="34" cy="36" r="15"/>
+    <rect class="line" x="60" y="22" width="150" height="9"/>
+    <rect class="line" x="60" y="40" width="190" height="7" opacity=".7"/>
+    <circle class="ctl" cx="296" cy="22" r="5"/>
+  </g>
+
+  <!-- ============ ROW 2 ============ -->
+
+  <!-- 4. ARCH : doorway/window top, strong top radius + extra top padding -->
+  <g transform="translate(40,300)">
+    <text class="cap" x="0" y="-14">arch</text>
+    <text class="sub" x="70" y="-14">doorway top curve · bloom/ember present &amp; factions</text>
+    <path class="card" d="M0 24 Q0 0 40 0 H280 Q320 0 320 24 V66 Q320 72 314 72 H6 Q0 72 0 66 Z"/>
+    <!-- top-curve keyline in the reserved top padding -->
+    <path class="g" d="M8 20 Q160 4 312 20" stroke-width="1.5"/>
+    <circle class="av" cx="36" cy="44" r="14"/>
+    <rect class="line" x="60" y="30" width="150" height="9"/>
+    <rect class="line" x="60" y="48" width="200" height="7" opacity=".7"/>
+  </g>
+
+  <!-- 5. DECKLE : torn/rough LEFT edge (mask), left padding clears it -->
+  <g transform="translate(420,300)">
+    <text class="cap" x="0" y="-14">deckle</text>
+    <text class="sub" x="85" y="-14">torn hand-made left edge · ember beats</text>
+    <path class="card" d="M4 0 H313 Q320 0 320 7 V65 Q320 72 313 72 H4
+      q-2 -6 0 -8 q3 -3 0 -8 q-2 -4 0 -8 q3 -3 0 -8 q-2 -4 0 -8 q3 -3 0 -8 q-2 -4 0 -8 q3 -3 0 -8 z"/>
+    <circle class="av" cx="42" cy="36" r="14"/>
+    <rect class="line" x="66" y="22" width="150" height="9"/>
+    <rect class="line" x="66" y="40" width="190" height="7" opacity=".7"/>
+    <circle class="ctl" cx="296" cy="22" r="5"/>
+  </g>
+
+  <!-- 6. RULE : double editorial rule along the bottom, bottom padding clears it -->
+  <g transform="translate(800,300)">
+    <text class="cap" x="0" y="-14">rule</text>
+    <text class="sub" x="70" y="-14">double base rule · default/illuminated items</text>
+    <rect class="card" width="320" height="72" rx="6"/>
+    <line x1="10" y1="63" x2="310" y2="63" stroke="#cda84e" stroke-width="1" opacity=".6"/>
+    <line x1="10" y1="66" x2="310" y2="66" stroke="#cda84e" stroke-width="1" opacity=".6"/>
+    <circle class="av" cx="34" cy="32" r="14"/>
+    <rect class="line" x="58" y="18" width="150" height="9"/>
+    <rect class="line" x="58" y="36" width="200" height="7" opacity=".7"/>
+    <circle class="ctl" cx="296" cy="18" r="5"/>
+  </g>
+
+  <!-- ============ ROW 3 : the two KEPT + fixed shapes for reference ============ -->
+  <text class="cap" x="40" y="470">kept &amp; fixed (content now clears the border):</text>
+
+  <!-- tarot (fixed): inset hairline frame + generous inner padding -->
+  <g transform="translate(40,500)">
+    <text class="sub" x="0" y="-8">tarot — inset frame, 13/14px inner padding</text>
+    <rect class="card" width="320" height="88" rx="18" style="rx:18"/>
+    <rect x="4" y="4" width="312" height="80" rx="15" class="g" stroke-width="1" opacity=".45"/>
+    <circle class="av" cx="42" cy="44" r="15"/>
+    <rect class="line" x="68" y="30" width="150" height="9"/>
+    <rect class="line" x="68" y="48" width="200" height="7" opacity=".7"/>
+  </g>
+
+  <!-- petal (fixed): eased leaf corners + padding + a corner leaf spark -->
+  <g transform="translate(420,500)">
+    <text class="sub" x="0" y="-8">petal — eased leaf corners, 12/15px padding</text>
+    <path class="card" d="M30 0 H320 V88 H16 Q0 88 0 72 V30 Q0 0 30 0 Z"/>
+    <path class="g" d="M8 20 Q8 8 20 8" stroke-width="2" opacity=".6"/>
+    <circle class="av" cx="46" cy="44" r="15"/>
+    <rect class="line" x="72" y="30" width="150" height="9"/>
+    <rect class="line" x="72" y="48" width="190" height="7" opacity=".7"/>
+  </g>
+
+  <text class="sub" x="40" y="640">All decoration is drawn in the card's reserved padding (SHAPE_GEOM v3 in styles.ts) or as a fixed corner/edge</text>
+  <text class="sub" x="40" y="662">pseudo-element (shapeDetail in styles.ts). No full-bleed clip-path touches the content box, at any row ratio.</text>
+</svg>

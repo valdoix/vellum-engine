@@ -137,7 +137,7 @@ function card(s: ChronicleState, group: Relation[]): string {
     const an = nameOf(s, r.a), bn = nameOf(s, r.b);
     const cats = catsOf(r);
     return '<div class="vle-rel-dirline">'
-      + '<span class="vle-rel-dirn">' + nameHtml(s, r.a) + ' \u2192 ' + nameHtml(s, r.b) + '</span>'
+      + '<span class="vle-rel-dirn">' + nameHtml(s, r.a) + '<span class="vle-rel-arrow">\u2192</span>' + nameHtml(s, r.b) + '</span>'
       + '<span class="vle-rel-sent">' + esc(SENT_LABEL[r.sentiment] || r.sentiment) + '</span>'
       + (r.label ? '<span class="vle-rel-label">\u201c' + esc(r.label) + '\u201d</span>' : '')
       + (r.status !== 'active' ? '<span class="vle-st">' + esc(r.status) + '</span>' : '')
@@ -165,7 +165,7 @@ function card(s: ChronicleState, group: Relation[]): string {
   return '<div class="vle-rel-card">'
     + shapeOrnament(activeShape('bonds'), 'bonds')
     // K1 verdict header: A ⇄ B + one verdict word + lock badge/button.
-    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, pa) + ' \u21C4 ' + nameHtml(s, pb) + '</span>'
+    + '<div class="vle-rel-top"><span class="vle-rel-pair">' + nameHtml(s, pa) + '<span class="vle-rel-arrow">\u2194</span>' + nameHtml(s, pb) + '</span>'
     + '<span class="vle-rel-verdict">' + esc(verdict) + '</span>'
     + '<span class="vle-rel-ctl">' + lockBadge
     + `<button class="vle-mini${lock ? ' on' : ''}" data-rel-lock data-a="${A(pa)}" data-b="${A(pb)}" data-an="${A(nameOf(s, pa))}" data-bn="${A(nameOf(s, pb))}" title="Plot Director lock">\uD83D\uDD12</button>`
