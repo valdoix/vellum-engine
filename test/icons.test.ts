@@ -7,7 +7,7 @@ describe('icon set', () => {
   const TAB_IDS = ['now', 'cast', 'bonds', 'chronicle', 'journal', 'graph', 'vault', 'context'];
   const TOOLBAR = ['search', 'director', 'customize', 'actions'];
   // action ids that opt into icons (settings + toggles + run + data + danger)
-  const ACTIONS = ['boundaries', 'calendar', 'budget', 'tone', 'summarizer', 'hide', 'traverse', 'offscreen', 'foldtoast', 'summarize', 'rescan', 'rebuild', 'resummarize', 'tidy', 'tidyfacts', 'export', 'exportmd', 'import', 'recover', 'clear'];
+  const ACTIONS = ['boundaries', 'calendar', 'budget', 'tone', 'summarizer', 'hide', 'traverse', 'offscreen', 'foldtoast', 'summarize', 'rescan', 'rebuild', 'resummarize', 'tidy', 'tidyfacts', 'export', 'exportmd', 'import', 'recover', 'clear', 'help'];
 
   it('has an icon for every tab', () => {
     for (const id of TAB_IDS) expect(hasIcon(id), id).toBe(true);

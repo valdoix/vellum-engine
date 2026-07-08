@@ -61,6 +61,9 @@ const PATHS: Record<string, string> = {
   import: '<path d="M12 14V4"/><path d="M8 10l4 4 4-4"/><path d="M5 16v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/>',
   recover: '<path d="M4 12a8 8 0 1 1 2.3 5.6"/><path d="M4 18v-4h4"/><path d="M12 8v4l3 2"/>',
   clear: '<path d="M6 7h12"/><path d="M9 7V5h6v2"/><path d="M8 7l1 13h6l1-13"/>',
+  // help / guide = question mark in a circle, drawn native to the 24×24 grid so
+  // the stroke weight matches the rest of the family.
+  help: '<circle cx="12" cy="12" r="8"/><path d="M9.6 9.4a2.4 2.4 0 0 1 4.7.6c0 1.6-2.3 2-2.3 3.6"/><circle cx="12" cy="16.5" r="0.6" fill="currentColor" stroke="none"/>',
 };
 
 /** Render a named icon as an inline SVG string. Falls back to a dot if unknown. */

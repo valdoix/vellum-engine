@@ -829,7 +829,7 @@ export const STYLES = [
   ".vle-autoc-b.on{background:rgba(var(--vg-rgb),.22);color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.45)}",
   ".vlfm-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:11px 16px;border-top:1px solid rgba(var(--vg-rgb),.18)}",
   ".vlfm-foot-sp{flex:1 1 auto}",
-  ".vlob-body{line-height:1.6;font-size:12.5px}",
+  ".vlob-body{display:block;line-height:1.6;font-size:12.5px}",
   ".vlob-dots{display:flex;justify-content:center;gap:6px;padding:2px 0 4px}",
   ".vlob-dot{width:6px;height:6px;border-radius:50%;background:rgba(var(--vg-rgb),.25)}.vlob-dot.on{background:var(--vle-gold)}",
   ".vlfm-act{color:var(--vi2);opacity:.85}.vlfm-act:hover{background:rgba(255,255,255,.05);opacity:1}",
