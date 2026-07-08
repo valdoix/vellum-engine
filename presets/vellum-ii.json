@@ -856,7 +856,7 @@
           "name": "worldgen",
           "type": "switch",
           "label": "The Cartographer (world genesis)",
-          "description": "Establish a living world around {{user}} - the frame, standing powers, adjacent places, and currents already in motion - bound to Codex/factions/offscreen state. Fires ONCE automatically at a new chat's opening, and on demand any time by typing ((worldgen)) (or OOC: worldgen); ((worldgen again)) re-arms it. ponytail: canon coherence rides the flat Codex list + reverie, not a true consistency engine - upgrade path is an engine-side world model.",
+          "description": "Establish a living world around {{user}} - the frame, standing powers, adjacent places, and currents already in motion - bound to Codex/factions/offscreen state. Fires ONCE automatically at a new chat's opening, and on demand any time by typing ((worldgen)) (or OOC: worldgen); ((worldgen again)) re-arms it.",
           "defaultValue": 1
         },
         {

@@ -1,6 +1,6 @@
 import type { Component } from '../component.js';
 import type { ChronicleState } from '../../domain/types.js';
-import { esc } from '../format.js';
+import { esc, safeColor } from '../format.js';
 import { send, paginate, pagerHtml, setPage } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 
@@ -17,7 +17,7 @@ import { formModal, confirmModal } from '../modal.js';
 interface VCat { id: string; label: string; glyph: string; color: string; hidden: boolean; sync: string; defaults: any }
 interface VEntry { id: string; bookId: string; key: string[]; content: string; comment: string; disabled: boolean; vellum: boolean; category: string; source: string; link: string; pending: boolean }
 interface VBook { id: string; name: string; attachedToChat: boolean; global: boolean; vellum: boolean; entries: VEntry[] }
-interface VSnap { ok: boolean; reason?: string; categories: VCat[]; books: VBook[]; activated: Array<{ id: string }>; suggestions?: Array<{ kind: string; id: string; label: string; reason: string }> }
+interface VSnap { ok: boolean; reason?: string; listFailed?: boolean; categories: VCat[]; books: VBook[]; activated: Array<{ id: string }>; suggestions?: Array<{ kind: string; id: string; label: string; reason: string }> }
 
 let _snap: VSnap | null = null;
 let _filter = 'all';
@@ -43,6 +43,9 @@ export const vaultTab: Component<ChronicleState> = {
   render() {
     if (!_snap) { send({ type: 'vellum_get_vault' }); return '<div class="vle-empty sm">Loading vault\u2026</div>'; }
     if (!_snap.ok && _snap.reason === 'no_permission') return '<div class="vlm-comp-error">The Vault needs the <b>world_books</b> permission. Grant it in the extension settings to author lorebooks here.<br><span>Activation stays native; the Vault just organizes + auto-configures.</span></div>';
+    // The list call itself failed (host error / permission hiccup) and returned no
+    // books — distinct from an empty library. Say so instead of "no entries yet".
+    if (_snap.listFailed && !_snap.books.length) return '<div class="vlm-comp-error">Couldn\u2019t load your lorebooks just now.<br><span>This is usually a temporary host or permission hiccup \u2014 try Refresh, or re-check the <b>world_books</b> permission.</span></div>';
     const cats = _snap.categories.filter((c) => !c.hidden);
     const all = allEntries();
     // scope: 'vault' shows only VELLUM-managed entries (default, clean); 'all'
@@ -62,7 +65,7 @@ export const vaultTab: Component<ChronicleState> = {
       + '</div>';
     const bar = '<div class="vlv-catbar">'
       + `<button class="vlv-chip${_filter === 'all' ? ' on' : ''}" data-vcat="all">All <span class="vlv-cn">${entries.length}</span></button>`
-      + cats.map((c) => `<button class="vlv-chip${_filter === c.id ? ' on' : ''}" data-vcat="${esc(c.id)}" style="--c:${c.color}"><span class="vlv-glyph">${esc(c.glyph)}</span>${esc(c.label)} <span class="vlv-cn">${counts[c.id] ?? 0}</span><span class="vlv-gear" data-vcat-settings="${esc(c.id)}">\u2699</span></button>`).join('')
+      + cats.map((c) => `<span class="vlv-chipwrap" style="--c:${safeColor(c.color)}"><button class="vlv-chip${_filter === c.id ? ' on' : ''}" data-vcat="${esc(c.id)}"><span class="vlv-glyph">${esc(c.glyph)}</span>${esc(c.label)} <span class="vlv-cn">${counts[c.id] ?? 0}</span></button><button class="vlv-gear" data-vcat-settings="${esc(c.id)}" title="Category settings" aria-label="Settings for ${esc(c.label)}">\u2699</button></span>`).join('')
       + '<button class="vlv-chip add" data-vcat-add>+ Category</button>'
       + '</div>';
     // list ALL lorebooks attached to this chat (not just the first); fall back
@@ -185,7 +188,7 @@ function rerender(host: HTMLElement): void { host.innerHTML = vaultTab.render(nu
 
 function entryCard(e: VEntry, firing: boolean): string {
   const cat = _snap?.categories.find((c) => c.id === e.category);
-  const clr = cat?.color ?? '#8c8478';
+  const clr = safeColor(cat?.color);
   const keys = e.key.join(', ');
   return `<div class="vlv-entry${e.disabled ? ' off' : ''}" style="--c:${clr}">`
     + `<div class="vlv-entry-top"><span class="vlv-entry-cat">${esc(cat?.glyph ?? '\u2727')} ${esc(cat?.label ?? 'Uncategorized')}</span>`
@@ -240,7 +243,7 @@ function categoryCreate(): void {
     { key: 'color', label: 'Color (hex)', type: 'text', value: '#cdbfa0' },
     { key: 'position', label: 'Default position', type: 'select', value: 'at_depth', options: POS_OPTS },
     { key: 'order', label: 'Default order', type: 'text', value: '100' },
-  ], (v) => { if (v.label?.trim()) send({ type: 'vellum_vault_category', cat: { label: v.label, glyph: v.glyph || '\u2727', color: v.color || '#cdbfa0', defaults: { position: v.position, depth: 4, role: 'system', order: Number(v.order) || 100 } } }); });
+  ], (v) => { if (v.label?.trim()) send({ type: 'vellum_vault_category', cat: { label: v.label, glyph: v.glyph || '\u2727', color: safeColor(v.color, '#cdbfa0'), defaults: { position: v.position, depth: 4, role: 'system', order: Number(v.order) || 100 } } }); });
 }
 
 function bookManager(): void {

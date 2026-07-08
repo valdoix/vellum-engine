@@ -44,6 +44,9 @@ function liteEntry(e: any): LiteEntry | null {
 
 export interface VaultSnapshot {
   ok: boolean; reason?: string;
+  /** true when the world-book list call FAILED (all forms threw), as opposed to
+   * the library genuinely being empty. Lets the UI show the right message. */
+  listFailed?: boolean;
   books: Array<{ id: string; name: string; description: string; vellum: boolean; attachedToChat: boolean; global: boolean; entries: LiteEntry[] }>;
   attached: string[];
   activated: Array<{ id: string; comment?: string; source?: string }>;
@@ -54,7 +57,7 @@ export interface VaultSnapshot {
  * result — so a form that returns a spurious empty doesn't win over one that
  * actually has data. Accepts a well-formed empty only if no form yields data.
  * Silent (no log spam on the expected throws). */
-async function callList(_label: string, fn: (...a: any[]) => Promise<any>, baseArgs: any[], uid: string | null): Promise<any[]> {
+async function callList(_label: string, fn: (...a: any[]) => Promise<any>, baseArgs: any[], uid: string | null): Promise<{ items: any[]; failed: boolean }> {
   const unwrap = (r: any): { ok: boolean; arr: any[] } => {
     if (Array.isArray(r)) return { ok: true, arr: r };
     if (r && Array.isArray(r.data)) return { ok: true, arr: r.data };
@@ -68,11 +71,14 @@ async function callList(_label: string, fn: (...a: any[]) => Promise<any>, baseA
     [...baseArgs.slice(0, -1), optsWithUid],              // ({...options, userId})
     baseArgs,                                             // (options)
   ];
+  // Distinguish "the host returned a well-formed empty list" (emptyOk) from
+  // "every call form threw / returned garbage" (failed) so the UI can show the
+  // right message. Previously both collapsed to [] and looked identical.
   let emptyOk = false;
   for (const args of forms) {
-    try { const u = unwrap(await fn(...args)); if (u.ok && u.arr.length) return u.arr; if (u.ok) emptyOk = true; } catch { /* try next form */ }
+    try { const u = unwrap(await fn(...args)); if (u.ok && u.arr.length) return { items: u.arr, failed: false }; if (u.ok) emptyOk = true; } catch { /* try next form */ }
   }
-  return emptyOk ? [] : [];
+  return { items: [], failed: !emptyOk };
 }
 
 export async function vaultSnapshot(chatId: string, uid: string | null): Promise<VaultSnapshot> {
@@ -85,10 +91,14 @@ export async function vaultSnapshot(chatId: string, uid: string | null): Promise
   }
   let globalIds: string[] = [];
   try { if (a.getGlobal) { const g = await a.getGlobal(uid).catch(() => a.getGlobal()); if (Array.isArray(g)) globalIds = g; } } catch { /* ignore */ }
-  const books = await callList('wb.list', a.list.bind(a), [{ limit: 200, offset: 0 }], uid);
-  for (const b of books) {
+  const booksRes = await callList('wb.list', a.list.bind(a), [{ limit: 200, offset: 0 }], uid);
+  // The list call itself failing (all forms threw) is distinct from a genuinely
+  // empty library — flag it so the Vault UI can say "couldn't load" rather than
+  // "no entries yet".
+  if (booksRes.failed) out.listFailed = true;
+  for (const b of booksRes.items) {
     const raw = await callList('wb.entries.list', a.entries.list.bind(a.entries), [b.id, { limit: 300, offset: 0 }], uid);
-    const entries = raw.map(liteEntry).filter(Boolean) as LiteEntry[];
+    const entries = raw.items.map(liteEntry).filter(Boolean) as LiteEntry[];
     out.books.push({ id: b.id, name: String(b.name || 'Untitled'), description: String(b.description || ''), vellum: !!(b.metadata?.vellum), attachedToChat: out.attached.includes(b.id), global: globalIds.includes(b.id), entries });
   }
   if (chatId && a.getActivated) {

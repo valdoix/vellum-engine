@@ -2,6 +2,7 @@ import type { Component } from '../component.js';
 import type { ChronicleState } from '../../domain/types.js';
 import { buildModel, layout, type GraphModel, type GraphNode, type GraphEdge, type Layout } from '../graph/layout.js';
 import { renderGraph, edgePath } from '../graph/render.js';
+import { esc } from '../format.js';
 
 /**
  * The Relationship Graph tab â€” a beautiful, interactive force-directed node
@@ -75,9 +76,9 @@ export const graphTab: Component<ChronicleState> = {
       const node = (e.target as Element).closest('.vlg-node');
       if (node && !focus) setHighlight(A(node, 'data-node'));
       const m = _cache?.model;
-      if (node && m) { const id = A(node, 'data-node'); const nd = m.nodes.find((x: GraphNode) => x.id === id); if (nd) tip(`<b>${nd.name}</b><br><span>${nd.degree} bond${nd.degree === 1 ? '' : 's'}${nd.present ? ' \u00b7 present' : ''}</span>`, (e as MouseEvent).clientX, (e as MouseEvent).clientY); }
+      if (node && m) { const id = A(node, 'data-node'); const nd = m.nodes.find((x: GraphNode) => x.id === id); if (nd) tip(`<b>${esc(nd.name)}</b><br><span>${nd.degree} bond${nd.degree === 1 ? '' : 's'}${nd.present ? ' \u00b7 present' : ''}</span>`, (e as MouseEvent).clientX, (e as MouseEvent).clientY); }
       const edge = (e.target as Element).closest('.vlg-edge');
-      if (edge && m) { const ed = m.edges.find((x: GraphEdge) => x.id === A(edge, 'data-edge')); if (ed) { const an = m.nodes.find((x: GraphNode) => x.id === ed.a)?.name ?? ed.a, bn = m.nodes.find((x: GraphNode) => x.id === ed.b)?.name ?? ed.b; tip(`<b>${an} \u2192 ${bn}</b><br><span>${ed.categories.join(' + ')} \u00b7 ${ed.sentiment}</span>${ed.label ? `<br>\u201c${ed.label}\u201d` : ''}`, (e as MouseEvent).clientX, (e as MouseEvent).clientY); } }
+      if (edge && m) { const ed = m.edges.find((x: GraphEdge) => x.id === A(edge, 'data-edge')); if (ed) { const an = m.nodes.find((x: GraphNode) => x.id === ed.a)?.name ?? ed.a, bn = m.nodes.find((x: GraphNode) => x.id === ed.b)?.name ?? ed.b; tip(`<b>${esc(an)} \u2192 ${esc(bn)}</b><br><span>${esc(ed.categories.join(' + '))} \u00b7 ${esc(ed.sentiment)}</span>${ed.label ? `<br>\u201c${esc(ed.label)}\u201d` : ''}`, (e as MouseEvent).clientX, (e as MouseEvent).clientY); } }
     });
     host.addEventListener('mouseout', (e) => { if ((e.target as Element).closest('.vlg-node') || (e.target as Element).closest('.vlg-edge')) { hideTip(); if (!focus) setHighlight(null); } });
 

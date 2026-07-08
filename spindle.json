@@ -1,12 +1,13 @@
 {
-  "version": "2.0.0-alpha.0",
+  "version": "2.0.0-beta.1",
   "name": "VELLUM Engine",
   "identifier": "vellum_engine",
   "author": "VELLUM",
   "github": "https://github.com/valdoix/vellum-engine",
   "homepage": "https://github.com/valdoix/vellum-engine",
-  "description": "VELLUM II (Palimpsest) — a living-narrative engine for Lumiverse. An append-only event-log chronicle (arcs, threads, cast, evolving relations, dramatic-irony knowledge & secrets, hierarchical memory), hybrid scene-aware recall (lexical + host embeddings + structured), a relationship graph, and an in-app Vault (world books) — driven by a token-lean, fully block-controllable preset.",
+  "description": "A living memory for your Lumiverse roleplay. VELLUM watches each scene and quietly tracks who's present, how they feel about each other, what they secretly know (and get wrong), and what happened hundreds of messages ago — then feeds the relevant history back to the AI every turn so your story stays consistent. Includes a beautiful panel (cast, bonds, relationship graph, timeline, codex) and a companion preset for literary prose and dramatic irony.",
   "permissions": ["interceptor", "chats", "chat_mutation", "generation", "ui_panels", "world_books", "memories"],
+  "minimum_lumiverse_version": "1.0.0",
   "interceptorTimeoutMs": 15000,
   "entry_backend": "dist/backend.js",
   "entry_frontend": "dist/frontend.js"

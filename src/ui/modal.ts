@@ -30,6 +30,22 @@ export interface FormModalOpts {
 
 const esc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
+const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/** Keep Tab focus cycling WITHIN the overlay so keyboard users can't tab into the
+ * page behind an open modal. Returns a keydown handler to register/remove. */
+function makeFocusTrap(overlay: HTMLElement): (e: KeyboardEvent) => void {
+  return (e: KeyboardEvent): void => {
+    if (e.key !== 'Tab') return;
+    const items = Array.from(overlay.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (!items.length) return;
+    const first = items[0]!, last = items[items.length - 1]!;
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && (active === first || !overlay.contains(active))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+  };
+}
+
 export function formModal(title: string, fields: Field[], onSave: (values: Record<string, string>) => void, opts?: FormModalOpts): void {
   const overlay = document.createElement('div');
   overlay.className = 'vlfm-overlay';
@@ -69,8 +85,12 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
     + `<div class="vlfm-foot">${actionBtns}<span class="vlfm-foot-sp"></span><button class="vlfm-btn vlfm-cancel" data-cancel>Cancel</button><button class="vlfm-btn vlfm-save" data-save>${esc(opts?.saveLabel ?? 'Save')}</button></div></div>`;
   document.body.appendChild(overlay);
 
+  // Remember what had focus so we can restore it when the modal closes (a11y).
+  const prevFocus = document.activeElement as HTMLElement | null;
+  const trap = makeFocusTrap(overlay);
+  overlay.addEventListener('keydown', trap);
   let onKey: ((e: KeyboardEvent) => void) | null = null;
-  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); };
+  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); try { prevFocus?.focus?.(); } catch { /* ignore */ } };
   const save = (): void => {
     const values: Record<string, string> = {};
     overlay.querySelectorAll('[data-f]').forEach((el) => { values[el.getAttribute('data-f')!] = (el as HTMLInputElement).value; });
@@ -120,8 +140,11 @@ export function confirmModal(message: string, onConfirm: () => void): void {
     + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-cancel>Cancel</button><button class="vlfm-btn vlfm-save" data-confirm>Confirm</button></div></div>';
   document.body.appendChild(overlay);
 
+  const prevFocus = document.activeElement as HTMLElement | null;
+  const trap = makeFocusTrap(overlay);
+  overlay.addEventListener('keydown', trap);
   let onKey: ((e: KeyboardEvent) => void) | null = null;
-  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); };
+  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); try { prevFocus?.focus?.(); } catch { /* ignore */ } };
   const confirmIt = (): void => { close(); onConfirm(); };
   // intentionally no backdrop-close: only the Cancel/Done button (or Esc) dismisses
   overlay.querySelector('[data-cancel]')!.addEventListener('click', close);

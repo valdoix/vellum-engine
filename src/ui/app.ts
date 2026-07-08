@@ -20,6 +20,7 @@ import { icon, hasIcon } from './icons.js';
 import type { Component } from './component.js';
 import { wireBridge, wirePagers, wireFilters, refreshUI, send, cmd } from './bridge.js';
 import { confirmModal, formModal } from './modal.js';
+import { maybeShowOnboarding, openOnboarding } from './onboarding.js';
 
 /**
  * Frontend entrypoint. One reusable shell (tab bar + QOL toolbar + body) is
@@ -42,7 +43,7 @@ interface Ctx {
 }
 
 // Lumiverse's frontend context does NOT provide a toast API (ctx.toast was
-// always undefined Ã¢â€ â€™ every ctx.toast?.x?.() was a silent no-op). Own a tiny
+// always undefined → every ctx.toast?.x?.() was a silent no-op). Own a tiny
 // toast that renders above overlays. `ctx.toast` is still preferred if a future
 // host adds it. Use notify(ctx, level, msg) everywhere instead of ctx.toast.
 type ToastLevel = 'info' | 'success' | 'warning';
@@ -95,12 +96,24 @@ function stickyToast(key: string, level: ToastLevel, msg: string, done = false):
         _stickyToasts.delete(key);
       }, 2400);
     }
+      } catch { /* DOM unavailable */ }
+}
+
+/** Tear down every toast artifact on extension unload: clear pending sticky
+ * auto-dismiss timers, drop the sticky map, and remove the shared toast host
+ * node from <body>. Prevents orphaned DOM nodes and timers surviving a reload. */
+function cleanupToasts(): void {
+  try {
+    for (const rec of _stickyToasts.values()) { if (rec.t) { try { clearTimeout(rec.t); } catch { /* ignore */ } } }
+    _stickyToasts.clear();
+    const host = document.querySelector('.vle-toasts');
+    if (host) { try { host.remove(); } catch { /* ignore */ } }
   } catch { /* DOM unavailable */ }
 }
 
 const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="color:var(--vg,#cda84e)"><path d="M4 3.5h9l3 3V16.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4"/><path d="M6 9h8M6 12h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
-// "Now" Ã¢â‚¬â€ the live-scene dashboard, reused as the first drawer view so the drawer
+// "Now" — the live-scene dashboard, reused as the first drawer view so the drawer
 // and the floating window share one language (float = Now alone; drawer = Now +
 // the archive tabs). Same composable section engine as the float (dashboard.ts).
 const nowTab: Component<ChronicleState> = {
@@ -152,6 +165,8 @@ const QOL = [
   { id: 'import', label: '\u2912 Import', title: 'Load a chronicle JSON', group: 'data' },
   { id: 'recover', label: '\u21BA Recover', title: 'Restore this chat from its automatic backup if data was lost', group: 'data' },
   { id: 'clear', label: '\u2715 Clear', title: 'Erase all chronicle data for this chat', group: 'danger' },
+  // help = re-open the first-run guide (its own group so it reads as a distinct affordance)
+  { id: 'help', label: '\u2370 Help / Guide', title: 'Re-open the VELLUM first-run guide', group: 'help' },
 ] as const;
 
 /** Open the Customize (theme) panel as a modal-style overlay. */
@@ -318,18 +333,23 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   // weather) with an SVG icon — replaces the old `·`-joined run-on string and
   // its stray ☁ glyph, so the header scans as discrete data, not one long label.
   const stats = (): void => {
-    const s = getState();
-    const dayLabel = s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s) : 'D0';
-    const pill = (ico: string, value: string, label: string): string =>
-      `<span class="vle-stat" title="${esc(label)}">${icon(ico, { size: 13 })}<b>${esc(value)}</b></span>`;
-    const pills = [
-      pill('turn', `T${s.turns ?? 0}`, 'turn'),
-      pill('calendar', dayLabel, 'day'),
-      pill('cast', String(visibleCast(s).length), 'cast on stage'),
-      pill('bonds', String(s.relations.length), 'relationships'),
-    ];
-    if (s.scene.weather) pills.push(pill('weather', s.scene.weather, 'weather'));
-    statsEl.innerHTML = pills.join('');
+    // Isolated behind try/catch: a malformed-state throw while building the header
+    // pills must never break drawer.update() + float.refresh() further down. Keeps
+    // the "panels fail in isolation" guarantee even for the header.
+    try {
+      const s = getState();
+      const dayLabel = s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s) : 'D0';
+      const pill = (ico: string, value: string, label: string): string =>
+        `<span class="vle-stat" title="${esc(label)}">${icon(ico, { size: 13 })}<b>${esc(value)}</b></span>`;
+      const pills = [
+        pill('turn', `T${s.turns ?? 0}`, 'turn'),
+        pill('calendar', dayLabel, 'day'),
+        pill('cast', String(visibleCast(s).length), 'cast on stage'),
+        pill('bonds', String(s.relations.length), 'relationships'),
+      ];
+      if (s.scene.weather) pills.push(pill('weather', s.scene.weather, 'weather'));
+      statsEl.innerHTML = pills.join('');
+    } catch (e) { try { console.warn('[vellum] header stats failed:', e); } catch { /* ignore */ } }
   };
 
   root.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.vle-tabbar [data-tab]'); if (b) showTab(b.getAttribute('data-tab')!); });
@@ -401,11 +421,11 @@ function setQolBusy(id: string, busy: boolean, timeoutMs = 30000): void {
 /** Open the grouped Actions menu as an overlay. Items reuse the same `data-qol`
  * ids so all existing busy/toggle wiring keeps working; only the container moved
  * off the always-on toolbar. Toggles render their current state inline. The menu
- * PERSISTS across actions (re-rendering toggle state) Ã¢â‚¬â€ only Close dismisses it. */
+ * PERSISTS across actions (re-rendering toggle state) — only Close dismisses it. */
 function openActions(ctx: Ctx): void {
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
-  const groups: Array<[string, string]> = [['settings', 'Settings'], ['toggle', 'Toggles'], ['run', 'Run'], ['data', 'Data'], ['danger', 'Danger']];
+  const groups: Array<[string, string]> = [['settings', 'Settings'], ['toggle', 'Toggles'], ['run', 'Run'], ['data', 'Data'], ['help', 'Help'], ['danger', 'Danger']];
   const bodyHtml = (): string => {
     const toggleState: Record<string, string> = {
       hide: _hideOn ? 'on' : 'off',
@@ -452,7 +472,7 @@ function openActions(ctx: Ctx): void {
 interface SearchHit { tab: string; kind: string; label: string; sub: string }
 /** Flat free-text search across cast, factions, relations, journal, knowledge,
  * secrets by name/text. Result click jumps to the owning tab. Read-only over
- * state; no index to maintain Ã¢â‚¬â€ the chronicle is small enough to scan live. */
+ * state; no index to maintain — the chronicle is small enough to scan live. */
 function buildSearchIndex(s: ChronicleState): SearchHit[] {
   const hits: SearchHit[] = [];
   const nm = (id: string): string => s.cast[id]?.name ?? id;
@@ -515,7 +535,7 @@ function onQol(ctx: Ctx, id: string): void {
     notify(ctx, 'info', _foldToastOn ? 'Update toast on: a brief note after each turn.' : 'Update toast off.');
   }
   else if (id === 'traverse') {
-    // cycle: off Ã¢â€ â€™ flat Ã¢â€ â€™ treeÃ‚Â·time Ã¢â€ â€™ treeÃ‚Â·char Ã¢â€ â€™ treeÃ‚Â·hybrid Ã¢â€ â€™ off
+    // cycle: off → flat → tree·time → tree·char → tree·hybrid → off
     if (_traverseMode === 'off') { _traverseMode = 'flat'; }
     else if (_traverseMode === 'flat') { _traverseMode = 'tree'; _traverseAxis = 'temporal'; }
     else if (_traverseMode === 'tree' && _traverseAxis === 'temporal') { _traverseAxis = 'character'; }
@@ -534,6 +554,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'import') { triggerImport(ctx); }
   else if (id === 'recover') { ctx.sendToBackend({ type: 'vellum_recover' }); notify(ctx, 'info', 'Checking backup\u2026'); }
   else if (id === 'clear') { confirmModal('Erase ALL VELLUM chronicle data for this chat? This cannot be undone.', () => { setQolBusy('clear', true); ctx.sendToBackend({ type: 'vellum_clear' }); }); }
+  else if (id === 'help') { openOnboarding(); }
 }
 
 function openToneModal(ctx: Ctx): void {
@@ -719,7 +740,7 @@ export function setup(ctx: Ctx): () => void {
   // bridge: tab components issue CRUD via send(); refresh re-renders both shells
   wireBridge((payload) => ctx.sendToBackend(payload), (force?: boolean) => { drawer.update(force); float.refresh(); });
 
-  // beautiful floating window ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a live scene DASHBOARD with a refresh button
+  // beautiful floating window — a live scene DASHBOARD with a refresh button
   const FLOAT_TABS = TABS.filter((t) => t.group === 'primary');
   const FLOAT_TAB_KEY = 'vellum2.float.tab';
   let floatTab = ((): string => { try { return localStorage.getItem(FLOAT_TAB_KEY) || 'now'; } catch { return 'now'; } })();
@@ -776,7 +797,10 @@ export function setup(ctx: Ctx): () => void {
 
   const unsub = ctx.onBackendMessage((p: any) => {
     try {
-      if (p?.type === 'vellum_state') {
+      if (p?.type === 'vellum_toast') {
+        const lvl: ToastLevel = p.level === 'success' || p.level === 'warning' ? p.level : 'info';
+        notify(ctx, lvl, String(p.msg ?? ''));
+      } else if (p?.type === 'vellum_state') {
         _lastStateAt = Date.now(); // mark arrival so the post-turn safety poll can skip
         state = p.state ?? freshState();
         if (p.tone) {
@@ -828,16 +852,16 @@ export function setup(ctx: Ctx): () => void {
         if (p.log?.[0]?.chars) setSysInfo({ injChars: p.log[0].chars });
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection_push') {
-        // Fix 11 Ã¢â‚¬â€ live retrieval feed: stream the new record in as it happens
+        // Fix 11 — live retrieval feed: stream the new record in as it happens
         if (p.record) { pushInjectionRecord(p.record); if (p.record.chars) setSysInfo({ injChars: p.record.chars }); drawer.update(); float.refresh(); }
       } else if (p?.type === 'vellum_continuity') {
-        // Plot Director: passive continuity warnings Ã¢â‚¬â€ advise, never block.
+        // Plot Director: passive continuity warnings — advise, never block.
         if (Array.isArray(p.warnings) && p.warnings.length) notify(ctx, 'warning', 'Continuity: ' + p.warnings.map((w: { text: string }) => w.text).join(' '));
       } else if (p?.type === 'vellum_vault') {
         setVaultSnap(p);
         drawer.update();
       } else if (p?.type === 'vellum_vault_categories') {
-        // categories changed Ã¢â‚¬â€ re-request the full snapshot to reflect counts
+        // categories changed — re-request the full snapshot to reflect counts
         ctx.sendToBackend({ type: 'vellum_get_vault' });
       } else if (p?.type === 'vellum_vault_done') {
         if (!p.ok) notify(ctx, 'warning', 'Vault: ' + (p.reason ?? 'failed'));
@@ -867,8 +891,8 @@ export function setup(ctx: Ctx): () => void {
         // surface WHY the vault didn't update (the silent-gate that hid this)
         const v = p.vault;
         if (p.rounds && v && !v.created && !v.updated) {
-          if (v.reason === 'no_world_books') notify(ctx, 'warning', 'Chapter detail not saved to vault Ã¢â‚¬â€ grant the world_books permission.');
-          else if (v.reason === 'mode_off') notify(ctx, 'info', 'Chapter-vault is off (Tone \u2192 Chapter detail in vault) Ã¢â‚¬â€ chronicle gist only.');
+          if (v.reason === 'no_world_books') notify(ctx, 'warning', 'Chapter detail not saved to vault — grant the world_books permission.');
+          else if (v.reason === 'mode_off') notify(ctx, 'info', 'Chapter-vault is off (Tone \u2192 Chapter detail in vault) — chronicle gist only.');
         } else if (v && (v.created || v.updated)) {
           notify(ctx, 'success', `Vault: ${v.created} chapter${v.created === 1 ? '' : 's'} saved${v.updated ? `, ${v.updated} updated` : ''}.`);
         }
@@ -994,6 +1018,9 @@ export function setup(ctx: Ctx): () => void {
   });
   ctx.sendToBackend({ type: 'vellum_get_state' });
 
+  // First-run guide: shows once (flag in localStorage), re-openable from Actions ▸ Help.
+  try { maybeShowOnboarding(); } catch { /* never block the panel */ }
+
   return () => {
     try { unsub(); } catch { /* ignore */ }
     try { offChat?.(); } catch { /* ignore */ }
@@ -1003,6 +1030,7 @@ export function setup(ctx: Ctx): () => void {
     try { inputBtn?.destroy(); } catch { /* ignore */ }
     try { tab.destroy(); } catch { /* ignore */ }
     try { style.remove(); } catch { /* ignore */ }
+    try { cleanupToasts(); } catch { /* ignore */ }
     try { ctx.dom.cleanup(); } catch { /* ignore */ }
   };
 }

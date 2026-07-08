@@ -21,13 +21,14 @@ You can use the preset on its own (it produces great writing by itself). You can
 2. [Quick start (5 minutes)](#quick-start-5-minutes)
 3. [Installing the extension](#installing-the-extension)
 4. [Installing & using the preset](#installing--using-the-preset)
-5. [The preset, feature by feature](#the-preset-feature-by-feature)
-6. [The extension, feature by feature](#the-extension-feature-by-feature)
-7. [The panel: tabs & tools](#the-panel-tabs--tools)
-8. [How the two halves talk to each other](#how-the-two-halves-talk-to-each-other)
-9. [Permissions (and what breaks without each)](#permissions)
-10. [FAQ & troubleshooting](#faq--troubleshooting)
-11. [For developers](#for-developers)
+5. [The Prompt Variables menu — every setting explained](#the-prompt-variables-menu--every-setting-explained)
+6. [The preset, feature by feature](#the-preset-feature-by-feature)
+7. [The extension, feature by feature](#the-extension-feature-by-feature)
+8. [The panel: tabs & tools](#the-panel-tabs--tools)
+9. [How the two halves talk to each other](#how-the-two-halves-talk-to-each-other)
+10. [Permissions (and what breaks without each)](#permissions)
+11. [FAQ & troubleshooting](#faq--troubleshooting)
+12. [For developers](#for-developers)
 
 ---
 
@@ -93,9 +94,110 @@ When VELLUM II is active, the AI ends each reply with a small block wrapped in `
 
 ---
 
+## The Prompt Variables menu — every setting explained
+
+When you select the preset and open its **sliders / settings icon**, Lumiverse shows the **Prompt Variables** menu: a friendly panel of dropdowns and toggles. You never edit raw preset text. This section documents **every one of the 53 settings**, grouped the way the preset groups them, with the options, the **default**, and when you'd change it.
+
+> **Defaults are good.** You can play a full story without touching any of these. Skim for the handful you care about (POV, Length, NSFW Level) and leave the rest.
+
+Twelve blocks ship **off by default** and only activate when you opt in: Possession Tracker, Emotional Save, The Scribes, Rough Hand, NSFL/Dark, VTK Card Library, VTK Spectacle, Colored Dialogue, host Memory Cortex entities, Hard Jailbreak Fallback, World Broadsheet card, and the Slop Proofreader.
+
+### Session Settings
+
+The voice of the whole story.
+
+- **Point of View** — First / Second ("you") / **Third Limited** *(default)* / Third Omniscient. Change for the narrative person you want.
+- **Length** — Concise (2–3 ¶) / Standard / Detailed (7–10 ¶) / **Adaptive** *(default)*. Adaptive matches length to the moment; pick a fixed size if replies run too long or short.
+- **Tense** — **Past** *(default)* / Present.
+- **Prose Register** — **Literary** *(default)* / Gothic / Wildean (witty) / Hardboiled (noir) / Sparse (minimalist) / Lush (rich) / Contemporary / Random (per turn) / Loom Style only. The governing style.
+- **Stakes** — Cozy / **Grounded** *(default)* / Harsh / Brutal (permanent consequences, no plot armor). How hard the world bites.
+- **Genre** — **Off (character drama)** *(default)* / Romance / Mystery / Horror / Thriller / Fantasy / Sci-Fi / Slice-of-Life / Adventure / Comedy. Adds genre conventions on top of the character drama.
+- **Secondary Genre** — same options, **Off** *(default)*. Blend a second genre (e.g. Fantasy + Mystery).
+- **Dialogue Frequency** — Sparse / **Balanced** *(default)* / Talkative / Banter-heavy.
+- **User Agency** — **Forbidden** *(default, strict: the AI never speaks/thinks/moves your character)* / Minimal (involuntary reflexes only) / Director (expands your stated intent). Raise only if you *want* the AI to co-write your character.
+- **Narrative Distance** — Intimate / **Standard** *(default)* / Cinematic / Panoramic / Adaptive. How close the "camera" sits to the POV character.
+- **Pacing** — Lingering / **Measured** *(default)* / Propulsive / Adaptive.
+
+### OOC channel
+
+- **OOC channel** — *on by default.* Lets you talk to the AI out-of-character with `((double parens))` or `OOC:` without it bleeding into the story.
+
+### Style & Era
+
+- **Era / Idiom** — **Off (follow the world)** *(default)* / Mythic / Ancient / Medieval / Renaissance / Early-Modern / Georgian / Regency / Victorian / Industrial / Belle Époque / Fin de Siècle / Jazz Age / Early 20th C. / Mid-Century Modern / Contemporary / Near-Future / Far-Future / Space Age / Post-Collapse / Timeless / Fairytale / Random (per turn). Tints diction and idiom to a period.
+- **Anachronism Strictness** — Authentic / **Flavored** *(default)* / Loose. How hard the era rule bites on word choice.
+- **Tonal Cast** — **Off (no wash)** *(default)* / Blue (melancholy) / Amber (nostalgia/warmth) / Ash (numb) / Violet (feverish/dream) / Crimson (heat/appetite) / Verdigris (rot/envy) / Adaptive (per beat) / Random (per turn). An emotional color wash over the prose.
+- **Colored dialogue** *(off by default)* — tints each speaker's dialogue a distinct color in the display (needs the matching display script).
+
+### Anti-slop & craft
+
+- **Prose Doctrine** — *always on.* Show feeling through body and concrete detail, distinct voices, varied rhythm, one beat per turn.
+- **The Forge (Anti-Slop)** — *always on.* Names the AI's common tics and pushes for the truer line, without making the prose stiff.
+- **Slop Proofreader (display marks)** *(off by default)* — faintly marks clichés that slipped through, in the display only; never changes what the AI wrote or sees.
+
+### Knowledge & irony
+
+- **Knowledge Discipline** — *always on.* Every character only knows what they personally witnessed, were told, overheard, read, or could deduce.
+- **Epistemic Mode (dramatic irony dial)** — Behind (mystery) / **Alongside** *(default, discover together)* / Ahead (irony — you know, they don't) / Dark (no one knows, not even narration).
+
+### World & cast
+
+- **Group-scene handling** — *on by default.* In crowds, characters talk to *each other*, not just to you.
+- **Living World** — Off ({{user}}-centric) / Minimal (protagonist) / **Active** *(default)* / Sandbox (autonomous, opportunities can expire). How much the world moves on its own.
+- **Time Continuity** — *on by default.* Tracks the passage of days/time so "Day 47" stays coherent.
+- **The Cartographer (world genesis)** — *on by default.* Fires once at a new chat's opening (or on demand via `((worldgen))`) to establish a coherent world frame. Sub-settings:
+  - **World Premise (optional)** — free text; seed the world with a one-line premise.
+  - **World Scale** — Chamber (one place) / **Locale (a town)** *(default)* / Realm (a region) / World (a civilization) / Cosmos (many worlds).
+  - **World Texture** — Backdrop (scenery) / **Living** *(default)* / Insistent (intrudes).
+  - **World Broadsheet card** *(off by default)* — renders opening world news as an illuminated card.
+- **The Codex (mint provisional canon)** — *on by default.* Invents small consistent facts on demand and binds them as canon (shows in the Codex tab).
+- **Possession Tracker** *(off by default)* — tracks who carries/owns what.
+- **Character Engine** — *always on.* NPCs act on their own motives; change is geological.
+
+### Tone & relationships
+
+- **Romance Pace** — Off / Slow Burn / **Measured** *(default)* / Fast-Paced / Erotic. *When* intimacy becomes reachable (separate from how explicit it may get).
+- **World Disposition** — Kind / Warm / **Fair** *(default)* / Harsh / Brutal. The social climate *before* you've earned anything (a prior, not a guarantee).
+- **NPC Social Autonomy (NPC↔NPC)** — Off (you drive relationships) / Reactive (on-screen only) / **Living** *(default)* / Autonomous (full lives).
+- **Faction Politics Autonomy (faction↔faction)** — **Off** *(default)* / Living (standings drift off-screen) / Autonomous (factions maneuver).
+- **Emotional Save (d20 on charged beats)** *(off by default)* — rolls a die on emotionally charged beats so a character's reaction isn't always the obvious one.
+
+### Variance suite (anti-repetition)
+
+- **The Augury (dice-seeded variance)** — *on by default.* Privately rolls pressure / shape / cost / a rare omen each turn to break the mold.
+- **Marginalia (diversity anchors)** — *on by default.* Sketches three anchored directions, keeps the best, discards the rest (anchors never appear in prose).
+- **The Scribes (rotate authorial voice)** *(off by default)* — rotates the narrating voice turn to turn from a **Scribe pool** you pick: The Miniaturist / The Ironist / The Elegist / The Brawler / The Fabulist / The Clinician.
+- **Rough Hand (one deliberate imperfection)** *(off by default)* — permits one purposeful human imperfection per turn to defeat the over-polished sheen.
+- **The Palimpsest (belief scars)** — *on by default.* A disproven belief becomes a scar that can resurface as doubt (shows in the Scars tab).
+
+### Planning & engine
+
+- **Reverie (chain-of-thought)** — *on by default.* The AI's hidden plan-once-then-write step.
+  - **Reasoning Depth** — Vibes (lean) / **Standard** *(default)* / Deep.
+- **Emit State Block** — *on by default.* Emits the hidden `<vellum>` report the extension reads. Turn off only to use the preset with no extension.
+  - **State Spec Verbosity** — **Lean (compact)** *(default)* / Full (with example). Switch to Full while teaching a new model the format.
+- **Model Errata** — Generic / Off / Claude / Gemini / DeepSeek / Kimi / GLM / Reasoning model. **Default: none.** Opt-in fixes for a specific model family's quirks; pick the one matching your model.
+- **Agency Reminder (post-history)** — *on by default.* Re-asserts the agency rule near the end of the prompt where it sticks best.
+- **Recall — Use host Memory Cortex entities** *(off by default)* — lets the preset reference the host's native Memory Cortex entities.
+
+### Mature (gated, opt-in)
+
+- **NSFW Level** — Off / Clean (fade to black) / Sensual (implied) / **Explicit — labelled "romantic" internally is the default tasteful tier** / Graphic / Depraved (no limits). Tasteful by default; raise or lower deliberately.
+- **NSFL / Dark Content** *(off by default)* — unflinching treatment of violence and dark themes.
+- **Hard Limits (never depict)** — free text; content this story will **never** depict. Outranks every other setting. (Also editable from the panel's **Boundaries** action.)
+- **Sovereign Mandate** — the preset's in-fiction "no forbidden subject" mandate, with an optional **Hard Jailbreak Fallback** *(off by default)* for stubborn models.
+
+### Visuals
+
+- **Visual Toolkit (diegetic HTML)** — **Off** *(default)* / Rare / Balanced / Frequent. Lets the AI render key beats as small self-contained HTML/CSS visuals.
+- **VTK Card Library (tag → illuminated card)** *(off by default)* — turns compact tags (`[CODEX]`, `[LETTER]`, `[DECREE]`, `[PORTRAIT]`…) into illuminated cards.
+- **VTK Spectacle (broadsheet / tarot / playbill)** *(off by default)* — rarer set-piece cards (a `[BROADSHEET]` of off-screen news, a `[TAROT]` pull, a playbill).
+
+---
+
 ## The preset, feature by feature
 
-Everything in the preset is a **block** you can switch on or off, or a **dropdown/slider** in the Prompt Variables menu. Nothing is hidden behind an all-or-nothing "profile." Below is what each part does, in plain terms.
+Everything in the preset is a **block** you can switch on or off, or a **dropdown/slider** in the Prompt Variables menu (fully catalogued [above](#the-prompt-variables-menu--every-setting-explained)). Nothing is hidden behind an all-or-nothing "profile." Below is what each part does, in plain terms.
 
 ### Session settings (the basics)
 
@@ -328,11 +430,11 @@ bun run build       # → dist/backend.js + dist/frontend.js
 
 After changing source, run `bun run build` and reload the extension in Lumiverse.
 
-**Architecture in one breath:** the event log is the single source of truth; `state = reduce(events)` is a set of pure, tested functions; retrieval fuses lexical + embeddings + structured facts (with structured facts kept authoritative); and the UI is small isolated components with error boundaries. Adding a feature means three small touch points — a new event kind, one reducer case, and a feature that emits it — never a sprawling edit. See the in-repo plan documents for the full design.
+**Architecture in one breath:** the event log is the single source of truth; `state = reduce(events)` is a set of pure, tested functions; retrieval fuses lexical + embeddings + structured facts (with structured facts kept authoritative); and the UI is small isolated components with error boundaries. Adding a feature means three small touch points — a new event kind, one reducer case, and a feature that emits it — never a sprawling edit. See [`EXTENDING.md`](EXTENDING.md) to add a feature.
 
 ## License
 
-AGPL-3.0 (matching the Lumiverse extension ecosystem).
+Licensed under **AGPL-3.0-only** (matching the Lumiverse extension ecosystem). The full text is in [`LICENSE`](LICENSE).
 
 ## Credits
 

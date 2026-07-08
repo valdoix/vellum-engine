@@ -28,10 +28,18 @@ export const injectionTab: Component<ChronicleState> = {
     return head + '<div class="vle-inj-list">' + _log.map(record).join('') + '</div>';
   },
   mount(host) {
+    const toggle = (h: Element): void => { const body = h.parentElement?.querySelector('.vle-inj-body'); if (body) (body as HTMLElement).classList.toggle('open'); };
     host.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('[data-inj-refresh]')) send({ type: 'vellum_get_injection' });
       const h = (e.target as HTMLElement).closest('[data-inj-toggle]');
-      if (h) { const body = h.parentElement?.querySelector('.vle-inj-body'); if (body) (body as HTMLElement).classList.toggle('open'); }
+      if (h) toggle(h);
+    });
+    // Keyboard parity for the role="button" toggle: Enter/Space activate it.
+    host.addEventListener('keydown', (e) => {
+      const ke = e as KeyboardEvent;
+      if (ke.key !== 'Enter' && ke.key !== ' ' && ke.key !== 'Spacebar') return;
+      const h = (ke.target as HTMLElement).closest('[data-inj-toggle]');
+      if (h) { ke.preventDefault(); toggle(h); }
     });
     send({ type: 'vellum_get_injection' }); // pull on open
   },
@@ -50,7 +58,7 @@ function record(r: InjRecord): string {
   const srcLabel = r.source === 'traversal-tree' ? '\u2748 tree' : r.source === 'traversal' ? '\u2748 traversal' : r.source;
   const src = r.source ? `<span class="vle-inj-src vle-inj-src-${esc(r.source)}">${esc(srcLabel ?? '')}</span>` : '';
   return '<div class="vle-inj">'
-    + `<div class="vle-inj-top" data-inj-toggle><span class="vle-inj-turn">turn ${r.turn}</span>`
+    + `<div class="vle-inj-top" data-inj-toggle role="button" tabindex="0" aria-label="Toggle injected text for turn ${r.turn}"><span class="vle-inj-turn">turn ${r.turn}</span>`
     + `<span class="vle-inj-reasons">${src}${reasons}</span>`
     + `<span class="vle-inj-chars">${r.chars} ch</span></div>`
     + traceHtml(r.trace)

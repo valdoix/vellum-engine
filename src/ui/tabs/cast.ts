@@ -258,7 +258,7 @@ function card(s: ChronicleState, c: CastCard): string {
     : '';
   return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + (open ? ' is-open' : '') + '">'
     + shapeOrnament(activeShape('cast'), 'cast')
-    + '<button class="vle-av' + (c.imageUrl ? ' has-img' : '') + (c.deceased ? ' v-orn--ring-harm' : '') + '" data-cast-unfold data-id="' + A(c.id) + '" title="' + esc(c.status) + ' \u00b7 expand"' + (c.imageUrl ? ' style="background-image:url(' + JSON.stringify(c.imageUrl) + ')"' : '') + '>' + (c.imageUrl ? '' : esc(initials(c.name))) + '<span class="vle-av-dot"></span></button>'
+    + '<button class="vle-av' + (c.imageUrl ? ' has-img' : '') + (c.deceased ? ' v-orn--ring-harm' : '') + '" data-cast-unfold data-id="' + A(c.id) + '" title="' + esc(c.status) + ' \u00b7 expand"' + (c.imageUrl ? ' style="background-image:url(' + esc(JSON.stringify(c.imageUrl)) + ')"' : '') + '>' + (c.imageUrl ? '' : esc(initials(c.name))) + '<span class="vle-av-dot"></span></button>'
     + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + deceasedMark(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (sub ? '<span class="vle-card-sub">' + sub + '</span>' : '')
     + (!open && c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')

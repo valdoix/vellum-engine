@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { internalGenerate, controllerGenerate, extractGenContent } from '../src/host/generation.js';
+import { internalGenerate, controllerGenerate, extractGenContent, withTimeout } from '../src/host/generation.js';
 import { invalidatePermissions } from '../src/host/capability.js';
 
 // internalGenerate calls the host via globalThis.spindle — stub it to capture
@@ -58,5 +58,35 @@ describe('controllerGenerate — reasoning-channel + maxTokens', () => {
   it('defaults max_tokens to 200 (latency-sensitive callers unchanged)', async () => {
     await controllerGenerate([{ role: 'user', content: 'x' }], null);
     expect(lastReq.parameters.max_tokens).toBe(200);
+  });
+});
+
+describe('withTimeout — bounds a hanging call independent of AbortSignal', () => {
+  it('rejects at the deadline when the promise never resolves', async () => {
+    const never = new Promise<string>(() => { /* never settles */ });
+    await expect(withTimeout(never, 20, 'test')).rejects.toThrow(/test_timeout_20ms/);
+  });
+  it('resolves normally when the call beats the deadline', async () => {
+    const quick = new Promise<string>((r) => setTimeout(() => r('ok'), 5));
+    await expect(withTimeout(quick, 500, 'test')).resolves.toBe('ok');
+  });
+  it('passes through when timeoutMs is 0 (no bound)', async () => {
+    await expect(withTimeout(Promise.resolve('v'), 0)).resolves.toBe('v');
+  });
+});
+
+describe('controllerGenerate — hard timeout when host ignores AbortSignal', () => {
+  it('returns Err when the host generate hangs past the timeout', async () => {
+    (globalThis as any).spindle.generate.raw = () => new Promise(() => { /* hangs; ignores signal */ });
+    const r = await controllerGenerate([{ role: 'user', content: 'x' }], null, 20, 200);
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('internalGenerate — hard timeout when host ignores AbortSignal', () => {
+  it('returns Err when the host generate hangs past the timeout', async () => {
+    (globalThis as any).spindle.generate.raw = () => new Promise(() => { /* hangs */ });
+    const r = await internalGenerate([{ role: 'user', content: 'x' }], {}, null, { timeoutMs: 20 });
+    expect(r.ok).toBe(false);
   });
 });

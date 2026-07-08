@@ -31,6 +31,25 @@ export function extractGenContent(r: any): string {
  */
 export interface GenMsg { role: 'system' | 'user' | 'assistant'; content: string }
 
+/**
+ * Bound a promise by wall-clock time INDEPENDENT of AbortSignal. Some hosts do
+ * not honor the `signal` we pass to `spindle.generate`, so a stalled provider
+ * would otherwise hang the await forever (fatal on the interceptor hot path).
+ * On expiry this rejects; the surrounding tryCatchAsync surfaces it as an Err so
+ * callers fall back. `signal` is still passed to the host as a best-effort tear-
+ * down, but correctness no longer depends on the host obeying it.
+ */
+export function withTimeout<T>(p: Promise<T>, timeoutMs: number, label = 'generate'): Promise<T> {
+  if (!timeoutMs || timeoutMs <= 0) return p;
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}_timeout_${timeoutMs}ms`)), timeoutMs);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e as Error); },
+    );
+  });
+}
+
 export async function internalGenerate(
   messages: GenMsg[],
   params: Record<string, unknown>,
@@ -60,9 +79,11 @@ export async function internalGenerate(
   const signal = timeoutMs && typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
   const req = { messages, parameters: params2, userId, ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}), ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
   return tryCatchAsync(async () => {
-    const r = spindle.generate.quiet
-      ? await spindle.generate.quiet(req)
-      : await spindle.generate.raw(req);
+    const call = spindle.generate.quiet
+      ? spindle.generate.quiet(req)
+      : spindle.generate.raw(req);
+    // Enforce the deadline ourselves — don't trust the host to honor `signal`.
+    const r = timeoutMs ? await withTimeout(call, timeoutMs, 'internalGenerate') : await call;
     return extractGenContent(r);
   });
 }
@@ -111,9 +132,12 @@ export async function controllerGenerate(
   const connId = await defaultConnectionId(userId); // run on the user's own model
   const req = { messages, parameters: { max_tokens: maxTokens, temperature: 0 }, reasoning: { source: 'off' as const }, userId, ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}) };
   return tryCatchAsync(async () => {
-    const r = spindle.generate.quiet
-      ? await spindle.generate.quiet(req)
-      : await spindle.generate.raw(req);
+    const call = spindle.generate.quiet
+      ? spindle.generate.quiet(req)
+      : spindle.generate.raw(req);
+    // Hard wall-clock deadline independent of AbortSignal — this runs on the
+    // synchronous interceptor path and must never block prompt assembly.
+    const r = await withTimeout(call, timeoutMs, 'controllerGenerate');
     // Read reasoning channels too: on providers that ignore `reasoning: off`, the
     // reply lands in reasoning/reasoning_details, not content — a content-only
     // read here silently no-ops the off-screen sim (parseSim('') → null).

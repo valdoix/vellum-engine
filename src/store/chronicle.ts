@@ -42,6 +42,16 @@ interface CacheEntry {
 }
 const _cache = new Map<string, CacheEntry>();
 
+/** THE single derived-state construction path. Every place that builds a full
+ * ChronicleState from scratch (fresh load, recover, import, clear, truncate)
+ * must go through here so they all apply the same reduce → identity-merge →
+ * provisional-cast sweep pipeline. Previously loadLog swept but recover/import/
+ * truncate/clear did not, so a recovered/imported log could carry provisional
+ * junk a fresh load would have reaped. */
+function buildState(events: VellumEvent[]): ChronicleState {
+  return sweepProvisionalCast(mergeDuplicates(reduce(events)));
+}
+
 /** Validate an envelope leniently: keep events that parse, drop only bad ones.
  * Exported for tests — this is the durability guarantee (one bad event must
  * never discard the rest of the history). */
@@ -114,7 +124,7 @@ export async function loadLog(chatId: string): Promise<EventLog> {
     readonly = true;
     spindle.log?.warn?.('[vellum_engine] log read failed for ' + chatId + ' — READ-ONLY this session.');
   }
-  _cache.set(chatId, { log, state: sweepProvisionalCast(mergeDuplicates(reduce(log.events))), reduced: log.events.length, readonly, dirty: false, ...(serialized !== undefined ? { serialized, persistedCount } : {}) });
+  _cache.set(chatId, { log, state: buildState(log.events), reduced: log.events.length, readonly, dirty: false, ...(serialized !== undefined ? { serialized, persistedCount } : {}) });
   return log;
 }
 
@@ -254,7 +264,7 @@ export async function recoverFromBackup(chatId: string): Promise<ChronicleState 
   try { parsed = JSON.parse(bakRaw); } catch { return null; }
   const { log, usable } = lenientLog(parsed, chatId);
   if (!usable || log.events.length <= curLen) return null; // backup isn't fuller — nothing to recover
-  _cache.set(chatId, { log, state: mergeDuplicates(reduce(log.events)), reduced: log.events.length, readonly: false });
+  _cache.set(chatId, { log, state: buildState(log.events), reduced: log.events.length, readonly: false });
   await persist(chatId);
   spindle.log?.warn?.('[vellum_engine] recovered ' + chatId + ' from backup (' + log.events.length + ' events).');
   return _cache.get(chatId)!.state;
@@ -321,7 +331,7 @@ export async function truncateAfterTurn(chatId: string, turn: number): Promise<C
   const kept = c.log.events.filter((e) => e.turn <= turn);
   if (kept.length === c.log.events.length) return loadState(chatId); // nothing to drop
   c.log.events = kept;
-  c.state = mergeDuplicates(reduce(kept)); // full re-reduce: truncation isn't a forward fold
+  c.state = buildState(kept); // full re-reduce: truncation isn't a forward fold
   c.reduced = kept.length;
   c.mergeSig = undefined; // force a re-merge on the next fold (state changed shape)
   await persist(chatId);
@@ -331,7 +341,7 @@ export async function truncateAfterTurn(chatId: string, turn: number): Promise<C
 /** Wipe a chat's event log entirely (clear all data). Explicit user action, so
  * it clears the read-only guard and persists the empty log intentionally. */
 export async function clearLog(chatId: string): Promise<void> {
-  _cache.set(chatId, { log: freshLog(chatId), state: reduce([]), reduced: 0, readonly: false });
+  _cache.set(chatId, { log: freshLog(chatId), state: buildState([]), reduced: 0, readonly: false });
   await persist(chatId);
 }
 
@@ -344,7 +354,7 @@ export async function exportLog(chatId: string): Promise<EventLog> {
  * Explicit user action → clears the read-only guard. */
 export async function importLog(chatId: string, log: EventLog): Promise<ChronicleState> {
   const { log: next } = lenientLog(log, chatId);
-  _cache.set(chatId, { log: next, state: mergeDuplicates(reduce(next.events)), reduced: next.events.length, readonly: false });
+  _cache.set(chatId, { log: next, state: buildState(next.events), reduced: next.events.length, readonly: false });
   await persist(chatId);
   return _cache.get(chatId)!.state;
 }

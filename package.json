@@ -1,7 +1,8 @@
 {
   "name": "vellum-engine",
-  "version": "2.0.0-alpha.0",
+  "version": "2.0.0-beta.1",
   "description": "VELLUM II (Palimpsest) — a living-narrative engine for Lumiverse: event-log chronicle, hybrid recall, dramatic-irony knowledge model, and an illuminated UI.",
+  "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +11,7 @@
     "build:frontend": "tsup --entry.frontend src/ui/app.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "eslint src test"
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@fontsource/cinzel": "^5.2.8",

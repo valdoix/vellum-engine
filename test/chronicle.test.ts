@@ -70,6 +70,28 @@ describe('regeneration reconcile — turnSigs + rollback/re-fold', () => {
   });
 });
 
+describe('buildState — unified construction path (fresh vs import)', () => {
+  it('importLog produces the same derived state as a fresh append/load', async () => {
+    const { append, loadState, exportLog, importLog } = await import('../src/store/chronicle.js');
+    const events = [
+      ev(1, 1, { kind: 'cast.seen', id: 'a', name: 'Alice', status: 'present' }) as any,
+      ev(1, 2, { kind: 'bond.delta', a: 'a', b: 'b', aff: 10 }) as any,
+      ev(2, 3, { kind: 'bond.delta', a: 'a', b: 'b', aff: 5 }) as any,
+    ];
+    const srcId = 'bs_src_' + Math.random().toString(36).slice(2);
+    await append(srcId, events);
+    const fresh = await loadState(srcId);
+    const log = await exportLog(srcId);
+
+    const dstId = 'bs_dst_' + Math.random().toString(36).slice(2);
+    const imported = await importLog(dstId, log);
+    // same cast ids, relation count, and affection after the identical pipeline
+    expect(Object.keys(imported.cast).sort()).toEqual(Object.keys(fresh.cast).sort());
+    expect(imported.relations.length).toBe(fresh.relations.length);
+    expect(imported.relations[0]?.affection).toBe(fresh.relations[0]?.affection);
+  });
+});
+
 describe('chapter truncation — regeneration revert fix', () => {
   // Mirrors what chapterEvents (src/domain/memory.ts) produces when the caller
   // stamps at covers[1] (the value summarize.ts now passes): the record + its

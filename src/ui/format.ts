@@ -60,6 +60,14 @@ export function nameOf(state: ChronicleState, id: string): string {
 
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 
+/** Guard a model/user-authored color before it goes into a `style="--c:..."`
+ * attribute. Only a strict 6-digit hex passes; anything else (including CSS-
+ * injection attempts) falls back to a neutral default. Prevents style-context
+ * XSS/breakage from unvalidated category colors. */
+export function safeColor(color: unknown, fallback = '#8c8478'): string {
+  return typeof color === 'string' && HEX6.test(color) ? color : fallback;
+}
+
 /**
  * AUTO name color: derive a stable, distinct color per character from their id,
  * so the whole cast gets readable, consistent colors without manual picking.
