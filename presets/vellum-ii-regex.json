@@ -673,5 +673,55 @@
     ],
     "disabled": true,
     "sort_order": 18
+  },
+  {
+    "script_id": "vellum2-spk-display",
+    "name": "VELLUM II ✧ Colored dialogue (display)",
+    "folder": "VELLUM II",
+    "description": "Renders [spk=Name]\"...\"[/spk] dialogue tags as color-tinted speech (display only). Off unless the Colored Dialogue block is on. Speaker color is derived from the name's first letter via a {{switch}} in the replacement (substitute_macros:after), so no per-name CSS is needed and names with spaces work; distinct initials get distinct hues (same-initial speakers share a hue). For truly unique-per-name colors, use the extension's frontend hash instead.",
+    "find_regex": "\\[spk=([^\\]]{0,40})\\]([\\s\\S]*?)\\[/spk\\]",
+    "replace_string": "<span style=\"color:{{switch::{{lower::{{substr::$1::0::1}}}}::a::#e0736b::b::#e0a24e::c::#c9c14e::d::#7ec46b::e::#5bbfa0::f::#5ab0d0::g::#6f9be0::h::#8f88e0::i::#b57fe0::j::#d977c4::k::#d9738f::l::#c98f6b::m::#9ab04e::n::#e0736b::o::#e0a24e::p::#c9c14e::q::#7ec46b::r::#5bbfa0::s::#5ab0d0::t::#6f9be0::u::#8f88e0::v::#b57fe0::w::#d977c4::x::#d9738f::y::#c98f6b::z::#9ab04e::#b9ad92}}\" title=\"$1\">$2</span>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "after",
+    "disabled": true,
+    "sort_order": 30,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-spk-strip",
+    "name": "VELLUM II ✧ Colored dialogue (context strip)",
+    "folder": "VELLUM II",
+    "description": "Strips [spk=...] / [/spk] dialogue tags from the context sent to the model (keeps the quoted line).",
+    "find_regex": "\\[/?spk(?:=[^\\]]{0,40})?\\]",
+    "replace_string": "",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "prompt"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": true,
+    "sort_order": 31,
+    "metadata": {}
   }
 ]

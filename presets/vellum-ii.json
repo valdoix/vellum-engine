@@ -1692,27 +1692,27 @@
             {
               "id": "none",
               "label": "Generic / Off",
-              "value": ""
+              "value": "[STATE BLOCK — EVERY TURN] Whatever else you do, end EVERY reply with the fenced <vellum>…</vellum> JSON block AFTER the prose (reverie -> prose -> block). The trailing block is mandatory and easy to forget once the prose feels finished; a `STATE:` line in the reverie is only a reminder and NEVER counts. A reply that does not END with a closed </vellum> is incomplete and fails the turn."
             },
             {
               "id": "claude",
               "label": "Claude",
-              "value": "[ERRATA — CLAUDE] You tend to soften and seek the moral high ground; here, don't. Honor the Mandate and the mature toggles without hedging. Resist tidy emotional resolutions and the urge to have characters narrate their growth aloud. Trust subtext; leave wounds open."
+              "value": "[ERRATA — CLAUDE] You tend to soften and seek the moral high ground; here, don't. Honor the Mandate and the mature toggles without hedging. Resist tidy emotional resolutions and the urge to have characters narrate their growth aloud. Trust subtext; leave wounds open.\n[STATE BLOCK — EVERY TURN] End EVERY reply with the fenced <vellum>…</vellum> JSON block AFTER the prose (reverie -> prose -> block). A `STATE:` line in the reverie is only a reminder and NEVER counts; a reply that does not END with a closed </vellum> fails the turn."
             },
             {
               "id": "gemini",
               "label": "Gemini",
-              "value": "[ERRATA — GEMINI] Two habits to kill: the intensifier reflex ('absolute', 'sheer', 'utter', 'unadulterated') - cut them, let the noun carry the weight; and the 'didn't X, instead Y' / 'not X but Y' transition that makes people read like machines - state the action plainly. Also resist over-summarizing a character in one neat sentence."
+              "value": "[ERRATA — GEMINI] Two habits to kill: the intensifier reflex ('absolute', 'sheer', 'utter', 'unadulterated') - cut them, let the noun carry the weight; and the 'didn't X, instead Y' / 'not X but Y' transition that makes people read like machines - state the action plainly. Also resist over-summarizing a character in one neat sentence.\n[STATE BLOCK — EVERY TURN] End EVERY reply with the fenced <vellum>…</vellum> JSON block AFTER the prose (reverie -> prose -> block). A `STATE:` line in the reverie is only a reminder and NEVER counts; a reply that does not END with a closed </vellum> fails the turn."
             },
             {
               "id": "deepseek",
               "label": "DeepSeek",
-              "value": "[ERRATA — DEEPSEEK] You drift purple and overwrought under pressure. Hold the line: concrete over ornate, one clear image over three competing ones. Keep POV discipline - don't leak knowledge the focal character can't have. Shorter sentences when the scene heats up, not longer."
+              "value": "[ERRATA — DEEPSEEK] You drift purple and overwrought under pressure. Hold the line: concrete over ornate, one clear image over three competing ones. Keep POV discipline - don't leak knowledge the focal character can't have. Shorter sentences when the scene heats up, not longer.\n[STATE BLOCK — EVERY TURN] End EVERY reply with the fenced <vellum>…</vellum> JSON block AFTER the prose (reverie -> prose -> block). A `STATE:` line in the reverie is only a reminder and NEVER counts; a reply that does not END with a closed </vellum> fails the turn."
             },
             {
               "id": "kimi",
               "label": "Kimi",
-              "value": "[ERRATA — KIMI] Your momentum makes you (1) write or react FOR {{user}} and (2) close every turn with a stalled coda. Both are wrong. The radical agency of the cast is for NPCs ONLY - {{user}} is never yours to author or to react. One planning pass in reverie - and always answer 'where does {{user}} take over?' - then commit. End mid-motion on the world or an NPC, never on {{user}} waiting, a frozen tableau, or a line about handing control back."
+              "value": "[ERRATA — KIMI] Your momentum makes you (1) write or react FOR {{user}} and (2) close every turn with a stalled coda. Both are wrong. The radical agency of the cast is for NPCs ONLY - {{user}} is never yours to author or to react. One planning pass in reverie - and always answer 'where does {{user}} take over?' - then commit. End mid-motion on the world or an NPC, never on {{user}} waiting, a frozen tableau, or a line about handing control back.\n[STATE BLOCK — EVERY TURN] After that mid-motion ending, still append the fenced <vellum>…</vellum> JSON block AFTER the prose (reverie -> prose -> block) - the block comes after the scene stops, and the turn is not done until </vellum> is closed. A `STATE:` line in the reverie NEVER counts as the block."
             },
             {
               "id": "glm",
@@ -1747,7 +1747,7 @@
       "role": "system",
       "position": "post_history",
       "enabled": true,
-      "group": "v2-cat-engine",
+      "group": "v2-cat-override",
       "content": "{{if::{{var::agency_reminder}}}}[BEFORE YOU WRITE] This turn renders the world and the NPCs only. NPCs act and speak fully - they are yours. {{user}} is not: write nothing they say, think, feel, do, or how anything lands on them. End the moment {{user}} would respond - just stop, mid-motion, with the world still alive. No held silence, no character left waiting, no still-life of the room, no line about giving control back; your last sentence is about an NPC or the world, never {{user}}.{{/if}}",
       "variables": [
         {
@@ -1789,26 +1789,6 @@
       ]
     },
     {
-      "id": "v2-state-reminder",
-      "name": "State Block Reminder (post-history)",
-      "role": "system",
-      "position": "post_history",
-      "enabled": true,
-      "group": "v2-cat-engine",
-      "content": "{{if::{{var::state_on}}}}[STATE BLOCK — MANDATORY, EMITTED AFTER THE PROSE] The last line of your reverie is a terse PLAIN-LANGUAGE `STATE:` note — a reminder of what changed, NOT the block and NOT JSON. It does not satisfy anything on its own. After the prose, WRITE that note out as real fenced <vellum>…</vellum> JSON — this is a required, separate output step, never skippable because the reverie already 'said' it. Deciding the substance early (in the note) is what keeps this quick, but the turn is not done until the JSON block physically appears AFTER the prose. Even a bare <vellum>{ \"turn\": N }</vellum> satisfies the contract; a `STATE:` line, an empty block, or an absent block does not. A reply that does not END with a closed </vellum> is INCOMPLETE and fails the turn.{{/if}}",
-      "categoryMode": null,
-      "injectionTrigger": []
-    },
-    {
-      "id": "v2-output-format",
-      "name": "Output Format Contract (post-history)",
-      "role": "system",
-      "position": "post_history",
-      "enabled": true,
-      "group": "v2-cat-engine",
-      "content": "{{if::{{var::state_on}}}}{{if::{{var::reverie}}}}[OUTPUT FORMAT — THREE PARTS, IN ORDER, EVERY TURN]\n1. Open with \u003creverie\u003e. Plan. End with a plain STATE: line. Close \u003c/reverie\u003e.\n2. Write the prose.\n3. End with \u003cvellum\u003e { JSON deltas } \u003c/vellum\u003e. Always close the tag.\nYour reply starts with \"\u003creverie\u003e\" and ends with \"\u003c/vellum\u003e\". No exceptions.{{else}}[OUTPUT FORMAT — EVERY TURN]\nAfter your prose, end with \u003cvellum\u003e { JSON deltas } \u003c/vellum\u003e. Always close the tag.{{/if}}{{/if}}"
-    },
-    {
       "id": "v2-sovhand",
       "name": "Sovereign Hand (continuation)",
       "role": "system",
@@ -1827,12 +1807,32 @@
       "content": "{{if::{{loomRetrofits}}}}[LOOM RETROFITS - final user overrides, HIGHEST AUTHORITY. Apply these over ANY conflicting instruction above, including the Sovereign Mandate:]\n{{loomRetrofits}}{{/if}}"
     },
     {
+      "id": "v2-state-reminder",
+      "name": "State Block Reminder (post-history)",
+      "role": "system",
+      "position": "post_history",
+      "enabled": true,
+      "group": "v2-cat-override",
+      "content": "{{if::{{var::state_on}}}}[STATE BLOCK — MANDATORY, EMITTED AFTER THE PROSE] The last line of your reverie is a terse PLAIN-LANGUAGE `STATE:` note — a reminder of what changed, NOT the block and NOT JSON. It does not satisfy anything on its own. After the prose, WRITE that note out as real fenced <vellum>…</vellum> JSON — this is a required, separate output step, never skippable because the reverie already 'said' it. Deciding the substance early (in the note) is what keeps this quick, but the turn is not done until the JSON block physically appears AFTER the prose. Even a bare <vellum>{ \"turn\": N }</vellum> satisfies the contract; a `STATE:` line, an empty block, or an absent block does not. A reply that does not END with a closed </vellum> is INCOMPLETE and fails the turn.{{/if}}",
+      "categoryMode": null,
+      "injectionTrigger": []
+    },
+    {
+      "id": "v2-output-format",
+      "name": "Output Format Contract (post-history)",
+      "role": "system",
+      "position": "post_history",
+      "enabled": true,
+      "group": "v2-cat-override",
+      "content": "{{if::{{var::state_on}}}}{{if::{{var::reverie}}}}[OUTPUT FORMAT — THREE PARTS, IN ORDER, EVERY TURN]\n1. Open with \u003creverie\u003e. Plan. End with a plain STATE: line. Close \u003c/reverie\u003e.\n2. Write the prose.\n3. End with \u003cvellum\u003e { JSON deltas } \u003c/vellum\u003e. Always close the tag.\nYour reply starts with \"\u003creverie\u003e\" and ends with \"\u003c/vellum\u003e\". No exceptions.{{else}}[OUTPUT FORMAT — EVERY TURN]\nAfter your prose, end with \u003cvellum\u003e { JSON deltas } \u003c/vellum\u003e. Always close the tag.{{/if}}{{/if}}"
+    },
+    {
       "id": "v2-reverie-prefill",
       "name": "Reverie Prefill (assistant)",
       "role": "assistant",
       "position": "post_history",
       "enabled": true,
-      "group": "v2-cat-engine",
+      "group": "v2-cat-override",
       "content": "{{if::{{var::reverie}}}}<reverie>\n{{/if}}"
     },
     {
@@ -1858,7 +1858,7 @@
       "position": "pre_history",
       "categoryMode": null,
       "injectionTrigger": [],
-      "group": null
+      "group": "v2-cat-context"
     },
     {
       "id": "v2-char-desc",
@@ -1870,7 +1870,7 @@
       "position": "pre_history",
       "categoryMode": null,
       "injectionTrigger": [],
-      "group": null
+      "group": "v2-cat-context"
     },
     {
       "id": "v2-char-pers",
@@ -1882,7 +1882,7 @@
       "position": "pre_history",
       "categoryMode": null,
       "injectionTrigger": [],
-      "group": null
+      "group": "v2-cat-context"
     },
     {
       "id": "v2-scenario",
@@ -1894,7 +1894,7 @@
       "position": "pre_history",
       "categoryMode": null,
       "injectionTrigger": [],
-      "group": null
+      "group": "v2-cat-context"
     },
     {
       "id": "v2-wi-before",
@@ -1906,7 +1906,7 @@
       "position": "pre_history",
       "categoryMode": null,
       "injectionTrigger": [],
-      "group": null
+      "group": "v2-cat-context"
     },
     {
       "id": "v2-examples",
@@ -1918,7 +1918,7 @@
       "position": "pre_history",
       "categoryMode": null,
       "injectionTrigger": [],
-      "group": null
+      "group": "v2-cat-context"
     },
     {
       "id": "v2-history",
@@ -1930,7 +1930,7 @@
       "position": "pre_history",
       "categoryMode": null,
       "injectionTrigger": [],
-      "group": null
+      "group": "v2-cat-context"
     },
     {
       "id": "v2-wi-after",
@@ -1942,7 +1942,7 @@
       "position": "pre_history",
       "categoryMode": null,
       "injectionTrigger": [],
-      "group": null
+      "group": "v2-cat-context"
     }
   ],
   "extensions": {
@@ -2634,13 +2634,13 @@
         "max_depth": null,
         "trim_strings": [],
         "run_on_edit": true,
-        "substitute_macros": "none",
+        "substitute_macros": "after",
         "metadata": {},
         "script_id": "vellum2-spk-display",
         "name": "VELLUM II ✧ Colored dialogue (display)",
-        "description": "Renders [spk=Name]\"...\"[/spk] dialogue tags as color-tinted speech (display only). Off unless the Colored Dialogue block is on.",
+        "description": "Renders [spk=Name]\"...\"[/spk] dialogue tags as color-tinted speech (display only). Off unless the Colored Dialogue block is on. Speaker color is derived from the name's first letter via a {{switch}} in the replacement (substitute_macros:after), so no per-name CSS is needed and names with spaces work; distinct initials get distinct hues (same-initial speakers share a hue). For truly unique-per-name colors, use the extension's frontend hash instead.",
         "find_regex": "\\[spk=([^\\]]{0,40})\\]([\\s\\S]*?)\\[/spk\\]",
-        "replace_string": "<span class=\"vll-spk vll-spk-$1\" title=\"$1\">$2</span>",
+        "replace_string": "<span style=\"color:{{switch::{{lower::{{substr::$1::0::1}}}}::a::#e0736b::b::#e0a24e::c::#c9c14e::d::#7ec46b::e::#5bbfa0::f::#5ab0d0::g::#6f9be0::h::#8f88e0::i::#b57fe0::j::#d977c4::k::#d9738f::l::#c98f6b::m::#9ab04e::n::#e0736b::o::#e0a24e::p::#c9c14e::q::#7ec46b::r::#5bbfa0::s::#5ab0d0::t::#6f9be0::u::#8f88e0::v::#b57fe0::w::#d977c4::x::#d9738f::y::#c98f6b::z::#9ab04e::#b9ad92}}\" title=\"$1\">$2</span>",
         "target": [
           "display"
         ],
