@@ -8,8 +8,11 @@
  * It's a presentation shell: the caller supplies render(host) to fill the body
  * and a toolbar of QOL actions. Geometry persists to localStorage.
  */
-import { applyTheme } from './theme.js';
+import { applyTheme, getTheme, patchTheme, type Theme } from './theme.js';
 import { getPref, setPref } from './prefs.js';
+
+type Edge = Extract<Theme['launcher'], 'left' | 'right' | 'top' | 'bottom'>;
+const clampPct = (v: number): number => Math.max(3, Math.min(97, Math.round(Number(v)) || 0));
 
 export interface FloatHooks {
   title?: string;
@@ -116,15 +119,66 @@ export function createFloatWindow(hooks: FloatHooks): FloatWindow {
 
   el.querySelector('[data-vlf-close]')!.addEventListener('click', () => api.close());
 
-  // Persistent launcher tab on the right edge — a guaranteed entry point that
-  // doesn't depend on the host's input-bar API being present. Hidden while open.
+  // Persistent launcher tab pinned to a screen edge — a guaranteed entry point
+  // that doesn't depend on the host's input-bar API being present. Hidden while
+  // open. Draggable: drop it near any edge to re-pin (persists to the theme), and
+  // its position ALONG that edge persists as a percentage.
   const launcher = document.createElement('button');
   launcher.className = 'vlf-launch';
-  launcher.title = 'Open VELLUM';
+  launcher.title = 'Open VELLUM (drag to move)';
   launcher.setAttribute('aria-label', 'Open VELLUM');
   launcher.innerHTML = `<span class="vlf-launch-mark">${MARK}</span><span class="vlf-launch-t">VELLUM</span>`;
-  launcher.addEventListener('click', () => api.open());
   document.body.appendChild(launcher);
+
+  // along-edge offset, a 0–100% position on the pinned edge (top for left/right,
+  // left for top/bottom). Restored on load; updated when dragged.
+  const applyLaunchPos = (): void => {
+    const p = clampPct(getPref<number>('launchPos', 46));
+    document.documentElement.style.setProperty('--vlf-lpos', p + '%');
+  };
+  applyLaunchPos();
+
+  // drag vs click: a small movement threshold separates a tap (open) from a drag.
+  let lDown = false, lDragging = false, lsx = 0, lsy = 0;
+  launcher.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (e.button != null && e.button !== 0) return;
+    lDown = true; lDragging = false; lsx = e.clientX; lsy = e.clientY;
+    launcher.setPointerCapture?.(e.pointerId);
+  });
+  launcher.addEventListener('pointermove', (e: PointerEvent) => {
+    if (!lDown) return;
+    const dx = e.clientX - lsx, dy = e.clientY - lsy;
+    if (!lDragging && Math.hypot(dx, dy) < 6) return;
+    if (!lDragging) { lDragging = true; launcher.classList.add('is-dragging'); }
+    // free-follow the pointer while dragging (inline px wins over the edge CSS)
+    const r = launcher.getBoundingClientRect();
+    launcher.style.right = 'auto'; launcher.style.bottom = 'auto';
+    launcher.style.left = (e.clientX - r.width / 2) + 'px';
+    launcher.style.top = (e.clientY - r.height / 2) + 'px';
+  });
+  const endLaunchDrag = (e: PointerEvent): void => {
+    if (!lDown) return;
+    lDown = false;
+    if (!lDragging) { api.open(); return; }
+    launcher.classList.remove('is-dragging');
+    launcher.style.left = ''; launcher.style.top = ''; launcher.style.right = ''; launcher.style.bottom = '';
+    // snap to the nearest edge; store the position along that edge as a percentage
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const x = e.clientX, y = e.clientY;
+    const dists: Array<[Edge, number, number]> = [
+      ['left', x, (y / vh) * 100],
+      ['right', vw - x, (y / vh) * 100],
+      ['top', y, (x / vw) * 100],
+      ['bottom', vh - y, (x / vw) * 100],
+    ];
+    dists.sort((a, b) => a[1] - b[1]);
+    const [edge, , pct] = dists[0]!;
+    setPref('launchPos', clampPct(pct));
+    applyLaunchPos();
+    if (getTheme().launcher !== edge) { patchTheme({ launcher: edge }); applyTheme(el); }
+  };
+  launcher.addEventListener('pointerup', endLaunchDrag);
+  launcher.addEventListener('pointercancel', () => { lDown = false; if (lDragging) { lDragging = false; launcher.classList.remove('is-dragging'); launcher.style.left = ''; launcher.style.top = ''; launcher.style.right = ''; launcher.style.bottom = ''; } });
 
   const api: FloatWindow = {
     open(): void {

@@ -31,7 +31,7 @@ export interface Theme {
   surf1c: string;      // '' = skin surface; else hex overriding card surface 1
   surf2c: string;      // '' = skin surface; else hex overriding card surface 2
   motion: boolean;     // animations on
-  launcher: 'right' | 'left' | 'hidden';
+  launcher: 'right' | 'left' | 'top' | 'bottom' | 'hidden';
   mode: 'dark' | 'light'; // color mode; picks the chrome's dark/light skin
   chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild'; // window ornamentation, orthogonal to skin
 
@@ -290,7 +290,8 @@ function sanitize(t: Theme): Theme {
   const rawChrome = t.chrome as string;
   const chrome = CHROMES.includes(t.chrome) ? t.chrome : (CHROME_REMAP[rawChrome] ?? 'default');
   const skin = SKIN_REMAP[t.skin as string] ?? t.skin;
-  return { ...t, skin,
+  const launcher = (['right', 'left', 'top', 'bottom', 'hidden'] as const).includes(t.launcher) ? t.launcher : 'right';
+  return { ...t, skin, launcher,
     accentIntensity: clamp(t.accentIntensity, 0.5, 1.6, 1), scale: clamp(t.scale, 0.85, 1.5, 1.12), dataScale: clamp(t.dataScale, 0.85, 1.3, 1),
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
@@ -478,7 +479,8 @@ export function customizePanel(tab: CzTab = 'look'): string {
         + (t.texture && !TEXTURES.some((x) => x.id === t.texture) ? `<option value="${t.texture}" selected>Custom URL</option>` : '') + '</select></div>'
       + `<div class="vle-cz-row"><input type="text" class="vle-cz-hex" data-cz-textureurl placeholder="https:// or data: image url" value="${TEXTURES.some((x) => x.id === t.texture) ? '' : t.texture}"></div>`
       + '<div class="vle-cz-h">Launcher tab</div><div class="vle-cz-row"><select class="vle-cz-sel" data-cz-launcher>'
-        + ['right', 'left', 'hidden'].map((p) => `<option value="${p}"${t.launcher === p ? ' selected' : ''}>${p}</option>`).join('') + '</select></div>'
+        + ['right', 'left', 'top', 'bottom', 'hidden'].map((p) => `<option value="${p}"${t.launcher === p ? ' selected' : ''}>${p}</option>`).join('') + '</select></div>'
+      + '<div class="vle-cz-note">Tip: drag the launcher tab to any screen edge to reposition it.</div>'
       + `<div class="vle-cz-h">Motion</div><div class="vle-cz-row"><label class="vle-cz-chk"><input type="checkbox" data-cz-motion${t.motion ? ' checked' : ''}> animations</label></div>`;
   } else if (tab === 'cards') {
     // per-surface card shape. First option 'Auto' clears the override so the

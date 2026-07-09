@@ -124,8 +124,16 @@ export const STYLES = [
   //                     "internal/ambiguous", pick another token — don't add to violet.
   ":root{--vg:#cda84e;--vg-rgb:205,168,78;--vi:#e7d6ad;--vi2:#cdbfa0;--vserif:'Cormorant Garamond',Georgia,serif;--vmono:'JetBrains Mono',ui-monospace,monospace;--vscale:1;--vsurf-1:rgba(28,25,20,.5);--vsurf-2:rgba(18,16,12,.4);--vle-gold:var(--vg);--vle-gold-soft:rgba(var(--vg-rgb),.16);--vle-ink:var(--vi);--vle-ink-muted:var(--vi2);--vle-meta:var(--vi2);--vle-bg:rgba(20,18,14,.55);--vle-bg-solid:#14120e;--vg2:#9bc0e6;--vg2-rgb:155,192,230;--vai:1;--vdscale:1;--vdensity:1;--vopacity:1;--vblur:8px;--vradius:18px;--vborder:1px;--vink-e:1;--v1:4px;--v2:8px;--v3:12px;--v4:16px;--v5:20px;--v6:24px;--vr1:6px;--vr2:9px;--vr3:13px;--rpill:20px;--v-pos:#8fa67e;--v-pos-i:#a9c089;--v-neg:#c96a6a;--v-neg-i:#e09090;--v-info:#9bc0e6;--v-warn:#b48ed0;--v-press:#c8923e;--v-press-i:#dcad62;--vt-display:calc(24px * var(--vscale));--vt-title:calc(18px * var(--vscale));--vt-body:calc(14px * var(--vscale));--vt-meta:calc(11px * var(--vdscale));--vt-eyebrow:calc(10px * var(--vscale))}",
   // launcher edge + reduced-motion (set on document by theme.ts)
-  "html[data-vle-launch='left'] .vlf-launch{right:auto;left:0;border-radius:0 13px 13px 0;border-right:1px solid rgba(var(--vg-rgb),.5);border-left:none;writing-mode:vertical-rl;transform:rotate(180deg)}",
+  "html[data-vle-launch='left'] .vlf-launch{right:auto;left:0;top:var(--vlf-lpos,46%);border-radius:0 13px 13px 0;border-right:1px solid rgba(var(--vg-rgb),.5);border-left:none;writing-mode:vertical-rl;transform:rotate(180deg)}",
   "html[data-vle-launch='left'] .vlf-launch .vlf-launch-mark,html[data-vle-launch='left'] .vlf-launch .vlf-launch-t{transform:rotate(180deg)}",
+  "html[data-vle-launch='left'] .vlf-launch:hover{transform:rotate(180deg) translateX(-3px)}",
+  // top / bottom edges — horizontal tab, rounded on the inner corners
+  "html[data-vle-launch='top'] .vlf-launch{right:auto;bottom:auto;left:var(--vlf-lpos,46%);top:0;border-radius:0 0 13px 13px;border-top:none;border-right:1px solid rgba(var(--vg-rgb),.5);writing-mode:horizontal-tb;box-shadow:4px 6px 22px rgba(0,0,0,.5)}",
+  "html[data-vle-launch='top'] .vlf-launch:hover{transform:translateY(3px);box-shadow:4px 8px 24px rgba(0,0,0,.55)}",
+  "html[data-vle-launch='bottom'] .vlf-launch{right:auto;top:auto;left:var(--vlf-lpos,46%);bottom:0;border-radius:13px 13px 0 0;border-bottom:none;border-right:1px solid rgba(var(--vg-rgb),.5);writing-mode:horizontal-tb;box-shadow:4px -6px 22px rgba(0,0,0,.5)}",
+  "html[data-vle-launch='bottom'] .vlf-launch:hover{transform:translateY(-3px);box-shadow:4px -8px 24px rgba(0,0,0,.55)}",
+  // while actively dragging: kill the transition + hover nudge so it tracks the pointer 1:1
+  ".vlf-launch.is-dragging{transition:none!important;transform:none!important;cursor:grabbing}",
   "html[data-vle-launch='hidden'] .vlf-launch{display:none!important}",
   "html[data-vle-motion='off'] *{transition:none!important;animation:none!important}",
   // unified chip family: ONE shape (radius --vr1, mono label, --vt-meta) with
@@ -742,7 +750,7 @@ export const STYLES = [
   ".vlf-body::-webkit-scrollbar{width:9px}.vlf-body::-webkit-scrollbar-thumb{background:rgba(var(--vg-rgb),.3);border-radius:5px;border:2px solid transparent;background-clip:padding-box}",
   ".vlf-grip{position:absolute;right:3px;bottom:3px;width:18px;height:18px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 45%,rgba(var(--vg-rgb),.5) 45%,rgba(var(--vg-rgb),.5) 55%,transparent 55%,transparent 70%,rgba(var(--vg-rgb),.5) 70%,rgba(var(--vg-rgb),.5) 80%,transparent 80%);border-bottom-right-radius:12px}",
   // persistent launcher tab
-  ".vlf-launch{position:fixed;right:0;top:46%;z-index:9998;display:flex;align-items:center;gap:6px;padding:11px 11px 11px 13px;border-radius:13px 0 0 13px;cursor:pointer;color:var(--vi);font-family:var(--vserif);letter-spacing:1.5px;text-transform:uppercase;font-size:13px;background:var(--vglass,linear-gradient(180deg,rgba(34,28,19,.97),rgba(20,17,12,.98)));border:1px solid rgba(var(--vg-rgb),.5);border-right:none;box-shadow:-5px 4px 22px rgba(0,0,0,.5);transition:transform .18s,box-shadow .18s;writing-mode:vertical-rl}",
+  ".vlf-launch{position:fixed;right:0;top:var(--vlf-lpos,46%);z-index:9998;display:flex;align-items:center;gap:6px;padding:11px 11px 11px 13px;border-radius:13px 0 0 13px;cursor:pointer;color:var(--vi);font-family:var(--vserif);letter-spacing:1.5px;text-transform:uppercase;font-size:13px;background:var(--vglass,linear-gradient(180deg,rgba(34,28,19,.97),rgba(20,17,12,.98)));border:1px solid rgba(var(--vg-rgb),.5);border-right:none;box-shadow:-5px 4px 22px rgba(0,0,0,.5);transition:transform .18s,box-shadow .18s;writing-mode:vertical-rl}",
   ".vlf-launch:hover{transform:translateX(-3px);box-shadow:-7px 4px 24px rgba(0,0,0,.55)}",
   ".vlf-launch.is-hidden{display:none}",
   ".vlf-launch-mark{color:var(--vle-gold);font-size:14px;writing-mode:horizontal-tb;text-shadow:0 0 8px rgba(var(--vg-rgb),.5)}",
