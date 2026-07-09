@@ -1525,6 +1525,35 @@ const dispatch: Record<string, Handler> = {
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_thread_done', ok: true }, uid);
   },
+  vellum_thread_catchup: async (p, uid) => {
+    // Advance a plot thread's narrative-day anchor to the sim's current day in one
+    // shot. Used by the Time Sync "catch up" / "catch-up all" actions: rather than
+    // nudging the off-screen sim one beat (which never moved the thread's own
+    // lastDay), we emit a thread.set that jumps the thread straight to `day`. Each
+    // id is one event; the reducer stamps lastDay monotonically and logs one beat
+    // ("caught up: Day X → Day Y") so the jump is recorded, not silent.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const ids = Array.isArray(p?.ids) ? p.ids.map(String) : (p?.id ? [String(p.id)] : []);
+    if (!ids.length) return;
+    const state = await loadState(chatId);
+    const targetDay = Number.isFinite(p?.day) && (p as { day: number }).day > 0
+      ? Math.floor((p as { day: number }).day)
+      : state.day || 0;
+    const evs: VellumEvent[] = [];
+    for (const id of ids) {
+      const t = state.threads.find((x) => x.id === id);
+      if (!t || t.lastDay !== undefined && t.lastDay >= targetDay) continue; // already at/past target
+      const from = t.lastDay ?? 0;
+      evs.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: targetDay, src: 'user', kind: 'thread.set',
+        id, name: t.name, status: t.status, note: from > 0 ? `caught up: Day ${from} → Day ${targetDay}` : `caught up to Day ${targetDay}` } as VellumEvent);
+    }
+    if (!evs.length) { spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: false, reason: 'in_sync', jumped: 0 }, uid); return; }
+    await append(chatId, evs);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: true, jumped: evs.length }, uid);
+  },
   vellum_set_next_scene: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;

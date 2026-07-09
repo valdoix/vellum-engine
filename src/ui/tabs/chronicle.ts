@@ -50,6 +50,9 @@ export function setBeatSuggestions(items: unknown): void { _beatSuggest = Array.
 let _turnLog: Array<{ turn: number; changes: Array<{ icon: string; text: string }> }> = [];
 let _turnMax = 0;
 export function setTurnLog(turns: unknown, maxTurn: unknown): void { _turnLog = Array.isArray(turns) ? turns as typeof _turnLog : []; _turnMax = typeof maxTurn === 'number' ? maxTurn : 0; }
+// open plot-thread ids lagging the current narrative day, refilled every render of
+// desyncInspector so the "catch-up all" mount handler can read them cheaply.
+let _laggingIds: string[] = [];
 
 /** First-sentence preview of a (possibly very long) stored turn text. We store
  * turns in FULL now; the chronicle shows only one line + an ellipsis, with the
@@ -273,7 +276,24 @@ export const chronicleTab: Component<ChronicleState> = {
         return;
       }
       const tcatch = t.closest('[data-thread-catchup]');
-      if (tcatch) { send({ type: 'vellum_offthread_advance', id: tcatch.getAttribute('data-id') }); return; }
+      if (tcatch) {
+        const day = Number(tcatch.getAttribute('data-day'));
+        send({ type: 'vellum_thread_catchup', id: tcatch.getAttribute('data-id'), ...(Number.isFinite(day) && day > 0 ? { day } : {}) });
+        return;
+      }
+      const tcatchAll = t.closest('[data-thread-catchup-all]');
+      if (tcatchAll) {
+        const day = Number(tcatchAll.getAttribute('data-day'));
+        send({ type: 'vellum_thread_catchup', ids: _laggingIds, ...(Number.isFinite(day) && day > 0 ? { day } : {}) });
+        return;
+      }
+      // the desync advisory log toggle (collapsible findings)
+      const logTog = t.closest('.vle-desync-log-toggle');
+      if (logTog) {
+        const body = logTog.parentElement?.querySelector('.vle-desync-log-body') as HTMLElement | null;
+        if (body) { const open = !body.hidden; body.hidden = !open; logTog.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+        return;
+      }
     });
   },
 };
@@ -316,9 +336,11 @@ function nowChip(s: ChronicleState): string {
     + '</div>';
 }
 
-/** Desync inspector — surfaces every open thread's lag vs the current day and
- * the checkThreadOffscreenSync findings, each with a "catch up" action that arms
- * a per-thread off-screen sim (reuses the focus-sim path). Empty when in sync. */
+/** Desync inspector — surfaces every open thread's narrative day vs the sim's
+ * current day, each with a one-shot "catch up to day N" button, plus a "catch-up
+ * all" action that jumps every lagging thread to the present in one click. The
+ * checkThreadOffscreenSync advisories render as a collapsible log beneath, so a
+ * standing warning never floods the view. Empty when everything is in sync. */
 function desyncInspector(s: ChronicleState): string {
   const nowDay = s.day || 0;
   if (nowDay <= 0) return '';
@@ -327,19 +349,34 @@ function desyncInspector(s: ChronicleState): string {
     .filter((t) => t.lastDay !== undefined && spanLabel(nowDay - t.lastDay))
     .sort((a, b) => (a.lastDay ?? 0) - (b.lastDay ?? 0));
   const findings = checkThreadOffscreenSync(s);
+  _laggingIds = lagging.map((t) => t.id);
   if (!lagging.length && !findings.length) return '';
   const rows = lagging.map((t) => {
     const span = spanLabel(nowDay - (t.lastDay ?? nowDay));
-    const catchUp = `<button class="vle-mini" data-thread-catchup data-id="${esc(t.id)}" title="Advance this thread off-screen to catch it up to now">\u2748 catch up</button>`;
-    return `<div class="vle-desync-row"><span class="vle-desync-n">${esc(t.name)}</span>`
-      + `<span class="vle-desync-lag">Day ${esc(t.lastDay ?? '?')} \u00b7 ~${esc(span)} behind</span>`
-      + `<span class="vle-desync-ctl">${catchUp}</span></div>`;
+    return `<div class="vle-desync-row">`
+      + `<span class="vle-desync-n">${esc(t.name)}</span>`
+      + `<span class="vle-desync-from">d${esc(t.lastDay ?? '?')}</span>`
+      + `<span class="vle-desync-arrow" aria-hidden="true">\u2192</span>`
+      + `<span class="vle-desync-lag">~${esc(span)} behind</span>`
+      + `<button class="vle-desync-catch" data-thread-catchup data-id="${esc(t.id)}" data-day="${nowDay}" title="Jump this thread forward to day ${nowDay}">catch up \u2192 d${nowDay}</button>`
+      + `</div>`;
   }).join('');
-  const notes = findings.map((w) => `<div class="vle-desync-note">\u26A0 ${esc(w.text)}</div>`).join('');
-  return sectionHeader('\u29D6 Time Sync', { sub: true, count: lagging.length })
-    + '<div class="vle-cz-note">Open threads whose narrative day trails the current day \u2014 a time-skip left them behind. Catch one up to fold it back into the present.</div>'
-    + (rows ? `<div class="vle-desync">${rows}</div>` : '')
-    + (notes ? `<div class="vle-desync-notes">${notes}</div>` : '');
+  const findingsId = 'dsync-f-' + Math.random().toString(36).slice(2, 7);
+  const notes = findings.length
+    ? `<div class="vle-desync-log">`
+      + `<button class="vle-desync-log-toggle" data-desync-log-toggle aria-expanded="false" aria-controls="${findingsId}">\u26A0 <span class="vle-desync-log-count">${findings.length}</span> desync advisory${findings.length === 1 ? '' : 'ies'}<span class="vle-desync-log-chev" aria-hidden="true">\u25BE</span></button>`
+      + `<div class="vle-desync-log-body" data-desync-log-body id="${findingsId}" hidden>${findings.map((w) => `<div class="vle-desync-note">${esc(w.text)}</div>`).join('')}</div>`
+      + `</div>`
+    : '';
+  const allBtn = lagging.length > 1
+    ? `<button class="vle-desync-all" data-thread-catchup-all data-day="${nowDay}" title="Jump all ${lagging.length} threads forward to day ${nowDay} in one action">\u26A1 catch-up all \u2192 d${nowDay}</button>`
+    : '';
+  const intro = rows
+    ? `<div class="vle-cz-note">A time-skip left these plot threads on an earlier narrative day. Catching up stamps them forward to day ${nowDay} \u2014 off-screen subplots tied to them can then advance to match.</div>`
+    : '';
+  return sectionHeader('⦖ Time Sync', { sub: true, count: lagging.length, action: allBtn })
+    + (rows ? `<div class="vle-desync">${rows}</div>${intro}` : '')
+    + notes;
 }
 
 function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s: ChronicleState): string {

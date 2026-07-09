@@ -477,13 +477,31 @@ export const STYLES = [
   ".vle-now:hover .vle-now-edit,.vle-now-edit:focus-visible{opacity:.75}",
   ".vle-now-edit:hover{opacity:1;background:var(--vle-gold-soft)}",
   // Time Sync desync inspector: lagging threads + advisory findings
-  ".vle-desync{display:flex;flex-direction:column;gap:5px;margin-bottom:6px}",
-  ".vle-desync-row{display:flex;align-items:center;gap:9px;padding:7px 11px;border:1px solid rgba(var(--vg-rgb),.16);border-left:3px solid var(--v-warn);border-radius:var(--vr2);background:color-mix(in srgb,var(--v-warn) 6%,transparent)}",
-  ".vle-desync-n{flex:1 1 auto;min-width:0;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-style:italic;color:var(--vi);overflow-wrap:anywhere}",
+  ".vle-desync{display:flex;flex-direction:column;gap:5px;margin:4px 0 6px}",
+  // per-thread catch-up row: name · from-day · arrow · lag · jump-to button. The
+  // mono "dN" + arrow read as a clear jump descriptor; the button is the primary
+  // action, separated from the per-row text.
+  ".vle-desync-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto;align-items:center;gap:8px;padding:7px 11px;border:1px solid rgba(var(--vg-rgb),.16);border-left:3px solid var(--v-warn);border-radius:var(--vr2);background:color-mix(in srgb,var(--v-warn) 6%,transparent)}",
+  ".vle-desync-n{min-width:0;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-style:italic;color:var(--vi);overflow-wrap:anywhere;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+  ".vle-desync-from{flex:0 0 auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--vi2);letter-spacing:.3px;opacity:.7}",
+  ".vle-desync-arrow{flex:0 0 auto;color:var(--v-warn);opacity:.7;font-size:calc(10px * var(--vscale))}",
   ".vle-desync-lag{flex:0 0 auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--v-warn);letter-spacing:.4px;white-space:nowrap}",
-  ".vle-desync-ctl{flex:0 0 auto}",
-  ".vle-desync-notes{display:flex;flex-direction:column;gap:4px;margin-top:2px}",
-  ".vle-desync-note{font-size:calc(10px * var(--vscale));line-height:1.4;color:var(--vg);opacity:.85;padding-left:4px}",
+  ".vle-desync-catch{flex:0 0 auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);letter-spacing:.3px;color:var(--v-warn);background:color-mix(in srgb,var(--v-warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--v-warn) 45%,transparent);border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s}",
+  ".vle-desync-catch:hover{background:color-mix(in srgb,var(--v-warn) 22%,transparent);color:var(--vi)}",
+  // the "catch-up all" row action, slotted in the section header next to the title
+  ".vle-desync-all{font:600 calc(9px * var(--vscale))/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--v-warn);background:color-mix(in srgb,var(--v-warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--v-warn) 42%,transparent);border-radius:8px;padding:5px 11px;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;max-width:42ch;overflow:hidden;text-overflow:ellipsis}",
+  ".vle-desync-all:hover{background:color-mix(in srgb,var(--v-warn) 24%,transparent);color:var(--vi)}",
+  // collapsible desync-advisory log beneath the rows: a count toggle + a tucked
+  // body, so a standing warning never drowns the rows. Mono, muted, indented.
+  ".vle-desync-log{margin-top:2px;border-top:1px solid rgba(var(--vg-rgb),.12);padding-top:5px}",
+  ".vle-desync-log-toggle{display:flex;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:1px solid rgba(var(--vg-rgb),.14);border-radius:7px;padding:5px 9px;font:500 calc(9px * var(--vscale))/1.3 var(--vmono);color:var(--vg);opacity:.85;cursor:pointer;transition:background .12s,opacity .12s}",
+  ".vle-desync-log-toggle:hover{background:color-mix(in srgb,var(--v-info) 8%,transparent);opacity:1}",
+  ".vle-desync-log-count{display:inline-grid;place-items:center;min-width:14px;height:14px;font-weight:700;color:var(--v-info);background:color-mix(in srgb,var(--v-info) 16%,transparent);border-radius:999px;padding:0 4px}",
+  ".vle-desync-log-chev{margin-left:auto;color:var(--vi2);font-size:calc(8px * var(--vscale));transition:transform .12s}",
+  ".vle-desync-log-toggle[aria-expanded='true'] .vle-desync-log-chev{transform:rotate(180deg)}",
+  ".vle-desync-log-body{display:flex;flex-direction:column;gap:4px;margin-top:5px}",
+  ".vle-desync-note{font-size:calc(10px * var(--vscale));line-height:1.45;color:var(--vg);opacity:.9;padding:5px 8px 5px 22px;text-indent:-14px;border-left:2px solid color-mix(in srgb,var(--v-info) 40%,transparent);background:color-mix(in srgb,var(--v-info) 4%,transparent);border-radius:0 var(--vr1) var(--vr1) 0}",
+  ".vle-desync-note::before{content:'\\26A0';margin-right:5px;color:var(--v-info)}",
   // cast cards
   ".vle-cards{display:flex;flex-direction:column;gap:calc(7px * var(--vscale))}",
   ".vle-card{position:relative;display:flex;align-items:center;gap:11px;padding:calc(11px * var(--vscale)) calc(13px * var(--vscale));border:1px solid var(--vle-gold-soft);border-radius:var(--vr3);background:linear-gradient(170deg,var(--vsurf-1),var(--vsurf-2));border-left:4px solid var(--vle-gold-soft)}",
