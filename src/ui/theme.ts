@@ -56,8 +56,10 @@ const F_MONO = "'JetBrains Mono',ui-monospace,monospace";
 const F_SANS = "'Inter',system-ui,-apple-system,\"Segoe UI\",sans-serif";
 const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristic display
 const F_ETHEREAL = "'Quicksand','Cormorant Garamond',Georgia,serif"; // Ember display — airy rounded geometric (bundled), Cormorant as graceful fallback
+const F_DECO = "'Poiret One','Playfair Display','Cormorant Garamond',Georgia,serif"; // Gatsby display — true art deco, loads from Google Fonts
+const F_BRUSH = "'Noto Serif JP','Noto Serif',Georgia,serif"; // Sumi display — Japanese brush, loads from Google Fonts
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi';
 
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
@@ -74,12 +76,15 @@ export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloo
 // discipline — toadstool (mushroom-cap dome top + top padding), trellis (climbing
 // -vine left rail, left padding), bramble (leafy-wreath corner sprigs in padding),
 // lantern (a hanging bulb tag: top hook pseudo + warm inset glow).
+// Gatsby + Sumi round: chevron (art deco stepped pyramid top), hanko (red seal
+// stamp corner pseudo), inkwash (asymmetric brush stroke left edge).
 export type ShapeId =
   | 'slab' | 'left-spine' | 'tarot' | 'notched' | 'split' | 'inset' | 'scalloped'
   | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket'
-  | 'toadstool' | 'trellis' | 'bramble' | 'lantern';
+  | 'toadstool' | 'trellis' | 'bramble' | 'lantern'
+  | 'chevron' | 'hanko' | 'inkwash';
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items' | 'secrets';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'chevron', 'hanko', 'inkwash'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items', 'secrets'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -103,6 +108,10 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   // tarot cast plate, a climbing-vine trellis beat, a scalloped faction, a hanging
   // fairy-lantern item; secrets stay a quiet slab (the sealed thing in the dark).
   faewild: { present: 'toadstool', bonds: 'bramble', cast: 'tarot', beats: 'trellis', factions: 'scalloped', items: 'lantern', secrets: 'slab' },
+  // art deco: chevron pyramid present, gilt frames, tarot portrait, symmetric splits
+  gatsby: { present: 'chevron', bonds: 'gilt-edge', cast: 'tarot', beats: 'split', factions: 'gilt-edge', items: 'split', secrets: 'gilt-edge' },
+  // ink wash: minimal slabs with asymmetric inkwash accents, hanko seal cast, deckle torn edges
+  sumi: { present: 'inkwash', bonds: 'deckle', cast: 'hanko', beats: 'slab', factions: 'inkwash', items: 'slab', secrets: 'slab' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -165,6 +174,14 @@ export const MODES: Mode[] = [
   // dress every card. Distinct from Bloom (indoor cozy garden) & Ember (night sky):
   // Faewild is an enchanted forest — green-led, vined, storybook. Light twin = dawn glade.
   { id: 'faewild', name: 'Faewild', blurb: 'A twilight storybook glade \u2014 fairy lights, climbing vines, pastel sage &amp; lilac, toadstool tabs.', patch: { chrome: 'faewild', radius: 22, border: 1, texture: 'firefly-grove', serif: F_ETHEREAL, accent: '#8fbf88', accent2: '#c9b6f0', opacity: 0.94, blur: 10 }, form: 'dashboard', skin: 'faewild-dusk', skinDark: 'faewild-dusk', skinLight: 'faewild-dawn' },
+  // GATSBY — "jazz age opulence": art deco geometry, gilt gold on midnight black,
+  // symmetric sunburst ornaments, sharp edges (no rounding), stepped chevron cards.
+  // Distinct from all others: the only hard-edged geometric chrome, pure luxury.
+  { id: 'gatsby', name: 'Gatsby', blurb: 'Jazz Age opulence \u2014 art deco gold, geometric symmetry, midnight &amp; champagne.', patch: { chrome: 'gatsby', radius: 0, border: 2, texture: 'deco-rays', serif: F_DECO, accent: '#d4af37', accent2: '#2a1810', opacity: 0.98, blur: 6 }, form: 'dashboard', skin: 'gatsby-noir', skinDark: 'gatsby-noir', skinLight: 'gatsby-champagne' },
+  // SUMI — "ink wash minimalism": Japanese woodblock aesthetic, asymmetric negative
+  // space, vermillion hanko seals, brush strokes, torn rice-paper edges. Distinct
+  // from all: the only minimalist aesthetic, cream-on-black or black-on-cream.
+  { id: 'sumi', name: 'Sumi', blurb: 'Ink wash minimalism \u2014 brush strokes, hanko seals, asymmetric negative space, meditative calm.', patch: { chrome: 'sumi', radius: 0, border: 1, texture: 'washi', serif: F_BRUSH, accent: '#c8371a', accent2: '#4a3828', opacity: 1, blur: 0 }, form: 'dashboard', skin: 'sumi-ink', skinDark: 'sumi-ink', skinLight: 'sumi-paper' },
 ];
 
 
@@ -206,6 +223,25 @@ export const SKINS: Skin[] = [
   // Faewild's day face — a dawn glade: soft mint-white paper, mossy-green ink, the
   // same sage/lilac accents so the chrome's vines & fairy lights still read.
   { id: 'faewild-dawn', name: 'Faewild Dawn', blurb: 'A dawn glade — soft mint-white paper, mossy-green ink, waking woodland pastels.', theme: { accent: '#4f8a5f', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(247,252,246,.9)', surf2: 'rgba(236,246,235,.9)', ink: '#22301f', ink2: '#5c6f57', glass: 'linear-gradient(168deg,#f7fcf6,#eaf4e8)', ...SEM, pos: '#4f8a5f', posInk: '#3d7048', neg: '#c8607a', negInk: '#a84a62', info: '#4f7fb8', warn: '#7a5fd0', press: '#c08a2e', pressInk: '#a5701a' } },
+  // GATSBY SKINS — Art Deco jazz age opulence
+  // Dark: midnight black + gilt gold, high drama
+  { id: 'gatsby-noir', name: 'Gatsby Noir', blurb: 'Midnight &amp; gilt gold — art deco drama, jazz age glamour.', theme: { accent: '#d4af37', serif: F_DECO, mono: F_MONO, surf1: 'rgba(20,16,12,.95)', surf2: 'rgba(10,8,6,.98)', ink: '#f8e5a0', ink2: '#c8a870', glass: 'linear-gradient(168deg,rgba(16,12,10,.98),rgba(8,6,4,.99))', ...SEM, pos: '#b8c089', posInk: '#d0db9f', neg: '#d06a5a', negInk: '#f08a7a', info: '#9ab0d0', warn: '#c8a0d0', press: '#d4af37', pressInk: '#e8c85a' } },
+  // Light: champagne cream + sepia ink, elegant daytime
+  { id: 'gatsby-champagne', name: 'Gatsby Champagne', blurb: 'Champagne cream &amp; sepia — elegant daytime deco, warm gilt accents.', theme: { accent: '#9a7a2e', serif: F_DECO, mono: F_MONO, surf1: 'rgba(250,244,230,.94)', surf2: 'rgba(240,232,215,.94)', ink: '#2a1810', ink2: '#5a3828', glass: 'linear-gradient(168deg,#faf6ea,#f0e8d7)', ...SEM, pos: '#5a7a3a', posInk: '#4a6a2a', neg: '#a84a3a', negInk: '#8a3a2a', info: '#4a6a8a', warn: '#7a5a8a', press: '#9a7a2e', pressInk: '#7a5a1e' } },
+  // SUMI SKINS — Japanese ink wash minimalism
+  // Dark: sumi ink on charcoal, vermillion seal
+  { id: 'sumi-ink', name: 'Sumi Ink', blurb: 'Deep sumi ink &amp; charcoal — brush strokes, vermillion seals, meditative dark.', theme: { accent: '#c8371a', serif: F_BRUSH, mono: F_MONO, surf1: 'rgba(26,20,16,.85)', surf2: 'rgba(18,14,10,.9)', ink: '#e8e0d8', ink2: '#a89888', glass: 'linear-gradient(168deg,rgba(22,18,14,.95),rgba(14,10,8,.98))', ...SEM, pos: '#8fa87e', posInk: '#a9c089', neg: '#c8574a', negInk: '#e0776a', info: '#7a9ab8', warn: '#a88ab8', press: '#b88a4e', pressInk: '#d0a868' } },
+  // Light: washi paper cream + sumi ink, red hanko
+  { id: 'sumi-paper', name: 'Washi Paper', blurb: 'Warm washi paper &amp; ink — cream field, charcoal brush, vermillion seal.', theme: { accent: '#c8371a', serif: F_BRUSH, mono: F_MONO, surf1: 'rgba(250,246,238,.92)', surf2: 'rgba(240,234,225,.92)', ink: '#1a1410', ink2: '#4a3828', glass: 'linear-gradient(168deg,#faf6ee,#f0eae1)', ...SEM, pos: '#5a7a4a', posInk: '#4a6a3a', neg: '#a84a3a', negInk: '#8a3a2a', info: '#4a6a8a', warn: '#7a5a8a', press: '#9a6a3e', pressInk: '#7a5a2e' } },
+  // MONOCHROME SKINS — pure grayscale, no hue
+  // Dark: true black + white, high contrast
+  { id: 'monochrome', name: 'Monochrome', blurb: 'Pure grayscale — true black &amp; white, no color, maximum contrast.', theme: { accent: '#ffffff', serif: F_MONO, mono: F_MONO, surf1: 'rgba(20,20,20,.7)', surf2: 'rgba(10,10,10,.75)', ink: '#f0f0f0', ink2: '#b0b0b0', glass: 'linear-gradient(168deg,rgba(15,15,15,.98),rgba(5,5,5,.99))', pos: '#d0d0d0', posInk: '#e8e8e8', neg: '#888888', negInk: '#a0a0a0', info: '#c0c0c0', warn: '#989898', press: '#e0e0e0', pressInk: '#f8f8f8' } },
+  // Light: soft gray palette, gentler contrast
+  { id: 'monochrome-lite', name: 'Monochrome Lite', blurb: 'Soft grayscale — gentle grays, muted contrast, easy on the eyes.', theme: { accent: '#606060', serif: F_SANS, mono: F_MONO, surf1: 'rgba(245,245,245,.92)', surf2: 'rgba(235,235,235,.92)', ink: '#202020', ink2: '#606060', glass: 'linear-gradient(168deg,#f8f8f8,#ececec)', pos: '#707070', posInk: '#505050', neg: '#909090', negInk: '#707070', info: '#606060', warn: '#787878', press: '#404040', pressInk: '#303030' } },
+  // Sepia: warm brown tones, vintage film aesthetic
+  { id: 'monochrome-sepia', name: 'Sepia Tone', blurb: 'Warm sepia — vintage brown tones, aged photograph aesthetic, nostalgic warmth.', theme: { accent: '#d4a574', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(32,26,20,.7)', surf2: 'rgba(20,16,12,.75)', ink: '#e8d8c8', ink2: '#b8a898', glass: 'linear-gradient(168deg,rgba(28,22,18,.98),rgba(16,12,8,.99))', pos: '#c8b098', posInk: '#d8c8b0', neg: '#a08070', negInk: '#b09080', info: '#b0a090', warn: '#a89888', press: '#d4a574', pressInk: '#e4c094' } },
+  // Blue-tone: cool cyan-blue, moonlit night aesthetic
+  { id: 'monochrome-blue', name: 'Blue Tone', blurb: 'Cool blue-gray — moonlit tones, cinematic night aesthetic, calm focus.', theme: { accent: '#7ab8d8', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(18,22,28,.7)', surf2: 'rgba(10,14,18,.75)', ink: '#d8e4f0', ink2: '#a8b8c8', glass: 'linear-gradient(168deg,rgba(16,20,26,.98),rgba(8,12,16,.99))', pos: '#98b8c8', posInk: '#b0d0e0', neg: '#8898a8', negInk: '#a0b0c0', info: '#7ab8d8', warn: '#9098b0', press: '#90b8d0', pressInk: '#b0d8f0' } },
 ];
 
 
@@ -242,6 +278,10 @@ const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   // 'marginalia' texture: gentle, hand-drawn, no hard edges). Recommended for the
   // Marginalia chrome; composes with any chrome.
   { id: 'pressed-flowers', label: 'Pressed Flowers', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='190' height='190'%3E%3Cg fill='none' stroke='%23c8a9d8' stroke-opacity='.16' stroke-width='1.1'%3E%3Cg transform='translate(34 40)'%3E%3Ccircle r='3.4'/%3E%3Cpath d='M0 0C0-9 7-13 0-18M0 0C0-9-7-13 0-18M0 0C8-4 13 3 18 0M0 0C8 4 13-3 18 0M0 0C0 9 7 13 0 18M0 0C0 9-7 13 0 18M0 0C-8-4-13 3-18 0M0 0C-8 4-13-3-18 0'/%3E%3C/g%3E%3Cg transform='translate(140 132)'%3E%3Ccircle r='3'/%3E%3Cpath d='M0 0C0-8 6-11 0-15M0 0C0-8-6-11 0-15M0 0C7-3 11 3 15 0M0 0C7 4 11-3 15 0M0 0C0 8 6 11 0 15M0 0C0 8-6 11 0 15M0 0C-7-3-11 3-15 0M0 0C-7 4-11-3-15 0'/%3E%3C/g%3E%3C/g%3E%3Cg fill='none' stroke='%238fae8c' stroke-opacity='.13' stroke-width='1.1'%3E%3Cpath d='M96 26q10 8 6 22q-11-2-6-22z'/%3E%3Cpath d='M22 148q-9 7-6 20q10-3 6-20z'/%3E%3Cpath d='M168 58q9 6 6 18q-9-2-6-18z'/%3E%3C/g%3E%3Cg fill='%23b58fc8' fill-opacity='.12'%3E%3Ccircle cx='110' cy='70' r='1.4'/%3E%3Ccircle cx='60' cy='110' r='1.1'/%3E%3Ccircle cx='150' cy='168' r='1.2'/%3E%3C/g%3E%3C/svg%3E\")" },
+  // art deco rays — gold sunburst radiating from top center, geometric stepped lines
+  { id: 'deco-rays', label: 'Deco Rays', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cdefs%3E%3Cg id='ray'%3E%3Cpath d='M100 0L102 100L98 100Z' fill='%23d4af37' fill-opacity='0.08'/%3E%3C/g%3E%3C/defs%3E%3Cuse href='%23ray' transform='rotate(0 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(20 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(40 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(60 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(80 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(100 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(120 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(140 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(160 100 100)'/%3E%3Cuse href='%23ray' transform='rotate(180 100 100)'/%3E%3Cg fill='%23d4af37' fill-opacity='0.12'%3E%3Cpath d='M50 150h5v-5h-5zM145 150h5v-5h-5z'/%3E%3Cpath d='M75 175l3-3 3 3-3 3zM119 175l3-3 3 3-3 3z'/%3E%3C/g%3E%3C/svg%3E\")" },
+  // washi paper grain — subtle rice-paper texture with faint horizontal fibers
+  { id: 'washi', label: 'Washi Paper', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cg stroke='%234a3828' stroke-opacity='0.04'%3E%3Cpath d='M0 10h100M0 25h100M0 42h100M0 58h100M0 73h100M0 89h100' stroke-width='0.5'/%3E%3C/g%3E%3Cg fill='%234a3828' fill-opacity='0.03'%3E%3Ccircle cx='23' cy='18' r='0.5'/%3E%3Ccircle cx='67' cy='35' r='0.6'/%3E%3Ccircle cx='41' cy='61' r='0.4'/%3E%3Ccircle cx='82' cy='78' r='0.5'/%3E%3Ccircle cx='15' cy='92' r='0.4'/%3E%3C/g%3E%3C/svg%3E\")" },
 ];
 
 
@@ -284,7 +324,7 @@ export function hydrateTheme(json: string | null): void {
   try { const t = JSON.parse(json); if (t && t.accent) { _theme = sanitize({ ...DEFAULT, ...t }); } } catch { /* ignore */ }
 }
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
-const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild'] as const;
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi'] as const;
 function sanitize(t: Theme): Theme {
   // migrate a cut chrome/skin to its nearest survivor before validating
   const rawChrome = t.chrome as string;
@@ -303,6 +343,29 @@ function sanitize(t: Theme): Theme {
   };
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } persistTheme(); }
+
+// Load Google Fonts dynamically for chromes that need them
+let _loadedFonts: Set<string> = new Set();
+function loadGoogleFontsForChrome(chrome: Chrome): void {
+  const fontMap: Record<string, string> = {
+    gatsby: 'https://fonts.googleapis.com/css2?family=Poiret+One&display=swap',
+    sumi: 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap',
+  };
+  const fontUrl = fontMap[chrome];
+  if (!fontUrl || _loadedFonts.has(chrome)) return;
+  // Check if link already exists
+  const existing = document.querySelector(`link[href="${fontUrl}"]`);
+  if (existing) {
+    _loadedFonts.add(chrome);
+    return;
+  }
+  // Create and append font link
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = fontUrl;
+  document.head.appendChild(link);
+  _loadedFonts.add(chrome);
+}
 
 export function getTheme(): Theme { return _theme; }
 
@@ -349,6 +412,8 @@ export function applyTheme(scope: HTMLElement | null): void {
   document.documentElement.setAttribute('data-vle-mode', t.mode);
   document.documentElement.toggleAttribute('data-vle-bg', !!t.bg);
   document.documentElement.setAttribute('data-vle-motion', t.motion ? 'on' : 'off');
+  // Load Google Fonts for Gatsby and Sumi chromes on demand
+  loadGoogleFontsForChrome(t.chrome);
   // per-surface card shape. Emission rule:
   //   - explicit user override        -> emit the override (always wins)
   //   - a NON-default chrome, no ovr   -> emit that chrome's gallery shape

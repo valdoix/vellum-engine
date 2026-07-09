@@ -56,10 +56,18 @@ const SHAPE_GEOM: Record<string, string> = {
   bramble: `border-radius:${R};padding:11px 14px`,
   // lantern: a hanging bulb tag — a warm inset glow + a top hook pseudo above it.
   lantern: `border-radius:calc(${R} * .8);padding:11px 13px`,
+  // GATSBY / ART DECO family — geometric stepped shapes
+  // chevron: art deco stepped pyramid top (clip-path, lives in padding).
+  chevron: 'clip-path:polygon(0 14px,14px 14px,20px 8px,50% 0,calc(100% - 20px) 8px,calc(100% - 14px) 14px,100% 14px,100% 100%,0 100%);padding-top:18px',
+  // SUMI / INK WASH family — minimal asymmetric shapes
+  // hanko: red seal stamp corner pseudo (top-right), extra top padding.
+  hanko: `border-radius:4px;padding:14px 13px 11px`,
+  // inkwash: asymmetric brush stroke left edge (pseudo gradient), left padding.
+  inkwash: `border-radius:0;border-left:4px solid var(--vi);padding-left:16px`,
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
 // small fixed corners that live in padding.
-const CLIP_SHAPES = ['notched'];
+const CLIP_SHAPES = ['notched', 'chevron'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
@@ -1861,6 +1869,60 @@ export const STYLES = [
   "html[data-vle-chrome='faewild'] .vlf-bar::before{content:'\\1F343';position:absolute;left:calc(16px * var(--vscale));top:50%;transform:translateY(-50%);color:var(--vg);opacity:.7;font-size:12px;pointer-events:none}",
 
   // ============================================================================
+  // GATSBY / ART DECO CHROME — geometric opulence, gilt on midnight, sharp edges
+  // ============================================================================
+  "html[data-vle-chrome='gatsby'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(600px 400px at 50% 0%,rgba(var(--vg-rgb),.15),transparent 60%)}",
+  "html[data-vle-chrome='gatsby'] .vle-navpanel{border-radius:0;border:2px solid var(--vg);background:linear-gradient(180deg,rgba(var(--vg-rgb),.12),transparent),var(--vsurf-1);box-shadow:inset 0 2px 0 rgba(var(--vg-rgb),.3),inset 0 -2px 0 rgba(var(--vg-rgb),.3),0 0 30px rgba(var(--vg-rgb),.2)}",
+  "html[data-vle-chrome='gatsby'] .vle-navpanel::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:200px;height:200px;background:radial-gradient(circle at 50% 0%,rgba(var(--vg-rgb),.15),transparent 70%);pointer-events:none}",
+  "html[data-vle-chrome='gatsby'] .vle-head{font-family:var(--vserif);font-weight:700;letter-spacing:0.15em;text-transform:uppercase;border-bottom:3px solid var(--vg);font-size:calc(15px * var(--vscale));text-align:center;padding-bottom:calc(8px * var(--vscale))}",
+  "html[data-vle-chrome='gatsby'] .vle-head::before{content:'\\2726';color:var(--vg);font-size:1.5em;display:block;margin-bottom:calc(6px * var(--vscale));text-shadow:0 0 16px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='gatsby'] .vle-stats{font-family:var(--mono);letter-spacing:0.12em;text-transform:uppercase;opacity:.75}",
+  "html[data-vle-chrome='gatsby'] .vle-tabbtn{border-radius:0;border:1px solid rgba(var(--vg-rgb),.3);letter-spacing:0.1em;text-transform:uppercase;font-family:var(--mono);font-size:calc(12px * var(--vscale));font-weight:700}",
+  "html[data-vle-chrome='gatsby'] .vle-tabbtn:hover{background:rgba(var(--vg-rgb),.08)}",
+  "html[data-vle-chrome='gatsby'] .vle-tabbtn.on{color:var(--vg);border-color:var(--vg);background:linear-gradient(180deg,rgba(var(--vg-rgb),.15),rgba(var(--vg-rgb),.05));box-shadow:inset 0 0 12px rgba(var(--vg-rgb),.2)}",
+  "html[data-vle-chrome='gatsby'] .vle-card,html[data-vle-chrome='gatsby'] .vle-rel-card,html[data-vle-chrome='gatsby'] .vld-sec{border-radius:0;border:1px solid rgba(var(--vg-rgb),.35);border-top:3px solid var(--vg);border-bottom:3px solid var(--vg);background:var(--vsurf-1);position:relative}",
+  "html[data-vle-chrome='gatsby'] .vle-card::before,html[data-vle-chrome='gatsby'] .vle-rel-card::before{content:'';position:absolute;top:0;left:0;width:40px;height:3px;background:var(--vg)}",
+  "html[data-vle-chrome='gatsby'] .vle-card::after,html[data-vle-chrome='gatsby'] .vle-rel-card::after{content:'';position:absolute;top:0;right:0;width:40px;height:3px;background:var(--vg)}",
+  "html[data-vle-chrome='gatsby'] .vld-h,html[data-vle-chrome='gatsby'] .vle-sec-h{font-family:var(--mono);font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--vg)}",
+  "html[data-vle-chrome='gatsby'] .vld-h::before,html[data-vle-chrome='gatsby'] .vle-sec-h::before{content:'\\25C6 ';color:var(--vg);font-size:1.2em;text-shadow:0 0 8px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='gatsby'] .vld-hero{font-family:var(--vserif);font-weight:700;letter-spacing:0.15em;text-transform:uppercase;font-size:calc(22px * var(--vscale));text-align:center;text-shadow:0 2px 8px rgba(var(--vg-rgb),.3)}",
+  "html[data-vle-chrome='gatsby'] .vle-av{clip-path:polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%);background:radial-gradient(circle at 35% 30%,var(--vg),color-mix(in srgb,var(--vg) 60%,#000));border:2px solid var(--vg);box-shadow:0 0 16px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='gatsby'] .vlfm{border-radius:0;border:2px solid var(--vg);box-shadow:0 0 40px rgba(var(--vg-rgb),.25),0 24px 70px rgba(0,0,0,.7),inset 0 2px 0 rgba(var(--vg-rgb),.3)}",
+  "html[data-vle-chrome='gatsby'] .vlf-x{border-radius:0;clip-path:polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%);background:radial-gradient(50% 45% at 40% 35%,var(--vg),color-mix(in srgb,var(--vg) 50%,#000));border:none;color:#000;box-shadow:0 2px 8px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='gatsby'] .vlf-x:hover{background:radial-gradient(50% 45% at 40% 35%,var(--vg2),color-mix(in srgb,var(--vg2) 50%,#000));box-shadow:0 2px 10px rgba(var(--vg2-rgb),.6)}",
+  // --- Gatsby animations: slow gold shimmer/pulse on accent elements ---
+  "html[data-vle-chrome='gatsby'] .vle-head::before{animation:vle-gatsby-shimmer 4s ease-in-out infinite}",
+  "html[data-vle-chrome='gatsby'] .vle-card::before,html[data-vle-chrome='gatsby'] .vle-card::after,html[data-vle-chrome='gatsby'] .vle-rel-card::before,html[data-vle-chrome='gatsby'] .vle-rel-card::after{animation:vle-gatsby-pulse 3s ease-in-out infinite}",
+  "@keyframes vle-gatsby-shimmer{0%,100%{opacity:.4;text-shadow:0 0 16px rgba(var(--vg-rgb),.5)} 50%{opacity:.7;text-shadow:0 0 24px rgba(var(--vg-rgb),.8)}}",
+  "@keyframes vle-gatsby-pulse{0%,100%{opacity:1} 50%{opacity:.7}}",
+  "html[data-vle-chrome='gatsby'][data-vle-motion='off'] .vle-head::before,html[data-vle-chrome='gatsby'][data-vle-motion='off'] .vle-card::before,html[data-vle-chrome='gatsby'][data-vle-motion='off'] .vle-card::after{animation:none;opacity:1}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='gatsby'] .vle-head::before,html[data-vle-chrome='gatsby'] .vle-card::before,html[data-vle-chrome='gatsby'] .vle-card::after{animation:none;opacity:1}}",
+
+  // ============================================================================
+  // SUMI / INK WASH CHROME — minimalist japanese aesthetics, asymmetric space
+  // ============================================================================
+  "html[data-vle-chrome='sumi'] .vle-root{font-family:var(--vserif)}",
+  "html[data-vle-chrome='sumi'] .vle-navpanel{border-radius:0;border:none;border-bottom:1px solid rgba(var(--vi),.15);background:var(--vsurf-1);box-shadow:inset 0 0 0 1px rgba(var(--vi),.08)}",
+  "html[data-vle-chrome='sumi'] .vle-head{font-family:var(--vserif);font-weight:700;letter-spacing:0.08em;border-bottom:1px solid rgba(var(--vi),.15);font-size:calc(16px * var(--vscale));position:relative}",
+  "html[data-vle-chrome='sumi'] .vle-head::after{content:'';position:absolute;top:calc(4px * var(--vscale));right:calc(8px * var(--vscale));width:36px;height:36px;background:radial-gradient(circle at 45% 40%,var(--vg),color-mix(in srgb,var(--vg) 70%,#000));border-radius:4px;box-shadow:0 3px 10px rgba(var(--vg-rgb),.4);transform:rotate(-3deg)}",
+  "html[data-vle-chrome='sumi'] .vle-stats{font-family:var(--vserif);font-style:italic;opacity:.65;letter-spacing:0.05em}",
+  "html[data-vle-chrome='sumi'] .vle-tabbtn{border-radius:0;border:none;border-left:4px solid transparent;letter-spacing:0.02em;font-family:var(--vserif);font-size:calc(13px * var(--vscale))}",
+  "html[data-vle-chrome='sumi'] .vle-tabbtn.on{border-left-color:var(--vi);background:rgba(var(--vi),.05)}",
+  "html[data-vle-chrome='sumi'] .vle-card,html[data-vle-chrome='sumi'] .vle-rel-card,html[data-vle-chrome='sumi'] .vld-sec{border-radius:0;border:none;border-left:4px solid var(--vi);background:var(--vsurf-1);box-shadow:3px 3px 0 rgba(var(--vi),.08);position:relative}",
+  "html[data-vle-chrome='sumi'] .vle-card::after,html[data-vle-chrome='sumi'] .vle-rel-card::after{content:'';position:absolute;top:0;right:0;bottom:0;width:80px;background:linear-gradient(90deg,transparent,rgba(var(--vi),.04));pointer-events:none}",
+  "html[data-vle-chrome='sumi'] .vld-h,html[data-vle-chrome='sumi'] .vle-sec-h{font-family:var(--vserif);font-weight:700;letter-spacing:0.02em;color:var(--vi)}",
+  "html[data-vle-chrome='sumi'] .vld-hero{font-family:var(--vserif);font-weight:700;letter-spacing:0.08em;font-size:calc(20px * var(--vscale))}",
+  "html[data-vle-chrome='sumi'] .vle-av{border-radius:50%;background:radial-gradient(circle at 45% 40%,var(--vg),color-mix(in srgb,var(--vg) 70%,#000));border:none;box-shadow:0 2px 8px rgba(var(--vg-rgb),.35);position:relative}",
+  "html[data-vle-chrome='sumi'] .vlfm{border-radius:0;border:none;box-shadow:0 12px 40px rgba(0,0,0,.15),inset 0 0 0 1px rgba(var(--vi),.08)}",
+  "html[data-vle-chrome='sumi'] .vlf-x{border-radius:50%;background:radial-gradient(circle at 45% 40%,var(--vg),color-mix(in srgb,var(--vg) 60%,transparent));border:none;box-shadow:0 2px 8px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='sumi'] .vlf-x:hover{background:radial-gradient(circle at 45% 40%,color-mix(in srgb,var(--vg) 120%,#fff),var(--vg));box-shadow:0 2px 10px rgba(var(--vg-rgb),.5)}",
+  // --- Sumi animations: slow ink-wash fade-in for cards ---
+  "html[data-vle-chrome='sumi'] .vle-card,html[data-vle-chrome='sumi'] .vle-rel-card,html[data-vle-chrome='sumi'] .vld-sec{animation:vle-sumi-ink-fade 0.6s ease-out}",
+  "@keyframes vle-sumi-ink-fade{0%{opacity:0;transform:translateX(-8px)} 100%{opacity:1;transform:translateX(0)}}",
+  "html[data-vle-chrome='sumi'][data-vle-motion='off'] .vle-card,html[data-vle-chrome='sumi'][data-vle-motion='off'] .vle-rel-card,html[data-vle-chrome='sumi'][data-vle-motion='off'] .vld-sec{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='sumi'] .vle-card,html[data-vle-chrome='sumi'] .vle-rel-card,html[data-vle-chrome='sumi'] .vld-sec{animation:none}}",
+
+  // ============================================================================
   // CARD SHAPE PRIMITIVES + per-surface overrides (mockup 24 / 30-35).
   // Both are generated from the single SHAPE_GEOM map above (geometry only, never
   // color/type). Primitives (.v-shape--<id>) are used directly by renderers;
@@ -1937,14 +1999,18 @@ export const STYLES = [
   // drawn just inside the top padding (the '::after' hook rides above the glow).
   ...shapeDetail('lantern', "content:'';position:absolute;top:0;left:0;right:0;height:16px;pointer-events:none;z-index:1;background:radial-gradient(ellipse 40% 120% at 50% 0,color-mix(in srgb,var(--vg2) 40%,transparent),transparent 70%);opacity:.7", '::before'),
   ...shapeDetail('lantern', "content:'';position:absolute;top:2px;left:calc(50% - 4px);width:8px;height:5px;pointer-events:none;z-index:1;border:1.5px solid color-mix(in srgb,var(--vg2) 60%,transparent);border-bottom:none;border-radius:5px 5px 0 0;opacity:.8", '::after'),
+  // hanko: vermillion seal stamp at top-right corner (sumi chrome)
+  ...shapeDetail('hanko', "content:'';position:absolute;top:-6px;right:-6px;width:36px;height:36px;pointer-events:none;z-index:1;background:radial-gradient(circle at 45% 40%,var(--vg),color-mix(in srgb,var(--vg) 70%,#000));border-radius:4px;box-shadow:0 3px 10px rgba(var(--vg-rgb),.4);transform:rotate(-3deg);opacity:.9", '::after'),
+  // inkwash: asymmetric brush stroke gradient on right edge (sumi chrome)
+  ...shapeDetail('inkwash', "content:'';position:absolute;top:0;right:0;bottom:0;width:80px;pointer-events:none;z-index:1;background:linear-gradient(90deg,transparent,rgba(var(--vi),.04));opacity:.6", '::after'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.
   "html[data-vle-chrome='modern'] .vle-mem--beat,html[data-vle-chrome='modern'] .vle-fac,html[data-vle-chrome='modern'] .vle-card:not(.vle-fac),html[data-vle-chrome='modern'] .vle-item-row{position:relative;background:color-mix(in srgb,var(--vg) 4%,var(--vsurf1,transparent))}",
   "html[data-vle-chrome='modern'] .vle-mem--beat::before,html[data-vle-chrome='modern'] .vle-fac::before,html[data-vle-chrome='modern'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--vg);opacity:.8;pointer-events:none;z-index:1}",
   "html[data-vle-chrome='modern'] .vle-fac::before{background:var(--v-info)}",
-  // --- avatar reshape: tarot + arch => taller portrait medallion ---
-  "[data-shape-cast='tarot'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='tarot'] .vld-pc .vld-pc-av,[data-shape-cast='arch'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='arch'] .vld-pc .vld-pc-av{border-radius:44% / 40%}",
+  // --- avatar reshape: tarot + hanko => taller portrait medallion ---
+  "[data-shape-cast='tarot'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='tarot'] .vld-pc .vld-pc-av,[data-shape-cast='hanko'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='hanko'] .vld-pc .vld-pc-av{border-radius:44% / 40%}",
 
 ].join('\n');
 
