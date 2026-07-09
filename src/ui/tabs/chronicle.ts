@@ -330,9 +330,15 @@ function establishingShot(s: ChronicleState): string {
   const location = s.scene.location || 'Unknown Location';
   const title = `<h3 class="vle-hero-title">${esc(location)}</h3>`;
   
-  // present cast — resolve ids to display names (cersei_lannister -> Cersei Lannister)
+  // present cast with character colors — resolve ids to display names + color chips
   const present = s.scene.present?.length
-    ? `<div class="vle-hero-meta"><span class="vle-hero-label">Present:</span> <span class="vle-hero-val">${s.scene.present.map((id) => esc(nameOf(s, id))).join(', ')}</span></div>`
+    ? `<div class="vle-hero-meta"><span class="vle-hero-label">Present:</span> <span class="vle-hero-val">${s.scene.present.map((id) => {
+        const cast = s.cast[id];
+        const name = esc(nameOf(s, id));
+        const color = cast?.color;
+        const colorDot = color ? `<span class="vle-hero-color-dot" style="background:${esc(color)}"></span>` : '';
+        return `${colorDot}${name}`;
+      }).join(', ')}</span></div>`
     : '';
   
   // tension
@@ -472,36 +478,48 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
   }
   
-  // Threads: vertical cards with off-screen notes
+  // Threads: simpler cards matching mockup — title, arc name, status, latest beat, meanwhile note
   const cards = list.slice().sort(byRecent).slice(0, 12).map((t) => {
     const resolved = /resolv/i.test(t.status || '');
-    // a bare "advance"/"new" status carries no info — show a neutral "open" pill.
     const statusText = t.status && !/^(advance|new)$/i.test(t.status) ? t.status : (resolved ? 'resolved' : 'open');
-    const pill = `<span class="vle-trk-pill${resolved ? ' done' : ''}">${esc(statusText)}</span>`;
+    const statusBadge = `<span class="vle-thread-status${resolved ? ' done' : ''}">${esc(statusText).toUpperCase()}</span>`;
     
-    // reflect any linked off-screen subplot's latest beat (margin note style)
+    // Find parent arc (threads can be nested under arcs)
+    const parentArc = s.arcs.find(arc => arc.id === t.id || (t.beats.length && arc.beats.some(b => t.beats.includes(b))));
+    const arcLabel = parentArc ? `<div class="vle-thread-arc">under ${esc(parentArc.name)}</div>` : '';
+    
+    // Latest beat as description
+    const latestBeat = t.beats[t.beats.length - 1] || '';
+    const desc = latestBeat ? `<div class="vle-thread-desc">${esc(latestBeat)}</div>` : '';
+    
+    // Meanwhile note (off-screen reflection)
     const off = linkedOffscreen(s, { id: t.id, name: t.name });
     const offNote = off.length && off[0]
-      ? `<div class="vle-trk-meanwhile">
-          <div class="vle-trk-meanwhile-label">MEANWHILE</div>
-          <div class="vle-trk-meanwhile-text">${esc(off[0].gist || off[0].beats[off[0].beats.length - 1] || '')} \u2192 ${esc(off[0].status || 'advancing')}</div>
+      ? `<div class="vle-thread-meanwhile">
+          <div class="vle-thread-meanwhile-label">MEANWHILE</div>
+          <div class="vle-thread-meanwhile-text">${esc(off[0].gist || off[0].beats[off[0].beats.length - 1] || '')} \u2192 ${esc(off[0].status || 'advancing')}</div>
         </div>`
       : '';
     
-    const hist = t.beats.length > 1 ? `<details class="vle-trk-hist"><summary>${t.beats.length} beats</summary>${t.beats.map((b) => '<div class="vle-trk-beat">\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
+    // Controls
     const editBtn = `<button class="vle-mini" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">\u270E</button>`;
     const stBtn = resolved
       ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
       : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
-    const ctl = `<div class="vle-trk-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
+    const ctl = `<div class="vle-thread-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
     
-    // head = title on its own line, pill below it; everything else (off-screen note,
-    // beats history, controls) lives in a body wrapper strictly after the head.
-    const head = `<div class="vle-trk-head"><div class="vle-trk-n">${esc(t.name)}</div>${pill}</div>`;
-    const body = `<div class="vle-trk-body">${offNote}${hist}${ctl}</div>`;
-    return `<div class="vle-trk vle-trk--thread${resolved ? ' vle-trk--done' : ''}">${head}${body}</div>`;
+    return `<div class="vle-thread-card${resolved ? ' vle-thread-card--done' : ''}">
+      <div class="vle-thread-header">
+        <div class="vle-thread-title">${esc(t.name)}</div>
+        ${statusBadge}
+      </div>
+      ${arcLabel}
+      ${desc}
+      ${offNote}
+      ${ctl}
+    </div>`;
   }).join('');
-  const body = cards ? `<div class="vle-trk-grid">${cards}</div>` : emptyState('No threads yet.', 'They fill in as the story unfolds; add one by hand too.');
+  const body = cards ? `<div class="vle-thread-list">${cards}</div>` : emptyState('No threads yet.', 'They fill in as the story unfolds; add one by hand too.');
   return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
 }
 

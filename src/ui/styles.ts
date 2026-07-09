@@ -608,15 +608,16 @@ export const STYLES = [
   ".vle-os-h{margin-top:5px;font-size:11px;opacity:.7}.vle-os-h summary{cursor:pointer;color:var(--vi2);font:600 9px/1.3 var(--vmono);text-transform:uppercase;letter-spacing:.4px}.vle-os-h div{padding:2px 0 0 10px;border-left:1px dotted rgba(var(--vg-rgb),.3);margin-left:2px;line-height:1.5}",
   // --- Establishing Shot hero (Chronicle > World) — a cinematic scene header:
   // day/time kicker, location as a serif title, present cast + tension as metadata.
-  ".vle-hero{position:relative;padding:16px 18px;margin-bottom:12px;border:1px solid rgba(var(--vg-rgb),.2);border-radius:var(--vr2);background:linear-gradient(135deg,color-mix(in srgb,var(--v-neg) 10%,transparent),color-mix(in srgb,var(--vi) 4%,transparent) 60%);overflow:hidden}",
+  ".vle-hero{position:relative;padding:10px 13px;margin-bottom:10px;border:1px solid rgba(var(--vg-rgb),.2);border-radius:var(--vr2);background:linear-gradient(135deg,color-mix(in srgb,var(--v-neg) 10%,transparent),color-mix(in srgb,var(--vi) 4%,transparent) 60%);overflow:hidden}",
   ".vle-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(120% 80% at 15% -10%,rgba(var(--vg-rgb),.08),transparent 60%);pointer-events:none}",
-  ".vle-hero-kicker{display:flex;align-items:center;gap:7px;font:600 9.5px/1 var(--vmono);letter-spacing:1.2px;text-transform:uppercase;color:var(--vle-gold);opacity:.85;margin-bottom:8px}",
+  ".vle-hero-kicker{display:flex;align-items:center;gap:6px;font:600 8.5px/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--vle-gold);opacity:.85;margin-bottom:5px}",
   ".vle-hero-sep{width:3px;height:3px;border-radius:50%;background:rgba(var(--vg-rgb),.5)}",
-  ".vle-hero-title{font-family:var(--vserif);font-size:calc(24px * var(--vscale));line-height:1.15;color:var(--vi);margin:0 0 6px;font-weight:600;overflow-wrap:anywhere}",
-  ".vle-hero-metas{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}",
-  ".vle-hero-meta{font-size:calc(12.5px * var(--vscale));line-height:1.4}",
-  ".vle-hero-label{font:600 9px/1.4 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);opacity:.6;margin-right:5px}",
+  ".vle-hero-title{font-family:var(--vserif);font-size:calc(18px * var(--vscale));line-height:1.15;color:var(--vi);margin:0 0 4px;font-weight:600;overflow-wrap:anywhere}",
+  ".vle-hero-metas{display:flex;gap:14px;flex-wrap:wrap;margin-top:5px}",
+  ".vle-hero-meta{font-size:calc(11.5px * var(--vscale));line-height:1.4}",
+  ".vle-hero-label{font:600 8.5px/1.4 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);opacity:.6;margin-right:4px}",
   ".vle-hero-val{font-family:var(--vserif);color:var(--vi)}",
+  ".vle-hero-color-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.2)}",
   ".vle-hero-tension{font-family:var(--vmono);font-weight:700;color:var(--vle-gold)}",
   ".vle-hero-tension.warm{color:var(--v-press)}.vle-hero-tension.hot{color:var(--v-neg)}",
   ".vle-hero-edit{flex:0 0 auto;margin-left:4px;border:none;background:transparent;color:var(--vle-gold);opacity:.5;cursor:pointer;font-size:calc(10px * var(--vscale));padding:2px 4px;transition:all .15s}",
@@ -639,11 +640,25 @@ export const STYLES = [
   ".vle-arc-ctl{display:flex;gap:4px;justify-content:flex-end;padding-top:4px;border-top:1px solid rgba(var(--vg-rgb),.1)}",
   "html[data-vle-chrome='futuristic'] .vle-arc-card{border-radius:2px}",
   "html[data-vle-chrome='modern'] .vle-arc-card{border-radius:12px}",
-  // thread "meanwhile" margin-note (linked off-screen reflection) — a quiet inset
-  // block beneath a thread, sage/info toned, showing the off-stage consequence.
-  ".vle-trk-meanwhile{margin-top:2px;padding:6px 9px;border-left:2px solid color-mix(in srgb,var(--v-info) 60%,transparent);background:color-mix(in srgb,var(--v-info) 7%,transparent);border-radius:var(--vr1)}",
-  ".vle-trk-meanwhile-label{font:600 8px/1.4 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--v-info);opacity:.85;margin-bottom:2px}",
-  ".vle-trk-meanwhile-text{font-family:var(--vserif);font-style:italic;font-size:calc(11.5px * var(--vscale));line-height:1.45;color:var(--vi2);overflow-wrap:anywhere}",
+  // --- Thread cards (Chronicle > World threads) — matching Establishing Shot
+  // mockup: title + status badge header, arc subtitle, latest beat, meanwhile note.
+  ".vle-thread-list{display:flex;flex-direction:column;gap:10px;margin-bottom:8px}",
+  ".vle-thread-card{position:relative;padding:12px 14px;border:1px solid rgba(var(--vg-rgb),.16);border-left:3px solid var(--vg);background:color-mix(in srgb,var(--vi) 4%,transparent);border-radius:var(--vr2);transition:all .15s}",
+  ".vle-thread-card:hover{border-color:rgba(var(--vg-rgb),.3);background:color-mix(in srgb,var(--vi) 6%,transparent)}",
+  ".vle-thread-card:hover .vle-thread-ctl{opacity:1}",
+  ".vle-thread-card--done{opacity:.55;border-left-color:rgba(var(--vg-rgb),.3)}",
+  ".vle-thread-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:2px}",
+  ".vle-thread-title{font-family:var(--vserif);font-size:calc(15px * var(--vscale));line-height:1.3;color:var(--vi);font-weight:600;overflow-wrap:anywhere}",
+  ".vle-thread-status{flex:0 0 auto;font:700 8.5px/1.4 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--v-pos);white-space:nowrap;padding-top:2px}",
+  ".vle-thread-status.done{color:var(--vi2);opacity:.6}",
+  ".vle-thread-arc{font-family:var(--vserif);font-style:italic;font-size:calc(11.5px * var(--vscale));color:var(--vi2);opacity:.7;margin-bottom:5px}",
+  ".vle-thread-desc{font-family:var(--vserif);font-size:calc(13px * var(--vscale));line-height:1.55;color:var(--vi2);margin-bottom:6px;overflow-wrap:anywhere}",
+  ".vle-thread-meanwhile{margin-top:6px;padding:7px 10px;border-left:2px solid color-mix(in srgb,var(--v-info) 60%,transparent);background:color-mix(in srgb,var(--v-info) 8%,transparent);border-radius:var(--vr1)}",
+  ".vle-thread-meanwhile-label{font:600 8px/1.4 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--v-info);opacity:.85;margin-bottom:2px}",
+  ".vle-thread-meanwhile-text{font-family:var(--vserif);font-style:italic;font-size:calc(11.5px * var(--vscale));line-height:1.45;color:var(--vi2);overflow-wrap:anywhere}",
+  ".vle-thread-ctl{display:flex;gap:4px;justify-content:flex-end;margin-top:8px;padding-top:6px;border-top:1px solid rgba(var(--vg-rgb),.1);opacity:.5;transition:opacity .15s}",
+  "html[data-vle-chrome='futuristic'] .vle-thread-card{border-radius:2px}",
+  "html[data-vle-chrome='modern'] .vle-thread-card{border-radius:12px}",
   // --- Elsewhere Feed (Director > Off-screen) — a vertical timeline of
   // "meanwhile" moments. Each item is a collapsible card: kicker + title + status
   // in the header, an expandable body with the latest beat, cast, and actions.
