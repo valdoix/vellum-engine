@@ -486,6 +486,8 @@ export const STYLES = [
   ".vle-desync-from{flex:0 0 auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--vi2);letter-spacing:.3px;opacity:.7}",
   ".vle-desync-arrow{flex:0 0 auto;color:var(--v-warn);opacity:.7;font-size:calc(10px * var(--vscale))}",
   ".vle-desync-lag{flex:0 0 auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--v-warn);letter-spacing:.4px;white-space:nowrap}",
+  // stamped-forward-but-unauthored state: reads as a neutral "to do", not a warning
+  ".vle-desync-lag.await{color:var(--vi2);opacity:.85;font-style:italic;text-transform:none;letter-spacing:.2px}",
   ".vle-desync-catch{flex:0 0 auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);letter-spacing:.3px;color:var(--v-warn);background:color-mix(in srgb,var(--v-warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--v-warn) 45%,transparent);border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s}",
   ".vle-desync-catch:hover{background:color-mix(in srgb,var(--v-warn) 22%,transparent);color:var(--vi)}",
   // the "catch-up all" row action, slotted in the section header next to the title

@@ -4,6 +4,7 @@ import { type ChronicleState, type Relation, type Track, freshState } from '../d
 import { freshRelation, applyScore, addCategories, removeCategories, sentimentToScores, deriveSentiment } from '../domain/relations.js';
 import { normalizeCategorySet, primaryCategory, isCategory } from '../domain/category.js';
 import { parseClock } from '../domain/clock.js';
+import { isCatchupMarker } from '../domain/thread-catchup.js';
 
 /**
  * reduce(events) → ChronicleState. PURE: no I/O, no randomness, no host calls.
@@ -469,7 +470,13 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         if (e.status !== undefined) cur.status = e.status;
         cur.lastTurn = Math.max(cur.lastTurn, e.turn);
         stampTrackDay(cur, e.day);
-        if (e.note) pushTrackBeat(cur, e.note);
+        // `fill`: an authored Time Sync beat REPLACES a trailing "caught up: …"
+        // placeholder marker in place, so generating real content swaps out the
+        // bare marker rather than leaving both. Falls back to a normal push when
+        // there's no marker to replace.
+        if (e.note && e.fill && isCatchupMarker(cur.beats[cur.beats.length - 1])) {
+          cur.beats = [...cur.beats.slice(0, -1), e.note.trim()].slice(-6);
+        } else if (e.note) pushTrackBeat(cur, e.note);
       } else {
         upsertTrack(list, e.name, e.status ?? 'advance', e.turn, e.note, 'new', e.day);
       }

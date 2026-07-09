@@ -1015,16 +1015,17 @@ export function setup(ctx: Ctx): () => void {
         else if (p.reason === 'empty_reply') notify(ctx, 'warning', 'The model returned no off-screen beat \u2014 try again.');
         else if (p.advanced) notify(ctx, 'success', 'Advanced the off-screen world.');
       } else if (p?.type === 'vellum_thread_catchup_done') {
-        // catch-up = day-stamp + a time-skip sim tick that moves tied off-screen
-        // subplots. Announce both parts so the user knows whether real beats landed
-        // or only the day advanced (no generation permission / model gave nothing).
+        // catch-up = day-stamp + AUTHORED beats filling each gap (canon-locked).
+        // Announce what actually happened: real beats written, only the day moved
+        // (no generation), or the model returned nothing usable.
         const jumped = Number(p.jumped) || 0;
-        const simmed = Number(p.simmed) || 0;
-        if (p.reason === 'in_sync') notify(ctx, 'info', 'Those threads are already on the current day.');
-        else if (simmed > 0) notify(ctx, 'success', `Caught up ${jumped} thread${jumped === 1 ? '' : 's'} \u2014 off-screen life advanced (${simmed} beat${simmed === 1 ? '' : 's'}).`);
-        else if (p.reason === 'no_generation') notify(ctx, 'warning', `Caught up ${jumped} thread${jumped === 1 ? '' : 's'} to the current day. Enable the generation permission to also advance their off-screen subplots.`);
-        else if (p.reason === 'empty_reply' || p.reason === 'no_cast') notify(ctx, 'info', `Caught up ${jumped} thread${jumped === 1 ? '' : 's'} to the current day \u2014 no off-screen beat to add.`);
-        else notify(ctx, 'success', `Caught up ${jumped} thread${jumped === 1 ? '' : 's'} to the current day.`);
+        const authored = Number(p.authored) || 0;
+        const th = (n: number): string => `${n} thread${n === 1 ? '' : 's'}`;
+        if (p.reason === 'in_sync') notify(ctx, 'info', 'Those threads are already caught up.');
+        else if (authored > 0) notify(ctx, 'success', `Wrote ${authored === 1 ? 'the missed beat' : authored + ' missed beats'} for ${th(authored)}, grounded in the story\u2019s canon.`);
+        else if (p.reason === 'no_generation') notify(ctx, 'warning', `Caught up ${th(jumped)} to the current day. Enable the generation permission to also write the missed beats.`);
+        else if (p.reason === 'empty_reply') notify(ctx, 'warning', jumped ? `Caught up ${th(jumped)} to the current day \u2014 the model returned no usable beat, try again.` : 'The model returned no usable beat \u2014 try again.');
+        else notify(ctx, 'success', `Caught up ${th(jumped)} to the current day.`);
       } else if (p?.type === 'vellum_chaptervault_done') {
         _chapterVault = p.mode ?? 'keyed';
         if (p.mode !== 'off' && !p.available) notify(ctx, 'warning', 'Chapter-vault needs the world_books permission \u2014 keeping chronicle gist only.');

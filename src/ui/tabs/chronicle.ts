@@ -4,6 +4,7 @@ import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { linkedOffscreen } from '../../domain/offscreen.js';
+import { threadAwaitsFill } from '../../domain/thread-catchup.js';
 import { formatDate, spanLabel } from '../../domain/date-format.js';
 import { parseClock, clockLabel } from '../../domain/clock.js';
 import { checkThreadOffscreenSync } from '../../domain/continuity.js';
@@ -345,20 +346,30 @@ function desyncInspector(s: ChronicleState): string {
   const nowDay = s.day || 0;
   if (nowDay <= 0) return '';
   const isOpen = (t: { status: string }): boolean => !/resolv/i.test(t.status || '');
-  const lagging = s.threads.filter(isOpen)
-    .filter((t) => t.lastDay !== undefined && spanLabel(nowDay - t.lastDay))
-    .sort((a, b) => (a.lastDay ?? 0) - (b.lastDay ?? 0));
+  // A thread needs attention when it LAGS the current day OR still carries an
+  // unfilled "caught up: …" marker (stamped forward, but no real beat authored
+  // yet). The second case keeps the section — and the "generate missed beats"
+  // button — reachable AFTER a stamp-only catch-up, so markers can be filled.
+  const rowsData = s.threads.filter(isOpen).map((t) => {
+    const lag = t.lastDay !== undefined && t.lastDay < nowDay ? nowDay - t.lastDay : 0;
+    const awaits = threadAwaitsFill(t);
+    return { t, lag, awaits };
+  }).filter((r) => r.lag > 0 || r.awaits)
+    .sort((a, b) => (b.lag - a.lag) || (Number(b.awaits) - Number(a.awaits)));
   const findings = checkThreadOffscreenSync(s);
-  _laggingIds = lagging.map((t) => t.id);
-  if (!lagging.length && !findings.length) return '';
-  const rows = lagging.map((t) => {
-    const span = spanLabel(nowDay - (t.lastDay ?? nowDay));
+  _laggingIds = rowsData.map((r) => r.t.id);
+  if (!rowsData.length && !findings.length) return '';
+  const rows = rowsData.map(({ t, lag, awaits }) => {
+    const span = lag > 0 ? spanLabel(lag) : '';
+    const state = awaits && lag <= 0
+      ? `<span class="vle-desync-lag await" title="Day stamped forward, but no beat written for the gap yet">needs a beat</span>`
+      : `<span class="vle-desync-lag">~${esc(span)} behind</span>`;
     return `<div class="vle-desync-row">`
       + `<span class="vle-desync-n">${esc(t.name)}</span>`
       + `<span class="vle-desync-from">d${esc(t.lastDay ?? '?')}</span>`
       + `<span class="vle-desync-arrow" aria-hidden="true">\u2192</span>`
-      + `<span class="vle-desync-lag">~${esc(span)} behind</span>`
-      + `<button class="vle-desync-catch" data-thread-catchup data-id="${esc(t.id)}" data-day="${nowDay}" title="Jump this thread forward to day ${nowDay}">catch up \u2192 d${nowDay}</button>`
+      + state
+      + `<button class="vle-desync-catch" data-thread-catchup data-id="${esc(t.id)}" data-day="${nowDay}" title="${awaits && lag <= 0 ? 'Write the missed beat for this thread\u2019s gap' : 'Catch this thread up to day ' + nowDay + ' and write the missed beat'}">${awaits && lag <= 0 ? 'write beat' : 'catch up \u2192 d' + nowDay}</button>`
       + `</div>`;
   }).join('');
   const findingsId = 'dsync-f-' + Math.random().toString(36).slice(2, 7);
@@ -368,13 +379,15 @@ function desyncInspector(s: ChronicleState): string {
       + `<div class="vle-desync-log-body" data-desync-log-body id="${findingsId}" hidden>${findings.map((w) => `<div class="vle-desync-note">${esc(w.text)}</div>`).join('')}</div>`
       + `</div>`
     : '';
-  const allBtn = lagging.length > 1
-    ? `<button class="vle-desync-all" data-thread-catchup-all data-day="${nowDay}" title="Jump all ${lagging.length} threads forward to day ${nowDay} in one action">\u26A1 catch-up all \u2192 d${nowDay}</button>`
+  // The "catch-up all" action is PERSISTENT while any thread lags or awaits a beat
+  // — the primary way to author every missed beat in one pass.
+  const allBtn = rowsData.length
+    ? `<button class="vle-desync-all" data-thread-catchup-all data-day="${nowDay}" title="Catch up all ${rowsData.length} thread(s) and write their missed beats, grounded in this story\u2019s canon">\u26A1 generate missed beats</button>`
     : '';
   const intro = rows
-    ? `<div class="vle-cz-note">A time-skip left these plot threads on an earlier narrative day. Catching up stamps them forward to day ${nowDay} and runs the off-screen world across the gap, so subplots tied to them gain real beats to match.</div>`
+    ? `<div class="vle-cz-note">A time-skip left these plot threads behind. Generating writes the beat that most plausibly happened over each gap \u2014 grounded strictly in this story\u2019s established canon (no details imported from source material), then stamps them to day ${nowDay}.</div>`
     : '';
-  return sectionHeader('⦖ Time Sync', { sub: true, count: lagging.length, action: allBtn })
+  return sectionHeader('⦖ Time Sync', { sub: true, count: rowsData.length, action: allBtn })
     + (rows ? `<div class="vle-desync">${rows}</div>${intro}` : '')
     + notes;
 }

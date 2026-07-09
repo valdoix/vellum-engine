@@ -47,6 +47,7 @@ import { sanitizeDirectives, directiveInjection, reconcileDirectives, armSchedul
 import { checkContinuity, checkThreadOffscreenSync } from './domain/continuity.js';
 import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenInjection, readyToIntersect } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
+import { THREAD_CATCHUP_SYS, buildCatchupPrompt, parseCatchupReply, validateCatchupBeats, catchupTargets, threadsAwaitingCatchup } from './domain/thread-catchup.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
@@ -1526,57 +1527,84 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_thread_done', ok: true }, uid);
   },
   vellum_thread_catchup: async (p, uid) => {
-    // Catch a lagging plot thread up to the sim's current narrative day AND let its
-    // off-screen life actually move — two steps, because a bare day-stamp jumps the
-    // number but leaves the story static ("caught up: Day 9 → Day 12" with no beats).
-    //   1) STAMP: emit a thread.set that advances the thread's lastDay straight to
-    //      `day`. The reducer stamps it monotonically and logs one marker beat so the
-    //      jump is recorded, not silent.
-    //   2) ADVANCE: run ONE off-screen sim tick as a TIME-SKIP covering the gap. The
-    //      sim reads the (now current) open threads and builds its subplots TOWARD
-    //      them — the thread<->off-screen bridge — so the subplots tied to these
-    //      threads gain real beats that surface on the thread card (linkedOffscreen).
-    //      This is the "off-screen subplots tied to them can then advance to match"
-    //      the Time Sync note promises. It needs generation; without it we still do
-    //      the stamp so the day at least moves.
+    // Bring lagging plot threads up to the current narrative day AND author the real
+    // beat that closes each day-gap — so a catch-up carries STORY, not just a new
+    // day number. Two phases, so the button works with or without generation:
+    //   1) STAMP: emit a thread.set that advances each lagging thread's lastDay to
+    //      `day`, logging a "caught up: Day X → Day Y" MARKER beat. This alone moves
+    //      the clock even when generation is off.
+    //   2) AUTHOR: with generation, ask the controller to write one grounded beat
+    //      per thread for its gap, then emit fill thread.sets that REPLACE the marker
+    //      in place. The prompt is CANON-LOCKED (this story's roster/facts/prior
+    //      beats only, source material forbidden) so an AU stays an AU — a childless
+    //      Cersei is never given children.
+    // The action also targets threads that ALREADY carry an unfilled marker (a prior
+    // stamp-only catch-up), so "generate missed beats" stays reachable and fills them.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
-    const ids = Array.isArray(p?.ids) ? p.ids.map(String) : (p?.id ? [String(p.id)] : []);
-    if (!ids.length) return;
     const state = await loadState(chatId);
     const targetDay = Number.isFinite(p?.day) && (p as { day: number }).day > 0
       ? Math.floor((p as { day: number }).day)
       : state.day || 0;
-    const evs: VellumEvent[] = [];
-    let maxGap = 0; // largest day-span caught up — how much time the sim should cover
+    // resolve the working set: explicit ids, or (for "catch-up all") every thread
+    // that lags or awaits a fill.
+    const ids = Array.isArray(p?.ids) ? p.ids.map(String)
+      : (p?.id ? [String(p.id)] : threadsAwaitingCatchup(state, targetDay).map((t) => t.id));
+    if (!ids.length) { spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: false, reason: 'in_sync', jumped: 0, authored: 0 }, uid); return; }
+
+    // Phase 1 — stamp any thread still behind the target day with a marker beat.
+    const stampEvs: VellumEvent[] = [];
     for (const id of ids) {
       const t = state.threads.find((x) => x.id === id);
-      if (!t || t.lastDay !== undefined && t.lastDay >= targetDay) continue; // already at/past target
+      if (!t || (t.lastDay !== undefined && t.lastDay >= targetDay)) continue; // already current
       const from = t.lastDay ?? 0;
-      if (from > 0) maxGap = Math.max(maxGap, targetDay - from);
-      evs.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: targetDay, src: 'user', kind: 'thread.set',
+      stampEvs.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: targetDay, src: 'user', kind: 'thread.set',
         id, name: t.name, status: t.status, note: from > 0 ? `caught up: Day ${from} → Day ${targetDay}` : `caught up to Day ${targetDay}` } as VellumEvent);
     }
-    if (!evs.length) { spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: false, reason: 'in_sync', jumped: 0 }, uid); return; }
-    await append(chatId, evs);
-    invalidateIndex(chatId);
-    // Step 2: advance off-screen life across the gap so the catch-up carries real
-    // plot, not just a new day number. Fire only when generation is available; the
-    // sim's own time-skip logic (skipDays >= 2) makes it cover the whole span and
-    // resolve subplots that would have run their course. A gap of <2 days stays a
-    // pure stamp — too small to warrant a generation round-trip.
-    let simmed = 0;
-    let simReason: string | undefined;
+    if (stampEvs.length) { await append(chatId, stampEvs); invalidateIndex(chatId); }
+
+    // Phase 2 — author real beats for every target (fresh state so marker spans are
+    // read post-stamp) and fill the markers in place. Needs generation; without it
+    // we keep the markers so the day at least moved.
+    let authored = 0;
+    let reason: string | undefined;
     const canGen = await has('generation');
-    if (canGen && maxGap >= 1) {
-      const r = await simulateOffscreen(chatId, uid, undefined, Math.max(maxGap, 2));
-      simmed = r.beats;
-      if (!r.beats && r.reason) simReason = r.reason;
-    } else if (!canGen) {
-      simReason = 'no_generation';
+    if (!canGen) {
+      reason = 'no_generation';
+    } else {
+      try {
+        const post = await loadState(chatId);
+        const targets = catchupTargets(post, ids, targetDay);
+        if (!targets.length) { reason = 'in_sync'; }
+        else {
+          const res = await controllerGenerate(
+            [{ role: 'system', content: THREAD_CATCHUP_SYS }, { role: 'user', content: buildCatchupPrompt(post, targets) }],
+            uid, 30000, 700);
+          if (!res.ok) { reason = 'empty_reply'; spindle.log?.warn?.(`[vellum_engine] thread catch-up: generation failed (${res.error})`); }
+          else {
+            const beats = validateCatchupBeats(parseCatchupReply(res.value), targets);
+            if (!beats.length) { reason = 'empty_reply'; spindle.log?.warn?.('[vellum_engine] thread catch-up: reply had no usable beats. Raw: ' + JSON.stringify((res.value || '').slice(0, 400))); }
+            else {
+              const fillEvs: VellumEvent[] = beats.map((b) => {
+                const t = post.threads.find((x) => x.id === b.id)!;
+                return { seq: nextSeqLocal(), turn: post.turns || 0, day: targetDay, src: 'system', kind: 'thread.set',
+                  id: b.id, name: t.name, status: t.status, note: b.beat, fill: true } as VellumEvent;
+              });
+              await append(chatId, fillEvs);
+              invalidateIndex(chatId);
+              authored = fillEvs.length;
+            }
+          }
+        }
+      } catch (e) { reason = 'empty_reply'; spindle.log?.warn?.('[vellum_engine] thread catch-up: ' + ((e as Error)?.message ?? e)); }
+    }
+
+    if (!stampEvs.length && !authored && reason === 'in_sync') {
+      spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: false, reason: 'in_sync', jumped: 0, authored: 0 }, uid);
+      return;
     }
     await broadcastState(chatId, uid);
-    spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: true, jumped: evs.length, simmed, ...(simReason ? { reason: simReason } : {}) }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: true, jumped: stampEvs.length, authored, ...(reason && !authored ? { reason } : {}) }, uid);
   },
   vellum_set_next_scene: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
