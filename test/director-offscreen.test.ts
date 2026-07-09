@@ -24,10 +24,10 @@ describe('Director Off-screen view — renders model-narrated parallel meanwhile
     ];
     switchTo('offscreen');
     const html = directorTab.render(s);
-    expect(html).toContain('Meanwhile (narrated)');
+    expect(html).toContain('Elsewhere Feed'); // new feed title
     expect(html).toContain('lit candles for the dead');
     expect(html).toContain('ravens circled the tower');
-    expect(html).toContain('auto'); // src:'sim' badge
+    expect(html).toContain('AUTO'); // src:'sim' badge (uppercase in new design)
   });
 
   it('parallel-only state does not show the empty placeholder', () => {

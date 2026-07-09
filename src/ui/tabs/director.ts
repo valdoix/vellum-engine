@@ -33,6 +33,9 @@ let _state: ChronicleState | null = null;
 // collapsed location ids (their children hidden). Session-only UI state; a place
 // stays expanded by default so nothing is hidden unless the user folds it.
 const _locCollapsed = new Set<string>();
+// expanded off-screen feed item ids (Elsewhere Feed). Session-only; items start
+// collapsed except the lone active thread (handled in offscreenView).
+const _feedExpanded = new Set<string>();
 
 /** Location options for a parent/seat picker: every location except `selfId`
  * (a place can't contain itself). Leading blank = "none". */
@@ -65,7 +68,7 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.auto ? 'a' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.auto ? 'a' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}:${[..._feedExpanded].sort().join(',')}`,
   render(s) {
     _state = s;
     const counts: Record<DView, number> = {
@@ -191,6 +194,15 @@ export const directorTab: Component<ChronicleState> = {
       }
       const odel = t.closest('[data-off-del]');
       if (odel) { confirmModal('Delete this off-screen thread?', () => send({ type: 'vellum_offthread_drop', id: odel.getAttribute('data-id') })); return; }
+      
+      // --- feed toggle (expand/collapse off-screen items) ---
+      const ftog = t.closest('[data-feed-toggle]');
+      if (ftog) {
+        const id = ftog.getAttribute('data-id') || '';
+        if (_feedExpanded.has(id)) _feedExpanded.delete(id); else _feedExpanded.add(id);
+        refreshUI();
+        return;
+      }
     });
   },
 };
@@ -327,47 +339,104 @@ function offscreenView(s: ChronicleState): string {
   const active = all.filter((o) => o.status === 'active').sort(byRecentOff);
   const resolved = all.filter((o) => o.status === 'resolved').sort(byRecentOff);
   const par = (s.parallel ?? []).slice();
-  const head = sectionHeader('\u2748 Off-screen', { sub: true, count: active.length, action: '<button class="vle-add sm" data-off-simall title="Advance the whole off-screen world one AI tick (needs generation)">\u2748 simulate all</button><button class="vle-add sm" data-off-add>+</button>' });
-  const intro = '<div class="vle-cz-note">Subplots unfolding away from the scene. Each has its own controls: \u25B8 advance (one AI beat for THIS thread), \u270E edit, \u2713 resolve, \u2715 delete. Auto-simulation is the Off-screen toggle in Actions.</div>';
+  const head = sectionHeader('\u2748 Elsewhere Feed', { sub: true, count: active.length, action: '<button class="vle-add sm" data-off-simall title="Advance the whole off-screen world one AI tick (needs generation)">\u2748 simulate all</button><button class="vle-add sm" data-off-add>+</button>' });
+  const intro = '<div class="vle-cz-note">A timeline of "meanwhile" moments. Each subplot shows its latest beat, status, and cast. Expand a card to see full history and controls.</div>';
   if (!all.length && !par.length) return head + intro + emptyState('No off-screen threads.', 'Add one by hand, or enable Off-screen in Actions to let subplots auto-simulate every few turns.');
+  
   const now = s.turns || 0;
   const A = (x: unknown): string => esc(x);
-  const row = (o: ChronicleState['offscreen'][number]): string => {
+  
+  // Feed item renderer - collapsible cards
+  const feedItem = (o: ChronicleState['offscreen'][number], expanded = false): string => {
     const done = o.status === 'resolved';
     const who = o.who ? esc(s.cast[o.who]?.name ?? o.who) : '';
-    const where = o.where ? ` <span class="vle-os-w">@${esc(o.where)}</span>` : '';
+    const where = o.where || 'Unknown';
     const stale = now - o.lastTurn;
-    const ripe = !done && readyToIntersect(s, o) ? '<span class="vle-os-ripe" title="Ready to walk into the scene">\u25C6 ripe</span>' : '';
-    const staleMark = !done && stale >= 6 ? `<span class="vle-os-stale">${stale}t idle</span>` : '';
-    const hist = o.beats.length > 1 ? `<details class="vle-os-h"><summary>${o.beats.length} beats</summary>${o.beats.map((b) => '<div>\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
-    const editBtn = `<button class="vle-mini" data-off-edit data-id="${A(o.id)}" data-name="${A(o.name)}" data-who="${A(o.who ? (s.cast[o.who]?.name ?? o.who) : '')}" data-where="${A(o.where ?? '')}" data-gist="${A(o.gist ?? '')}" title="Edit">\u270E</button>`;
-    const advBtn = done ? '' : `<button class="vle-mini" data-off-adv data-id="${A(o.id)}" title="Advance this thread one AI beat (needs generation)">\u25B8</button>`;
-    // explicit link to a plot thread (the bridge). Show the linked thread name; the
-    // button opens a picker (or clears). Highlighted when a link is set.
-    const linkedName = o.thread ? (s.threads.find((th) => th.id === o.thread)?.name ?? '') : '';
-    const linkChip = linkedName ? `<span class="vle-os-link" title="linked plot thread">\u269C ${esc(linkedName)}</span>` : '';
-    const linkBtn = `<button class="vle-mini${o.thread ? ' on' : ''}" data-off-link data-id="${A(o.id)}" data-thread="${A(o.thread ?? '')}" title="${o.thread ? 'Change / clear plot-thread link' : 'Link to a plot thread'}">\u269C</button>`;
-    const stBtn = done
-      ? `<button class="vle-mini" data-off-reopen data-id="${A(o.id)}" data-name="${A(o.name)}" title="Reopen">\u21BA</button>`
-      : `<button class="vle-mini" data-off-resolve data-id="${A(o.id)}" title="Resolve">\u2713</button>`;
-    const ctl = `<span class="vle-mem-ctl">${advBtn}${linkBtn}${editBtn}${stBtn}<button class="vle-mini del" data-off-del data-id="${A(o.id)}" title="Delete">\u2715</button></span>`;
-    return `<div class="vle-os${done ? ' vle-os--done' : ''}"><div class="vle-os-top"><span class="vle-os-n">${esc(o.name)}</span>${who ? `<span class="vle-os-who">${who}</span>` : ''}${where}${linkChip}${ripe}${staleMark}${ctl}</div><div class="vle-os-gist">${esc(o.gist || o.beats[o.beats.length - 1] || '')}</div>${hist}</div>`;
+    const ripe = !done && readyToIntersect(s, o);
+    
+    // Status badge
+    const statusClass = ripe ? 'ripe' : done ? 'done' : 'active';
+    const statusLabel = ripe ? 'RIPE' : done ? 'RESOLVED' : 'ACTIVE';
+    const statusBadge = `<span class="vle-feed-status vle-feed-status--${statusClass}">${statusLabel}</span>`;
+    
+    // Kicker: Meanwhile · Location
+    const kicker = `<div class="vle-feed-kicker">Meanwhile \u00B7 ${esc(where)}</div>`;
+    
+    // Title
+    const title = `<h4 class="vle-feed-title">${esc(o.name)}</h4>`;
+    
+    // Metadata line
+    const turnsAgo = stale === 0 ? 'just now' : stale === 1 ? '1 turn ago' : `${stale} turns ago`;
+    const meta = `<div class="vle-feed-meta">Last advanced ${turnsAgo}</div>`;
+    
+    // Header (always visible)
+    const toggleBtn = `<button class="vle-feed-toggle" data-feed-toggle data-id="${A(o.id)}" aria-label="${expanded ? 'Collapse' : 'Expand'}">${expanded ? '\u25BC' : '\u25B6'}</button>`;
+    const header = `<div class="vle-feed-header">${kicker}${title}${meta}${statusBadge}${toggleBtn}</div>`;
+    
+    // Body (only when expanded)
+    let body = '';
+    if (expanded) {
+      // Latest beat
+      const latestBeat = o.gist || o.beats[o.beats.length - 1] || '';
+      const beatCard = latestBeat ? `<div class="vle-feed-beat">
+        <div class="vle-feed-beat-label">LATEST BEAT</div>
+        <div class="vle-feed-beat-text">${esc(latestBeat)}</div>
+      </div>` : '';
+      
+      // Cast & linked thread
+      const castLine = who ? `<div class="vle-feed-detail"><span class="vle-feed-label">Cast:</span> <span class="vle-feed-val">${who}</span></div>` : '';
+      const linkedName = o.thread ? (s.threads.find((th) => th.id === o.thread)?.name ?? '') : '';
+      const linkedLine = linkedName ? `<div class="vle-feed-detail"><span class="vle-feed-label">Linked thread:</span> <span class="vle-feed-val vle-feed-linked">${esc(linkedName)}</span></div>` : '';
+      const details = (castLine || linkedLine) ? `<div class="vle-feed-details">${castLine}${linkedLine}</div>` : '';
+      
+      // Actions
+      const advBtn = done ? '' : `<button class="vle-btn vle-btn--primary" data-off-adv data-id="${A(o.id)}" title="Advance this thread one AI beat">ADVANCE</button>`;
+      const editBtn = `<button class="vle-btn vle-btn--secondary" data-off-edit data-id="${A(o.id)}" data-name="${A(o.name)}" data-who="${A(o.who ? (s.cast[o.who]?.name ?? o.who) : '')}" data-where="${A(o.where ?? '')}" data-gist="${A(o.gist ?? '')}" title="Edit">EDIT</button>`;
+      const linkBtn = `<button class="vle-btn vle-btn--secondary" data-off-link data-id="${A(o.id)}" data-thread="${A(o.thread ?? '')}" title="${o.thread ? 'Change / clear link' : 'Link to thread'}">LINK</button>`;
+      const stBtn = done
+        ? `<button class="vle-btn vle-btn--secondary" data-off-reopen data-id="${A(o.id)}" data-name="${A(o.name)}" title="Reopen">REOPEN</button>`
+        : `<button class="vle-btn vle-btn--secondary" data-off-resolve data-id="${A(o.id)}" title="Resolve">RESOLVE</button>`;
+      const delBtn = `<button class="vle-btn vle-btn--danger" data-off-del data-id="${A(o.id)}" title="Delete">DELETE</button>`;
+      const actions = `<div class="vle-feed-actions">${advBtn}${editBtn}${linkBtn}${stBtn}${delBtn}</div>`;
+      
+      body = `<div class="vle-feed-body">${beatCard}${details}${actions}</div>`;
+    }
+    
+    return `<div class="vle-feed-item${done ? ' vle-feed-item--done' : ''}${expanded ? ' vle-feed-item--expanded' : ''}" data-feed-id="${A(o.id)}">${header}${body}</div>`;
   };
-  let html = head + intro;
-  if (active.length) html += '<div class="vle-subnav-g">Active</div>' + active.map(row).join('');
-  if (resolved.length) html += '<div class="vle-subnav-g">Resolved</div>' + resolved.map(row).join('');
-  // Model-narrated "meanwhile" lines (s.parallel) — the per-turn off-stage life
-  // the preset emits (also shown in the float/dashboard). Read-only: it's a
-  // rolling snapshot, not a first-class thread with its own controls.
-  if (par.length) {
-    const prow = (p: ChronicleState['parallel'][number]): string => {
-      const who = p.who ? `<span class="vle-os-who">${esc(s.cast[p.who]?.name ?? p.who)}</span>` : '';
-      const where = p.where ? ` <span class="vle-os-w">@${esc(p.where)}</span>` : '';
-      const sim = p.src === 'sim' ? ' <span class="vle-os-ripe" title="Off-screen simulation">auto</span>' : '';
-      return `<div class="vle-os"><div class="vle-os-top">${who}${where}${sim}<span class="vle-os-stale">t${p.turn}</span></div><div class="vle-os-gist">${esc(p.activity)}${p.note ? ` <em>${esc(p.note)}</em>` : ''}</div></div>`;
-    };
-    html += '<div class="vle-subnav-g">Meanwhile (narrated)</div>' + par.slice().sort((a, b) => b.turn - a.turn).map(prow).join('');
+  
+  // On first render (nothing toggled yet), auto-expand a lone active thread so the
+  // feed opens with useful content instead of all-collapsed.
+  if (_feedExpanded.size === 0 && active.length === 1 && active[0]) _feedExpanded.add(active[0].id);
+  const isExpanded = (o: { id: string }): boolean => _feedExpanded.has(o.id);
+  
+  let html = head + intro + '<div class="vle-feed">';
+  
+  // Active threads
+  if (active.length) {
+    html += active.map(o => feedItem(o, isExpanded(o))).join('');
   }
+  
+  // Resolved threads
+  if (resolved.length) {
+    html += resolved.map(o => feedItem(o, isExpanded(o))).join('');
+  }
+  
+  // Model-narrated "meanwhile" lines (collapsed feed items, read-only)
+  if (par.length) {
+    const parItems = par.slice().sort((a, b) => b.turn - a.turn).map(p => {
+      const who = p.who ? `<span class="vle-feed-who">${esc(s.cast[p.who]?.name ?? p.who)}</span>` : '';
+      const where = p.where || '';
+      const sim = p.src === 'sim' ? ' <span class="vle-feed-status vle-feed-status--auto">AUTO</span>' : '';
+      const kicker = `<div class="vle-feed-kicker">Meanwhile${where ? ' \u00B7 ' + esc(where) : ''}</div>`;
+      const activity = `<div class="vle-feed-title">${esc(p.activity)}</div>`;
+      const meta = `<div class="vle-feed-meta">Turn ${p.turn}</div>`;
+      return `<div class="vle-feed-item vle-feed-item--narrated">${kicker}${activity}${who}${sim}${meta}</div>`;
+    }).join('');
+    html += parItems;
+  }
+  
+  html += '</div>';
   return html;
 }
 

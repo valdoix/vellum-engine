@@ -83,7 +83,7 @@ export const chronicleTab: Component<ChronicleState> = {
       + '<span class="vle-subnav-g">Records</span>' + inGroup(['memory', 'knowledge', 'secrets', 'scars', 'codex', 'items'])
       + '</div>';
     let body = '';
-    if (_view === 'world') body = nowChip(s) + scene(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) + desyncInspector(s) || '';
+    if (_view === 'world') body = establishingShot(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) + desyncInspector(s) || '';
     else if (_view === 'timeline') body = timeline(s);
     else if (_view === 'turns') body = turnsView(s);
     else if (_view === 'beats') body = beatsView(s);
@@ -299,6 +299,47 @@ export const chronicleTab: Component<ChronicleState> = {
   },
 };
 
+/** Establishing Shot hero header — cinematic scene presentation with day, time,
+ * location, present cast, and tension at a glance. Replaces the old scene chip. */
+function establishingShot(s: ChronicleState): string {
+  const day = s.day || 0;
+  const hasScene = s.scene.location || s.scene.tension;
+  if (!hasScene && day <= 0) return '';
+  
+  const dateStr = formatDate(day, s.dateFormat || 'day', s);
+  const clock = s.scene.clock !== undefined ? s.scene.clock : parseClock(s.scene.time);
+  const timeStr = s.scene.time?.trim() || (clock !== undefined ? clockLabel(clock) : '');
+  const tension = Number(s.scene.tension) || 0;
+  
+  // day part label
+  const dayPart = clock === undefined ? '' : 
+    (clock >= 300 && clock < 720) ? 'Morning' :
+    (clock >= 720 && clock < 1080) ? 'Afternoon' :
+    (clock >= 1080 && clock < 1260) ? 'Evening' : 'Night';
+  
+  const kicker = '<div class="vle-hero-kicker">'
+    + (day > 0 ? `<span>Now</span><span class="vle-hero-sep">\u00B7</span><span>Day ${esc(day)}</span>` : '<span>Now</span>')
+    + (dayPart ? `<span class="vle-hero-sep">\u00B7</span><span>${dayPart}</span>` : '')
+    + '</div>';
+  
+  const location = s.scene.location || 'Unknown Location';
+  const title = `<h3 class="vle-hero-title">${esc(location)}</h3>`;
+  
+  // present cast
+  const present = s.scene.present?.length
+    ? `<div class="vle-hero-meta"><span class="vle-hero-label">Present:</span> <span class="vle-hero-val">${s.scene.present.map(esc).join(', ')}</span></div>`
+    : '';
+  
+  // tension
+  const tensionEl = tension > 0
+    ? `<div class="vle-hero-meta"><span class="vle-hero-label">Tension:</span> <span class="vle-hero-val vle-hero-tension${tension >= 8 ? ' hot' : tension >= 5 ? ' warm' : ''}">${tension}</span></div>`
+    : '';
+  
+  const meta = (present || tensionEl) ? `<div class="vle-hero-metas">${present}${tensionEl}</div>` : '';
+  
+  return `<div class="vle-hero">${kicker}${title}${meta}</div>`;
+}
+
 function scene(s: ChronicleState): string {
   if (!s.scene.location && !s.scene.tension) return '';
   const tension = Number(s.scene.tension) || 0;
@@ -401,19 +442,27 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     // a bare "advance"/"new" status carries no info — show a neutral "open" pill.
     const statusText = t.status && !/^(advance|new)$/i.test(t.status) ? t.status : (resolved ? 'resolved' : 'open');
     const pill = `<span class="vle-trk-pill${resolved ? ' done' : ''}">${esc(statusText)}</span>`;
-    // reflect any linked off-screen subplot's latest beat (the bridge)
+    
+    // reflect any linked off-screen subplot's latest beat (margin note style)
     const off = !kindArc ? linkedOffscreen(s, { id: t.id, name: t.name }) : [];
-    const offBeat = off.length ? `<div class="vle-trk-off" title="advanced off-screen">\u2748 ${esc(off[0]!.gist || off[0]!.beats[off[0]!.beats.length - 1] || '')}</div>` : '';
+    const offNote = off.length && off[0]
+      ? `<div class="vle-trk-meanwhile">
+          <div class="vle-trk-meanwhile-label">MEANWHILE</div>
+          <div class="vle-trk-meanwhile-text">${esc(off[0].gist || off[0].beats[off[0].beats.length - 1] || '')} \u2192 ${esc(off[0].status || 'advancing')}</div>
+        </div>`
+      : '';
+    
     const hist = t.beats.length > 1 ? `<details class="vle-trk-hist"><summary>${t.beats.length} beats</summary>${t.beats.map((b) => '<div class="vle-trk-beat">\u00b7 ' + esc(b) + '</div>').join('')}</details>` : '';
     const editBtn = `<button class="vle-mini" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">\u270E</button>`;
     const stBtn = resolved
       ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
       : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
     const ctl = `<div class="vle-trk-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
-    // head = title on its own line, pill below it; everything else (off-screen beat,
+    
+    // head = title on its own line, pill below it; everything else (off-screen note,
     // beats history, controls) lives in a body wrapper strictly after the head.
     const head = `<div class="vle-trk-head"><div class="vle-trk-n">${esc(t.name)}</div>${pill}</div>`;
-    const body = `<div class="vle-trk-body">${offBeat}${hist}${ctl}</div>`;
+    const body = `<div class="vle-trk-body">${offNote}${hist}${ctl}</div>`;
     return `<div class="vle-trk ${kindArc ? 'vle-trk--arc' : 'vle-trk--thread'}${resolved ? ' vle-trk--done' : ''}">${head}${body}</div>`;
   }).join('');
   const body = cards ? `<div class="vle-trk-grid">${cards}</div>` : emptyState(`No ${kindArc ? 'arcs' : 'threads'} yet.`, 'They fill in as the story unfolds; add one by hand too.');
