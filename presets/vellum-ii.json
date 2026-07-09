@@ -73,6 +73,16 @@
           "defaultValue": "adaptive",
           "options": [
             {
+              "id": "micro",
+              "label": "Micro",
+              "value": "a single tight paragraph, one image or exchange, nothing more"
+            },
+            {
+              "id": "brief",
+              "label": "Brief",
+              "value": "1-2 lean paragraphs, one clean beat, no lingering"
+            },
+            {
               "id": "concise",
               "label": "Concise",
               "value": "2-3 taut paragraphs, one beat fully inhabited"
@@ -86,6 +96,16 @@
               "id": "detailed",
               "label": "Detailed",
               "value": "7-10 unhurried, layered paragraphs"
+            },
+            {
+              "id": "expansive",
+              "label": "Expansive",
+              "value": "10-14 richly layered paragraphs, room for texture, interiority, and multiple beats"
+            },
+            {
+              "id": "epic",
+              "label": "Epic",
+              "value": "15+ sweeping paragraphs, a full scene arc with setting, dialogue, action, and reflection; sustain momentum, never pad"
             },
             {
               "id": "adaptive",
