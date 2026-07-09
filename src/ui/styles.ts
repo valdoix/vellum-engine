@@ -649,13 +649,10 @@ export const STYLES = [
   ".vle-thread-card:hover{background:color-mix(in srgb,var(--vi) 3%,transparent)}",
   ".vle-thread-card--expanded{background:linear-gradient(135deg,color-mix(in srgb,var(--vg) 7%,transparent),transparent 70%)}",
   ".vle-thread-card--done{opacity:.6}",
-  ".vle-thread-header{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-areas:'kicker badge toggle' 'title badge toggle' 'preview badge toggle';align-items:center;column-gap:10px}",
+  ".vle-thread-header{position:relative;display:grid;grid-template-columns:1fr auto;grid-template-areas:'kicker toggle' 'title toggle' 'preview toggle';align-items:center;column-gap:10px}",
   ".vle-thread-kicker{grid-area:kicker;font:600 9px/1.4 var(--vmono);letter-spacing:.9px;text-transform:uppercase;color:var(--vle-gold);opacity:.8;margin-bottom:3px}",
   ".vle-thread-title{grid-area:title;font-family:var(--vserif);font-size:calc(16px * var(--vscale));line-height:1.2;color:var(--vi);margin:0 0 3px;font-weight:600;overflow-wrap:anywhere}",
   ".vle-thread-preview{grid-area:preview;font-family:var(--vserif);font-style:italic;font-size:calc(12px * var(--vscale));line-height:1.4;color:var(--vi2);opacity:.75;margin-top:2px;overflow-wrap:anywhere}",
-  ".vle-thread-badge{grid-area:badge;align-self:start;font:700 8.5px/1.4 var(--vmono);letter-spacing:.5px;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}",
-  ".vle-thread-badge--active{color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 14%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 30%,transparent)}",
-  ".vle-thread-badge--done{color:var(--vi2);background:rgba(var(--vg-rgb),.1);border:1px solid rgba(var(--vg-rgb),.25)}",
   ".vle-thread-toggle{grid-area:toggle;align-self:start;flex:0 0 auto;border:1px solid rgba(var(--vg-rgb),.2);background:transparent;color:var(--vi2);border-radius:var(--vr1);padding:3px 7px;cursor:pointer;font-size:11px;line-height:1;transition:all .15s}",
   ".vle-thread-toggle:hover{color:var(--vle-gold);border-color:color-mix(in srgb,var(--vle-gold) 40%,transparent);background:var(--vle-gold-soft)}",
   ".vle-thread-body{margin-top:12px;display:flex;flex-direction:column;gap:12px}",
@@ -675,8 +672,8 @@ export const STYLES = [
   ".vle-thread-meanwhile-label{font:600 8.5px/1.4 var(--vmono);letter-spacing:.6px;text-transform:uppercase;color:var(--v-info);opacity:.85;margin-bottom:3px}",
   ".vle-thread-meanwhile-text{font-family:var(--vserif);font-style:italic;font-size:calc(12px * var(--vscale));line-height:1.45;color:var(--vi2);overflow-wrap:anywhere}",
   ".vle-thread-actions{display:flex;gap:7px;flex-wrap:wrap}",
-  "html[data-vle-chrome='futuristic'] .vle-thread-list{border-radius:2px}html[data-vle-chrome='futuristic'] .vle-thread-badge{border-radius:2px}",
-  "html[data-vle-chrome='modern'] .vle-thread-list{border-radius:14px}html[data-vle-chrome='modern'] .vle-thread-badge{border-radius:999px}",
+  "html[data-vle-chrome='futuristic'] .vle-thread-list{border-radius:2px}",
+  "html[data-vle-chrome='modern'] .vle-thread-list{border-radius:14px}",
   // --- Elsewhere Feed (Director > Off-screen) — a vertical timeline of
   // "meanwhile" moments. Each item is a collapsible card: kicker + title + status
   // in the header, an expandable body with the latest beat, cast, and actions.

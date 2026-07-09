@@ -527,7 +527,6 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
   const cards = sorted.map((t) => {
     const resolved = /resolv/i.test(t.status || '');
     const expanded = _threadExpanded.has(t.id);
-    const statusText = t.status && !/^(advance|new)$/i.test(t.status) ? t.status : (resolved ? 'resolved' : 'open');
     
     // Find parent arc (threads can be nested under arcs)
     const parentArc = s.arcs.find(a => a.id === t.id || (t.beats.length && a.beats.some(b => t.beats.includes(b))));
@@ -538,10 +537,6 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     // Kicker: "Thread" (or arc name) — Establishing Shot style eyebrow
     const kicker = `<div class="vle-thread-kicker">${parentArc ? esc(parentArc.name) : 'Thread'}</div>`;
     
-    // Status badge (feed-style)
-    const statusClass = resolved ? 'done' : 'active';
-    const statusBadge = `<span class="vle-thread-badge vle-thread-badge--${statusClass}">${esc(statusText).toUpperCase()}</span>`;
-    
     // Toggle chevron
     const toggleBtn = `<button class="vle-thread-toggle" data-thread-toggle="${A(t.id)}" aria-label="${expanded ? 'Collapse' : 'Expand'}">${expanded ? '\u25BC' : '\u25B6'}</button>`;
     
@@ -549,7 +544,7 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     const preview = !expanded && latestBeat ? `<div class="vle-thread-preview">${esc(latestBeat)}</div>` : '';
     
     // Header (always visible)
-    const header = `<div class="vle-thread-header">${kicker}<div class="vle-thread-title">${esc(t.name)}</div>${preview}${statusBadge}${toggleBtn}</div>`;
+    const header = `<div class="vle-thread-header">${kicker}<div class="vle-thread-title">${esc(t.name)}</div>${preview}${toggleBtn}</div>`;
     
     // Body (only when expanded)
     let body = '';
