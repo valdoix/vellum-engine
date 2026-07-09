@@ -33,7 +33,7 @@ export interface Theme {
   motion: boolean;     // animations on
   launcher: 'right' | 'left' | 'top' | 'bottom' | 'hidden';
   mode: 'dark' | 'light'; // color mode; picks the chrome's dark/light skin
-  chrome: 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild'; // window ornamentation, orthogonal to skin
+  chrome: Chrome; // window ornamentation, orthogonal to skin
 
   // per-surface card shape overrides. {} = use the chrome's default shape for
   // every surface (so the default theme is visually unchanged). A missing/unknown
@@ -76,19 +76,17 @@ export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloo
 // discipline — toadstool (mushroom-cap dome top + top padding), trellis (climbing
 // -vine left rail, left padding), bramble (leafy-wreath corner sprigs in padding),
 // lantern (a hanging bulb tag: top hook pseudo + warm inset glow).
-// Gatsby + Sumi round: chevron (art deco stepped pyramid top), hanko (red seal
-// stamp corner pseudo), inkwash (asymmetric brush stroke left edge).
-// Gatsby alternatives: sunburst (triangle keystone), enso (imperfect circle), 
-// marquee (dotted borders). Sumi alternatives: vstroke (vertical brush), 
-// scroll (horizontal roll), bamboo (segmented rail).
+// Gatsby round: sunburst (triangle keystone + starburst), marquee (dotted borders),
+// scallop-deco (fan-scalloped bottom edge, art-deco), stepped (nested ziggurat
+// corner frame). Sumi round: hanko (red seal stamp corner), washi-fold (folded
+// paper corner crease).
 export type ShapeId =
   | 'slab' | 'left-spine' | 'tarot' | 'notched' | 'split' | 'inset' | 'scalloped'
   | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket'
   | 'toadstool' | 'trellis' | 'bramble' | 'lantern'
-  | 'chevron' | 'hanko' | 'inkwash'
-  | 'sunburst' | 'enso' | 'marquee' | 'vstroke' | 'scroll' | 'bamboo';
+  | 'sunburst' | 'marquee' | 'scallop-deco' | 'stepped' | 'hanko' | 'washi-fold';
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items' | 'secrets';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'chevron', 'hanko', 'inkwash', 'sunburst', 'enso', 'marquee', 'vstroke', 'scroll', 'bamboo'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items', 'secrets'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -112,12 +110,13 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   // tarot cast plate, a climbing-vine trellis beat, a scalloped faction, a hanging
   // fairy-lantern item; secrets stay a quiet slab (the sealed thing in the dark).
   faewild: { present: 'toadstool', bonds: 'bramble', cast: 'tarot', beats: 'trellis', factions: 'scalloped', items: 'lantern', secrets: 'slab' },
-  // art deco: sunburst keystone present, enso bond circles, tarot portrait cast,
-  // marquee beats (theater lights), gilt frames for factions/secrets
-  gatsby: { present: 'sunburst', bonds: 'enso', cast: 'tarot', beats: 'marquee', factions: 'gilt-edge', items: 'gilt-edge', secrets: 'gilt-edge' },
-  // ink wash: vertical stroke present, horizontal scroll bonds, bamboo rail cast,
-  // clean slabs for beats/items/secrets (minimalism)
-  sumi: { present: 'vstroke', bonds: 'scroll', cast: 'bamboo', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' },
+  // art deco: sunburst keystone present, scalloped-fan bonds, tarot portrait cast,
+  // marquee beats (theater lights), stepped ziggurat frames for factions/items,
+  // gilt-edge secrets (the quiet sealed thing).
+  gatsby: { present: 'sunburst', bonds: 'scallop-deco', cast: 'tarot', beats: 'marquee', factions: 'stepped', items: 'stepped', secrets: 'gilt-edge' },
+  // ink wash: folded-washi present, torn-deckle bonds, a hanko-sealed portrait cast,
+  // a washi-fold beat, a left-spine faction, a deckle item; secrets stay a quiet slab.
+  sumi: { present: 'washi-fold', bonds: 'deckle', cast: 'hanko', beats: 'washi-fold', factions: 'left-spine', items: 'deckle', secrets: 'slab' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -181,7 +180,7 @@ export const MODES: Mode[] = [
   // Faewild is an enchanted forest — green-led, vined, storybook. Light twin = dawn glade.
   { id: 'faewild', name: 'Faewild', blurb: 'A twilight storybook glade \u2014 fairy lights, climbing vines, pastel sage &amp; lilac, toadstool tabs.', patch: { chrome: 'faewild', radius: 22, border: 1, texture: 'firefly-grove', serif: F_ETHEREAL, accent: '#8fbf88', accent2: '#c9b6f0', opacity: 0.94, blur: 10 }, form: 'dashboard', skin: 'faewild-dusk', skinDark: 'faewild-dusk', skinLight: 'faewild-dawn' },
   // GATSBY — "jazz age opulence": art deco geometry, gilt gold on midnight black,
-  // symmetric sunburst ornaments, sharp edges (no rounding), stepped chevron cards.
+  // symmetric sunburst ornaments, sharp edges (no rounding), stepped ziggurat cards.
   // Distinct from all others: the only hard-edged geometric chrome, pure luxury.
   { id: 'gatsby', name: 'Gatsby', blurb: 'Jazz Age opulence \u2014 art deco gold, geometric symmetry, midnight &amp; champagne.', patch: { chrome: 'gatsby', radius: 0, border: 2, texture: 'deco-rays', serif: F_DECO, accent: '#d4af37', accent2: '#2a1810', opacity: 0.98, blur: 6 }, form: 'dashboard', skin: 'gatsby-noir', skinDark: 'gatsby-noir', skinLight: 'gatsby-champagne' },
   // SUMI — "ink wash minimalism": Japanese woodblock aesthetic, asymmetric negative
@@ -394,8 +393,8 @@ function loadGoogleFontByName(fontStack: string): void {
   
   // Extract font name from stack (first quoted font)
   const match = fontStack.match(/'([^']+)'/);
-  if (!match) return;
-  const fontName = match[1];
+  const fontName = match?.[1];
+  if (!fontName) return;
   const fontUrl = fontNameMap[fontName];
   
   if (!fontUrl || _loadedFonts.has(fontName)) return;

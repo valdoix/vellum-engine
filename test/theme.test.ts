@@ -23,8 +23,8 @@ describe('theme system', () => {
     }
   });
 
-  it('MODES are exactly the seven chromes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['bloom', 'default', 'ember', 'faewild', 'futuristic', 'illuminated', 'modern']);
+  it('MODES are exactly the nine chromes', () => {
+    expect(MODES.map((m) => m.id).sort()).toEqual(['bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'illuminated', 'modern', 'sumi']);
   });
 
   it("each mode's dark + light skins exist", () => {

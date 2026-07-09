@@ -56,30 +56,26 @@ const SHAPE_GEOM: Record<string, string> = {
   bramble: `border-radius:${R};padding:11px 14px`,
   // lantern: a hanging bulb tag — a warm inset glow + a top hook pseudo above it.
   lantern: `border-radius:calc(${R} * .8);padding:11px 13px`,
-  // GATSBY / ART DECO family — geometric stepped shapes
-  // chevron: art deco stepped pyramid top (clip-path, lives in padding).
-  chevron: 'clip-path:polygon(0 14px,14px 14px,20px 8px,50% 0,calc(100% - 20px) 8px,calc(100% - 14px) 14px,100% 14px,100% 100%,0 100%);padding-top:18px',
-  // sunburst: triangle keystone at top with starburst mark (border + pseudos).
-  sunburst: `border:2px solid var(--vg);border-top:5px solid var(--vg);padding-top:1.2rem`,
-  // enso: imperfect circle frame (irregular border-radius for organic feel).
-  enso: `border:2px solid rgba(var(--vg-rgb),.4);border-radius:50% 50% 48% 52% / 48% 52% 48% 52%;padding:1.8rem 1.5rem`,
-  // marquee: dotted top/bottom borders (Broadway theater lights).
-  marquee: `border:2px solid var(--vg);border-top:3px solid var(--vg);border-bottom:3px solid var(--vg)`,
-  // SUMI / INK WASH family — minimal asymmetric shapes
-  // hanko: red seal stamp corner pseudo (top-right), extra top padding.
+  // GATSBY / ART DECO family — content-safe geometric treatments (detail in pad).
+  // sunburst: a top keystone + starburst glyph rides in reserved top padding.
+  sunburst: `border-radius:calc(${R} * .3);padding:18px 13px 11px`,
+  // marquee: dotted theater-light borders (pseudo strips) top & bottom; V padding.
+  marquee: `border-radius:calc(${R} * .3);padding:14px 13px`,
+  // scallop-deco: art-deco fan-scalloped BOTTOM edge (mask); bottom padding clears
+  // the bumps. Larger radius bumps than `scalloped` for a bolder deco fan.
+  'scallop-deco': `border-radius:calc(${R} * .3);padding-bottom:14px;-webkit-mask:radial-gradient(circle 7px at 8px 100%,transparent 98%,#000) 0 100%/16px 14px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 7px) no-repeat;mask:radial-gradient(circle 7px at 8px 100%,transparent 98%,#000) 0 100%/16px 14px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 7px) no-repeat`,
+  // stepped: a nested ziggurat corner frame (pseudo) sits in the reserved padding.
+  stepped: `border-radius:0;padding:13px 15px`,
+  // SUMI / INK WASH family — minimal, quiet treatments (detail in reserved pad).
+  // hanko: a vermillion seal stamp rides the top-right corner (pseudo); top pad.
   hanko: `border-radius:4px;padding:14px 13px 11px`,
-  // inkwash: asymmetric brush stroke left edge (pseudo gradient), left padding.
-  inkwash: `border-radius:0;border-left:4px solid var(--vi);padding-left:16px`,
-  // vstroke: single vertical calligraphy stroke left side (gradient pseudo).
-  vstroke: `border-radius:0;padding-left:2rem;box-shadow:3px 3px 0 rgba(var(--vi),.08)`,
-  // scroll: horizontal scroll with rolled top/bottom edges (layered borders).
-  scroll: `border-top:3px solid var(--vi);border-bottom:3px solid var(--vi);padding:1.8rem 1.5rem`,
-  // bamboo: segmented bamboo rail left border (gradient pattern).
-  bamboo: `border:none;border-left:1px solid rgba(var(--vi),.2);padding-left:2rem;box-shadow:3px 3px 0 rgba(var(--vi),.08)`,
+  // washi-fold: a folded-paper corner crease at the top-right (pseudo); top pad so
+  // the fold triangle never crosses content.
+  'washi-fold': `border-radius:calc(${R} * .2);padding:14px 15px 11px`,
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
 // small fixed corners that live in padding.
-const CLIP_SHAPES = ['notched', 'chevron'];
+const CLIP_SHAPES = ['notched'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
@@ -87,7 +83,7 @@ const SHAPE_SURFACE_ROOT: Record<string, string> = {
   beats: '.vle-mem--beat', factions: '.vle-fac', items: '.vle-item-row', secrets: '.vle-mem--secret',
 };
 // shapes whose edge is a CSS mask; on old UAs they drop the mask and round off.
-const MASK_SHAPES = ['scalloped', 'deckle'];
+const MASK_SHAPES = ['scalloped', 'deckle', 'scallop-deco'];
 const shapePrimitives = (): string[] => [
   `:root{--v-shape-radius:var(--vradius)}`,
   ...Object.entries(SHAPE_GEOM).map(([id, body]) => `.v-shape--${id}{${body}}`),
@@ -1920,7 +1916,6 @@ export const STYLES = [
   "html[data-vle-chrome='sumi'] .vle-root{font-family:var(--vserif)}",
   "html[data-vle-chrome='sumi'] .vle-navpanel{border-radius:0;border:none;border-bottom:1px solid rgba(var(--vi),.15);background:var(--vsurf-1);box-shadow:inset 0 0 0 1px rgba(var(--vi),.08)}",
   "html[data-vle-chrome='sumi'] .vle-head{font-family:var(--vserif);font-weight:700;letter-spacing:0.08em;border-bottom:1px solid rgba(var(--vi),.15);font-size:calc(16px * var(--vscale));position:relative}",
-  "html[data-vle-chrome='sumi'] .vle-head::after{content:'';position:absolute;top:calc(4px * var(--vscale));right:calc(8px * var(--vscale));width:36px;height:36px;background:radial-gradient(circle at 45% 40%,var(--vg),color-mix(in srgb,var(--vg) 70%,#000));border-radius:4px;box-shadow:0 3px 10px rgba(var(--vg-rgb),.4);transform:rotate(-3deg)}",
   "html[data-vle-chrome='sumi'] .vle-stats{font-family:var(--vserif);font-style:italic;opacity:.65;letter-spacing:0.05em}",
   "html[data-vle-chrome='sumi'] .vle-tabbtn{border-radius:0;border:none;border-left:4px solid transparent;letter-spacing:0.02em;font-family:var(--vserif);font-size:calc(13px * var(--vscale))}",
   "html[data-vle-chrome='sumi'] .vle-tabbtn.on{border-left-color:var(--vi);background:rgba(var(--vi),.05)}",
@@ -2017,31 +2012,27 @@ export const STYLES = [
   ...shapeDetail('lantern', "content:'';position:absolute;top:2px;left:calc(50% - 4px);width:8px;height:5px;pointer-events:none;z-index:1;border:1.5px solid color-mix(in srgb,var(--vg2) 60%,transparent);border-bottom:none;border-radius:5px 5px 0 0;opacity:.8", '::after'),
   // hanko: vermillion seal stamp at top-right corner (sumi chrome)
   ...shapeDetail('hanko', "content:'';position:absolute;top:-6px;right:-6px;width:36px;height:36px;pointer-events:none;z-index:1;background:radial-gradient(circle at 45% 40%,var(--vg),color-mix(in srgb,var(--vg) 70%,#000));border-radius:4px;box-shadow:0 3px 10px rgba(var(--vg-rgb),.4);transform:rotate(-3deg);opacity:.9", '::after'),
-  // inkwash: asymmetric brush stroke gradient on right edge (sumi chrome)
-  ...shapeDetail('inkwash', "content:'';position:absolute;top:0;right:0;bottom:0;width:80px;pointer-events:none;z-index:1;background:linear-gradient(90deg,transparent,rgba(var(--vi),.04));opacity:.6", '::after'),
-  // --- GATSBY new shapes ---
-  // sunburst: triangle keystone + starburst glyph at top center
-  ...shapeDetail('sunburst', "content:'';position:absolute;top:-5px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:20px solid transparent;border-right:20px solid transparent;border-top:12px solid var(--vg);pointer-events:none;z-index:1", '::before'),
-  ...shapeDetail('sunburst', "content:'\\2726';position:absolute;top:-2px;left:50%;transform:translateX(-50%);color:var(--vg);font-size:1.2rem;text-shadow:0 0 12px rgba(var(--vg-rgb),.8);pointer-events:none;z-index:2", '::after'),
-  // marquee: dotted borders alternating top/bottom
-  ...shapeDetail('marquee', "content:'';position:absolute;top:-3px;left:0;right:0;height:3px;pointer-events:none;z-index:1;background:repeating-linear-gradient(90deg,var(--vg) 0px,var(--vg) 8px,transparent 8px,transparent 16px)", '::before'),
-  ...shapeDetail('marquee', "content:'';position:absolute;bottom:-3px;left:0;right:0;height:3px;pointer-events:none;z-index:1;background:repeating-linear-gradient(90deg,transparent 0px,transparent 8px,var(--vg) 8px,var(--vg) 16px)", '::after'),
-  // --- SUMI new shapes ---
-  // vstroke: single vertical calligraphy stroke with fade
-  ...shapeDetail('vstroke', "content:'';position:absolute;left:0;top:10%;bottom:10%;width:6px;pointer-events:none;z-index:1;background:linear-gradient(180deg,transparent 0%,var(--vi) 5%,var(--vi) 95%,transparent 100%);opacity:.9", '::before'),
-  // scroll: layered horizontal borders (rolled scroll effect)
-  ...shapeDetail('scroll', "content:'';position:absolute;top:-6px;left:12px;right:12px;height:3px;pointer-events:none;z-index:1;background:linear-gradient(90deg,transparent 0,color-mix(in srgb,var(--vi) 60%,transparent) 20px,color-mix(in srgb,var(--vi) 60%,transparent) calc(100% - 20px),transparent 100%);opacity:.4", '::before'),
-  ...shapeDetail('scroll', "content:'';position:absolute;bottom:-6px;left:12px;right:12px;height:3px;pointer-events:none;z-index:1;background:linear-gradient(90deg,transparent 0,color-mix(in srgb,var(--vi) 60%,transparent) 20px,color-mix(in srgb,var(--vi) 60%,transparent) calc(100% - 20px),transparent 100%);opacity:.4", '::after'),
-  // bamboo: segmented rail pattern
-  ...shapeDetail('bamboo', "content:'';position:absolute;left:-1px;top:0;bottom:0;width:3px;pointer-events:none;z-index:1;background:linear-gradient(180deg,transparent 0,transparent 8%,rgba(var(--vi),.15) 8%,rgba(var(--vi),.15) 10%,transparent 10%,transparent 23%,rgba(var(--vi),.15) 23%,rgba(var(--vi),.15) 25%,transparent 25%,transparent 38%,rgba(var(--vi),.15) 38%,rgba(var(--vi),.15) 40%,transparent 40%,transparent 53%,rgba(var(--vi),.15) 53%,rgba(var(--vi),.15) 55%,transparent 55%,transparent 68%,rgba(var(--vi),.15) 68%,rgba(var(--vi),.15) 70%,transparent 70%,transparent 83%,rgba(var(--vi),.15) 83%,rgba(var(--vi),.15) 85%,transparent 85%)", '::before'),
+  // --- GATSBY shapes ---
+  // sunburst: a keystone triangle + starburst glyph centered in the reserved top pad.
+  ...shapeDetail('sunburst', "content:'';position:absolute;top:2px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:9px solid color-mix(in srgb,var(--vg) 80%,transparent);pointer-events:none;z-index:1", '::before'),
+  ...shapeDetail('sunburst', "content:'\\2726';position:absolute;top:1px;left:50%;transform:translateX(-50%);color:var(--vg);font-size:.8rem;line-height:1;text-shadow:0 0 10px rgba(var(--vg-rgb),.7);pointer-events:none;z-index:2", '::after'),
+  // marquee: dotted theater-light strips inside the reserved top & bottom padding.
+  ...shapeDetail('marquee', "content:'';position:absolute;top:4px;left:8px;right:8px;height:3px;pointer-events:none;z-index:1;background:repeating-linear-gradient(90deg,var(--vg) 0,var(--vg) 3px,transparent 3px,transparent 9px);opacity:.7", '::before'),
+  ...shapeDetail('marquee', "content:'';position:absolute;bottom:4px;left:8px;right:8px;height:3px;pointer-events:none;z-index:1;background:repeating-linear-gradient(90deg,transparent 0,transparent 3px,var(--vg) 3px,var(--vg) 9px);opacity:.7", '::after'),
+  // stepped: a nested ziggurat corner frame — two inset L-corners drawn in padding.
+  ...shapeDetail('stepped', "content:'';position:absolute;inset:4px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/14px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/2px 14px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/14px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/2px 14px no-repeat;opacity:.6", '::before'),
+  ...shapeDetail('stepped', "content:'';position:absolute;inset:8px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/8px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 0/2px 8px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/8px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/2px 8px no-repeat;opacity:.4", '::after'),
+  // --- SUMI shapes ---
+  // washi-fold: a folded-paper corner triangle at the top-right, in the reserved pad.
+  ...shapeDetail('washi-fold', "content:'';position:absolute;top:0;right:0;width:0;height:0;pointer-events:none;z-index:1;border-top:16px solid color-mix(in srgb,var(--vi) 12%,transparent);border-left:16px solid transparent;filter:drop-shadow(-1px 1px 1px rgba(var(--vi),.18))", '::before'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.
   "html[data-vle-chrome='modern'] .vle-mem--beat,html[data-vle-chrome='modern'] .vle-fac,html[data-vle-chrome='modern'] .vle-card:not(.vle-fac),html[data-vle-chrome='modern'] .vle-item-row{position:relative;background:color-mix(in srgb,var(--vg) 4%,var(--vsurf1,transparent))}",
   "html[data-vle-chrome='modern'] .vle-mem--beat::before,html[data-vle-chrome='modern'] .vle-fac::before,html[data-vle-chrome='modern'] .vle-card:not(.vle-fac)::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--vg);opacity:.8;pointer-events:none;z-index:1}",
   "html[data-vle-chrome='modern'] .vle-fac::before{background:var(--v-info)}",
-  // --- avatar reshape: tarot + hanko + bamboo => taller portrait medallion ---
-  "[data-shape-cast='tarot'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='tarot'] .vld-pc .vld-pc-av,[data-shape-cast='hanko'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='hanko'] .vld-pc .vld-pc-av,[data-shape-cast='bamboo'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='bamboo'] .vld-pc .vld-pc-av{border-radius:44% / 40%}",
+  // --- avatar reshape: tarot + hanko => taller portrait medallion ---
+  "[data-shape-cast='tarot'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='tarot'] .vld-pc .vld-pc-av,[data-shape-cast='hanko'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='hanko'] .vld-pc .vld-pc-av{border-radius:44% / 40%}",
 
 ].join('\n');
 
