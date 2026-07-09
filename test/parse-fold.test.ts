@@ -202,4 +202,22 @@ describe('foldTurn → events → reduce', () => {
   it('empty content yields no events', () => {
     expect(foldTurn('', freshState(), 1).events).toHaveLength(0);
   });
+
+  it('dayCap prevents a regenerate from ratcheting the day forward', () => {
+    // prior turn sat on day 47; a regenerate whose block claims day 48 (because
+    // the NOW line fed it "Day 47" as authoritative) must be clamped back to 47.
+    const prior = freshState(); prior.day = 46;
+    const block = ['\u2039vellum\u203a', JSON.stringify({ v: 2, day: 48, scene: { loc: 'hall' } }), '\u2039/vellum\u203a'].join('\n');
+    const { events } = foldTurn(block, prior, 10, { dayCap: 47 });
+    const fold = events.find((e) => e.kind === 'turn.fold');
+    expect(fold?.day).toBe(47); // clamped to the cap, not 48
+  });
+
+  it('dayCap yields to a genuine prose skip cue', () => {
+    const prior = freshState(); prior.day = 46;
+    const block = ['\u2039vellum\u203a', JSON.stringify({ v: 2, day: 60, scene: { loc: 'hall' } }), '\u2039/vellum\u203a', 'Three weeks later, the raven came.'].join('\n');
+    const { events } = foldTurn(block, prior, 10, { dayCap: 47 });
+    const fold = events.find((e) => e.kind === 'turn.fold');
+    expect(fold?.day).toBe(60); // prose skip cue overrides the cap
+  });
 });

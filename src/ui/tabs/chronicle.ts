@@ -304,12 +304,15 @@ function nowChip(s: ChronicleState): string {
   const dateStr = formatDate(day, s.dateFormat || 'day', s);
   const clock = s.scene.clock !== undefined ? s.scene.clock : parseClock(s.scene.time);
   const timeStr = s.scene.time?.trim() || (clock !== undefined ? clockLabel(clock) : '');
-  const setBtn = `<button class="vle-mini" data-day-set data-day="${day}" title="Correct the narrative day (fixes a spurious high day)">\u270E day</button>`;
-  return '<div class="vle-now">'
-    + '<span class="vle-now-pin" aria-hidden="true">\u25F7</span>'
+  // a dusk/night/dawn glyph tints the plate to the time of day (falls back to a clock)
+  const daySlot = clock !== undefined && (clock >= 300 && clock < 1080);
+  const glyph = clock === undefined ? '\u25F7' : (clock >= 300 && clock < 1080 ? '\u2600' : (clock >= 1080 && clock < 1260 ? '\u263D' : '\u2605'));
+  const setBtn = `<button class="vle-now-edit" data-day-set data-day="${day}" title="Correct the narrative day (fixes a spurious high day)" aria-label="Set day">\u270E</button>`;
+  return `<div class="vle-now${daySlot ? ' day' : ''}">`
+    + `<span class="vle-now-ico" aria-hidden="true">${glyph}</span>`
     + `<span class="vle-now-day">${esc(dateStr)}</span>`
-    + (timeStr ? `<span class="vle-now-time">${esc(timeStr)}</span>` : '')
-    + `<span class="vle-now-ctl">${setBtn}</span>`
+    + (timeStr ? `<span class="vle-now-sep" aria-hidden="true"></span><span class="vle-now-time">${esc(timeStr)}</span>` : '')
+    + setBtn
     + '</div>';
 }
 

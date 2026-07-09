@@ -25,7 +25,7 @@ export interface FoldResult {
   sig: string;
 }
 
-export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[] }): FoldResult {
+export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number }): FoldResult {
   const sig = hashStr(content.slice(0, 4000));
   const { state: parsed, source } = parseState(content);
   if (!parsed) return { events: [], source, sig };
@@ -43,7 +43,16 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // prose skip cue ("weeks later") permits a big forward leap without a flag.
   const proseCue = hasDayAdvanceCue(content);
   const rec = reconcileDay(parsed.day, prior.day ?? 0, proseCue);
-  const day = rec.day;
+  let day = rec.day;
+  // REGENERATE DAY-STABILITY: when re-folding a turn that already existed (edit/
+  // regenerate), the NOW line injected the pre-rollback day as authoritative, so
+  // the model tends to step PAST it — ratcheting the calendar forward on every
+  // regenerate. Clamp the re-folded day to what this turn previously held, unless
+  // the prose carries a genuine skip cue (then the leap is intended). Never below
+  // the prior day (that's reconcileDay's floor).
+  if (opts?.dayCap !== undefined && !proseCue && day > opts.dayCap) {
+    day = Math.max(prior.day ?? 0, opts.dayCap);
+  }
   const ctx: ExtractCtx = { turn, day, state: prior, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}) };
 
   const events: VellumEvent[] = [

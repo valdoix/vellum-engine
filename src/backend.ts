@@ -2,7 +2,7 @@ import { VELLUM_VERSION } from './version.js';
 import { restoreUser, rememberUser, currentUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar, invalidateChatVars } from './host/chats.js';
-import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logHasKind, truncateAfterTurn, turnSigs, recoverFromBackup, loadLog } from './store/chronicle.js';
+import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logHasKind, truncateAfterTurn, turnSigs, turnDays, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
@@ -361,7 +361,12 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   // The assistant-only transcript (basis-shift safety) is fetched LAZILY — only
   // if a signature actually mismatches — so the common no-edit fold skips it.
   const rollbackTo = await divergedTurn(chatId, msgs, prior.turns ?? 0, () => allAssistantContents(chatId));
+  // regenerate day-stability: remember the days the re-folded turns previously
+  // held, so the re-fold can't ratchet the calendar forward past them (the NOW
+  // line feeds the model the old day as authoritative; it tends to step past it).
+  let priorTurnDays: Map<number, number> | null = null;
   if (rollbackTo !== null && rollbackTo < (prior.turns ?? 0)) {
+    priorTurnDays = await turnDays(chatId);
     prior = await truncateAfterTurn(chatId, rollbackTo);
     invalidateIndex(chatId);
     invalidateMood(chatId);
@@ -381,7 +386,8 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
-    const { events, source, sig } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
+    const dayCap = priorTurnDays?.get(turnNo);
+    const { events, source, sig } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, ...(dayCap !== undefined ? { dayCap } : {}) });
     const evs: VellumEvent[] = [...events];
     // reuse foldTurn's already-computed content signature (same hashStr of the
     // first 4000 chars) instead of recomputing sigOf(content) here.

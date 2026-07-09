@@ -454,6 +454,26 @@ export const STYLES = [
   ".vle-scene-gauge.warm b{color:var(--v-press)}.vle-scene-gauge.hot b{color:var(--v-neg)}",
   // legacy inline tension pill (still used elsewhere) kept minimal
   ".vle-tension{font:600 calc(10px * var(--vscale))/1 var(--vmono);color:var(--v-neg);letter-spacing:.5px;margin-left:6px}",
+  // NOW plate: the authoritative clock, a compact companion to the scene banner.
+  // Day leads in the mono face; the time reads as a soft pill; a night glyph tints
+  // it cool, a day slot warm. The edit affordance stays quiet until hover.
+  ".vle-now{display:flex;align-items:center;gap:8px;padding:5px 11px;margin-bottom:8px;border:1px solid rgba(var(--vg-rgb),.16);border-radius:999px;background:color-mix(in srgb,var(--vg) 5%,transparent);width:fit-content;max-width:100%}",
+  ".vle-now-ico{flex:0 0 auto;color:var(--vg);font-size:calc(12px * var(--vscale));opacity:.8;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--vg) 45%,transparent))}",
+  ".vle-now.day .vle-now-ico{color:var(--v-press)}",
+  ".vle-now-day{font:700 calc(11px * var(--vscale))/1 var(--vmono);letter-spacing:.4px;color:var(--vi);white-space:nowrap}",
+  ".vle-now-sep{flex:0 0 auto;width:3px;height:3px;border-radius:50%;background:rgba(var(--vg-rgb),.5)}",
+  ".vle-now-time{font:600 calc(9px * var(--vscale))/1 var(--vmono);text-transform:uppercase;letter-spacing:.7px;color:var(--vg);background:var(--vle-gold-soft);border-radius:999px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:14ch}",
+  ".vle-now-edit{flex:0 0 auto;margin-left:2px;border:none;background:transparent;color:var(--vg);opacity:0;cursor:pointer;font-size:calc(10px * var(--vscale));padding:2px 4px;border-radius:6px;transition:opacity .12s,background .12s}",
+  ".vle-now:hover .vle-now-edit,.vle-now-edit:focus-visible{opacity:.75}",
+  ".vle-now-edit:hover{opacity:1;background:var(--vle-gold-soft)}",
+  // Time Sync desync inspector: lagging threads + advisory findings
+  ".vle-desync{display:flex;flex-direction:column;gap:5px;margin-bottom:6px}",
+  ".vle-desync-row{display:flex;align-items:center;gap:9px;padding:7px 11px;border:1px solid rgba(var(--vg-rgb),.16);border-left:3px solid var(--v-warn);border-radius:var(--vr2);background:color-mix(in srgb,var(--v-warn) 6%,transparent)}",
+  ".vle-desync-n{flex:1 1 auto;min-width:0;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-style:italic;color:var(--vi);overflow-wrap:anywhere}",
+  ".vle-desync-lag{flex:0 0 auto;font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--v-warn);letter-spacing:.4px;white-space:nowrap}",
+  ".vle-desync-ctl{flex:0 0 auto}",
+  ".vle-desync-notes{display:flex;flex-direction:column;gap:4px;margin-top:2px}",
+  ".vle-desync-note{font-size:calc(10px * var(--vscale));line-height:1.4;color:var(--vg);opacity:.85;padding-left:4px}",
   // cast cards
   ".vle-cards{display:flex;flex-direction:column;gap:calc(7px * var(--vscale))}",
   ".vle-card{position:relative;display:flex;align-items:center;gap:11px;padding:calc(11px * var(--vscale)) calc(13px * var(--vscale));border:1px solid var(--vle-gold-soft);border-radius:var(--vr3);background:linear-gradient(170deg,var(--vsurf-1),var(--vsurf-2));border-left:4px solid var(--vle-gold-soft)}",

@@ -306,6 +306,24 @@ export async function turnSigs(chatId: string): Promise<Map<number, string>> {
   return out;
 }
 
+/**
+ * Per-turn narrative day map from the log's `turn.fold` events: turn → day.
+ * Lets the fold reconcile clamp a REGENERATED/EDITED turn's day to what that
+ * turn previously held, so re-generating the same beat can't ratchet the
+ * model-supplied day forward each time (regenerate day-stability). Last write
+ * wins, mirroring turnSigs.
+ */
+export async function turnDays(chatId: string): Promise<Map<number, number>> {
+  await loadLog(chatId);
+  const c = _cache.get(chatId);
+  const out = new Map<number, number>();
+  if (!c) return out;
+  for (const e of c.log.events) {
+    if (e.kind === 'turn.fold') out.set(e.turn, e.day);
+  }
+  return out;
+}
+
 /** Monotonic log version = event count. Bumps on every append/edit; used to
  * key the recall index so in-place content edits invalidate it (Fix 20). */
 export function logVersion(chatId: string): number { return _cache.get(chatId)?.log.events.length ?? 0; }
