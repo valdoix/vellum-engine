@@ -1076,14 +1076,12 @@ export const STYLES = [
   ".vld-thr--open{--vtc:var(--vg)}",
   ".vld-thr-head{display:flex;align-items:flex-start;gap:calc(9px * var(--vscale))}",
   ".vld-thr-n{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-family:var(--vserif);font-weight:600;font-size:calc(16px * var(--vscale));color:var(--vi);line-height:1.2}",
-  // trajectory glyph reads momentum before any text
-  ".vld-thr-traj{flex:0 0 auto;font:600 calc(11px * var(--vscale))/1 var(--vmono);color:var(--vtc,var(--vg));opacity:.9;margin-top:calc(2px * var(--vscale))}",
-  // free-text status can be multi-word: let the badge wrap (capped width) instead of clipping past the card's overflow:hidden. line-height >1 so a 2nd line isn't cut.
-  ".vld-thr-badge{flex:0 1 auto;max-width:45%;display:inline-flex;align-items:center;gap:5px;font:600 calc(8.5px * var(--vscale))/1.15 var(--vmono);letter-spacing:.6px;text-transform:uppercase;white-space:normal;overflow-wrap:anywhere;text-align:center;color:var(--vtc,var(--vg));border:1px solid color-mix(in srgb,var(--vtc,var(--vg)) 40%,transparent);background:color-mix(in srgb,var(--vtc,var(--vg)) 12%,transparent);border-radius:var(--rpill,999px);padding:calc(4px * var(--vscale)) calc(9px * var(--vscale))}",
-  ".vld-thr-pip{flex:none;width:5px;height:5px;border-radius:50%;background:var(--vtc,var(--vg));box-shadow:0 0 7px color-mix(in srgb,var(--vtc,var(--vg)) 70%,transparent)}",
-  ".vld-thr--rising .vld-thr-pip{animation:vld-thr-pulse 1.8s ease-in-out infinite}",
-  "@keyframes vld-thr-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.65)}}",
-  "[data-vle-motion='off'] .vld-thr-pip{animation:none!important}",
+  // trajectory glyph reads momentum before any text — the sole status signal now
+  // that the free-text badge is gone (the model over-verbose statuses overflowed).
+  ".vld-thr-traj{flex:0 0 auto;font:600 calc(12px * var(--vscale))/1 var(--vmono);color:var(--vtc,var(--vg));opacity:.9;margin-top:calc(3px * var(--vscale))}",
+  ".vld-thr--rising .vld-thr-traj{animation:vld-thr-pulse 1.8s ease-in-out infinite}",
+  "@keyframes vld-thr-pulse{0%,100%{opacity:.9;transform:translateY(0)}50%{opacity:.5;transform:translateY(-1px)}}",
+  "[data-vle-motion='off'] .vld-thr-traj{animation:none!important}",
   ".vld-thr-beat{margin-top:calc(7px * var(--vscale));font-size:calc(12.5px * var(--vscale));line-height:1.5;color:var(--vi2);display:flex;gap:7px}",
   ".vld-thr-beat::before{content:'';flex:0 0 auto;width:2px;margin:2px 0;border-radius:2px;background:color-mix(in srgb,var(--vtc,var(--vg)) 45%,transparent)}",
   // meta footer: beat-progress dots + freshness/cold stamp on one rail

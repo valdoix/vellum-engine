@@ -296,7 +296,7 @@ function threadsBlock(s: ChronicleState): string {
   const open = s.threads.filter((t) => t.status !== 'resolved').sort(byRecent).slice(0, 6);
   if (!open.length) return '';
   const rows = open.map((t) => {
-    const { tone, label } = threadTone(t.status);
+    const { tone } = threadTone(t.status);
     const beat = t.beats?.length ? t.beats[t.beats.length - 1]! : '';
     const beatLine = beat ? `<div class="vld-thr-beat">${esc(beat)}</div>` : '';
     // beat-progress dots: one per beat (capped), the newest shown as pending.
@@ -310,8 +310,7 @@ function threadsBlock(s: ChronicleState): string {
     return `<div class="vld-thr vld-thr--${tone}">`
       + `<span class="vld-thr-rail" aria-hidden="true"></span>`
       + `<div class="vld-thr-in">`
-      + `<div class="vld-thr-head"><span class="vld-thr-n">${esc(t.name)}</span>${threadTraj(tone)}`
-      + `<span class="vld-thr-badge vld-thr-badge--${tone}"><span class="vld-thr-pip"></span>${esc(label)}</span></div>`
+      + `<div class="vld-thr-head"><span class="vld-thr-n">${esc(t.name)}</span>${threadTraj(tone)}</div>`
       + beatLine
       + foot
       + `</div>`
