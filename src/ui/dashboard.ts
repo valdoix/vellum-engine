@@ -1,7 +1,7 @@
 import type { ChronicleState, PresentChar, Relation } from '../domain/types.js';
 import { esc, nameOf, byRecent, nameHtml, bondCard, initials, avatarParts } from './format.js';
 import { storyStats } from '../domain/stats.js';
-import { formatDate } from '../domain/date-format.js';
+import { formatDate, spanLabel } from '../domain/date-format.js';
 
 /**
  * The floating-window DASHBOARD — a single at-a-glance scene panel (distinct
@@ -261,11 +261,36 @@ function threadTone(status: string): { tone: 'rising' | 'active' | 'stalled' | '
   return { tone: 'open', label: status };
 }
 
+/** Trajectory glyph for a thread tone — a single caret that reads momentum
+ * before any text: rising (climbing), active (building), stalled (flat), open
+ * (nudging up). Presentation-only, derived from the same tone classifier. */
+function threadTraj(tone: 'rising' | 'active' | 'stalled' | 'open'): string {
+  const g = tone === 'rising' ? '\u25B2' : tone === 'stalled' ? '\u25AC' : '\u25B4';
+  return `<span class="vld-thr-traj" aria-hidden="true">${g}</span>`;
+}
+
+/** Freshness stamp for a thread — "this turn" when it just moved, else how many
+ * turns since; a day-lagging open thread reads as "cold" (mirrors the Chronicle
+ * desync inspector's spanLabel bucketing so the two surfaces agree). PURE. */
+function threadFresh(s: ChronicleState, t: ChronicleState['threads'][number]): string {
+  const now = s.turns ?? 0;
+  const ago = Math.max(0, now - (t.lastTurn ?? now));
+  // day-skip lag takes precedence: a thread whose narrative day trails the
+  // current day was left behind by a time-skip — surface the debt, not the turn.
+  const nowDay = s.day || 0;
+  const lag = (nowDay > 0 && t.lastDay !== undefined) ? spanLabel(nowDay - t.lastDay) : '';
+  if (lag) return `<span class="vld-thr-fresh cold">Day ${esc(t.lastDay ?? '?')} \u00b7 ${esc(lag)} behind</span>`;
+  const cls = ago === 0 ? ' hot' : '';
+  const txt = ago === 0 ? 'this turn' : ago === 1 ? '1 turn ago' : `${ago} turns ago`;
+  return `<span class="vld-thr-fresh${cls}">${txt}</span>`;
+}
+
 /**
  * THREADS (redesign) — the live plot ledger. Each open thread is an elegant card
- * with a tone-colored spine + status badge, the thread name, and its most-recent
- * beat as a quiet sub-line so the "where is this going" reads at a glance. Pure
- * render; the shared .vld-sec chrome + skins still apply.
+ * with a tone-colored momentum spine + trajectory glyph + status badge, the
+ * thread name, its most-recent beat, and a meta footer: beat-progress dots (how
+ * far it has run) and a freshness/cold stamp so the "where is this going" reads
+ * at a glance. Pure render; the shared .vld-sec chrome + skins still apply.
  */
 function threadsBlock(s: ChronicleState): string {
   const open = s.threads.filter((t) => t.status !== 'resolved').sort(byRecent).slice(0, 6);
@@ -274,11 +299,22 @@ function threadsBlock(s: ChronicleState): string {
     const { tone, label } = threadTone(t.status);
     const beat = t.beats?.length ? t.beats[t.beats.length - 1]! : '';
     const beatLine = beat ? `<div class="vld-thr-beat">${esc(beat)}</div>` : '';
+    // beat-progress dots: one per beat (capped), the newest shown as pending.
+    const n = Math.min(t.beats?.length ?? 0, 6);
+    const dots = n
+      ? Array.from({ length: n }, (_, i) => `<span class="vld-thr-bdot${i < n - 1 ? ' spent' : ''}"></span>`).join('')
+        + `<span class="vld-thr-blbl">${t.beats!.length} beat${t.beats!.length === 1 ? '' : 's'}</span>`
+      : '';
+    const beats = dots ? `<span class="vld-thr-beats">${dots}</span>` : '';
+    const foot = `<div class="vld-thr-foot">${beats}${threadFresh(s, t)}</div>`;
     return `<div class="vld-thr vld-thr--${tone}">`
       + `<span class="vld-thr-rail" aria-hidden="true"></span>`
-      + `<div class="vld-thr-head"><span class="vld-thr-n">${esc(t.name)}</span>`
+      + `<div class="vld-thr-in">`
+      + `<div class="vld-thr-head"><span class="vld-thr-n">${esc(t.name)}</span>${threadTraj(tone)}`
       + `<span class="vld-thr-badge vld-thr-badge--${tone}"><span class="vld-thr-pip"></span>${esc(label)}</span></div>`
       + beatLine
+      + foot
+      + `</div>`
       + `</div>`;
   }).join('');
   return `<div class="vld-sec vld-sec--threads"><div class="vld-h">Threads <span class="vld-n">${open.length}</span></div><div class="vld-threads">${rows}</div></div>`;
@@ -295,9 +331,12 @@ function parallelBlock(s: ChronicleState): string {
   const rows = s.parallel.slice(0, 6).map((p) => {
     const name = p.who ? nameOf(s, p.who) : '';
     const who = p.who ? `<span class="vld-par-who">${nameHtml(s, p.who)}</span>` : '';
-    const where = p.where ? `<span class="vld-par-w">@${esc(p.where)}</span>` : '';
+    const where = p.where ? `<span class="vld-par-w">${esc(p.where)}</span>` : '';
     const sim = p.src === 'sim' ? '<span class="vld-par-sim" title="Off-screen simulation">auto</span>' : '';
-    const meta = (who || where || sim) ? `<div class="vld-par-top">${who}${where}${sim}</div>` : '';
+    // anchor each off-stage beat in time — the chronicle stamps every one.
+    const turn = typeof p.turn === 'number' ? `<span class="vld-par-turn">T${p.turn}</span>` : '';
+    const tags = sim ? `<span class="vld-par-tags">${sim}</span>` : '';
+    const meta = (who || where || tags || turn) ? `<div class="vld-par-top">${who}${where}${tags}${turn}</div>` : '';
     // medallion: the character's portrait/initials when known, else a crescent
     // moon (the off-stage world turning while you're away).
     const node = p.who
