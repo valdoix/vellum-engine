@@ -304,7 +304,7 @@ export const chronicleTab: Component<ChronicleState> = {
 function establishingShot(s: ChronicleState): string {
   const day = s.day || 0;
   const hasScene = s.scene.location || s.scene.tension;
-  if (!hasScene && day <= 0) return '';
+  if (!hasScene && day <= 0 && !s.scene.time) return '';
   
   const dateStr = formatDate(day, s.dateFormat || 'day', s);
   const clock = s.scene.clock !== undefined ? s.scene.clock : parseClock(s.scene.time);
@@ -317,17 +317,22 @@ function establishingShot(s: ChronicleState): string {
     (clock >= 720 && clock < 1080) ? 'Afternoon' :
     (clock >= 1080 && clock < 1260) ? 'Evening' : 'Night';
   
+  // "Set day" pencil, so a spurious high day can be walked back (was on the old NOW chip)
+  const setBtn = `<button class="vle-hero-edit" data-day-set data-day="${day}" title="Correct the narrative day (fixes a spurious high day)" aria-label="Set day">\u270E</button>`;
+  
   const kicker = '<div class="vle-hero-kicker">'
-    + (day > 0 ? `<span>Now</span><span class="vle-hero-sep">\u00B7</span><span>Day ${esc(day)}</span>` : '<span>Now</span>')
+    + (day > 0 ? `<span>Now</span><span class="vle-hero-sep">\u00B7</span><span>${esc(dateStr)}</span>` : '<span>Now</span>')
     + (dayPart ? `<span class="vle-hero-sep">\u00B7</span><span>${dayPart}</span>` : '')
+    + (timeStr ? `<span class="vle-hero-sep">\u00B7</span><span>${esc(timeStr)}</span>` : '')
+    + setBtn
     + '</div>';
   
   const location = s.scene.location || 'Unknown Location';
   const title = `<h3 class="vle-hero-title">${esc(location)}</h3>`;
   
-  // present cast
+  // present cast — resolve ids to display names (cersei_lannister -> Cersei Lannister)
   const present = s.scene.present?.length
-    ? `<div class="vle-hero-meta"><span class="vle-hero-label">Present:</span> <span class="vle-hero-val">${s.scene.present.map(esc).join(', ')}</span></div>`
+    ? `<div class="vle-hero-meta"><span class="vle-hero-label">Present:</span> <span class="vle-hero-val">${s.scene.present.map((id) => esc(nameOf(s, id))).join(', ')}</span></div>`
     : '';
   
   // tension
@@ -437,6 +442,37 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
   const arc = kindArc ? '1' : '0';
   const addBtn = `<button class="vle-add sm" data-track-add data-arc="${arc}" title="Add ${kindArc ? 'an arc' : 'a thread'}">+</button>`;
   const A = (x: unknown): string => esc(x);
+  
+  if (kindArc) {
+    // Arcs: horizontal scrollable spine (like mockup Establishing Shot)
+    const cards = list.slice().sort(byRecent).map((t) => {
+      const resolved = /resolv/i.test(t.status || '');
+      const statusText = t.status && !/^(advance|new)$/i.test(t.status) ? t.status : (resolved ? 'resolved' : 'open');
+      const statusDot = `<span class="vle-arc-status${resolved ? ' done' : ''}">${resolved ? '\u25CF' : '\u25CF'}</span>`;
+      const editBtn = `<button class="vle-mini" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">\u270E</button>`;
+      const stBtn = resolved
+        ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
+        : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
+      const ctl = `<div class="vle-arc-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
+      
+      return `<div class="vle-arc-card${resolved ? ' vle-arc-card--done' : ''}">
+        <div class="vle-arc-name">${esc(t.name)}</div>
+        <div class="vle-arc-meta">
+          <span class="vle-arc-beat-count">${t.beats.length} beat${t.beats.length === 1 ? '' : 's'}</span>
+          ${statusDot}
+          <span class="vle-arc-status-label">${esc(statusText)}</span>
+        </div>
+        ${ctl}
+      </div>`;
+    }).join('');
+    
+    const body = cards 
+      ? `<div class="vle-arc-spine">${cards}</div>` 
+      : emptyState('No arcs yet.', 'They fill in as the story unfolds; add one by hand too.');
+    return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
+  }
+  
+  // Threads: vertical cards with off-screen notes
   const cards = list.slice().sort(byRecent).slice(0, 12).map((t) => {
     const resolved = /resolv/i.test(t.status || '');
     // a bare "advance"/"new" status carries no info — show a neutral "open" pill.
@@ -444,7 +480,7 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     const pill = `<span class="vle-trk-pill${resolved ? ' done' : ''}">${esc(statusText)}</span>`;
     
     // reflect any linked off-screen subplot's latest beat (margin note style)
-    const off = !kindArc ? linkedOffscreen(s, { id: t.id, name: t.name }) : [];
+    const off = linkedOffscreen(s, { id: t.id, name: t.name });
     const offNote = off.length && off[0]
       ? `<div class="vle-trk-meanwhile">
           <div class="vle-trk-meanwhile-label">MEANWHILE</div>
@@ -463,9 +499,9 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     // beats history, controls) lives in a body wrapper strictly after the head.
     const head = `<div class="vle-trk-head"><div class="vle-trk-n">${esc(t.name)}</div>${pill}</div>`;
     const body = `<div class="vle-trk-body">${offNote}${hist}${ctl}</div>`;
-    return `<div class="vle-trk ${kindArc ? 'vle-trk--arc' : 'vle-trk--thread'}${resolved ? ' vle-trk--done' : ''}">${head}${body}</div>`;
+    return `<div class="vle-trk vle-trk--thread${resolved ? ' vle-trk--done' : ''}">${head}${body}</div>`;
   }).join('');
-  const body = cards ? `<div class="vle-trk-grid">${cards}</div>` : emptyState(`No ${kindArc ? 'arcs' : 'threads'} yet.`, 'They fill in as the story unfolds; add one by hand too.');
+  const body = cards ? `<div class="vle-trk-grid">${cards}</div>` : emptyState('No threads yet.', 'They fill in as the story unfolds; add one by hand too.');
   return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
 }
 

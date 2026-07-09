@@ -383,6 +383,12 @@ function offscreenView(s: ChronicleState): string {
         <div class="vle-feed-beat-text">${esc(latestBeat)}</div>
       </div>` : '';
       
+      // Beat history (collapsible, shows all previous beats)
+      const beatHist = o.beats.length > 1 ? `<details class="vle-feed-hist">
+        <summary class="vle-feed-hist-toggle">${o.beats.length} beat${o.beats.length === 1 ? '' : 's'} total</summary>
+        <div class="vle-feed-hist-list">${o.beats.map((b, i) => `<div class="vle-feed-hist-item"><span class="vle-feed-hist-n">${i + 1}.</span> ${esc(b)}</div>`).join('')}</div>
+      </details>` : '';
+      
       // Cast & linked thread
       const castLine = who ? `<div class="vle-feed-detail"><span class="vle-feed-label">Cast:</span> <span class="vle-feed-val">${who}</span></div>` : '';
       const linkedName = o.thread ? (s.threads.find((th) => th.id === o.thread)?.name ?? '') : '';
@@ -399,7 +405,7 @@ function offscreenView(s: ChronicleState): string {
       const delBtn = `<button class="vle-btn vle-btn--danger" data-off-del data-id="${A(o.id)}" title="Delete">DELETE</button>`;
       const actions = `<div class="vle-feed-actions">${advBtn}${editBtn}${linkBtn}${stBtn}${delBtn}</div>`;
       
-      body = `<div class="vle-feed-body">${beatCard}${details}${actions}</div>`;
+      body = `<div class="vle-feed-body">${beatCard}${beatHist}${details}${actions}</div>`;
     }
     
     return `<div class="vle-feed-item${done ? ' vle-feed-item--done' : ''}${expanded ? ' vle-feed-item--expanded' : ''}" data-feed-id="${A(o.id)}">${header}${body}</div>`;
@@ -422,8 +428,13 @@ function offscreenView(s: ChronicleState): string {
     html += resolved.map(o => feedItem(o, isExpanded(o))).join('');
   }
   
-  // Model-narrated "meanwhile" lines (collapsed feed items, read-only)
+  html += '</div>';
+  
+  // Model-narrated "meanwhile" lines (separate section, read-only)
   if (par.length) {
+    html += '<div class="vle-subnav-g" style="margin-top:16px">Meanwhile (narrated)</div>';
+    html += '<div class="vle-cz-note">Model-narrated off-stage activity. These are snapshots, not full subplots.</div>';
+    html += '<div class="vle-feed">';
     const parItems = par.slice().sort((a, b) => b.turn - a.turn).map(p => {
       const who = p.who ? `<span class="vle-feed-who">${esc(s.cast[p.who]?.name ?? p.who)}</span>` : '';
       const where = p.where || '';
@@ -434,9 +445,9 @@ function offscreenView(s: ChronicleState): string {
       return `<div class="vle-feed-item vle-feed-item--narrated">${kicker}${activity}${who}${sim}${meta}</div>`;
     }).join('');
     html += parItems;
+    html += '</div>';
   }
   
-  html += '</div>';
   return html;
 }
 
