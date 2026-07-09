@@ -427,11 +427,11 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'thread.op': {
-      upsertTrack(s.threads, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op);
+      upsertTrack(s.threads, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op, e.day);
       break;
     }
     case 'arc.op': {
-      upsertTrack(s.arcs, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op);
+      upsertTrack(s.arcs, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op, e.day);
       break;
     }
     case 'thread.merge': {
@@ -450,9 +450,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         cur.name = e.name;
         if (e.status !== undefined) cur.status = e.status;
         cur.lastTurn = Math.max(cur.lastTurn, e.turn);
+        stampTrackDay(cur, e.day);
         if (e.note) pushTrackBeat(cur, e.note);
       } else {
-        upsertTrack(list, e.name, e.status ?? 'advance', e.turn, e.note, 'new');
+        upsertTrack(list, e.name, e.status ?? 'advance', e.turn, e.note, 'new', e.day);
       }
       break;
     }
@@ -472,6 +473,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.thread !== undefined) { if (e.thread) ot.thread = e.thread; else delete ot.thread; }
       if (e.gist) { ot.gist = e.gist; ot.beats = [...ot.beats, e.gist].slice(-6); }
       ot.lastTurn = Math.max(ot.lastTurn, e.turn);
+      if (ot.firstDay === undefined) ot.firstDay = e.day;
+      ot.lastDay = ot.lastDay === undefined ? e.day : Math.max(ot.lastDay, e.day);
       if (e.op === 'resolve') ot.status = 'resolved';
       break;
     }
@@ -697,11 +700,21 @@ function pushTrackBeat(t: Track, beat: string): void {
   t.beats = [...t.beats, b].slice(-6);
 }
 
+/** Stamp a track's narrative-day anchors. firstDay is set once (earliest seen);
+ * lastDay only advances (monotonic, mirrors s.day) so a thread's day never runs
+ * backward. A `day` of 0/undefined (pre-day-stamp fold) leaves anchors untouched
+ * so legacy logs and callers that don't carry a day stay valid. */
+function stampTrackDay(t: Track, day?: number): void {
+  if (!day || day <= 0) return;
+  if (t.firstDay === undefined) t.firstDay = day;
+  t.lastDay = t.lastDay === undefined ? day : Math.max(t.lastDay, day);
+}
+
 /** Upsert a track by fuzzy title match (sameTrack). The id is engine-assigned on
  * FIRST sight (slug of the first title) and never changes as the model's title
  * drifts — the model speaks in titles, the engine owns the id. A `note` (or the
  * op, for a genuine step) accrues onto beats[]. */
-function upsertTrack(list: Track[], name: string, status: string, turn: number, note?: string, op?: string): void {
+function upsertTrack(list: Track[], name: string, status: string, turn: number, note?: string, op?: string, day?: number): void {
   const t = list.find((x) => sameTrack(x.name, name));
   if (t) {
     t.status = status; t.lastTurn = Math.max(t.lastTurn, turn); // keep existing (canonical) id + name
@@ -712,6 +725,7 @@ function upsertTrack(list: Track[], name: string, status: string, turn: number, 
     list.push({ id, name, status, beats: [], firstTurn: turn, lastTurn: turn });
   }
   const cur = list.find((x) => sameTrack(x.name, name));
+  if (cur) stampTrackDay(cur, day);
   // record a beat only for a real story step (a note, or a new/advance/resolve),
   // never for a bare status echo that carries no information.
   if (cur && note) pushTrackBeat(cur, note);
@@ -734,6 +748,10 @@ function mergeTracks(list: Track[], from: string[], into: string): { keep: strin
   for (const src of sources) {
     keep.firstTurn = Math.min(keep.firstTurn, src.firstTurn);
     if (src.lastTurn >= keep.lastTurn) { keep.lastTurn = src.lastTurn; keep.status = src.status; }
+    // reconcile narrative-day anchors: firstDay = earliest, lastDay = latest,
+    // treating undefined as "no anchor" so pre-day-stamp tracks don't zero it.
+    if (src.firstDay !== undefined) keep.firstDay = keep.firstDay === undefined ? src.firstDay : Math.min(keep.firstDay, src.firstDay);
+    if (src.lastDay !== undefined) keep.lastDay = keep.lastDay === undefined ? src.lastDay : Math.max(keep.lastDay, src.lastDay);
     for (const b of src.beats) if (b && merged[merged.length - 1] !== b && !merged.includes(b)) merged.push(b);
   }
   keep.beats = merged.slice(-6);

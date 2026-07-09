@@ -152,6 +152,10 @@ export interface Track {
                        // mirrors OffscreenThread so threads & subplots share a shape
   firstTurn: number;
   lastTurn: number;
+  firstDay?: number;   // narrative day the thread first appeared (derived; optional
+                       // so pre-day-stamp logs & existing callers stay valid)
+  lastDay?: number;    // narrative day of the thread's latest step — the anchor for
+                       // skip-desync detection against off-screen threads
 }
 
 export interface PresentChar {
@@ -325,6 +329,10 @@ export interface OffscreenThread {
                    // bridge that overrides the soft text match; rewritten on merge
   firstTurn: number;
   lastTurn: number;
+  firstDay?: number; // narrative day this subplot began (derived; optional for
+                     // pre-day-stamp logs & existing callers)
+  lastDay?: number;  // narrative day of the latest off-screen step — paired with
+                     // Track.lastDay to detect on/off-screen skip desync
 }
 
 export function freshState(): ChronicleState {

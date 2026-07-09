@@ -135,3 +135,17 @@ export function dateFormatExample(format: DateFormat, naming?: DateNaming): stri
   const exampleDay = 45; // arbitrary day for example
   return formatDate(exampleDay, format, { dateEpoch: new Date(2026, 0, 1), ...naming });
 }
+
+/**
+ * Coarse human span label for an ELAPSED number of days ("about 3 weeks"),
+ * bucketed months/weeks/days. Format-agnostic (a plain duration, not a calendar
+ * date) so the off-screen time-skip note and the on-screen skip note read the
+ * same. Returns '' for a sub-2-day span (not a skip). PURE.
+ */
+export function spanLabel(days: number): string {
+  const d = Math.floor(days);
+  if (d < 2) return '';
+  if (d >= 30) return `${Math.round(d / 30)} month(s)`;
+  if (d >= 14) return `${Math.round(d / 7)} week(s)`;
+  return `${d} days`;
+}

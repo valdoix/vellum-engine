@@ -71,10 +71,13 @@ export function validateMerges(groups: MergeGroup[] | null, existingNames: strin
   return out;
 }
 
-/** Open (non-resolved) tracks of a kind, newest first — the merge candidates. */
-export function openTracks(state: ChronicleState, kind: 'threads' | 'arcs'): Array<{ id: string; name: string; status: string; lastTurn: number }> {
+/** Open (non-resolved) tracks of a kind, newest first — the merge candidates.
+ * Carries `beats` (latest step) and the narrative-day anchor `lastDay` so callers
+ * (the off-screen sim payload) can react to a thread's post-skip state, not just
+ * its title/status. */
+export function openTracks(state: ChronicleState, kind: 'threads' | 'arcs'): Array<{ id: string; name: string; status: string; lastTurn: number; beats: string[]; lastDay?: number }> {
   return state[kind]
     .filter((t) => !/resolv/i.test(t.status || ''))
     .sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0))
-    .map((t) => ({ id: t.id, name: t.name, status: t.status, lastTurn: t.lastTurn }));
+    .map((t) => ({ id: t.id, name: t.name, status: t.status, lastTurn: t.lastTurn, beats: t.beats, ...(t.lastDay !== undefined ? { lastDay: t.lastDay } : {}) }));
 }

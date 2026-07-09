@@ -43,7 +43,7 @@ import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/pr
 import { parseTone, isDefaultTone, DEFAULT_TONE, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, lockInjection, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
-import { checkContinuity } from './domain/continuity.js';
+import { checkContinuity, checkThreadOffscreenSync } from './domain/continuity.js';
 import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenInjection, readyToIntersect } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
@@ -453,11 +453,15 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   // applied). Advisory only — surfaced as a toast + in the Director panel.
   let flagged = 0;
   try {
-    const warnings = checkContinuity(foldedEvents, preFold);
+    // event-vs-prior checks (secrets/knowledge/traits/deceased) + the state-level
+    // thread<->off-screen skip-desync guard, which reads the POST-fold derived
+    // state (day anchors as they stand now) rather than a single fold's events.
+    const postFold = await loadState(chatId);
+    const warnings = [...checkContinuity(foldedEvents, preFold), ...checkThreadOffscreenSync(postFold)];
     if (warnings.length) {
       spindle.sendToFrontend?.({ type: 'vellum_continuity', chatId, warnings }, userId ?? currentUser());
       // persist as a small ring-buffer log so the Director tab can show them
-      const flagTurn = (await loadState(chatId)).turns || 0;
+      const flagTurn = postFold.turns || 0;
       await appendDeferred(chatId, warnings.map((w) => ({ seq: nextSeqLocal(), turn: flagTurn, day: 0, src: 'system', kind: 'continuity.flag', code: w.kind, detail: w.text } as VellumEvent)));
       flagged = warnings.length;
     }
@@ -478,7 +482,14 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   void maybeAutoSummarize(chatId, userId);
   void maybeVaultSync(chatId, userId);
   void maybeTidyThreads(chatId, userId);
-  void maybeSimulate(chatId, userId);
+  // AWAIT the off-screen sim: on a time-skip its catch-up beats must be in the log
+  // before the next prompt is assembled, so the on-screen scene doesn't reference
+  // an off-screen world still a skip behind. maybeSimulate only blocks for a skip
+  // (it detaches an ordinary cadence tick internally), so the common turn returns
+  // immediately. simulateOffscreen already broadcasts on success; on a skip we
+  // re-broadcast defensively so the drawer reflects the caught-up subplots.
+  try { if (await maybeSimulate(chatId, userId)) await broadcastState(chatId, userId); }
+  catch (e) { spindle.log?.warn?.('[vellum_engine] maybeSimulate: ' + ((e as Error)?.message ?? e)); }
   void maybeChapterVault(chatId, userId);
   void precomputeTree(chatId, userId); // PR2: warm the tree ranking for next turn
 }
@@ -602,7 +613,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     const directives = await readDirectives(chatId);
     // open plot threads feed the sim so off-screen life can build TOWARD the main
     // plot (the thread<->offscreen bridge), newest first, capped.
-    const threads = openTracks(state, 'threads').slice(0, 6).map((t) => ({ id: t.id, name: t.name, status: t.status }));
+    const threads = openTracks(state, 'threads').slice(0, 6).map((t) => ({ id: t.id, name: t.name, status: t.status, ...(t.beats?.length ? { note: t.beats[t.beats.length - 1] } : {}), ...(t.lastDay !== undefined ? { lastDay: t.lastDay } : {}) }));
     const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}), ...(threads.length ? { threads } : {}) });
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
@@ -652,11 +663,25 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
   finally { _simulating.delete(chatId); }
 }
 
-/** Auto off-screen sim: opt-in chat var, throttled to every SIM_CADENCE-th turn. */
-async function maybeSimulate(chatId: string, userId: string | null): Promise<void> {
+/**
+ * Auto off-screen sim: opt-in chat var, throttled to every SIM_CADENCE-th turn.
+ *
+ * A TIME-SKIP catch-up (skipDays >= 2) is AWAITED here so its beats are appended
+ * to the log before this fold returns — and therefore before the next turn's
+ * prompt is assembled. This is safe to block on: the fold runs post-generation,
+ * OFF the prompt path (which has its own hard 5s deadline the 30s sim could never
+ * fit inside). Previously the whole tick was fire-and-forget (`void maybeSimulate`
+ * at fold end), so on a skip the catch-up beats raced the next generation and
+ * usually landed a turn LATE — the on-screen scene jumped days ahead while the
+ * off-screen world it referenced was still pre-skip. An ordinary cadence tick has
+ * no such ordering constraint, so it stays detached to keep the fold tail quick.
+ *
+ * Returns true when a skip catch-up was run (so the caller can await it).
+ */
+async function maybeSimulate(chatId: string, userId: string | null): Promise<boolean> {
   let on = false;
   try { on = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
-  if (!on) return;
+  if (!on) return false;
   const state = await loadState(chatId);
   // narrative days elapsed since the last sim tick (or since the chat's first day
   // if the sim has never run). A jump of >=2 days is a TIME-SKIP: the off-screen
@@ -667,8 +692,28 @@ async function maybeSimulate(chatId: string, userId: string | null): Promise<voi
   const skipDays = lastSimDay === null ? 0 : Math.max(0, (state.day || 0) - lastSimDay);
   const interval = (await budgetCaps(chatId)).simInterval || SIM_CADENCE; // 0 → treat as default
   const cadenceHit = interval > 0 && (state.turns || 0) % interval === 0;
-  if (!cadenceHit && skipDays < 2) return; // no cadence tick and no time-skip → nothing to do
-  await simulateOffscreen(chatId, userId, undefined, skipDays >= 2 ? skipDays : undefined);
+  const isSkip = skipDays >= 2;
+  if (!cadenceHit && !isSkip) return false; // no cadence tick and no time-skip → nothing to do
+  // stamp the OBSERVED-day baseline up front (monotonic; see note below) so a
+  // failed/empty catch-up can't leave the marker behind and inflate the NEXT
+  // fold's skipDays. Written before the tick precisely because the tick may fail.
+  const stamp = async (): Promise<void> => {
+    try {
+      const cur = lastSimDay ?? 0;
+      const next = Math.max(cur, state.day || 0);
+      if (next !== cur || lastSimDay === null) await setChatVar(chatId, 'vellum_sim_day', String(next));
+    } catch { /* best effort */ }
+  };
+  if (isSkip) {
+    // AWAITED catch-up: beats must land before the next prompt build.
+    await stamp();
+    await simulateOffscreen(chatId, userId, undefined, skipDays);
+    return true;
+  }
+  // ordinary cadence tick: no ordering constraint, keep the fold tail quick.
+  await stamp();
+  void simulateOffscreen(chatId, userId, undefined, undefined);
+  return false;
 }
 
 const _vaultSyncing = new Set<string>();

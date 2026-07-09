@@ -8,6 +8,7 @@ import { hashStr } from '../core/ids.js';
 import { traverseRanked, type CallModel, type TraversalTrace } from './traverse.js';
 import { traverseTree, type TreeTraversalTrace } from './traverse-tree.js';
 import { linkedOffscreen } from '../domain/offscreen.js';
+import { spanLabel } from '../domain/date-format.js';
 
 /**
  * Recall assembler. Produces the text VELLUM injects into the prompt, in two
@@ -146,10 +147,25 @@ function structuredBlock(state: ChronicleState, budget: number): string {
     const beat = links[0]!.gist || links[0]!.beats[links[0]!.beats.length - 1] || '';
     return beat ? ' \u2014 off-screen: ' + beat : '';
   };
-  const trackLine = (t: { id?: string; name: string; status: string }, withOff: boolean): string =>
-    '- ' + t.name + (t.status && !/^(advance|new)$/i.test(t.status) ? ': ' + t.status : '') + (withOff ? offBeat(t) : '');
-  const openThreads = state.threads.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 6).map((t) => trackLine(t, true));
-  const openArcs = state.arcs.filter(isOpen).sort((a, b) => (b.lastTurn || 0) - (a.lastTurn || 0)).slice(0, 2).map((t) => trackLine(t, false));
+  // SKIP-LAG note: a thread last touched on a narrative day well before the
+  // current day was left behind by a time-skip — the on-screen scene jumped ahead
+  // while this thread's state is still pre-skip. Flag the elapsed span so the
+  // narrator advances it to "now" instead of resuming it as if no time passed.
+  const nowDay = state.day || 0;
+  const skipLag = (t: { lastDay?: number }): string => {
+    if (t.lastDay === undefined || nowDay <= 0) return '';
+    const span = spanLabel(nowDay - t.lastDay);
+    return span ? ' \u2014 last advanced ~' + span + ' ago; catch it up to now' : '';
+  };
+  const trackLine = (t: { id?: string; name: string; status: string; lastDay?: number }, withOff: boolean): string =>
+    '- ' + t.name + (t.status && !/^(advance|new)$/i.test(t.status) ? ': ' + t.status : '') + (withOff ? offBeat(t) : '') + skipLag(t);
+  // day-aware sort: order by narrative recency (lastDay) first, falling back to
+  // turn order when days are absent/equal — so under a skip the freshest-day
+  // threads lead and the lagging ones are visibly last (and carry the note above).
+  const byRecency = (a: { lastDay?: number; lastTurn?: number }, b: { lastDay?: number; lastTurn?: number }): number =>
+    ((b.lastDay ?? -1) - (a.lastDay ?? -1)) || ((b.lastTurn || 0) - (a.lastTurn || 0));
+  const openThreads = state.threads.filter(isOpen).sort(byRecency).slice(0, 6).map((t) => trackLine(t, true));
+  const openArcs = state.arcs.filter(isOpen).sort(byRecency).slice(0, 2).map((t) => trackLine(t, false));
 
   // present/active factions + their standing toward the player (authoritative,
   // like cast). Reuses the shared structured budget.

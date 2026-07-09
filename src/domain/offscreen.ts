@@ -4,6 +4,7 @@ import { type RelationLock, findLock, applyLockToBond } from './relation-lock.js
 import type { Directive } from './directive.js';
 import { type Social, type Politics, offscreenBondPolicy, factionPolicy } from './tone.js';
 import { canonId } from '../core/ids.js';
+import { spanLabel } from './date-format.js';
 
 /**
  * Off-screen simulation (Plot Director) — tick the world forward while it's
@@ -40,8 +41,11 @@ export interface SimCtx {
   skipDays?: number;
   /** open on-screen plot threads (id + name + latest note), fed to the sim so an
    * off-screen subplot can build TOWARD / react to the main plot — the bridge
-   * that lets "The Appointment" (sim) advance "The Letter" (thread). */
-  threads?: ReadonlyArray<{ id?: string; name: string; status?: string }>;
+   * that lets "The Appointment" (sim) advance "The Letter" (thread). `note` is the
+   * thread's latest beat and `lastDay` its narrative-day anchor: under a time-skip
+   * these let the off-screen world advance in REACTION to the post-skip plot
+   * state, not blind to it. */
+  threads?: ReadonlyArray<{ id?: string; name: string; status?: string; note?: string; lastDay?: number }>;
 }
 
 // Title/gist token overlap for the soft thread<->offscreen bridge. Deliberately
@@ -80,9 +84,8 @@ export function threadOffscreenLink(threadName: string, sub: { name: string; gis
  * through — so we license the model to jump further and resolve threads that
  * would naturally have run their course. PURE. */
 export function timeSkipNote(skipDays?: number): string {
-  const d = Math.floor(skipDays ?? 0);
-  if (d < 2) return '';
-  const span = d >= 30 ? `${Math.round(d / 30)} month(s)` : d >= 14 ? `${Math.round(d / 7)} week(s)` : `${d} days`;
+  const span = spanLabel(skipDays ?? 0);
+  if (!span) return '';
   return `TIME-SKIP: about ${span} have passed off-screen since the last update. The same time passed for everyone — advance each subplot by that WHOLE span, not a single beat: let journeys arrive, plans mature or fail, waits end, and RESOLVE any subplot that would plausibly have concluded over ${span}. Report the net result of the elapsed time, not one small step.`;
 }
 
@@ -141,7 +144,7 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
     // surface any on-screen plot thread this subplot relates to, so the beat can
     // move it forward (the bridge) rather than drifting off on its own.
     const linked = (ctx.threads ?? []).filter((th) => threadOffscreenLink(th.name, focus, th.id));
-    if (linked.length) { lines.push('', 'THIS TIES INTO ON-SCREEN PLOT THREAD(S) — let the beat move them forward if it fits:'); for (const th of linked) lines.push(`- ${th.name}${th.status && !/^(new|advance)$/i.test(th.status) ? ` (${th.status})` : ''}`); }
+    if (linked.length) { lines.push('', 'THIS TIES INTO ON-SCREEN PLOT THREAD(S) — let the beat move them forward if it fits:'); for (const th of linked) lines.push(`- ${th.name}${th.status && !/^(new|advance)$/i.test(th.status) ? ` (${th.status})` : ''}${th.note ? ` — latest: ${th.note}` : ''}`); }
     lines.push('', 'Reply with exactly one entry: op "advance" (or "resolve" if it has run its course), same id.');
     const skipF = timeSkipNote(ctx.skipDays);
     if (skipF) lines.push('', skipF);
@@ -166,7 +169,7 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
     lines.push('', 'ON-SCREEN PLOT THREADS (off-screen life may quietly build toward these; if a subplot below already ties into one, advance it that way):');
     for (const th of openThreads) {
       const tie = open.filter((o) => threadOffscreenLink(th.name, o, th.id)).map((o) => o.id);
-      lines.push(`- ${th.name}${th.status && !/^(new|advance)$/i.test(th.status) ? ` (${th.status})` : ''}${tie.length ? ` [ties into: ${tie.join(', ')}]` : ''}`);
+      lines.push(`- ${th.name}${th.status && !/^(new|advance)$/i.test(th.status) ? ` (${th.status})` : ''}${th.note ? ` — latest: ${th.note}` : ''}${tie.length ? ` [ties into: ${tie.join(', ')}]` : ''}`);
     }
   }
   const skip = timeSkipNote(ctx.skipDays);
