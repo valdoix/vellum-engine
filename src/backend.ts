@@ -116,7 +116,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -131,13 +131,15 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     readHardLimits(chatId),
     readCalendar(chatId),
     readTheme(),
+    readPrefs(),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
   const hide = !!hideRaw;
   const traversalMode = travOn ? (travModeRaw === 'tree' ? 'tree' : 'flat') : 'off';
   const theme = themeRaw ?? null;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme }, userId ?? currentUser());
+  const prefs = prefsRaw ?? null;
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -466,11 +468,22 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     const postFold = await loadState(chatId);
     const warnings = [...checkContinuity(foldedEvents, preFold), ...checkThreadOffscreenSync(postFold)];
     if (warnings.length) {
+      // Always TOAST every warning (the live nudge), but only PERSIST ones we
+      // haven't already logged. The desync guards (thread_offscreen_conflict /
+      // thread_thread_desync / clock_backward) re-fire the SAME text every fold
+      // while the gap stands; appending each time floods the 50-entry ring buffer
+      // in reduce() and evicts genuine one-shot time flags (day_creep/day_jump/
+      // day_backward) so they "show up then disappear". Dedupe on (code+detail)
+      // against the flags already on record so a standing advisory is logged once.
       spindle.sendToFrontend?.({ type: 'vellum_continuity', chatId, warnings }, userId ?? currentUser());
-      // persist as a small ring-buffer log so the Director tab can show them
       const flagTurn = postFold.turns || 0;
-      await appendDeferred(chatId, warnings.map((w) => ({ seq: nextSeqLocal(), turn: flagTurn, day: 0, src: 'system', kind: 'continuity.flag', code: w.kind, detail: w.text } as VellumEvent)));
-      flagged = warnings.length;
+      const flagDay = postFold.day || 0;
+      const seen = new Set((postFold.continuityFlags ?? []).map((f) => f.code + '\u0000' + f.detail));
+      const fresh = warnings.filter((w) => !seen.has(w.kind + '\u0000' + w.text));
+      if (fresh.length) {
+        await appendDeferred(chatId, fresh.map((w) => ({ seq: nextSeqLocal(), turn: flagTurn, day: flagDay, src: 'system', kind: 'continuity.flag', code: w.kind, detail: w.text } as VellumEvent)));
+        flagged = fresh.length;
+      }
     }
   } catch { /* best effort */ }
   // Second durable write + broadcast, but ONLY if PASS 2 (prose extraction or
@@ -1155,6 +1168,21 @@ async function readTheme(): Promise<string | null> {
 }
 async function writeTheme(json: string): Promise<void> {
   try { await spindle.storage?.write?.(THEME_PATH, json); } catch { /* ignore */ }
+}
+
+// --- window-prefs persistence ---------------------------------------------
+// The float window's structural prefs (layout / density / custom arrangement /
+// float tab & geometry / auto-name / fold-toast) live in host storage too, so
+// they survive an extension reload that clears the webview's localStorage — the
+// same durability the theme already had. One JSON blob, global (not per-chat),
+// mirroring THEME_PATH exactly.
+const PREFS_PATH = 'vellum/prefs.json';
+async function readPrefs(): Promise<string | null> {
+  try { if (spindle.storage?.exists && (await spindle.storage.exists(PREFS_PATH))) return await spindle.storage.read(PREFS_PATH); } catch { /* ignore */ }
+  return null;
+}
+async function writePrefs(json: string): Promise<void> {
+  try { await spindle.storage?.write?.(PREFS_PATH, json); } catch { /* ignore */ }
 }
 
 // --- frontend dispatch table ---------------------------------------------
@@ -2017,6 +2045,8 @@ const dispatch: Record<string, Handler> = {
   },
   vellum_set_theme: async (p) => { if (typeof p?.theme === 'string') await writeTheme(p.theme); },
   vellum_get_theme: async (_p, uid) => { const t = await readTheme(); spindle.sendToFrontend?.({ type: 'vellum_theme', theme: t }, uid ?? currentUser()); },
+  vellum_set_prefs: async (p) => { if (typeof p?.prefs === 'string') await writePrefs(p.prefs); },
+  vellum_get_prefs: async (_p, uid) => { const t = await readPrefs(); spindle.sendToFrontend?.({ type: 'vellum_prefs', prefs: t }, uid ?? currentUser()); },
 };
 
 try {

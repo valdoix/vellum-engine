@@ -604,6 +604,14 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'continuity.flag': {
+      // Dedupe by (code+detail): a standing advisory (thread/clock desync) re-fires
+      // the same text each fold, so without this an already-flooded log would keep
+      // 50 identical desync rows and bury genuine one-shot time flags. Drop any
+      // prior identical entry and re-push at the tail (newest turn wins) so each
+      // distinct finding appears exactly once, most-recent-first when displayed.
+      const dupKey = e.code + '\u0000' + e.detail;
+      const at = s.continuityFlags.findIndex((f) => f.code + '\u0000' + f.detail === dupKey);
+      if (at !== -1) s.continuityFlags.splice(at, 1);
       s.continuityFlags.push({ turn: e.turn, code: e.code, detail: e.detail });
       if (s.continuityFlags.length > 50) s.continuityFlags = s.continuityFlags.slice(-50); // ring buffer
       break;

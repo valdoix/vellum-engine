@@ -1,5 +1,6 @@
 import type { ChronicleState, Relation, CastCard } from '../domain/types.js';
 import { hash01 } from '../core/ids.js';
+import { getPref, setPref } from './prefs.js';
 
 /** Small formatting helpers shared across UI components. Pure, no DOM. */
 
@@ -77,11 +78,12 @@ export function safeColor(color: unknown, fallback = '#8c8478'): string {
  *   gradient → that hue → a complementary-ish second hue
  */
 type AutoMode = 'off' | 'solid' | 'gradient';
-const AKEY = 'vellum2.autoname';
 let _auto: AutoMode = loadAuto();
-function loadAuto(): AutoMode { try { const v = localStorage.getItem(AKEY); return v === 'solid' || v === 'gradient' ? v : 'off'; } catch { return 'off'; } }
+function loadAuto(): AutoMode { const v = getPref<string>('autoName', 'off'); return v === 'solid' || v === 'gradient' ? v : 'off'; }
 export function autoNameMode(): AutoMode { return _auto; }
-export function setAutoNameMode(m: AutoMode): void { _auto = m; try { if (m === 'off') localStorage.removeItem(AKEY); else localStorage.setItem(AKEY, m); } catch { /* ignore */ } }
+export function setAutoNameMode(m: AutoMode): void { _auto = m; setPref('autoName', m === 'off' ? null : m); }
+/** Re-read the auto-name mode after a backend prefs hydrate (reload recovery). */
+export function reloadAutoNameFromPrefs(): void { _auto = loadAuto(); }
 /** Warm the collision-free slot map for the given cast ids, so nameHtmlCard (which
  * has no state) paints with the same assignments. Call once per cast render. */
 export function warmCastColors(castIds: string[]): void { void slotFor(castIds[0] ?? '', castIds); }

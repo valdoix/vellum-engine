@@ -9,6 +9,7 @@
  * and a toolbar of QOL actions. Geometry persists to localStorage.
  */
 import { applyTheme } from './theme.js';
+import { getPref, setPref } from './prefs.js';
 
 export interface FloatHooks {
   title?: string;
@@ -26,15 +27,17 @@ export interface FloatWindow {
   isOpen(): boolean;
   refresh(): void;
   applyTheme(): void;
+  /** Re-read persisted geometry (after a backend prefs hydrate) and re-apply. */
+  reloadGeo(): void;
   destroy(): void;
 }
 
-const GEO_KEY = 'vellum2.float.geo';
 const MARK = '\u2756';
 
 interface Geo { x: number; y: number; w: number; h: number }
 function loadGeo(): Geo {
-  try { const g = JSON.parse(localStorage.getItem(GEO_KEY) || ''); if (g && typeof g.x === 'number') return g; } catch { /* default */ }
+  const g = getPref<Partial<Geo> | null>('floatGeo', null);
+  if (g && typeof g.x === 'number' && typeof g.y === 'number' && typeof g.w === 'number' && typeof g.h === 'number') return g as Geo;
   const w = Math.min(420, Math.max(300, Math.round(window.innerWidth * 0.30)));
   const h = Math.min(620, Math.round(window.innerHeight * 0.66));
   return { x: window.innerWidth - w - 28, y: 84, w, h };
@@ -84,7 +87,7 @@ export function createFloatWindow(hooks: FloatHooks): FloatWindow {
     el.style.left = geo.x + 'px'; el.style.top = geo.y + 'px';
     el.style.width = geo.w + 'px'; el.style.height = geo.h + 'px';
   };
-  const persist = (): void => { if (saveT) clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(GEO_KEY, JSON.stringify(geo)); } catch { /* ignore */ } }, 250); };
+  const persist = (): void => { if (saveT) clearTimeout(saveT); saveT = setTimeout(() => { setPref('floatGeo', geo); }, 250); };
 
   // drag (pointer events → touch friendly, captured)
   let mode: 'drag' | 'resize' | null = null;
@@ -138,6 +141,7 @@ export function createFloatWindow(hooks: FloatHooks): FloatWindow {
     isOpen(): boolean { return open; },
     refresh(): void { if (open) hooks.render(body); },
     applyTheme(): void { applyTheme(el); },
+    reloadGeo(): void { geo = clampGeo(loadGeo()); if (open) applyGeo(); },
     destroy(): void {
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up); window.removeEventListener('resize', onResizeWin);

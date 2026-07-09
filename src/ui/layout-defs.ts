@@ -4,6 +4,7 @@
  * alongside the theme. A layout is a pure descriptor; dashboard.ts composes the
  * section functions by id.
  */
+import { getPref, setPref } from './prefs.js';
 
 export type SectionId = 'status' | 'present' | 'tension' | 'relations' | 'threads' | 'parallel' | 'recent' | 'stats';
 export type Density = 'compact' | 'comfortable' | 'roomy';
@@ -93,7 +94,6 @@ export const LAYOUTS: LayoutDef[] = [
 void ALL;
 
 // --- Custom layout (user-built: order + visibility + collapse) -----------
-const CUSTOM_KEY = 'vellum2.layout.custom';
 const SECTION_LABEL: Record<SectionId, string> = {
   status: 'Status', present: 'Present', tension: 'Tension', relations: 'Relations',
   threads: 'Threads', parallel: 'Parallel', recent: 'Latest', stats: 'Stats',
@@ -101,26 +101,25 @@ const SECTION_LABEL: Record<SectionId, string> = {
 
 function loadCustom(): LayoutDef {
   const base: LayoutDef = { id: 'custom', name: 'Custom', blurb: 'Your own arrangement.', glyph: '\u270E', order: [...ALL], hidden: [], collapsed: [], density: 'comfortable', columns: 1 };
-  try { const c = JSON.parse(localStorage.getItem(CUSTOM_KEY) || ''); if (c && Array.isArray(c.order)) return { ...base, ...c, id: 'custom', name: 'Custom' }; } catch { /* default */ }
+  const c = getPref<Partial<LayoutDef> | null>('customLayout', null);
+  if (c && Array.isArray(c.order)) return { ...base, ...c, id: 'custom', name: 'Custom' };
   return base;
 }
 let _custom: LayoutDef = loadCustom();
-function saveCustom(): void { try { localStorage.setItem(CUSTOM_KEY, JSON.stringify({ order: _custom.order, hidden: _custom.hidden, collapsed: _custom.collapsed, density: _custom.density, columns: _custom.columns })); } catch { /* ignore */ } }
+function saveCustom(): void { setPref('customLayout', { order: _custom.order, hidden: _custom.hidden, collapsed: _custom.collapsed, density: _custom.density, columns: _custom.columns }); }
 
 export const LAYOUTS_WITH_CUSTOM = (): LayoutDef[] => [...LAYOUTS, _custom];
 
-const KEY = 'vellum2.layout';
 let _id: string = load();
-function load(): string { try { return localStorage.getItem(KEY) || 'dashboard'; } catch { return 'dashboard'; } }
-export function setLayout(id: string): void { if (id === 'custom' || LAYOUTS.some((l) => l.id === id)) { _id = id; try { localStorage.setItem(KEY, id); } catch { /* ignore */ } } }
+function load(): string { return getPref<string>('layout', 'dashboard'); }
+export function setLayout(id: string): void { if (id === 'custom' || LAYOUTS.some((l) => l.id === id)) { _id = id; setPref('layout', id); } }
 
 // Density OVERRIDE — a quick compact/comfortable/roomy preset applied over ANY
 // active layout (separate from the per-layout default + the numeric --vdensity
 // slider). null = use the layout's own density.
-const DKEY = 'vellum2.density';
 let _density: Density | null = loadDensity();
-function loadDensity(): Density | null { try { const v = localStorage.getItem(DKEY); return v === 'compact' || v === 'comfortable' || v === 'roomy' ? v : null; } catch { return null; } }
-export function setDensityOverride(d: Density | null): void { _density = d; try { if (d) localStorage.setItem(DKEY, d); else localStorage.removeItem(DKEY); } catch { /* ignore */ } }
+function loadDensity(): Density | null { const v = getPref<string>('density', ''); return v === 'compact' || v === 'comfortable' || v === 'roomy' ? v : null; }
+export function setDensityOverride(d: Density | null): void { _density = d; setPref('density', d ?? null); }
 export function densityOverride(): Density | null { return _density; }
 
 export function getLayout(): LayoutDef {
@@ -128,6 +127,10 @@ export function getLayout(): LayoutDef {
   return _density ? { ...base, density: _density } : base;
 }
 export function currentLayoutId(): string { return _id; }
+
+/** Re-read layout/density/custom from prefs after a backend hydrate (a reload
+ * that wiped localStorage). Keeps the in-memory module state authoritative. */
+export function reloadLayoutFromPrefs(): void { _id = load(); _density = loadDensity(); _custom = loadCustom(); }
 
 /** Picker tiles (presets + Custom) + a quick density preset row. */
 export function layoutPanel(): string {

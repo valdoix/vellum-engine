@@ -12,6 +12,9 @@ import { injectionTab, setInjectionLog, pushInjectionRecord } from './tabs/injec
 import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, customizePanel, wireCustomize, setThemePersist, hydrateTheme } from './theme.js';
+import { setPrefsPersist, hydratePrefs, getPref, setPref } from './prefs.js';
+import { reloadLayoutFromPrefs } from './layout-defs.js';
+import { reloadAutoNameFromPrefs } from './format.js';
 import { dashboardHtml, setPhoneSection, setSysInfo, setDashCalendar } from './dashboard.js';
 import { formatDate } from '../domain/date-format.js';
 import { visibleCast } from '../domain/cast-hygiene.js';
@@ -398,11 +401,10 @@ let _summarizerCfg: Record<string, unknown> | null = null; // last-known summari
 let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
 let _lastStateAt = 0; // epoch ms of the last vellum_state broadcast (for the post-turn safety poll)
-const FOLD_TOAST_KEY = 'vellum2.foldToast';
 // per-client display preference: show the post-turn "tracker updated" toast.
-// Off by default so the common turn is silent; persisted in localStorage (a pure
-// UI preference — no chat var / backend round-trip needed).
-let _foldToastOn = ((): boolean => { try { return localStorage.getItem(FOLD_TOAST_KEY) === '1'; } catch { return false; } })();
+// Off by default so the common turn is silent; persisted via prefs (host-backed
+// so it survives an extension reload, like the rest of the window prefs).
+let _foldToastOn = getPref<boolean>('foldToast', false);
 
 // Transient "running" indication for one-shot QOL actions. Set busy when the
 // action is dispatched; cleared when the matching backend reply arrives. A
@@ -530,7 +532,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'foldtoast') {
     _foldToastOn = !_foldToastOn;
-    try { localStorage.setItem(FOLD_TOAST_KEY, _foldToastOn ? '1' : ''); } catch { /* ignore */ }
+    setPref('foldToast', _foldToastOn);
     document.querySelectorAll('[data-qol=\'foldtoast\']').forEach((b) => b.classList.toggle('on', _foldToastOn));
     notify(ctx, 'info', _foldToastOn ? 'Update toast on: a brief note after each turn.' : 'Update toast off.');
   }
@@ -720,6 +722,10 @@ function downloadText(name: string, text: string, mime = 'text/plain'): void {
 export function setup(ctx: Ctx): () => void {
   _ctxRef = ctx;
   setThemePersist((json) => ctx.sendToBackend({ type: 'vellum_set_theme', theme: json }));
+  // window PREFS (layout / density / custom arrangement / float tab & geometry /
+  // auto-name / fold-toast) persist host-side too, so they survive an extension
+  // reload that wipes localStorage — same durability the theme already had.
+  setPrefsPersist((json) => ctx.sendToBackend({ type: 'vellum_set_prefs', prefs: json }));
   const style = ctx.dom.addStyle(FONT_FACES + '\n' + STYLES);
   let state: ChronicleState = freshState();
   const getState = (): ChronicleState => state;
@@ -742,8 +748,7 @@ export function setup(ctx: Ctx): () => void {
 
   // beautiful floating window — a live scene DASHBOARD with a refresh button
   const FLOAT_TABS = TABS.filter((t) => t.group === 'primary');
-  const FLOAT_TAB_KEY = 'vellum2.float.tab';
-  let floatTab = ((): string => { try { return localStorage.getItem(FLOAT_TAB_KEY) || 'now'; } catch { return 'now'; } })();
+  let floatTab = getPref<string>('floatTab', 'now');
   let floatMounted: Mounted<ChronicleState> | null = null;
   let floatMountedId: string | null = null;
   const floatTabStrip = (): string => FLOAT_TABS.map((t) =>
@@ -765,7 +770,7 @@ export function setup(ctx: Ctx): () => void {
           const b = (e.target as HTMLElement).closest('[data-vlf-tab]');
           if (!b) return;
           floatTab = b.getAttribute('data-vlf-tab')!;
-          try { localStorage.setItem(FLOAT_TAB_KEY, floatTab); } catch { /* ignore */ }
+          setPref('floatTab', floatTab);
           float.refresh();
         });
       }
@@ -831,6 +836,19 @@ export function setup(ctx: Ctx): () => void {
         }
         setSysInfo({ recall: _traverseMode === 'off' ? 'off' : _traverseMode === 'tree' ? `tree\u00b7${axisLabel(_traverseAxis)}` : 'flat' });
         if (typeof p.theme === 'string' && p.theme) { hydrateTheme(p.theme); applyTheme(drawer.root); }
+        // hydrate the window prefs blob (layout/density/custom/float/auto-name/
+        // fold-toast). Backend wins after a reload that wiped localStorage; when it
+        // changed anything, re-read the module state, re-sync toggles, and re-render.
+        if (typeof p.prefs === 'string' && p.prefs && hydratePrefs(p.prefs)) {
+          reloadLayoutFromPrefs();
+          reloadAutoNameFromPrefs();
+          _foldToastOn = getPref<boolean>('foldToast', false);
+          document.querySelectorAll('[data-qol=\'foldtoast\']').forEach((b) => b.classList.toggle('on', _foldToastOn));
+          const nextFloatTab = getPref<string>('floatTab', 'now');
+          if (nextFloatTab !== floatTab) floatTab = nextFloatTab;
+          try { float.reloadGeo(); } catch { /* ignore */ }
+          try { applyTheme(drawer.root); } catch { /* ignore */ }
+        }
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_fold_progress') {
         // Two-phase fold: phase 1 = the live scene is in (fast); phase 2 = the

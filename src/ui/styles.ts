@@ -366,6 +366,8 @@ export const STYLES = [
   ".vle-dir-log-mark{flex:0 0 auto}",
   ".vle-dir-log-flag .vle-dir-log-mark{color:var(--v-neg)}",
   ".vle-dir-log-reveal .vle-dir-log-mark{color:var(--vle-gold)}",
+  ".vle-dir-log-time .vle-dir-log-mark{color:var(--v-info)}",
+  ".vle-dir-log-time{border-left:2px solid color-mix(in srgb,var(--v-info) 45%,transparent);padding-left:8px;background:color-mix(in srgb,var(--v-info) 5%,transparent)}",
   ".vle-dir-log-t{flex:1 1 auto;font-size:calc(13px * var(--vscale));color:var(--vi)}",
   ".vle-dir-log-turn{flex:0 0 auto;font:500 10px/1.4 var(--vmono);color:var(--vi2);opacity:.6}",
   "html[data-vle-chrome='futuristic'] .vle-dir-col-h,html[data-vle-chrome='futuristic'] .vle-loc-grp-h{font-family:var(--vmono);color:var(--vg)}",
@@ -1061,15 +1063,38 @@ export const STYLES = [
   // narrow float reflow: smaller medallion, name+status share a line, thought truncates
   "@container (max-width:360px){.vld-pc{gap:9px}.vld-pc-av{width:calc(30px * var(--vscale));height:calc(30px * var(--vscale));font-size:calc(12px * var(--vscale))}.vld-pc-n{font-size:calc(15px * var(--vscale))}.vld-thought-q{font-size:calc(11.5px * var(--vscale))}}",
 
+  // --- THREADS (redesigned): tone-colored cards with a status pip + latest beat.
+  ".vld-threads{display:flex;flex-direction:column;gap:calc(7px * var(--vscale))}",
+  ".vld-thr{position:relative;padding:calc(8px * var(--vscale)) calc(11px * var(--vscale)) calc(8px * var(--vscale)) calc(15px * var(--vscale));border:1px solid rgba(var(--vg-rgb),.12);border-radius:var(--vr2,10px);background:linear-gradient(120deg,color-mix(in srgb,var(--vtc,var(--vg)) 6%,transparent),transparent 70%);overflow:hidden}",
+  ".vld-thr-rail{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--vtc,var(--vg));opacity:.85;border-radius:3px}",
+  ".vld-thr--rising{--vtc:var(--v-press)}",
+  ".vld-thr--active{--vtc:var(--v-pos)}",
+  ".vld-thr--stalled{--vtc:var(--vi2)}",
+  ".vld-thr--open{--vtc:var(--vg)}",
+  ".vld-thr-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}",
+  ".vld-thr-n{font-family:var(--vserif);font-size:calc(15px * var(--vscale));color:var(--vi);line-height:1.25}",
+  ".vld-thr-badge{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;font:600 calc(8.5px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vtc,var(--vg));border:1px solid color-mix(in srgb,var(--vtc,var(--vg)) 40%,transparent);background:color-mix(in srgb,var(--vtc,var(--vg)) 10%,transparent);border-radius:var(--rpill,999px);padding:3px 8px}",
+  ".vld-thr-pip{width:5px;height:5px;border-radius:50%;background:var(--vtc,var(--vg));box-shadow:0 0 6px color-mix(in srgb,var(--vtc,var(--vg)) 70%,transparent)}",
+  ".vld-thr--rising .vld-thr-pip{animation:vld-thr-pulse 1.8s ease-in-out infinite}",
+  "@keyframes vld-thr-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}",
+  "[data-vle-motion='off'] .vld-thr-pip{animation:none!important}",
+  ".vld-thr-beat{margin-top:5px;font-size:calc(12px * var(--vscale));line-height:1.5;color:var(--vi2);opacity:.9}",
+  // legacy thread classes retained (still referenced by the data-scale rule); mapped onto the new look
   ".vld-thread{display:flex;justify-content:space-between;gap:8px;font-size:calc(13px * var(--vscale));padding:4px 0 4px 9px;border-left:2px solid rgba(var(--vg-rgb),.3)}",
-  ".vld-thread+.vld-thread{border-top:1px solid rgba(var(--vg-rgb),.08)}",
   ".vld-thread-s{font:600 calc(9px * var(--vscale))/1 var(--vmono);color:var(--vle-gold);opacity:.75}",
-  ".vld-par{border:1px solid color-mix(in srgb,var(--v-info) 22%,transparent);border-radius:10px;background:color-mix(in srgb,var(--v-info) 7%,transparent);padding:calc(11px * var(--vscale)) calc(13px * var(--vscale))}",
-  ".vld-par+.vld-par{margin-top:8px}",
+  // --- PARALLEL / off-screen (redesigned): a connective rail of "meanwhile" nodes.
+  ".vld-pars{position:relative;display:flex;flex-direction:column;gap:calc(9px * var(--vscale));padding-left:calc(6px * var(--vscale))}",
+  ".vld-pars::before{content:'';position:absolute;left:calc(6px * var(--vscale) + (17px * var(--vscale) / 2) - 1px);top:calc(9px * var(--vscale));bottom:calc(9px * var(--vscale));width:1px;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--v-info) 34%,transparent) 12%,color-mix(in srgb,var(--v-info) 34%,transparent) 88%,transparent)}",
+  ".vld-par{position:relative;display:flex;gap:calc(10px * var(--vscale));align-items:flex-start}",
+  ".vld-par-node{flex:0 0 auto;width:calc(34px * var(--vscale));height:calc(34px * var(--vscale));border-radius:50%;display:grid;place-items:center;background:linear-gradient(160deg,color-mix(in srgb,var(--v-info) 24%,transparent),color-mix(in srgb,var(--v-info) 10%,transparent));border:1px solid color-mix(in srgb,var(--v-info) 40%,transparent);color:var(--v-info);font-family:var(--vserif);font-size:calc(13px * var(--vscale));background-size:cover;background-position:center;z-index:1}",
+  ".vld-par-node.has-img{color:transparent}",
+  ".vld-par-node--none{font-size:calc(16px * var(--vscale));opacity:.8}",
+  ".vld-par-body{flex:1 1 auto;border:1px solid color-mix(in srgb,var(--v-info) 20%,transparent);border-radius:12px;background:color-mix(in srgb,var(--v-info) 6%,transparent);padding:calc(8px * var(--vscale)) calc(12px * var(--vscale))}",
+  ".vld-par-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:7px;margin-bottom:3px}",
   ".vld-par-who{font-family:var(--vserif);font-size:calc(15px * var(--vscale));color:var(--v-info)}",
   ".vld-par-w{font:600 calc(9px * var(--vscale))/1 var(--vmono);opacity:.55}",
   ".vld-par-sim{font:600 calc(8px * var(--vscale))/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--v-info);border:1px solid color-mix(in srgb,var(--v-info) 35%,transparent);border-radius:var(--vr1);padding:1px 4px;opacity:.8}",
-  ".vld-par-act{font-size:calc(12.5px * var(--vscale));opacity:.82;margin-top:6px;line-height:1.5}",
+  ".vld-par-act{font-size:calc(12.5px * var(--vscale));opacity:.86;line-height:1.5}",
   ".vld-rec{font-size:calc(12.5px * var(--vscale));line-height:1.55;padding:6px 0 6px 14px;color:var(--vi2);border-top:1px solid rgba(var(--vg-rgb),.08)}",
   ".vld-rec:first-child{border-top:none}",
   ".vld-rec-k{font:600 calc(9px * var(--vscale))/1 var(--vmono);text-transform:uppercase;letter-spacing:.5px;color:var(--vle-gold);background:rgba(var(--vg-rgb),.14);border-radius:5px;padding:3px 6px;margin-right:7px}",
@@ -1374,8 +1399,9 @@ export const STYLES = [
   // present cast → notification cards; avatars fully round with presence ring
   "html[data-vle-chrome='modern'] .vld-pc{border:none;border-radius:18px;background:color-mix(in srgb,var(--vi) 5%,transparent);box-shadow:0 1px 3px rgba(0,0,0,.22);padding:calc(13px * var(--vscale)) calc(15px * var(--vscale))}",
   "html[data-vle-chrome='modern'] .vld-pc+.vld-pc{margin-top:calc(10px * var(--vscale))}",
-  // threads + parallel → soft pill rows
-  "html[data-vle-chrome='modern'] .vld-thread,html[data-vle-chrome='modern'] .vld-par{border-radius:14px;background:color-mix(in srgb,var(--vi) 4%,transparent);padding:calc(10px * var(--vscale)) calc(13px * var(--vscale));margin-bottom:calc(7px * var(--vscale))}",
+  // threads + parallel → soft pill rows (redesigned: card body carries the fill)
+  "html[data-vle-chrome='modern'] .vld-thr,html[data-vle-chrome='modern'] .vld-par-body{border-radius:14px;background:color-mix(in srgb,var(--vi) 4%,transparent)}",
+  "html[data-vle-chrome='modern'] .vld-thr{border-color:color-mix(in srgb,var(--vi) 8%,transparent)}",
   // 'Latest' → a real activity feed: a connector line + colored nodes
   "html[data-vle-chrome='modern'] .vld-sec--recent,html[data-vle-chrome='modern'] .vld-rec{position:relative}",
   "html[data-vle-chrome='modern'] .vld-rec{margin-left:calc(7px * var(--vscale));padding:calc(2px * var(--vscale)) 0 calc(12px * var(--vscale)) calc(18px * var(--vscale));border-left:2px solid color-mix(in srgb,var(--vg) 18%,transparent)}",

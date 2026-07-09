@@ -395,3 +395,27 @@ describe('reduce — scene clock derivation', () => {
     expect(s.scene.clock).toBe(540); // morning retained
   });
 });
+
+describe('reduce — continuity flags (time continuity log)', () => {
+  it('dedupes a re-fired advisory by code+detail, keeping the newest turn', () => {
+    const s = reduce([
+      ev({ kind: 'continuity.flag', turn: 3, code: 'thread_thread_desync', detail: 'Thread desync: A behind B' }),
+      ev({ kind: 'continuity.flag', turn: 4, code: 'thread_thread_desync', detail: 'Thread desync: A behind B' }),
+      ev({ kind: 'continuity.flag', turn: 5, code: 'thread_thread_desync', detail: 'Thread desync: A behind B' }),
+    ]);
+    expect(s.continuityFlags).toHaveLength(1);
+    expect(s.continuityFlags[0]!.turn).toBe(5); // newest wins
+  });
+
+  it('a standing desync advisory never evicts a distinct one-shot time flag', () => {
+    const events: VellumEvent[] = [
+      ev({ kind: 'continuity.flag', turn: 2, code: 'day_creep', detail: 'kept Day 2' }),
+    ];
+    // 60 re-fires of the SAME desync would blow past the 50-entry ring buffer
+    for (let t = 3; t < 63; t++) events.push(ev({ kind: 'continuity.flag', turn: t, code: 'thread_offscreen_conflict', detail: 'On/off-screen desync: X behind Y' }));
+    const s = reduce(events);
+    // the one-shot day_creep survives (dedup collapses the desync to a single row)
+    expect(s.continuityFlags.some((f) => f.code === 'day_creep')).toBe(true);
+    expect(s.continuityFlags.filter((f) => f.code === 'thread_offscreen_conflict')).toHaveLength(1);
+  });
+});

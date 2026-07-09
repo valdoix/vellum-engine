@@ -247,22 +247,66 @@ function relationsBlock(s: ChronicleState): string {
   return `<div class="vld-sec"><div class="vld-h">Relations</div>${rows}</div>`;
 }
 
+/**
+ * Classify a free-text thread status into a semantic TONE so the badge + spine
+ * take a meaningful color instead of one flat gold. Read-only keyword match; an
+ * unknown status falls back to the neutral 'open' read.
+ */
+function threadTone(status: string): { tone: 'rising' | 'active' | 'stalled' | 'open'; label: string } {
+  const s = (status || '').trim().toLowerCase();
+  if (!s) return { tone: 'open', label: 'open' };
+  if (/(climax|escalat|rising|boil|crisis|urgent|erupt|breaking)/.test(s)) return { tone: 'rising', label: status };
+  if (/(stall|dormant|cold|stuck|frozen|paused|waiting|idle)/.test(s)) return { tone: 'stalled', label: status };
+  if (/(active|open|ongoing|building|simmer|brewing|develop|progress|live)/.test(s)) return { tone: 'active', label: status };
+  return { tone: 'open', label: status };
+}
+
+/**
+ * THREADS (redesign) — the live plot ledger. Each open thread is an elegant card
+ * with a tone-colored spine + status badge, the thread name, and its most-recent
+ * beat as a quiet sub-line so the "where is this going" reads at a glance. Pure
+ * render; the shared .vld-sec chrome + skins still apply.
+ */
 function threadsBlock(s: ChronicleState): string {
   const open = s.threads.filter((t) => t.status !== 'resolved').sort(byRecent).slice(0, 6);
   if (!open.length) return '';
-  const rows = open.map((t) => `<div class="vld-thread"><span class="vld-thread-n">${esc(t.name)}</span><span class="vld-thread-s">${esc(t.status)}</span></div>`).join('');
-  return `<div class="vld-sec"><div class="vld-h">Threads <span class="vld-n">${open.length}</span></div>${rows}</div>`;
+  const rows = open.map((t) => {
+    const { tone, label } = threadTone(t.status);
+    const beat = t.beats?.length ? t.beats[t.beats.length - 1]! : '';
+    const beatLine = beat ? `<div class="vld-thr-beat">${esc(beat)}</div>` : '';
+    return `<div class="vld-thr vld-thr--${tone}">`
+      + `<span class="vld-thr-rail" aria-hidden="true"></span>`
+      + `<div class="vld-thr-head"><span class="vld-thr-n">${esc(t.name)}</span>`
+      + `<span class="vld-thr-badge vld-thr-badge--${tone}"><span class="vld-thr-pip"></span>${esc(label)}</span></div>`
+      + beatLine
+      + `</div>`;
+  }).join('');
+  return `<div class="vld-sec vld-sec--threads"><div class="vld-h">Threads <span class="vld-n">${open.length}</span></div><div class="vld-threads">${rows}</div></div>`;
 }
 
+/**
+ * PARALLEL / off-screen (redesign) — a "meanwhile, elsewhere" ledger. Each beat
+ * is a node on a connective rail: an avatar medallion (or a moon glyph when no
+ * one is named) + who/where + the activity, with the auto-sim tick badged. The
+ * rail gives the off-screen life a quiet timeline read distinct from on-stage.
+ */
 function parallelBlock(s: ChronicleState): string {
   if (!s.parallel?.length) return '';
   const rows = s.parallel.slice(0, 6).map((p) => {
-    const who = p.who ? nameHtml(s, p.who) : '';
-    const where = p.where ? ` <span class="vld-par-w">@${esc(p.where)}</span>` : '';
-    const sim = p.src === 'sim' ? ' <span class="vld-par-sim" title="Off-screen simulation">auto</span>' : '';
-    return `<div class="vld-par"><span class="vld-par-who">${who}</span>${where}${sim}<div class="vld-par-act">${esc(p.activity)}${p.note ? ` <em>${esc(p.note)}</em>` : ''}</div></div>`;
+    const name = p.who ? nameOf(s, p.who) : '';
+    const who = p.who ? `<span class="vld-par-who">${nameHtml(s, p.who)}</span>` : '';
+    const where = p.where ? `<span class="vld-par-w">@${esc(p.where)}</span>` : '';
+    const sim = p.src === 'sim' ? '<span class="vld-par-sim" title="Off-screen simulation">auto</span>' : '';
+    const meta = (who || where || sim) ? `<div class="vld-par-top">${who}${where}${sim}</div>` : '';
+    // medallion: the character's portrait/initials when known, else a crescent
+    // moon (the off-stage world turning while you're away).
+    const node = p.who
+      ? (() => { const av = avatarParts(name, s.cast[p.who!]?.imageUrl); return `<span class="vld-par-node${av.cls}"${av.style}>${av.inner}</span>`; })()
+      : `<span class="vld-par-node vld-par-node--none" aria-hidden="true">\u263E</span>`;
+    return `<div class="vld-par">${node}<div class="vld-par-body">${meta}`
+      + `<div class="vld-par-act">${esc(p.activity)}${p.note ? ` <em>${esc(p.note)}</em>` : ''}</div></div></div>`;
   }).join('');
-  return `<div class="vld-sec"><div class="vld-h">\u22C8 Parallel (offscreen) <span class="vld-n">${s.parallel.length}</span></div>${rows}</div>`;
+  return `<div class="vld-sec vld-sec--parallel"><div class="vld-h">\u22C8 Meanwhile, elsewhere <span class="vld-n">${s.parallel.length}</span></div><div class="vld-pars">${rows}</div></div>`;
 }
 
 function recentBlock(s: ChronicleState): string {

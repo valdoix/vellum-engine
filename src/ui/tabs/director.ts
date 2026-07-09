@@ -65,7 +65,7 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.auto ? 'a' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).length}:${s.secrets.filter((x) => x.revealed).length}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.auto ? 'a' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}`,
   render(s) {
     _state = s;
     const counts: Record<DView, number> = {
@@ -373,17 +373,44 @@ function offscreenView(s: ChronicleState): string {
 
 function byRecentOff(a: { lastTurn: number }, b: { lastTurn: number }): number { return b.lastTurn - a.lastTurn; }
 
+// Continuity-flag codes that concern the passage of time / the calendar clock.
+// These are the "time continuity log" — surfaced as their own section so a
+// one-shot day/clock finding isn't lost among the general continuity feed.
+const TIME_FLAG_CODES = new Set(['day_backward', 'day_jump', 'day_creep', 'clock_backward', 'thread_offscreen_conflict', 'thread_thread_desync']);
+
 function logView(s: ChronicleState): string {
   const head = sectionHeader('\u2261 Director Log', { sub: true });
   type Row = { turn: number; kind: 'flag' | 'reveal'; text: string };
+  const flags = (s.continuityFlags ?? []);
+  // split the flag feed: time/clock findings get their own labeled section (the
+  // "time continuity log") so they read as a distinct concern, above the general
+  // continuity + reveal feed.
+  const timeFlags = flags.filter((f) => TIME_FLAG_CODES.has(f.code)).slice().sort((a, b) => b.turn - a.turn);
   const rows: Row[] = [];
-  for (const f of s.continuityFlags ?? []) rows.push({ turn: f.turn, kind: 'flag', text: f.detail });
+  for (const f of flags) if (!TIME_FLAG_CODES.has(f.code)) rows.push({ turn: f.turn, kind: 'flag', text: f.detail });
   for (const sec of s.secrets) if (sec.revealed) rows.push({ turn: sec.formedTurn ?? 0, kind: 'reveal', text: 'Revealed: ' + sec.text + (sec.keeper ? ' (' + nameOf(s, sec.keeper) + ')' : '') });
-  if (!rows.length) return head + emptyState('Log is empty.', 'Continuity warnings and secret reveals will appear here as the story runs.');
   rows.sort((a, b) => b.turn - a.turn);
-  const body = rows.slice(0, 60).map((r) =>
-    `<div class="vle-dir-log-row vle-dir-log-${r.kind}"><span class="vle-dir-log-mark">${r.kind === 'flag' ? '\u26A0' : '\u26C0'}</span>`
-    + `<span class="vle-dir-log-t">${esc(r.text)}</span>`
-    + `<span class="vle-dir-log-turn">t${r.turn}</span></div>`).join('');
+
+  if (!timeFlags.length && !rows.length) return head + emptyState('Log is empty.', 'Time-continuity findings, other continuity warnings and secret reveals will appear here as the story runs.');
+
+  let body = '';
+  // --- Time continuity log ---
+  if (timeFlags.length) {
+    const timeRows = timeFlags.slice(0, 40).map((f) =>
+      `<div class="vle-dir-log-row vle-dir-log-time"><span class="vle-dir-log-mark">\u231A</span>`
+      + `<span class="vle-dir-log-t">${esc(f.detail)}</span>`
+      + `<span class="vle-dir-log-turn">t${f.turn}</span></div>`).join('');
+    body += '<div class="vle-subnav-g">\u231A Time continuity</div>'
+      + '<div class="vle-cz-note">The clock &amp; calendar guard: reversed time, day-creep, unexplained skips, and on/off-screen desync. Advisory only \u2014 nothing here blocks a turn.</div>'
+      + timeRows;
+  }
+  // --- other continuity + reveals ---
+  if (rows.length) {
+    const otherRows = rows.slice(0, 60).map((r) =>
+      `<div class="vle-dir-log-row vle-dir-log-${r.kind}"><span class="vle-dir-log-mark">${r.kind === 'flag' ? '\u26A0' : '\u26C0'}</span>`
+      + `<span class="vle-dir-log-t">${esc(r.text)}</span>`
+      + `<span class="vle-dir-log-turn">t${r.turn}</span></div>`).join('');
+    body += (timeFlags.length ? '<div class="vle-subnav-g">Continuity &amp; reveals</div>' : '') + otherRows;
+  }
   return head + body;
 }
