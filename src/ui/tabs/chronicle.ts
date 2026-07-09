@@ -4,7 +4,7 @@ import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { linkedOffscreen } from '../../domain/offscreen.js';
-import { threadAwaitsFill } from '../../domain/thread-catchup.js';
+import { threadAwaitsFill, offscreenAwaitsFill } from '../../domain/thread-catchup.js';
 import { formatDate, spanLabel } from '../../domain/date-format.js';
 import { parseClock, clockLabel } from '../../domain/clock.js';
 import { checkThreadOffscreenSync } from '../../domain/continuity.js';
@@ -54,6 +54,10 @@ export function setTurnLog(turns: unknown, maxTurn: unknown): void { _turnLog = 
 // open plot-thread ids lagging the current narrative day, refilled every render of
 // desyncInspector so the "catch-up all" mount handler can read them cheaply.
 let _laggingIds: string[] = [];
+let _laggingOffIds: string[] = [];
+// expanded thread-card ids (World view). Session-only; cards start collapsed and
+// expand to reveal beat history, meanwhile note, and controls.
+const _threadExpanded = new Set<string>();
 
 /** First-sentence preview of a (possibly very long) stored turn text. We store
  * turns in FULL now; the chronicle shows only one line + an ellipsis, with the
@@ -68,7 +72,7 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_beatSuggest.length}:${_turnLog.length}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const memCount = s.memories.filter((m) => m.tier !== 'beat').length; // Memory view excludes beats (own tab)
@@ -282,6 +286,30 @@ export const chronicleTab: Component<ChronicleState> = {
         send({ type: 'vellum_thread_catchup', id: tcatch.getAttribute('data-id'), ...(Number.isFinite(day) && day > 0 ? { day } : {}) });
         return;
       }
+      const ocatch = t.closest('[data-offscreen-catchup]');
+      if (ocatch) {
+        const day = Number(ocatch.getAttribute('data-day'));
+        send({ type: 'vellum_offscreen_catchup', id: ocatch.getAttribute('data-id'), ...(Number.isFinite(day) && day > 0 ? { day } : {}) });
+        return;
+      }
+      const catchAll = t.closest('[data-catchup-all]');
+      if (catchAll) {
+        const day = Number(catchAll.getAttribute('data-day'));
+        // unified catch-up: dispatch both thread and offscreen handlers with their
+        // respective lagging id sets so everything catches up in one action.
+        if (_laggingIds.length) send({ type: 'vellum_thread_catchup', ids: _laggingIds, ...(Number.isFinite(day) && day > 0 ? { day } : {}) });
+        if (_laggingOffIds.length) send({ type: 'vellum_offscreen_catchup', ids: _laggingOffIds, ...(Number.isFinite(day) && day > 0 ? { day } : {}) });
+        return;
+      }
+      // thread card expand/collapse (World view feed-style cards). Placed AFTER the
+      // track control handlers so clicking edit/resolve/delete doesn't toggle.
+      const thToggle = t.closest('[data-thread-toggle]');
+      if (thToggle) {
+        const id = thToggle.getAttribute('data-thread-toggle') || '';
+        if (_threadExpanded.has(id)) _threadExpanded.delete(id); else _threadExpanded.add(id);
+        refreshUI();
+        return;
+      }
       const tcatchAll = t.closest('[data-thread-catchup-all]');
       if (tcatchAll) {
         const day = Number(tcatchAll.getAttribute('data-day'));
@@ -330,14 +358,13 @@ function establishingShot(s: ChronicleState): string {
   const location = s.scene.location || 'Unknown Location';
   const title = `<h3 class="vle-hero-title">${esc(location)}</h3>`;
   
-  // present cast with character colors — resolve ids to display names + color chips
+  // present cast with character colors — color the names directly
   const present = s.scene.present?.length
     ? `<div class="vle-hero-meta"><span class="vle-hero-label">Present:</span> <span class="vle-hero-val">${s.scene.present.map((id) => {
         const cast = s.cast[id];
         const name = esc(nameOf(s, id));
         const color = cast?.color;
-        const colorDot = color ? `<span class="vle-hero-color-dot" style="background:${esc(color)}"></span>` : '';
-        return `${colorDot}${name}`;
+        return color ? `<span class="vle-hero-cast-name" style="color:${esc(color)}">${name}</span>` : name;
       }).join(', ')}</span></div>`
     : '';
   
@@ -389,39 +416,51 @@ function nowChip(s: ChronicleState): string {
     + '</div>';
 }
 
-/** Desync inspector — surfaces every open thread's narrative day vs the sim's
- * current day, each with a one-shot "catch up to day N" button, plus a "catch-up
- * all" action that jumps every lagging thread to the present in one click. The
- * checkThreadOffscreenSync advisories render as a collapsible log beneath, so a
- * standing warning never floods the view. Empty when everything is in sync. */
+/** Desync inspector — surfaces every open thread AND off-screen subplot's narrative
+ * day vs the sim's current day, each with a "catch up" or "write beat" button, plus
+ * a unified "generate missed beats" action that catches up everything in one pass.
+ * The checkThreadOffscreenSync advisories render as a collapsible log beneath. Empty
+ * when everything is in sync. Threads and subplots are listed together so the user
+ * can author all lagging content at once. */
 function desyncInspector(s: ChronicleState): string {
   const nowDay = s.day || 0;
   if (nowDay <= 0) return '';
   const isOpen = (t: { status: string }): boolean => !/resolv/i.test(t.status || '');
-  // A thread needs attention when it LAGS the current day OR still carries an
-  // unfilled "caught up: …" marker (stamped forward, but no real beat authored
-  // yet). The second case keeps the section — and the "generate missed beats"
-  // button — reachable AFTER a stamp-only catch-up, so markers can be filled.
-  const rowsData = s.threads.filter(isOpen).map((t) => {
+  // Threads needing attention: lag OR carry an unfilled marker.
+  const threadRows = s.threads.filter(isOpen).map((t) => {
     const lag = t.lastDay !== undefined && t.lastDay < nowDay ? nowDay - t.lastDay : 0;
     const awaits = threadAwaitsFill(t);
-    return { t, lag, awaits };
-  }).filter((r) => r.lag > 0 || r.awaits)
-    .sort((a, b) => (b.lag - a.lag) || (Number(b.awaits) - Number(a.awaits)));
+    return { kind: 'thread' as const, id: t.id, name: t.name, lastDay: t.lastDay, lag, awaits };
+  }).filter((r) => r.lag > 0 || r.awaits);
+  // Off-screen subplots needing attention: lag OR carry an unfilled marker.
+  const offRows = (s.offscreen ?? []).filter((o) => o.status === 'active').map((o) => {
+    const lag = o.lastDay !== undefined && o.lastDay < nowDay ? nowDay - o.lastDay : 0;
+    const awaits = offscreenAwaitsFill(o);
+    const anchor = [o.who ? (s.cast[o.who]?.name ?? o.who) : '', o.where ? `@${o.where}` : ''].filter(Boolean).join(' ');
+    return { kind: 'offscreen' as const, id: o.id, name: o.name, anchor, lastDay: o.lastDay, lag, awaits };
+  }).filter((r) => r.lag > 0 || r.awaits);
+  const rowsData = [...threadRows, ...offRows].sort((a, b) => (b.lag - a.lag) || (Number(b.awaits) - Number(a.awaits)));
   const findings = checkThreadOffscreenSync(s);
-  _laggingIds = rowsData.map((r) => r.t.id);
+  _laggingIds = threadRows.map((r) => r.id);
+  _laggingOffIds = offRows.map((r) => r.id);
   if (!rowsData.length && !findings.length) return '';
-  const rows = rowsData.map(({ t, lag, awaits }) => {
-    const span = lag > 0 ? spanLabel(lag) : '';
-    const state = awaits && lag <= 0
+  const rows = rowsData.map((r) => {
+    const span = r.lag > 0 ? spanLabel(r.lag) : '';
+    const state = r.awaits && r.lag <= 0
       ? `<span class="vle-desync-lag await" title="Day stamped forward, but no beat written for the gap yet">needs a beat</span>`
       : `<span class="vle-desync-lag">~${esc(span)} behind</span>`;
+    const label = r.kind === 'thread' ? r.name : `${r.name}${r.anchor ? ` (${r.anchor})` : ''}`;
+    const attr = r.kind === 'thread' ? 'data-thread-catchup' : 'data-offscreen-catchup';
+    const title = r.awaits && r.lag <= 0
+      ? `Write the missed beat for this ${r.kind === 'thread' ? 'thread' : 'subplot'}\u2019s gap`
+      : `Catch this ${r.kind === 'thread' ? 'thread' : 'subplot'} up to day ${nowDay} and write the missed beat`;
+    const btnLabel = r.awaits && r.lag <= 0 ? 'write beat' : `catch up \u2192 d${nowDay}`;
     return `<div class="vle-desync-row">`
-      + `<span class="vle-desync-n">${esc(t.name)}</span>`
-      + `<span class="vle-desync-from">d${esc(t.lastDay ?? '?')}</span>`
+      + `<span class="vle-desync-n">${esc(label)}</span>`
+      + `<span class="vle-desync-from">d${esc(r.lastDay ?? '?')}</span>`
       + `<span class="vle-desync-arrow" aria-hidden="true">\u2192</span>`
       + state
-      + `<button class="vle-desync-catch" data-thread-catchup data-id="${esc(t.id)}" data-day="${nowDay}" title="${awaits && lag <= 0 ? 'Write the missed beat for this thread\u2019s gap' : 'Catch this thread up to day ' + nowDay + ' and write the missed beat'}">${awaits && lag <= 0 ? 'write beat' : 'catch up \u2192 d' + nowDay}</button>`
+      + `<button class="vle-desync-catch" ${attr} data-id="${esc(r.id)}" data-day="${nowDay}" title="${esc(title)}">${esc(btnLabel)}</button>`
       + `</div>`;
   }).join('');
   const findingsId = 'dsync-f-' + Math.random().toString(36).slice(2, 7);
@@ -431,13 +470,13 @@ function desyncInspector(s: ChronicleState): string {
       + `<div class="vle-desync-log-body" data-desync-log-body id="${findingsId}" hidden>${findings.map((w) => `<div class="vle-desync-note">${esc(w.text)}</div>`).join('')}</div>`
       + `</div>`
     : '';
-  // The "catch-up all" action is PERSISTENT while any thread lags or awaits a beat
-  // — the primary way to author every missed beat in one pass.
+  // The unified "generate missed beats" button catches up BOTH threads and subplots
+  // in one action. It persists while anything lags or awaits authoring.
   const allBtn = rowsData.length
-    ? `<button class="vle-desync-all" data-thread-catchup-all data-day="${nowDay}" title="Catch up all ${rowsData.length} thread(s) and write their missed beats, grounded in this story\u2019s canon">\u26A1 generate missed beats</button>`
+    ? `<button class="vle-desync-all" data-catchup-all data-day="${nowDay}" title="Catch up all ${rowsData.length} thread(s) and subplot(s), writing their missed beats grounded in this story\u2019s canon">\u26A1 generate missed beats</button>`
     : '';
   const intro = rows
-    ? `<div class="vle-cz-note">A time-skip left these plot threads behind. Generating writes the beat that most plausibly happened over each gap \u2014 grounded strictly in this story\u2019s established canon (no details imported from source material), then stamps them to day ${nowDay}.</div>`
+    ? `<div class="vle-cz-note">A time-skip left these plot threads and off-screen subplots behind. Generating writes the beat that most plausibly happened over each gap \u2014 grounded strictly in this story\u2019s established canon (no details imported from source material), then stamps them to day ${nowDay}.</div>`
     : '';
   return sectionHeader('⦖ Time Sync', { sub: true, count: rowsData.length, action: allBtn })
     + (rows ? `<div class="vle-desync">${rows}</div>${intro}` : '')
@@ -478,46 +517,75 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
   }
   
-  // Threads: simpler cards matching mockup — title, arc name, status, latest beat, meanwhile note
-  const cards = list.slice().sort(byRecent).slice(0, 12).map((t) => {
+  // Threads: collapsible feed-style cards with an Establishing Shot twist — a
+  // kicker + title header always shows; expanding reveals latest beat, full beat
+  // history, meanwhile note, and controls. Cards start collapsed.
+  const sorted = list.slice().sort(byRecent).slice(0, 12);
+  // Auto-expand a lone thread on first render so the section opens with content.
+  if (_threadExpanded.size === 0 && sorted.length === 1 && sorted[0]) _threadExpanded.add(sorted[0].id);
+  
+  const cards = sorted.map((t) => {
     const resolved = /resolv/i.test(t.status || '');
+    const expanded = _threadExpanded.has(t.id);
     const statusText = t.status && !/^(advance|new)$/i.test(t.status) ? t.status : (resolved ? 'resolved' : 'open');
-    const statusBadge = `<span class="vle-thread-status${resolved ? ' done' : ''}">${esc(statusText).toUpperCase()}</span>`;
     
     // Find parent arc (threads can be nested under arcs)
-    const parentArc = s.arcs.find(arc => arc.id === t.id || (t.beats.length && arc.beats.some(b => t.beats.includes(b))));
-    const arcLabel = parentArc ? `<div class="vle-thread-arc">under ${esc(parentArc.name)}</div>` : '';
+    const parentArc = s.arcs.find(a => a.id === t.id || (t.beats.length && a.beats.some(b => t.beats.includes(b))));
     
-    // Latest beat as description
+    // Latest beat (always shown as preview/gist)
     const latestBeat = t.beats[t.beats.length - 1] || '';
-    const desc = latestBeat ? `<div class="vle-thread-desc">${esc(latestBeat)}</div>` : '';
     
-    // Meanwhile note (off-screen reflection)
-    const off = linkedOffscreen(s, { id: t.id, name: t.name });
-    const offNote = off.length && off[0]
-      ? `<div class="vle-thread-meanwhile">
-          <div class="vle-thread-meanwhile-label">MEANWHILE</div>
-          <div class="vle-thread-meanwhile-text">${esc(off[0].gist || off[0].beats[off[0].beats.length - 1] || '')} \u2192 ${esc(off[0].status || 'advancing')}</div>
-        </div>`
-      : '';
+    // Kicker: "Thread" (or arc name) — Establishing Shot style eyebrow
+    const kicker = `<div class="vle-thread-kicker">${parentArc ? esc(parentArc.name) : 'Thread'}</div>`;
     
-    // Controls
-    const editBtn = `<button class="vle-mini" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">\u270E</button>`;
-    const stBtn = resolved
-      ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
-      : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
-    const ctl = `<div class="vle-thread-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
+    // Status badge (feed-style)
+    const statusClass = resolved ? 'done' : 'active';
+    const statusBadge = `<span class="vle-thread-badge vle-thread-badge--${statusClass}">${esc(statusText).toUpperCase()}</span>`;
     
-    return `<div class="vle-thread-card${resolved ? ' vle-thread-card--done' : ''}">
-      <div class="vle-thread-header">
-        <div class="vle-thread-title">${esc(t.name)}</div>
-        ${statusBadge}
-      </div>
-      ${arcLabel}
-      ${desc}
-      ${offNote}
-      ${ctl}
-    </div>`;
+    // Toggle chevron
+    const toggleBtn = `<button class="vle-thread-toggle" data-thread-toggle="${A(t.id)}" aria-label="${expanded ? 'Collapse' : 'Expand'}">${expanded ? '\u25BC' : '\u25B6'}</button>`;
+    
+    // Preview line (collapsed): latest beat as a subtle italic gist
+    const preview = !expanded && latestBeat ? `<div class="vle-thread-preview">${esc(latestBeat)}</div>` : '';
+    
+    // Header (always visible)
+    const header = `<div class="vle-thread-header">${kicker}<div class="vle-thread-title">${esc(t.name)}</div>${preview}${statusBadge}${toggleBtn}</div>`;
+    
+    // Body (only when expanded)
+    let body = '';
+    if (expanded) {
+      // Latest beat card
+      const beatCard = latestBeat ? `<div class="vle-thread-beat">
+        <div class="vle-thread-beat-label">LATEST BEAT</div>
+        <div class="vle-thread-beat-text">${esc(latestBeat)}</div>
+      </div>` : '';
+      
+      // Full beat history
+      const hist = t.beats.length > 1
+        ? `<details class="vle-thread-hist"><summary class="vle-thread-hist-toggle">${t.beats.length} beats total</summary><div class="vle-thread-hist-list">${t.beats.map((b, i) => `<div class="vle-thread-hist-item"><span class="vle-thread-hist-n">${i + 1}.</span> ${esc(b)}</div>`).join('')}</div></details>`
+        : '';
+      
+      // Meanwhile note (off-screen reflection)
+      const off = linkedOffscreen(s, { id: t.id, name: t.name });
+      const offNote = off.length && off[0]
+        ? `<div class="vle-thread-meanwhile">
+            <div class="vle-thread-meanwhile-label">MEANWHILE</div>
+            <div class="vle-thread-meanwhile-text">${esc(off[0].gist || off[0].beats[off[0].beats.length - 1] || '')} \u2192 ${esc(off[0].status || 'advancing')}</div>
+          </div>`
+        : '';
+      
+      // Controls
+      const editBtn = `<button class="vle-btn vle-btn--secondary" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">EDIT</button>`;
+      const stBtn = resolved
+        ? `<button class="vle-btn vle-btn--secondary" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">REOPEN</button>`
+        : `<button class="vle-btn vle-btn--secondary" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">RESOLVE</button>`;
+      const delBtn = `<button class="vle-btn vle-btn--danger" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">DELETE</button>`;
+      const ctl = `<div class="vle-thread-actions">${editBtn}${stBtn}${delBtn}</div>`;
+      
+      body = `<div class="vle-thread-body">${beatCard}${hist}${offNote}${ctl}</div>`;
+    }
+    
+    return `<div class="vle-thread-card${resolved ? ' vle-thread-card--done' : ''}${expanded ? ' vle-thread-card--expanded' : ''}">${header}${body}</div>`;
   }).join('');
   const body = cards ? `<div class="vle-thread-list">${cards}</div>` : emptyState('No threads yet.', 'They fill in as the story unfolds; add one by hand too.');
   return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;

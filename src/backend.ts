@@ -47,7 +47,7 @@ import { sanitizeDirectives, directiveInjection, reconcileDirectives, armSchedul
 import { checkContinuity, checkThreadOffscreenSync } from './domain/continuity.js';
 import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenInjection, readyToIntersect } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
-import { THREAD_CATCHUP_SYS, buildCatchupPrompt, parseCatchupReply, validateCatchupBeats, catchupTargets, threadsAwaitingCatchup } from './domain/thread-catchup.js';
+import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOffscreenCatchupPrompt, parseCatchupReply, validateCatchupBeats, catchupTargets, offscreenCatchupTargets, threadsAwaitingCatchup, offscreensAwaitingCatchup } from './domain/thread-catchup.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 
@@ -1670,6 +1670,81 @@ const dispatch: Record<string, Handler> = {
     const r = await simulateOffscreen(chatId, uid, p?.id ? String(p.id) : undefined);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: r.beats > 0, ...(r.reason ? { reason: r.reason } : {}), advanced: r.beats > 0 }, uid);
+  },
+  vellum_offscreen_catchup: async (p, uid) => {
+    // Bring lagging off-screen subplots up to the current narrative day AND author
+    // real beats for their day-gaps — the same Time Sync catch-up flow as threads,
+    // but for off-screen life. Two phases: stamp lagging subplots with markers, then
+    // (with generation) author one grounded beat per gap and fill the markers in
+    // place. The prompt is CANON-LOCKED (this story's roster/facts/prior beats only,
+    // source material forbidden) so an AU stays an AU.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const state = await loadState(chatId);
+    const targetDay = Number.isFinite(p?.day) && (p as { day: number }).day > 0
+      ? Math.floor((p as { day: number }).day)
+      : state.day || 0;
+    // resolve the working set: explicit ids, or (for "catch-up all") every subplot
+    // that lags or awaits a fill.
+    const ids = Array.isArray(p?.ids) ? p.ids.map(String)
+      : (p?.id ? [String(p.id)] : offscreensAwaitingCatchup(state, targetDay).map((o) => o.id));
+    if (!ids.length) { spindle.sendToFrontend?.({ type: 'vellum_offscreen_catchup_done', ok: false, reason: 'in_sync', jumped: 0, authored: 0 }, uid); return; }
+
+    // Phase 1 — stamp any subplot still behind the target day with a marker gist.
+    const stampEvs: VellumEvent[] = [];
+    for (const id of ids) {
+      const o = (state.offscreen ?? []).find((x) => x.id === id);
+      if (!o || (o.lastDay !== undefined && o.lastDay >= targetDay)) continue; // already current
+      const from = o.lastDay ?? 0;
+      stampEvs.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: targetDay, src: 'user', kind: 'offscreen.op', op: 'advance',
+        id, name: o.name, ...(o.who ? { who: o.who } : {}), ...(o.where ? { where: o.where } : {}),
+        gist: from > 0 ? `caught up: Day ${from} → Day ${targetDay}` : `caught up to Day ${targetDay}` } as VellumEvent);
+    }
+    if (stampEvs.length) { await append(chatId, stampEvs); invalidateIndex(chatId); }
+
+    // Phase 2 — author real beats for every target (fresh state so marker spans are
+    // read post-stamp) and fill the markers in place. Needs generation; without it
+    // we keep the markers so the day at least moved.
+    let authored = 0;
+    let reason: string | undefined;
+    const canGen = await has('generation');
+    if (!canGen) {
+      reason = 'no_generation';
+    } else {
+      try {
+        const post = await loadState(chatId);
+        const targets = offscreenCatchupTargets(post, ids, targetDay);
+        if (!targets.length) { reason = 'in_sync'; }
+        else {
+          const res = await controllerGenerate(
+            [{ role: 'system', content: OFFSCREEN_CATCHUP_SYS }, { role: 'user', content: buildOffscreenCatchupPrompt(post, targets) }],
+            uid, 30000, 700);
+          if (!res.ok) { reason = 'empty_reply'; spindle.log?.warn?.(`[vellum_engine] offscreen catch-up: generation failed (${res.error})`); }
+          else {
+            const beats = validateCatchupBeats(parseCatchupReply(res.value), targets);
+            if (!beats.length) { reason = 'empty_reply'; spindle.log?.warn?.('[vellum_engine] offscreen catch-up: reply had no usable beats. Raw: ' + JSON.stringify((res.value || '').slice(0, 400))); }
+            else {
+              const fillEvs: VellumEvent[] = beats.map((b) => {
+                const o = post.offscreen.find((x) => x.id === b.id)!;
+                return { seq: nextSeqLocal(), turn: post.turns || 0, day: targetDay, src: 'system', kind: 'offscreen.op', op: 'advance',
+                  id: b.id, name: o.name, ...(o.who ? { who: o.who } : {}), ...(o.where ? { where: o.where } : {}),
+                  gist: b.beat, fill: true } as VellumEvent;
+              });
+              await append(chatId, fillEvs);
+              invalidateIndex(chatId);
+              authored = fillEvs.length;
+            }
+          }
+        }
+      } catch (e) { reason = 'empty_reply'; spindle.log?.warn?.('[vellum_engine] offscreen catch-up: ' + ((e as Error)?.message ?? e)); }
+    }
+
+    if (!stampEvs.length && !authored && reason === 'in_sync') {
+      spindle.sendToFrontend?.({ type: 'vellum_offscreen_catchup_done', ok: false, reason: 'in_sync', jumped: 0, authored: 0 }, uid);
+      return;
+    }
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_offscreen_catchup_done', ok: true, jumped: stampEvs.length, authored, ...(reason && !authored ? { reason } : {}) }, uid);
   },
   vellum_plant_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

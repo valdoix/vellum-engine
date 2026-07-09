@@ -1,18 +1,19 @@
-import type { ChronicleState, Track } from './types.js';
+import type { ChronicleState, Track, OffscreenThread } from './types.js';
 import { spanLabel } from './date-format.js';
 
 /**
- * Thread catch-up authoring (Time Sync). PURE core: given the plot threads that a
- * time-skip left behind, build a canon-locked controller prompt asking the model
- * to author the ONE beat that most plausibly closes each thread's day-gap, parse
- * the reply tolerantly, and map it back to `thread.set` fill events. All I/O (the
- * LLM call, persistence) lives in the backend, mirroring thread-merge/offscreen.
+ * Thread + off-screen subplot catch-up authoring (Time Sync). PURE core: given
+ * the plot threads OR off-screen subplots that a time-skip left behind, build a
+ * canon-locked controller prompt asking the model to author the ONE beat that
+ * most plausibly closes each gap, parse the reply tolerantly, and map it back
+ * to `thread.set` or `offscreen.op` fill events. All I/O (the LLM call,
+ * persistence) lives in the backend, mirroring thread-merge/offscreen.
  *
- * Two kinds of catch-up beat live on a thread:
+ * Two kinds of catch-up beat live on a thread or subplot:
  *   - a MARKER ("caught up: Day 9 → Day 12") — a bare day-stamp with no story,
  *     emitted when generation is unavailable. It records that a gap exists.
  *   - an AUTHORED beat — real content the model wrote to cover that gap, which
- *     REPLACES the marker (thread.set with `fill: true`).
+ *     REPLACES the marker (thread.set or offscreen.op with `fill: true`).
  *
  * CANON DISCIPLINE (the whole point): every authored beat must be grounded ONLY
  * in what THIS story has established — its cast, their life-state, the thread's
@@ -103,6 +104,51 @@ export function catchupTargets(state: ChronicleState, ids: readonly string[], no
   return out;
 }
 
+/** Does an off-screen subplot still need authored content? True when its LATEST
+ * beat is an unfilled marker (stamped forward, no real beat yet). PURE. */
+export function offscreenAwaitsFill(o: OffscreenThread): boolean {
+  return isCatchupMarker(o.beats[o.beats.length - 1]);
+}
+
+/** Active off-screen subplots the Time Sync view should offer to author: either
+ * they lag the current day, or they already carry an unfilled marker. PURE. */
+export function offscreensAwaitingCatchup(state: ChronicleState, nowDay: number): OffscreenThread[] {
+  return (state.offscreen ?? []).filter((o) => o.status === 'active').filter((o) => {
+    if (offscreenAwaitsFill(o)) return true;
+    return nowDay > 0 && o.lastDay !== undefined && o.lastDay < nowDay;
+  });
+}
+
+/** A subplot target carries the same span+history as a thread, plus who/where so
+ * the authored beat stays anchored to the character and place it concerns. */
+export interface OffscreenCatchupTarget extends CatchupTarget {
+  who?: string;
+  where?: string;
+}
+
+/** Build off-screen catch-up targets: resolve each subplot's real gap (reading the
+ * span back out of a marker after a stamp) and strip a trailing marker from the
+ * beats fed to the model. Subplots already current with no marker are skipped.
+ * `who` is resolved to a display name via the cast. PURE. */
+export function offscreenCatchupTargets(state: ChronicleState, ids: readonly string[], nowDay: number): OffscreenCatchupTarget[] {
+  const out: OffscreenCatchupTarget[] = [];
+  for (const id of ids) {
+    const o = (state.offscreen ?? []).find((x) => x.id === id);
+    if (!o) continue;
+    const marker = o.beats[o.beats.length - 1];
+    const trailingMarker = isCatchupMarker(marker);
+    const lastReal = trailingMarker ? o.beats.slice(0, -1) : o.beats;
+    const span = trailingMarker ? markerDays(marker) : null;
+    const toDay = nowDay > 0 ? nowDay : (span?.to ?? o.lastDay ?? 0);
+    const fromDay = span?.from ?? o.lastDay ?? o.firstDay ?? 0;
+    if (!trailingMarker && (o.lastDay === undefined || o.lastDay >= toDay)) continue;
+    const whoName = o.who ? (state.cast[o.who]?.name ?? o.who) : undefined;
+    out.push({ id: o.id, name: o.name, status: o.status, fromDay, toDay, recentBeats: lastReal.slice(-4),
+      ...(whoName ? { who: whoName } : {}), ...(o.where ? { where: o.where } : {}) });
+  }
+  return out;
+}
+
 /** A short, deceased-aware line per known cast member — the canon roster the beat
  * must respect. Deceased characters are flagged so the model never revives them
  * off-screen. PURE. */
@@ -145,6 +191,33 @@ export function buildCatchupPrompt(state: ChronicleState, targets: readonly Catc
   for (const t of targets) {
     const span = spanLabel(Math.max(0, t.toDay - t.fromDay));
     lines.push(`- [${t.id}] "${t.name}"${t.status && !/^(new|advance)$/i.test(t.status) ? ` (${t.status})` : ''} \u2014 Day ${t.fromDay} \u2192 Day ${t.toDay}${span ? ` (~${span})` : ''}`);
+    if (t.recentBeats.length) for (const b of t.recentBeats) lines.push(`    \u00b7 so far: ${b}`);
+  }
+  lines.push('', 'Return the JSON now. Stay inside this story\u2019s established canon.');
+  return lines.join('\n');
+}
+
+export const OFFSCREEN_CATCHUP_SYS = [
+  'You are a story continuity assistant for a roleplay. A time-skip jumped the clock forward and left some OFF-SCREEN SUBPLOTS (things happening away from the main scene) on an earlier day. For each subplot, author the SINGLE most plausible beat that brings it from its last known day up to the current day — what quietly happened off-screen during the gap.',
+  'Keep each beat to ONE grounded clause or sentence about that subplot\u2019s own people and place: a concrete development, not a montage and not a dramatic twist. Do NOT kill or revive anyone, resolve a major on-screen arc, or introduce a brand-new named character. Do NOT change relationships or reveal secrets.',
+  'CANON LOCK — this is the hard rule: this story is its OWN continuity, possibly an alternate universe. Ground every beat ONLY in what THIS story has established — the roster, life-states, established facts, and the subplot\u2019s own prior beats given below. NEVER import a detail from a source book, show, film, game, or any outside knowledge about these names. If the story has not established something (a character\u2019s child, title, death, allegiance, whereabouts), it is NOT true here and you must not assert it. When unsure, keep the beat small and safe rather than inventing.',
+  'Reply STRICT JSON only: {"beats":[{"id":"<subplot id exactly as given>","beat":"one grounded clause of what happened off-screen over the gap"}]}. Include only the ids you were given. Omit any subplot you cannot advance without inventing. An empty beats array is acceptable.',
+].join(' ');
+
+/** Build the off-screen user prompt: the same canon roster + facts, then each
+ * lagging subplot with its who/where anchor, recent beats, and day-span. */
+export function buildOffscreenCatchupPrompt(state: ChronicleState, targets: readonly OffscreenCatchupTarget[]): string {
+  const lines: string[] = [];
+  const roster = castRoster(state);
+  if (roster.length) { lines.push('CANON ROSTER (only these people exist here; respect DECEASED):'); lines.push(...roster); lines.push(''); }
+  const facts = establishedFacts(state);
+  if (facts.length) { lines.push('ESTABLISHED FACTS (must not be contradicted):'); lines.push(...facts); lines.push(''); }
+  if (state.scene.location) { lines.push(`CURRENT SCENE (elsewhere): ${state.scene.location}${state.scene.time ? ', ' + state.scene.time : ''} (narrative day ${state.day || 0}).`); lines.push(''); }
+  lines.push('OFF-SCREEN SUBPLOTS TO CATCH UP (author one beat each for the day-gap shown):');
+  for (const t of targets) {
+    const span = spanLabel(Math.max(0, t.toDay - t.fromDay));
+    const anchor = [t.who ? t.who : '', t.where ? `@${t.where}` : ''].filter(Boolean).join(' ');
+    lines.push(`- [${t.id}] "${t.name}"${anchor ? ` (${anchor})` : ''} \u2014 Day ${t.fromDay} \u2192 Day ${t.toDay}${span ? ` (~${span})` : ''}`);
     if (t.recentBeats.length) for (const b of t.recentBeats) lines.push(`    \u00b7 so far: ${b}`);
   }
   lines.push('', 'Return the JSON now. Stay inside this story\u2019s established canon.');

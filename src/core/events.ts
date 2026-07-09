@@ -204,7 +204,9 @@ export const EvThreadMerge = z.object({ ...base, kind: z.literal('thread.merge')
 export const EvArcMerge = z.object({ ...base, kind: z.literal('arc.merge'), from: z.array(z.string()), into: z.string() });
 // off-screen subplot: a living "meanwhile" thread the off-screen sim advances —
 // accumulates beats, can resolve, round-trips to the prompt like a plot thread.
-export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), op: z.enum(['new', 'advance', 'resolve']), id: z.string(), name: z.string().optional(), who: z.string().optional(), where: z.string().optional(), gist: z.string().optional(), thread: z.string().optional() });
+// `fill: true` marks a Time Sync catch-up beat that should REPLACE a trailing
+// "caught up: Day X → Day Y" placeholder gist rather than stack on top of it.
+export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), op: z.enum(['new', 'advance', 'resolve']), id: z.string(), name: z.string().optional(), who: z.string().optional(), where: z.string().optional(), gist: z.string().optional(), thread: z.string().optional(), fill: z.boolean().optional() });
 // user link/unlink of an off-screen subplot to a plot Track id ('' clears).
 export const EvOffscreenLink = z.object({ ...base, kind: z.literal('offscreen.link'), id: z.string(), thread: z.string() });
 export const EvOffscreenDrop = z.object({ ...base, kind: z.literal('offscreen.drop'), id: z.string() });

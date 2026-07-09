@@ -496,7 +496,13 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.who) ot.who = e.who;
       if (e.where) ot.where = e.where;
       if (e.thread !== undefined) { if (e.thread) ot.thread = e.thread; else delete ot.thread; }
-      if (e.gist) { ot.gist = e.gist; ot.beats = [...ot.beats, e.gist].slice(-6); }
+      // `fill`: an authored Time Sync beat REPLACES a trailing "caught up: …"
+      // placeholder gist in place. The gist is also the newest beat (beats mirrors
+      // gist accumulation), so pop both when replacing. Falls back to normal append.
+      if (e.gist && e.fill && isCatchupMarker(ot.beats[ot.beats.length - 1])) {
+        ot.gist = e.gist;
+        ot.beats = [...ot.beats.slice(0, -1), e.gist].slice(-6);
+      } else if (e.gist) { ot.gist = e.gist; ot.beats = [...ot.beats, e.gist].slice(-6); }
       ot.lastTurn = Math.max(ot.lastTurn, e.turn);
       if (ot.firstDay === undefined) ot.firstDay = e.day;
       ot.lastDay = ot.lastDay === undefined ? e.day : Math.max(ot.lastDay, e.day);

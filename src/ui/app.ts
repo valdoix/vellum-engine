@@ -1026,6 +1026,16 @@ export function setup(ctx: Ctx): () => void {
         else if (p.reason === 'no_generation') notify(ctx, 'warning', `Caught up ${th(jumped)} to the current day. Enable the generation permission to also write the missed beats.`);
         else if (p.reason === 'empty_reply') notify(ctx, 'warning', jumped ? `Caught up ${th(jumped)} to the current day \u2014 the model returned no usable beat, try again.` : 'The model returned no usable beat \u2014 try again.');
         else notify(ctx, 'success', `Caught up ${th(jumped)} to the current day.`);
+      } else if (p?.type === 'vellum_offscreen_catchup_done') {
+        // off-screen subplot catch-up: same flow as threads, but for off-screen life.
+        const jumped = Number(p.jumped) || 0;
+        const authored = Number(p.authored) || 0;
+        const sub = (n: number): string => `${n} subplot${n === 1 ? '' : 's'}`;
+        if (p.reason === 'in_sync') notify(ctx, 'info', 'Those subplots are already caught up.');
+        else if (authored > 0) notify(ctx, 'success', `Wrote ${authored === 1 ? 'the missed beat' : authored + ' missed beats'} for ${sub(authored)} off-screen, grounded in the story\u2019s canon.`);
+        else if (p.reason === 'no_generation') notify(ctx, 'warning', `Caught up ${sub(jumped)} to the current day. Enable the generation permission to also write the missed beats.`);
+        else if (p.reason === 'empty_reply') notify(ctx, 'warning', jumped ? `Caught up ${sub(jumped)} to the current day \u2014 the model returned no usable beat, try again.` : 'The model returned no usable beat \u2014 try again.');
+        else notify(ctx, 'success', `Caught up ${sub(jumped)} to the current day.`);
       } else if (p?.type === 'vellum_chaptervault_done') {
         _chapterVault = p.mode ?? 'keyed';
         if (p.mode !== 'off' && !p.available) notify(ctx, 'warning', 'Chapter-vault needs the world_books permission \u2014 keeping chronicle gist only.');
