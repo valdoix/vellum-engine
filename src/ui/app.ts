@@ -1014,6 +1014,17 @@ export function setup(ctx: Ctx): () => void {
         else if (p.reason === 'no_cast') notify(ctx, 'info', 'Nobody off-screen to simulate right now.');
         else if (p.reason === 'empty_reply') notify(ctx, 'warning', 'The model returned no off-screen beat \u2014 try again.');
         else if (p.advanced) notify(ctx, 'success', 'Advanced the off-screen world.');
+      } else if (p?.type === 'vellum_thread_catchup_done') {
+        // catch-up = day-stamp + a time-skip sim tick that moves tied off-screen
+        // subplots. Announce both parts so the user knows whether real beats landed
+        // or only the day advanced (no generation permission / model gave nothing).
+        const jumped = Number(p.jumped) || 0;
+        const simmed = Number(p.simmed) || 0;
+        if (p.reason === 'in_sync') notify(ctx, 'info', 'Those threads are already on the current day.');
+        else if (simmed > 0) notify(ctx, 'success', `Caught up ${jumped} thread${jumped === 1 ? '' : 's'} \u2014 off-screen life advanced (${simmed} beat${simmed === 1 ? '' : 's'}).`);
+        else if (p.reason === 'no_generation') notify(ctx, 'warning', `Caught up ${jumped} thread${jumped === 1 ? '' : 's'} to the current day. Enable the generation permission to also advance their off-screen subplots.`);
+        else if (p.reason === 'empty_reply' || p.reason === 'no_cast') notify(ctx, 'info', `Caught up ${jumped} thread${jumped === 1 ? '' : 's'} to the current day \u2014 no off-screen beat to add.`);
+        else notify(ctx, 'success', `Caught up ${jumped} thread${jumped === 1 ? '' : 's'} to the current day.`);
       } else if (p?.type === 'vellum_chaptervault_done') {
         _chapterVault = p.mode ?? 'keyed';
         if (p.mode !== 'off' && !p.available) notify(ctx, 'warning', 'Chapter-vault needs the world_books permission \u2014 keeping chronicle gist only.');

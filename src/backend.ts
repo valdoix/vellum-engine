@@ -1526,12 +1526,19 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_thread_done', ok: true }, uid);
   },
   vellum_thread_catchup: async (p, uid) => {
-    // Advance a plot thread's narrative-day anchor to the sim's current day in one
-    // shot. Used by the Time Sync "catch up" / "catch-up all" actions: rather than
-    // nudging the off-screen sim one beat (which never moved the thread's own
-    // lastDay), we emit a thread.set that jumps the thread straight to `day`. Each
-    // id is one event; the reducer stamps lastDay monotonically and logs one beat
-    // ("caught up: Day X → Day Y") so the jump is recorded, not silent.
+    // Catch a lagging plot thread up to the sim's current narrative day AND let its
+    // off-screen life actually move — two steps, because a bare day-stamp jumps the
+    // number but leaves the story static ("caught up: Day 9 → Day 12" with no beats).
+    //   1) STAMP: emit a thread.set that advances the thread's lastDay straight to
+    //      `day`. The reducer stamps it monotonically and logs one marker beat so the
+    //      jump is recorded, not silent.
+    //   2) ADVANCE: run ONE off-screen sim tick as a TIME-SKIP covering the gap. The
+    //      sim reads the (now current) open threads and builds its subplots TOWARD
+    //      them — the thread<->off-screen bridge — so the subplots tied to these
+    //      threads gain real beats that surface on the thread card (linkedOffscreen).
+    //      This is the "off-screen subplots tied to them can then advance to match"
+    //      the Time Sync note promises. It needs generation; without it we still do
+    //      the stamp so the day at least moves.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const ids = Array.isArray(p?.ids) ? p.ids.map(String) : (p?.id ? [String(p.id)] : []);
@@ -1541,18 +1548,35 @@ const dispatch: Record<string, Handler> = {
       ? Math.floor((p as { day: number }).day)
       : state.day || 0;
     const evs: VellumEvent[] = [];
+    let maxGap = 0; // largest day-span caught up — how much time the sim should cover
     for (const id of ids) {
       const t = state.threads.find((x) => x.id === id);
       if (!t || t.lastDay !== undefined && t.lastDay >= targetDay) continue; // already at/past target
       const from = t.lastDay ?? 0;
+      if (from > 0) maxGap = Math.max(maxGap, targetDay - from);
       evs.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: targetDay, src: 'user', kind: 'thread.set',
         id, name: t.name, status: t.status, note: from > 0 ? `caught up: Day ${from} → Day ${targetDay}` : `caught up to Day ${targetDay}` } as VellumEvent);
     }
     if (!evs.length) { spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: false, reason: 'in_sync', jumped: 0 }, uid); return; }
     await append(chatId, evs);
     invalidateIndex(chatId);
+    // Step 2: advance off-screen life across the gap so the catch-up carries real
+    // plot, not just a new day number. Fire only when generation is available; the
+    // sim's own time-skip logic (skipDays >= 2) makes it cover the whole span and
+    // resolve subplots that would have run their course. A gap of <2 days stays a
+    // pure stamp — too small to warrant a generation round-trip.
+    let simmed = 0;
+    let simReason: string | undefined;
+    const canGen = await has('generation');
+    if (canGen && maxGap >= 1) {
+      const r = await simulateOffscreen(chatId, uid, undefined, Math.max(maxGap, 2));
+      simmed = r.beats;
+      if (!r.beats && r.reason) simReason = r.reason;
+    } else if (!canGen) {
+      simReason = 'no_generation';
+    }
     await broadcastState(chatId, uid);
-    spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: true, jumped: evs.length }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_thread_catchup_done', ok: true, jumped: evs.length, simmed, ...(simReason ? { reason: simReason } : {}) }, uid);
   },
   vellum_set_next_scene: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

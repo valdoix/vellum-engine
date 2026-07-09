@@ -372,7 +372,7 @@ function desyncInspector(s: ChronicleState): string {
     ? `<button class="vle-desync-all" data-thread-catchup-all data-day="${nowDay}" title="Jump all ${lagging.length} threads forward to day ${nowDay} in one action">\u26A1 catch-up all \u2192 d${nowDay}</button>`
     : '';
   const intro = rows
-    ? `<div class="vle-cz-note">A time-skip left these plot threads on an earlier narrative day. Catching up stamps them forward to day ${nowDay} \u2014 off-screen subplots tied to them can then advance to match.</div>`
+    ? `<div class="vle-cz-note">A time-skip left these plot threads on an earlier narrative day. Catching up stamps them forward to day ${nowDay} and runs the off-screen world across the gap, so subplots tied to them gain real beats to match.</div>`
     : '';
   return sectionHeader('⦖ Time Sync', { sub: true, count: lagging.length, action: allBtn })
     + (rows ? `<div class="vle-desync">${rows}</div>${intro}` : '')
