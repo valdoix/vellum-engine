@@ -360,3 +360,38 @@ describe('reduce — plant subject + abandon', () => {
     expect(s.plants[0]!.status).toBe('abandoned');
   });
 });
+
+describe('reduce — day.set correction', () => {
+  it('absolute day.set walks back a spurious high day (overrides monotonic rule)', () => {
+    const s = reduce([
+      ev({ kind: 'turn.fold', sig: 'x', day: 9999 }),   // model froze a bad high day
+      ev({ kind: 'day.set', day: 12, absolute: true }),
+    ]);
+    expect(s.day).toBe(12);
+  });
+  it('non-absolute day.set advances monotonically like a report', () => {
+    const s = reduce([
+      ev({ kind: 'turn.fold', sig: 'x', day: 20 }),
+      ev({ kind: 'day.set', day: 12 }), // lower, non-absolute → ignored (Math.max)
+    ]);
+    expect(s.day).toBe(20);
+  });
+});
+
+describe('reduce — scene clock derivation', () => {
+  it('derives an ordered clock from the time string when none is supplied', () => {
+    const s = reduce([ev({ kind: 'scene.set', time: 'dusk', present: [] } as any)]);
+    expect(s.scene.clock).toBe(1140);
+  });
+  it('trusts an explicit clock over the time string', () => {
+    const s = reduce([ev({ kind: 'scene.set', time: 'dusk', clock: 615, present: [] } as any)]);
+    expect(s.scene.clock).toBe(615);
+  });
+  it('keeps the established clock when a later scene time is unparseable', () => {
+    const s = reduce([
+      ev({ kind: 'scene.set', time: 'morning', present: [] } as any),
+      ev({ kind: 'scene.set', time: 'some time later', present: [] } as any),
+    ]);
+    expect(s.scene.clock).toBe(540); // morning retained
+  });
+});

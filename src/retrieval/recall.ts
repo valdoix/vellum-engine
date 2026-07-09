@@ -8,7 +8,8 @@ import { hashStr } from '../core/ids.js';
 import { traverseRanked, type CallModel, type TraversalTrace } from './traverse.js';
 import { traverseTree, type TreeTraversalTrace } from './traverse-tree.js';
 import { linkedOffscreen } from '../domain/offscreen.js';
-import { spanLabel } from '../domain/date-format.js';
+import { spanLabel, formatDate } from '../domain/date-format.js';
+import { clockLabel } from '../domain/clock.js';
 
 /**
  * Recall assembler. Produces the text VELLUM injects into the prompt, in two
@@ -199,6 +200,29 @@ function structuredBlock(state: ChronicleState, budget: number): string {
   return blocks.join('\n\n');
 }
 
+/**
+ * Authoritative NOW line — the current clock stated as a hard fact, on the same
+ * verbatim footing as cast/bonds (never similarity-retrieved). Composes the
+ * calendar day, the time-of-day (clock slot or the raw scene.time string), and a
+ * "~N since the previous scene" tail from the scene-day anchors. Returns '' when
+ * there is no scene/day yet (nothing authoritative to assert). PURE.
+ */
+export function nowInjection(state: ChronicleState): string {
+  const day = state.day || 0;
+  if (day <= 0 && !state.scene.location && !state.scene.time) return '';
+  const dateStr = formatDate(day, state.dateFormat, state);
+  // time-of-day: prefer the human string the author wrote; else label the clock.
+  const timeStr = state.scene.time?.trim() || (state.scene.clock !== undefined ? clockLabel(state.scene.clock) : '');
+  // elapsed since the previous distinct scene-day (only when we have both anchors)
+  const prev = state.prevSceneDay;
+  const cur = state.sceneDay ?? day;
+  const span = (prev !== undefined && cur > prev) ? spanLabel(cur - prev) : '';
+  const head = [dateStr, timeStr].filter(Boolean).join(', ');
+  const tail = span ? ` ~${span} since the previous scene.` : '';
+  if (!head && !tail) return '';
+  return `[NOW \u2014 authoritative clock. Do not contradict or reset.] ${head}.${tail}`.replace(/\.\./g, '.');
+}
+
 /** Short word for a faction standing value (for the injected structured line). */
 function standingWord(n: number): string {
   if (n >= 40) return 'devoted'; if (n >= 15) return 'friendly';
@@ -236,7 +260,10 @@ function assemble(
   const recall = recallLines.length
     ? '[CHRONICLE RECALL \u2014 relevant established history. Honor it; do not recite.]\n' + recallLines.join('\n')
     : '';
-  const text = [structured, recall].filter(Boolean).join('\n\n');
+  // NOW line leads: the authoritative clock at highest salience, ahead of the
+  // structured cast/bonds. Cheap (one line), always-on when a scene exists.
+  const now = nowInjection(state);
+  const text = [now, structured, recall].filter(Boolean).join('\n\n');
   return { text, recallIds, source, ...(trace ? { trace } : {}) };
 }
 

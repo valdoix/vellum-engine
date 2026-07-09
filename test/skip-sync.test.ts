@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { reduce } from '../src/core/reduce.js';
 import { buildInjection } from '../src/retrieval/recall.js';
 import { checkThreadOffscreenSync } from '../src/domain/continuity.js';
-import { buildSimPrompt, timeSkipNote } from '../src/domain/offscreen.js';
+import { buildSimPrompt, timeSkipNote, parseSim, simEvents } from '../src/domain/offscreen.js';
 import { openTracks } from '../src/domain/thread-merge.js';
 import { spanLabel } from '../src/domain/date-format.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
@@ -79,11 +79,13 @@ describe('Item 2 — openTracks carries beats + lastDay for the sim payload', ()
 });
 
 describe('Item 4 — spanLabel + on-screen skip-lag note', () => {
-  it('spanLabel buckets days/weeks/months and returns empty under 2 days', () => {
+  it('spanLabel buckets days/weeks/months/years and returns empty under 2 days', () => {
     expect(spanLabel(1)).toBe('');
+    expect(spanLabel(3)).toBe('3 days');
     expect(spanLabel(5)).toBe('5 days');
     expect(spanLabel(14)).toBe('2 week(s)');
     expect(spanLabel(60)).toBe('2 month(s)');
+    expect(spanLabel(400)).toBe('1 year(s)');
   });
 
   it('timeSkipNote reuses spanLabel wording', () => {
@@ -150,5 +152,46 @@ describe('Item 6 — checkThreadOffscreenSync guard', () => {
     s.threads = [{ id: 'thr_the_letter', name: 'The Letter', status: 'advance', beats: [], firstTurn: 1, lastTurn: 5, firstDay: 2, lastDay: 5 }];
     s.offscreen = [{ id: 'siege', name: 'The Northern Siege', status: 'active', gist: 'walls hold', beats: [], firstTurn: 1, lastTurn: 8, firstDay: 2, lastDay: 30 }];
     expect(checkThreadOffscreenSync(s)).toHaveLength(0);
+  });
+});
+
+describe('Item 7 — thread-vs-thread desync (post-skip catch-up gap)', () => {
+  it('flags two open threads whose narrative days diverge past a skip', () => {
+    const s = freshState();
+    s.threads = [
+      { id: 'thr_siege', name: 'The Siege', status: 'advance', beats: [], firstTurn: 1, lastTurn: 3, firstDay: 1, lastDay: 3 },
+      { id: 'thr_wedding', name: 'The Wedding', status: 'advance', beats: [], firstTurn: 1, lastTurn: 9, firstDay: 30, lastDay: 40 },
+    ];
+    const w = checkThreadOffscreenSync(s);
+    const hit = w.find((x) => x.kind === 'thread_thread_desync');
+    expect(hit).toBeDefined();
+    expect(hit!.text).toContain('The Siege'); // the lagging thread named
+    expect(hit!.text).toContain('The Wedding');
+  });
+
+  it('does not flag two threads sharing (nearly) the same day', () => {
+    const s = freshState();
+    s.threads = [
+      { id: 'a', name: 'A', status: 'advance', beats: [], firstTurn: 1, lastTurn: 3, firstDay: 39, lastDay: 39 },
+      { id: 'b', name: 'B', status: 'advance', beats: [], firstTurn: 1, lastTurn: 9, firstDay: 40, lastDay: 40 },
+    ];
+    expect(checkThreadOffscreenSync(s).some((x) => x.kind === 'thread_thread_desync')).toBe(false);
+  });
+});
+
+describe('Item 8 — per-subplot day stamping under a skip catch-up', () => {
+  it('bumps only the subplot the sim reported a day for; the rest stay stale', () => {
+    const s = freshState();
+    s.offscreen = [
+      { id: 'ride', name: 'The Ride North', status: 'active', gist: 'setting out', beats: ['setting out'], firstTurn: 1, lastTurn: 2, firstDay: 5, lastDay: 5 },
+      { id: 'vigil', name: 'The Vigil', status: 'active', gist: 'waiting', beats: ['waiting'], firstTurn: 1, lastTurn: 2, firstDay: 5, lastDay: 5 },
+    ] as any;
+    // sim tick at day 40; only 'ride' reports its own advanced day
+    const parsed = parseSim(JSON.stringify({ offscreen: [{ op: 'advance', id: 'ride', gist: 'arrived at Winterfell', day: 40 }] }));
+    expect(parsed).not.toBeNull();
+    const evs = simEvents(parsed!, s, 20, 40, (() => { let n = 100; return () => ++n; })());
+    const s2 = reduce(evs, s, 0);
+    expect(s2.offscreen.find((o) => o.id === 'ride')!.lastDay).toBe(40); // advanced
+    expect(s2.offscreen.find((o) => o.id === 'vigil')!.lastDay).toBe(5); // stale → lags
   });
 });

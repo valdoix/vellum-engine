@@ -145,7 +145,22 @@ export function dateFormatExample(format: DateFormat, naming?: DateNaming): stri
 export function spanLabel(days: number): string {
   const d = Math.floor(days);
   if (d < 2) return '';
-  if (d >= 30) return `${Math.round(d / 30)} month(s)`;
-  if (d >= 14) return `${Math.round(d / 7)} week(s)`;
-  return `${d} days`;
+  if (d < 14) return `${d} days`;
+  if (d < 30) return `${Math.round(d / 7)} week(s)`;         // 2–4 weeks
+  if (d < 365) return `${Math.round(d / 30.44)} month(s)`;   // Gregorian avg month
+  return `${Math.round(d / 365.25)} year(s)`;                // Julian avg year
+}
+
+/**
+ * Coarse human span label for a SUB-DAY elapsed duration given in minutes
+ * ("about 3 hours"). Complements spanLabel for the NOW line and living-clock
+ * decay. Under 90 minutes reads in minutes, under 20 hours in hours, otherwise
+ * defers to day bucketing via spanLabel. Returns '' for a near-zero span. PURE.
+ */
+export function spanLabelHours(minutes: number): string {
+  const m = Math.floor(minutes);
+  if (m < 20) return '';
+  if (m < 90) return `${m} minutes`;
+  if (m < 20 * 60) return `${Math.round(m / 60)} hour(s)`;
+  return spanLabel(m / (24 * 60));
 }

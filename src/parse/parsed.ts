@@ -107,7 +107,7 @@ export const ParsedState = z.object({
   // Every scalar tolerates an explicit JSON `null` (models emit "weather": null
   // for "no change") by coercing it to undefined via `.catch` — a stray null
   // must never fail the whole block's validation and force the regex fallback.
-  scene: z.object({ loc: z.string().optional().catch(undefined), time: z.string().optional().catch(undefined), tension: z.number().min(0).max(10).optional().catch(undefined), weather: z.string().optional().catch(undefined) }).optional().catch(undefined),
+  scene: z.object({ loc: z.string().optional().catch(undefined), time: z.string().optional().catch(undefined), clock: z.number().optional().catch(undefined), tension: z.number().min(0).max(10).optional().catch(undefined), weather: z.string().optional().catch(undefined) }).optional().catch(undefined),
   // `.catch(undefined)` at the ARRAY level too: a single malformed element that
   // isn't even an object (e.g. the model emits `null` for a whole present/bond
   // entry instead of a field) must not fail the entire turn's state block —

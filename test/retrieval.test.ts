@@ -137,4 +137,29 @@ describe('buildInjection — continuity guardrail', () => {
     expect(inj.text).toContain('The Letter');
     expect(inj.text).toContain('off-screen: B opens the letter and rides north'); // reflected onto the thread
   });
+
+  it('leads with an authoritative NOW clock line stating day + time', () => {
+    const s = stateWith();
+    s.day = 47;
+    s.cast = { ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false } };
+    s.scene = { location: 'Harrenhal', tension: 4, time: 'dusk', weather: '', present: ['ned'], detail: [] };
+    const inj = buildInjection('chatNow', s, 'what happens next');
+    expect(inj.text).toContain('[NOW');
+    expect(inj.text).toContain('Day 47');
+    expect(inj.text).toContain('dusk');
+    // NOW sits ahead of the structured cast block (highest salience)
+    expect(inj.text.indexOf('[NOW')).toBeLessThan(inj.text.indexOf('CAST & BONDS'));
+  });
+
+  it('states the elapsed span since the previous scene when days advanced', () => {
+    const s = stateWith();
+    s.day = 40;
+    s.sceneDay = 40;
+    s.prevSceneDay = 5;   // ~5 weeks earlier
+    s.cast = { ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false } };
+    s.scene = { location: 'Harrenhal', tension: 4, time: 'morning', weather: '', present: ['ned'], detail: [] };
+    const inj = buildInjection('chatNowSpan', s, 'what happens next');
+    expect(inj.text).toContain('since the previous scene');
+    expect(inj.text).toContain('month(s)'); // 35 days → ~1 month
+  });
 });

@@ -2,6 +2,7 @@ import type { ChronicleState } from './types.js';
 import type { VellumEvent } from '../core/events.js';
 import { threadOffscreenLink } from './offscreen.js';
 import { spanLabel } from './date-format.js';
+import { parseClock, detectBackwardClock, clockLabel } from './clock.js';
 
 /**
  * Continuity alarm (Plot Director, Phase 5) — a PASSIVE guard. It compares a
@@ -19,7 +20,7 @@ import { spanLabel } from './date-format.js';
  */
 
 export interface ContinuityWarning {
-  kind: 'unknown_secret' | 'already_revealed' | 'redundant_knowledge' | 'trait_reversal' | 'deceased_acting' | 'thread_offscreen_conflict';
+  kind: 'unknown_secret' | 'already_revealed' | 'redundant_knowledge' | 'trait_reversal' | 'deceased_acting' | 'thread_offscreen_conflict' | 'clock_backward' | 'thread_thread_desync';
   text: string;
 }
 
@@ -34,6 +35,18 @@ export function checkContinuity(events: readonly VellumEvent[], prior: Chronicle
       const ids = new Set<string>([...(e.present ?? []), ...((e.detail ?? []).map((d) => d.id))]);
       for (const id of ids) {
         if (prior.cast[id]?.deceased) warnings.push({ kind: 'deceased_acting', text: `${name(id)} is deceased but appears on-stage \u2014 flashback, or a slip?` });
+      }
+      // TIME-ONLY-MOVES-FORWARD (code-level enforcement of the preset's [TIME -
+      // INVIOLABLE] rule): if the new scene reads as an EARLIER time on the SAME
+      // narrative day than the prior scene, that's a likely slip. A day advance
+      // legitimately resets the clock, so this only fires within one day. The
+      // mergeDetail (gap-fill) scene events carry no authored time — skip them.
+      if (!e.mergeDetail) {
+        const priorMin = prior.scene?.clock;
+        const newMin = (typeof e.clock === 'number') ? e.clock : parseClock(e.time);
+        if (detectBackwardClock(prior.day ?? 0, priorMin, e.day, newMin)) {
+          warnings.push({ kind: 'clock_backward', text: `Time moved backward: it was "${prior.scene?.time || clockLabel(priorMin)}" and the scene now reads "${e.time || clockLabel(newMin)}" with no day rollover \u2014 a slip, or did a new day begin?` });
+        }
       }
     } else if (e.kind === 'secret.reveal') {
       const id = (e as { id: string }).id;
@@ -76,18 +89,38 @@ export function checkThreadOffscreenSync(state: ChronicleState): ContinuityWarni
   const isOpen = (t: { status: string }): boolean => !/resolv/i.test(t.status || '');
   const openThreads = state.threads.filter(isOpen);
   const openOff = (state.offscreen ?? []).filter((o) => o.status === 'active');
-  if (!openThreads.length || !openOff.length) return warnings;
-  for (const t of openThreads) {
-    if (t.lastDay === undefined) continue;
-    for (const o of openOff) {
-      if (o.lastDay === undefined) continue;
-      if (!threadOffscreenLink(t.name, o, t.id)) continue;
-      // a >=2-day divergence between a linked pair is a skip-desync: one side
-      // lives on a different narrative day than the other it's tied to.
-      const span = spanLabel(Math.abs(t.lastDay - o.lastDay));
+  // pass 1 — linked thread <-> off-screen desync (needs both sides present)
+  if (openThreads.length && openOff.length) {
+    for (const t of openThreads) {
+      if (t.lastDay === undefined) continue;
+      for (const o of openOff) {
+        if (o.lastDay === undefined) continue;
+        if (!threadOffscreenLink(t.name, o, t.id)) continue;
+        // a >=2-day divergence between a linked pair is a skip-desync: one side
+        // lives on a different narrative day than the other it's tied to.
+        const span = spanLabel(Math.abs(t.lastDay - o.lastDay));
+        if (span) {
+          const behind = t.lastDay < o.lastDay ? `thread "${t.name}"` : `off-screen "${o.name}"`;
+          warnings.push({ kind: 'thread_offscreen_conflict', text: `On/off-screen desync: ${behind} is ~${span} behind its linked counterpart \u2014 advance the lagging side to close the gap.` });
+        }
+      }
+    }
+  }
+
+  // Thread-vs-thread desync: after a time-skip catch-up bumps only SOME threads,
+  // two OPEN on-screen threads can end up living weeks apart. Cross-check the
+  // most-recent threads pairwise (capped to bound cost) and flag a skip-span gap.
+  // The lagging side is named so the Director can catch it up to the current arc.
+  const dayThreads = openThreads
+    .filter((t) => t.lastDay !== undefined)
+    .sort((a, b) => (b.lastDay ?? 0) - (a.lastDay ?? 0))
+    .slice(0, 6);
+  for (let i = 0; i < dayThreads.length; i++) {
+    for (let j = i + 1; j < dayThreads.length; j++) {
+      const ahead = dayThreads[i]!; const behind = dayThreads[j]!;
+      const span = spanLabel((ahead.lastDay ?? 0) - (behind.lastDay ?? 0));
       if (span) {
-        const behind = t.lastDay < o.lastDay ? `thread "${t.name}"` : `off-screen "${o.name}"`;
-        warnings.push({ kind: 'thread_offscreen_conflict', text: `On/off-screen desync: ${behind} is ~${span} behind its linked counterpart \u2014 advance the lagging side to close the gap.` });
+        warnings.push({ kind: 'thread_thread_desync', text: `Thread desync: "${behind.name}" (Day ${behind.lastDay}) is ~${span} behind "${ahead.name}" (Day ${ahead.lastDay}) \u2014 catch the lagging thread up to the current arc.` });
       }
     }
   }

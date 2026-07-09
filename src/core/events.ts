@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 16 as const;
+export const SCHEMA_VERSION = 18 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -60,7 +60,7 @@ export const PresentDetail = z.object({ id: z.string(), name: z.string().optiona
 // (mood/doing/condition/thought) and never demotes cast or replaces the block's
 // authored detail. Used to recover inner thoughts when the model's <vellum>
 // block was dropped or truncated mid-`present`.
-export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional(), mergeDetail: z.boolean().optional() });
+export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), clock: z.number().int().min(0).max(1439).optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional(), mergeDetail: z.boolean().optional() });
 export const ParallelItem = z.object({ who: z.string().optional(), where: z.string().optional(), activity: z.string(), note: z.string().optional(), src: z.literal('sim').optional() });
 export const EvParallel = z.object({ ...base, kind: z.literal('parallel.set'), items: z.array(ParallelItem).default([]) });
 
@@ -107,6 +107,12 @@ export const EvLocationDrop = z.object({ ...base, kind: z.literal('location.drop
 // small ring buffer so the Director Log can show them (never blocks anything).
 export const EvContinuityFlag = z.object({ ...base, kind: z.literal('continuity.flag'), code: z.string(), detail: z.string() });
 
+// --- Day correction: the ONE sanctioned way to walk back the model-supplied,
+// monotonic day counter. `absolute:true` SETS the day (overriding the Math.max
+// forward-only rule intentionally, to fix a spurious high day); otherwise it
+// advances like a normal report (Math.max). SCHEMA 17. Additive.
+export const EvDaySet = z.object({ ...base, kind: z.literal('day.set'), day: z.number().int().nonnegative(), absolute: z.boolean().optional() });
+
 // --- Personality drift: a versioned, cause-linked record of how a character's
 // TRAITS change over time (self memory). The model only emits trait tags; the
 // engine DERIVES the op by diffing the trait set, so this is deterministic.
@@ -117,6 +123,8 @@ export const EvTraitDrift = z.object({ ...base, kind: z.literal('trait.drift'), 
 // (a locked drawer, an omen, a stranger's ring). Stays 'planted' until resolved;
 // surfaced in the Director so it never quietly vanishes. Model emits via ext.plant.
 export const EvPlantSet = z.object({ ...base, kind: z.literal('plant.set'), id: z.string(), what: z.string(), subject: z.string().optional() });
+// NOTE: EvPlantSet's narrative day is carried on the base `day` field (stamped at
+// the fold); the reducer records it as Plant.plantedDay for the living-clock aging.
 export const EvPlantPay = z.object({ ...base, kind: z.literal('plant.pay'), id: z.string(), note: z.string().optional() });
 // abandon: the seed is deliberately let go (subverted/dropped) — distinct from pay
 // (it never lands) and from drop (which erases the record entirely).
@@ -209,7 +217,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvJournal, EvJournalDrop, EvJournalEdit,
   EvScarForm, EvScarDrop, EvLoreNote, EvLoreDrop,
   EvItemChange, EvItemDrop,
-  EvLocationSet, EvLocationDrop, EvContinuityFlag,
+  EvLocationSet, EvLocationDrop, EvContinuityFlag, EvDaySet,
   EvTraitDrift,
   EvPlantSet, EvPlantPay, EvPlantAbandon, EvPlantDrop,
   EvParallel, EvOffscreen, EvOffscreenDrop, EvOffscreenLink,

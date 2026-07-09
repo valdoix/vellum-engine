@@ -218,6 +218,14 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       return e.id ? [{ ...base(ctx), kind: 'lore.drop', id: String(e.id) } as VellumEvent] : [];
     case 'parallel_set':
       return [{ ...base(ctx), kind: 'parallel.set', items: (Array.isArray(e.items) ? e.items : []).map((it: any) => ({ ...(it.who ? { who: canonId(it.who) } : {}), ...(it.where ? { where: String(it.where) } : {}), activity: String(it.activity || '').trim(), ...(it.note ? { note: String(it.note) } : {}) })).filter((it: any) => it.activity) } as VellumEvent];
+    case 'day_set': {
+      // user correction of the narrative day. Absolute by default (the point of
+      // the command is to fix a spurious high day the monotonic rule froze in).
+      const day = Math.floor(Number(e.day));
+      if (!Number.isFinite(day) || day < 0) return [];
+      const absolute = e.absolute === false ? false : true;
+      return [{ ...base(ctx), kind: 'day.set', day, absolute } as VellumEvent];
+    }
     case 'config_set': {
       const formats = ['day', 'month-day-year', 'month-day', 'month', 'week', 'month-year', 'year'];
       const df = formats.includes(String(e.dateFormat)) ? e.dateFormat : undefined;
@@ -255,5 +263,5 @@ export const CMD_TYPES = new Set([
   'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
   'memory_add', 'memory_delete', 'memory_edit', 'memory_delete_many',
   'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set',
-  'scar_add', 'scar_delete', 'lore_add', 'lore_delete', 'config_set',
+  'scar_add', 'scar_delete', 'lore_add', 'lore_delete', 'config_set', 'day_set',
 ]);

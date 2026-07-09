@@ -3,6 +3,7 @@ import { canonId } from '../core/ids.js';
 import { type ChronicleState, type Relation, type Track, freshState } from '../domain/types.js';
 import { freshRelation, applyScore, addCategories, removeCategories, sentimentToScores, deriveSentiment } from '../domain/relations.js';
 import { normalizeCategorySet, primaryCategory, isCategory } from '../domain/category.js';
+import { parseClock } from '../domain/clock.js';
 
 /**
  * reduce(events) → ChronicleState. PURE: no I/O, no randomness, no host calls.
@@ -128,12 +129,22 @@ function apply(s: ChronicleState, e: VellumEvent): void {
             detail.push(nd); byId.set(d.id, nd);
           }
         }
-        s.scene = { ...s.scene, present, detail };
+        // fill an absent clock from an incoming one, or derive from a new time
+        // string — but never overwrite an existing authored clock (merge = fill).
+        const mClock = s.scene.clock ?? e.clock ?? (e.time ? parseClock(e.time) : undefined);
+        s.scene = { ...s.scene, present, detail, ...(mClock !== undefined ? { clock: mClock } : {}) };
         break;
       }
+      // ordered clock: prefer the event's explicit clock, else derive from the
+      // (new or carried) time string. Undefined when nothing is parseable.
+      const nextTime = e.time ?? s.scene.time;
+      // explicit clock wins; else derive from a NEW time string; else keep the
+      // established clock (an unparseable/absent time never erases the order).
+      const clock = e.clock ?? (e.time ? parseClock(e.time) : undefined) ?? s.scene.clock;
       s.scene = {
         location: e.location ?? s.scene.location,
-        time: e.time ?? s.scene.time,
+        time: nextTime,
+        ...(clock !== undefined ? { clock } : {}),
         tension: e.tension ?? s.scene.tension,
         weather: e.weather ?? s.scene.weather,
         present: e.present,
@@ -148,6 +159,13 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         for (const c of Object.values(s.cast)) {
           if (c.status === 'present' && !here.has(c.id)) c.status = 'active';
         }
+      }
+      // scene-day anchors for the NOW "since last scene" span: when this scene
+      // sits on a LATER narrative day than the one we last recorded, the prior
+      // day slides back to prevSceneDay. Same-day re-sets don't shift the anchor.
+      if (e.day > 0) {
+        if (s.sceneDay === undefined) s.sceneDay = e.day;
+        else if (e.day > s.sceneDay) { s.prevSceneDay = s.sceneDay; s.sceneDay = e.day; }
       }
       break;
     }
@@ -590,6 +608,12 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (s.continuityFlags.length > 50) s.continuityFlags = s.continuityFlags.slice(-50); // ring buffer
       break;
     }
+    case 'day.set': {
+      // the SINGLE sanctioned override of the monotonic day rule: absolute SETS
+      // (can lower a spurious high day), otherwise it advances like a report.
+      s.day = e.absolute ? e.day : Math.max(s.day, e.day);
+      break;
+    }
     case 'trait.drift': {
       s.traitHistory.push({ who: e.who, trait: e.trait, op: e.op, ...(e.from ? { from: e.from } : {}), ...(e.cause ? { cause: e.cause } : {}), ...(e.causeId ? { causeId: e.causeId } : {}), turn: e.turn });
       if (s.traitHistory.length > 400) s.traitHistory = s.traitHistory.slice(-400); // ring buffer
@@ -598,7 +622,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'plant.set': {
       const norm = (x: string): string => x.trim().toLowerCase();
       if (!s.plants.find((p) => p.id === e.id) && !s.plants.find((p) => norm(p.what) === norm(e.what) && p.status === 'planted')) {
-        s.plants.push({ id: e.id, what: e.what, status: 'planted', ...(e.subject ? { subject: e.subject } : {}), plantedTurn: e.turn });
+        s.plants.push({ id: e.id, what: e.what, status: 'planted', ...(e.subject ? { subject: e.subject } : {}), plantedTurn: e.turn, ...(e.day > 0 ? { plantedDay: e.day } : {}) });
       }
       break;
     }

@@ -166,6 +166,20 @@ export function migrate(raw: unknown): unknown {
     version = 16;
   }
 
+  // v16 → v17: day-correction event (day.set) — the one sanctioned override of
+  // the monotonic day counter, plus the day-sanity continuity flags emitted at
+  // the fold. Additive — old logs have no day.set and behave as before.
+  if (version < 17) {
+    version = 17;
+  }
+
+  // v17 → v18: ordered sub-day clock — optional `clock` (minutes-since-midnight)
+  // on scene.set + state.scene, and the clock_backward continuity check. Additive
+  // — old scenes carry no clock and derive one lazily from `time` on next fold.
+  if (version < 18) {
+    version = 18;
+  }
+
   obj.version = SCHEMA_VERSION;
   return obj;
 }

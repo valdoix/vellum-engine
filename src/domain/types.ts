@@ -169,6 +169,9 @@ export interface PresentChar {
 export interface Scene {
   location: string;
   time: string;
+  clock?: number;  // ordered time-of-day (minutes-since-midnight, 0..1439);
+                   // derived from `time` when the model doesn't supply it.
+                   // Optional so pre-clock logs & unparseable times stay valid.
   tension: number;
   weather: string;
   present: string[];
@@ -244,6 +247,7 @@ export interface Plant {
   status: 'planted' | 'paid' | 'abandoned';
   subject?: string; // optional cast/location/item id this plant concerns (scene-salience)
   plantedTurn: number;
+  plantedDay?: number; // narrative day seeded (for living-clock aging; optional/derived)
   paidTurn?: number;
   payNote?: string;
 }
@@ -301,6 +305,11 @@ export interface ChronicleState {
   scene: Scene;
   day: number;
   turns: number;
+  // Narrative-day anchors for the current and immediately-prior scene, used by
+  // the authoritative NOW injection to state "~N since the previous scene".
+  // Optional/derived; absent on pre-clock logs and set lazily on the next fold.
+  sceneDay?: number;      // day the current scene was set
+  prevSceneDay?: number;  // day the scene before it was set
   // User tone dials (romance/disposition/social/politics), derived from tone.set
   // events so they persist in the log and never revert to default on reload/
   // chat-switch. Defaults to DEFAULT_TONE when no tone.set has ever been written.

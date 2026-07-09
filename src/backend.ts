@@ -19,6 +19,7 @@ import { turnLog } from './domain/turnlog.js';
 import { toMarkdown } from './domain/markdown.js';
 import { moodInjectionCached, invalidateMood } from './domain/mood.js';
 import { plantsInjection } from './domain/plants.js';
+import { agingInjection } from './domain/aging.js';
 import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
@@ -376,7 +377,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   // snapshot the PRE-fold state for the continuity check: loadState/append return
   // the same cached object mutated in place, so a live reference would already show
   // this turn's reveals/learns. Clone the few slices the checker reads.
-  const preFold = { cast: prior.cast, secrets: prior.secrets.map((x) => ({ ...x })), knowledge: prior.knowledge.map((x) => ({ ...x })) } as ChronicleState;
+  const preFold = { cast: prior.cast, secrets: prior.secrets.map((x) => ({ ...x })), knowledge: prior.knowledge.map((x) => ({ ...x })), scene: { ...prior.scene }, day: prior.day } as ChronicleState;
   for (let turnNo = (prior.turns ?? 0) + 1; turnNo <= msgs.length; turnNo++) {
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
@@ -1014,7 +1015,7 @@ async function wireCapabilities(): Promise<void> {
           // cached, but this also removes serialized await-chains on the hot
           // pre-response path). The traversal-mode read gates the controller/
           // precompute choice, so it's awaited first; everything else overlaps.
-          const [tmodeRaw, caps, directives, locks, calText, nextSceneText, limitsText, logEvents] = await Promise.all([
+          const [tmodeRaw, caps, directives, locks, calText, nextSceneText, limitsText, logEvents, livingRaw, lastSimRaw] = await Promise.all([
             getChatVar(chatId, 'vellum_traversal_mode').catch(() => ''),
             budgetCaps(chatId),
             readDirectives(chatId),
@@ -1023,6 +1024,8 @@ async function wireCapabilities(): Promise<void> {
             nextSceneInjection(chatId, state),
             hardLimitsInjection(chatId),
             loadLog(chatId).then((l) => l.events).catch(() => [] as VellumEvent[]),
+            getChatVar(chatId, 'vellum_living_clock').catch(() => ''),
+            getChatVar(chatId, 'vellum_sim_day').catch(() => ''),
           ]);
           const tmode = tmodeRaw === 'tree' ? 'tree' : 'flat';
           // Controller-guided traversal (variant A), opt-in per chat. Builds a
@@ -1049,10 +1052,19 @@ async function wireCapabilities(): Promise<void> {
           const plantText = caps.plants ? plantsInjection(state, state.turns || 0, caps.plants) : '';
           // Off-screen convergence — threads ripe to walk back into the scene.
           const offText = caps.offscreen ? offscreenInjection(state, caps.offscreen) : '';
+          // Living Clock (opt-in) — on a detected time-skip, surface advisory decay
+          // for time-sensitive state (wounds, plants, distant beats, aging). Off by
+          // default; the skip span comes from the same lastSimDay anchor the sim uses.
+          let livingText = '';
+          if (livingRaw === '1' || livingRaw === 'true' || livingRaw === 'on') {
+            const lastSim = Number(lastSimRaw);
+            const skip = Number.isFinite(lastSim) ? Math.max(0, (state.day || 0) - lastSim) : 0;
+            livingText = agingInjection(state, state.day || 0, skip);
+          }
           // Relationship guardrails — locks for pairs PRESENT this turn, phrased
           // positively (prevention half; the fold strip is the hard guarantee).
           const lockText = lockInjection(locks, present, nameOf, caps.locks);
-          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, lockText, plantText, calText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
@@ -1915,6 +1927,28 @@ const dispatch: Record<string, Handler> = {
     // run once immediately on enable so the user sees subplots without waiting
     // for the cadence gate (every Nth turn). Off the response path.
     if (enabled) void simulateOffscreen(chatId, uid);
+  },
+  vellum_set_living_clock: async (p, uid) => {
+    // toggle the Living Clock: on a detected time-skip, inject advisory decay for
+    // time-sensitive state (wounds, plants, distant beats, aging). Off by default;
+    // pure injection (no generation), so it's not gated on any permission.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const enabled = !!p?.enabled;
+    try { await setChatVar(chatId, 'vellum_living_clock', enabled ? '1' : ''); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_living_clock_set_done', ok: true, enabled }, uid);
+  },
+  vellum_set_day: async (p, uid) => {
+    // manual day correction: the one sanctioned override of the monotonic day
+    // counter (walk back a spurious high day). Emits a day.set event (absolute).
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_day_set_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    const day = Math.floor(Number(p?.day));
+    if (!Number.isFinite(day) || day < 0) { spindle.sendToFrontend?.({ type: 'vellum_day_set_done', ok: false, reason: 'bad_day' }, uid); return; }
+    const state = await loadState(chatId);
+    const evs = cmdEvents('day_set', { day, absolute: true }, state, { turn: state.turns || 0, day: state.day || 0 });
+    if (evs.length) { await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, uid); }
+    spindle.sendToFrontend?.({ type: 'vellum_day_set_done', ok: true, day }, uid);
   },
   vellum_set_chaptervault: async (p, uid) => {
     // chapter-vault mode: off | keyed (default) | constant. Detailed chapter

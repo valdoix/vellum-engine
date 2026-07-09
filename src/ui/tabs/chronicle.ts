@@ -4,7 +4,9 @@ import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { linkedOffscreen } from '../../domain/offscreen.js';
-import { formatDate } from '../../domain/date-format.js';
+import { formatDate, spanLabel } from '../../domain/date-format.js';
+import { parseClock, clockLabel } from '../../domain/clock.js';
+import { checkThreadOffscreenSync } from '../../domain/continuity.js';
 import { activeShape } from '../theme.js';
 import { shapeOrnament } from '../ornament.js';
 
@@ -77,7 +79,7 @@ export const chronicleTab: Component<ChronicleState> = {
       + '<span class="vle-subnav-g">Records</span>' + inGroup(['memory', 'knowledge', 'secrets', 'scars', 'codex', 'items'])
       + '</div>';
     let body = '';
-    if (_view === 'world') body = scene(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) || '';
+    if (_view === 'world') body = nowChip(s) + scene(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) + desyncInspector(s) || '';
     else if (_view === 'timeline') body = timeline(s);
     else if (_view === 'turns') body = turnsView(s);
     else if (_view === 'beats') body = beatsView(s);
@@ -262,6 +264,16 @@ export const chronicleTab: Component<ChronicleState> = {
       if (tro) { send({ type: 'vellum_thread_set', id: tro.getAttribute('data-id'), name: tro.getAttribute('data-name'), status: 'advance', kindArc: tro.getAttribute('data-arc') === '1' }); return; }
       const tdel = t.closest('[data-track-del]');
       if (tdel) { confirmModal('Delete this thread? (removes it from the board now; the model may re-raise it if the story keeps naming it)', () => send({ type: 'vellum_thread_drop', id: tdel.getAttribute('data-id'), kindArc: tdel.getAttribute('data-arc') === '1' })); return; }
+      const dset = t.closest('[data-day-set]');
+      if (dset) {
+        const cur = dset.getAttribute('data-day') || '';
+        formModal('Set narrative day', [
+          { key: 'day', label: 'Day', type: 'number', min: 0, step: 1, value: cur },
+        ], (o) => { if (o.day !== '' && o.day != null) send({ type: 'vellum_set_day', day: Number(o.day) }); });
+        return;
+      }
+      const tcatch = t.closest('[data-thread-catchup]');
+      if (tcatch) { send({ type: 'vellum_offthread_advance', id: tcatch.getAttribute('data-id') }); return; }
     });
   },
 };
@@ -281,6 +293,50 @@ function scene(s: ChronicleState): string {
     + '<span class="vle-scene-pin" aria-hidden="true">\u25C9</span>'
     + '<span class="vle-scene-loc">' + esc(s.scene.location || '\u2014') + '</span>'
     + gauge + '</div>';
+}
+
+/** NOW chip — the authoritative day + time-of-day, so the current clock is
+ * visible at a glance (mirrors the recall NOW line). Empty when there's no day
+ * or scene yet. A "Set day" action lets the user walk back a spurious high day. */
+function nowChip(s: ChronicleState): string {
+  const day = s.day || 0;
+  if (day <= 0 && !s.scene.location && !s.scene.time) return '';
+  const dateStr = formatDate(day, s.dateFormat || 'day', s);
+  const clock = s.scene.clock !== undefined ? s.scene.clock : parseClock(s.scene.time);
+  const timeStr = s.scene.time?.trim() || (clock !== undefined ? clockLabel(clock) : '');
+  const setBtn = `<button class="vle-mini" data-day-set data-day="${day}" title="Correct the narrative day (fixes a spurious high day)">\u270E day</button>`;
+  return '<div class="vle-now">'
+    + '<span class="vle-now-pin" aria-hidden="true">\u25F7</span>'
+    + `<span class="vle-now-day">${esc(dateStr)}</span>`
+    + (timeStr ? `<span class="vle-now-time">${esc(timeStr)}</span>` : '')
+    + `<span class="vle-now-ctl">${setBtn}</span>`
+    + '</div>';
+}
+
+/** Desync inspector — surfaces every open thread's lag vs the current day and
+ * the checkThreadOffscreenSync findings, each with a "catch up" action that arms
+ * a per-thread off-screen sim (reuses the focus-sim path). Empty when in sync. */
+function desyncInspector(s: ChronicleState): string {
+  const nowDay = s.day || 0;
+  if (nowDay <= 0) return '';
+  const isOpen = (t: { status: string }): boolean => !/resolv/i.test(t.status || '');
+  const lagging = s.threads.filter(isOpen)
+    .filter((t) => t.lastDay !== undefined && spanLabel(nowDay - t.lastDay))
+    .sort((a, b) => (a.lastDay ?? 0) - (b.lastDay ?? 0));
+  const findings = checkThreadOffscreenSync(s);
+  if (!lagging.length && !findings.length) return '';
+  const rows = lagging.map((t) => {
+    const span = spanLabel(nowDay - (t.lastDay ?? nowDay));
+    const catchUp = `<button class="vle-mini" data-thread-catchup data-id="${esc(t.id)}" title="Advance this thread off-screen to catch it up to now">\u2748 catch up</button>`;
+    return `<div class="vle-desync-row"><span class="vle-desync-n">${esc(t.name)}</span>`
+      + `<span class="vle-desync-lag">Day ${esc(t.lastDay ?? '?')} \u00b7 ~${esc(span)} behind</span>`
+      + `<span class="vle-desync-ctl">${catchUp}</span></div>`;
+  }).join('');
+  const notes = findings.map((w) => `<div class="vle-desync-note">\u26A0 ${esc(w.text)}</div>`).join('');
+  return sectionHeader('\u29D6 Time Sync', { sub: true, count: lagging.length })
+    + '<div class="vle-cz-note">Open threads whose narrative day trails the current day \u2014 a time-skip left them behind. Catch one up to fold it back into the present.</div>'
+    + (rows ? `<div class="vle-desync">${rows}</div>` : '')
+    + (notes ? `<div class="vle-desync-notes">${notes}</div>` : '');
 }
 
 function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s: ChronicleState): string {
@@ -323,11 +379,11 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
 function timeline(s: ChronicleState): string {
   const head = sectionHeader('\u2637 Timeline', { sub: true, count: s.memories.length });
   // collect dated entries: arcs+chapters (by covers end), knowledge/secrets/journal (by turn)
-  type Row = { turn: number; day?: number; kind: string; group: string; text: string; span?: [number, number] };
+  type Row = { turn: number; day?: number; min?: number; kind: string; group: string; text: string; span?: [number, number] };
   const rows: Row[] = [];
   for (const m of s.memories) {
     if (m.tier === 'turn') continue; // turn-notes are noise on the timeline
-    if (m.tier === 'beat') { rows.push({ turn: m.turn, ...(m.beatDay !== undefined ? { day: m.beatDay } : {}), kind: 'beat', group: 'beat', text: m.text }); continue; }
+    if (m.tier === 'beat') { const mn = parseClock(m.beatTime); rows.push({ turn: m.turn, ...(m.beatDay !== undefined ? { day: m.beatDay } : {}), ...(mn !== undefined ? { min: mn } : {}), kind: 'beat', group: 'beat', text: m.text }); continue; }
     rows.push({ turn: m.covers?.[1] ?? m.turn, kind: m.tier, group: 'memory', text: m.text, ...(m.covers ? { span: m.covers } : {}) });
   }
   for (const k of s.knowledge) rows.push({ turn: k.turn, kind: 'knew', group: 'knew', text: nameOf(s, k.who) + ': ' + k.fact });
@@ -350,7 +406,13 @@ function timeline(s: ChronicleState): string {
   let shown = rows;
   if (_tlKind !== 'all') shown = shown.filter((r) => r.group === _tlKind);
   if (_tlDay !== 'all') shown = shown.filter((r) => String(r.day ?? '') === _tlDay);
-  shown = shown.slice().sort((a, b) => b.turn - a.turn); // newest first
+  // newest first; when two rows share a day, order by time-of-day minutes so
+  // same-day beats sort by their clock, falling back to turn when times are equal.
+  shown = shown.slice().sort((a, b) => {
+    if (a.day !== undefined && b.day !== undefined && a.day !== b.day) return b.day - a.day;
+    if (a.min !== undefined && b.min !== undefined && a.min !== b.min) return b.min - a.min;
+    return b.turn - a.turn;
+  });
   if (!shown.length) return head + kindBar + dayBar + emptyState('Nothing matches this filter.');
 
   // "The Spine" (mockup 10): a central river. Beats sit centered ON the spine;

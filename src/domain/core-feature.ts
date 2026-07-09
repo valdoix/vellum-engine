@@ -6,6 +6,7 @@ import { resolveCastId, notAName, resolveFactionId, isNameMash } from './identit
 import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
 import { findLock, applyLockToBond } from './relation-lock.js';
 import { inferLocationParent } from './locations.js';
+import { parseClock } from './clock.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -132,10 +133,19 @@ export const coreFeature: Feature = {
         return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(p.condition ? { condition: p.condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
       }).filter(Boolean);
       if (userInScene) (detail as Array<{ id: string }>).unshift({ id: uCanon }); // presence only, no inner fields
+      // a valid model-supplied 0..1439 minutes wins; else derive from the time text
+      const rawClock = parsed.scene?.clock;
+      const clockMinutes = (typeof rawClock === 'number' && rawClock >= 0 && rawClock <= 1439)
+        ? Math.floor(rawClock)
+        : parseClock(parsed.scene?.time);
       out.push({
         ...base(), kind: 'scene.set',
         ...(parsed.scene?.loc ? { location: parsed.scene.loc } : {}),
         ...(parsed.scene?.time ? { time: parsed.scene.time } : {}),
+        // ordered clock: trust a valid model-supplied minutes value, else derive
+        // from the time string. Absent when neither is parseable (reduce keeps
+        // any established clock). Additive — old blocks simply omit it.
+        ...(clockMinutes !== undefined ? { clock: clockMinutes } : {}),
         ...(typeof parsed.scene?.tension === 'number' ? { tension: parsed.scene.tension } : {}),
         ...(parsed.scene?.weather ? { weather: parsed.scene.weather } : {}),
         present,

@@ -86,7 +86,7 @@ export function threadOffscreenLink(threadName: string, sub: { name: string; gis
 export function timeSkipNote(skipDays?: number): string {
   const span = spanLabel(skipDays ?? 0);
   if (!span) return '';
-  return `TIME-SKIP: about ${span} have passed off-screen since the last update. The same time passed for everyone — advance each subplot by that WHOLE span, not a single beat: let journeys arrive, plans mature or fail, waits end, and RESOLVE any subplot that would plausibly have concluded over ${span}. Report the net result of the elapsed time, not one small step.`;
+  return `TIME-SKIP: about ${span} have passed off-screen since the last update. The same time passed for everyone — advance each subplot by that WHOLE span, not a single beat: let journeys arrive, plans mature or fail, waits end, and RESOLVE any subplot that would plausibly have concluded over ${span}. Report the net result of the elapsed time, not one small step. For EACH subplot you advance, set its "day" to the current narrative day it has caught up to.`;
 }
 
 const SIM_SYS_BASE = [
@@ -105,7 +105,7 @@ const SIM_SOCIAL_RULE: Record<Social, string> = {
 };
 const SIM_JSON_BONDS = ' You MAY also include a "bonds" array of NPC↔NPC relationship shifts: [{"a":"Name","b":"Name","aff":small +/- int,"trust":small +/- int,"cat":"social|rivalry|alliance or omit","why":"one clause"}]. Never involve the player in a bond.';
 const SIM_JSON_FACTIONS = ' You MAY also include a "factions" array of FACTION↔FACTION shifts: [{"a":"Faction","b":"Faction","kind":"alliance|rivalry|war|vassal|trade or omit","standing":small +/- int,"why":"one clause"}]. Never involve the player.';
-const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened"}]BONDSFACTIONS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most 4 offscreen entries.';
+const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened","day":"OPTIONAL int narrative day this subplot has reached (only under a TIME-SKIP, for the subplots you actually advance)"}]BONDSFACTIONS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most 4 offscreen entries.';
 // what the sim may do to FACTION↔FACTION relations, by Politics autonomy level.
 const SIM_POLITICS_RULE: Record<Politics, string> = {
   off: '',
@@ -188,7 +188,7 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
 export interface ParsedSimBond { a: string; b: string; aff?: number; trust?: number; cat?: string; why?: string }
 export interface ParsedSimFactionRel { a: string; b: string; kind?: string; standing?: number; why?: string }
 export interface ParsedSim {
-  offscreen: Array<{ op: 'new' | 'advance' | 'resolve'; id: string; name?: string; who?: string; where?: string; gist?: string }>;
+  offscreen: Array<{ op: 'new' | 'advance' | 'resolve'; id: string; name?: string; who?: string; where?: string; gist?: string; day?: number }>;
   bonds?: ParsedSimBond[];
   factions?: ParsedSimFactionRel[];
 }
@@ -210,7 +210,13 @@ export function parseSim(text: string): ParsedSim | null {
       const name = p.name ? String(p.name).trim() : '';
       const id = p.id ? slug(String(p.id)) : slug(name);
       const gist = String(p.gist ?? '').trim();
-      return { op, id, ...(name ? { name } : {}), ...(p.who ? { who: String(p.who).trim() } : {}), ...(p.where ? { where: String(p.where).trim() } : {}), ...(gist ? { gist } : {}) };
+      // optional per-subplot narrative day: under a time-skip catch-up the model
+      // may report how far THIS subplot advanced (day/onDay/lastDay), so only the
+      // subplots it actually moved get their lastDay bumped — the rest stay stale
+      // and correctly read as lagging in the desync guard.
+      const dayRaw = (p.day ?? p.onDay ?? p.lastDay);
+      const day = Number(dayRaw);
+      return { op, id, ...(name ? { name } : {}), ...(p.who ? { who: String(p.who).trim() } : {}), ...(p.where ? { where: String(p.where).trim() } : {}), ...(gist ? { gist } : {}), ...(Number.isFinite(day) && day > 0 ? { day: Math.floor(day) } : {}) };
     })
     .filter((p) => p.id && (p.gist || p.op === 'resolve'))
     .slice(0, 4);
@@ -271,7 +277,11 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     // a "new" that collides with a known id becomes an advance; an "advance" on
     // an unknown id becomes a new — so the model can't fork or orphan a subplot.
     const op = p.op === 'resolve' ? 'resolve' : (known.has(p.id) ? 'advance' : 'new');
-    return { seq: seq(), turn, day, src: 'system', kind: 'offscreen.op', op, id: p.id, ...(p.name ? { name: p.name } : {}), ...(p.who ? { who: resolve(p.who) } : {}), ...(p.where ? { where: p.where } : {}), ...(p.gist ? { gist: p.gist } : {}) } as VellumEvent;
+    // stamp THIS subplot's own day when the model reported one (clamped to the
+    // tick day so a subplot can't leap past "now"); else the tick day. Only the
+    // subplots the model actually returned a beat for advance their lastDay.
+    const evDay = (p.day !== undefined && day > 0) ? Math.min(p.day, day) : day;
+    return { seq: seq(), turn, day: evDay, src: 'system', kind: 'offscreen.op', op, id: p.id, ...(p.name ? { name: p.name } : {}), ...(p.who ? { who: resolve(p.who) } : {}), ...(p.where ? { where: p.where } : {}), ...(p.gist ? { gist: p.gist } : {}) } as VellumEvent;
   });
 
   // Off-screen NPC↔NPC bond channel (Social autonomy). Gated by level, clamped by
