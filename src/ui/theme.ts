@@ -78,13 +78,17 @@ export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloo
 // lantern (a hanging bulb tag: top hook pseudo + warm inset glow).
 // Gatsby + Sumi round: chevron (art deco stepped pyramid top), hanko (red seal
 // stamp corner pseudo), inkwash (asymmetric brush stroke left edge).
+// Gatsby alternatives: sunburst (triangle keystone), enso (imperfect circle), 
+// marquee (dotted borders). Sumi alternatives: vstroke (vertical brush), 
+// scroll (horizontal roll), bamboo (segmented rail).
 export type ShapeId =
   | 'slab' | 'left-spine' | 'tarot' | 'notched' | 'split' | 'inset' | 'scalloped'
   | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket'
   | 'toadstool' | 'trellis' | 'bramble' | 'lantern'
-  | 'chevron' | 'hanko' | 'inkwash';
+  | 'chevron' | 'hanko' | 'inkwash'
+  | 'sunburst' | 'enso' | 'marquee' | 'vstroke' | 'scroll' | 'bamboo';
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items' | 'secrets';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'chevron', 'hanko', 'inkwash'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'chevron', 'hanko', 'inkwash', 'sunburst', 'enso', 'marquee', 'vstroke', 'scroll', 'bamboo'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items', 'secrets'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -108,10 +112,12 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   // tarot cast plate, a climbing-vine trellis beat, a scalloped faction, a hanging
   // fairy-lantern item; secrets stay a quiet slab (the sealed thing in the dark).
   faewild: { present: 'toadstool', bonds: 'bramble', cast: 'tarot', beats: 'trellis', factions: 'scalloped', items: 'lantern', secrets: 'slab' },
-  // art deco: chevron pyramid present, gilt frames, tarot portrait, symmetric splits
-  gatsby: { present: 'chevron', bonds: 'gilt-edge', cast: 'tarot', beats: 'split', factions: 'gilt-edge', items: 'split', secrets: 'gilt-edge' },
-  // ink wash: minimal slabs with asymmetric inkwash accents, hanko seal cast, deckle torn edges
-  sumi: { present: 'inkwash', bonds: 'deckle', cast: 'hanko', beats: 'slab', factions: 'inkwash', items: 'slab', secrets: 'slab' },
+  // art deco: sunburst keystone present, enso bond circles, tarot portrait cast,
+  // marquee beats (theater lights), gilt frames for factions/secrets
+  gatsby: { present: 'sunburst', bonds: 'enso', cast: 'tarot', beats: 'marquee', factions: 'gilt-edge', items: 'gilt-edge', secrets: 'gilt-edge' },
+  // ink wash: vertical stroke present, horizontal scroll bonds, bamboo rail cast,
+  // clean slabs for beats/items/secrets (minimalism)
+  sumi: { present: 'vstroke', bonds: 'scroll', cast: 'bamboo', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -252,11 +258,18 @@ const FONT_CHOICES: Array<{ label: string; stack: string }> = [
   { label: 'Spectral', stack: "'Spectral',Georgia,serif" },
   { label: 'System sans', stack: 'system-ui,-apple-system,"Segoe UI",sans-serif' },
   { label: 'JetBrains Mono', stack: F_MONO },
+  { label: 'Poiret One (Google)', stack: F_DECO },
+  { label: 'Noto Serif JP (Google)', stack: F_BRUSH },
+  { label: 'Playfair Display (Google)', stack: "'Playfair Display','Cormorant Garamond',Georgia,serif" },
+  { label: 'Crimson Text (Google)', stack: "'Crimson Text',Georgia,serif" },
+  { label: 'Lora (Google)', stack: "'Lora',Georgia,serif" },
 ];
 const MONO_CHOICES: Array<{ label: string; stack: string }> = [
   { label: 'JetBrains Mono', stack: F_MONO },
   { label: 'Consolas', stack: 'Consolas,"Courier New",monospace' },
   { label: 'System mono', stack: 'ui-monospace,SFMono-Regular,monospace' },
+  { label: 'Fira Code (Google)', stack: "'Fira Code',Consolas,monospace" },
+  { label: 'IBM Plex Mono (Google)', stack: "'IBM Plex Mono',Consolas,monospace" },
 ];
 const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   { id: '', label: 'None', css: 'none' },
@@ -344,7 +357,7 @@ function sanitize(t: Theme): Theme {
 }
 function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme)); } catch { /* ignore */ } persistTheme(); }
 
-// Load Google Fonts dynamically for chromes that need them
+// Load Google Fonts dynamically for chromes that need them or when selected
 let _loadedFonts: Set<string> = new Set();
 function loadGoogleFontsForChrome(chrome: Chrome): void {
   const fontMap: Record<string, string> = {
@@ -365,6 +378,38 @@ function loadGoogleFontsForChrome(chrome: Chrome): void {
   link.href = fontUrl;
   document.head.appendChild(link);
   _loadedFonts.add(chrome);
+}
+
+// Load Google Fonts by font family name (for customizer)
+function loadGoogleFontByName(fontStack: string): void {
+  const fontNameMap: Record<string, string> = {
+    'Poiret One': 'https://fonts.googleapis.com/css2?family=Poiret+One&display=swap',
+    'Noto Serif JP': 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap',
+    'Playfair Display': 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap',
+    'Crimson Text': 'https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&display=swap',
+    'Lora': 'https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap',
+    'Fira Code': 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap',
+    'IBM Plex Mono': 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap',
+  };
+  
+  // Extract font name from stack (first quoted font)
+  const match = fontStack.match(/'([^']+)'/);
+  if (!match) return;
+  const fontName = match[1];
+  const fontUrl = fontNameMap[fontName];
+  
+  if (!fontUrl || _loadedFonts.has(fontName)) return;
+  const existing = document.querySelector(`link[href="${fontUrl}"]`);
+  if (existing) {
+    _loadedFonts.add(fontName);
+    return;
+  }
+  
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = fontUrl;
+  document.head.appendChild(link);
+  _loadedFonts.add(fontName);
 }
 
 export function getTheme(): Theme { return _theme; }
@@ -488,6 +533,8 @@ export function customizePanel(tab: CzTab = 'look'): string {
     bloom: '<span class="vle-mode-sk sk-bloom"><i></i><i></i><i></i></span>',
     ember: '<span class="vle-mode-sk sk-ember"><i></i><i></i><i></i></span>',
     faewild: '<span class="vle-mode-sk sk-faewild"><i></i><i></i><i></i></span>',
+    gatsby: '<span class="vle-mode-sk sk-gatsby"><i></i><i></i><i></i></span>',
+    sumi: '<span class="vle-mode-sk sk-sumi"><i></i><i></i><i></i></span>',
   };
   // dark/light segmented toggle — flips every chrome to its paired skin
   const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'
@@ -593,8 +640,8 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
   });
   host.addEventListener('change', (e) => {
     const el = e.target as HTMLInputElement;
-    if (el.matches('[data-cz-font]')) { patchTheme({ serif: el.value }); reapply(); }
-    else if (el.matches('[data-cz-mono]')) { patchTheme({ mono: el.value }); reapply(); }
+    if (el.matches('[data-cz-font]')) { loadGoogleFontByName(el.value); patchTheme({ serif: el.value }); reapply(); }
+    else if (el.matches('[data-cz-mono]')) { loadGoogleFontByName(el.value); patchTheme({ mono: el.value }); reapply(); }
     else if (el.matches('[data-cz-texture]')) { patchTheme({ texture: el.value }); reapply(); }
     else if (el.matches('[data-cz-launcher]')) { patchTheme({ launcher: el.value as Theme['launcher'] }); reapply(); }
     else if (el.matches('[data-cz-tension]')) { patchTheme({ tensionStyle: el.value as Theme['tensionStyle'] }); reapply(); }
