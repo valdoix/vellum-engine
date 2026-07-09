@@ -89,4 +89,30 @@ describe('reconcileDay', () => {
     const r = reconcileDay(9 + DAY_JUMP_LIMIT + 5, 9, true);
     expect(r.flag).toBeUndefined();
   });
+
+  describe('day-creep guard', () => {
+    it('keeps the prior day when +1 has no rollover, no prose cue (same-day clock)', () => {
+      // dusk -> night same day, but the model bumped Day 9 -> 10
+      const r = reconcileDay(10, 9, false, { priorClock: 1140, newClock: 1320 });
+      expect(r.day).toBe(9);
+      expect(r.flag?.code).toBe('day_creep');
+    });
+    it('allows +1 when the clock rolled past midnight (real new day)', () => {
+      // night -> dawn: newClock < priorClock ⇒ a genuine rollover, accept Day 10
+      const r = reconcileDay(10, 9, false, { priorClock: 1320, newClock: 300 });
+      expect(r.day).toBe(10);
+      expect(r.flag).toBeUndefined();
+    });
+    it('allows +1 when a prose skip cue is present', () => {
+      const r = reconcileDay(10, 9, true, { priorClock: 1140, newClock: 1320 });
+      expect(r.day).toBe(10);
+    });
+    it('allows +1 when clock evidence is absent (no false freeze)', () => {
+      expect(reconcileDay(10, 9, false)).toEqual({ day: 10 });
+    });
+    it('does not touch a +2 step (only the bare +1 creep is guarded)', () => {
+      const r = reconcileDay(11, 9, false, { priorClock: 1140, newClock: 1320 });
+      expect(r.day).toBe(11);
+    });
+  });
 });

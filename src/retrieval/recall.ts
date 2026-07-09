@@ -218,9 +218,13 @@ export function nowInjection(state: ChronicleState): string {
   const cur = state.sceneDay ?? day;
   const span = (prev !== undefined && cur > prev) ? spanLabel(cur - prev) : '';
   const head = [dateStr, timeStr].filter(Boolean).join(', ');
-  const tail = span ? ` ~${span} since the previous scene.` : '';
+  const tail = span ? ` ~${span} elapsed since the previous scene.` : '';
   if (!head && !tail) return '';
-  return `[NOW \u2014 authoritative clock. Do not contradict or reset.] ${head}.${tail}`.replace(/\.\./g, '.');
+  // Anchor the clock WITHOUT implying it must advance: the day only moves when
+  // the story's action actually spans a day/night, not once per turn. "Keep this
+  // date unless the scene itself moves time" replaces the old "do not reset",
+  // which read as a one-way ratchet and made the model bump the day each turn.
+  return `[NOW \u2014 current in-story date. Keep it unless the scene's own action moves time forward; most turns stay the same day.] ${head}.${tail}`.replace(/\.\./g, '.');
 }
 
 /** Short word for a faction standing value (for the injected structured line). */

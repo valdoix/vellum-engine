@@ -146,7 +146,7 @@ export const DAY_JUMP_LIMIT = 30;
  *   - otherwise         → accept
  * PURE; returns the day to use plus an optional advisory flag.
  */
-export function reconcileDay(reported: number | undefined, priorDay: number, proseCue: boolean): DayReconcile {
+export function reconcileDay(reported: number | undefined, priorDay: number, proseCue: boolean, opts?: { priorClock?: number; newClock?: number }): DayReconcile {
   const prior = priorDay > 0 ? priorDay : 0;
   if (reported === undefined || !Number.isFinite(reported)) return { day: prior || 1 };
   const day = Math.floor(reported);
@@ -156,6 +156,17 @@ export function reconcileDay(reported: number | undefined, priorDay: number, pro
   }
   if (day > prior + DAY_JUMP_LIMIT && !proseCue) {
     return { day, flag: { code: 'day_jump', detail: `Large day jump Day ${prior}\u2192${day} (+${day - prior}) with no time-skip cue in prose \u2014 confirm this leap was intended.` } };
+  }
+  // DAY-CREEP GUARD: a bare +1 step with NO prose day-advance cue, when the clock
+  // shows time did NOT actually cross a day boundary (it's known and moved FORWARD
+  // within the same day rather than wrapping past midnight), is the model nudging
+  // the calendar once per turn. Keep the prior day. High-precision: only fires
+  // with positive same-day clock evidence, so a legitimate advance (prose cue,
+  // absent clock, or a real midnight rollover) is never frozen.
+  if (day === prior + 1 && prior > 0 && !proseCue
+      && opts?.priorClock !== undefined && opts.newClock !== undefined
+      && opts.newClock >= opts.priorClock) {
+    return { day: prior, flag: { code: 'day_creep', detail: `Model advanced to Day ${day} but the clock stayed within the same day (no rollover, no skip cue); kept Day ${prior}.` } };
   }
   return { day };
 }

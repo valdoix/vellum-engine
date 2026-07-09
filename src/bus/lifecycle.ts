@@ -2,7 +2,7 @@ import { parseState } from '../parse/state-block.js';
 import { runExtractors, type ExtractCtx } from './registry.js';
 import { nextSeq } from '../core/ids.js';
 import { hashStr } from '../core/ids.js';
-import { reconcileDay, hasDayAdvanceCue } from '../domain/clock.js';
+import { reconcileDay, hasDayAdvanceCue, parseClock } from '../domain/clock.js';
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
 import type { Tone } from '../domain/tone.js';
@@ -42,7 +42,16 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // the prior day on a backward report and flags an unexplained large jump. A
   // prose skip cue ("weeks later") permits a big forward leap without a flag.
   const proseCue = hasDayAdvanceCue(content);
-  const rec = reconcileDay(parsed.day, prior.day ?? 0, proseCue);
+  // clock evidence for the day-creep guard: the prior scene's ordered clock vs
+  // the one this turn's scene reports (explicit or derived from its time string).
+  const priorClock = prior.scene?.clock;
+  const newClock = (typeof parsed.scene?.clock === 'number' && parsed.scene.clock >= 0 && parsed.scene.clock <= 1439)
+    ? Math.floor(parsed.scene.clock)
+    : parseClock(parsed.scene?.time);
+  const rec = reconcileDay(parsed.day, prior.day ?? 0, proseCue, {
+    ...(priorClock !== undefined ? { priorClock } : {}),
+    ...(newClock !== undefined ? { newClock } : {}),
+  });
   let day = rec.day;
   // REGENERATE DAY-STABILITY: when re-folding a turn that already existed (edit/
   // regenerate), the NOW line injected the pre-rollback day as authoritative, so
