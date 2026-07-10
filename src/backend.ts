@@ -840,11 +840,12 @@ async function maybeColorSync(chatId: string, userId: string | null): Promise<vo
     try {
       const api = spindle.regex_scripts;
       if (api?.getActive) {
-        const active = await api.getActive({ chatId, target: 'display', userId }, userId);
+        // getActive requires scope/scopeId for chat-scoped scripts
+        const active = await api.getActive({ scope: 'chat', scopeId: chatId, target: 'display', userId }, userId);
         const ourScripts = Array.isArray(active) ? active.filter((s: any) => s?.script_id?.includes('vellum-engine-spk')) : [];
         spindle.log?.info?.(`[vellum_engine] colored-dialogue: getActive found ${ourScripts.length} vellum-engine-spk scripts for display target`);
         if (ourScripts.length === 0 && ok > 0) {
-          spindle.log?.warn?.(`[vellum_engine] colored-dialogue: scripts created successfully but not returned by getActive() — possible scope/placement mismatch`);
+          spindle.log?.warn?.(`[vellum_engine] colored-dialogue: scripts created successfully but not returned by getActive() — check if scripts are disabled or have wrong placement`);
         }
       }
     } catch (e) { spindle.log?.warn?.('[vellum_engine] colored-dialogue: getActive check failed: ' + ((e as Error)?.message ?? e)); }
