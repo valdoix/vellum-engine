@@ -2111,6 +2111,11 @@ const dispatch: Record<string, Handler> = {
           const all = await api.list({ limit: 500, ...(uid ? { userId: uid } : {}) });
           const arr: any[] = Array.isArray(all) ? all : (all?.data ?? all?.items ?? []);
           spindle.log?.info?.(`[vellum_engine] colored-dialogue: force-delete scan found ${arr.length} total scripts`);
+          
+          // Debug: log the first 10 script_ids to see what's actually in the list
+          const sampleIds = arr.slice(0, 10).map((s) => s?.script_id).filter(Boolean);
+          if (sampleIds.length) spindle.log?.info?.(`[vellum_engine] colored-dialogue: sample script_ids from list: ${sampleIds.join(', ')}`);
+          
           let deleted = 0;
           for (const s of arr) {
             if (s?.script_id === `vellum-engine-spk-display-${chatId}` || s?.script_id === `vellum-engine-spk-strip-${chatId}`) {
@@ -2119,7 +2124,23 @@ const dispatch: Record<string, Handler> = {
               deleted++;
             }
           }
-          if (deleted === 0) spindle.log?.info?.(`[vellum_engine] colored-dialogue: no orphaned scripts found in list (searched for vellum-engine-spk-*-${chatId})`);
+          if (deleted === 0) {
+            spindle.log?.info?.(`[vellum_engine] colored-dialogue: no orphaned scripts found in list (searched for vellum-engine-spk-*-${chatId})`);
+            // Last resort: try to get by script_id directly if the API supports it
+            if (api.get) {
+              for (const scriptId of [`vellum-engine-spk-display-${chatId}`, `vellum-engine-spk-strip-${chatId}`]) {
+                try {
+                  const direct = await api.get(scriptId, uid);
+                  if (direct?.id) {
+                    spindle.log?.info?.(`[vellum_engine] colored-dialogue: found orphaned script via direct get: ${scriptId} (id=${direct.id})`);
+                    await api.delete(String(direct.id), uid).catch(() => {});
+                    deleted++;
+                  }
+                } catch { /* doesn't exist or get() not supported */ }
+              }
+            }
+          }
+          if (deleted > 0) spindle.log?.info?.(`[vellum_engine] colored-dialogue: deleted ${deleted} orphaned scripts`);
         }
       } catch (e) { spindle.log?.warn?.('[vellum_engine] force-delete orphaned scripts failed: ' + ((e as Error)?.message ?? e)); }
     }
