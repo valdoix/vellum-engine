@@ -154,7 +154,7 @@ const QOL = [
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
-  { id: 'coloreddialogue', label: '\uD83C\uDFA8 Colored dialogue', title: 'Tint each character\u2019s spoken lines with their cast-card color (needs the regex_scripts permission + the preset\u2019s Colored Dialogue block emitting [spk=] tags)', group: 'toggle' },
+  { id: 'coloreddialogue', label: '\u25C6 Colored dialogue', title: 'Tint each character\u2019s spoken lines with their cast-card color (needs the regex_scripts permission + the preset\u2019s Colored Dialogue block emitting [spk=] tags)', group: 'toggle' },
   { id: 'foldtoast', label: '\u2261 Tracker Update Toast', title: 'Show a brief toast after each turn as the tracker updates (scene first, then the deep memory pass). Off by default.', group: 'toggle' },
   // run = one-shot verbs
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'run' },

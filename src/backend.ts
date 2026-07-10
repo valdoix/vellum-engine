@@ -2108,7 +2108,7 @@ const dispatch: Record<string, Handler> = {
       try {
         const api = spindle.regex_scripts;
         if (api?.list && api?.delete) {
-          const all = await api.list({ limit: 500 });
+          const all = await api.list({ limit: 500, ...(uid ? { userId: uid } : {}) });
           const arr: any[] = Array.isArray(all) ? all : (all?.data ?? all?.items ?? []);
           for (const s of arr) {
             if (s?.script_id === `vellum-engine-spk-display-${chatId}` || s?.script_id === `vellum-engine-spk-strip-${chatId}`) {
