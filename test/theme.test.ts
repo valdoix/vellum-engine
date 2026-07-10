@@ -107,9 +107,12 @@ describe('card shapes (per-surface silhouette overrides)', () => {
         expect(CUT.has(id), `${chrome}.${surface} must not use a cut shape (${id})`).toBe(false);
       }
     }
-    expect(CHROME_SHAPES.default).toEqual({ present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'slab' });
-    // ember secrets is a plain slab (per request); no cut shapes anywhere.
-    expect(CHROME_SHAPES.ember.secrets).toBe('slab');
+    expect(CHROME_SHAPES.default).toEqual({ present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'left-spine' });
+    // secrets are a left-spine on EVERY chrome: the neg-tinted spine + wax-seal
+    // medallion is the secret card's consistent cross-chrome signature.
+    for (const [chrome, map] of Object.entries(CHROME_SHAPES)) {
+      expect(map.secrets, `${chrome}.secrets must be left-spine`).toBe('left-spine');
+    }
   });
 
   it('resolveShape: override wins, else falls back to the chrome default', () => {

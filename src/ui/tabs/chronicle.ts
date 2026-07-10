@@ -107,6 +107,17 @@ export const chronicleTab: Component<ChronicleState> = {
     return nav + body;
   },
   mount(host) {
+    // Keyboard: Enter/Space toggles a focused arc/thread leaf header (it carries
+    // role="button" tabindex="0"). Click handling lives in the listener below.
+    host.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+      const lt = (e.target as HTMLElement).closest('[data-leaf-toggle]');
+      if (!lt) return;
+      e.preventDefault();
+      const id = lt.getAttribute('data-leaf-toggle') || '';
+      if (_threadExpanded.has(id)) _threadExpanded.delete(id); else _threadExpanded.add(id);
+      refreshUI();
+    });
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       const nv = t.closest('[data-cview]');
@@ -337,11 +348,12 @@ export const chronicleTab: Component<ChronicleState> = {
         if (_laggingOffIds.length) send({ type: 'vellum_offscreen_catchup', ids: _laggingOffIds, ...(Number.isFinite(day) && day > 0 ? { day } : {}) });
         return;
       }
-      // thread card expand/collapse (World view feed-style cards). Placed AFTER the
-      // track control handlers so clicking edit/resolve/delete doesn't toggle.
-      const thToggle = t.closest('[data-thread-toggle]');
+      // arc/thread leaf expand/collapse (World view). Placed AFTER the track
+      // control handlers so clicking edit/resolve/delete/link doesn't toggle. Keys
+      // are namespaced ('a:'/'t:') so an arc and thread sharing a slug stay distinct.
+      const thToggle = t.closest('[data-leaf-toggle]');
       if (thToggle) {
-        const id = thToggle.getAttribute('data-thread-toggle') || '';
+        const id = thToggle.getAttribute('data-leaf-toggle') || '';
         if (_threadExpanded.has(id)) _threadExpanded.delete(id); else _threadExpanded.add(id);
         refreshUI();
         return;
@@ -519,119 +531,126 @@ function desyncInspector(s: ChronicleState): string {
     + notes;
 }
 
+/** Classify a track's free-text status into a pill style + label. Resolved wins;
+ * a handful of "charged" keywords read as crimson (hot); everything else is the
+ * calm open/active tint. Shared by arcs and threads so status reads consistently. */
+function statusPill(status: string, kindArc: boolean): { cls: 'open' | 'hot' | 'done'; label: string } {
+  if (/resolv/i.test(status || '')) return { cls: 'done', label: 'resolved' };
+  const hot = /escalat|rising|climax|crisis|war|siege|hunt|burn|break|clash|blood/i.test(status || '');
+  const label = status && !/^(advance|new)$/i.test(status) ? status : (kindArc ? 'open' : 'active');
+  return { cls: hot ? 'hot' : 'open', label };
+}
+
+/** Inline vertical beat rail — oldest to newest, the last beat lit as "latest".
+ * When an arc/thread has many beats the earliest collapse behind a details toggle
+ * so the rail stays scannable. */
+function beatRail(beats: string[]): string {
+  if (!beats.length) return '<div class="vle-leaf-empty">No beats yet.</div>';
+  const row = (b: string, i: number): string => {
+    const latest = i === beats.length - 1;
+    return `<div class="vle-leaf-beat${latest ? ' latest' : ''}"><span class="vle-leaf-node"></span>`
+      + (latest ? '<div class="vle-leaf-bmeta">latest</div>' : '')
+      + `<div class="vle-leaf-btxt">${esc(b)}</div></div>`;
+  };
+  const rows = beats.map(row);
+  if (beats.length > 3) {
+    const cut = beats.length - 2;
+    const earlier = rows.slice(0, cut).join('');
+    const recent = rows.slice(cut).join('');
+    return `<div class="vle-leaf-rail"><details><summary class="vle-leaf-more">show ${cut} earlier beat${cut === 1 ? '' : 's'}</summary>${earlier}</details>${recent}</div>`;
+  }
+  return `<div class="vle-leaf-rail">${rows.join('')}</div>`;
+}
+
+/** Arcs and threads, rendered as the same collapsible "illuminated leaf" card
+ * (Layout A of the redesign). A header that toggles shows the title, a one-line
+ * gist when collapsed, a beat-count pill (arcs) and a status pill; expanding
+ * reveals the inline beat rail, a "meanwhile" off-screen note, owned-thread chips
+ * (arcs), and the CRUD actions. Threads are the lesser tier: smaller title,
+ * thinner rail, and an arc-link kicker in place of the beat-count pill. */
 function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s: ChronicleState): string {
   const arc = kindArc ? '1' : '0';
   const addBtn = `<button class="vle-add sm" data-track-add data-arc="${arc}" title="Add ${kindArc ? 'an arc' : 'a thread'}">+</button>`;
   const A = (x: unknown): string => esc(x);
-  
-  if (kindArc) {
-    // Arcs: horizontal scrollable spine (like mockup Establishing Shot)
-    const cards = list.slice().sort(byRecent).map((t) => {
-      const resolved = /resolv/i.test(t.status || '');
-      const statusText = t.status && !/^(advance|new)$/i.test(t.status) ? t.status : (resolved ? 'resolved' : 'open');
-      const statusDot = `<span class="vle-arc-status${resolved ? ' done' : ''}">${resolved ? '\u25CF' : '\u25CF'}</span>`;
-      const editBtn = `<button class="vle-mini" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">\u270E</button>`;
-      const stBtn = resolved
-        ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
-        : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
-      const ctl = `<div class="vle-arc-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
-      // arc<->thread bridge: list the threads owned by this arc (explicit links
-      // take priority over soft name-matches), each with an unlink button.
-      const owned = linkedThreads(s, t);
-      const ownedBlock = owned.length ? `<div class="vle-arc-threads">${owned.slice(0, 6).map((th) => `<span class="vle-arc-thread-chip">${esc(th.name.length > 22 ? th.name.slice(0, 22) + '…' : th.name)}<button class="vle-arc-thread-unlink" data-thread-arc-unlink data-id="${A(th.id)}" data-name="${A(th.name)}" title="Unlink">\u00d7</button></span>`).join('')}${owned.length > 6 ? `<span class="vle-arc-thread-chip vle-arc-thread-more">+${owned.length - 6}</span>` : ''}</div>` : '';
+  // Expanded-card ids are namespaced ('a:'/'t:') so an arc and a thread that share
+  // a slug id never toggle each other.
+  const prefix = kindArc ? 'a:' : 't:';
 
-      return `<div class="vle-arc-card${resolved ? ' vle-arc-card--done' : ''}">
-        <div class="vle-arc-name">${esc(t.name)}</div>
-        <div class="vle-arc-meta">
-          <span class="vle-arc-beat-count">${t.beats.length} beat${t.beats.length === 1 ? '' : 's'}</span>
-          ${statusDot}
-          <span class="vle-arc-status-label">${esc(statusText)}</span>
-        </div>
-        ${ctl}
-        ${ownedBlock}
-      </div>`;
-    }).join('');
-    
-    const body = cards 
-      ? `<div class="vle-arc-spine">${cards}</div>` 
-      : emptyState('No arcs yet.', 'They fill in as the story unfolds; add one by hand too.');
-    return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
-  }
-  
-  // Threads: collapsible feed-style cards with an Establishing Shot twist — a
-  // kicker + title header always shows; expanding reveals latest beat, full beat
-  // history, meanwhile note, and controls. Cards start collapsed.
-  const sorted = list.slice().sort(byRecent).slice(0, 12);
-  // Auto-expand a lone thread on first render so the section opens with content.
-  if (_threadExpanded.size === 0 && sorted.length === 1 && sorted[0]) _threadExpanded.add(sorted[0].id);
-  
+  const sorted = list.slice().sort(byRecent).slice(0, kindArc ? 24 : 12);
+  // Auto-expand a lone entry so the section opens with content on first render.
+  const anyOpen = list.some((t) => _threadExpanded.has(prefix + t.id));
+  if (!anyOpen && sorted.length === 1 && sorted[0]) _threadExpanded.add(prefix + sorted[0].id);
+
   const cards = sorted.map((t) => {
+    const key = prefix + t.id;
+    const expanded = _threadExpanded.has(key);
     const resolved = /resolv/i.test(t.status || '');
-    const expanded = _threadExpanded.has(t.id);
-    
-    // Parent arc: an EXPLICIT arc<->thread link (mirrors offscreen<->thread) — a
-    // thread declares which arc it belongs to. (The old heuristic that guessed by
-    // shared id / shared beat is gone: links are now real, user-wired associations.)
-    const parentArc = t.arc ? s.arcs.find(a => a.id === t.arc) : undefined;
-    
-    // Latest beat (always shown as preview/gist)
+    const sp = statusPill(t.status, kindArc);
     const latestBeat = t.beats[t.beats.length - 1] || '';
-    
-    // Kicker: "Thread" (or arc name) — Establishing Shot style eyebrow
-    const kicker = `<div class="vle-thread-kicker">${parentArc ? '↳ ' + esc(parentArc.name) : 'Thread'}</div>`;
-    
-    // Toggle chevron
-    const toggleBtn = `<button class="vle-thread-toggle" data-thread-toggle="${A(t.id)}" aria-label="${expanded ? 'Collapse' : 'Expand'}">${expanded ? '\u25BC' : '\u25B6'}</button>`;
-    
-    // Preview line (collapsed): latest beat as a subtle italic gist
-    const preview = !expanded && latestBeat ? `<div class="vle-thread-preview">${esc(latestBeat)}</div>` : '';
-    
-    // Header (always visible)
-    const header = `<div class="vle-thread-header">${kicker}<div class="vle-thread-title">${esc(t.name)}</div>${preview}${toggleBtn}</div>`;
-    
-    // Body (only when expanded)
+
+    // Parent arc: an EXPLICIT arc<->thread link (threads only).
+    const parentArc = !kindArc && t.arc ? s.arcs.find((a) => a.id === t.arc) : undefined;
+
+    // Kicker (threads only): the parent-arc link, or "Thread" when unlinked.
+    const kicker = kindArc ? ''
+      : `<div class="vle-leaf-kicker${parentArc ? ' arclink' : ''}">${parentArc ? '\u21B3 ' + esc(parentArc.name) : 'Thread'}</div>`;
+
+    // Cluster: arcs carry a beat-count pill; both carry a status pill.
+    const beatsPill = kindArc ? `<span class="vle-leaf-beats" title="${t.beats.length} beat${t.beats.length === 1 ? '' : 's'}">${t.beats.length}</span>` : '';
+    const statusEl = `<span class="vle-leaf-status ${sp.cls}"><span class="vle-leaf-dot"></span>${esc(sp.label)}</span>`;
+    const cluster = `<div class="vle-leaf-cluster">${beatsPill}${statusEl}</div>`;
+
+    const chev = `<span class="vle-leaf-chev" aria-hidden="true">${expanded ? '\u25BC' : '\u25B6'}</span>`;
+    const sub = !expanded && latestBeat ? `<div class="vle-leaf-sub">${esc(latestBeat)}</div>` : '';
+    const header = `<div class="vle-leaf-head" data-leaf-toggle="${A(key)}" role="button" tabindex="0" aria-expanded="${expanded}">`
+      + chev
+      + `<div class="vle-leaf-tw">${kicker}<div class="vle-leaf-title">${esc(t.name)}</div>${sub}</div>`
+      + cluster
+      + '</div>';
+
     let body = '';
     if (expanded) {
-      // Latest beat card
-      const beatCard = latestBeat ? `<div class="vle-thread-beat">
-        <div class="vle-thread-beat-label">LATEST BEAT</div>
-        <div class="vle-thread-beat-text">${esc(latestBeat)}</div>
-      </div>` : '';
-      
-      // Full beat history
-      const hist = t.beats.length > 1
-        ? `<details class="vle-thread-hist"><summary class="vle-thread-hist-toggle">${t.beats.length} beats total</summary><div class="vle-thread-hist-list">${t.beats.map((b, i) => `<div class="vle-thread-hist-item"><span class="vle-thread-hist-n">${i + 1}.</span> ${esc(b)}</div>`).join('')}</div></details>`
-        : '';
-      
-      // Meanwhile note (off-screen reflection)
+      const rail = beatRail(t.beats);
+
+      // Meanwhile note (off-screen reflection linked to this track).
       const off = linkedOffscreen(s, { id: t.id, name: t.name });
       const offNote = off.length && off[0]
-        ? `<div class="vle-thread-meanwhile">
-            <div class="vle-thread-meanwhile-label">MEANWHILE</div>
-            <div class="vle-thread-meanwhile-text">${esc(off[0].gist || off[0].beats[off[0].beats.length - 1] || '')} \u2192 ${esc(off[0].status || 'advancing')}</div>
-          </div>`
+        ? `<div class="vle-leaf-meanwhile"><div class="vle-leaf-mw-label">Meanwhile</div><div class="vle-leaf-mw-text">${esc(off[0].gist || off[0].beats[off[0].beats.length - 1] || '')} \u2192 ${esc(off[0].status || 'advancing')}</div></div>`
         : '';
-      
-      // Controls
-      const editBtn = `<button class="vle-btn vle-btn--secondary" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">EDIT</button>`;
+
+      // Owned-thread chips (arcs only): explicit links win over soft name-matches.
+      let chips = '';
+      if (kindArc) {
+        const owned = linkedThreads(s, t);
+        if (owned.length) {
+          chips = `<div class="vle-leaf-chips">${owned.slice(0, 8).map((th) => `<span class="vle-leaf-chip"><span class="vle-leaf-chip-lead" aria-hidden="true">\u21B3</span>${esc(th.name.length > 28 ? th.name.slice(0, 28) + '\u2026' : th.name)}<button class="vle-leaf-chip-x" data-thread-arc-unlink data-id="${A(th.id)}" data-name="${A(th.name)}" title="Unlink">\u00d7</button></span>`).join('')}${owned.length > 8 ? `<span class="vle-leaf-chip more">+${owned.length - 8}</span>` : ''}</div>`;
+        }
+      }
+
+      // Actions. Threads additionally get a link/unlink-arc control.
+      const editBtn = `<button class="vle-btn vle-btn--secondary" data-track-edit data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" data-status="${A(t.status)}" title="Edit">Edit</button>`;
       const stBtn = resolved
-        ? `<button class="vle-btn vle-btn--secondary" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">REOPEN</button>`
-        : `<button class="vle-btn vle-btn--secondary" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">RESOLVE</button>`;
-      const delBtn = `<button class="vle-btn vle-btn--danger" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">DELETE</button>`;
-      // arc<->thread bridge controls: link this thread to an arc, or unlink it. The
-      // picker offers all existing arcs (thread.set with `arc`); unlink sends arc=''.
-      const curArc = t.arc ? (s.arcs.find(a => a.id === t.arc)?.name ?? t.arc) : '';
-      const arcCtl = parentArc
-        ? `<button class="vle-btn vle-btn--secondary" data-thread-arc-unlink data-id="${A(t.id)}" title="Unlink from arc ${esc(curArc)}">↳ ${esc(parentArc.name)} ✕</button>`
-        : `<button class="vle-btn vle-btn--secondary" data-thread-arc-pick data-id="${A(t.id)}" data-name="${A(t.name)}" title="Link to an arc">LINK ARC</button>`;
-      const ctl = `<div class="vle-thread-actions">${arcCtl}${editBtn}${stBtn}${delBtn}</div>`;
-      
-      body = `<div class="vle-thread-body">${beatCard}${hist}${offNote}${ctl}</div>`;
+        ? `<button class="vle-btn vle-btn--secondary" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">Reopen</button>`
+        : `<button class="vle-btn vle-btn--secondary" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">Resolve</button>`;
+      const delBtn = `<button class="vle-btn vle-btn--danger" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">Delete</button>`;
+      let arcCtl = '';
+      if (!kindArc) {
+        arcCtl = parentArc
+          ? `<button class="vle-btn vle-btn--secondary" data-thread-arc-unlink data-id="${A(t.id)}" data-name="${A(t.name)}" title="Unlink from arc ${esc(parentArc.name)}">\u21B3 ${esc(parentArc.name)} \u2715</button>`
+          : `<button class="vle-btn vle-btn--secondary" data-thread-arc-pick data-id="${A(t.id)}" data-name="${A(t.name)}" title="Link to an arc">Link arc</button>`;
+      }
+      const actions = `<div class="vle-leaf-actions">${arcCtl}${editBtn}${stBtn}${delBtn}</div>`;
+
+      body = `<div class="vle-leaf-body"><div class="vle-leaf-rule"></div>${rail}${offNote}${chips}${actions}</div>`;
     }
-    
-    return `<div class="vle-thread-card${resolved ? ' vle-thread-card--done' : ''}${expanded ? ' vle-thread-card--expanded' : ''}">${header}${body}</div>`;
+
+    const cls = ['vle-leaf', kindArc ? 'is-arc' : 'is-thread', sp.cls === 'hot' ? 'hot' : '', resolved ? 'done' : '', expanded ? 'open' : 'closed'].filter(Boolean).join(' ');
+    return `<div class="${cls}">${header}${body}</div>`;
   }).join('');
-  const body = cards ? `<div class="vle-thread-list">${cards}</div>` : emptyState('No threads yet.', 'They fill in as the story unfolds; add one by hand too.');
+
+  const body = cards
+    ? `<div class="vle-leaf-list${kindArc ? ' arcs' : ' threads'}">${cards}</div>`
+    : emptyState(kindArc ? 'No arcs yet.' : 'No threads yet.', 'They fill in as the story unfolds; add one by hand too.');
   return sectionHeader(title, { sub: true, count: list.length, action: addBtn }) + body;
 }
 
