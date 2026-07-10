@@ -52,24 +52,30 @@ export async function listVellumScripts(uid: string | null): Promise<LiteScript[
   } catch { return []; }
 }
 
-/** Find an existing script by its stable `script_id`. Returns null on miss. */
-async function findByScriptId(scriptId: string, uid: string | null): Promise<any | null> {
+/** Find an existing script by its stable `script_id`. Optionally filter by scope. */
+async function findByScriptId(scriptId: string, uid: string | null, scope?: { scope: string; scopeId: string }): Promise<any | null> {
   const a = api(); if (!a) return null;
   try {
-    // Try a broad list first (no scope filter); Lumiverse list() does strict filtering
-    // so we may need to scan multiple scopes if the script_id doesn't tell us its scope.
-    const r = await a.list({ limit: 200, ...(uid ? { userId: uid } : {}) });
+    // If scope provided, filter by it (chat-scoped scripts require explicit scope filter)
+    const params: any = { limit: 200, ...(uid ? { userId: uid } : {}) };
+    if (scope) {
+      params.scope = scope.scope;
+      params.scopeId = scope.scopeId;
+    }
+    const r = await a.list(params);
     const arr: any[] = Array.isArray(r) ? r : (r?.data ?? r?.items ?? []);
     return arr.find((s) => s?.script_id === scriptId) ?? null;
   } catch { return null; }
 }
 
 /** Idempotent upsert keyed on `script_id`: update if present, else create.
- * Returns the host script id. */
-export async function upsertScript(input: ScriptInput, uid: string | null): Promise<Result<string, string>> {
+ * Returns the host script id. For chat-scoped scripts, pass the chatId so we
+ * can filter list() by scope (required to find existing chat-scoped scripts). */
+export async function upsertScript(input: ScriptInput, uid: string | null, chatId?: string): Promise<Result<string, string>> {
   const a = api(); if (!a) return Err('no_permission');
   return tryCatchAsync(async () => {
-    const existing = await findByScriptId(input.script_id, uid);
+    const scope = (input.scope === 'chat' && input.scope_id) ? { scope: 'chat', scopeId: input.scope_id } : undefined;
+    const existing = await findByScriptId(input.script_id, uid, scope);
     const body = {
       name: input.name,
       find_regex: input.find_regex,
@@ -99,7 +105,7 @@ export async function upsertScript(input: ScriptInput, uid: string | null): Prom
     } catch (createErr: any) {
       const errMsg = String(createErr?.message ?? createErr ?? '').toLowerCase();
       if (errMsg.includes('already exists') || errMsg.includes('script_id')) {
-        // list() missed it but create says it exists — try brute-force scan
+        // list() missed it but create says it exists — try brute-force scan without scope filter
         try {
           const allScripts = await a.list({ limit: 500 });
           const arr: any[] = Array.isArray(allScripts) ? allScripts : (allScripts?.data ?? allScripts?.items ?? []);
@@ -116,28 +122,28 @@ export async function upsertScript(input: ScriptInput, uid: string | null): Prom
 }
 
 /** Enable/disable a script by its stable `script_id`. No-op if absent. */
-export async function setScriptDisabled(scriptId: string, disabled: boolean, uid: string | null): Promise<Result<true, string>> {
+export async function setScriptDisabled(scriptId: string, disabled: boolean, uid: string | null, scope?: { scope: string; scopeId: string }): Promise<Result<true, string>> {
   const a = api(); if (!a) return Err('no_permission');
   return tryCatchAsync(async () => {
-    const existing = await findByScriptId(scriptId, uid);
+    const existing = await findByScriptId(scriptId, uid, scope);
     if (existing?.id) await a.update(String(existing.id), { disabled }, uid);
     return true as const;
   });
 }
 
 /** Delete a script by its stable `script_id`. No-op if absent. */
-export async function deleteScriptByScriptId(scriptId: string, uid: string | null): Promise<Result<true, string>> {
+export async function deleteScriptByScriptId(scriptId: string, uid: string | null, scope?: { scope: string; scopeId: string }): Promise<Result<true, string>> {
   const a = api(); if (!a) return Err('no_permission');
   return tryCatchAsync(async () => {
-    const existing = await findByScriptId(scriptId, uid);
+    const existing = await findByScriptId(scriptId, uid, scope);
     if (existing?.id) await a.delete(String(existing.id), uid);
     return true as const;
   });
 }
 
 /** Read a script's metadata by its stable `script_id` (for idempotency hash checks). */
-export async function scriptMeta(scriptId: string, uid: string | null): Promise<Record<string, unknown> | null> {
-  const existing = await findByScriptId(scriptId, uid);
+export async function scriptMeta(scriptId: string, uid: string | null, scope?: { scope: string; scopeId: string }): Promise<Record<string, unknown> | null> {
+  const existing = await findByScriptId(scriptId, uid, scope);
   return existing ? ((existing.metadata ?? {}) as Record<string, unknown>) : null;
 }
 

@@ -810,18 +810,19 @@ async function maybeColorSync(chatId: string, userId: string | null): Promise<vo
   const on = !!(await getChatVar(chatId, 'vellum_colored_dialogue'));
   _colorSyncing.add(chatId);
   try {
+    const scope = { scope: 'chat', scopeId: chatId };
     if (!on) {
       // Feature off: remove our scripts if present, restore preset's vellum2-spk-display
-      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, userId);
-      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, userId);
-      await setScriptDisabled('vellum2-spk-display', false, userId); // best-effort restore
+      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, userId, scope);
+      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, userId, scope);
+      await setScriptDisabled('vellum2-spk-display', false, userId); // preset's is global, no scope
       spindle.log?.info?.(`[vellum_engine] colored-dialogue: OFF for ${chatId} — scripts removed`);
       return;
     }
     // Feature on: check if regeneration needed (castHash changed)
     const state = await loadState(chatId);
     const hash = castColorHash(state);
-    const currentMeta = await scriptMeta(`vellum-engine-spk-display-${chatId}`, userId);
+    const currentMeta = await scriptMeta(`vellum-engine-spk-display-${chatId}`, userId, scope);
     if (currentMeta && currentMeta.castHash === hash) {
       spindle.log?.info?.(`[vellum_engine] colored-dialogue: unchanged for ${chatId} (hash ${hash.slice(0, 8)}) — skipping`);
       return; // unchanged, skip
@@ -831,7 +832,7 @@ async function maybeColorSync(chatId: string, userId: string | null): Promise<vo
     const scripts = colorScripts(chatId, state);
     let ok = 0, failed = 0;
     for (const script of scripts) {
-      const r = await upsertScript(script, userId);
+      const r = await upsertScript(script, userId, chatId); // pass chatId for scope filtering
       if (r.ok) ok++; else { failed++; spindle.log?.warn?.(`[vellum_engine] colored-dialogue: upsert ${script.script_id} failed: ${r.error}`); }
     }
     
@@ -1930,9 +1931,10 @@ const dispatch: Record<string, Handler> = {
     invalidateIndex(chatId);
     invalidateMood(chatId);
     // Clean up colored-dialogue scripts
+    const scope = { scope: 'chat', scopeId: chatId };
     try {
-      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, uid);
-      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, uid);
+      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, uid, scope);
+      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, uid, scope);
       await setScriptDisabled('vellum2-spk-display', false, uid); // restore preset script
     } catch { /* best effort */ }
     await broadcastState(chatId, uid);
