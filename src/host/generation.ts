@@ -63,9 +63,13 @@ export async function internalGenerate(
   // back empty, which silently drops us to the structural fallback. Callers that
   // escalate a failed attempt pass reasoningOff:false so the answer is allowed to
   // land in the reasoning channel that extractGenContent already harvests.
-  // `responseFormat` (json_schema) is best-effort: the host strips it without the
-  // generation_parameters permission, so we still parse defensively downstream.
-  const params2 = opts?.responseFormat ? { ...(params || {}), response_format: opts.responseFormat } : (params || {});
+  // `responseFormat` (json_schema) is now ENFORCED when the host grants the
+  // generation_parameters permission, cutting malformed-JSON extraction failures.
+  // Without the permission, we still parse defensively downstream as before.
+  const wantSchema = !!opts?.responseFormat && (await has('generation_parameters'));
+  const params2 = wantSchema
+    ? { ...(params || {}), response_format: opts!.responseFormat }
+    : (params || {});
   // Resolve the user's connection so internal tasks run on the SAME model the
   // user chats with (smarter summaries). `quiet` already follows the active
   // connection; passing connection_id also fixes the `raw` fallback, which would

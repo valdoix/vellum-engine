@@ -131,8 +131,28 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
  * Themed confirm dialog (replaces window.confirm). Callback-based to match
  * formModal: `onConfirm` runs only on confirm. Overlay-click + Esc cancel,
  * Enter confirms, the Confirm button is focused.
+ * 
+ * Prefers the host's native showConfirm API when available (no permission
+ * required), falling back to the DOM implementation on older hosts.
  */
 export function confirmModal(message: string, onConfirm: () => void): void {
+  const s: any = (globalThis as any).spindle;
+  if (s?.ui?.showConfirm) {
+    // Host API available: use the native themed confirmation dialog
+    Promise.resolve(s.ui.showConfirm({ message, title: 'Confirm' }))
+      .then((result: any) => { if (result?.confirmed) onConfirm(); })
+      .catch(() => confirmModalDom(message, onConfirm)); // fall back on API error
+    return;
+  }
+  // Fallback: use the DOM implementation
+  confirmModalDom(message, onConfirm);
+}
+
+/**
+ * DOM implementation of the confirm modal. Used as fallback when the host
+ * showConfirm API is not available. Renamed from the original confirmModal.
+ */
+function confirmModalDom(message: string, onConfirm: () => void): void {
   const overlay = document.createElement('div');
   overlay.className = 'vlfm-overlay';
   overlay.innerHTML = `<div class="vlfm vlfm-confirm"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Confirm</div>`

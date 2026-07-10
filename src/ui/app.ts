@@ -739,6 +739,26 @@ export function setup(ctx: Ctx): () => void {
   const drawer = createShell(ctx, getState);
   tab.root.appendChild(drawer.root);
 
+  // PRESET EDITOR TAB: register a VELLUM panel inside the Preset Editor where users
+  // author the companion preset. Probe for the API first; register only when present
+  // and permission granted. Requires `presets` + `ui_panels`.
+  let presetEditorTab: any = null;
+  try {
+    if (ctx.ui.registerPresetEditorTab) {
+      presetEditorTab = ctx.ui.registerPresetEditorTab({
+        id: 'vellum_engine',
+        label: 'VELLUM',
+      });
+      // Render a compact panel (editor tabs are narrow). For now, a placeholder that
+      // confirms the tab is wired. Future: reuse formModal/existing render helpers for
+      // VELLUM-owned preset config; writes go through ctx.ui.presetEditor.updatePreset.
+      presetEditorTab.root.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--lumiverse-text-dim);">VELLUM preset configuration panel. (Placeholder — full UI coming soon.)</div>';
+    }
+  } catch (e) {
+    // Host without registerPresetEditorTab or permission not granted — silently skip
+    try { console.info('[vellum] preset editor tab not available:', e); } catch { /* ignore */ }
+  }
+
   // apply the saved theme to the drawer shell + document (launcher/toggle/icon)
   applyTheme(drawer.root);
   _retheme = () => { applyTheme(drawer.root); try { drawer.update(true); float.applyTheme(); float.refresh(); } catch { /* ignore */ } };
@@ -1069,6 +1089,7 @@ export function setup(ctx: Ctx): () => void {
     try { float.destroy(); } catch { /* ignore */ }
     try { inputBtn?.destroy(); } catch { /* ignore */ }
     try { tab.destroy(); } catch { /* ignore */ }
+    try { presetEditorTab?.destroy(); } catch { /* ignore */ }
     try { style.remove(); } catch { /* ignore */ }
     try { cleanupToasts(); } catch { /* ignore */ }
     try { ctx.dom.cleanup(); } catch { /* ignore */ }

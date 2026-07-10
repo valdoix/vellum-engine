@@ -6,7 +6,7 @@
   "github": "https://github.com/valdoix/vellum-engine",
   "homepage": "https://github.com/valdoix/vellum-engine",
   "description": "A living memory for your Lumiverse roleplay. VELLUM watches each scene and quietly tracks who's present, how they feel about each other, what they secretly know (and get wrong), and what happened hundreds of messages ago — then feeds the relevant history back to the AI every turn so your story stays consistent. Includes a beautiful panel (cast, bonds, relationship graph, timeline, codex) and a companion preset for literary prose and dramatic irony.",
-  "permissions": ["interceptor", "chats", "chat_mutation", "generation", "ui_panels", "world_books", "memories"],
+  "permissions": ["interceptor", "chats", "chat_mutation", "generation", "generation_parameters", "ui_panels", "world_books", "memories", "presets"],
   "minimum_lumiverse_version": "1.0.0",
   "interceptorTimeoutMs": 15000,
   "entry_backend": "dist/backend.js",

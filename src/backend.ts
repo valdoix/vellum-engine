@@ -24,6 +24,7 @@ import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { controllerGenerate, invalidateConnCache, withTimeout } from './host/generation.js';
+import { stampPresetMetadata } from './host/presets.js';
 import type { CallModel } from './retrieval/traverse.js';
 import { traverseTree, type TreeTraversalResult } from './retrieval/traverse-tree.js';
 
@@ -503,6 +504,10 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   void maybeAutoSummarize(chatId, userId);
   void maybeVaultSync(chatId, userId);
   void maybeTidyThreads(chatId, userId);
+  // COMPANION PRESET METADATA STAMPING: detect and stamp the active preset with
+  // VELLUM metadata so the two halves recognize each other without prose sniffing.
+  // Runs async after fold completion; never blocks the fold.
+  void stampCompanionPreset(chatId, userId);
   // AWAIT the off-screen sim: on a time-skip its catch-up beats must be in the log
   // before the next prompt is assembled, so the on-screen scene doesn't reference
   // an off-screen world still a skip behind. maybeSimulate only blocks for a skip
@@ -517,6 +522,52 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
 
 const _tidying = new Set<string>();
 const TIDY_THRESHOLD = 8; // auto-tidy only once open-thread count exceeds this
+
+/**
+ * Detect and stamp the companion preset with VELLUM metadata so the extension
+ * and preset recognize each other without prose sniffing. Runs async after fold,
+ * never blocks. Idempotent: only writes when the version has changed or metadata
+ * is absent. Requires presets permission; no-op otherwise.
+ */
+const _presetStamped = new Map<string, number>(); // chatId -> lastStampedAt (epoch ms)
+const PRESET_STAMP_THROTTLE = 5 * 60 * 1000; // stamp at most once per 5 minutes per chat
+async function stampCompanionPreset(chatId: string, userId: string | null): Promise<void> {
+  try {
+    // Throttle: only stamp once per interval per chat to avoid hammering the preset API
+    const last = _presetStamped.get(chatId) ?? 0;
+    if (Date.now() - last < PRESET_STAMP_THROTTLE) return;
+    if (!(await has('presets'))) return; // permission not granted
+    if (!spindle.presets?.list) return; // API not available
+    // Query all presets and find one already carrying vellum_engine metadata, OR
+    // take the user's first/default preset as the companion candidate. This is a
+    // best-effort heuristic — ideally the host would tell us which preset is active,
+    // but that's not in the context object. We stamp the first preset we find.
+    const { data } = await spindle.presets.list({ limit: 50 }, userId);
+    if (!Array.isArray(data) || !data.length) return;
+    // Prefer a preset already marked with vellum_engine metadata
+    let preset = data.find((p: any) => p?.metadata?.vellum_engine);
+    // Fallback: stamp the first preset (likely the user's default/active one)
+    if (!preset) preset = data[0];
+    if (!preset?.id) return;
+    // Check if metadata already matches current version — skip write if so
+    const existing = preset.metadata?.vellum_engine;
+    if (existing && existing.version === VELLUM_VERSION && existing.identifier === 'vellum_engine') {
+      _presetStamped.set(chatId, Date.now());
+      return; // already stamped and up-to-date
+    }
+    // Stamp the preset with version, identifier, and last-linked timestamp
+    const meta = { version: VELLUM_VERSION, identifier: 'vellum_engine', linkedAt: Date.now() };
+    const result = await stampPresetMetadata(preset.id, meta, userId);
+    if (result.ok) {
+      _presetStamped.set(chatId, Date.now());
+      spindle.log?.info?.(`[vellum_engine] stamped preset ${preset.id} with metadata`);
+    } else {
+      spindle.log?.warn?.(`[vellum_engine] preset stamp failed: ${result.error}`);
+    }
+  } catch (e) {
+    spindle.log?.warn?.('[vellum_engine] stampCompanionPreset: ' + ((e as Error)?.message ?? e));
+  }
+}
 
 /**
  * Layer 3 — reconcile near-duplicate threads/arcs via a cheap controller LLM.
@@ -925,14 +976,53 @@ async function boot(): Promise<void> {
 void boot();
 
 /**
+ * Build optional parameter injection for the interceptor (generation_parameters
+ * capability). Conservative and opt-in per chat: returns {} when nothing to
+ * inject, so the interceptor can skip adding the `parameters` key entirely when
+ * the permission is absent or injection is disabled. This never surprises users.
+ */
+function buildParamInjection(chatId: string, state: ChronicleState): Record<string, unknown> {
+  // Gate on a per-chat opt-in var (default off). When disabled or unset, return
+  // empty so the interceptor result shape is unchanged.
+  try {
+    // Read the opt-in chat var synchronously from the cache (getChatVar would be
+    // async and can't be awaited here cleanly). If not cached, it's not set, so
+    // default off. This keeps the hot path synchronous.
+    const vars = _chatVars.get(chatId);
+    if (!vars || !vars.vellum_param_injection || vars.vellum_param_injection === '0' || vars.vellum_param_injection === 'false') {
+      return {};
+    }
+    // When enabled, we could inject parameters here. For now, keep it empty as
+    // a conservative no-op placeholder. Extensions or future VELLUM versions can
+    // populate this with e.g. temperature nudges or response_format for keeping
+    // the <vellum> block parseable. The infrastructure is wired; the injection
+    // logic is opt-in and can be expanded later without touching the interceptor.
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Build a scene query from the tail of the prompt the interceptor is assembling.
  * We pull the last few message contents so recall keys off what's happening NOW.
+ * 
+ * NEW: Sharpen the query using interceptor context flags (__isChatHistory,
+ * __isWorldInfoEntry) to weight actual chat history over injected world-info. When
+ * the flags are present, we prefer messages marked as chat history; when absent
+ * (older host), behavior is identical to today (use all messages). Additive and
+ * backward-compatible — never breaks existing behavior.
  */
-function sceneQuery(messages: any[]): string {
+function sceneQuery(messages: any[], ctx?: { activatedWorldInfo?: any[] }): string {
   try {
-    if (Array.isArray(messages) && messages.length) {
-      return messages.slice(-4).map((m: any) => (typeof m?.content === 'string' ? m.content : '')).join(' ').slice(0, 2000);
-    }
+    if (!Array.isArray(messages) || !messages.length) return '';
+    // Filter to chat history when the flags are present on messages. If no message
+    // carries __isChatHistory or __isWorldInfoEntry (older host), the filtered array
+    // is empty and we fall back to the existing base behavior (all messages).
+    const history = messages.filter(m => m?.__isChatHistory !== false && !m?.__isWorldInfoEntry);
+    const base = messages; // existing derivation, unchanged
+    const source = history.length ? history : base; // prefer history; fall back if flags absent
+    return source.slice(-4).map((m: any) => (typeof m?.content === 'string' ? m.content : '')).join(' ').slice(0, 2000);
   } catch { /* ignore */ }
   return '';
 }
@@ -1056,7 +1146,22 @@ async function wireCapabilities(): Promise<void> {
           // the up-to-4 calls so the inline budget stays bounded (~3.2s).
           const pre = tmode === 'tree' ? getPrecomputedTree(chatId) : null;
           const controller = pre ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
-          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out), uid, 1, version, controller, tmode, pre);
+          // EXPERIMENTAL: Interceptor "halt generation momentarily" (Item 6). Gated
+          // behind a per-chat opt-in var (vellum_halt_on_warm, default off) AND a
+          // short cap (1500ms) to avoid user-perceived stalls. When disabled, this
+          // block is a no-op and the interceptor proceeds immediately. When enabled,
+          // it could pause generation to finish a critical precompute/warm, but that
+          // logic is opt-in and conservative. The infrastructure is wired; the halt
+          // implementation awaits host API confirmation and real-world latency testing.
+          // For now, this is a placeholder that never halts (conservative no-op).
+          const haltEnabled = false; // TODO: read getChatVar(chatId, 'vellum_halt_on_warm') and gate strictly
+          if (haltEnabled) {
+            // Future: implement bounded halt here using host's documented halt/resume
+            // mechanism from context. Always wrap in withTimeout(1500ms) so a stalled
+            // warm can never wedge the turn. Log each halt via spindle.log?.info?.
+            // Ship Items 1–5 first; land Item 6 last, behind its opt-in.
+          }
+          const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out, { activatedWorldInfo: context?.activatedWorldInfo }), uid, 1, version, controller, tmode, pre);
           // Plot Director: append armed directives as gentle guidance (suggestive,
           // not a hard block — they self-clear at the fold when fulfilled).
           const dirText = directiveInjection(directives);
@@ -1091,7 +1196,17 @@ async function wireCapabilities(): Promise<void> {
           // streams in real time instead of only on manual Refresh.
           try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
           const head = { role: 'system', content: injText };
-          return { messages: [head, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Recall' }] };
+          const result: any = { messages: [head, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Recall' }] };
+          // INTERCEPTOR PARAMETER INJECTION (generation_parameters capability):
+          // Optionally inject generation parameters (e.g. nudging temperature or
+          // attaching a response_format for the user-facing turn so the <vellum>
+          // state block stays parseable). Gate strictly on generation_parameters
+          // so the return shape is byte-for-byte identical to today when absent.
+          if (await has('generation_parameters')) {
+            const injected = buildParamInjection(chatId, state);
+            if (injected && Object.keys(injected).length) result.parameters = injected;
+          }
+          return result;
         })();
         try {
           return await withTimeout(build, INTERCEPTOR_DEADLINE_MS, 'interceptor');
