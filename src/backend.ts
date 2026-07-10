@@ -840,7 +840,7 @@ async function maybeColorSync(chatId: string, userId: string | null): Promise<vo
     try {
       const api = spindle.regex_scripts;
       if (api?.getActive) {
-        const active = await api.getActive({ chatId, target: 'display' }, userId);
+        const active = await api.getActive({ chatId, target: 'display', userId }, userId);
         const ourScripts = Array.isArray(active) ? active.filter((s: any) => s?.script_id?.includes('vellum-engine-spk')) : [];
         spindle.log?.info?.(`[vellum_engine] colored-dialogue: getActive found ${ourScripts.length} vellum-engine-spk scripts for display target`);
         if (ourScripts.length === 0 && ok > 0) {
