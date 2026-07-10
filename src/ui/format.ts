@@ -1,6 +1,6 @@
 import type { ChronicleState, Relation, CastCard } from '../domain/types.js';
 import { getPref, setPref } from './prefs.js';
-import { HEX6 as HEX6_IMPORTED, safeColor as safeColorImported, hslHex, castSlotColors, autoHue as autoHueImported } from '../core/palette.js';
+import { HEX6 as HEX6_IMPORTED, safeColor as safeColorImported, hslHex, castSlotColors, castSlotColorPairs, autoHue as autoHueImported } from '../core/palette.js';
 
 /** Small formatting helpers shared across UI components. Pure, no DOM. */
 
@@ -87,22 +87,22 @@ const autoHue = autoHueImported;
 
 // --- collision-free cast palette (frontend cache) ---------------------------
 // The core logic lives in core/palette.ts; this caches the color map per render.
-let _colorMap: Map<string, string> = new Map();
+let _colorMap: Map<string, { base: string; to: string }> = new Map();
 let _colorSig = '';
 
-/** Warm the color map cache for a cast id set. Call once per render. */
+/** Warm the color-pair cache for a cast id set. Call once per render. */
 function warmColorMap(castIds: string[]): void {
   const sig = castIds.length + ':' + [...castIds].sort().join(',');
   if (sig !== _colorSig) {
     _colorSig = sig;
-    _colorMap = castSlotColors(castIds);
+    _colorMap = castSlotColorPairs(castIds);
   }
 }
 
-/** Get the cached slot color for an id (warmed by warmColorMap). */
-function getCachedColor(id: string, castIds: string[]): string {
+/** Get the cached slot color pair for an id (warmed by warmColorMap). */
+function getCachedPair(id: string, castIds: string[]): { base: string; to: string } {
   warmColorMap(castIds);
-  return _colorMap.get(id) ?? autoHue(id); // fallback if not in cast
+  return _colorMap.get(id) ?? { base: autoHue(id), to: autoHue(id, 150) }; // fallback if not in cast
 }
 
 /** Resolve the [color, colorTo?] a name should render with: explicit card colors
@@ -113,12 +113,8 @@ function resolveColor(id: string, color?: string, colorTo?: string, castIds?: st
   if (c) return { c, to: colorTo && HEX6.test(colorTo) ? colorTo : '' };
   if (_auto === 'off' || !id) return { c: '', to: '' };
   if (castIds && castIds.length) {
-    const base = getCachedColor(id, castIds);
-    // gradient: derive a complementary second stop from the base hue
-    const h = parseInt(base.slice(1, 3), 16);
-    const shift = ((h + 150) % 360).toString(16).padStart(2, '0');
-    const to = _auto === 'gradient' ? '#' + shift + base.slice(3) : '';
-    return { c: base, to };
+    const { base, to } = getCachedPair(id, castIds);
+    return { c: base, to: _auto === 'gradient' ? to : '' };
   }
   // no cast context (rare call sites): fall back to per-id hash
   const base = autoHue(id);

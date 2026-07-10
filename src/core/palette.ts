@@ -75,6 +75,26 @@ export function castSlotColors(castIds: string[]): Map<string, string> {
 }
 
 /**
+ * Collision-free cast colors as gradient PAIRS: id → { base, to }. `base` is the
+ * solid slot color (same as castSlotColors); `to` is a distinct SECOND stop
+ * (rotate a third of the wheel + a per-slot jitter) so no two characters share
+ * BOTH stops. Used by the gradient auto-name mode.
+ */
+export function castSlotColorPairs(castIds: string[]): Map<string, { base: string; to: string }> {
+  const slotMap = buildSlotMap(castIds);
+  const pairs = new Map<string, { base: string; to: string }>();
+  const sorted = [...castIds].sort();
+  for (const id of castIds) {
+    const slot = slotMap.get(id) ?? (Math.floor(hash01(id) * WHEEL) % WHEEL);
+    const band = Math.floor(sorted.indexOf(id) / WHEEL);
+    const base = slotColor(slot, band);
+    const to = slotColor((slot + 8 + (slot % 3)) % WHEEL, band, 12);
+    pairs.set(id, { base, to });
+  }
+  return pairs;
+}
+
+/**
  * Deterministic color from a seed string (fallback for ids not in the cast set).
  * Mid-high lightness + saturation so it reads on dark surfaces.
  */
