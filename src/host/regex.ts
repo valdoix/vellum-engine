@@ -86,9 +86,30 @@ export async function upsertScript(input: ScriptInput, uid: string | null): Prom
       disabled: false, // VELLUM scripts default to enabled
       metadata: { vellum: true, ...(input.metadata ?? {}) },
     };
+    
+    // If found via list, update by ID
     if (existing?.id) { await a.update(String(existing.id), body, uid); return String(existing.id); }
-    const created = await a.create(body, uid);
-    return String(created?.id ?? '');
+    
+    // Not found — try create, but catch "already exists" and retry as update
+    try {
+      const created = await a.create(body, uid);
+      return String(created?.id ?? '');
+    } catch (createErr: any) {
+      const errMsg = String(createErr?.message ?? createErr ?? '').toLowerCase();
+      if (errMsg.includes('already exists') || errMsg.includes('script_id')) {
+        // list() missed it but create says it exists — try brute-force scan
+        try {
+          const allScripts = await a.list({ limit: 500 });
+          const arr: any[] = Array.isArray(allScripts) ? allScripts : (allScripts?.data ?? allScripts?.items ?? []);
+          const match = arr.find((s: any) => s?.script_id === input.script_id);
+          if (match?.id) {
+            await a.update(String(match.id), body, uid);
+            return String(match.id);
+          }
+        } catch { /* ignore */ }
+      }
+      throw createErr; // re-throw if not "already exists" or recovery failed
+    }
   });
 }
 
