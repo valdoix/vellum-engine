@@ -836,6 +836,19 @@ async function maybeColorSync(chatId: string, userId: string | null): Promise<vo
       if (r.ok) ok++; else { failed++; spindle.log?.warn?.(`[vellum_engine] colored-dialogue: upsert ${script.script_id} failed: ${r.error}`); }
     }
     
+    // Verify the scripts are actually enabled by checking via getActive
+    try {
+      const api = spindle.regex_scripts;
+      if (api?.getActive) {
+        const active = await api.getActive({ chatId, target: 'display' }, userId);
+        const ourScripts = Array.isArray(active) ? active.filter((s: any) => s?.script_id?.includes('vellum-engine-spk')) : [];
+        spindle.log?.info?.(`[vellum_engine] colored-dialogue: getActive found ${ourScripts.length} vellum-engine-spk scripts for display target`);
+        if (ourScripts.length === 0 && ok > 0) {
+          spindle.log?.warn?.(`[vellum_engine] colored-dialogue: scripts created successfully but not returned by getActive() — possible scope/placement mismatch`);
+        }
+      }
+    } catch (e) { spindle.log?.warn?.('[vellum_engine] colored-dialogue: getActive check failed: ' + ((e as Error)?.message ?? e)); }
+    
     // Disable the preset's competing display script to avoid double-wrap
     await setScriptDisabled('vellum2-spk-display', true, userId);
     
@@ -1164,10 +1177,7 @@ async function wireCapabilities(): Promise<void> {
         rememberUser(p?.userId);
         const chatId = p?.chatId || p?.chat_id || (await activeChatId(p?.userId ?? currentUser()));
         if (!chatId) return;
-        // some hosts include the finished text on the event; use it if present
-        const hint = typeof p?.message === 'string' ? p.message : (typeof p?.content === 'string' ? p.content : (typeof p?.text === 'string' ? p.text : ''));
-        await foldChat(chatId, p?.userId ?? currentUser(), hint);
-        void clearNextScene(chatId); // the next-scene steer is for one turn only
+        void foldChat(chatId, p?.userId ?? currentUser());
       });
       _genWired = true;
       spindle.log?.info?.('[vellum_engine] generation fold wired');
