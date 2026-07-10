@@ -357,6 +357,38 @@ export function linkedOffscreen(state: ChronicleState, thread: { id?: string; na
   return (state.offscreen ?? []).filter((o) => o.status === 'active' && threadOffscreenLink(thread.name, o, thread.id));
 }
 
+// --- arc <-> thread bridge (mirror of the thread <-> offscreen bridge) ------------
+// A thread may belong to an arc; many threads can link to the same arc. The "down"
+// direction (thread -> arc) is the explicit link: the thread carries `arc`. The
+// "up" direction (arc -> its threads) is the reverse index below, which the
+// recall layer uses to roll an arc's linked threads' latest beats into the arc's
+// authoritative OPEN THREADS & ARCS line. Same discipline as the offscreen bridge:
+// explicit link wins, a shared-name soft match is the cheapest fallback for
+// freshly-minted arcs/threads before a user wires them up.
+
+/** Which threads belong to a given arc. An EXPLICIT `thread.arc === arc.id` link
+ * is authoritative; when none is set, fall back to a soft token-set match between
+ * the thread's name and the arc's name (significant tokens of the shorter side all
+ * in the longer, both sides >=2 significant tokens — same bar as the offscreen
+ * link). Includes active threads and resolved ones (so a concluding thread still
+ * reads as part of its arc until the arc resolves). PURE. */
+export function linkedThreads(state: ChronicleState, arc: { id?: string; name: string }): ChronicleState['threads'] {
+  const explicit = (state.threads ?? []).filter((t) => t.arc && t.arc === arc.id);
+  if (explicit.length) return explicit;
+  const a = linkTokens(arc.name);
+  if (a.size < 2) return []; // a single shared token never links (mirror offscreen bar)
+  return (state.threads ?? []).filter((t) => {
+    if (t.arc) return false; // already parented elsewhere — don't double-assign
+    const tn = linkTokens(t.name);
+    if (tn.size < 2) return false;
+    // match when the ARC's tokens all appear in the THREAD's name — a thread is a
+    // more specific instance of its broader arc (same containment test the
+    // offscreen link uses, with the arc as the shorter/broader side).
+    let all = true; for (const x of a) if (!tn.has(x)) { all = false; break; }
+    return all;
+  });
+}
+
 /** Convergence injection: the top ripe off-screen threads, nudged to re-enter the
  * scene when the moment fits. Capped; empty when none are ripe. */
 export function offscreenInjection(state: ChronicleState, cap = 3): string {

@@ -460,16 +460,30 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (remap) for (const o of s.offscreen) if (o.thread && remap.dropped.has(o.thread)) o.thread = remap.keep;
       break;
     }
-    case 'arc.merge': { mergeTracks(s.arcs, e.from, e.into); break; }
+    case 'arc.merge': {
+      const remap = mergeTracks(s.arcs, e.from, e.into);
+      // keep thread->arc links valid: repoint any thread whose folded-away arc id
+      // now points at the survivor (mirrors the offscreen repoint above).
+      if (remap) for (const t of s.threads) if (t.arc && remap.dropped.has(t.arc)) t.arc = remap.keep;
+      break;
+    }
     case 'thread.set': {
       // user CRUD: edit by id, else upsert by name. `note` accrues as a beat.
       const list = e.kindArc ? s.arcs : s.threads;
       const cur = e.id ? list.find((t) => t.id === e.id) : list.find((t) => sameTrack(t.name, e.name));
+      // optional parent-arc link edit (threads only): set/clear `thread.arc` to the
+      // chosen arc's stable id. Honored on BOTH the existing-thread path and the
+      // mint path, so a single event can create-and-link a thread in one step.
+      // Empty/missing `arc` leaves the link untouched. Runs whether or not
+      // name/status/note also changed, so a single event can relabel and re-parent.
+      const wantArc = !e.kindArc && e.arc !== undefined;
+      const arcId = wantArc ? String(e.arc || '').trim() : '';
       if (cur) {
         cur.name = e.name;
         if (e.status !== undefined) cur.status = e.status;
         cur.lastTurn = Math.max(cur.lastTurn, e.turn);
         stampTrackDay(cur, e.day);
+        if (wantArc) { if (arcId) cur.arc = arcId; else delete cur.arc; }
         // `fill`: an authored Time Sync beat REPLACES a trailing "caught up: …"
         // placeholder marker in place, so generating real content swaps out the
         // bare marker rather than leaving both. Falls back to a normal push when
@@ -479,11 +493,22 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         } else if (e.note) pushTrackBeat(cur, e.note);
       } else {
         upsertTrack(list, e.name, e.status ?? 'advance', e.turn, e.note, 'new', e.day);
+        if (wantArc && arcId) {
+          const minted = list.find((t) => sameTrack(t.name, e.name));
+          if (minted) minted.arc = arcId;
+        }
       }
       break;
     }
     case 'thread.drop': { s.threads = s.threads.filter((t) => t.id !== e.id); break; }
-    case 'arc.drop': { s.arcs = s.arcs.filter((t) => t.id !== e.id); break; }
+    case 'arc.drop': {
+      // dropping an arc unparents any threads that belonged to it — they revert to
+      // free threads rather than danging at a deleted arc (mirrors the convention
+      // that explicit links point at real rows).
+      for (const t of s.threads) if (t.arc === e.id) delete t.arc;
+      s.arcs = s.arcs.filter((t) => t.id !== e.id);
+      break;
+    }
     case 'offscreen.op': {
       const list = s.offscreen;
       let ot = list.find((o) => o.id === e.id);
@@ -800,6 +825,11 @@ function mergeTracks(list: Track[], from: string[], into: string): { keep: strin
     for (const b of src.beats) if (b && merged[merged.length - 1] !== b && !merged.includes(b)) merged.push(b);
   }
   keep.beats = merged.slice(-6);
+  // preserve the parent-arc link across the fold: the survivor inherits the
+  // target's arc if set, else any merged source's arc (so merging two threads of
+  // the same arc does not orphan the survivor from its arc).
+  if (target && (target as Track).arc) keep.arc = (target as Track).arc;
+  else for (const src of sources) if ((src as Track).arc) { keep.arc = (src as Track).arc; break; }
   if (!isFinite(keep.firstTurn)) keep.firstTurn = keep.lastTurn;
   // every source id is folded away; `keep` (fresh object or the target) is pushed
   // separately. When no target existed, keep borrows sources[0]'s id — that source

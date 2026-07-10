@@ -7,7 +7,7 @@ import { vectorSearch } from './embed.js';
 import { hashStr } from '../core/ids.js';
 import { traverseRanked, type CallModel, type TraversalTrace } from './traverse.js';
 import { traverseTree, type TreeTraversalTrace } from './traverse-tree.js';
-import { linkedOffscreen } from '../domain/offscreen.js';
+import { linkedOffscreen, linkedThreads } from '../domain/offscreen.js';
 import { spanLabel, formatDate } from '../domain/date-format.js';
 import { clockLabel } from '../domain/clock.js';
 
@@ -148,6 +148,32 @@ function structuredBlock(state: ChronicleState, budget: number): string {
     const beat = links[0]!.gist || links[0]!.beats[links[0]!.beats.length - 1] || '';
     return beat ? ' \u2014 off-screen: ' + beat : '';
   };
+  // ARC side of the arc<->thread bridge: an arc may own several threads, each with
+  // their own momentum. Roll the arc's own latest beat up with the latest beat of
+  // every thread linked to it, so the narrator reads the arc's true state rather
+  // than the single arc-line summary ("The Heist … A got the plans; B picked the
+  // lock"). Capped so a wide arc never blows the structured budget.
+  const arcBeat = (t: { id?: string; name: string }): string => {
+    const linked = linkedThreads(state, t);
+    if (!linked.length && !t.name) return '';
+    const clauses: string[] = [];
+    const seen = new Set<string>();
+    // strict label+beat budget: a long label is shortened, but the beat is NEVER
+    // dropped per truncation — the line is what carries the momentum detail. The
+    // budget bar (label ≤18 chars + beat ≤80) keeps a wide arc inside the shared
+    // structured block budget.
+    const note = (label: string, beats: string[]) => {
+      const b = beats[beats.length - 1];
+      if (b && !seen.has(b)) { seen.add(b); const lab = label.length > 18 ? label.slice(0, 18) + '…' : label; clauses.push(lab + ' — ' + b.slice(0, 80)); }
+    };
+    // enumerate the arc's owned threads (capped to keep the line compact), deduped
+    // by text so a shared milestone isn't repeated across sibling threads.
+    for (const th of linked.slice(0, 5)) {
+      note(th.name, th.beats);
+    }
+    if (!clauses.length) return '';
+    return ' \u2014 threads ' + linked.length + (linked.length > clauses.length ? ', ' + (linked.length - clauses.length) + ' quiet' : '') + ': ' + clauses.join('; ');
+  };
   // SKIP-LAG note: a thread last touched on a narrative day well before the
   // current day was left behind by a time-skip — the on-screen scene jumped ahead
   // while this thread's state is still pre-skip. Flag the elapsed span so the
@@ -158,15 +184,15 @@ function structuredBlock(state: ChronicleState, budget: number): string {
     const span = spanLabel(nowDay - t.lastDay);
     return span ? ' \u2014 last advanced ~' + span + ' ago; catch it up to now' : '';
   };
-  const trackLine = (t: { id?: string; name: string; status: string; lastDay?: number }, withOff: boolean): string =>
-    '- ' + t.name + (t.status && !/^(advance|new)$/i.test(t.status) ? ': ' + t.status : '') + (withOff ? offBeat(t) : '') + skipLag(t);
+  const trackLine = (t: { id?: string; name: string; status: string; lastDay?: number }, withOff: boolean, withArc = false): string =>
+    '- ' + t.name + (t.status && !/^(advance|new)$/i.test(t.status) ? ': ' + t.status : '') + (withOff ? offBeat(t) : '') + (withArc ? arcBeat(t) : '') + skipLag(t);
   // day-aware sort: order by narrative recency (lastDay) first, falling back to
   // turn order when days are absent/equal — so under a skip the freshest-day
   // threads lead and the lagging ones are visibly last (and carry the note above).
   const byRecency = (a: { lastDay?: number; lastTurn?: number }, b: { lastDay?: number; lastTurn?: number }): number =>
     ((b.lastDay ?? -1) - (a.lastDay ?? -1)) || ((b.lastTurn || 0) - (a.lastTurn || 0));
   const openThreads = state.threads.filter(isOpen).sort(byRecency).slice(0, 6).map((t) => trackLine(t, true));
-  const openArcs = state.arcs.filter(isOpen).sort(byRecency).slice(0, 2).map((t) => trackLine(t, false));
+  const openArcs = state.arcs.filter(isOpen).sort(byRecency).slice(0, 2).map((t) => trackLine(t, false, true));
 
   // present/active factions + their standing toward the player (authoritative,
   // like cast). Reuses the shared structured budget.

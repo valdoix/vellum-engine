@@ -194,7 +194,7 @@ export const EvArc = z.object({ ...base, kind: z.literal('arc.op'), op: z.enum([
 // `fill: true` marks a Time Sync catch-up beat that should REPLACE a trailing
 // "caught up: Day X → Day Y" placeholder marker rather than stack on top of it —
 // so authoring real content for a gap swaps out the bare marker in place.
-export const EvThreadSet = z.object({ ...base, kind: z.literal('thread.set'), id: z.string().optional(), name: z.string(), status: z.string().optional(), note: z.string().optional(), kindArc: z.boolean().optional(), fill: z.boolean().optional() });
+export const EvThreadSet = z.object({ ...base, kind: z.literal('thread.set'), id: z.string().optional(), name: z.string(), status: z.string().optional(), note: z.string().optional(), kindArc: z.boolean().optional(), fill: z.boolean().optional(), arc: z.string().optional() }); // optional parent-arc link ('' clears); only honored for threads (kindArc unset)
 export const EvThreadDrop = z.object({ ...base, kind: z.literal('thread.drop'), id: z.string() });
 export const EvArcDrop = z.object({ ...base, kind: z.literal('arc.drop'), id: z.string() });
 // Layer 3 — semantic reconcile: fold near-duplicate tracks (different words,

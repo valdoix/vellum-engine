@@ -3,7 +3,7 @@ import type { ChronicleState, Memory } from '../../domain/types.js';
 import { esc, byRecent, nameOf, emptyState, sectionHeader } from '../format.js';
 import { cmd, send, paginate, pagerHtml, filterBar, applyFilter, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
-import { linkedOffscreen } from '../../domain/offscreen.js';
+import { linkedOffscreen, linkedThreads } from '../../domain/offscreen.js';
 import { threadAwaitsFill, offscreenAwaitsFill } from '../../domain/thread-catchup.js';
 import { formatDate, spanLabel } from '../../domain/date-format.js';
 import { parseClock, clockLabel } from '../../domain/clock.js';
@@ -58,6 +58,9 @@ let _laggingOffIds: string[] = [];
 // expanded thread-card ids (World view). Session-only; cards start collapsed and
 // expand to reveal beat history, meanwhile note, and controls.
 const _threadExpanded = new Set<string>();
+// snapshot of open arcs refilled each render(), read by the arc-link click handler
+// (which runs in mount(), where render() state `s` is not in scope).
+let _arcSnapshot: Array<{ id: string; name: string; beats: string[] }> = [];
 
 /** First-sentence preview of a (possibly very long) stored turn text. We store
  * turns in FULL now; the chronicle shows only one line + an ellipsis, with the
@@ -87,7 +90,10 @@ export const chronicleTab: Component<ChronicleState> = {
       + '<span class="vle-subnav-g">Records</span>' + inGroup(['memory', 'knowledge', 'secrets', 'scars', 'codex', 'items'])
       + '</div>';
     let body = '';
-    if (_view === 'world') body = establishingShot(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) + desyncInspector(s) || '';
+    if (_view === 'world') {
+      _arcSnapshot = (s.arcs ?? []).filter((a) => !/resolv/i.test(a.status || '')).slice(0, 20).map((a) => ({ id: a.id, name: a.name, beats: a.beats }));
+      body = establishingShot(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) + desyncInspector(s) || '';
+    }
     else if (_view === 'timeline') body = timeline(s);
     else if (_view === 'turns') body = turnsView(s);
     else if (_view === 'beats') body = beatsView(s);
@@ -272,6 +278,36 @@ export const chronicleTab: Component<ChronicleState> = {
       if (tro) { send({ type: 'vellum_thread_set', id: tro.getAttribute('data-id'), name: tro.getAttribute('data-name'), status: 'advance', kindArc: tro.getAttribute('data-arc') === '1' }); return; }
       const tdel = t.closest('[data-track-del]');
       if (tdel) { confirmModal('Delete this thread? (removes it from the board now; the model may re-raise it if the story keeps naming it)', () => send({ type: 'vellum_thread_drop', id: tdel.getAttribute('data-id'), kindArc: tdel.getAttribute('data-arc') === '1' })); return; }
+      // arc<->thread bridge: unlink a thread from its arc (thread.set with arc='').
+      // Shared by the thread-card UNLINK button and the arc-card per-thread chip.
+      const tUnlink = t.closest('[data-thread-arc-unlink]');
+      if (tUnlink) {
+        const tid = tUnlink.getAttribute('data-id') || '';
+        const tname = tUnlink.getAttribute('data-name') || '';
+        formModal(`Unlink thread from its arc`, [
+          { key: 'confirm', label: `Unlink “${tname.length > 30 ? tname.slice(0, 30) + '…' : tname}” from its arc? (the thread stays; only the link is removed)`, type: 'select', value: 'no', options: [{ value: 'no', label: 'Cancel' }, { value: 'yes', label: 'Unlink' }] },
+        ], (o) => { if (o.confirm === 'yes') send({ type: 'vellum_thread_set', id: tid, name: tname, arc: '' }); });
+        return;
+      }
+      // arc<->thread bridge: pick an arc to link a thread to (thread.set with arc=id).
+      const tArcPick = t.closest('[data-thread-arc-pick]');
+      if (tArcPick) {
+        const tid = tArcPick.getAttribute('data-id') || '';
+        const tname = tArcPick.getAttribute('data-name') || '';
+        const opts = [{ value: '', label: '— cancel —' }, ..._arcSnapshot.map((a) => ({ value: a.id, label: `↳ ${a.name}${a.beats.length ? ' · ' + a.beats.length + ' beat' + (a.beats.length === 1 ? '' : 's') : ''}` }))];
+        if (_arcSnapshot.length === 0) {
+          // no open arcs yet — inline-create one rather than a dead-end: mirroring
+          // the existing arc-add flow (kindArc: true) so a link is always possible.
+          formModal('Link to a new arc', [
+            { key: 'name', label: 'New arc name', type: 'text', placeholder: 'The Long Reckoning' },
+          ], (o) => { if (o.name?.trim()) send({ type: 'vellum_thread_set', name: o.name.trim(), kindArc: true }); });
+          return;
+        }
+        formModal(`Link “${tname.length > 40 ? tname.slice(0, 40) + '…' : tname}” to an arc`, [
+          { key: 'arc', label: 'Parent arc', type: 'select', value: '', options: opts },
+        ], (o) => { if (o.arc) send({ type: 'vellum_thread_set', id: tid, name: tname, arc: o.arc }); });
+        return;
+      }
       const dset = t.closest('[data-day-set]');
       if (dset) {
         const cur = dset.getAttribute('data-day') || '';
@@ -499,7 +535,11 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
         ? `<button class="vle-mini" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">\u21BA</button>`
         : `<button class="vle-mini" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">\u2713</button>`;
       const ctl = `<div class="vle-arc-ctl">${editBtn}${stBtn}<button class="vle-mini del" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">\u2715</button></div>`;
-      
+      // arc<->thread bridge: list the threads owned by this arc (explicit links
+      // take priority over soft name-matches), each with an unlink button.
+      const owned = linkedThreads(s, t);
+      const ownedBlock = owned.length ? `<div class="vle-arc-threads">${owned.slice(0, 6).map((th) => `<span class="vle-arc-thread-chip">${esc(th.name.length > 22 ? th.name.slice(0, 22) + '…' : th.name)}<button class="vle-arc-thread-unlink" data-thread-arc-unlink data-id="${A(th.id)}" data-name="${A(th.name)}" title="Unlink">\u00d7</button></span>`).join('')}${owned.length > 6 ? `<span class="vle-arc-thread-chip vle-arc-thread-more">+${owned.length - 6}</span>` : ''}</div>` : '';
+
       return `<div class="vle-arc-card${resolved ? ' vle-arc-card--done' : ''}">
         <div class="vle-arc-name">${esc(t.name)}</div>
         <div class="vle-arc-meta">
@@ -508,6 +548,7 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
           <span class="vle-arc-status-label">${esc(statusText)}</span>
         </div>
         ${ctl}
+        ${ownedBlock}
       </div>`;
     }).join('');
     
@@ -528,14 +569,16 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     const resolved = /resolv/i.test(t.status || '');
     const expanded = _threadExpanded.has(t.id);
     
-    // Find parent arc (threads can be nested under arcs)
-    const parentArc = s.arcs.find(a => a.id === t.id || (t.beats.length && a.beats.some(b => t.beats.includes(b))));
+    // Parent arc: an EXPLICIT arc<->thread link (mirrors offscreen<->thread) — a
+    // thread declares which arc it belongs to. (The old heuristic that guessed by
+    // shared id / shared beat is gone: links are now real, user-wired associations.)
+    const parentArc = t.arc ? s.arcs.find(a => a.id === t.arc) : undefined;
     
     // Latest beat (always shown as preview/gist)
     const latestBeat = t.beats[t.beats.length - 1] || '';
     
     // Kicker: "Thread" (or arc name) — Establishing Shot style eyebrow
-    const kicker = `<div class="vle-thread-kicker">${parentArc ? esc(parentArc.name) : 'Thread'}</div>`;
+    const kicker = `<div class="vle-thread-kicker">${parentArc ? '↳ ' + esc(parentArc.name) : 'Thread'}</div>`;
     
     // Toggle chevron
     const toggleBtn = `<button class="vle-thread-toggle" data-thread-toggle="${A(t.id)}" aria-label="${expanded ? 'Collapse' : 'Expand'}">${expanded ? '\u25BC' : '\u25B6'}</button>`;
@@ -575,7 +618,13 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
         ? `<button class="vle-btn vle-btn--secondary" data-track-reopen data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Reopen">REOPEN</button>`
         : `<button class="vle-btn vle-btn--secondary" data-track-resolve data-id="${A(t.id)}" data-arc="${arc}" data-name="${A(t.name)}" title="Resolve">RESOLVE</button>`;
       const delBtn = `<button class="vle-btn vle-btn--danger" data-track-del data-id="${A(t.id)}" data-arc="${arc}" title="Delete">DELETE</button>`;
-      const ctl = `<div class="vle-thread-actions">${editBtn}${stBtn}${delBtn}</div>`;
+      // arc<->thread bridge controls: link this thread to an arc, or unlink it. The
+      // picker offers all existing arcs (thread.set with `arc`); unlink sends arc=''.
+      const curArc = t.arc ? (s.arcs.find(a => a.id === t.arc)?.name ?? t.arc) : '';
+      const arcCtl = parentArc
+        ? `<button class="vle-btn vle-btn--secondary" data-thread-arc-unlink data-id="${A(t.id)}" title="Unlink from arc ${esc(curArc)}">↳ ${esc(parentArc.name)} ✕</button>`
+        : `<button class="vle-btn vle-btn--secondary" data-thread-arc-pick data-id="${A(t.id)}" data-name="${A(t.name)}" title="Link to an arc">LINK ARC</button>`;
+      const ctl = `<div class="vle-thread-actions">${arcCtl}${editBtn}${stBtn}${delBtn}</div>`;
       
       body = `<div class="vle-thread-body">${beatCard}${hist}${offNote}${ctl}</div>`;
     }

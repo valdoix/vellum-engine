@@ -1508,11 +1508,14 @@ const dispatch: Record<string, Handler> = {
     const state = await loadState(chatId);
     const kindArc = !!p?.kindArc;
     const cur = p?.id ? (kindArc ? state.arcs : state.threads).find((t) => t.id === String(p.id)) : undefined;
+    // arc<->thread bridge: an optional `arc` field sets/clears the thread's
+    // parent-arc link ('' clears). Honored for threads only (kindArc stays false).
+    const arcField = p?.arc !== undefined && !kindArc ? { arc: String(p.arc || '') } : {};
     await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'thread.set',
       ...(p?.id ? { id: String(p.id) } : {}), name: name || cur?.name || '',
       ...(p?.status !== undefined ? { status: String(p.status) } : {}),
       ...(p?.note ? { note: String(p.note).slice(0, 200) } : {}),
-      ...(kindArc ? { kindArc: true } : {}) } as VellumEvent]);
+      ...(kindArc ? { kindArc: true } : {}), ...arcField } as VellumEvent]);
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_thread_done', ok: true }, uid);

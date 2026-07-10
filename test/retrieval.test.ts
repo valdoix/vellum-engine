@@ -163,3 +163,37 @@ describe('buildInjection — continuity guardrail', () => {
     expect(inj.text).toContain('month(s)'); // 35 days → ~1 month
   });
 });
+
+describe('buildInjection — arc <-> thread bridge', () => {
+  it('rolls an arc\u2019s linked threads\u2019 latest beats into the OPEN ARCS line', () => {
+    const s = stateWith();
+    s.cast = { ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false } };
+    s.scene = { location: 'Winterfell', tension: 4, time: 'dusk', weather: '', present: ['ned'], detail: [] };
+    s.arcs = [{ id: 'arc_the_letter', name: 'The Letter', status: 'advance', beats: ['the letter arrives sealed'], firstTurn: 2, lastTurn: 10 }];
+    s.threads = [
+      { id: 'thr_a', name: 'The Letter arrives', status: 'advance', beats: ['earlier beat', 'a courier rides first light at dawn'], firstTurn: 2, lastTurn: 6, arc: 'arc_the_letter' },
+      { id: 'thr_b', name: 'The letter burns', status: 'advance', beats: ['the fire is lit', 'B burns it before reading'], firstTurn: 3, lastTurn: 7, arc: 'arc_the_letter' },
+    ];
+    const inj = buildInjection('chatArc', s, 'the letter');
+    expect(inj.text).toContain('OPEN THREADS & ARCS');
+    // the linked threads are enumerated under the arc line, each with its LATEST beat
+    expect(inj.text).toContain('The Letter arrives');
+    expect(inj.text).toContain('a courier rides first light at dawn');
+    expect(inj.text).toContain('The letter burns');
+    expect(inj.text).toContain('B burns it before reading');
+    // the off-screen reflection also still works for threads
+    expect(inj.text).not.toContain('off-screen:');
+  });
+
+  it('soft-matches threads to an arc by shared tokens when no explicit link exists', () => {
+    const s = stateWith();
+    s.cast = { ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false } };
+    s.scene = { location: 'Winterfell', tension: 4, time: 'dusk', weather: '', present: ['ned'], detail: [] };
+    s.arcs = [{ id: 'arc_siege', name: 'The Siege of Winterfell', status: 'advance', beats: [], firstTurn: 2, lastTurn: 10 }];
+    // no arc= link, but the thread name contains the arc's tokens → soft match
+    s.threads = [{ id: 'thr_x', name: 'The Siege of Winterfell escalates at the gate', status: 'advance', beats: ['catapults roll at dawn'], firstTurn: 2, lastTurn: 8 }];
+    const inj = buildInjection('chatArcSoft', s, 'the siege');
+    expect(inj.text).toContain('The Siege of Winterfell escalates at the gate');
+    expect(inj.text).toContain('catapults roll at dawn');
+  });
+});

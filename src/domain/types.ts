@@ -145,17 +145,21 @@ export interface Memory {
 
 export interface Track {
   id: string;          // stable engine-assigned id (slug of the first title); the
-                       // model keeps speaking in titles, the engine owns the id
+                        // model keeps speaking in titles, the engine owns the id
   name: string;
   status: string;
   beats: string[];     // running history of what happened (newest last, capped) —
-                       // mirrors OffscreenThread so threads & subplots share a shape
+                        // mirrors OffscreenThread so threads & subplots share a shape
+  arc?: string;        // OPTIONAL explicit link to a parent arc's stable id — a thread
+                        // declares which arc it belongs to (many threads -> one arc);
+                        // the mirror of OffscreenThread.thread, the lowest layer of the
+                        // arc<->thread bridge. A thread with no arc stands alone.
   firstTurn: number;
   lastTurn: number;
   firstDay?: number;   // narrative day the thread first appeared (derived; optional
-                       // so pre-day-stamp logs & existing callers stay valid)
+                        // so pre-day-stamp logs & existing callers stay valid)
   lastDay?: number;    // narrative day of the thread's latest step — the anchor for
-                       // skip-desync detection against off-screen threads
+                        // skip-desync detection against off-screen threads
 }
 
 export interface PresentChar {
