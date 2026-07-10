@@ -836,6 +836,19 @@ export function setup(ctx: Ctx): () => void {
       const pid = btn.getAttribute('data-pt-preset') ?? '';
       const link = btn.getAttribute('data-pt-link') === 'link';
       if (!pid) return;
+      // Write directly through updatePreset so the host's draft updates immediately
+      // and triggers onChange → re-render. Backend call persists to DB.
+      try {
+        (ctx.ui as any).presetEditor?.updatePreset?.((preset: any) => ({
+          ...preset,
+          metadata: {
+            ...preset.metadata,
+            vellum_engine: link
+              ? { ...(preset.metadata?.vellum_engine ?? {}), version: '2.0.0-beta.1', identifier: 'vellum_engine', linkedAt: Date.now() }
+              : { ...(preset.metadata?.vellum_engine ?? {}), identifier: null },
+          },
+        }), { immediate: true });
+      } catch { /* API may not be available — fall back to backend-only */ }
       ctx.sendToBackend({ type: 'vellum_preset_tab_link', presetId: pid, link });
     });
     root.querySelector('[data-pt-fix-instructions]')?.addEventListener('click', (e) => {
@@ -1024,16 +1037,9 @@ export function setup(ctx: Ctx): () => void {
         };
         try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
       } else if (p?.type === 'vellum_preset_tab_link_done') {
-        // Preset editor tab: link/unlink completed — the host's presetEditor.onChange
-        // fires the re-render automatically, but nudge one in case it doesn't.
-        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? (p.linked ? 'Preset linked to VELLUM.' : 'Preset unlinked.') : 'Link update failed.');
-        // Force a re-render because the metadata write via stampPresetMetadata doesn't
-        // trigger the host's presetEditor.onChange (that only fires on updatePreset calls).
-        // We need to re-read the preset's metadata to show the updated linked state.
-        setTimeout(() => { try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }, 150);
+        if (!p.ok) notify(ctx, 'warning', 'Link update failed.');
       } else if (p?.type === 'vellum_preset_tab_fix_done') {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? 'Inserted the VELLUM state block.' : `Could not insert block: ${p.reason ?? 'error'}`);
-        // The host's onChange should fire for block creation, but re-render just in case.
         setTimeout(() => { try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }, 150);
       } else if (p?.type === 'vellum_continuity') {
         // Plot Director: passive continuity warnings — advise, never block.
