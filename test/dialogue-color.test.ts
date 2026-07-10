@@ -41,8 +41,8 @@ describe('buildColorReplaceString', () => {
   it('uses explicit dialogueColor when set', () => {
     const s = makeCast([{ id: 'cersei', name: 'Cersei', dialogueColor: '#ff0000' }]);
     const out = buildColorReplaceString(s);
-    expect(out).toContain('Cersei::#ff0000');
-    expect(out).toContain('{{switch::$1::');
+    expect(out).toContain('cersei::#ff0000'); // lowercased
+    expect(out).toContain('{{switch::{{lower::$1}}::'); // wrapped in {{lower}}
     expect(out).toContain('#b9ad92'); // default ink fallback
   });
 
@@ -50,14 +50,14 @@ describe('buildColorReplaceString', () => {
     const s = makeCast([{ id: 'jaime', name: 'Jaime' }]);
     const slot = castSlotColors(['jaime']).get('jaime')!;
     const out = buildColorReplaceString(s);
-    expect(out).toContain(`Jaime::${slot}`);
+    expect(out).toContain(`jaime::${slot}`); // lowercased
   });
 
   it('includes akas mapped to the same color', () => {
     const s = makeCast([{ id: 'cersei', name: 'Cersei', aka: ['The Queen'], dialogueColor: '#abcdef' }]);
     const out = buildColorReplaceString(s);
-    expect(out).toContain('Cersei::#abcdef');
-    expect(out).toContain('The Queen::#abcdef');
+    expect(out).toContain('cersei::#abcdef'); // lowercased
+    expect(out).toContain('the queen::#abcdef'); // lowercased
   });
 
   it('wraps output in a colored span with title', () => {

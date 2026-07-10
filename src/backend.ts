@@ -1360,6 +1360,8 @@ const dispatch: Record<string, Handler> = {
     // deleting OR editing a chapter/arc memory must reconcile its mirrored Vault
     // entry (drop orphans; re-project edited detail/keys).
     if (p.cmd === 'memory_delete' || p.cmd === 'memory_edit') void maybeChapterVault(chatId, uid);
+    // editing cast triggers colored-dialogue script regeneration (if enabled)
+    if (p.cmd === 'cast_upsert' || p.cmd === 'cast_edit' || p.cmd === 'cast_delete') void maybeColorSync(chatId, uid);
   },
   vellum_summarize: async (p, uid) => {
     // manual "summarize past turns" — compress as many full windows as exist.

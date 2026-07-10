@@ -24,20 +24,22 @@ function escapeForSwitch(name: string): string {
  * Build the `{{switch}}` replacement string that maps each speaker name to
  * their color. Explicit `dialogueColor` wins; unset → slot color; unknown → ink.
  * 
- * If the cast is huge (>NAME_CAP), falls back to a first-letter switch.
+ * All names are lowercased for case-insensitive matching (the input $1 is also
+ * wrapped in {{lower::...}}). If the cast is huge (>NAME_CAP), falls back to a
+ * first-letter switch.
  */
 export function buildColorReplaceString(state: ChronicleState): string {
   const cast = Object.values(state.cast);
   const slotColors = castSlotColors(cast.map((c) => c.id));
   
-  // Gather all names (cast name + akas) → color
+  // Gather all names (cast name + akas) → color (LOWERCASED keys for case-insensitive match)
   const nameToColor = new Map<string, string>();
   for (const c of cast) {
     const color = c.dialogueColor && /^#[0-9a-fA-F]{6}$/.test(c.dialogueColor)
       ? c.dialogueColor
       : (slotColors.get(c.id) ?? DEFAULT_INK);
-    nameToColor.set(c.name, color);
-    for (const aka of c.aka ?? []) if (aka.trim()) nameToColor.set(aka.trim(), color);
+    nameToColor.set(c.name.toLowerCase(), color);
+    for (const aka of c.aka ?? []) if (aka.trim()) nameToColor.set(aka.trim().toLowerCase(), color);
   }
   
   // If too many names, fall back to first-letter switch (like the preset)
@@ -45,12 +47,12 @@ export function buildColorReplaceString(state: ChronicleState): string {
     return buildFirstLetterSwitch();
   }
   
-  // Build the switch: {{switch::$1::Name1::#hex1::Name2::#hex2::...::defaultInk}}
+  // Build the switch with lowercased input: {{switch::{{lower::$1}}::name1::#hex1::...}}
   const pairs: string[] = [];
   for (const [name, color] of nameToColor.entries()) {
     pairs.push(`${escapeForSwitch(name)}::${color}`);
   }
-  const switchExpr = `{{switch::$1::${pairs.join('::')}::${DEFAULT_INK}}}`;
+  const switchExpr = `{{switch::{{lower::$1}}::${pairs.join('::')}::${DEFAULT_INK}}}`;
   
   return `<span style="color:${switchExpr}" title="$1">$2</span>`;
 }
