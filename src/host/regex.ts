@@ -83,6 +83,7 @@ export async function upsertScript(input: ScriptInput, uid: string | null): Prom
       description: input.description ?? '',
       folder: input.folder ?? 'VELLUM Engine',
       script_id: input.script_id,
+      disabled: false, // VELLUM scripts default to enabled
       metadata: { vellum: true, ...(input.metadata ?? {}) },
     };
     if (existing?.id) { await a.update(String(existing.id), body, uid); return String(existing.id); }

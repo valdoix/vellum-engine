@@ -806,7 +806,7 @@ const _colorSyncing = new Set<string>();
  */
 async function maybeColorSync(chatId: string, userId: string | null): Promise<void> {
   if (_colorSyncing.has(chatId)) return;
-  if (!(await hasRegex())) return;
+  if (!(await hasRegex())) { spindle.log?.info?.('[vellum_engine] colored-dialogue: regex_scripts permission not granted — skipping'); return; }
   const on = !!(await getChatVar(chatId, 'vellum_colored_dialogue'));
   _colorSyncing.add(chatId);
   try {
@@ -815,22 +815,30 @@ async function maybeColorSync(chatId: string, userId: string | null): Promise<vo
       await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, userId);
       await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, userId);
       await setScriptDisabled('vellum2-spk-display', false, userId); // best-effort restore
+      spindle.log?.info?.(`[vellum_engine] colored-dialogue: OFF for ${chatId} — scripts removed`);
       return;
     }
     // Feature on: check if regeneration needed (castHash changed)
     const state = await loadState(chatId);
     const hash = castColorHash(state);
     const currentMeta = await scriptMeta(`vellum-engine-spk-display-${chatId}`, userId);
-    if (currentMeta && currentMeta.castHash === hash) return; // unchanged, skip
+    if (currentMeta && currentMeta.castHash === hash) {
+      spindle.log?.info?.(`[vellum_engine] colored-dialogue: unchanged for ${chatId} (hash ${hash.slice(0, 8)}) — skipping`);
+      return; // unchanged, skip
+    }
     
     // Generate and upsert both scripts
     const scripts = colorScripts(chatId, state);
-    for (const script of scripts) await upsertScript(script, userId);
+    let ok = 0, failed = 0;
+    for (const script of scripts) {
+      const r = await upsertScript(script, userId);
+      if (r.ok) ok++; else { failed++; spindle.log?.warn?.(`[vellum_engine] colored-dialogue: upsert ${script.script_id} failed: ${r.error}`); }
+    }
     
     // Disable the preset's competing display script to avoid double-wrap
     await setScriptDisabled('vellum2-spk-display', true, userId);
     
-    spindle.log?.info?.(`[vellum_engine] colored-dialogue: regenerated scripts for ${chatId} (hash ${hash.slice(0, 8)})`);
+    spindle.log?.info?.(`[vellum_engine] colored-dialogue: regenerated ${ok}/${scripts.length} scripts for ${chatId} (hash ${hash.slice(0, 8)}, ${state.cast ? Object.keys(state.cast).length : 0} cast, ${failed} failed)`);
   } catch (e) { spindle.log?.warn?.('[vellum_engine] maybeColorSync: ' + ((e as Error)?.message ?? e)); }
   finally { _colorSyncing.delete(chatId); }
 }
