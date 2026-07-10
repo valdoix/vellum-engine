@@ -2102,6 +2102,24 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const enabled = !!p?.enabled;
+    
+    // If turning ON and scripts are orphaned (exist but unfindable), force-delete by brute-force ID scan
+    if (enabled && (await hasRegex())) {
+      try {
+        const api = spindle.regex_scripts;
+        if (api?.list && api?.delete) {
+          const all = await api.list({ limit: 500 });
+          const arr: any[] = Array.isArray(all) ? all : (all?.data ?? all?.items ?? []);
+          for (const s of arr) {
+            if (s?.script_id === `vellum-engine-spk-display-${chatId}` || s?.script_id === `vellum-engine-spk-strip-${chatId}`) {
+              spindle.log?.info?.(`[vellum_engine] colored-dialogue: force-deleting orphaned script ${s.script_id} (id=${s.id})`);
+              await api.delete(String(s.id), uid).catch(() => {});
+            }
+          }
+        }
+      } catch (e) { spindle.log?.warn?.('[vellum_engine] force-delete orphaned scripts failed: ' + ((e as Error)?.message ?? e)); }
+    }
+    
     try { await setChatVar(chatId, 'vellum_colored_dialogue', enabled ? '1' : ''); } catch { /* best effort */ }
     await maybeColorSync(chatId, uid); // immediate apply/teardown
     spindle.sendToFrontend?.({ type: 'vellum_colored_dialogue_set_done', ok: true, enabled, available: await hasRegex() }, uid);
