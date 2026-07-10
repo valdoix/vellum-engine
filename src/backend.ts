@@ -813,8 +813,8 @@ async function maybeColorSync(chatId: string, userId: string | null): Promise<vo
     const scope = { scope: 'chat', scopeId: chatId };
     if (!on) {
       // Feature off: remove our scripts if present, restore preset's vellum2-spk-display
-      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, userId, scope);
-      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, userId, scope);
+      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}-v2`, userId, scope);
+      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}-v2`, userId, scope);
       await setScriptDisabled('vellum2-spk-display', false, userId); // preset's is global, no scope
       spindle.log?.info?.(`[vellum_engine] colored-dialogue: OFF for ${chatId} — scripts removed`);
       return;
@@ -822,7 +822,7 @@ async function maybeColorSync(chatId: string, userId: string | null): Promise<vo
     // Feature on: check if regeneration needed (castHash changed)
     const state = await loadState(chatId);
     const hash = castColorHash(state);
-    const currentMeta = await scriptMeta(`vellum-engine-spk-display-${chatId}`, userId, scope);
+    const currentMeta = await scriptMeta(`vellum-engine-spk-display-${chatId}-v2`, userId, scope);
     if (currentMeta && currentMeta.castHash === hash) {
       spindle.log?.info?.(`[vellum_engine] colored-dialogue: unchanged for ${chatId} (hash ${hash.slice(0, 8)}) — skipping`);
       return; // unchanged, skip
@@ -1933,8 +1933,8 @@ const dispatch: Record<string, Handler> = {
     // Clean up colored-dialogue scripts
     const scope = { scope: 'chat', scopeId: chatId };
     try {
-      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, uid, scope);
-      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, uid, scope);
+      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}-v2`, uid, scope);
+      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}-v2`, uid, scope);
       await setScriptDisabled('vellum2-spk-display', false, uid); // restore preset script
     } catch { /* best effort */ }
     await broadcastState(chatId, uid);
@@ -2118,17 +2118,21 @@ const dispatch: Record<string, Handler> = {
           
           let deleted = 0;
           for (const s of arr) {
-            if (s?.script_id === `vellum-engine-spk-display-${chatId}` || s?.script_id === `vellum-engine-spk-strip-${chatId}`) {
-              spindle.log?.info?.(`[vellum_engine] colored-dialogue: force-deleting orphaned script ${s.script_id} (id=${s.id})`);
+            // Delete both v1 (orphaned) and v2 scripts to ensure clean slate
+            if (s?.script_id === `vellum-engine-spk-display-${chatId}` || 
+                s?.script_id === `vellum-engine-spk-strip-${chatId}` ||
+                s?.script_id === `vellum-engine-spk-display-${chatId}-v2` || 
+                s?.script_id === `vellum-engine-spk-strip-${chatId}-v2`) {
+              spindle.log?.info?.(`[vellum_engine] colored-dialogue: force-deleting script ${s.script_id} (id=${s.id})`);
               await api.delete(String(s.id), uid).catch(() => {});
               deleted++;
             }
           }
           if (deleted === 0) {
-            spindle.log?.info?.(`[vellum_engine] colored-dialogue: no orphaned scripts found in list (searched for vellum-engine-spk-*-${chatId})`);
+            spindle.log?.info?.(`[vellum_engine] colored-dialogue: no orphaned scripts found in list (searched for vellum-engine-spk-*-${chatId}*)`);
             // Last resort: try to get by script_id directly if the API supports it
             if (api.get) {
-              for (const scriptId of [`vellum-engine-spk-display-${chatId}`, `vellum-engine-spk-strip-${chatId}`]) {
+              for (const scriptId of [`vellum-engine-spk-display-${chatId}`, `vellum-engine-spk-strip-${chatId}`, `vellum-engine-spk-display-${chatId}-v2`, `vellum-engine-spk-strip-${chatId}-v2`]) {
                 try {
                   const direct = await api.get(scriptId, uid);
                   if (direct?.id) {

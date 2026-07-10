@@ -101,7 +101,7 @@ export function colorScripts(chatId: string, state: ChronicleState): ScriptInput
   const hash = castColorHash(state);
   
   const displayScript: ScriptInput = {
-    script_id: `vellum-engine-spk-display-${chatId}`,
+    script_id: `vellum-engine-spk-display-${chatId}-v2`,
     name: 'VELLUM Engine — Colored dialogue (display)',
     find_regex: '\\[spk=([^\\]]{0,40})\\]([\\s\\S]*?)\\[/spk\\]',
     replace_string: replaceString,
@@ -119,7 +119,7 @@ export function colorScripts(chatId: string, state: ChronicleState): ScriptInput
   };
   
   const stripScript: ScriptInput = {
-    script_id: `vellum-engine-spk-strip-${chatId}`,
+    script_id: `vellum-engine-spk-strip-${chatId}-v2`,
     name: 'VELLUM Engine — Strip speaker tags (prompt)',
     find_regex: '\\[/?spk(?:=[^\\]]{0,40})?\\]',
     replace_string: '',
