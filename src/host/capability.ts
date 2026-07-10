@@ -7,7 +7,7 @@ declare const spindle: any;
  * hammer the host every turn.
  */
 
-export type Capability = 'generation' | 'world_books' | 'memories' | 'chats' | 'chat_mutation' | 'interceptor' | 'regex_scripts';
+export type Capability = 'generation' | 'world_books' | 'memories' | 'chats' | 'chat_mutation' | 'interceptor';
 
 let _granted: Set<string> | null = null;
 
@@ -20,7 +20,7 @@ export async function grantedPermissions(): Promise<Set<string>> {
       const g = await spindle.permissions.getGranted();
       if (Array.isArray(g)) g.forEach((p: string) => out.add(p));
     } else if (spindle.permissions?.has) {
-      for (const p of ['generation', 'world_books', 'memories', 'chats', 'chat_mutation', 'interceptor', 'ui_panels', 'regex_scripts']) {
+      for (const p of ['generation', 'world_books', 'memories', 'chats', 'chat_mutation', 'interceptor', 'ui_panels']) {
         try { if (spindle.permissions.has(p)) out.add(p); } catch { /* ignore */ }
       }
     }

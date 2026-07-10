@@ -52,7 +52,6 @@ const PATHS: Record<string, string> = {
   traverse: '<circle cx="12" cy="5" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M12 7v4M12 11l-5 5M12 11l5 5"/>',
   tone: '<path d="M12 20s-7-4.5-7-9.5A4 4 0 0 1 12 7a4 4 0 0 1 7 3.5C19 15.5 12 20 12 20z"/>',
   offscreen: '<path d="M18 14a7 7 0 0 1-9-9 7 7 0 1 0 9 9z"/>',
-  coloreddialogue: '<circle cx="12" cy="12" r="8"/><circle cx="8" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/><circle cx="14" cy="14" r="1.5" fill="currentColor" stroke="none"/>',
   foldtoast: '<path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7l-4 3v-3H6a2 2 0 0 1-2-2z"/><path d="M9 9h6M9 11.5h4" opacity=".8"/>',
   export: '<path d="M12 4v10"/><path d="M8 8l4-4 4 4"/><path d="M5 16v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/>',
   exportmd: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M8.5 16v-4l1.8 2 1.8-2v4" opacity=".9"/><path d="M14.5 12v4M14.5 16l-1.3-1.4M14.5 16l1.3-1.4"/>',

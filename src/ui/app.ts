@@ -24,7 +24,6 @@ import type { Component } from './component.js';
 import { wireBridge, wirePagers, wireFilters, refreshUI, send, cmd } from './bridge.js';
 import { maybeShowOnboarding, openOnboarding } from './onboarding.js';
 import { confirmModal, formModal } from './modal.js';
-import { buildSpeakerColorMap, colorizeBubble, unwrapBubble, SPK_STYLES } from './spk-color.js';
 
 /**
  * Frontend entrypoint. One reusable shell (tab bar + QOL toolbar + body) is
@@ -39,17 +38,7 @@ interface Ctx {
     registerDrawerTab(opts: Record<string, unknown>): { root: HTMLElement; destroy(): void };
     registerInputBarAction?(opts: Record<string, unknown>): { destroy(): void };
   };
-  dom: {
-    addStyle(css: string): { remove(): void };
-    cleanup(): void;
-    findMessageElement(messageId: string): Element | null;
-    listMessageElements(): { messageId: string; element: Element }[];
-    getMessageId(el: Element): string | null;
-  };
-  messages?: {
-    getLatestMessageId(): string | null;
-    listMessageIds(): string[];
-  };
+  dom: { addStyle(css: string): { remove(): void }; cleanup(): void };
   sendToBackend(payload: Record<string, unknown>): void;
   onBackendMessage(handler: (payload: any) => void): () => void;
   events?: { on(name: string, fn: (...args: any[]) => void): () => void };
@@ -165,7 +154,6 @@ const QOL = [
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
-  { id: 'coloreddialogue', label: '\u25C6 Colored dialogue', title: 'Tint each character\u2019s spoken lines with their cast-card color (needs the regex_scripts permission + the preset\u2019s Colored Dialogue block emitting [spk=] tags)', group: 'toggle' },
   { id: 'foldtoast', label: '\u2261 Tracker Update Toast', title: 'Show a brief toast after each turn as the tracker updates (scene first, then the deep memory pass). Off by default.', group: 'toggle' },
   // run = one-shot verbs
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'run' },
@@ -394,8 +382,6 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
-let _coloredDialogueOn = false; // colored-dialogue toggle, mirrored from backend
-let _spkColorMap = new Map<string, string>(); // speaker(lower)→#hex, rebuilt each vellum_state
 let _traverseMode = 'off'; // off | flat | tree
 let _traverseAxis = 'temporal'; // temporal | character | hybrid (tree only)
 const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === 'hybrid' ? 'by char+time' : 'by time';
@@ -434,36 +420,6 @@ function setQolBusy(id: string, busy: boolean, timeoutMs = 30000): void {
   if (busy) _busyTimers.set(id, setTimeout(() => setQolBusy(id, false), timeoutMs));
 }
 
-// ── Colored dialogue (frontend display transform) ──────────────────────────
-// Color [spk=Name]…[/spk] tags in rendered assistant bubbles using the cast
-// color map (rebuilt from each vellum_state). No host regex scripts / permission.
-// Guarded by the per-chat toggle; unwinds cleanly when toggled off.
-
-/** Colorize a single mounted bubble by message id (no-op if not mounted / off). */
-function spkColorizeById(messageId: string | null | undefined): void {
-  if (!_coloredDialogueOn || !messageId || !_ctxRef) return;
-  try {
-    const el = _ctxRef.dom.findMessageElement(messageId);
-    if (el) colorizeBubble(el, _spkColorMap);
-  } catch { /* best effort */ }
-}
-
-/** Sweep every currently-mounted bubble and colorize (used on state/chat-switch). */
-function spkColorizeAll(): void {
-  if (!_coloredDialogueOn || !_ctxRef) return;
-  try {
-    for (const { element } of _ctxRef.dom.listMessageElements()) colorizeBubble(element, _spkColorMap);
-  } catch { /* best effort */ }
-}
-
-/** Remove our colored spans from all mounted bubbles (used when toggled off). */
-function spkUnwrapAll(): void {
-  if (!_ctxRef) return;
-  try {
-    for (const { element } of _ctxRef.dom.listMessageElements()) unwrapBubble(element);
-  } catch { /* best effort */ }
-}
-
 /** Open the grouped Actions menu as an overlay. Items reuse the same `data-qol`
  * ids so all existing busy/toggle wiring keeps working; only the container moved
  * off the always-on toolbar. Toggles render their current state inline. The menu
@@ -476,7 +432,6 @@ function openActions(ctx: Ctx): void {
     const toggleState: Record<string, string> = {
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
-      coloreddialogue: _coloredDialogueOn ? 'on' : 'off',
       foldtoast: _foldToastOn ? 'on' : 'off',
       traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
       tone: (_tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living' && _tone.politics === 'off') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition} \u00b7 ${_tone.social}${_tone.politics !== 'off' ? ' \u00b7 pol:' + _tone.politics : ''}`,
@@ -575,7 +530,6 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
-  else if (id === 'coloreddialogue') { _coloredDialogueOn = !_coloredDialogueOn; ctx.sendToBackend({ type: 'vellum_set_colored_dialogue', enabled: _coloredDialogueOn }); }
   else if (id === 'foldtoast') {
     _foldToastOn = !_foldToastOn;
     setPref('foldToast', _foldToastOn);
@@ -772,7 +726,7 @@ export function setup(ctx: Ctx): () => void {
   // auto-name / fold-toast) persist host-side too, so they survive an extension
   // reload that wipes localStorage — same durability the theme already had.
   setPrefsPersist((json) => ctx.sendToBackend({ type: 'vellum_set_prefs', prefs: json }));
-  const style = ctx.dom.addStyle(FONT_FACES + '\n' + STYLES + '\n' + SPK_STYLES);
+  const style = ctx.dom.addStyle(FONT_FACES + '\n' + STYLES);
   let state: ChronicleState = freshState();
   const getState = (): ChronicleState => state;
 
@@ -861,12 +815,7 @@ export function setup(ctx: Ctx): () => void {
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
-        if (typeof p.coloredDialogue === 'boolean') { _coloredDialogueOn = p.coloredDialogue; document.querySelectorAll('[data-qol=\'coloreddialogue\']').forEach((b) => b.classList.toggle('on', _coloredDialogueOn)); }
         if (typeof p.hide === 'boolean') { _hideOn = p.hide; document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn)); }
-        // rebuild the speaker→color map from the fresh cast, then recolor mounted
-        // bubbles so a cast-card color change (or toggle) reflects immediately.
-        _spkColorMap = buildSpeakerColorMap(state);
-        if (_coloredDialogueOn) spkColorizeAll(); else spkUnwrapAll();
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
         if (Array.isArray(p.directives)) { setDirectorDirectives(p.directives); }
@@ -1095,11 +1044,7 @@ export function setup(ctx: Ctx): () => void {
     } catch (e) { try { console.warn('[vellum] message handler:', e); } catch { /* ignore */ } }
   });
 
-  // Colored dialogue: recolor a bubble the moment it (re)renders. These host
-  // events fire post-stream / on edit / on swipe, so we never fight the token
-  // stream. A short defer lets the host finish painting the bubble first.
-  const spkSoon = (id?: string | null): void => { setTimeout(() => (id ? spkColorizeById(id) : spkColorizeAll()), 30); };
-  const offChat = ctx.events?.on('CHAT_SWITCHED', () => { resetGraphCache(); ctx.sendToBackend({ type: 'vellum_get_state' }); spkSoon(); });
+  const offChat = ctx.events?.on('CHAT_SWITCHED', () => { resetGraphCache(); ctx.sendToBackend({ type: 'vellum_get_state' }); });
   // After a turn finishes the backend folds and broadcasts vellum_state on its
   // own (including an EARLY broadcast before the slow prose extractor). So this is
   // just a safety net for the case where that broadcast never arrives (a missed
@@ -1111,9 +1056,6 @@ export function setup(ctx: Ctx): () => void {
     const mark = Date.now();
     setTimeout(() => { if (_lastStateAt < mark) ctx.sendToBackend({ type: 'vellum_get_state' }); }, 700);
   });
-  const offRendered = ctx.events?.on('CHARACTER_MESSAGE_RENDERED', (e: any) => spkSoon(e?.messageId ?? e?.message_id ?? ctx.messages?.getLatestMessageId?.()));
-  const offEdited = ctx.events?.on('MESSAGE_EDITED', (e: any) => spkSoon(e?.messageId ?? e?.message_id));
-  const offSwiped = ctx.events?.on('MESSAGE_SWIPED', (e: any) => spkSoon(e?.messageId ?? e?.message_id));
   ctx.sendToBackend({ type: 'vellum_get_state' });
 
   // First-run guide: shows once (flag in localStorage), re-openable from Actions ▸ Help.
@@ -1123,9 +1065,6 @@ export function setup(ctx: Ctx): () => void {
     try { unsub(); } catch { /* ignore */ }
     try { offChat?.(); } catch { /* ignore */ }
     try { offGen?.(); } catch { /* ignore */ }
-    try { offRendered?.(); } catch { /* ignore */ }
-    try { offEdited?.(); } catch { /* ignore */ }
-    try { offSwiped?.(); } catch { /* ignore */ }
     try { drawer.destroy(); } catch { /* ignore */ }
     try { float.destroy(); } catch { /* ignore */ }
     try { inputBtn?.destroy(); } catch { /* ignore */ }

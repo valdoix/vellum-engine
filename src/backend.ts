@@ -117,7 +117,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, coloredDialogueRaw] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -133,16 +133,14 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     readCalendar(chatId),
     readTheme(),
     readPrefs(),
-    getChatVar(chatId, 'vellum_colored_dialogue').catch(() => ''),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
   const hide = !!hideRaw;
-  const coloredDialogue = !!coloredDialogueRaw;
   const traversalMode = travOn ? (travModeRaw === 'tree' ? 'tree' : 'flat') : 'off';
   const theme = themeRaw ?? null;
   const prefs = prefsRaw ?? null;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, coloredDialogue, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs }, userId ?? currentUser());
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -919,72 +917,9 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
 }
 const AUTO_SUMMARY_AT = 16; // compress the oldest 8 once 16 turn-memories accrue
 
-/**
- * One-shot orphan purge: delete all vellum-engine-spk-* regex scripts that
- * accumulated during debugging (API visibility bugs meant scripts were created
- * but never cleaned up). Paginates through ALL scripts (200 per page) to find
- * and delete every orphan. Runs only if the regex_scripts permission is still
- * granted; safe to remove in a future release once confirmed clean.
- */
-async function purgeOrphanedSpkScripts(): Promise<void> {
-  try {
-    if (!(await has('regex_scripts'))) return; // permission already dropped, nothing to purge
-    const api = spindle.regex_scripts;
-    if (!api?.list || !api?.delete) return;
-    
-    const uid = currentUser();
-    let deleted = 0;
-    let offset = 0;
-    const limit = 200;
-    const toDelete: { id: string; script_id: string }[] = [];
-    
-    // Paginate through all scripts to find every vellum-engine-spk-* orphan
-    while (true) {
-      const page = await api.list({ limit, offset, ...(uid ? { userId: uid } : {}) });
-      const arr: any[] = Array.isArray(page) ? page : (page?.data ?? page?.items ?? []);
-      if (!arr.length) break; // no more pages
-      
-      for (const s of arr) {
-        if (s?.script_id && s.script_id.includes('vellum-engine-spk-')) {
-          toDelete.push({ id: String(s.id), script_id: s.script_id });
-        }
-      }
-      
-      if (arr.length < limit) break; // last page
-      offset += limit;
-    }
-    
-    if (toDelete.length === 0) {
-      spindle.log?.info?.('[vellum_engine] purge: no orphaned vellum-engine-spk-* scripts found');
-      return;
-    }
-    
-    spindle.log?.info?.(`[vellum_engine] purge: found ${toDelete.length} orphaned scripts, deleting...`);
-    for (const { id, script_id } of toDelete) {
-      try {
-        await api.delete(id, uid);
-        deleted++;
-      } catch (e) {
-        spindle.log?.warn?.(`[vellum_engine] purge: failed to delete ${script_id} (id=${id}): ${(e as Error)?.message ?? e}`);
-      }
-    }
-    
-    spindle.log?.info?.(`[vellum_engine] purge: deleted ${deleted}/${toDelete.length} orphaned scripts`);
-  } catch (e) {
-    spindle.log?.warn?.('[vellum_engine] purge failed: ' + ((e as Error)?.message ?? e));
-  }
-}
-
 async function boot(): Promise<void> {
   await restoreUser();
   await wireCapabilities(); // attach interceptor + generation fold if already granted
-  
-  // One-shot orphan purge: delete all vellum-engine-spk-* regex scripts created
-  // during earlier debugging (hundreds accumulated due to API visibility bugs).
-  // Runs once if the regex_scripts permission is still granted, then no-ops.
-  // Safe to remove in a future release once confirmed clean.
-  void purgeOrphanedSpkScripts();
-  
   spindle.log?.info?.('[vellum_engine] booted — event-log core online');
 }
 void boot();
@@ -2097,19 +2032,6 @@ const dispatch: Record<string, Handler> = {
     const covered = coveredTurn(state);
     const res = await syncHideOnFile(chatId, enabled, covered);
     spindle.sendToFrontend?.({ type: 'vellum_hide_done', ok: true, enabled, ...res }, uid);
-  },
-  vellum_set_colored_dialogue: async (p, uid) => {
-    // Toggle colored character dialogue. Now a pure frontend display transform (no
-    // host regex scripts), so this just persists the per-chat toggle and broadcasts
-    // so the frontend can (un)colorize mounted bubbles. The preset's Colored Dialogue
-    // block still needs to be ON to emit [spk=] tags, and the preset's strip script
-    // keeps those tags out of model context.
-    const chatId = p?.chatId || (await activeChatId(uid));
-    if (!chatId) return;
-    const enabled = !!p?.enabled;
-    try { await setChatVar(chatId, 'vellum_colored_dialogue', enabled ? '1' : ''); } catch { /* best effort */ }
-    spindle.sendToFrontend?.({ type: 'vellum_colored_dialogue_set_done', ok: true, enabled }, uid);
-    await broadcastState(chatId, uid);
   },
   vellum_set_traversal: async (p, uid) => {
     // controller-guided retrieval mode: off | flat (one-shot) | tree (tiered

@@ -198,7 +198,6 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         // empty color string = clear → drop the key so it's truly absent (default ink)
         if (safe.color === '') delete c.color;
         if (safe.colorTo === '') delete c.colorTo;
-        if (safe.dialogueColor === '') delete c.dialogueColor;
         if (safe.imageUrl === '') delete c.imageUrl;
         // deceased false = alive again → drop the flag so it's truly absent
         if (safe.deceased === false) delete c.deceased;
