@@ -23,7 +23,7 @@ import { agingInjection } from './domain/aging.js';
 import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
-import { controllerGenerate, invalidateConnCache, withTimeout } from './host/generation.js';
+import { controllerGenerate, invalidateConnCache, withTimeout, defaultConnectionId } from './host/generation.js';
 import { stampPresetMetadata } from './host/presets.js';
 import type { CallModel } from './retrieval/traverse.js';
 import { traverseTree, type TreeTraversalResult } from './retrieval/traverse-tree.js';
@@ -51,6 +51,23 @@ import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, op
 import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOffscreenCatchupPrompt, parseCatchupReply, validateCatchupBeats, catchupTargets, offscreenCatchupTargets, threadsAwaitingCatchup, offscreensAwaitingCatchup } from './domain/thread-catchup.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
+
+/**
+ * Canonical VELLUM state-block instruction — inserted into presets that are
+ * missing it via the preset editor tab health-check fix. Mirrors the core
+ * content of the v2-state block in presets/vellum-ii.json.
+ */
+const VELLUM_STATE_BLOCK_CONTENT =
+  '[VELLUM STATE] After the prose, on a new line, append ONE fenced <vellum>...</vellum> block (the display layer hides it). '
+  + 'Valid JSON, DELTAS ONLY — omit anything that didn\u2019t change this turn. Fields:\n'
+  + '{ turn:int, day:int, scene:{loc,time,tension 0-10,weather}, '
+  + 'present:[{id,mood,condition,doing,thought}], '
+  + 'delta:{ bonds:[{a,b,aff,trust,cat:[],why}], threads:[{op:new|advance|stall|resolve,name,note}], '
+  + 'journal:[{who,about,memory,kind,weight,sentiment}], '
+  + 'knowledge:[{who,fact,about,reliability:knows|believes|suspects|wrong|unaware,truth:true|false|unknown,source}], '
+  + 'secrets:[{keeper,secret,from}] } }\n'
+  + 'present[] MUST include {{user}} whenever on-screen; leave mood/doing/thought empty for {{user}}. '
+  + 'Always close the </vellum> tag.';
 
 /** Highest turn already captured by a chapter/arc memory (the hide-on-file mark). */
 function coveredTurn(state: ChronicleState): number {
@@ -981,17 +998,13 @@ void boot();
  * inject, so the interceptor can skip adding the `parameters` key entirely when
  * the permission is absent or injection is disabled. This never surprises users.
  */
-function buildParamInjection(chatId: string, state: ChronicleState): Record<string, unknown> {
+async function buildParamInjection(chatId: string, _state: ChronicleState): Promise<Record<string, unknown>> {
   // Gate on a per-chat opt-in var (default off). When disabled or unset, return
-  // empty so the interceptor result shape is unchanged.
+  // empty so the interceptor result shape is unchanged. Chat vars are cached, so
+  // this read is cheap on the hot path.
   try {
-    // Read the opt-in chat var synchronously from the cache (getChatVar would be
-    // async and can't be awaited here cleanly). If not cached, it's not set, so
-    // default off. This keeps the hot path synchronous.
-    const vars = _chatVars.get(chatId);
-    if (!vars || !vars.vellum_param_injection || vars.vellum_param_injection === '0' || vars.vellum_param_injection === 'false') {
-      return {};
-    }
+    const optIn = await getChatVar(chatId, 'vellum_param_injection').catch(() => '');
+    if (!optIn || optIn === '0' || optIn === 'false') return {};
     // When enabled, we could inject parameters here. For now, keep it empty as
     // a conservative no-op placeholder. Extensions or future VELLUM versions can
     // populate this with e.g. temperature nudges or response_format for keeping
@@ -1203,7 +1216,7 @@ async function wireCapabilities(): Promise<void> {
           // state block stays parseable). Gate strictly on generation_parameters
           // so the return shape is byte-for-byte identical to today when absent.
           if (await has('generation_parameters')) {
-            const injected = buildParamInjection(chatId, state);
+            const injected = await buildParamInjection(chatId, state);
             if (injected && Object.keys(injected).length) result.parameters = injected;
           }
           return result;
@@ -2318,6 +2331,90 @@ const dispatch: Record<string, Handler> = {
   vellum_get_theme: async (_p, uid) => { const t = await readTheme(); spindle.sendToFrontend?.({ type: 'vellum_theme', theme: t }, uid ?? currentUser()); },
   vellum_set_prefs: async (p) => { if (typeof p?.prefs === 'string') await writePrefs(p.prefs); },
   vellum_get_prefs: async (_p, uid) => { const t = await readPrefs(); spindle.sendToFrontend?.({ type: 'vellum_prefs', prefs: t }, uid ?? currentUser()); },
+
+  // --- Preset Editor Tab handlers ------------------------------------------
+
+  /** Feature 1: explicit companion link/unlink. Stamps or clears
+   *  metadata.vellum_engine on the specified preset. The host fires
+   *  ctx.ui.presetEditor.onChange automatically after the write. */
+  vellum_preset_tab_link: async (p, uid) => {
+    const presetId = String(p?.presetId ?? '').trim();
+    const link = !!p?.link;
+    const done = (ok: boolean) => spindle.sendToFrontend?.({ type: 'vellum_preset_tab_link_done', ok, linked: link }, uid ?? currentUser());
+    if (!presetId) { done(false); return; }
+    if (!(await has('presets'))) { done(false); return; }
+    let res;
+    if (link) {
+      const meta = { version: VELLUM_VERSION, identifier: 'vellum_engine', linkedAt: Date.now() };
+      res = await stampPresetMetadata(presetId, meta, uid);
+    } else {
+      // Unlink: clear the identifier field while preserving the rest of the metadata
+      if (!spindle.presets?.get || !spindle.presets?.update) { done(false); return; }
+      const preset = await spindle.presets.get(presetId, uid);
+      if (!preset) { done(false); return; }
+      const vellum = preset.metadata?.vellum_engine ?? {};
+      const meta = { ...vellum, identifier: null };
+      res = await stampPresetMetadata(presetId, meta, uid);
+    }
+    done(!!res?.ok);
+  },
+
+  /** Feature 2: insert the canonical VELLUM state-block into a preset that
+   *  is missing it. Creates a system block at position post_history so the
+   *  engine always receives a <vellum> state block. */
+  vellum_preset_tab_fix_instructions: async (p, uid) => {
+    const presetId = String(p?.presetId ?? '').trim();
+    const done = (ok: boolean, reason?: string) => spindle.sendToFrontend?.({ type: 'vellum_preset_tab_fix_done', ok, ...(reason ? { reason } : {}) }, uid ?? currentUser());
+    if (!presetId) { done(false, 'no_preset'); return; }
+    if (!(await has('presets'))) { done(false, 'no_permission'); return; }
+    if (!spindle.presets?.blocks?.create) { done(false, 'no_api'); return; }
+    // Canonical VELLUM STATE instruction — the minimal signature that teaches
+    // the model to emit a <vellum> JSON block after every response.
+    // This is the same core content as the v2-state block in vellum-ii.json.
+    const content = VELLUM_STATE_BLOCK_CONTENT;
+    try {
+      await spindle.presets.blocks.create(presetId, {
+        name: 'VELLUM \u2014 State Block',
+        role: 'system',
+        position: 'post_history',
+        enabled: true,
+        content,
+      }, undefined, uid);
+      spindle.log?.info?.('[vellum_engine] inserted state block into preset ' + presetId);
+      done(true);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] fix_instructions failed: ' + ((e as Error)?.message ?? e));
+      done(false, (e as Error)?.message ?? 'error');
+    }
+  },
+
+  /** Feature 4: diagnostic status for the preset editor tab — permission
+   *  state, active provider/model, and last extraction health. */
+  vellum_preset_tab_get_status: async (_p, uid) => {
+    const permission = await has('generation_parameters');
+    const generationOk = await has('generation');
+    // Provider/model from the cached default connection (same one internalGenerate uses)
+    let provider = '', model = '';
+    try {
+      if (generationOk) {
+        const connId = await defaultConnectionId(uid);
+        if (connId && spindle.connections?.get) {
+          const conn = await spindle.connections.get(connId, uid);
+          if (conn) { provider = String(conn.provider ?? ''); model = String(conn.model ?? ''); }
+        }
+      }
+    } catch { /* best effort */ }
+    // Extraction health: _extractFails===0 means last completed pass was clean
+    const extractOk = _extractFails === 0;
+    spindle.sendToFrontend?.({
+      type: 'vellum_preset_tab_status',
+      permission,
+      generationOk,
+      provider,
+      model,
+      extractOk,
+    }, uid ?? currentUser());
+  },
 };
 
 try {

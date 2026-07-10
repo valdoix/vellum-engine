@@ -104,7 +104,7 @@ export function invalidateConnCache(userId?: string | null): void {
   _connCache.delete(userId ?? '_');
 }
 
-async function defaultConnectionId(userId: string | null): Promise<string> {
+export async function defaultConnectionId(userId: string | null): Promise<string> {
   const key = userId ?? '_';
   const hit = _connCache.get(key);
   if (hit !== undefined) return hit;

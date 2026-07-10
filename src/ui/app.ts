@@ -739,20 +739,133 @@ export function setup(ctx: Ctx): () => void {
   const drawer = createShell(ctx, getState);
   tab.root.appendChild(drawer.root);
 
-  // PRESET EDITOR TAB: register a VELLUM panel inside the Preset Editor where users
-  // author the companion preset. Probe for the API first; register only when present
-  // and permission granted. Requires `presets` + `ui_panels`.
+  // PRESET EDITOR TAB: register a VELLUM panel inside the Preset Editor where
+  // users author the companion preset. Probe for the API first; register only
+  // when present. Requires `presets` + `ui_panels`.
   let presetEditorTab: any = null;
+  // Per-tab state for features 3 + 4 (injection preview, extraction status).
+  // These are fetched async and re-rendered into the tab root.
+  let _ptInjRecord: { turn: number; chars: number; recalls: number; text: string } | null = null;
+  let _ptStatus: { permission: boolean; generationOk: boolean; provider: string; model: string; extractOk: boolean } | null = null;
+  let _ptPreviewOpen = false;
+
+  /** Escape HTML for safe insertion. */
+  const ptEsc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+
+  /** Render the full preset editor tab. Called on preset change and data updates. */
+  function renderPresetEditorTab(): void {
+    if (!presetEditorTab) return;
+    const root = presetEditorTab.root as HTMLElement;
+    let editorState: any = null;
+    try { editorState = (ctx.ui as any).presetEditor?.getState?.(); } catch { /* API may not be present */ }
+    const preset = editorState?.preset ?? null;
+    const presetId: string = preset?.id ?? '';
+
+    // Feature 1: Companion Linking
+    const isLinked = preset?.metadata?.vellum_engine?.identifier === 'vellum_engine';
+    const f1 = `<div class="vle-pt-sec">
+      <div class="vle-pt-head">Companion Preset</div>
+      <div class="vle-pt-badge">
+        <span class="vle-pt-dot ${isLinked ? 'linked' : 'unlinked'}"></span>
+        <span>${isLinked ? 'Linked to VELLUM' : 'Not linked'}</span>
+      </div>
+      ${preset ? `<button class="vle-pt-btn" data-pt-link="${isLinked ? 'unlink' : 'link'}" data-pt-preset="${ptEsc(presetId)}">
+        ${isLinked ? 'Unlink' : 'Link this preset'}
+      </button>` : '<span style="font-size:11px;opacity:0.6">Open a preset to link it.</span>'}
+    </div>`;
+
+    // Feature 2: Health Check — scan blocks for VELLUM state-block signature
+    let healthStatus: 'present' | 'missing' | 'no_preset' = 'no_preset';
+    let healthBlockName = '';
+    if (preset) {
+      const blocks: any[] = Array.isArray(preset.blocks) ? preset.blocks
+        : Array.isArray(preset.prompt_order) ? preset.prompt_order : [];
+      const sig = /\[VELLUM\s+STATE\]|<vellum>/i;
+      const found = blocks.find((b: any) => typeof b?.content === 'string' && sig.test(b.content));
+      if (found) { healthStatus = 'present'; healthBlockName = found.name ?? found.id ?? ''; }
+      else healthStatus = 'missing';
+    }
+    const healthDot = healthStatus === 'present' ? 'ok' : healthStatus === 'missing' ? 'err' : 'warn';
+    const healthLabel = healthStatus === 'present' ? `Present${healthBlockName ? ` \u2014 \u201c${ptEsc(healthBlockName)}\u201d` : ''}` : healthStatus === 'missing' ? 'Missing' : 'No preset open';
+    const f2 = `<div class="vle-pt-sec">
+      <div class="vle-pt-head">State Block Instructions</div>
+      <div class="vle-pt-badge">
+        <span class="vle-pt-dot ${healthDot}"></span>
+        <span>${healthLabel}</span>
+      </div>
+      ${healthStatus === 'missing' ? `<button class="vle-pt-btn" data-pt-fix-instructions data-pt-preset="${ptEsc(presetId)}">Insert canonical block</button>` : ''}
+    </div>`;
+
+    // Feature 3: Injection Preview
+    const inj = _ptInjRecord;
+    const previewToggle = inj ? `<span class="vle-pt-toggle" data-pt-preview-toggle>${_ptPreviewOpen ? '\u25b4 Hide' : '\u25be Show'}</span>` : '';
+    const previewBody = inj && _ptPreviewOpen
+      ? `<div class="vle-pt-coll open"><div class="vle-pt-preview">${ptEsc(inj.text.slice(0, 350))}${inj.text.length > 350 ? '\u2026' : ''}</div></div>`
+      : inj ? '<div class="vle-pt-coll"></div>' : '';
+    const f3 = `<div class="vle-pt-sec">
+      <div class="vle-pt-head">Live Injection Preview <span style="font-size:10px;opacity:0.6">(current chat)</span></div>
+      ${inj
+        ? `<div class="vle-pt-badge"><span class="vle-pt-dot ok"></span><span>Turn ${inj.turn} \u2022 ${inj.chars.toLocaleString()} chars \u2022 ${inj.recalls} recall${inj.recalls === 1 ? '' : 's'}</span></div>${previewToggle}${previewBody}`
+        : '<span style="font-size:11px;opacity:0.6">No injection yet this session.</span>'
+      }
+    </div>`;
+
+    // Feature 4: Extraction Status
+    const st = _ptStatus;
+    const f4 = `<div class="vle-pt-sec">
+      <div class="vle-pt-head">Extraction (Internal)</div>
+      ${st
+        ? `<div class="vle-pt-line"><span>Schema enforcement</span><strong>${st.permission ? 'Active' : 'Not available'}</strong></div>
+           <div class="vle-pt-line"><span>Permission</span><strong>${st.permission ? 'generation_parameters \u2713' : 'not granted'}</strong></div>
+           ${st.generationOk && st.provider ? `<div class="vle-pt-line"><span>Provider</span><strong>${ptEsc(st.provider)}${st.model ? ' / ' + ptEsc(st.model.slice(0, 28)) : ''}</strong></div>` : ''}
+           <div class="vle-pt-line"><span>Last extraction</span>
+             <strong>
+               <span class="vle-pt-dot ${st.extractOk ? 'ok' : 'err'}" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>${st.extractOk ? 'OK' : 'Failing'}
+             </strong>
+           </div>`
+        : '<span style="font-size:11px;opacity:0.6">Loading\u2026</span>'
+      }
+    </div>`;
+
+    root.innerHTML = `<div class="vle-pt-root vle-root">${f1}${f2}${f3}${f4}</div>`;
+
+    // Bind events
+    root.querySelector('[data-pt-link]')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-pt-link]') as HTMLElement | null;
+      if (!btn) return;
+      const pid = btn.getAttribute('data-pt-preset') ?? '';
+      const link = btn.getAttribute('data-pt-link') === 'link';
+      if (!pid) return;
+      ctx.sendToBackend({ type: 'vellum_preset_tab_link', presetId: pid, link });
+    });
+    root.querySelector('[data-pt-fix-instructions]')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-pt-fix-instructions]') as HTMLElement | null;
+      if (!btn) return;
+      const pid = btn.getAttribute('data-pt-preset') ?? '';
+      if (!pid) return;
+      ctx.sendToBackend({ type: 'vellum_preset_tab_fix_instructions', presetId: pid });
+    });
+    root.querySelector('[data-pt-preview-toggle]')?.addEventListener('click', () => {
+      _ptPreviewOpen = !_ptPreviewOpen;
+      renderPresetEditorTab();
+    });
+  }
+
   try {
-    if (ctx.ui.registerPresetEditorTab) {
-      presetEditorTab = ctx.ui.registerPresetEditorTab({
+    if ((ctx.ui as any).registerPresetEditorTab) {
+      presetEditorTab = (ctx.ui as any).registerPresetEditorTab({
         id: 'vellum_engine',
         label: 'VELLUM',
       });
-      // Render a compact panel (editor tabs are narrow). For now, a placeholder that
-      // confirms the tab is wired. Future: reuse formModal/existing render helpers for
-      // VELLUM-owned preset config; writes go through ctx.ui.presetEditor.updatePreset.
-      presetEditorTab.root.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--lumiverse-text-dim);">VELLUM preset configuration panel. (Placeholder — full UI coming soon.)</div>';
+      // Initial render
+      renderPresetEditorTab();
+      // Re-render whenever the open preset changes
+      try {
+        (ctx.ui as any).presetEditor?.onChange?.(renderPresetEditorTab);
+      } catch { /* presetEditor helper may not be present on all builds */ }
+      // Request status data on first mount
+      ctx.sendToBackend({ type: 'vellum_preset_tab_get_status' });
+      ctx.sendToBackend({ type: 'vellum_get_injection' });
     }
   } catch (e) {
     // Host without registerPresetEditorTab or permission not granted — silently skip
@@ -888,10 +1001,36 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_injection') {
         setInjectionLog(p.log ?? []);
         if (p.log?.[0]?.chars) setSysInfo({ injChars: p.log[0].chars });
+        // Preset editor tab: mirror the latest injection into its preview (feature 3).
+        // Backend sends the ring oldest-first, so the newest is the last element.
+        const latest = Array.isArray(p.log) && p.log.length ? p.log[p.log.length - 1] : null;
+        if (latest) { _ptInjRecord = { turn: Number(latest.turn) || 0, chars: Number(latest.chars) || 0, recalls: Array.isArray(latest.recallIds) ? latest.recallIds.length : 0, text: String(latest.text ?? '') }; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection_push') {
         // Fix 11 — live retrieval feed: stream the new record in as it happens
-        if (p.record) { pushInjectionRecord(p.record); if (p.record.chars) setSysInfo({ injChars: p.record.chars }); drawer.update(); float.refresh(); }
+        if (p.record) { pushInjectionRecord(p.record); if (p.record.chars) setSysInfo({ injChars: p.record.chars }); drawer.update(); float.refresh();
+          // Preset editor tab preview: stream the newest record in too (feature 3).
+          _ptInjRecord = { turn: Number(p.record.turn) || 0, chars: Number(p.record.chars) || 0, recalls: Array.isArray(p.record.recallIds) ? p.record.recallIds.length : 0, text: String(p.record.text ?? '') };
+          try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+        }
+      } else if (p?.type === 'vellum_preset_tab_status') {
+        // Preset editor tab: extraction status (feature 4)
+        _ptStatus = {
+          permission: !!p.permission,
+          generationOk: !!p.generationOk,
+          provider: String(p.provider ?? ''),
+          model: String(p.model ?? ''),
+          extractOk: !!p.extractOk,
+        };
+        try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+      } else if (p?.type === 'vellum_preset_tab_link_done') {
+        // Preset editor tab: link/unlink completed — the host's presetEditor.onChange
+        // fires the re-render automatically, but nudge one in case it doesn't.
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? (p.linked ? 'Preset linked to VELLUM.' : 'Preset unlinked.') : 'Link update failed.');
+        try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+      } else if (p?.type === 'vellum_preset_tab_fix_done') {
+        notify(ctx, p.ok ? 'success' : 'warning', p.ok ? 'Inserted the VELLUM state block.' : `Could not insert block: ${p.reason ?? 'error'}`);
+        try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
       } else if (p?.type === 'vellum_continuity') {
         // Plot Director: passive continuity warnings — advise, never block.
         if (Array.isArray(p.warnings) && p.warnings.length) notify(ctx, 'warning', 'Continuity: ' + p.warnings.map((w: { text: string }) => w.text).join(' '));

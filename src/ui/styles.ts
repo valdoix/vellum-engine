@@ -2051,6 +2051,28 @@ export const STYLES = [
   // --- avatar reshape: tarot + hanko => taller portrait medallion ---
   "[data-shape-cast='tarot'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='tarot'] .vld-pc .vld-pc-av,[data-shape-cast='hanko'] .vle-card:not(.vle-fac) .vle-av,[data-shape-present='hanko'] .vld-pc .vld-pc-av{border-radius:44% / 40%}",
 
+  // --- Preset Editor Tab styles ---
+  ".vle-pt-root{padding:12px;font-size:12px;line-height:1.5;color:var(--lumiverse-text,#cdbfa0);display:flex;flex-direction:column;gap:16px}",
+  ".vle-pt-sec{background:color-mix(in srgb,var(--vg,#d4af37) 6%,transparent);border-left:2px solid color-mix(in srgb,var(--vg,#d4af37) 40%,transparent);border-radius:4px;padding:10px;display:flex;flex-direction:column;gap:8px}",
+  ".vle-pt-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--vg,#d4af37);opacity:0.9}",
+  ".vle-pt-badge{display:flex;align-items:center;gap:6px;font-size:12px}",
+  ".vle-pt-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}",
+  ".vle-pt-dot.linked{background:var(--v-ok,#90ee90)}",
+  ".vle-pt-dot.unlinked{background:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 30%,transparent)}",
+  ".vle-pt-dot.ok{background:var(--v-ok,#90ee90)}",
+  ".vle-pt-dot.warn{background:var(--v-warn,#f4a460)}",
+  ".vle-pt-dot.err{background:var(--v-err,#cd5c5c)}",
+  ".vle-pt-btn{background:color-mix(in srgb,var(--vg,#d4af37) 12%,transparent);border:1px solid color-mix(in srgb,var(--vg,#d4af37) 30%,transparent);color:var(--lumiverse-text,#cdbfa0);border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;transition:all 0.15s;margin-top:4px}",
+  ".vle-pt-btn:hover{background:color-mix(in srgb,var(--vg,#d4af37) 20%,transparent);border-color:var(--vg,#d4af37)}",
+  ".vle-pt-btn:active{transform:translateY(1px)}",
+  ".vle-pt-line{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 80%,transparent)}",
+  ".vle-pt-line strong{color:var(--lumiverse-text,#cdbfa0);font-weight:600}",
+  ".vle-pt-preview{background:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 4%,transparent);border:1px solid color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 15%,transparent);border-radius:4px;padding:8px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:10px;line-height:1.4;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 85%,transparent);max-height:140px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;margin-top:6px}",
+  ".vle-pt-toggle{cursor:pointer;user-select:none;color:var(--vg,#d4af37);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;margin-top:4px}",
+  ".vle-pt-toggle:hover{opacity:0.8}",
+  ".vle-pt-coll{display:none}",
+  ".vle-pt-coll.open{display:block}",
+
 ].join('\n');
 
 
