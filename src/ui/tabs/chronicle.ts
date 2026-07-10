@@ -595,10 +595,11 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
     const kicker = kindArc ? ''
       : `<div class="vle-leaf-kicker${parentArc ? ' arclink' : ''}">${parentArc ? '\u21B3 ' + esc(parentArc.name) : 'Thread'}</div>`;
 
-    // Cluster: arcs carry a beat-count pill; both carry a status pill.
+    // Cluster: arcs carry a beat-count pill only. No status badge on either tier —
+    // the model often emits long prose into status; a resolved track is conveyed by
+    // the dimmed card + the Reopen action instead. (sp still drives the hot tint.)
     const beatsPill = kindArc ? `<span class="vle-leaf-beats" title="${t.beats.length} beat${t.beats.length === 1 ? '' : 's'}">${t.beats.length}</span>` : '';
-    const statusEl = `<span class="vle-leaf-status ${sp.cls}"><span class="vle-leaf-dot"></span>${esc(sp.label)}</span>`;
-    const cluster = `<div class="vle-leaf-cluster">${beatsPill}${statusEl}</div>`;
+    const cluster = kindArc ? `<div class="vle-leaf-cluster">${beatsPill}</div>` : '';
 
     const chev = `<span class="vle-leaf-chev" aria-hidden="true">${expanded ? '\u25BC' : '\u25B6'}</span>`;
     const sub = !expanded && latestBeat ? `<div class="vle-leaf-sub">${esc(latestBeat)}</div>` : '';

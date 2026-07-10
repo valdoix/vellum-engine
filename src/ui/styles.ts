@@ -670,12 +670,6 @@ export const STYLES = [
   ".vle-leaf-sub{font-family:var(--vserif);font-style:italic;font-size:calc(12px * var(--vscale));line-height:1.4;color:var(--vi2);opacity:.72;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
   ".vle-leaf-cluster{flex:0 0 auto;display:flex;align-items:center;gap:6px}",
   ".vle-leaf-beats{font:600 9px/1.4 var(--vmono);letter-spacing:.4px;color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 12%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 22%,transparent);border-radius:3px;padding:2px 8px}",
-  ".vle-leaf-status{display:inline-flex;align-items:center;gap:5px;font:600 9px/1.4 var(--vmono);letter-spacing:.5px;text-transform:uppercase;padding:3px 9px;border-radius:3px;border:1px solid transparent;white-space:nowrap}",
-  ".vle-leaf-status .vle-leaf-dot{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}",
-  ".vle-leaf-status.open{color:var(--v-pos);background:color-mix(in srgb,var(--v-pos) 12%,transparent);border-color:color-mix(in srgb,var(--v-pos) 32%,transparent)}",
-  ".vle-leaf-status.hot{color:var(--v-neg-i);background:color-mix(in srgb,var(--v-neg) 14%,transparent);border-color:color-mix(in srgb,var(--v-neg) 40%,transparent)}",
-  ".vle-leaf-status.done{color:var(--vi2);border-color:rgba(var(--vg-rgb),.28)}",
-  ".vle-leaf-status.done .vle-leaf-dot{box-shadow:none}",
   // body (revealed on expand)
   ".vle-leaf-body{padding:0 15px 15px 19px}",
   ".vle-leaf.is-thread .vle-leaf-body{padding:0 13px 13px 17px}",
@@ -712,7 +706,7 @@ export const STYLES = [
   ".vle-leaf-chip.more{color:var(--vi2);opacity:.6;padding:3px 9px}",
   ".vle-leaf-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}",
   "html[data-vle-chrome='futuristic'] .vle-leaf{border-radius:2px}html[data-vle-chrome='futuristic'] .vle-leaf::after{border-radius:0}",
-  "html[data-vle-chrome='modern'] .vle-leaf{border-radius:14px}html[data-vle-chrome='modern'] .vle-leaf-beats,html[data-vle-chrome='modern'] .vle-leaf-status{border-radius:999px}",
+  "html[data-vle-chrome='modern'] .vle-leaf{border-radius:14px}html[data-vle-chrome='modern'] .vle-leaf-beats{border-radius:999px}",
   // --- Elsewhere Feed (Director > Off-screen) — a vertical timeline of
   // "meanwhile" moments. Each item is a collapsible card: kicker + title + status
   // in the header, an expandable body with the latest beat, cast, and actions.
