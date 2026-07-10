@@ -44,7 +44,7 @@ export interface ScriptInput {
 export async function listVellumScripts(uid: string | null): Promise<LiteScript[]> {
   const a = api(); if (!a) return [];
   try {
-    const r = await a.list({ ...(uid ? { userId: uid } : {}) });
+    const r = await a.list({ limit: 200, ...(uid ? { userId: uid } : {}) });
     const arr: any[] = Array.isArray(r) ? r : (r?.data ?? r?.items ?? []);
     return arr
       .filter((s) => s && s.metadata && (s.metadata as Record<string, unknown>).vellum)
@@ -56,9 +56,11 @@ export async function listVellumScripts(uid: string | null): Promise<LiteScript[
 async function findByScriptId(scriptId: string, uid: string | null): Promise<any | null> {
   const a = api(); if (!a) return null;
   try {
-    const r = await a.list({ ...(uid ? { userId: uid } : {}) });
+    // Try a broad list first (no scope filter); Lumiverse list() does strict filtering
+    // so we may need to scan multiple scopes if the script_id doesn't tell us its scope.
+    const r = await a.list({ limit: 200, ...(uid ? { userId: uid } : {}) });
     const arr: any[] = Array.isArray(r) ? r : (r?.data ?? r?.items ?? []);
-    return arr.find((s) => s && String(s.script_id ?? '') === scriptId) ?? null;
+    return arr.find((s) => s?.script_id === scriptId) ?? null;
   } catch { return null; }
 }
 
