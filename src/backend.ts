@@ -2110,12 +2110,16 @@ const dispatch: Record<string, Handler> = {
         if (api?.list && api?.delete) {
           const all = await api.list({ limit: 500, ...(uid ? { userId: uid } : {}) });
           const arr: any[] = Array.isArray(all) ? all : (all?.data ?? all?.items ?? []);
+          spindle.log?.info?.(`[vellum_engine] colored-dialogue: force-delete scan found ${arr.length} total scripts`);
+          let deleted = 0;
           for (const s of arr) {
             if (s?.script_id === `vellum-engine-spk-display-${chatId}` || s?.script_id === `vellum-engine-spk-strip-${chatId}`) {
               spindle.log?.info?.(`[vellum_engine] colored-dialogue: force-deleting orphaned script ${s.script_id} (id=${s.id})`);
               await api.delete(String(s.id), uid).catch(() => {});
+              deleted++;
             }
           }
+          if (deleted === 0) spindle.log?.info?.(`[vellum_engine] colored-dialogue: no orphaned scripts found in list (searched for vellum-engine-spk-*-${chatId})`);
         }
       } catch (e) { spindle.log?.warn?.('[vellum_engine] force-delete orphaned scripts failed: ' + ((e as Error)?.message ?? e)); }
     }
