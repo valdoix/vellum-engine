@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildColorReplaceString, castColorHash, colorScripts } from '../src/domain/dialogue-color.js';
 import { castSlotColors } from '../src/core/palette.js';
+import { buildSpeakerColorMap, colorizeText, hasSpkTags, hashContent } from '../src/ui/spk-color.js';
 import { cmdEvents } from '../src/domain/commands.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState, type CastCard } from '../src/domain/types.js';
@@ -23,9 +23,7 @@ describe('palette', () => {
   it('assigns collision-free colors per id', () => {
     const colors = castSlotColors(['cersei', 'jaime', 'tyrion']);
     expect(colors.size).toBe(3);
-    // all valid 6-digit hex
     for (const c of colors.values()) expect(c).toMatch(/^#[0-9a-f]{6}$/);
-    // distinct
     expect(new Set(colors.values()).size).toBe(3);
   });
 
@@ -37,63 +35,72 @@ describe('palette', () => {
   });
 });
 
-describe('buildColorReplaceString', () => {
-  it('uses explicit dialogueColor when set', () => {
+describe('buildSpeakerColorMap', () => {
+  it('uses explicit dialogueColor when set (keyed lowercase)', () => {
     const s = makeCast([{ id: 'cersei', name: 'Cersei', dialogueColor: '#ff0000' }]);
-    const out = buildColorReplaceString(s);
-    expect(out).toContain('cersei::#ff0000'); // lowercased
-    expect(out).toContain('{{switch::{{lower::$1}}::'); // wrapped in {{lower}}
-    expect(out).toContain('#b9ad92'); // default ink fallback
+    const map = buildSpeakerColorMap(s);
+    expect(map.get('cersei')).toBe('#ff0000');
   });
 
   it('falls back to slot color when dialogueColor unset', () => {
     const s = makeCast([{ id: 'jaime', name: 'Jaime' }]);
     const slot = castSlotColors(['jaime']).get('jaime')!;
-    const out = buildColorReplaceString(s);
-    expect(out).toContain(`jaime::${slot}`); // lowercased
+    const map = buildSpeakerColorMap(s);
+    expect(map.get('jaime')).toBe(slot);
   });
 
-  it('includes akas mapped to the same color', () => {
+  it('maps akas to the same color as the canonical name', () => {
     const s = makeCast([{ id: 'cersei', name: 'Cersei', aka: ['The Queen'], dialogueColor: '#abcdef' }]);
-    const out = buildColorReplaceString(s);
-    expect(out).toContain('cersei::#abcdef'); // lowercased
-    expect(out).toContain('the queen::#abcdef'); // lowercased
+    const map = buildSpeakerColorMap(s);
+    expect(map.get('cersei')).toBe('#abcdef');
+    expect(map.get('the queen')).toBe('#abcdef');
   });
 
-  it('wraps output in a colored span with title', () => {
-    const s = makeCast([{ id: 'a', name: 'A' }]);
-    const out = buildColorReplaceString(s);
-    expect(out).toMatch(/^<span style="color:.*" title="\$1">\$2<\/span>$/);
-  });
-});
-
-describe('castColorHash', () => {
-  it('is stable across reorder', () => {
-    const a = makeCast([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
-    const b = makeCast([{ id: 'b', name: 'B' }, { id: 'a', name: 'A' }]);
-    expect(castColorHash(a)).toBe(castColorHash(b));
-  });
-
-  it('changes when a color changes', () => {
-    const a = makeCast([{ id: 'a', name: 'A' }]);
-    const b = makeCast([{ id: 'a', name: 'A', dialogueColor: '#123456' }]);
-    expect(castColorHash(a)).not.toBe(castColorHash(b));
+  it('returns an empty map for empty/nullish state', () => {
+    expect(buildSpeakerColorMap(null).size).toBe(0);
+    expect(buildSpeakerColorMap(freshState()).size).toBe(0);
   });
 });
 
-describe('colorScripts', () => {
-  it('produces display + strip scripts scoped to the chat', () => {
-    const s = makeCast([{ id: 'a', name: 'A' }]);
-    const scripts = colorScripts('chat123', s);
-    expect(scripts).toHaveLength(2);
-    const display = scripts.find((x) => x.target === 'display')!;
-    const strip = scripts.find((x) => x.target === 'prompt')!;
-    expect(display.script_id).toBe('vellum-engine-spk-display-chat123');
-    expect(display.scope).toBe('chat');
-    expect(display.scope_id).toBe('chat123');
-    expect(display.metadata?.castHash).toBe(castColorHash(s));
-    expect(strip.script_id).toBe('vellum-engine-spk-strip-chat123');
-    expect(strip.replace_string).toBe('');
+describe('colorizeText', () => {
+  it('wraps a known speaker in a colored span (case-insensitive match)', () => {
+    const map = new Map([['cersei', '#ff0000']]);
+    const out = colorizeText('[spk=Cersei]"Power is power."[/spk]', map);
+    expect(out).toBe('<span class="vle-spk" style="color:#ff0000" title="Cersei">"Power is power."</span>');
+  });
+
+  it('strips tags but keeps the line for an unknown speaker (never shows raw tag)', () => {
+    const map = new Map([['cersei', '#ff0000']]);
+    const out = colorizeText('[spk=Stranger]"Who am I?"[/spk]', map);
+    expect(out).toBe('"Who am I?"');
+    expect(out).not.toContain('[spk=');
+  });
+
+  it('handles multiple speakers in one message', () => {
+    const map = new Map([['a', '#111111'], ['b', '#222222']]);
+    const out = colorizeText('[spk=A]"Hi."[/spk] narration [spk=B]"Bye."[/spk]', map);
+    expect(out).toContain('style="color:#111111"');
+    expect(out).toContain('style="color:#222222"');
+    expect(out).toContain(' narration ');
+  });
+
+  it('leaves text without tags untouched', () => {
+    const map = new Map([['a', '#111111']]);
+    expect(colorizeText('plain narration, no tags', map)).toBe('plain narration, no tags');
+  });
+});
+
+describe('hasSpkTags', () => {
+  it('detects presence/absence of speaker tags', () => {
+    expect(hasSpkTags('[spk=A]"x"[/spk]')).toBe(true);
+    expect(hasSpkTags('no tags here')).toBe(false);
+  });
+});
+
+describe('hashContent', () => {
+  it('is stable for identical input and differs on change', () => {
+    expect(hashContent('abc')).toBe(hashContent('abc'));
+    expect(hashContent('abc')).not.toBe(hashContent('abd'));
   });
 });
 
@@ -117,12 +124,10 @@ describe('cast_upsert dialogueColor', () => {
 
   it('clears dialogueColor in reduce when set to empty', () => {
     let s = freshState();
-    // first set a color
     let evs = cmdEvents('cast_upsert', { entry: { name: 'Cersei', dialogueColor: '#ff0000' } }, s, ctx);
     s = reduce(evs, s);
     const id = Object.keys(s.cast)[0]!;
     expect(s.cast[id]!.dialogueColor).toBe('#ff0000');
-    // then clear it
     evs = cmdEvents('cast_upsert', { entry: { id, name: 'Cersei', dialogueColor: '' } }, s, ctx);
     s = reduce(evs, s);
     expect(s.cast[id]!.dialogueColor).toBeUndefined();

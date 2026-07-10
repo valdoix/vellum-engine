@@ -36,8 +36,6 @@ import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
 import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
-import { hasRegex, upsertScript, setScriptDisabled, deleteScriptByScriptId, scriptMeta } from './host/regex.js';
-import { colorScripts, castColorHash } from './domain/dialogue-color.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
@@ -516,7 +514,6 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   try { if (await maybeSimulate(chatId, userId)) await broadcastState(chatId, userId); }
   catch (e) { spindle.log?.warn?.('[vellum_engine] maybeSimulate: ' + ((e as Error)?.message ?? e)); }
   void maybeChapterVault(chatId, userId);
-  void maybeColorSync(chatId, userId); // regenerate colored-dialogue scripts if cast/colors changed
   void precomputeTree(chatId, userId); // PR2: warm the tree ranking for next turn
 }
 
@@ -798,66 +795,6 @@ async function maybeVaultSync(chatId: string, userId: string | null): Promise<vo
   finally { _vaultSyncing.delete(chatId); }
 }
 
-const _colorSyncing = new Set<string>();
-/**
- * Sync colored-dialogue regex scripts: regenerate display + strip scripts when
- * the cast or colors change. Idempotent (checks castHash). Gated on hasRegex().
- * When the feature is disabled, tears down our scripts and restores the preset's.
- */
-async function maybeColorSync(chatId: string, userId: string | null): Promise<void> {
-  if (_colorSyncing.has(chatId)) return;
-  if (!(await hasRegex())) { spindle.log?.info?.('[vellum_engine] colored-dialogue: regex_scripts permission not granted — skipping'); return; }
-  const on = !!(await getChatVar(chatId, 'vellum_colored_dialogue'));
-  _colorSyncing.add(chatId);
-  try {
-    const scope = { scope: 'chat', scopeId: chatId };
-    if (!on) {
-      // Feature off: remove our scripts if present, restore preset's vellum2-spk-display
-      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}-v2`, userId, scope);
-      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}-v2`, userId, scope);
-      await setScriptDisabled('vellum2-spk-display', false, userId); // preset's is global, no scope
-      spindle.log?.info?.(`[vellum_engine] colored-dialogue: OFF for ${chatId} — scripts removed`);
-      return;
-    }
-    // Feature on: check if regeneration needed (castHash changed)
-    const state = await loadState(chatId);
-    const hash = castColorHash(state);
-    const currentMeta = await scriptMeta(`vellum-engine-spk-display-${chatId}-v2`, userId, scope);
-    if (currentMeta && currentMeta.castHash === hash) {
-      spindle.log?.info?.(`[vellum_engine] colored-dialogue: unchanged for ${chatId} (hash ${hash.slice(0, 8)}) — skipping`);
-      return; // unchanged, skip
-    }
-    
-    // Generate and upsert both scripts
-    const scripts = colorScripts(chatId, state);
-    let ok = 0, failed = 0;
-    for (const script of scripts) {
-      const r = await upsertScript(script, userId, chatId); // pass chatId for scope filtering
-      if (r.ok) ok++; else { failed++; spindle.log?.warn?.(`[vellum_engine] colored-dialogue: upsert ${script.script_id} failed: ${r.error}`); }
-    }
-    
-    // Verify the scripts are actually enabled by checking via getActive
-    try {
-      const api = spindle.regex_scripts;
-      if (api?.getActive) {
-        // getActive requires scope/scopeId for chat-scoped scripts
-        const active = await api.getActive({ scope: 'chat', scopeId: chatId, target: 'display', userId }, userId);
-        const ourScripts = Array.isArray(active) ? active.filter((s: any) => s?.script_id?.includes('vellum-engine-spk')) : [];
-        spindle.log?.info?.(`[vellum_engine] colored-dialogue: getActive found ${ourScripts.length} vellum-engine-spk scripts for display target`);
-        if (ourScripts.length === 0 && ok > 0) {
-          spindle.log?.warn?.(`[vellum_engine] colored-dialogue: scripts created successfully but not returned by getActive() — check if scripts are disabled or have wrong placement`);
-        }
-      }
-    } catch (e) { spindle.log?.warn?.('[vellum_engine] colored-dialogue: getActive check failed: ' + ((e as Error)?.message ?? e)); }
-    
-    // Disable the preset's competing display script to avoid double-wrap
-    await setScriptDisabled('vellum2-spk-display', true, userId);
-    
-    spindle.log?.info?.(`[vellum_engine] colored-dialogue: regenerated ${ok}/${scripts.length} scripts for ${chatId} (hash ${hash.slice(0, 8)}, ${state.cast ? Object.keys(state.cast).length : 0} cast, ${failed} failed)`);
-  } catch (e) { spindle.log?.warn?.('[vellum_engine] maybeColorSync: ' + ((e as Error)?.message ?? e)); }
-  finally { _colorSyncing.delete(chatId); }
-}
-
 const _chapterVaulting = new Set<string>();
 
 /** Read the per-chat chapter-vault mode (off | keyed | constant). Default keyed
@@ -982,9 +919,72 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
 }
 const AUTO_SUMMARY_AT = 16; // compress the oldest 8 once 16 turn-memories accrue
 
+/**
+ * One-shot orphan purge: delete all vellum-engine-spk-* regex scripts that
+ * accumulated during debugging (API visibility bugs meant scripts were created
+ * but never cleaned up). Paginates through ALL scripts (200 per page) to find
+ * and delete every orphan. Runs only if the regex_scripts permission is still
+ * granted; safe to remove in a future release once confirmed clean.
+ */
+async function purgeOrphanedSpkScripts(): Promise<void> {
+  try {
+    if (!(await has('regex_scripts'))) return; // permission already dropped, nothing to purge
+    const api = spindle.regex_scripts;
+    if (!api?.list || !api?.delete) return;
+    
+    const uid = currentUser();
+    let deleted = 0;
+    let offset = 0;
+    const limit = 200;
+    const toDelete: { id: string; script_id: string }[] = [];
+    
+    // Paginate through all scripts to find every vellum-engine-spk-* orphan
+    while (true) {
+      const page = await api.list({ limit, offset, ...(uid ? { userId: uid } : {}) });
+      const arr: any[] = Array.isArray(page) ? page : (page?.data ?? page?.items ?? []);
+      if (!arr.length) break; // no more pages
+      
+      for (const s of arr) {
+        if (s?.script_id && s.script_id.includes('vellum-engine-spk-')) {
+          toDelete.push({ id: String(s.id), script_id: s.script_id });
+        }
+      }
+      
+      if (arr.length < limit) break; // last page
+      offset += limit;
+    }
+    
+    if (toDelete.length === 0) {
+      spindle.log?.info?.('[vellum_engine] purge: no orphaned vellum-engine-spk-* scripts found');
+      return;
+    }
+    
+    spindle.log?.info?.(`[vellum_engine] purge: found ${toDelete.length} orphaned scripts, deleting...`);
+    for (const { id, script_id } of toDelete) {
+      try {
+        await api.delete(id, uid);
+        deleted++;
+      } catch (e) {
+        spindle.log?.warn?.(`[vellum_engine] purge: failed to delete ${script_id} (id=${id}): ${(e as Error)?.message ?? e}`);
+      }
+    }
+    
+    spindle.log?.info?.(`[vellum_engine] purge: deleted ${deleted}/${toDelete.length} orphaned scripts`);
+  } catch (e) {
+    spindle.log?.warn?.('[vellum_engine] purge failed: ' + ((e as Error)?.message ?? e));
+  }
+}
+
 async function boot(): Promise<void> {
   await restoreUser();
   await wireCapabilities(); // attach interceptor + generation fold if already granted
+  
+  // One-shot orphan purge: delete all vellum-engine-spk-* regex scripts created
+  // during earlier debugging (hundreds accumulated due to API visibility bugs).
+  // Runs once if the regex_scripts permission is still granted, then no-ops.
+  // Safe to remove in a future release once confirmed clean.
+  void purgeOrphanedSpkScripts();
+  
   spindle.log?.info?.('[vellum_engine] booted — event-log core online');
 }
 void boot();
@@ -1380,8 +1380,6 @@ const dispatch: Record<string, Handler> = {
     // deleting OR editing a chapter/arc memory must reconcile its mirrored Vault
     // entry (drop orphans; re-project edited detail/keys).
     if (p.cmd === 'memory_delete' || p.cmd === 'memory_edit') void maybeChapterVault(chatId, uid);
-    // editing cast triggers colored-dialogue script regeneration (if enabled)
-    if (p.cmd === 'cast_upsert' || p.cmd === 'cast_edit' || p.cmd === 'cast_delete') void maybeColorSync(chatId, uid);
   },
   vellum_summarize: async (p, uid) => {
     // manual "summarize past turns" — compress as many full windows as exist.
@@ -1941,13 +1939,6 @@ const dispatch: Record<string, Handler> = {
     await clearLog(chatId);
     invalidateIndex(chatId);
     invalidateMood(chatId);
-    // Clean up colored-dialogue scripts
-    const scope = { scope: 'chat', scopeId: chatId };
-    try {
-      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}-v2`, uid, scope);
-      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}-v2`, uid, scope);
-      await setScriptDisabled('vellum2-spk-display', false, uid); // restore preset script
-    } catch { /* best effort */ }
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_cleared', ok: true }, uid);
   },
@@ -2108,61 +2099,16 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_hide_done', ok: true, enabled, ...res }, uid);
   },
   vellum_set_colored_dialogue: async (p, uid) => {
-    // toggle colored character dialogue; persist in a chat var. Needs the
-    // regex_scripts permission + the preset's [spk=] tags to actually render.
+    // Toggle colored character dialogue. Now a pure frontend display transform (no
+    // host regex scripts), so this just persists the per-chat toggle and broadcasts
+    // so the frontend can (un)colorize mounted bubbles. The preset's Colored Dialogue
+    // block still needs to be ON to emit [spk=] tags, and the preset's strip script
+    // keeps those tags out of model context.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const enabled = !!p?.enabled;
-    
-    // If turning ON and scripts are orphaned (exist but unfindable), force-delete by brute-force ID scan
-    if (enabled && (await hasRegex())) {
-      try {
-        const api = spindle.regex_scripts;
-        if (api?.list && api?.delete) {
-          const all = await api.list({ limit: 500, ...(uid ? { userId: uid } : {}) });
-          const arr: any[] = Array.isArray(all) ? all : (all?.data ?? all?.items ?? []);
-          spindle.log?.info?.(`[vellum_engine] colored-dialogue: force-delete scan found ${arr.length} total scripts`);
-          
-          // Debug: log the first 10 script_ids to see what's actually in the list
-          const sampleIds = arr.slice(0, 10).map((s) => s?.script_id).filter(Boolean);
-          if (sampleIds.length) spindle.log?.info?.(`[vellum_engine] colored-dialogue: sample script_ids from list: ${sampleIds.join(', ')}`);
-          
-          let deleted = 0;
-          for (const s of arr) {
-            // Delete both v1 (orphaned) and v2 scripts to ensure clean slate
-            if (s?.script_id === `vellum-engine-spk-display-${chatId}` || 
-                s?.script_id === `vellum-engine-spk-strip-${chatId}` ||
-                s?.script_id === `vellum-engine-spk-display-${chatId}-v2` || 
-                s?.script_id === `vellum-engine-spk-strip-${chatId}-v2`) {
-              spindle.log?.info?.(`[vellum_engine] colored-dialogue: force-deleting script ${s.script_id} (id=${s.id})`);
-              await api.delete(String(s.id), uid).catch(() => {});
-              deleted++;
-            }
-          }
-          if (deleted === 0) {
-            spindle.log?.info?.(`[vellum_engine] colored-dialogue: no orphaned scripts found in list (searched for vellum-engine-spk-*-${chatId}*)`);
-            // Last resort: try to get by script_id directly if the API supports it
-            if (api.get) {
-              for (const scriptId of [`vellum-engine-spk-display-${chatId}`, `vellum-engine-spk-strip-${chatId}`, `vellum-engine-spk-display-${chatId}-v2`, `vellum-engine-spk-strip-${chatId}-v2`]) {
-                try {
-                  const direct = await api.get(scriptId, uid);
-                  if (direct?.id) {
-                    spindle.log?.info?.(`[vellum_engine] colored-dialogue: found orphaned script via direct get: ${scriptId} (id=${direct.id})`);
-                    await api.delete(String(direct.id), uid).catch(() => {});
-                    deleted++;
-                  }
-                } catch { /* doesn't exist or get() not supported */ }
-              }
-            }
-          }
-          if (deleted > 0) spindle.log?.info?.(`[vellum_engine] colored-dialogue: deleted ${deleted} orphaned scripts`);
-        }
-      } catch (e) { spindle.log?.warn?.('[vellum_engine] force-delete orphaned scripts failed: ' + ((e as Error)?.message ?? e)); }
-    }
-    
     try { await setChatVar(chatId, 'vellum_colored_dialogue', enabled ? '1' : ''); } catch { /* best effort */ }
-    await maybeColorSync(chatId, uid); // immediate apply/teardown
-    spindle.sendToFrontend?.({ type: 'vellum_colored_dialogue_set_done', ok: true, enabled, available: await hasRegex() }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_colored_dialogue_set_done', ok: true, enabled }, uid);
     await broadcastState(chatId, uid);
   },
   vellum_set_traversal: async (p, uid) => {
