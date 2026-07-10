@@ -24,6 +24,7 @@ export interface CastCard {
   userEdited: boolean;
   color?: string;   // optional name color (#hex); absent = inherited skin ink
   colorTo?: string; // optional gradient end (#hex); absent = solid `color`
+  dialogueColor?: string; // optional #hex tint for spoken lines; absent = auto slot color
   imageUrl?: string; // optional portrait image URL; absent = initials avatar
   deceased?: boolean; // life-state; ORTHOGONAL to presence status (a dead character can still be
                       // mentioned/present as a corpse/flashback). Excludes from off-screen life.

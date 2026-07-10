@@ -154,6 +154,7 @@ const QOL = [
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
+  { id: 'coloreddialogue', label: '\u25D5 Colored dialogue', title: 'Tint each character\u2019s spoken lines with their cast-card color (needs the regex_scripts permission + the preset\u2019s Colored Dialogue block emitting [spk=] tags)', group: 'toggle' },
   { id: 'foldtoast', label: '\u2261 Tracker Update Toast', title: 'Show a brief toast after each turn as the tracker updates (scene first, then the deep memory pass). Off by default.', group: 'toggle' },
   // run = one-shot verbs
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'run' },
@@ -382,6 +383,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
+let _coloredDialogueOn = false; // colored-dialogue toggle, mirrored from backend
 let _traverseMode = 'off'; // off | flat | tree
 let _traverseAxis = 'temporal'; // temporal | character | hybrid (tree only)
 const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === 'hybrid' ? 'by char+time' : 'by time';
@@ -432,6 +434,7 @@ function openActions(ctx: Ctx): void {
     const toggleState: Record<string, string> = {
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
+      coloreddialogue: _coloredDialogueOn ? 'on' : 'off',
       foldtoast: _foldToastOn ? 'on' : 'off',
       traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
       tone: (_tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living' && _tone.politics === 'off') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition} \u00b7 ${_tone.social}${_tone.politics !== 'off' ? ' \u00b7 pol:' + _tone.politics : ''}`,
@@ -530,6 +533,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
+  else if (id === 'coloreddialogue') { _coloredDialogueOn = !_coloredDialogueOn; ctx.sendToBackend({ type: 'vellum_set_colored_dialogue', enabled: _coloredDialogueOn }); }
   else if (id === 'foldtoast') {
     _foldToastOn = !_foldToastOn;
     setPref('foldToast', _foldToastOn);
@@ -815,6 +819,7 @@ export function setup(ctx: Ctx): () => void {
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
+        if (typeof p.coloredDialogue === 'boolean') _coloredDialogueOn = p.coloredDialogue;
         if (typeof p.hide === 'boolean') { _hideOn = p.hide; document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn)); }
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);

@@ -1,6 +1,6 @@
 import type { ChronicleState, Relation, CastCard } from '../domain/types.js';
-import { hash01 } from '../core/ids.js';
 import { getPref, setPref } from './prefs.js';
+import { HEX6 as HEX6_IMPORTED, safeColor as safeColorImported, hslHex, castSlotColors, autoHue as autoHueImported } from '../core/palette.js';
 
 /** Small formatting helpers shared across UI components. Pure, no DOM. */
 
@@ -59,15 +59,9 @@ export function nameOf(state: ChronicleState, id: string): string {
   return state.cast[id]?.name ?? id;
 }
 
-const HEX6 = /^#[0-9a-fA-F]{6}$/;
-
-/** Guard a model/user-authored color before it goes into a `style="--c:..."`
- * attribute. Only a strict 6-digit hex passes; anything else (including CSS-
- * injection attempts) falls back to a neutral default. Prevents style-context
- * XSS/breakage from unvalidated category colors. */
-export function safeColor(color: unknown, fallback = '#8c8478'): string {
-  return typeof color === 'string' && HEX6.test(color) ? color : fallback;
-}
+// Re-export from shared palette module
+const HEX6 = HEX6_IMPORTED;
+export const safeColor = safeColorImported;
 
 /**
  * AUTO name color: derive a stable, distinct color per character from their id,
@@ -84,61 +78,31 @@ export function autoNameMode(): AutoMode { return _auto; }
 export function setAutoNameMode(m: AutoMode): void { _auto = m; setPref('autoName', m === 'off' ? null : m); }
 /** Re-read the auto-name mode after a backend prefs hydrate (reload recovery). */
 export function reloadAutoNameFromPrefs(): void { _auto = loadAuto(); }
-/** Warm the collision-free slot map for the given cast ids, so nameHtmlCard (which
- * has no state) paints with the same assignments. Call once per cast render. */
-export function warmCastColors(castIds: string[]): void { void slotFor(castIds[0] ?? '', castIds); }
+/** Warm the collision-free color map for the given cast ids, so nameHtmlCard
+ * paints with the same assignments. Call once per cast render. */
+export function warmCastColors(castIds: string[]): void { warmColorMap(castIds); }
 
-/** Deterministic, readable HSL hex from a seed. Mid-high lightness + saturation
- * so it reads on the dark VELLUM surfaces; hue spread across the wheel by hash. */
-function autoHue(seed: string, shift = 0): string {
-  const h = Math.floor(hash01(seed) * 360 + shift) % 360;
-  return hslHex(h, 60, 68);
-}
+// Re-use autoHue from shared palette
+const autoHue = autoHueImported;
 
-// --- collision-free cast palette -------------------------------------------
-// Independent per-id hashing lets two characters land on near-identical hues.
-// Instead, assign each cast member a distinct SLOT on a fixed hue wheel: hash
-// the id to a slot, linear-probe to the next free slot on collision. Stable as
-// the cast grows (each id keeps its slot; a newcomer takes the next free one),
-// and collision-free up to WHEEL slots — past that we shift lightness by band.
-const WHEEL = 24;                 // distinct hue slots before lightness banding
-const SLOT_DEG = 360 / WHEEL;
-let _slotMap: Map<string, number> = new Map();
-let _slotSig = '';
-/** (Re)build the id→slot map from the current cast id set. Sorted for stability;
- * each id hashed to a slot with linear probing so no two share a slot. */
-function slotFor(id: string, castIds: string[]): number {
-  const sig = castIds.length + ':' + castIds.join(',');
-  if (sig !== _slotSig) {
-    _slotSig = sig;
-    _slotMap = new Map();
-    const taken = new Set<number>();
-    for (const cid of [...castIds].sort()) {
-      let slot = Math.floor(hash01(cid) * WHEEL) % WHEEL;
-      let guard = 0;
-      while (taken.has(slot) && guard < WHEEL) { slot = (slot + 1) % WHEEL; guard++; }
-      taken.add(slot);
-      _slotMap.set(cid, slot);
-    }
+// --- collision-free cast palette (frontend cache) ---------------------------
+// The core logic lives in core/palette.ts; this caches the color map per render.
+let _colorMap: Map<string, string> = new Map();
+let _colorSig = '';
+
+/** Warm the color map cache for a cast id set. Call once per render. */
+function warmColorMap(castIds: string[]): void {
+  const sig = castIds.length + ':' + [...castIds].sort().join(',');
+  if (sig !== _colorSig) {
+    _colorSig = sig;
+    _colorMap = castSlotColors(castIds);
   }
-  return _slotMap.get(id) ?? (Math.floor(hash01(id) * WHEEL) % WHEEL);
 }
-/** Solid color for a character, distinct across the cast. `band` (from how many
- * times the wheel has wrapped) nudges lightness so a 25th+ character still reads
- * apart from its hue twin. */
-function slotColor(slot: number, band = 0, hueShift = 0): string {
-  const h = (slot * SLOT_DEG + hueShift + 360) % 360;
-  const l = 68 - (band % 3) * 7;   // 68 / 61 / 54 lightness bands
-  const s = 60 + (slot % 2) * 6;   // gentle sat alternation for adjacent hues
-  return hslHex(h, s, l);
-}
-function hslHex(h: number, s: number, l: number): string {
-  s /= 100; l /= 100;
-  const k = (n: number): number => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number): number => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  const to = (x: number): string => Math.round(x * 255).toString(16).padStart(2, '0');
-  return '#' + to(f(0)) + to(f(8)) + to(f(4));
+
+/** Get the cached slot color for an id (warmed by warmColorMap). */
+function getCachedColor(id: string, castIds: string[]): string {
+  warmColorMap(castIds);
+  return _colorMap.get(id) ?? autoHue(id); // fallback if not in cast
 }
 
 /** Resolve the [color, colorTo?] a name should render with: explicit card colors
@@ -149,14 +113,14 @@ function resolveColor(id: string, color?: string, colorTo?: string, castIds?: st
   if (c) return { c, to: colorTo && HEX6.test(colorTo) ? colorTo : '' };
   if (_auto === 'off' || !id) return { c: '', to: '' };
   if (castIds && castIds.length) {
-    const slot = slotFor(id, castIds);
-    const band = Math.floor(([...castIds].sort().indexOf(id)) / WHEEL);
-    const base = slotColor(slot, band);
-    // gradient: a distinct SECOND stop per slot (rotate a third of the wheel +
-    // a per-slot jitter) so no two characters share BOTH stops.
-    return { c: base, to: _auto === 'gradient' ? slotColor((slot + 8 + (slot % 3)) % WHEEL, band, 12) : '' };
+    const base = getCachedColor(id, castIds);
+    // gradient: derive a complementary second stop from the base hue
+    const h = parseInt(base.slice(1, 3), 16);
+    const shift = ((h + 150) % 360).toString(16).padStart(2, '0');
+    const to = _auto === 'gradient' ? '#' + shift + base.slice(3) : '';
+    return { c: base, to };
   }
-  // no cast context (rare call sites): fall back to the old per-id hash
+  // no cast context (rare call sites): fall back to per-id hash
   const base = autoHue(id);
   return { c: base, to: _auto === 'gradient' ? autoHue(id, 150) : '' };
 }
@@ -180,10 +144,10 @@ export function nameHtml(state: ChronicleState, id: string): string {
 }
 
 /** Like nameHtml but from a CastCard directly (call sites that already hold the
- * card, e.g. the cast grid). Reuses the last-built slot map (kept warm by the
+ * card, e.g. the cast grid). Reuses the cached color map (kept warm by the
  * many nameHtml calls per render) so grid colors match the rest of the UI. */
 export function nameHtmlCard(c: CastCard): string {
-  const ids = _slotSig ? _slotSig.slice(_slotSig.indexOf(':') + 1).split(',').filter(Boolean) : undefined;
+  const ids = _colorSig ? _colorSig.slice(_colorSig.indexOf(':') + 1).split(',').filter(Boolean) : undefined;
   const { c: col, to } = resolveColor(c.id, c.color, c.colorTo, ids && ids.includes(c.id) ? ids : undefined);
   return paint(esc(c.name), col, to);
 }

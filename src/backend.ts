@@ -36,6 +36,8 @@ import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
 import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
+import { hasRegex, upsertScript, setScriptDisabled, deleteScriptByScriptId, scriptMeta } from './host/regex.js';
+import { colorScripts, castColorHash } from './domain/dialogue-color.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
@@ -117,7 +119,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, coloredDialogueRaw] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -133,14 +135,16 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     readCalendar(chatId),
     readTheme(),
     readPrefs(),
+    getChatVar(chatId, 'vellum_colored_dialogue').catch(() => ''),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
   const hide = !!hideRaw;
+  const coloredDialogue = !!coloredDialogueRaw;
   const traversalMode = travOn ? (travModeRaw === 'tree' ? 'tree' : 'flat') : 'off';
   const theme = themeRaw ?? null;
   const prefs = prefsRaw ?? null;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs }, userId ?? currentUser());
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, coloredDialogue, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -512,6 +516,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   try { if (await maybeSimulate(chatId, userId)) await broadcastState(chatId, userId); }
   catch (e) { spindle.log?.warn?.('[vellum_engine] maybeSimulate: ' + ((e as Error)?.message ?? e)); }
   void maybeChapterVault(chatId, userId);
+  void maybeColorSync(chatId, userId); // regenerate colored-dialogue scripts if cast/colors changed
   void precomputeTree(chatId, userId); // PR2: warm the tree ranking for next turn
 }
 
@@ -791,6 +796,43 @@ async function maybeVaultSync(chatId: string, userId: string | null): Promise<vo
     if (changed) { await vaultBroadcast(chatId, userId); spindle.log?.info?.('[vellum_engine] vault sync: ' + changed + ' change(s)'); }
   } catch (e) { spindle.log?.warn?.('[vellum_engine] vault sync: ' + ((e as Error)?.message ?? e)); }
   finally { _vaultSyncing.delete(chatId); }
+}
+
+const _colorSyncing = new Set<string>();
+/**
+ * Sync colored-dialogue regex scripts: regenerate display + strip scripts when
+ * the cast or colors change. Idempotent (checks castHash). Gated on hasRegex().
+ * When the feature is disabled, tears down our scripts and restores the preset's.
+ */
+async function maybeColorSync(chatId: string, userId: string | null): Promise<void> {
+  if (_colorSyncing.has(chatId)) return;
+  if (!(await hasRegex())) return;
+  const on = !!(await getChatVar(chatId, 'vellum_colored_dialogue'));
+  _colorSyncing.add(chatId);
+  try {
+    if (!on) {
+      // Feature off: remove our scripts if present, restore preset's vellum2-spk-display
+      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, userId);
+      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, userId);
+      await setScriptDisabled('vellum2-spk-display', false, userId); // best-effort restore
+      return;
+    }
+    // Feature on: check if regeneration needed (castHash changed)
+    const state = await loadState(chatId);
+    const hash = castColorHash(state);
+    const currentMeta = await scriptMeta(`vellum-engine-spk-display-${chatId}`, userId);
+    if (currentMeta && currentMeta.castHash === hash) return; // unchanged, skip
+    
+    // Generate and upsert both scripts
+    const scripts = colorScripts(chatId, state);
+    for (const script of scripts) await upsertScript(script, userId);
+    
+    // Disable the preset's competing display script to avoid double-wrap
+    await setScriptDisabled('vellum2-spk-display', true, userId);
+    
+    spindle.log?.info?.(`[vellum_engine] colored-dialogue: regenerated scripts for ${chatId} (hash ${hash.slice(0, 8)})`);
+  } catch (e) { spindle.log?.warn?.('[vellum_engine] maybeColorSync: ' + ((e as Error)?.message ?? e)); }
+  finally { _colorSyncing.delete(chatId); }
 }
 
 const _chapterVaulting = new Set<string>();
@@ -1877,6 +1919,12 @@ const dispatch: Record<string, Handler> = {
     await clearLog(chatId);
     invalidateIndex(chatId);
     invalidateMood(chatId);
+    // Clean up colored-dialogue scripts
+    try {
+      await deleteScriptByScriptId(`vellum-engine-spk-display-${chatId}`, uid);
+      await deleteScriptByScriptId(`vellum-engine-spk-strip-${chatId}`, uid);
+      await setScriptDisabled('vellum2-spk-display', false, uid); // restore preset script
+    } catch { /* best effort */ }
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_cleared', ok: true }, uid);
   },
@@ -2035,6 +2083,17 @@ const dispatch: Record<string, Handler> = {
     const covered = coveredTurn(state);
     const res = await syncHideOnFile(chatId, enabled, covered);
     spindle.sendToFrontend?.({ type: 'vellum_hide_done', ok: true, enabled, ...res }, uid);
+  },
+  vellum_set_colored_dialogue: async (p, uid) => {
+    // toggle colored character dialogue; persist in a chat var. Needs the
+    // regex_scripts permission + the preset's [spk=] tags to actually render.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const enabled = !!p?.enabled;
+    try { await setChatVar(chatId, 'vellum_colored_dialogue', enabled ? '1' : ''); } catch { /* best effort */ }
+    await maybeColorSync(chatId, uid); // immediate apply/teardown
+    spindle.sendToFrontend?.({ type: 'vellum_colored_dialogue_set_done', ok: true, enabled, available: await hasRegex() }, uid);
+    await broadcastState(chatId, uid);
   },
   vellum_set_traversal: async (p, uid) => {
     // controller-guided retrieval mode: off | flat (one-shot) | tree (tiered

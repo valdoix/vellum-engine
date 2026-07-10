@@ -26,6 +26,7 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       const hex = (v: unknown): string | undefined => { const s = String(v ?? '').trim(); return s === '' ? '' : (/^#[0-9a-fA-F]{6}$/.test(s) ? s : undefined); };
       if (e.color !== undefined) { const c = hex(e.color); if (c !== undefined) patch.color = c; }
       if (e.colorTo !== undefined) { const c = hex(e.colorTo); if (c !== undefined) patch.colorTo = c; }
+      if (e.dialogueColor !== undefined) { const c = hex(e.dialogueColor); if (c !== undefined) patch.dialogueColor = c; }
       // deceased: form sends a string ('yes'/'no'); store a real boolean (false clears in reducer)
       if (e.deceased !== undefined) patch.deceased = e.deceased === true || e.deceased === 'yes' || e.deceased === 'true';
       if (Array.isArray(e.aka)) patch.aka = e.aka;
