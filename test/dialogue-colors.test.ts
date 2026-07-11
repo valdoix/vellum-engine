@@ -67,18 +67,18 @@ describe('buildSpeakerColors', () => {
 describe('speakerColorCss', () => {
   it('always emits the .v-spk fallback rule first', () => {
     const css = speakerColorCss([]);
-    expect(css.split('\n')[0]).toBe('.v-spk{color:var(--vle-spk-default,inherit)}');
+    expect(css.split('\n')[0]).toBe('.v-spk,.v-spk *{color:var(--vle-spk-default,inherit)}');
   });
 
   it('emits a case-insensitive rule per name and alias', () => {
     const css = speakerColorCss([{ name: 'Elara', aka: ['El'], color: '#e0736b' }]);
-    expect(css).toContain('.v-spk[data-spk="Elara" i]{color:#e0736b !important}');
-    expect(css).toContain('.v-spk[data-spk="El" i]{color:#e0736b !important}');
+    expect(css).toContain('.v-spk[data-spk="Elara" i],.v-spk[data-spk="Elara" i] *{color:#e0736b !important}');
+    expect(css).toContain('.v-spk[data-spk="El" i],.v-spk[data-spk="El" i] *{color:#e0736b !important}');
   });
 
   it('escapes quotes and backslashes in names', () => {
     const css = speakerColorCss([{ name: 'He said "hi"', aka: [], color: '#fff' }]);
-    expect(css).toContain('.v-spk[data-spk="He said \\"hi\\"" i]{color:#fff !important}');
+    expect(css).toContain('.v-spk[data-spk="He said \\"hi\\"" i],.v-spk[data-spk="He said \\"hi\\"" i] *{color:#fff !important}');
   });
 
   it('dedupes identical name+color rules', () => {
