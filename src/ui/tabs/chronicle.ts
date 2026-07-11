@@ -58,6 +58,8 @@ let _laggingOffIds: string[] = [];
 // expanded thread-card ids (World view). Session-only; cards start collapsed and
 // expand to reveal beat history, meanwhile note, and controls.
 const _threadExpanded = new Set<string>();
+// expanded chapter-card ids (Memory view). Session-only; chapters start collapsed.
+const _chapExpanded = new Set<string>();
 // snapshot of open arcs refilled each render(), read by the arc-link click handler
 // (which runs in mount(), where render() state `s` is not in scope).
 let _arcSnapshot: Array<{ id: string; name: string; beats: string[] }> = [];
@@ -355,6 +357,14 @@ export const chronicleTab: Component<ChronicleState> = {
       if (thToggle) {
         const id = thToggle.getAttribute('data-leaf-toggle') || '';
         if (_threadExpanded.has(id)) _threadExpanded.delete(id); else _threadExpanded.add(id);
+        refreshUI();
+        return;
+      }
+      // Chapter card toggle (Memory view)
+      const chapToggle = t.closest('[data-chap-toggle]');
+      if (chapToggle) {
+        const id = chapToggle.getAttribute('data-chap-toggle') || '';
+        if (_chapExpanded.has(id)) _chapExpanded.delete(id); else _chapExpanded.add(id);
         refreshUI();
         return;
       }
@@ -788,37 +798,122 @@ function memories(s: ChronicleState): string {
   if (!nonBeat.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
   const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: turnCount, chapter: chapCount, arc: s.memories.filter((m) => m.tier === 'arc').length } });
   const filtered = applyFilter('memories', nonBeat, { cat: (m) => m.tier });
-  const { slice, page, pages } = paginate('memories', filtered);
-  const rows = slice.map((m: Memory) => {
-    const isTurn = m.tier === 'turn';
-    const shown = isTurn ? oneLine(m.text) : m.text;
-    const titleAttr = isTurn ? ` title="${esc(m.text).slice(0, 1000)}"` : '';
-    // fold mode: only the matching tier is pickable. delete mode: any summary
-    // (chapter/arc) is pickable; turns are not (use fold/their own delete).
-    const pickable = inFold ? m.tier === _pickTier : inDel ? (m.tier === 'chapter' || m.tier === 'arc') : false;
-    const checked = _picked.has(m.id) ? ' checked' : '';
-    const box = pickable ? `<input type="checkbox" class="vle-mem-pick" data-pick-id="${esc(m.id)}"${checked}>` : '';
-    return '<div class="vle-mem' + (pickable ? ' pickable' : '') + '">' + box
-      + '<span class="vle-mem-tier t-' + m.tier + '">' + m.tier + '</span>'
-      + '<span class="vle-mem-t"' + titleAttr + '>' + esc(shown) + '</span>'
-      + `<span class="vle-mem-ctl"><button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit summary">\u270E</button>`
-      + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
-  }).join('');
-  const foldLabel = _pickTier === 'chapter' ? 'Fold into arc' : 'Fold into chapter';
-  const unit = inDel ? 'summary' : (_pickTier === 'chapter' ? 'chapter' : 'turn');
-  const unitPl = inDel ? 'summaries' : unit + 's';
-  let footer = '';
-  if (inFold) {
-    footer = `<div class="vle-pickbar"><span>${_picked.size} ${_picked.size === 1 ? unit : unitPl} selected</span>`
-      + `<button class="vle-add sm" data-pick-fold${_picked.size < 2 ? ' disabled' : ''}>${foldLabel}</button></div>`;
-  } else if (inDel) {
-    footer = `<div class="vle-pickbar"><span>${_picked.size} ${_picked.size === 1 ? unit : unitPl} selected</span>`
-      + `<button class="vle-add sm" data-pick-selall>Select all</button>`
-      + `<button class="vle-add sm danger" data-pick-delete${_picked.size < 1 ? ' disabled' : ''}>Delete selected</button>`
-      + `<button class="vle-add sm danger" data-pick-delall>Delete all summaries</button></div>`;
+  
+  // Pick mode uses flat paginated list (preserve existing behavior)
+  if (_pickMode) {
+    const { slice, page, pages } = paginate('memories', filtered);
+    const rows = slice.map((m: Memory) => {
+      const isTurn = m.tier === 'turn';
+      const shown = isTurn ? oneLine(m.text) : m.text;
+      const titleAttr = isTurn ? ` title="${esc(m.text).slice(0, 1000)}"` : '';
+      const pickable = inFold ? m.tier === _pickTier : inDel ? (m.tier === 'chapter' || m.tier === 'arc') : false;
+      const checked = _picked.has(m.id) ? ' checked' : '';
+      const box = pickable ? `<input type="checkbox" class="vle-mem-pick" data-pick-id="${esc(m.id)}"${checked}>` : '';
+      return '<div class="vle-mem' + (pickable ? ' pickable' : '') + '">' + box
+        + '<span class="vle-mem-tier t-' + m.tier + '">' + m.tier + '</span>'
+        + '<span class="vle-mem-t"' + titleAttr + '>' + esc(shown) + '</span>'
+        + `<span class="vle-mem-ctl"><button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit summary">\u270E</button>`
+        + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
+    }).join('');
+    const foldLabel = _pickTier === 'chapter' ? 'Fold into arc' : 'Fold into chapter';
+    const unit = inDel ? 'summary' : (_pickTier === 'chapter' ? 'chapter' : 'turn');
+    const unitPl = inDel ? 'summaries' : unit + 's';
+    let footer = '';
+    if (inFold) {
+      footer = `<div class="vle-pickbar"><span>${_picked.size} ${_picked.size === 1 ? unit : unitPl} selected</span>`
+        + `<button class="vle-add sm" data-pick-fold${_picked.size < 2 ? ' disabled' : ''}>${foldLabel}</button></div>`;
+    } else if (inDel) {
+      footer = `<div class="vle-pickbar"><span>${_picked.size} ${_picked.size === 1 ? unit : unitPl} selected</span>`
+        + `<button class="vle-add sm" data-pick-selall>Select all</button>`
+        + `<button class="vle-add sm danger" data-pick-delete${_picked.size < 1 ? ' disabled' : ''}>Delete selected</button>`
+        + `<button class="vle-add sm danger" data-pick-delall>Delete all summaries</button></div>`;
+    }
+    if (!slice.length) return head + bar + emptyState('No memories match this filter.');
+    return head + bar + footer + rows + pagerHtml('memories', page, pages);
   }
-  if (!slice.length) return head + bar + emptyState('No memories match this filter.');
-  return head + bar + footer + rows + pagerHtml('memories', page, pages);
+  
+  // Normal mode: layered arc/chapter/turn view
+  const arcs = filtered.filter((m) => m.tier === 'arc');
+  const chapters = filtered.filter((m) => m.tier === 'chapter');
+  const turns = filtered.filter((m) => m.tier === 'turn');
+  
+  // Build set of turn ids that are subsumed by any chapter
+  const subsumedTurnIds = new Set<string>();
+  for (const chap of s.memories.filter((m) => m.tier === 'chapter')) {
+    if (chap.subsumed) for (const sub of chap.subsumed) subsumedTurnIds.add(sub.id);
+  }
+  const uncoveredTurns = turns.filter((t) => !subsumedTurnIds.has(t.id));
+  
+  const arcHtml = arcs.map((m) => {
+    const isDone = m.covers && m.covers[1] < s.turns - 10;
+    const chapsInArc = s.memories.filter((c) => c.tier === 'chapter' && m.subsumed?.some((sub) => sub.id === c.id)).length;
+    return '<div class="vle-m-arc' + (isDone ? ' done' : '') + '">'
+      + '<div class="vle-m-arc-bar"></div>'
+      + '<div class="vle-m-arc-body">'
+      + '<div class="vle-m-arc-head">'
+      + '<span class="vle-m-arc-tier">arc</span>'
+      + '<span class="vle-m-arc-span">' + (m.covers ? 'T' + m.covers[0] + '\u2013' + m.covers[1] : 't' + m.turn) + '</span>'
+      + '</div>'
+      + '<div class="vle-m-arc-text">' + esc(m.text) + '</div>'
+      + '<div class="vle-m-arc-foot">'
+      + '<span class="vle-m-arc-covers">covers ' + chapsInArc + ' chapter' + (chapsInArc === 1 ? '' : 's') + '</span>'
+      + '<span class="vle-mem-ctl">'
+      + `<button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit">\u270E</button>`
+      + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button>`
+      + '</span>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+  
+  const chapHtml = chapters.map((m) => {
+    const isOpen = _chapExpanded.has(m.id);
+    const sourceCount = m.subsumed?.length ?? 0;
+    return '<div class="vle-m-chap ' + (isOpen ? 'open' : 'closed') + '" data-chap-id="' + esc(m.id) + '">'
+      + '<div class="vle-m-chap-head" data-chap-toggle="' + esc(m.id) + '">'
+      + '<span class="vle-m-chap-chev">\u25B6</span>'
+      + '<div class="vle-m-chap-tw">'
+      + '<span class="vle-m-chap-tier">chapter</span>'
+      + '<span class="vle-m-chap-title">' + esc(isOpen ? m.text : oneLine(m.text, 80)) + '</span>'
+      + '</div>'
+      + '<span class="vle-m-chap-span">' + (m.covers ? 'T' + m.covers[0] + '\u2013' + m.covers[1] : 't' + m.turn) + '</span>'
+      + '<span class="vle-mem-ctl">'
+      + `<button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit">\u270E</button>`
+      + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button>`
+      + '</span>'
+      + '</div>'
+      + '<div class="vle-m-chap-body">'
+      + '<div class="vle-m-chap-text">' + esc(m.text) + '</div>'
+      + '<div class="vle-m-chap-turns">'
+      + '<div class="vle-m-chap-turns-label">\u25BE ' + sourceCount + ' source turn' + (sourceCount === 1 ? '' : 's') + '</div>'
+      + '<div class="vle-m-chap-turn-list">'
+      + (sourceCount > 0
+        ? m.subsumed!.map((sub) => '<div class="vle-m-turn-chip">t' + sub.turn + ' \u00b7 ' + esc(oneLine(sub.text, 80)) + '</div>').join('')
+        : '<div class="vle-m-turn-chip">no source turns recorded</div>')
+      + '</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+  
+  const turnHtml = uncoveredTurns.length > 0
+    ? '<div class="vle-m-turns-label">uncovered turns <span style="color:var(--vle-gold-dim)">(' + uncoveredTurns.length + ')</span></div>'
+      + '<div class="vle-m-turns-grid">'
+      + uncoveredTurns.sort((a, b) => b.turn - a.turn).map((m) =>
+        '<div class="vle-m-turn-raw">'
+        + '<span class="vle-m-turn-raw-t">t' + m.turn + '</span>'
+        + '<span class="vle-m-turn-raw-x">' + esc(oneLine(m.text)) + '</span>'
+        + '<span class="vle-mem-ctl">'
+        + `<button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit">\u270E</button>`
+        + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button>`
+        + '</span>'
+        + '</div>'
+      ).join('')
+      + '</div>'
+    : '';
+  
+  if (!filtered.length) return head + bar + emptyState('No memories match this filter.');
+  return head + bar + arcHtml + (chapHtml ? '<div style="height:0.8rem"></div>' + chapHtml : '') + turnHtml;
 }
 
 /** Small certainty chip before a fact. 'knows' is the neutral default and shows
@@ -831,22 +926,54 @@ function relChip(r: string): string {
 function knowledge(s: ChronicleState): string {
   const head = sectionHeader('\u25C8 Knowledge', { sub: true, count: s.knowledge.length, action: '<button class="vle-add sm" data-know-add>+</button>' });
   if (!s.knowledge.length) return head + emptyState('Nothing known yet.', 'Who-knows-what fills in as the story reveals it. Mark a belief false to track dramatic irony \u2014 when a character is sure of something untrue.');
+  
+  // Keep filter bar for pagination/filtering support
   const whos = Array.from(new Set(s.knowledge.map((k) => k.who))).map((id) => ({ id, name: nameOf(s, id) }));
   const whoCounts: Record<string, number> = {};
   for (const k of s.knowledge) whoCounts[k.who] = (whoCounts[k.who] ?? 0) + 1;
   const bar = filterBar('knowledge', { whos, whoCounts });
   const filtered = applyFilter('knowledge', s.knowledge, { who: (k) => k.who });
   const { slice, page, pages } = paginate('knowledge', filtered);
-  const rows = slice.map((k) => {
-    const isFalse = k.truth === 'false';
-    return '<div class="vle-mem vle-mem--know' + (isFalse ? ' is-false v-orn--glow-neg' : '') + '"><span class="vle-mem-tier t-chapter">' + esc(nameOf(s, k.who)) + '</span>'
-      + `<span class="vle-mem-t"${k.source ? ` title="source: ${esc(k.source)}"` : ''}>` + relChip(k.reliability) + (isFalse ? '<span class="vle-kfalse" title="actually false — dramatic irony">\u26A0 false</span>' : '') + esc(k.fact)
-      + (isFalse ? '<span class="vle-kirony">dramatic irony \u2014 believed, but untrue</span>' : '') + '</span>'
-      + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button></div>`;
+  
+  // Group paginated slice by character
+  const groups = new Map<string, typeof slice>();
+  for (const k of slice) {
+    (groups.get(k.who) ?? groups.set(k.who, []).get(k.who)!).push(k);
+  }
+  
+  // Sort groups by character name
+  const whoIds = [...groups.keys()].sort((a, b) => nameOf(s, a).localeCompare(nameOf(s, b)));
+  
+  const cards = whoIds.map((who) => {
+    const facts = groups.get(who)!;
+    const rows = facts.map((k) => {
+      const isFalse = k.truth === 'false';
+      const relIcon = k.reliability === 'knows' ? '\u00B7' : k.reliability === 'believes' ? '\u25C6' : k.reliability === 'suspects' ? '\u203A' : '\u2715';
+      const rowClass = isFalse ? 'irony' : k.reliability === 'believes' ? 'believes' : k.reliability === 'suspects' ? 'suspects' : '';
+      const relClass = isFalse ? 'irony' : k.reliability;
+      return '<div class="vle-k-row ' + rowClass + '">'
+        + '<span class="vle-k-rel vle-k-rel-' + relClass + '">' + relIcon + '</span>'
+        + '<span class="vle-k-fact">'
+        + (isFalse ? '<span class="vle-k-irony-label">\u26A0 false</span>' : '')
+        + esc(k.fact)
+        + '</span>'
+        + (k.about ? '<span class="vle-k-about">re: ' + esc(nameOf(s, k.about)) + '</span>' : '')
+        + `<button class="vle-mini del" data-know-del data-id="${esc(k.id)}" title="Delete">\u2715</button>`
+        + '</div>';
+    }).join('');
+    return '<div class="vle-k-card">'
+      + '<div class="vle-k-card-head">'
+      + '<span class="vle-k-card-name">' + esc(nameOf(s, who)) + '</span>'
+      + '<span class="vle-k-card-count">' + facts.length + ' fact' + (facts.length === 1 ? '' : 's') + '</span>'
+      + '</div>'
+      + '<div class="vle-k-rows">' + rows + '</div>'
+      + '</div>';
   }).join('');
+  
   if (!slice.length) return head + bar + emptyState('No knowledge matches this filter.');
-  return head + bar + rows + pagerHtml('knowledge', page, pages);
+  return head + bar + cards + pagerHtml('knowledge', page, pages);
 }
+
 
 function secrets(s: ChronicleState): string {
   const head = sectionHeader('\u26C0 Secrets', { sub: true, count: s.secrets.length, action: '<button class="vle-add sm" data-sec-add>+</button>' });
@@ -857,11 +984,41 @@ function secrets(s: ChronicleState): string {
   const bar = filterBar('secrets', { whos, whoCounts });
   const filtered = applyFilter('secrets', s.secrets.map((x) => ({ ...x, turn: x.formedTurn })), { who: (x) => x.keeper });
   const { slice, page, pages } = paginate('secrets', filtered);
-  const rows = slice.map((sec) => '<div class="vle-mem vle-mem--secret v-orn--seal' + (sec.revealed ? ' is-broken' : '') + '">' + shapeOrnament(activeShape('secrets'), 'secrets') + '<span class="vle-mem-tier t-turn">' + esc(nameOf(s, sec.keeper)) + (sec.revealed ? ' \u00b7 out' : '') + '</span><span class="vle-mem-t">' + esc(sec.text) + (sec.from.length ? ' <em>(from ' + esc(sec.from.map((f) => nameOf(s, f)).join(', ')) + ')</em>' : '') + '</span>'
-    + (sec.revealed ? '' : `<button class="vle-mini" data-sec-reveal data-id="${esc(sec.id)}" title="Reveal">\u25D0</button>`)
-    + `<button class="vle-mini del" data-sec-del data-id="${esc(sec.id)}" title="Delete">\u2715</button></div>`).join('');
+  
+  // Helper: derive danger level from heuristics (no schema field yet)
+  const secretDanger = (sec: typeof slice[0]): 'minor' | 'major' | 'explosive' => {
+    if (sec.text.length > 180 || sec.from.length >= 3) return 'explosive';
+    if (sec.from.length >= 2 || sec.text.length > 80) return 'major';
+    return 'minor';
+  };
+  
+  const cards = slice.map((sec) => {
+    const danger = secretDanger(sec);
+    const dangerClass = sec.revealed ? 'revealed ' + danger : danger;
+    return '<div class="vle-sec-card ' + dangerClass + '">'
+      + '<div class="vle-sec-danger-bar"></div>'
+      + '<div class="vle-sec-body">'
+      + (sec.revealed ? '<div class="vle-sec-watermark">REVEALED</div>' : '')
+      + '<div class="vle-sec-head-row">'
+      + '<span class="vle-sec-keeper">' + esc(nameOf(s, sec.keeper)) + '</span>'
+      + '<span class="vle-sec-danger ' + danger + '">' + danger + '</span>'
+      + '<span class="vle-sec-from-label">' + (sec.revealed ? 'was hidden from' : 'hidden from') + '</span>'
+      + sec.from.map((f) => '<span class="vle-sec-from-chip">' + esc(nameOf(s, f)) + '</span>').join('')
+      + '</div>'
+      + '<div class="vle-sec-text">' + esc(sec.text) + '</div>'
+      + '<div class="vle-sec-foot">'
+      + '<span class="vle-sec-turn">formed t' + sec.formedTurn + (sec.revealed ? ' \u00b7 revealed' : '') + '</span>'
+      + '<span class="vle-mem-ctl">'
+      + (sec.revealed ? '' : `<button class="vle-mini" data-sec-reveal data-id="${esc(sec.id)}" title="Reveal">\u25D0</button>`)
+      + `<button class="vle-mini del" data-sec-del data-id="${esc(sec.id)}" title="Delete">\u2715</button>`
+      + '</span>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+  
   if (!slice.length) return head + bar + emptyState('No secrets match this filter.');
-  return head + bar + rows + pagerHtml('secrets', page, pages);
+  return head + bar + cards + pagerHtml('secrets', page, pages);
 }
 
 /** Palimpsest scars — beliefs once held, proven wrong, kept as a mark. The
@@ -870,17 +1027,42 @@ function scars(s: ChronicleState): string {
   const list = s.scars ?? [];
   const head = sectionHeader('\u2620 Scars', { sub: true, count: list.length, action: '<button class="vle-add sm" data-scar-add>+</button>' });
   if (!list.length) return head + emptyState('No scars yet.', 'When a belief is proven wrong, the old belief is kept here \u2014 it resurfaces under stress as doubt.');
-  const whos = Array.from(new Set(list.map((x) => x.who))).map((id) => ({ id, name: nameOf(s, id) }));
-  const whoCounts: Record<string, number> = {};
-  for (const x of list) whoCounts[x.who] = (whoCounts[x.who] ?? 0) + 1;
-  const bar = filterBar('scars', { whos, whoCounts });
-  const filtered = applyFilter('scars', list, { who: (x) => x.who });
-  const { slice, page, pages } = paginate('scars', filtered);
-  const rows = slice.map((x) => '<div class="vle-mem vle-mem--scar">' + '<span class="vle-mem-tier t-turn">' + esc(nameOf(s, x.who)) + '</span>'
-    + '<span class="vle-mem-t"><span class="vle-scar-was">' + esc(x.was) + '</span>' + (x.about ? ' <em>(about ' + esc(nameOf(s, x.about)) + ')</em>' : '') + '</span>'
-    + `<button class="vle-mini del" data-scar-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
-  if (!slice.length) return head + bar + emptyState('No scars match this filter.');
-  return head + bar + rows + pagerHtml('scars', page, pages);
+  
+  // Group by character (who holds the scar)
+  const groups = new Map<string, typeof list>();
+  for (const x of list) {
+    (groups.get(x.who) ?? groups.set(x.who, []).get(x.who)!).push(x);
+  }
+  
+  // Sort groups by character name
+  const whos = [...groups.keys()].sort((a, b) => nameOf(s, a).localeCompare(nameOf(s, b)));
+  
+  const body = whos.map((who) => {
+    const scarsForWho = groups.get(who)!.sort((a, b) => b.turn - a.turn);
+    const cards = scarsForWho.map((x) =>
+      '<div class="vle-scar-card">'
+      + '<div class="vle-scar-head">'
+      + '<span class="vle-scar-turn">overturned t' + x.turn + '</span>'
+      + `<button class="vle-mini del" data-scar-del data-id="${esc(x.id)}" title="Delete" style="margin-left:auto">\u2715</button>`
+      + '</div>'
+      + '<div class="vle-scar-was">'
+      + esc(x.was)
+      + (x.about ? '<span class="vle-scar-about">about: ' + esc(nameOf(s, x.about)) + '</span>' : '')
+      + '</div>'
+      + '<div class="vle-scar-divider"></div>'
+      + '<div class="vle-scar-now">'
+      + '<span class="vle-scar-now-label">proved wrong</span>'
+      + 'Belief overturned.'
+      + '</div>'
+      + '</div>'
+    ).join('');
+    return '<div class="vle-scar-group">'
+      + '<div class="vle-scar-group-head">' + esc(nameOf(s, who)) + '</div>'
+      + cards
+      + '</div>';
+  }).join('');
+  
+  return head + body;
 }
 
 /** Codex \u2014 minted canon (facts true of the world, not a character's belief). */
@@ -888,11 +1070,37 @@ function codex(s: ChronicleState): string {
   const list = s.lore ?? [];
   const head = sectionHeader('\u2756 Codex', { sub: true, count: list.length, action: '<button class="vle-add sm" data-lore-add>+</button>' });
   if (!list.length) return head + emptyState('The Codex is empty.', 'World-facts the engine establishes (custom, geography, history) are recorded here as canon.');
-  const sorted = list.slice().sort((a, b) => b.turn - a.turn);
-  const rows = sorted.map((x) => '<div class="vle-mem vle-mem--codex"><span class="vle-mem-tier t-chapter">' + esc(x.tag || 'canon') + '</span>'
-    + '<span class="vle-mem-t">' + esc(x.fact) + '</span>'
-    + `<button class="vle-mini del" data-lore-del data-id="${esc(x.id)}" title="Delete">\u2715</button></div>`).join('');
-  return head + rows;
+  
+  // Group by tag ('canon' is the default/fallback tag)
+  const groups = new Map<string, typeof list>();
+  for (const x of list) {
+    const tag = x.tag || 'canon';
+    (groups.get(tag) ?? groups.set(tag, []).get(tag)!).push(x);
+  }
+  
+  // Sort groups: alphabetical, 'canon' last
+  const tags = [...groups.keys()].sort((a, b) => {
+    if (a === 'canon') return 1;
+    if (b === 'canon') return -1;
+    return a.localeCompare(b);
+  });
+  
+  const body = tags.map((tag) => {
+    const entries = groups.get(tag)!.sort((a, b) => b.turn - a.turn);
+    const rows = entries.map((x) =>
+      '<div class="vle-lore-row">'
+      + '<span class="vle-lore-fact">' + esc(x.fact) + '</span>'
+      + '<span class="vle-lore-turn">t' + x.turn + '</span>'
+      + `<button class="vle-mini del" data-lore-del data-id="${esc(x.id)}" title="Delete">\u2715</button>`
+      + '</div>'
+    ).join('');
+    return '<div class="vle-lore-group">'
+      + '<div class="vle-lore-group-head">' + esc(tag) + '</div>'
+      + rows
+      + '</div>';
+  }).join('');
+  
+  return head + body;
 }
 
 /** Items \u2014 the possession tracker. Named, notable possessions grouped by owner
