@@ -4,14 +4,61 @@
 
 VELLUM II watches your story as you play it and quietly keeps track of everything that matters — who's in the room, how people feel about each other, what each character secretly knows (and what they're wrong about), what's happening off-screen, and what happened fifty messages ago that the AI would otherwise forget. It then feeds the *relevant* slice of that history back into the AI on every turn, so your characters stay consistent and the world keeps its shape over a long story.
 
-It comes in two halves that work together:
+**VELLUM II is a matched set: preset + extension, designed to work together.** The preset tells the AI how to write and what to track. The extension reads that tracking data and builds a living chronicle of your story. You *can* use one without the other, but they're strongest as a pair — like a pen and paper, not two separate tools.
 
 - **The preset** — the instructions sent to the AI. It shapes the *prose* (how it writes) and asks the AI to append a small, hidden status report at the end of each reply.
 - **The extension** — a Lumiverse add-on that reads those hidden reports, builds a living "chronicle" of your story, and shows it to you in a beautiful panel with tabs for cast, relationships, a relationship graph, a timeline, and more.
 
-You can use the preset on its own (it produces great writing by itself). You can use the extension on its own (it works with any preset, though not as precisely). Together they're designed as one system.
-
 > A *palimpsest* is a manuscript page that's been written, scraped clean, and written over again — with the older layers still faintly readable underneath. That's the whole idea: your story's present is the top layer, and its entire history stays legible beneath it.
+
+---
+
+## Creator's Note
+
+This extension has been crafted with care but hasn't been tested on mobile devices yet. For the best experience on desktop, I recommend adjusting your Lumiverse panel width:
+
+**Settings → Panel Width → Custom → 42vw** (or more, to taste)
+
+I personally use 42vw — it gives the Chronicle tabs breathing room without crowding the chat. Adjust to your preference.
+
+This project was built with the assistance of **Claude Opus 4.8** — engineered through conversation, iterated in real time, and tested against real long-form stories.
+
+---
+
+## What's New in This Version
+
+### Redesigned Chronicle Views
+
+The Chronicle tab has been completely rebuilt for clarity and density. All five record views — **Memory**, **Knowledge**, **Secrets**, **Scars**, and **Codex** — now use visual hierarchy and grouping instead of flat lists.
+
+- **Memory**: Layered compression. Arc summaries are wide spine covers, chapters are collapsible cards showing their source turns, and uncovered turns sit at the bottom as dense chips.
+- **Knowledge**: Grouped by character. Dramatic irony (false beliefs) reads at a glance with a crimson row tint and a `⚠ false` badge.
+- **Secrets**: Danger-coded envelope cards. A colored left bar (blue/amber/crimson for minor/major/explosive) signals threat level instantly. Revealed secrets show a watermark and go translucent.
+- **Scars**: Palimpsest wound cards grouped by character. The old belief is struck through in red-faded ink above a dashed divider; the moment it was proven wrong sits below.
+- **Codex**: Tag-grouped canon index. Facts are organized by category (Geography, History, Custom) with a thin gold border signaling ground truth.
+
+These aren't cosmetic — they make scanning faster and reduce cognitive load when your story has dozens of facts, secrets, or memories.
+
+### Time Sync Tab
+
+The desync inspector (which tracked lagging plot threads and off-screen subplots) is now its own tab in the **Story** section, no longer buried at the bottom of World. When a time-skip leaves threads behind, they appear here with catch-up options. When everything is in sync, you see a clean empty state.
+
+### Preset Editor Tab (Extension Feature)
+
+When you open the VELLUM preset in Lumiverse's preset editor, you'll see a new **VELLUM** tab alongside the built-in Preset tab. It shows:
+
+- **Link status**: whether the open preset is linked to the extension (so the extension knows to inject chronicle data for this preset)
+- **Health check**: confirms the preset has the required `<vellum>` state block
+- **Injection preview**: shows what the extension *would* inject into the prompt right now (characters, relationships, recalled turns, facts)
+- **Extraction status**: recent turns and whether the extension successfully read their state blocks
+
+Linking a preset to the extension is one click — no manual tagging or config files. Unlinking is just as easy. This is the control panel for making the preset and extension talk.
+
+### Lumiverse Themes (Bonus)
+
+Four `.lumitheme` files are included in the `lumithemes/` folder — **Vellum Bloom**, **Vellum Ember**, **Vellum Ink**, and **Vellum Parchment**. These are Lumiverse host themes inspired by VELLUM's own visual language: illuminated-manuscript palettes with custom fonts and layout touches. They're optional aesthetic companions to the engine, not required for functionality.
+
+To use them, copy a `.lumitheme` file to your Lumiverse themes folder and select it in Lumiverse's appearance settings. (The themes apply to Lumiverse itself, not the VELLUM panel — the panel inherits from the host theme automatically.)
 
 ---
 
