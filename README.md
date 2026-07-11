@@ -21,6 +21,8 @@ This extension has been crafted with care but hasn't been tested on mobile devic
 
 I personally use 42vw — it gives the Chronicle tabs breathing room without crowding the chat. Adjust to your preference.
 
+**On native thinking:** you don't need it. The preset's Reverie block already does the model's planning and reasoning on the page, so native/extended thinking is redundant and I don't recommend turning it on. That said, nothing breaks if you do — leave it on if you prefer it.
+
 This project was built with the assistance of **Claude Opus 4.8** — engineered through conversation, iterated in real time, and tested against real long-form stories.
 
 ---
