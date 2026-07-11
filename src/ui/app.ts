@@ -18,6 +18,7 @@ import { reloadAutoNameFromPrefs } from './format.js';
 import { dashboardHtml, setPhoneSection, setSysInfo, setDashCalendar } from './dashboard.js';
 import { formatDate } from '../domain/date-format.js';
 import { visibleCast } from '../domain/cast-hygiene.js';
+import { buildSpeakerColors, speakerColorCss } from '../domain/dialogue-colors.js';
 import { esc } from './format.js';
 import { icon, hasIcon } from './icons.js';
 import type { Component } from './component.js';
@@ -733,6 +734,22 @@ export function setup(ctx: Ctx): () => void {
   let state: ChronicleState = freshState();
   const getState = (): ChronicleState => state;
 
+  // Dialogue coloring: a SEPARATE stylesheet from the main one, rewritten whenever
+  // the cast/colors change. The preset's display regex wraps each tagged quote in
+  // <span class="v-spk" data-spk="Name">; these rules color those spans. Because it
+  // is CSS (not injected DOM), it applies to the backlog AND every future turn the
+  // preset regex produces — which is what fixes the "new turns don't color" bug.
+  let _spkStyle: { remove(): void } | null = null;
+  let _spkSig = '';
+  const updateDialogueColors = (cast: Record<string, unknown> | undefined): void => {
+    if (!cast) return;
+    const css = speakerColorCss(buildSpeakerColors(cast as Parameters<typeof buildSpeakerColors>[0]));
+    if (css === _spkSig) return; // unchanged — skip the DOM churn
+    _spkSig = css;
+    try { _spkStyle?.remove(); } catch { /* ignore */ }
+    _spkStyle = ctx.dom.addStyle(css);
+  };
+
   const tab = ctx.ui.registerDrawerTab({
     id: 'vellum-engine-tab', title: 'VELLUM', shortName: 'VELLUM',
     description: 'Living-narrative chronicle, cast, relations, graph & QOL',
@@ -1031,6 +1048,7 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_state') {
         _lastStateAt = Date.now(); // mark arrival so the post-turn safety poll can skip
         state = p.state ?? freshState();
+        updateDialogueColors(state?.cast); // live-update dialogue color stylesheet from cast
         if (p.tone) {
         _tone = { romance: p.tone.romance ?? 'medium', disposition: p.tone.disposition ?? 'fair', social: p.tone.social ?? 'living', politics: p.tone.politics ?? 'off' };
         const isDefault = _tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living' && _tone.politics === 'off';
@@ -1322,6 +1340,7 @@ export function setup(ctx: Ctx): () => void {
     try { tab.destroy(); } catch { /* ignore */ }
     try { presetEditorTab?.destroy(); } catch { /* ignore */ }
     try { style.remove(); } catch { /* ignore */ }
+    try { _spkStyle?.remove(); } catch { /* ignore */ }
     try { cleanupToasts(); } catch { /* ignore */ }
     try { ctx.dom.cleanup(); } catch { /* ignore */ }
   };

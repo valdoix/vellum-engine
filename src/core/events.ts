@@ -132,7 +132,7 @@ export const EvPlantAbandon = z.object({ ...base, kind: z.literal('plant.abandon
 export const EvPlantDrop = z.object({ ...base, kind: z.literal('plant.drop'), id: z.string() });
 
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
-export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional(), imageUrl: z.string().optional(), deceased: z.boolean().optional() });
+export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional(), dialogueColor: z.string().optional(), imageUrl: z.string().optional(), deceased: z.boolean().optional() });
 export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: CastPatch });
 export const EvCastDrop = z.object({ ...base, kind: z.literal('cast.drop'), id: z.string() });
 

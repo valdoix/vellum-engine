@@ -191,7 +191,7 @@ The voice of the whole story.
 - **Era / Idiom** — **Off (follow the world)** *(default)* / Mythic / Ancient / Medieval / Renaissance / Early-Modern / Georgian / Regency / Victorian / Industrial / Belle Époque / Fin de Siècle / Jazz Age / Early 20th C. / Mid-Century Modern / Contemporary / Near-Future / Far-Future / Space Age / Post-Collapse / Timeless / Fairytale / Random (per turn). Tints diction and idiom to a period.
 - **Anachronism Strictness** — Authentic / **Flavored** *(default)* / Loose. How hard the era rule bites on word choice.
 - **Tonal Cast** — **Off (no wash)** *(default)* / Blue (melancholy) / Amber (nostalgia/warmth) / Ash (numb) / Violet (feverish/dream) / Crimson (heat/appetite) / Verdigris (rot/envy) / Adaptive (per beat) / Random (per turn). An emotional color wash over the prose.
-- **Colored dialogue** *(off by default)* — tints each speaker's dialogue a distinct color in the display (needs the matching display script).
+- **Colored dialogue** *(off by default)* — the model tags each spoken line with the speaker, and the display tints it a distinct color. With the extension installed, colors come from each character's cast card (a dedicated dialogue color if you set one, otherwise their name color, with a gradient name collapsed to one readable shade, otherwise a stable auto color). Without the extension the dialogue is still wrapped but simply inherits the normal text color. Coloring applies to both existing and newly generated turns.
 
 ### Anti-slop & craft
 

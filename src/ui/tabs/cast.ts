@@ -99,6 +99,7 @@ export const castTab: Component<ChronicleState> = {
           status: ed.getAttribute('data-status') ?? 'active', aka: ed.getAttribute('data-aka') ?? '',
           disposition: ed.getAttribute('data-disp') ?? '', traits: ed.getAttribute('data-traits') ?? '',
           color: ed.getAttribute('data-color') ?? '', colorTo: ed.getAttribute('data-colorto') ?? '',
+          dialogueColor: ed.getAttribute('data-dcolor') ?? '',
           imageUrl: ed.getAttribute('data-img') ?? '', deceased: ed.getAttribute('data-deceased') ?? 'no',
         });
         return;
@@ -174,6 +175,7 @@ function castForm(title: string, v: Record<string, string>): void {
     { key: 'deceased', label: 'Life state', type: 'select', value: v.deceased ?? 'no', options: [{ value: 'no', label: 'Alive' }, { value: 'yes', label: 'Deceased' }] },
     { key: 'color', label: 'Name color', type: 'color', value: v.color },
     { key: 'colorTo', label: 'Gradient end (optional)', type: 'color', value: v.colorTo },
+    { key: 'dialogueColor', label: 'Dialogue color (optional; falls back to name color)', type: 'color', value: v.dialogueColor },
     { key: 'imageUrl', label: 'Portrait image URL (optional)', type: 'text', value: v.imageUrl, placeholder: 'https://\u2026' },
   ], (out) => {
     if (!out.name?.trim()) return;
@@ -267,7 +269,7 @@ function card(s: ChronicleState, c: CastCard): string {
     + '<span class="vle-card-ctl">'
     + `<button class="vle-mini" data-cast-unfold data-id="${A(c.id)}" title="${open ? 'Collapse' : 'Expand'}">${open ? '\u2303' : '\u2304'}</button>`
     + `<button class="vle-mini" data-cast-promote data-id="${A(c.id)}" title="Promote to Vault lore">\u2934</button>`
-    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-img="${A(c.imageUrl ?? '')}" data-deceased="${c.deceased ? 'yes' : 'no'}" title="Edit">\u270E</button>`
+    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-dcolor="${A(c.dialogueColor ?? '')}" data-img="${A(c.imageUrl ?? '')}" data-deceased="${c.deceased ? 'yes' : 'no'}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
     + '</span></div>';
 }
@@ -289,7 +291,7 @@ function strip(s: ChronicleState, c: CastCard): string {
     + (c.role ? '<span class="vle-strip-role">' + esc(c.role) + '</span>' : '')
     + (dots ? '<span class="vle-strip-bonds">' + dots + '</span>' : '')
     + '<span class="vle-card-ctl">'
-    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-img="${A(c.imageUrl ?? '')}" data-deceased="${c.deceased ? 'yes' : 'no'}" title="Edit">\u270E</button>`
+    + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-dcolor="${A(c.dialogueColor ?? '')}" data-img="${A(c.imageUrl ?? '')}" data-deceased="${c.deceased ? 'yes' : 'no'}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
     + '</span></div>';
 }

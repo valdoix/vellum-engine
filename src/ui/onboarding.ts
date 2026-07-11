@@ -150,6 +150,7 @@ const SLIDES = [
         <li>Edit their <strong>name, role, age, appearance, notes, disposition</strong>, and <strong>traits</strong></li>
       </ol>
       <p><strong>Traits</strong> are especially powerful. Enter a comma-separated list like <code>loyal, impulsive, haunted</code>. As the story unfolds, the AI tracks how these traits <strong>evolve</strong> — a character who starts "naive" might become "worldly" after betrayal. These changes show up in the Cast tab automatically.</p>
+      <p><strong>Colors &amp; dialogue.</strong> Each card has a <strong>Name color</strong> (with an optional gradient end) and a dedicated <strong>Dialogue color</strong>. With the Colored Dialogue preset block on, a character's spoken lines are tinted their color in the chat display. Leave Dialogue color blank to reuse the name color — a gradient name collapses to a single readable tone for speech — or leave both blank for an automatic, distinct hue.</p>
       <p class="vle-ob-note">💡 <strong>Tip:</strong> Traits work best when they're <em>specific</em> and <em>observable</em>. "Haunted by guilt" is better than "sad."</p>
     `
   },
