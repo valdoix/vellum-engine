@@ -85,39 +85,43 @@ export type ShapeId =
   | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket'
   | 'toadstool' | 'trellis' | 'bramble' | 'lantern'
   | 'sunburst' | 'marquee' | 'scallop-deco' | 'stepped' | 'hanko' | 'washi-fold';
-export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items' | 'secrets';
+// NOTE: `secrets` is intentionally NOT a customizable surface — the secret card
+// owns a fixed left-spine + wax-seal signature across every chrome (rendered via
+// its own ::before/::after), so it isn't offered in the card-shape customizer.
+export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items';
 export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold'];
-export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items', 'secrets'];
+export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
-  present: 'Present (thoughts)', bonds: 'Bonds', cast: 'Cast', beats: 'Beats', factions: 'Factions', items: 'Items', secrets: 'Secrets',
+  present: 'Present (thoughts)', bonds: 'Bonds', cast: 'Cast', beats: 'Beats', factions: 'Factions', items: 'Items',
 };
 // Per-chrome default silhouettes, transcribed from the card gallery (30-35).
 // `default` keeps the current look so nothing changes until a chrome/override is
 // chosen. Each chrome styles its own palette/type; shape is orthogonal.
 export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
-  // secrets use a left-spine across EVERY chrome: the neg-tinted spine + wax-seal
-  // medallion is the secret card's consistent signature, independent of chrome.
-  default: { present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'left-spine' },
-  // manuscript: gilt keylines, a framed portrait cast, a bound ledger of items/secrets
-  illuminated: { present: 'gilt-edge', bonds: 'gilt-edge', cast: 'tarot', beats: 'left-spine', factions: 'binding', items: 'binding', secrets: 'left-spine' },
-  modern: { present: 'slab', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab', secrets: 'left-spine' },
+  // NOTE: secrets are intentionally omitted — the secret card keeps a fixed
+  // left-spine + wax-seal signature across every chrome (its own ::before/::after),
+  // so it is not a customizable surface.
+  default: { present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab' },
+  // manuscript: gilt keylines, a framed portrait cast, a bound ledger of items
+  illuminated: { present: 'gilt-edge', bonds: 'gilt-edge', cast: 'tarot', beats: 'left-spine', factions: 'binding', items: 'binding' },
+  modern: { present: 'slab', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab' },
   // HUD: reticle notches, viewfinder brackets, registration studs, end brackets
-  futuristic: { present: 'notched', bonds: 'aperture', cast: 'notched', beats: 'bracket', factions: 'studs', items: 'bracket', secrets: 'left-spine' },
+  futuristic: { present: 'notched', bonds: 'aperture', cast: 'notched', beats: 'bracket', factions: 'studs', items: 'bracket' },
   // cozy garden: stitched borders, a framed portrait cast, a scalloped faction card
-  bloom: { present: 'stitch', bonds: 'stitch', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'stitch', secrets: 'left-spine' },
+  bloom: { present: 'stitch', bonds: 'stitch', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'stitch' },
   // dreamy night: soft portrait, a torn deckle beat
-  ember: { present: 'tarot', bonds: 'gilt-edge', cast: 'slab', beats: 'deckle', factions: 'tarot', items: 'deckle', secrets: 'left-spine' },
+  ember: { present: 'tarot', bonds: 'gilt-edge', cast: 'slab', beats: 'deckle', factions: 'tarot', items: 'deckle' },
   // twilight storybook glade: a toadstool-dome present, a bramble-wreath bond, a
   // tarot cast plate, a climbing-vine trellis beat, a scalloped faction, a hanging
   // fairy-lantern item.
-  faewild: { present: 'toadstool', bonds: 'bramble', cast: 'tarot', beats: 'trellis', factions: 'scalloped', items: 'lantern', secrets: 'left-spine' },
+  faewild: { present: 'toadstool', bonds: 'bramble', cast: 'tarot', beats: 'trellis', factions: 'scalloped', items: 'lantern' },
   // art deco: sunburst keystone present, scalloped-fan bonds, tarot portrait cast,
   // marquee beats (theater lights), stepped ziggurat frames for factions/items.
-  gatsby: { present: 'sunburst', bonds: 'scallop-deco', cast: 'tarot', beats: 'marquee', factions: 'stepped', items: 'stepped', secrets: 'left-spine' },
+  gatsby: { present: 'sunburst', bonds: 'scallop-deco', cast: 'tarot', beats: 'marquee', factions: 'stepped', items: 'stepped' },
   // ink wash: folded-washi present, torn-deckle bonds, a hanko-sealed portrait cast,
   // a washi-fold beat, a left-spine faction, a deckle item.
-  sumi: { present: 'washi-fold', bonds: 'deckle', cast: 'hanko', beats: 'washi-fold', factions: 'left-spine', items: 'deckle', secrets: 'left-spine' },
+  sumi: { present: 'washi-fold', bonds: 'deckle', cast: 'hanko', beats: 'washi-fold', factions: 'left-spine', items: 'deckle' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {

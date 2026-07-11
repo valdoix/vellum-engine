@@ -24,6 +24,9 @@ import type { Component } from './component.js';
 import { wireBridge, wirePagers, wireFilters, refreshUI, send, cmd } from './bridge.js';
 import { maybeShowOnboarding, openOnboarding } from './onboarding.js';
 import { confirmModal, formModal } from './modal.js';
+import { calculatePresetBudget } from '../domain/preset-budget.js';
+import { resolveBudget, type ContextBudget } from '../domain/context-budget.js';
+import { VELLUM_VERSION } from '../version.js';
 
 /**
  * Frontend entrypoint. One reusable shell (tab bar + QOL toolbar + body) is
@@ -748,6 +751,8 @@ export function setup(ctx: Ctx): () => void {
   let _ptInjRecord: { turn: number; chars: number; recalls: number; text: string } | null = null;
   let _ptStatus: { permission: boolean; generationOk: boolean; provider: string; model: string; extractOk: boolean } | null = null;
   let _ptPreviewOpen = false;
+  let _ptChatBudget: any = null; // ContextBudget from vellum_budget response
+  let _ptBudgetPending = false;  // tab requested the budget; suppress the modal on the reply
 
   /** Escape HTML for safe insertion. */
   const ptEsc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
@@ -827,7 +832,69 @@ export function setup(ctx: Ctx): () => void {
       }
     </div>`;
 
-    root.innerHTML = `<div class="vle-pt-root vle-root">${f1}${f2}${f3}${f4}</div>`;
+    // Feature 5: Preset Prompt Budget — honest token estimate from enabled blocks
+    let f5 = '';
+    if (preset && Array.isArray(preset.blocks) && preset.blocks.length) {
+      const budget = calculatePresetBudget(preset.blocks);
+      const catRows = Object.entries(budget.byCategory)
+        .sort((a, b) => (b[1] as any).tokens - (a[1] as any).tokens)
+        .map(([cat, data]: [string, any]) => {
+          const pct = budget.totalTokens > 0 ? Math.round((data.tokens / budget.totalTokens) * 100) : 0;
+          const filled = Math.max(0, Math.min(10, Math.floor(pct / 10)));
+          const barFill = '\u2588'.repeat(filled) + '\u2591'.repeat(10 - filled);
+          return `<div class="vle-pt-line"><span class="vle-pt-cat">${ptEsc(cat)}</span><span class="vle-pt-bar">${barFill}</span><span class="vle-pt-tok">${data.tokens.toLocaleString()}</span></div>`;
+        }).join('');
+      const heavyRows = budget.heaviest.map((h, i) =>
+        `<div class="vle-pt-line"><span class="vle-pt-rank">${i + 1}.</span><span class="vle-pt-cat" style="flex:1">${ptEsc(h.name)}</span><span class="vle-pt-tok">${h.tokens.toLocaleString()}</span></div>`
+      ).join('');
+      f5 = `<div class="vle-pt-sec">
+        <div class="vle-pt-head">Preset Prompt Budget</div>
+        <div class="vle-pt-badge"><strong>\u2248${budget.totalTokens.toLocaleString()} tokens</strong>&nbsp;standing prompt</div>
+        <div class="vle-pt-line"><span style="opacity:0.65;font-size:10px">estimate from ${budget.enabledCount} enabled block${budget.enabledCount === 1 ? '' : 's'}${budget.disabledCount ? ` \u00b7 ${budget.disabledCount} disabled` : ''}</span></div>
+        ${catRows ? `<div class="vle-pt-subhead">By category</div>${catRows}` : ''}
+        ${heavyRows ? `<div class="vle-pt-subhead">Heaviest blocks</div>${heavyRows}` : ''}
+      </div>`;
+    }
+
+    // Feature 6: Active Chat Context Budget (read-only diagnostic)
+    let f6 = '';
+    if (_ptChatBudget) {
+      const resolved = resolveBudget(_ptChatBudget);
+      const injRows = [
+        { label: 'Spine (chronicle)', val: resolved.spine },
+        { label: 'Locations', val: resolved.locations },
+        { label: 'Drift (mood)', val: resolved.drift },
+        { label: 'Locks (knowledge)', val: resolved.locks },
+        { label: 'Plants (Chekhov)', val: resolved.plants },
+        { label: 'Off-screen', val: resolved.offscreen },
+        { label: 'Recall depth', val: resolved.recallDepth },
+      ].map((r) => `<div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">${r.label}</span><span class="vle-pt-tok">${r.val}</span></div>`).join('');
+      f6 = `<div class="vle-pt-sec">
+        <div class="vle-pt-head">Active Chat Context Budget <span style="font-size:10px;opacity:0.6">(current chat)</span></div>
+        <div class="vle-pt-badge">Preset: <strong>&nbsp;${ptEsc(String(_ptChatBudget.preset ?? 'balanced'))}</strong></div>
+        <div class="vle-pt-subhead">Injector caps</div>
+        ${injRows}
+        <div class="vle-pt-subhead">Cadence</div>
+        <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Off-screen sim</span><span class="vle-pt-tok">every ${resolved.simInterval || '\u2014'} turns</span></div>
+        <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Auto-summarize</span><span class="vle-pt-tok">after ${resolved.autoSummaryAt} turns</span></div>
+        <div class="vle-pt-note" style="margin-top:8px;opacity:0.65;font-size:10px">Edit via <b>Actions \u2192 Context budget</b></div>
+      </div>`;
+    } else {
+      // Request the chat budget once; the response repaints the tab. Flag it so
+      // the shared vellum_budget_state handler doesn't pop the Actions modal.
+      _ptBudgetPending = true;
+      try { ctx.sendToBackend({ type: 'vellum_get_budget' }); } catch { /* ignore */ }
+    }
+
+    root.innerHTML = `<div class="vle-pt-root vle-root">
+      <div class="vle-pt-rail">
+        <div class="vle-pt-rail-head">VELLUM II</div>
+        <div class="vle-pt-rail-item">Version: ${esc(VELLUM_VERSION)}</div>
+        <div class="vle-pt-rail-item">Preset: ${preset ? esc(preset.name ?? presetId) : 'none'}</div>
+        <div class="vle-pt-rail-item">Link: ${isLinked ? 'active' : 'inactive'}</div>
+      </div>
+      <div class="vle-pt-canvas">${f1}${f2}${f3}${f4}${f5}${f6}</div>
+    </div>`;
 
     // Bind events
     root.querySelector('[data-pt-link]')?.addEventListener('click', (e) => {
@@ -1137,9 +1204,14 @@ export function setup(ctx: Ctx): () => void {
         if (typeof p.limits === 'string') _hardLimits = p.limits;
       } else if (p?.type === 'vellum_budget_state') {
         _budget = (p.budget && typeof p.budget === 'object') ? p.budget as Record<string, unknown> : {};
-        if (_ctxRef) openBudgetModal(_ctxRef);
+        // Preset editor tab: populate its read-only budget panel too.
+        _ptChatBudget = _budget;
+        try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+        // Only open the Actions modal when this wasn't a tab-initiated fetch.
+        if (_ptBudgetPending) { _ptBudgetPending = false; }
+        else if (_ctxRef) openBudgetModal(_ctxRef);
       } else if (p?.type === 'vellum_budget_done') {
-        if (p.budget && typeof p.budget === 'object') _budget = p.budget as Record<string, unknown>;
+        if (p.budget && typeof p.budget === 'object') { _budget = p.budget as Record<string, unknown>; _ptChatBudget = _budget; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }
       } else if (p?.type === 'vellum_calendar_done') {
         if (typeof p.calendar === 'string') { _calendar = p.calendar; setDashCalendar(_calendar); }
       } else if (p?.type === 'vellum_hide_done') {

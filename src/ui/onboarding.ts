@@ -130,6 +130,12 @@ const SLIDES = [
             <strong>Extraction Status</strong> — Recent turns and whether the extension successfully read their state blocks. If extraction fails, the Health Check will help diagnose why.
           </div>
         </div>
+        <div class="vle-ob-item">
+          <span class="vle-ob-icon">📈</span>
+          <div>
+            <strong>Prompt Budget</strong> — An estimate of the preset's standing-prompt weight (in tokens) from all enabled blocks, with a per-category breakdown and the heaviest blocks. It also shows the active chat's context budget as read-only status. The estimate updates live as you toggle blocks on and off.
+          </div>
+        </div>
       </div>
     `
   },
@@ -190,7 +196,7 @@ const SLIDES = [
         <div class="vle-ob-item">
           <span class="vle-ob-icon">🎭</span>
           <div>
-            <strong>Shapes</strong> — Assign decorative shapes to different card types (Cast, Bonds, Beats, Factions, Items, Secrets). Choose from 24 ornamental styles like <em>Tarot</em>, <em>Notched</em>, <em>Gilt-edge</em>, and more.
+            <strong>Shapes</strong> — Assign decorative shapes to different card types (Cast, Bonds, Beats, Factions, Items). Choose from 24 ornamental styles like <em>Tarot</em>, <em>Notched</em>, <em>Gilt-edge</em>, and more.
           </div>
         </div>
       </div>
@@ -390,7 +396,8 @@ export function openOnboarding(onClose?: () => void): void {
     const back = (): void => { if (slide > 0) { slide--; render(); } };
 
     const render = (): void => {
-      const { title, body } = SLIDES[slide];
+      const cur = SLIDES[slide] ?? SLIDES[0]!;
+      const { title, body } = cur;
       const progress = `<div class="vle-ob-progress">${SLIDES.map((_, i) => `<span class="${i === slide ? 'active' : ''}">${i + 1}</span>`).join('')}</div>`;
       ov.innerHTML = `<div class="vle-ob-shell">
         <div class="vle-ob-head">

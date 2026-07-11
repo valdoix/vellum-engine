@@ -447,6 +447,7 @@ When you install the extension, Lumiverse asks you to grant these. Here's what e
 | `ui_panels` | The drawer and tabs | No UI |
 | `world_books` | The in-app Vault (lorebooks) | No Vault |
 | `memories` | Semantic recall via the host's embeddings | Recall still works, keyword-only |
+| `presets` | The VELLUM tab in the Preset Editor (link status, health check, prompt budget) | No preset editor tab |
 
 Everything runs inside your Lumiverse instance; the extension makes no outside calls of its own.
 
