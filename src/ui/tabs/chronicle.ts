@@ -846,7 +846,7 @@ function memories(s: ChronicleState): string {
   
   const arcHtml = arcs.map((m) => {
     const isDone = m.covers && m.covers[1] < s.turns - 10;
-    const chapsInArc = s.memories.filter((c) => c.tier === 'chapter' && m.subsumed?.some((sub) => sub.id === c.id)).length;
+    const chapsInArc = (m.subsumed ?? []).filter((sub) => sub.tier === 'chapter').length;
     return '<div class="vle-m-arc' + (isDone ? ' done' : '') + '">'
       + '<div class="vle-m-arc-bar"></div>'
       + '<div class="vle-m-arc-body">'
