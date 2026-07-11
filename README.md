@@ -58,13 +58,13 @@ Linking a preset to the extension is one click — no manual tagging or config f
 
 The `lumithemes/` folder includes **five Lumiverse host themes** inspired by VELLUM's visual language — illuminated-manuscript palettes, custom typography, and layout touches designed to complement the engine's aesthetic. Each theme comes in **two versions: static and animated**.
 
-| Theme | Vibe |
+| Theme | Description |
 |---|---|
-| **Bloom** | Soft, warm rose and parchment tones |
-| **Ember** | Deep amber and charcoal, candlelit warmth |
-| **Faewild** | Mossy greens and twilight violet, otherworldly |
-| **Fantasy** | Rich jewel tones, high-contrast dramatic |
-| **Gatsby** | Art deco gold and noir black, sharp geometry |
+| **Bloom** | blush & sage on plum dusk |
+| **Ember** | lilac & mint over the indigo void |
+| **Faewild** | sage & lilac among the fairy lights |
+| **Fantasy** | gilt ink & rubric red on aged vellum |
+| **Gatsby** | gilt gold on midnight & champagne |
 
 **To install a theme:**
 
@@ -74,8 +74,6 @@ The `lumithemes/` folder includes **five Lumiverse host themes** inspired by VEL
 4. Choose the static version (`vellum-bloom.lumitheme`) for a clean, no-motion experience, or the animated version (`vellum-bloom-animated.lumitheme`) for subtle motion effects
 
 **Customizing fonts and text size** — see [`lumithemes/CUSTOMIZING.md`](lumithemes/CUSTOMIZING.md) for a full guide. The short version: use Lumiverse's built-in font size slider for text scale, and paste a one-line CSS variable override in the Custom CSS editor to change fonts. You can use any font installed on your device.
-
-These themes apply to Lumiverse itself, not just the VELLUM panel. The VELLUM panel picks up the host theme's colors automatically.
 
 ---
 
