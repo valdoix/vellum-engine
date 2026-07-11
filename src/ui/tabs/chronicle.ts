@@ -19,12 +19,13 @@ import { shapeOrnament } from '../ornament.js';
  * through the bridge → vellum_cmd.
  */
 
-type CView = 'world' | 'timeline' | 'turns' | 'beats' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex' | 'items';
+type CView = 'world' | 'timeline' | 'turns' | 'beats' | 'timesync' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex' | 'items';
 const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'world', label: 'World' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'turns', label: 'Turns' },
   { id: 'beats', label: 'Beats' },
+  { id: 'timesync', label: 'Time Sync' },
   { id: 'memory', label: 'Memory' },
   { id: 'knowledge', label: 'Knowledge' },
   { id: 'secrets', label: 'Secrets' },
@@ -88,17 +89,18 @@ export const chronicleTab: Component<ChronicleState> = {
     // sit beside it; the editable record lists group under "Records".
     const inGroup = (ids: CView[]): string => VIEWS.filter((v) => ids.includes(v.id)).map(btn).join('');
     const nav = '<div class="vle-subnav">'
-      + '<span class="vle-subnav-g">Story</span>' + inGroup(['timeline', 'world', 'beats', 'turns'])
+      + '<span class="vle-subnav-g">Story</span>' + inGroup(['timeline', 'world', 'beats', 'turns', 'timesync'])
       + '<span class="vle-subnav-g">Records</span>' + inGroup(['memory', 'knowledge', 'secrets', 'scars', 'codex', 'items'])
       + '</div>';
     let body = '';
     if (_view === 'world') {
       _arcSnapshot = (s.arcs ?? []).filter((a) => !/resolv/i.test(a.status || '')).slice(0, 20).map((a) => ({ id: a.id, name: a.name, beats: a.beats }));
-      body = establishingShot(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) + desyncInspector(s) || '';
+      body = establishingShot(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) || '';
     }
     else if (_view === 'timeline') body = timeline(s);
     else if (_view === 'turns') body = turnsView(s);
     else if (_view === 'beats') body = beatsView(s);
+    else if (_view === 'timesync') body = desyncInspector(s) || emptyState('All in sync.', 'When a time-skip leaves threads or off-screen subplots behind, they appear here with catch-up options.');
     else if (_view === 'memory') body = memories(s);
     else if (_view === 'knowledge') body = knowledge(s);
     else if (_view === 'secrets') body = secrets(s);
