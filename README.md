@@ -56,9 +56,26 @@ Linking a preset to the extension is one click — no manual tagging or config f
 
 ### Lumiverse Themes (Bonus)
 
-Four `.lumitheme` files are included in the `lumithemes/` folder — **Vellum Bloom**, **Vellum Ember**, **Vellum Ink**, and **Vellum Parchment**. These are Lumiverse host themes inspired by VELLUM's own visual language: illuminated-manuscript palettes with custom fonts and layout touches. They're optional aesthetic companions to the engine, not required for functionality.
+The `lumithemes/` folder includes **five Lumiverse host themes** inspired by VELLUM's visual language — illuminated-manuscript palettes, custom typography, and layout touches designed to complement the engine's aesthetic. Each theme comes in **two versions: static and animated**.
 
-To use them, copy a `.lumitheme` file to your Lumiverse themes folder and select it in Lumiverse's appearance settings. (The themes apply to Lumiverse itself, not the VELLUM panel — the panel inherits from the host theme automatically.)
+| Theme | Vibe |
+|---|---|
+| **Bloom** | Soft, warm rose and parchment tones |
+| **Ember** | Deep amber and charcoal, candlelit warmth |
+| **Faewild** | Mossy greens and twilight violet, otherworldly |
+| **Fantasy** | Rich jewel tones, high-contrast dramatic |
+| **Gatsby** | Art deco gold and noir black, sharp geometry |
+
+**To install a theme:**
+
+1. In Lumiverse, open **Settings → Appearance → Theme**
+2. Go to the **Custom CSS Editor** tab
+3. Click **Import theme** and select a `.lumitheme` file from the `lumithemes/` folder
+4. Choose the static version (`vellum-bloom.lumitheme`) for a clean, no-motion experience, or the animated version (`vellum-bloom-animated.lumitheme`) for subtle motion effects
+
+**Customizing fonts and text size** — see [`lumithemes/CUSTOMIZING.md`](lumithemes/CUSTOMIZING.md) for a full guide. The short version: use Lumiverse's built-in font size slider for text scale, and paste a one-line CSS variable override in the Custom CSS editor to change fonts. You can use any font installed on your device.
+
+These themes apply to Lumiverse itself, not just the VELLUM panel. The VELLUM panel picks up the host theme's colors automatically.
 
 ---
 
