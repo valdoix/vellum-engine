@@ -18,6 +18,21 @@ describe('command layer (CRUD → events)', () => {
     expect(c?.userEdited).toBe(true);
   });
 
+  it('persists color, colorTo, and dialogueColor (accepts #hex; empty clears)', () => {
+    let s = reduce(cmdEvents('cast_upsert', { entry: { name: 'Elara', color: '#e0736b', colorTo: '#5bbfa0', dialogueColor: '#c9c14e' } }, freshState(), ctx));
+    let c = s.cast.elara;
+    expect(c?.color).toBe('#e0736b');
+    expect(c?.colorTo).toBe('#5bbfa0');
+    expect(c?.dialogueColor).toBe('#c9c14e');
+    // empty dialogueColor clears it (falls back to name color at render)
+    s = reduce(cmdEvents('cast_upsert', { entry: { id: c!.id, name: 'Elara', dialogueColor: '' } }, s, ctx), s, 0);
+    c = s.cast.elara;
+    expect(c?.dialogueColor).toBeUndefined();
+    // invalid hex is dropped, not stored as junk
+    s = reduce(cmdEvents('cast_upsert', { entry: { id: c!.id, name: 'Elara', dialogueColor: 'notacolor' } }, s, ctx), s, 0);
+    expect(s.cast.elara?.dialogueColor).toBeUndefined();
+  });
+
   it('creates and deletes a relation', () => {
     let s = freshState();
     s = reduce(cmdEvents('relation_upsert', { entry: { a: 'Cersei', b: 'Jaime', categories: 'familial,romantic', aff: 80, trust: 60 } }, s, ctx), s, 0);

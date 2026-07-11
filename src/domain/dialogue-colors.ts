@@ -62,7 +62,10 @@ export function buildSpeakerColors(cast: Record<string, CastLike> | undefined): 
 function cssAttr(s: string): string { return s.replace(/["\\]/g, '\\$&'); }
 
 /** Emit the stylesheet. Matches on data-spk by name AND every alias, case-
- *  insensitively (the `i` flag), so "elara"/"Elara" and any aka all color. */
+ *  insensitively (the `i` flag), so "elara"/"Elara" and any aka all color.
+ *  Colors use `!important` because the host paints message text with its own
+ *  rules; the old approach used an inline style attribute (which always wins),
+ *  and `!important` restores that winning power for our injected stylesheet. */
 export function speakerColorCss(speakers: SpeakerColor[], fallback = 'inherit'): string {
   const rules: string[] = [`.v-spk{color:var(--vle-spk-default,${fallback})}`];
   const seen = new Set<string>();
@@ -73,7 +76,7 @@ export function speakerColorCss(speakers: SpeakerColor[], fallback = 'inherit'):
       const dedupe = k.toLowerCase() + '\u0000' + s.color;
       if (seen.has(dedupe)) continue;
       seen.add(dedupe);
-      rules.push(`.v-spk[data-spk="${cssAttr(k)}" i]{color:${s.color}}`);
+      rules.push(`.v-spk[data-spk="${cssAttr(k)}" i]{color:${s.color} !important}`);
     }
   }
   return rules.join('\n');
