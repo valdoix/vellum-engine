@@ -212,6 +212,7 @@ The voice of the whole story.
   - **World Scale** — Chamber (one place) / **Locale (a town)** *(default)* / Realm (a region) / World (a civilization) / Cosmos (many worlds).
   - **World Texture** — Backdrop (scenery) / **Living** *(default)* / Insistent (intrudes).
   - **World Broadsheet card** *(off by default)* — renders opening world news as an illuminated card.
+- **Ambient Breath (living setting)** — *on by default.* The setting itself presses on the scene's edges as texture, not plot — weather from a front moving across the map, distant news or rumor, a price or shortage reflecting events elsewhere, a festival on the calendar. Draws on established Codex facts and offscreen currents rather than inventing fresh each turn. Deploys lightly, only when it fits; intensity controlled by World Texture setting.
 - **The Codex (mint provisional canon)** — *on by default.* Invents small consistent facts on demand and binds them as canon (shows in the Codex tab).
 - **Possession Tracker** *(off by default)* — tracks who carries/owns what.
 - **Character Engine** — *always on.* NPCs act on their own motives; change is geological.
@@ -277,7 +278,7 @@ A single panel of dropdowns that set the voice of the whole story:
 Two always-on blocks push the writing toward real literary fiction instead of "chatbot prose":
 
 - **Prose Doctrine** — show feeling through the body and the concrete detail, not by naming the emotion; give each character a distinct voice; vary the rhythm; resolve one beat per turn, then yield.
-- **The Forge (anti-slop)** — names the AI's most common tics (the "not X, but Y" construction, throat-clearing openers, "warmth pooled in her chest," animal verbs for humans, neat bow-tie endings) and tells it to find the *truer* line underneath instead of just rephrasing. Crucially, it's framed as *"break the autopilot, not the nerve"* — so the prose doesn't go stiff and over-cautious.
+- **Anti-Slop** — names the AI's most common tics (the "not X, but Y" construction, throat-clearing openers, "warmth pooled in her chest," animal verbs for humans, neat bow-tie endings) and tells it to find the *truer* line underneath instead of just rephrasing. Crucially, it's framed as *"break the autopilot, not the nerve"* — so the prose doesn't go stiff and over-cautious.
 - **Slop Proofreader** *(optional, off by default)* — if you enable it (and its matching display script), a faint mark appears in the chat next to any cliché that slipped through, as a gentle nudge. It only marks the display; it never changes what the AI actually wrote or sees.
 
 ### Knowledge discipline (the soul of the engine)
@@ -393,7 +394,7 @@ Open the VELLUM drawer to find these. There's also a compact floating **"Now"** 
 **Tabs:**
 
 - **Now** — the live dashboard: current scene, who's present and their mood, tension, and the latest changes.
-- **Chronicle** — the heart of the panel, with sub-views for **World** (scene, arcs, threads, off-screen), **Timeline**, **Memory**, **Knowledge**, **Secrets**, **Scars**, and **Codex**.
+- **Chronicle** — the heart of the panel, with sub-views for **World** (scene, arcs, threads, off-screen), **Timeline**, **Turns**, **Beats**, **Time Sync** (lagging threads and off-screen subplots with catch-up options), **Memory**, **Knowledge**, **Secrets**, **Scars**, **Codex**, and **Items**.
 - **Cast** — every character, editable.
 - **Relations** — every relationship with its affection/trust scores and history.
 - **Journal** — per-character memory books.
