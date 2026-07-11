@@ -1425,7 +1425,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-engine",
-      "content": "{{if::{{var::state_on}}}}{{if::{{var::reverie}}}}[EXAMPLE — one complete turn, showing all three parts]\n\u003creverie\u003e\nSCENE: Night garden, ~10pm, a few minutes pass. Lira wary, testing. One exchange, then stop.\nSTATE: time->late evening; Lira present, guarded, set cup down\n\u003c/reverie\u003e\n\nShe set the cup down without drinking. \"You're stalling.\"\n\n\u003cvellum\u003e\n{ \"turn\": 5, \"scene\": { \"time\": \"late evening\" }, \"present\": [{ \"id\": \"{{user}}\", \"mood\": \"\", \"doing\": \"\" }, { \"id\": \"Lira\", \"mood\": \"guarded\", \"doing\": \"set her cup down\" }] }\n\u003c/vellum\u003e\n(Your turn follows this exact shape: \u003creverie\u003e first, prose second, \u003cvellum\u003e last. The STATE: line is a terse PLAIN-LANGUAGE reminder (see it above); the \u003cvellum\u003e block is the real JSON you WRITE from it after the prose. The note is not the block.){{/if}}{{/if}}"
+      "content": "{{if::{{var::state_on}}}}{{if::{{var::reverie}}}}[EXAMPLE — one complete turn, showing all three parts]\n<reverie>\nSCENE: Night garden, ~10pm, a few minutes pass. Lira wary, testing. One exchange, then stop.\nSTATE: time->late evening; Lira present, guarded, set cup down\n</reverie>\n\nShe set the cup down without drinking. \"You're stalling.\"\n\n<vellum>\n{ \"turn\": 5, \"scene\": { \"time\": \"late evening\" }, \"present\": [{ \"id\": \"{{user}}\", \"mood\": \"\", \"doing\": \"\" }, { \"id\": \"Lira\", \"mood\": \"guarded\", \"doing\": \"set her cup down\" }] }\n</vellum>\n(Your turn follows this exact shape: <reverie> first, prose second, <vellum> last. The STATE: line is a terse PLAIN-LANGUAGE reminder (see it above); the <vellum> block is the real JSON you WRITE from it after the prose. The note is not the block.){{/if}}{{/if}}"
     },
     {
       "id": "v2-cat-mature",
@@ -1844,7 +1844,7 @@
       "position": "post_history",
       "enabled": true,
       "group": "v2-cat-override",
-      "content": "{{if::{{var::state_on}}}}{{if::{{var::reverie}}}}[OUTPUT FORMAT — THREE PARTS, IN ORDER, EVERY TURN]\n1. Open with \u003creverie\u003e. Plan. End with a plain STATE: line. Close \u003c/reverie\u003e.\n2. Write the prose.\n3. End with \u003cvellum\u003e { JSON deltas } \u003c/vellum\u003e. Always close the tag.\nYour reply starts with \"\u003creverie\u003e\" and ends with \"\u003c/vellum\u003e\". No exceptions.{{else}}[OUTPUT FORMAT — EVERY TURN]\nAfter your prose, end with \u003cvellum\u003e { JSON deltas } \u003c/vellum\u003e. Always close the tag.{{/if}}{{/if}}"
+      "content": "{{if::{{var::state_on}}}}{{if::{{var::reverie}}}}[OUTPUT FORMAT — THREE PARTS, IN ORDER, EVERY TURN]\n1. Open with <reverie>. Plan. End with a plain STATE: line. Close </reverie>.\n2. Write the prose.\n3. End with <vellum> { JSON deltas } </vellum>. Always close the tag.\nYour reply starts with \"<reverie>\" and ends with \"</vellum>\". No exceptions.{{else}}[OUTPUT FORMAT — EVERY TURN]\nAfter your prose, end with <vellum> { JSON deltas } </vellum>. Always close the tag.{{/if}}{{/if}}"
     },
     {
       "id": "v2-reverie-prefill",
@@ -1973,7 +1973,7 @@
         "folder": "VELLUM II",
         "description": "Renders the <vellum> JSON state block as a collapsed dim marginal card in the chat (mirroring the Reverie card) instead of deleting it. The tracker still reads the block from the raw stored message. Accepts every fence spelling the parser tolerates (<vellum>, ‹vellum›, ```vellum, [VELLUM]) so a block never leaks as raw text if the model drifts. Display-only; disable to hide the block completely.",
         "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
-        "replace_string": "<style>.v2s{max-width:780px;margin:12px auto;font-family:'JetBrains Mono',ui-monospace,monospace}.v2s-card{border:1px solid rgba(126,166,176,.28);border-left:3px solid #7ea6b0;border-radius:10px;overflow:hidden;background:linear-gradient(165deg,rgba(16,22,24,.96),rgba(20,28,30,.95))}.v2s-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Cormorant Garamond',Georgia,serif;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:#a8c4cc}.v2s-card>summary::-webkit-details-marker{display:none}.v2s-card>summary::before{content:'▤ ';color:#7ea6b0}.v2s-in{padding:6px 17px 15px;font-size:11px;line-height:1.55;color:#9fb4b8;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(126,166,176,.16)}</style><details class='v2s v2s-card'><summary>State — the engine’s ledger</summary><div class='v2s-in'>$1</div></details>",
+        "replace_string": "<style>.v2s{max-width:780px;margin:12px auto;font-family:'JetBrains Mono',ui-monospace,monospace}.v2s-card{border:1px solid rgba(200,146,62,.28);border-left:3px solid #c8923e;border-radius:10px;overflow:hidden;background:linear-gradient(165deg,rgba(26,22,16,.97),rgba(15,13,10,.985))}.v2s-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Cormorant Garamond',Georgia,serif;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:#e7d6ad}.v2s-card>summary::-webkit-details-marker{display:none}.v2s-card>summary::before{content:'▤ ';color:#c8923e}.v2s-in{padding:6px 17px 15px;font-size:11px;line-height:1.55;color:#cdbfa0;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(200,146,62,.16)}</style><details class='v2s v2s-card'><summary>State — the engine’s ledger</summary><div class='v2s-in'>$1</div></details>",
         "flags": "gi",
         "placement": [
           "ai_output"
@@ -2368,6 +2368,106 @@
         "metadata": {}
       },
       {
+        "script_id": "vellum2-state-card-gatsby",
+        "name": "VELLUM II ✧ State Block — Gatsby theme (display)",
+        "folder": "VELLUM II",
+        "description": "Gatsby-theme variant of the <vellum> state card: gilt gold on midnight, geometric art-deco frame, Poiret One display. Disabled by default. Enable this + the Gatsby Reverie card and DISABLE the Default 'State Block (display)' / 'Reverie (display)' so only one styling matches per block.",
+        "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+        "replace_string": "<style>.v2sG{max-width:780px;margin:12px auto;font-family:'Poiret One','Cormorant Garamond',Georgia,serif}.v2sG-card{border:2px solid rgba(212,175,55,.55);border-radius:0;overflow:hidden;background:linear-gradient(168deg,rgba(20,16,12,.98),rgba(8,6,4,.99));box-shadow:0 0 0 1px rgba(212,175,55,.18) inset,0 6px 26px rgba(0,0,0,.5)}.v2sG-card>summary{cursor:pointer;list-style:none;padding:10px 18px;font-family:'Poiret One','Cormorant Garamond',Georgia,serif;font-size:13.5px;letter-spacing:3px;text-transform:uppercase;color:#d4af37}.v2sG-card>summary::-webkit-details-marker{display:none}.v2sG-card>summary::before{content:'◈ ';color:#d4af37}.v2sG-in{padding:6px 20px 16px;font-size:12px;line-height:1.55;color:#f8e5a0;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(212,175,55,.28)}</style><details class='v2sG v2sG-card'><summary>State — the engine’s ledger</summary><div class='v2sG-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 32,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-reverie-card-gatsby",
+        "name": "VELLUM II ✧ Reverie — Gatsby theme (display)",
+        "folder": "VELLUM II",
+        "description": "Gatsby-theme variant of the <reverie> planning card: warm gilt gold on midnight, art-deco frame, Poiret One display. Disabled by default. Enable alongside the Gatsby State card and disable the Default pair.",
+        "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+        "replace_string": "<style>.v2rG{max-width:780px;margin:12px auto;font-family:'Poiret One','Cormorant Garamond',Georgia,serif}.v2rG-card{border:2px solid rgba(200,168,112,.5);border-radius:0;overflow:hidden;background:linear-gradient(168deg,rgba(20,16,12,.98),rgba(8,6,4,.99));box-shadow:0 0 0 1px rgba(200,168,112,.16) inset,0 6px 26px rgba(0,0,0,.5)}.v2rG-card>summary{cursor:pointer;list-style:none;padding:10px 18px;font-family:'Poiret One','Cormorant Garamond',Georgia,serif;font-size:13.5px;letter-spacing:3px;text-transform:uppercase;color:#c8a870}.v2rG-card>summary::-webkit-details-marker{display:none}.v2rG-card>summary::before{content:'❖ ';color:#c8a870}.v2rG-in{padding:6px 20px 16px;font-size:12.5px;line-height:1.6;color:#e6cf94;white-space:pre-wrap;border-top:1px solid rgba(200,168,112,.26)}</style><details class='v2rG v2rG-card'><summary>Reverie — the writer’s notebook</summary><div class='v2rG-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 33,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-state-card-sumi",
+        "name": "VELLUM II ✧ State Block — Sumi theme (display)",
+        "folder": "VELLUM II",
+        "description": "Sumi-theme variant of the <vellum> state card: vermillion seal on deep sumi ink, brush-minimal frame, Noto Serif JP. Disabled by default. Enable this + the Sumi Reverie card and DISABLE the Default 'State Block (display)' / 'Reverie (display)' so only one styling matches per block.",
+        "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+        "replace_string": "<style>.v2sS{max-width:780px;margin:12px auto;font-family:'Noto Serif JP','Cormorant Garamond',Georgia,serif}.v2sS-card{border:1px solid rgba(200,55,26,.3);border-left:4px solid #c8371a;border-radius:2px;overflow:hidden;background:linear-gradient(168deg,rgba(22,18,14,.95),rgba(14,10,8,.98))}.v2sS-card>summary{cursor:pointer;list-style:none;padding:9px 17px;font-family:'Noto Serif JP','Cormorant Garamond',Georgia,serif;font-size:13px;letter-spacing:1.5px;color:#e8e0d8}.v2sS-card>summary::-webkit-details-marker{display:none}.v2sS-card>summary::before{content:'■ ';color:#c8371a}.v2sS-in{padding:6px 18px 15px;font-size:12px;line-height:1.6;color:#c8bcae;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(200,55,26,.18)}</style><details class='v2sS v2sS-card'><summary>State — the engine’s ledger</summary><div class='v2sS-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 34,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-reverie-card-sumi",
+        "name": "VELLUM II ✧ Reverie — Sumi theme (display)",
+        "folder": "VELLUM II",
+        "description": "Sumi-theme variant of the <reverie> planning card: warm charcoal ink on deep sumi field, brush-minimal frame, Noto Serif JP. Disabled by default. Enable alongside the Sumi State card and disable the Default pair.",
+        "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+        "replace_string": "<style>.v2rS{max-width:780px;margin:12px auto;font-family:'Noto Serif JP','Cormorant Garamond',Georgia,serif}.v2rS-card{border:1px solid rgba(74,56,40,.4);border-left:4px solid #a89888;border-radius:2px;overflow:hidden;background:linear-gradient(168deg,rgba(22,18,14,.95),rgba(14,10,8,.98))}.v2rS-card>summary{cursor:pointer;list-style:none;padding:9px 17px;font-family:'Noto Serif JP','Cormorant Garamond',Georgia,serif;font-size:13px;letter-spacing:1.5px;color:#d8ccc0}.v2rS-card>summary::-webkit-details-marker{display:none}.v2rS-card>summary::before{content:'❖ ';color:#a89888}.v2rS-in{padding:6px 18px 15px;font-size:12.5px;line-height:1.65;color:#bcae9e;white-space:pre-wrap;border-top:1px solid rgba(168,152,136,.22)}</style><details class='v2rS v2rS-card'><summary>Reverie — the writer’s notebook</summary><div class='v2rS-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 35,
+        "metadata": {}
+      },
+      {
         "script_id": "vellum2-vtk-context-strip",
         "name": "VELLUM II ✧ Visual Toolkit (context strip)",
         "folder": "VELLUM II",
@@ -2643,10 +2743,18 @@
         "sort_order": 18
       },
       {
+        "script_id": "vellum2-spk-display",
+        "name": "VELLUM II ✧ Colored dialogue (display)",
         "folder": "VELLUM II",
+        "description": "Renders [spk=Name]\"...\"[/spk] dialogue tags as color-tinted speech (display only). Off unless the Colored Dialogue block is on. Speaker color is derived from the name's first letter via a {{switch}} in the replacement (substitute_macros:after), so no per-name CSS is needed and names with spaces work; distinct initials get distinct hues (same-initial speakers share a hue). For truly unique-per-name colors, use the extension's frontend hash instead.",
+        "find_regex": "\\[\\s*spk\\s*=\\s*[\"']?\\s*([^\"'\\]\\r\\n]{1,40}?)\\s*[\"']?\\s*\\]([\\s\\S]*?)(?:\\[\\s*/\\s*spk\\s*\\]|(?=\\[\\s*spk\\b)|$)",
+        "replace_string": "<span style=\"color:{{switch::{{lower::{{substr::$1::0::1}}}}::a::#e0736b::b::#e0a24e::c::#c9c14e::d::#7ec46b::e::#5bbfa0::f::#5ab0d0::g::#6f9be0::h::#8f88e0::i::#b57fe0::j::#d977c4::k::#d9738f::l::#c98f6b::m::#9ab04e::n::#e0736b::o::#e0a24e::p::#c9c14e::q::#7ec46b::r::#5bbfa0::s::#5ab0d0::t::#6f9be0::u::#8f88e0::v::#b57fe0::w::#d977c4::x::#d9738f::y::#c98f6b::z::#9ab04e::#b9ad92}}\" title=\"$1\">$2</span>",
         "flags": "gi",
         "placement": [
           "ai_output"
+        ],
+        "target": [
+          "display"
         ],
         "scope": "global",
         "scope_id": null,
@@ -2655,23 +2763,23 @@
         "trim_strings": [],
         "run_on_edit": true,
         "substitute_macros": "after",
-        "metadata": {},
-        "script_id": "vellum2-spk-display",
-        "name": "VELLUM II ✧ Colored dialogue (display)",
-        "description": "Renders [spk=Name]\"...\"[/spk] dialogue tags as color-tinted speech (display only). Off unless the Colored Dialogue block is on. Speaker color is derived from the name's first letter via a {{switch}} in the replacement (substitute_macros:after), so no per-name CSS is needed and names with spaces work; distinct initials get distinct hues (same-initial speakers share a hue). For truly unique-per-name colors, use the extension's frontend hash instead.",
-        "find_regex": "\\[spk=([^\\]]{0,40})\\]([\\s\\S]*?)\\[/spk\\]",
-        "replace_string": "<span style=\"color:{{switch::{{lower::{{substr::$1::0::1}}}}::a::#e0736b::b::#e0a24e::c::#c9c14e::d::#7ec46b::e::#5bbfa0::f::#5ab0d0::g::#6f9be0::h::#8f88e0::i::#b57fe0::j::#d977c4::k::#d9738f::l::#c98f6b::m::#9ab04e::n::#e0736b::o::#e0a24e::p::#c9c14e::q::#7ec46b::r::#5bbfa0::s::#5ab0d0::t::#6f9be0::u::#8f88e0::v::#b57fe0::w::#d977c4::x::#d9738f::y::#c98f6b::z::#9ab04e::#b9ad92}}\" title=\"$1\">$2</span>",
-        "target": [
-          "display"
-        ],
         "disabled": true,
-        "sort_order": 30
+        "sort_order": 30,
+        "metadata": {}
       },
       {
+        "script_id": "vellum2-spk-strip",
+        "name": "VELLUM II ✧ Colored dialogue (context strip)",
         "folder": "VELLUM II",
+        "description": "Strips [spk=...] / [/spk] dialogue tags from the context sent to the model (keeps the quoted line).",
+        "find_regex": "\\[\\s*/?\\s*spk\\b(?:\\s*=\\s*[\"']?[^\"'\\]]{0,40}[\"']?)?\\s*\\]",
+        "replace_string": "",
         "flags": "gi",
         "placement": [
           "ai_output"
+        ],
+        "target": [
+          "prompt"
         ],
         "scope": "global",
         "scope_id": null,
@@ -2680,17 +2788,9 @@
         "trim_strings": [],
         "run_on_edit": true,
         "substitute_macros": "none",
-        "metadata": {},
-        "script_id": "vellum2-spk-strip",
-        "name": "VELLUM II ✧ Colored dialogue (context strip)",
-        "description": "Strips [spk=...] / [/spk] dialogue tags from the context sent to the model (keeps the quoted line).",
-        "find_regex": "\\[/?spk(?:=[^\\]]{0,40})?\\]",
-        "replace_string": "",
-        "target": [
-          "prompt"
-        ],
         "disabled": true,
-        "sort_order": 31
+        "sort_order": 31,
+        "metadata": {}
       }
     ]
   }
