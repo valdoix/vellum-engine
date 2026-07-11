@@ -105,6 +105,18 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
     });
     close(); onSave(values);
   };
+  // COLOR FIELD UX: each color field pairs a picker with a "none" checkbox that
+  // starts CHECKED when the value is empty. Touching the picker must clear "none",
+  // else the save path (which honors "none") writes '' and the pick is lost — the
+  // dialogue-color persistence bug (that field defaults empty, so "none" is checked
+  // by default and picking a color never un-checked it).
+  overlay.querySelectorAll('[data-fcol]').forEach((col) => {
+    col.addEventListener('input', () => {
+      const key = col.getAttribute('data-fcol')!;
+      const none = overlay.querySelector(`[data-fcolnone="${key}"]`) as HTMLInputElement | null;
+      if (none) none.checked = false;
+    });
+  });
   // intentionally no backdrop-close: only the Cancel/Done button (or Esc) dismisses
   overlay.querySelector('[data-cancel]')!.addEventListener('click', close);
   overlay.querySelector('[data-save]')!.addEventListener('click', save);
