@@ -21,13 +21,15 @@ import type { RelationLock } from '../domain/relation-lock.js';
 
 export interface FoldResult {
   events: VellumEvent[];
-  source: 'json' | 'regex' | 'none';
+  source: 'json' | 'json-partial' | 'regex' | 'none';
   sig: string;
+  /** for `json-partial`: count of dropped elements per section (e.g. { journal: 1 }) */
+  dropped?: Record<string, number>;
 }
 
 export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number }): FoldResult {
   const sig = hashStr(content.slice(0, 4000));
-  const { state: parsed, source } = parseState(content);
+  const { state: parsed, source, dropped } = parseState(content);
   if (!parsed) return { events: [], source, sig };
 
   // TURN IS POSITIONAL (authoritative): the fold loop's index = the assistant
@@ -73,5 +75,5 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   if (rec.flag) {
     events.push({ seq: nextSeq(), turn, day, src: 'system', kind: 'continuity.flag', code: rec.flag.code, detail: rec.flag.detail });
   }
-  return { events, source, sig };
+  return { events, source, sig, ...(dropped ? { dropped } : {}) };
 }

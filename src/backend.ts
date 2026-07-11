@@ -1,5 +1,5 @@
 import { VELLUM_VERSION } from './version.js';
-import { restoreUser, rememberUser, currentUser } from './host/user.js';
+import { restoreUser, rememberUser, currentUser, requireUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar, invalidateChatVars } from './host/chats.js';
 import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logHasKind, truncateAfterTurn, turnSigs, turnDays, recoverFromBackup, loadLog } from './store/chronicle.js';
@@ -412,7 +412,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
     const dayCap = priorTurnDays?.get(turnNo);
-    const { events, source, sig } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, ...(dayCap !== undefined ? { dayCap } : {}) });
+    const { events, source, sig, dropped } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, ...(dayCap !== undefined ? { dayCap } : {}) });
     const evs: VellumEvent[] = [...events];
     // reuse foldTurn's already-computed content signature (same hashStr of the
     // first 4000 chars) instead of recomputing sigOf(content) here.
@@ -423,8 +423,17 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     prior = await appendDeferred(chatId, evs);
     added += evs.length;
     // defer prose-driven extraction to PASS 2 (below the early broadcast).
-    if (gist) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' });
+    // `json-partial` means element salvage recovered the block by dropping corrupt
+    // member(s) — the block WAS parsed, so treat it as a real block (the safety-net
+    // prose extractor still runs, but the PASS-2 log isn't mislabeled "no block").
+    if (gist) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' || source === 'json-partial' });
     spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);
+    // salvage discards data — surface WHAT was dropped so recurring model
+    // malformations are visible and quantifiable, not silent.
+    if (source === 'json-partial' && dropped) {
+      const summary = Object.entries(dropped).map(([k, n]) => `${n} ${k}`).join(', ');
+      spindle.log?.warn?.(`[vellum_engine] turn ${turnNo} salvaged with element loss${summary ? ' (dropped ' + summary + ')' : ''} — a corrupt block member was skipped`);
+    }
     if (source === 'none' && /\u2039\/?vellum\u203a|<\/?vellum>/i.test(content)) {
       const m = content.match(/(?:\u2039vellum\u203a|<vellum>)([\s\S]*?)(?:\u2039\/vellum\u203a|<\/vellum>)/i);
       spindle.log?.warn?.('[vellum_engine] <vellum> present but UNPARSED. Inner head: ' + ((m?.[1] ?? '').trim().slice(0, 200)));
@@ -557,13 +566,20 @@ async function stampCompanionPreset(chatId: string, userId: string | null): Prom
     // Throttle: only stamp once per interval per chat to avoid hammering the preset API
     const last = _presetStamped.get(chatId) ?? 0;
     if (Date.now() - last < PRESET_STAMP_THROTTLE) return;
+    // Resolve the uid (explicit ?? persisted). Operator-scoped hosts REQUIRE a uid
+    // on preset calls; the GENERATION_ENDED path can arrive with userId=null, which
+    // otherwise threw "userId is required" on every fold. Bail WITHOUT marking the
+    // throttle so the first fold after a uid becomes known still stamps.
+    const u = requireUser(userId);
+    if (!u.ok) return;
+    const uid = u.value;
     if (!(await has('presets'))) return; // permission not granted
     if (!spindle.presets?.list) return; // API not available
     // Query all presets and find one already carrying vellum_engine metadata, OR
     // take the user's first/default preset as the companion candidate. This is a
     // best-effort heuristic — ideally the host would tell us which preset is active,
     // but that's not in the context object. We stamp the first preset we find.
-    const { data } = await spindle.presets.list({ limit: 50 }, userId);
+    const { data } = await spindle.presets.list({ limit: 50 }, uid);
     if (!Array.isArray(data) || !data.length) return;
     // Prefer a preset already marked with vellum_engine metadata
     let preset = data.find((p: any) => p?.metadata?.vellum_engine);
@@ -578,7 +594,7 @@ async function stampCompanionPreset(chatId: string, userId: string | null): Prom
     }
     // Stamp the preset with version, identifier, and last-linked timestamp
     const meta = { version: VELLUM_VERSION, identifier: 'vellum_engine', linkedAt: Date.now() };
-    const result = await stampPresetMetadata(preset.id, meta, userId);
+    const result = await stampPresetMetadata(preset.id, meta, uid);
     if (result.ok) {
       _presetStamped.set(chatId, Date.now());
       spindle.log?.info?.(`[vellum_engine] stamped preset ${preset.id} with metadata`);

@@ -148,9 +148,197 @@ function structuralFixups(out: string): string {
   return out
     .replace(/([{,]\s*)([A-Za-z_$][\w$]*)(\s*:)/g, '$1"$2"$3')        // quote unquoted keys
     .replace(/"[\w$]+"\s*:\s*<[^>{}\[\]]*>\s*,?/g, '')                // drop "key": <placeholder>
+    // DOUBLED-COLON RUN-ON: the model dropped the '","' between a value and the
+    // next key, fusing them ("weight":"significant","sentiment":.. becomes
+    // "weight":"significantsentiment":..). A quoted string in VALUE position
+    // followed by ':' is illegal JSON, so the whole block would fail. We can't
+    // know where the value ended and the key began, so we DON'T guess and we do
+    // NOT wrap into an object (that steals the element's closing brace and leaves
+    // it unbalanced). Instead we insert a null value + comma: "k":"a":"b" becomes
+    // "k":null,"a":"b" — balanced, valid JSON. Zod's per-field .catch(undefined)
+    // drops the nulled field `k`, the junk key `"a"` is an unknown field Zod
+    // strips, and every OTHER field of that element survives instead of the whole
+    // turn being lost. Runs on the string-safe scaffold (scanJson already
+    // closed/escaped strings), so it can't fire inside a real string value — a
+    // URL like "loc":"http://x" is untouched because the inner ':' sits inside a
+    // closed "..." and the value is followed by ',' or '}', not ':'.
+    .replace(/:\s*("(?:[^"\\]|\\.)*")\s*:/g, ':null,$1:')            // "k":"a":"b" → "k":null,"a":"b"
     .replace(/,(\s*[}\]])/g, '$1')                                    // trailing commas
     .replace(/,\s*,/g, ',')                                           // doubled commas
     .replace(/([{\[])\s*,/g, '$1');                                   // leading comma in container
+}
+
+// ─── Element salvage (rung 4) ────────────────────────────────────────────────
+// When the whole-object parse fails (rungs 1-3), recover every VALID part and
+// drop only genuinely unrecoverable elements, turning a whole-turn loss into a
+// per-element loss. All walkers reuse the SAME quote-family discipline as
+// scanJson/balancedObject so braces/commas/colons inside strings never fool them.
+
+interface KV { key: string; value: string; }
+
+/** Depth-1, quote/bracket-aware split of an object's `"key": value` pairs. Each
+ *  `value` is the EXACT source substring (scalar up to the next depth-1 comma, or
+ *  the matching }/] for an object/array). Returns null if the source isn't an
+ *  object we can segment at all. Tolerates a trailing unterminated pair (drops it). */
+function tokenizeTopLevel(objSrc: string): KV[] | null {
+  const start = objSrc.indexOf('{');
+  if (start < 0) return null;
+  const pairs: KV[] = [];
+  let i = start + 1;
+  const n = objSrc.length;
+  const skipWs = (): void => { while (i < n && /\s/.test(objSrc[i]!)) i++; };
+  // read a quoted key (any quote family); returns the unquoted key text or null
+  const readKey = (): string | null => {
+    skipWs();
+    const c = objSrc[i];
+    if (c === undefined || c === '}') return null;
+    if (!(isDQ(c) || isSQ(c))) return null; // not a key position
+    const fam: 'd' | 's' = isSQ(c) ? 's' : 'd';
+    i++;
+    let key = '', esc = false;
+    for (; i < n; i++) {
+      const ch = objSrc[i]!;
+      if (esc) { key += ch; esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (closesQuote(ch, fam)) { i++; return key; }
+      key += ch;
+    }
+    return null; // unterminated key → give up on this pair
+  };
+  // capture a value span starting at i up to (not including) the next depth-1
+  // comma or the object's closing brace. Quote + bracket aware.
+  const readValue = (): string | null => {
+    skipWs();
+    if (i >= n) return null;
+    const vStart = i;
+    let depth = 0, inStr = false, esc = false, fam: 'd' | 's' = 'd';
+    for (; i < n; i++) {
+      const ch = objSrc[i]!;
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (ch === '\\') { esc = true; continue; }
+        if (closesQuote(ch, fam)) inStr = false;
+        continue;
+      }
+      if (isDQ(ch) || isSQ(ch)) { inStr = true; fam = isSQ(ch) ? 's' : 'd'; continue; }
+      if (ch === '{' || ch === '[') depth++;
+      else if (ch === '}' || ch === ']') {
+        if (depth === 0) return objSrc.slice(vStart, i).trim(); // hit the object's own close
+        depth--;
+      } else if (ch === ',' && depth === 0) {
+        return objSrc.slice(vStart, i).trim();
+      }
+    }
+    // ran off the end (truncation): return what we have, trimmed
+    const tail = objSrc.slice(vStart).trim();
+    return tail.length ? tail : null;
+  };
+  for (let guard = 0; guard < 500 && i < n; guard++) {
+    skipWs();
+    if (objSrc[i] === '}' || i >= n) break;
+    const key = readKey();
+    if (key === null) break;
+    skipWs();
+    if (objSrc[i] !== ':') break; // malformed — stop segmenting here
+    i++; // consume ':'
+    const value = readValue();
+    if (value === null || value === '') break;
+    pairs.push({ key, value });
+    skipWs();
+    if (objSrc[i] === ',') i++; // consume separator and continue
+  }
+  return pairs.length ? pairs : null;
+}
+
+/** Depth-1, quote/bracket-aware element spans of an array. NOT a comma split —
+ *  commas inside strings and nested containers must not break elements. Drops a
+ *  trailing unterminated element (truncation + corruption combined). */
+function splitElements(arraySrc: string): string[] {
+  const start = arraySrc.indexOf('[');
+  if (start < 0) return [];
+  const out: string[] = [];
+  let i = start + 1;
+  const n = arraySrc.length;
+  let elStart = -1, depth = 0, inStr = false, esc = false, fam: 'd' | 's' = 'd';
+  const flush = (end: number): void => {
+    if (elStart < 0) return;
+    const el = arraySrc.slice(elStart, end).trim();
+    if (el.length) out.push(el);
+    elStart = -1;
+  };
+  for (; i < n; i++) {
+    const ch = arraySrc[i]!;
+    if (inStr) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (closesQuote(ch, fam)) inStr = false;
+      continue;
+    }
+    if (isDQ(ch) || isSQ(ch)) { if (elStart < 0) elStart = i; inStr = true; fam = isSQ(ch) ? 's' : 'd'; continue; }
+    if (ch === '{' || ch === '[') { if (elStart < 0) elStart = i; depth++; continue; }
+    if (ch === '}' || ch === ']') {
+      if (depth === 0) { flush(i); return out; } // array's own close
+      depth--; continue;
+    }
+    if (ch === ',' && depth === 0) { flush(i); continue; }
+    if (!/\s/.test(ch) && elStart < 0) elStart = i;
+  }
+  // ran off the end: the last element was truncated — DROP it (do not flush)
+  return out;
+}
+
+/** repair(x): the SAME repair rungs 2 gives the whole block, scoped to a fragment
+ *  (now includes Option 1's doubled-colon rule). */
+function repairFragment(x: string): string {
+  return structuralFixups(scanJson(x).out);
+}
+
+/** Try to parse one element; direct then repaired. */
+function parseElement(el: string): unknown | undefined {
+  return tryParse(el) ?? tryParse(repairFragment(el));
+}
+
+/** Count of dropped elements per section (for honest logging) + a `kept` tally of
+ *  values ACTUALLY recovered, so an all-corrupt block that yields only empty
+ *  containers ({delta:{journal:[]}}) is NOT mistaken for a successful salvage. */
+export interface SalvageStats { dropped: Record<string, number>; kept: number; }
+
+function salvageArray(arraySrc: string, section: string, stats: SalvageStats): unknown[] {
+  const out: unknown[] = [];
+  const els = splitElements(arraySrc);
+  for (const el of els) {
+    const v = parseElement(el);
+    if (v !== undefined) { out.push(v); stats.kept++; }
+    else stats.dropped[section] = (stats.dropped[section] ?? 0) + 1;
+  }
+  return out;
+}
+
+function salvageDelta(deltaSrc: string, stats: SalvageStats): Record<string, unknown> {
+  const pairs = tokenizeTopLevel(deltaSrc);
+  const out: Record<string, unknown> = {};
+  if (!pairs) return out;
+  for (const { key, value } of pairs) {
+    if (value[0] === '[') out[key] = salvageArray(value, key, stats);
+    else { const v = parseElement(value); if (v !== undefined) { out[key] = v; stats.kept++; } }
+  }
+  return out;
+}
+
+/** Two-level salvage matching the ParsedState shape (top-level + delta.*).
+ *  Returns null unless at least one REAL value was recovered (`stats.kept > 0`) —
+ *  empty containers alone don't count, so an all-corrupt block falls through to
+ *  the regex/none path exactly as before. */
+function salvageObject(objSrc: string, stats: SalvageStats): Record<string, unknown> | null {
+  const pairs = tokenizeTopLevel(objSrc);
+  if (!pairs) return null;
+  const result: Record<string, unknown> = {};
+  for (const { key, value } of pairs) {
+    if (key === 'delta' && value[0] === '{') result.delta = salvageDelta(value, stats);
+    else if (value[0] === '[') result[key] = salvageArray(value, key, stats);
+    else { const v = parseElement(value); if (v !== undefined) { result[key] = v; stats.kept++; } }
+  }
+  return stats.kept > 0 ? result : null;
 }
 
 const MAX_INPUT = 1_000_000; // 1MB guard against pathological inputs
@@ -162,9 +350,12 @@ const MAX_INPUT = 1_000_000; // 1MB guard against pathological inputs
  *   2. one string-aware repair scan + structural fixups
  *   3. close a TRUNCATED block from the SAME scan (trim the dangling token, then
  *      append the missing }/] the bracket stack implies)
+ *   4. ELEMENT SALVAGE (last resort): recover every valid top-level/delta member
+ *      and drop only genuinely unrecoverable elements. Signals via `report.partial`.
  * Returns the parsed value, or null if nothing works.
  */
-function lenientParse(raw: string): unknown | null {
+interface LenientReport { partial: boolean; stats: SalvageStats | null; }
+function lenientParse(raw: string, report?: LenientReport): unknown | null {
   let base = raw
     .replace(/\u00A0/g, ' ')
     .replace(/^\s*```[a-z]*\s*/i, '').replace(/```\s*$/i, '')
@@ -192,6 +383,15 @@ function lenientParse(raw: string): unknown | null {
   if (closed) {
     const r2 = tryParse(closed) ?? tryParse(structuralFixups(closed));
     if (r2 !== undefined) return r2;
+  }
+
+  // 4. element salvage — recover valid members, drop only the corrupt element(s).
+  //    Reached ONLY after rungs 1-3 fail, so healthy/recovered blocks never hit it.
+  const stats: SalvageStats = { dropped: {}, kept: 0 };
+  const salvaged = salvageObject(obj0, stats) ?? salvageObject(fromBrace, stats);
+  if (salvaged && Object.keys(salvaged).length) {
+    if (report) { report.partial = true; report.stats = stats; }
+    return salvaged;
   }
   return null;
 }
@@ -241,12 +441,21 @@ export function parseState(content: string): ParseResult {
 
   const raw = extractFenced(content);
   if (raw) {
-    const obj = lenientParse(raw);
+    const report: LenientReport = { partial: false, stats: null };
+    const obj = lenientParse(raw, report);
     if (obj && typeof obj === 'object') {
       hoistDeltaFields(obj as Record<string, unknown>); // tolerate misplaced delta fields
       normalizeBlock(obj as Record<string, unknown>); // map preset grammar (cat) → schema (addCats)
       const validated = ParsedState.safeParse(obj);
-      if (validated.success) return { state: validated.data, source: 'json' };
+      if (validated.success) {
+        // rung 4 (element salvage) recovered the block by dropping corrupt
+        // element(s) — surface that honestly so data loss is visible, not silent.
+        if (report.partial) {
+          const dropped = report.stats ? { ...report.stats.dropped } : {};
+          return { state: validated.data, source: 'json-partial', dropped };
+        }
+        return { state: validated.data, source: 'json' };
+      }
     }
   }
 

@@ -127,3 +127,138 @@ describe('lenientParse — control chars + advanced mangles', () => {
     expect(r.source === 'json' || r.source === 'regex' || r.source === 'none').toBe(true);
   });
 });
+
+// ── Option 1: doubled-colon run-on ("k":"a":"b" — model dropped the '","') ──
+describe('doubled-colon run-on fixup (Option 1)', () => {
+  it('recovers the exact reported fragment: weight/sentiment fused', () => {
+    // "weight":"significant" fused with the next key "sentiment"
+    const json = '{ "scene": { "loc": "Tower" }, "delta": { "journal": [ { "who": "Oberyn", "memory": "the wink", "kind": "observation", "weight": "significantsentiment": "positive" } ] } }';
+    const r = parseState(wrap(json));
+    // parses as whole JSON (rung 2 repair), not lost to regex/none
+    expect(r.source).toBe('json');
+    const j = r.state!.delta!.journal![0]!;
+    expect(j.who).toBe('Oberyn');           // sibling survives
+    expect(j.memory).toBe('the wink');       // sibling survives
+    expect(j.kind).toBe('observation');      // sibling survives
+    // the fused field is nulled → Zod drops it; junk key stripped as unknown
+    expect(j.weight).toBeUndefined();
+  });
+
+  it('handles a fused pair in the LAST field position (brace balance)', () => {
+    const json = '{ "scene": { "loc": "Hall" }, "delta": { "journal": [ { "who": "C", "memory": "m", "weight": "significantsentiment": "positive" } ] } }';
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json');
+    expect(r.state!.delta!.journal![0]!.who).toBe('C');
+  });
+
+  it('handles a fused pair in a MIDDLE field position', () => {
+    const json = '{ "scene": { "loc": "Hall" }, "delta": { "journal": [ { "who": "C", "weight": "significantsentiment": "positive", "memory": "kept" } ] } }';
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json');
+    const j = r.state!.delta!.journal![0]!;
+    expect(j.who).toBe('C');
+    expect(j.memory).toBe('kept');           // field AFTER the fused pair survives
+  });
+
+  it('does NOT alter a legitimate object (no-regression)', () => {
+    const s = ok('{ "delta": { "journal": [ { "who": "a", "memory": "b" } ] } }');
+    expect(s.delta.journal[0].who).toBe('a');
+    expect(s.delta.journal[0].memory).toBe('b');
+  });
+
+  it('does NOT alter a URL-with-colon inside a string value', () => {
+    // guards the string-safety assumption: the ':' after http is INSIDE a closed string
+    expect(ok('{ "scene": { "loc": "http://example.com/x" } }').scene.loc).toBe('http://example.com/x');
+  });
+});
+
+// ── Option 2: element-level salvage rung (recover valid siblings, drop corrupt) ──
+describe('element salvage (Option 2, json-partial)', () => {
+  // a genuinely unrecoverable element: an unquoted garbage token that no repair fixes
+  const BAD = '{ "who": "X", "memory": @@@ }';
+
+  it('drops a corrupt MIDDLE element, keeps the rest, reports json-partial', () => {
+    const json = `{ "scene": { "loc": "Yard" }, "delta": { "journal": [ { "who": "A", "memory": "one" }, ${BAD}, { "who": "C", "memory": "three" } ] } }`;
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json-partial');
+    const j = r.state!.delta!.journal!;
+    expect(j.length).toBe(2);                       // corrupt middle dropped
+    expect(j.map((e: any) => e.who)).toEqual(['A', 'C']);
+    expect(r.dropped?.journal).toBe(1);              // honest count
+  });
+
+  it('drops a corrupt FIRST element', () => {
+    const json = `{ "scene": { "loc": "Y" }, "delta": { "bonds": [ ${BAD.replace('"who"', '"a"').replace('"memory"', '"b"')}, { "a": "A", "b": "B", "aff": 2 } ] } }`;
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json-partial');
+    expect(r.state!.delta!.bonds!.length).toBe(1);
+    expect(r.state!.delta!.bonds![0]!.a).toBe('A');
+  });
+
+  it('drops a corrupt LAST element', () => {
+    const json = `{ "scene": { "loc": "Y" }, "delta": { "journal": [ { "who": "A", "memory": "one" }, ${BAD} ] } }`;
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json-partial');
+    expect(r.state!.delta!.journal!.length).toBe(1);
+  });
+
+  it('drops TWO corrupt elements in one array', () => {
+    const json = `{ "scene": { "loc": "Y" }, "delta": { "journal": [ ${BAD}, { "who": "B", "memory": "keep" }, ${BAD} ] } }`;
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json-partial');
+    expect(r.state!.delta!.journal!.length).toBe(1);
+    expect(r.dropped?.journal).toBe(2);
+  });
+
+  it('salvages a corrupt element in a TOP-LEVEL array (present)', () => {
+    const json = `{ "scene": { "loc": "Y" }, "present": [ { "id": "A", "mood": "calm" }, { "id": "B", "doing": @@@ } ] }`;
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json-partial');
+    // B's whole element is unrecoverable → dropped; A survives
+    expect(r.state!.present!.length).toBe(1);
+    expect(r.state!.present![0]!.id).toBe('A');
+  });
+
+  it('omits a corrupt top-level SCALAR, keeps the rest', () => {
+    // "day": 13x is not valid; salvage omits day, keeps scene
+    const json = '{ "day": 13x, "scene": { "loc": "Keep" }, "present": [ { "id": "A" } ] }';
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json-partial');
+    expect(r.state!.scene!.loc).toBe('Keep');
+    expect(r.state!.present![0]!.id).toBe('A');
+  });
+
+  it('does NOT mis-split on commas/braces inside string values', () => {
+    const json = `{ "scene": { "loc": "a, b, c" }, "delta": { "journal": [ { "who": "A", "memory": "he said {no}, then left" }, ${BAD} ] } }`;
+    const r = parseState(wrap(json));
+    expect(r.source).toBe('json-partial');
+    expect(r.state!.delta!.journal![0]!.memory).toBe('he said {no}, then left');
+  });
+
+  it('an ALL-corrupt block still falls back (no false salvage)', () => {
+    const r = parseState(wrap('{ "delta": { "journal": [ @@@, ### ] }, "scene": @@@ }'));
+    // nothing valid survives → not json-partial; regex/none fallback
+    expect(r.source === 'regex' || r.source === 'none').toBe(true);
+  });
+});
+
+// ── Do-no-harm: salvage must NEVER trigger for blocks rungs 1-3 handle ──
+describe('salvage do-no-harm (existing blocks stay source=json)', () => {
+  const cases: string[] = [
+    '{ "scene": { "loc": "X" } }',
+    '{ "turn": 5, "scene": { "loc": "X", } }',                          // trailing comma
+    '{ turn: 3, scene: { loc: "X" } }',                                 // unquoted keys
+    "{ 'scene': { 'loc': 'Keep' } }",                                   // single quotes
+    '{ "delta": { "bonds": [ { "a": "A", "b": "B", "aff": +2 } ] } }',   // leading +
+  ];
+  for (const c of cases) {
+    it(`stays json: ${c.slice(0, 40)}`, () => {
+      expect(parseState(wrap(c)).source).toBe('json');
+    });
+  }
+
+  it('a truncated block still closes as json (not json-partial)', () => {
+    const r = parseState('<vellum>{ "scene": { "loc": "Keep" }, "delta": { "bonds": [ { "a": "A", "b": "B", "aff": 1 } ]');
+    expect(r.source).toBe('json');
+  });
+});

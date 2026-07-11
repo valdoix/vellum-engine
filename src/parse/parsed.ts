@@ -133,6 +133,10 @@ export type ParsedState = z.infer<typeof ParsedState>;
 
 export interface ParseResult {
   state: ParsedState | null;
-  /** how it was parsed, for diagnostics + the live feed */
-  source: 'json' | 'regex' | 'none';
+  /** how it was parsed, for diagnostics + the live feed. `json-partial` means the
+   *  block parsed only after element-level salvage dropped one or more corrupt
+   *  members — the block WAS parsed (treat as a real block), just not whole. */
+  source: 'json' | 'json-partial' | 'regex' | 'none';
+  /** for `json-partial`: count of dropped elements per section (e.g. { journal: 1 }) */
+  dropped?: Record<string, number>;
 }
