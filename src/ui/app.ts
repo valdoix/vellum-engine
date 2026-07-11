@@ -805,7 +805,7 @@ export function setup(ctx: Ctx): () => void {
     const inj = _ptInjRecord;
     const previewToggle = inj ? `<span class="vle-pt-toggle" data-pt-preview-toggle>${_ptPreviewOpen ? '\u25b4 Hide' : '\u25be Show'}</span>` : '';
     const previewBody = inj && _ptPreviewOpen
-      ? `<div class="vle-pt-coll open"><div class="vle-pt-preview">${ptEsc(inj.text.slice(0, 350))}${inj.text.length > 350 ? '\u2026' : ''}</div></div>`
+      ? `<div class="vle-pt-coll open"><div class="vle-pt-preview">${ptEsc(inj.text)}</div></div>`
       : inj ? '<div class="vle-pt-coll"></div>' : '';
     const f3 = `<div class="vle-pt-sec">
       <div class="vle-pt-head">Live Injection Preview <span style="font-size:10px;opacity:0.6">(current chat)</span></div>
@@ -944,6 +944,15 @@ export function setup(ctx: Ctx): () => void {
       try {
         (ctx.ui as any).presetEditor?.onChange?.(renderPresetEditorTab);
       } catch { /* presetEditor helper may not be present on all builds */ }
+      // Re-fetch status each time the tab is shown, so a provider/model the user
+      // switched while the tab was open (or since last open) reflects the CURRENT
+      // connection instead of a stale first-mount snapshot.
+      try {
+        presetEditorTab.onActivate?.(() => {
+          try { ctx.sendToBackend({ type: 'vellum_preset_tab_get_status' }); } catch { /* ignore */ }
+          try { ctx.sendToBackend({ type: 'vellum_get_injection' }); } catch { /* ignore */ }
+        });
+      } catch { /* onActivate optional on older hosts */ }
       // Request status data on first mount
       ctx.sendToBackend({ type: 'vellum_preset_tab_get_status' });
       ctx.sendToBackend({ type: 'vellum_get_injection' });

@@ -2393,10 +2393,13 @@ const dispatch: Record<string, Handler> = {
   vellum_preset_tab_get_status: async (_p, uid) => {
     const permission = await has('generation_parameters');
     const generationOk = await has('generation');
-    // Provider/model from the cached default connection (same one internalGenerate uses)
+    // Provider/model from the default connection. Invalidate the cache first so a
+    // user who switched their connection mid-session sees the CURRENT one (this is
+    // a diagnostic, on-demand read — freshness beats the tiny extra list call).
     let provider = '', model = '';
     try {
       if (generationOk) {
+        invalidateConnCache(uid);
         const connId = await defaultConnectionId(uid);
         if (connId && spindle.connections?.get) {
           const conn = await spindle.connections.get(connId, uid);
