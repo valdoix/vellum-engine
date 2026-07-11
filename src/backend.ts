@@ -121,7 +121,11 @@ interface InjRecord { turn: number; at: number; chars: number; recallIds: string
 const injectionLog = new Map<string, InjRecord[]>(); // per-chat ring of recent injections
 function recordInjection(chatId: string, turn: number, text: string, recallIds: string[], meta?: { source?: string; trace?: unknown }): InjRecord {
   const ring = injectionLog.get(chatId) ?? [];
-  const rec: InjRecord = { turn, at: Date.now(), chars: text.length, recallIds, text: text.slice(0, 4000), ...(meta?.source ? { source: meta.source } : {}), ...(meta?.trace ? { trace: meta.trace } : {}) };
+  // Store the FULL injected text so the Context tab and preset-tab preview show
+  // everything VELLUM fed the model, not a truncated head. The injection is already
+  // bounded by the context budget; the 64k cap is only a memory-safety backstop for
+  // the 20-record-per-chat ring, well above any realistic injection size.
+  const rec: InjRecord = { turn, at: Date.now(), chars: text.length, recallIds, text: text.slice(0, 64000), ...(meta?.source ? { source: meta.source } : {}), ...(meta?.trace ? { trace: meta.trace } : {}) };
   ring.push(rec);
   while (ring.length > 20) ring.shift(); // keep last 20 turns of injection history
   injectionLog.set(chatId, ring);
