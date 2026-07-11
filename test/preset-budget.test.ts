@@ -57,10 +57,27 @@ describe('calculatePresetBudget', () => {
   });
 
   it('expands macros before counting (so var refs are measured by value)', () => {
-    const b = calculatePresetBudget([
-      { id: 'a', enabled: true, content: '{{var::p}}', group: 'core', variables: [{ name: 'p', options: [{ value: 'x'.repeat(100), selected: true }] }] },
-    ]);
+    const b = calculatePresetBudget(
+      [{ id: 'a', enabled: true, content: '{{var::p}}', group: 'core', variables: [{ name: 'p' }] }],
+      { a: { p: 'x'.repeat(100) } },
+    );
     expect(b.totalChars).toBe(100);
+  });
+
+  it('falls back to defaultValue when a variable is not in promptVariables', () => {
+    const b = calculatePresetBudget(
+      [{ id: 'a', enabled: true, content: '{{var::mood}}', group: 'core', variables: [{ name: 'mood', defaultValue: 'cheerful' }] }],
+      {},
+    );
+    expect(b.totalChars).toBe('cheerful'.length);
+  });
+
+  it('joins multiselect arrays with the separator', () => {
+    const b = calculatePresetBudget(
+      [{ id: 'a', enabled: true, content: '{{var::tags}}', group: 'core', variables: [{ name: 'tags', separator: ' | ' }] }],
+      { a: { tags: ['sci-fi', 'mystery'] } },
+    );
+    expect(b.totalChars).toBe('sci-fi | mystery'.length);
   });
 
   it('returns at most 5 heaviest blocks, sorted descending', () => {

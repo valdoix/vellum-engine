@@ -835,7 +835,8 @@ export function setup(ctx: Ctx): () => void {
     // Feature 5: Preset Prompt Budget — honest token estimate from enabled blocks
     let f5 = '';
     if (preset && Array.isArray(preset.blocks) && preset.blocks.length) {
-      const budget = calculatePresetBudget(preset.blocks);
+      const promptVars = (preset.metadata && typeof preset.metadata === 'object' && preset.metadata.promptVariables) || {};
+      const budget = calculatePresetBudget(preset.blocks, promptVars as any);
       const catRows = Object.entries(budget.byCategory)
         .sort((a, b) => (b[1] as any).tokens - (a[1] as any).tokens)
         .map(([cat, data]: [string, any]) => {
