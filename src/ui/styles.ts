@@ -2359,6 +2359,20 @@ export const STYLES = [
   "html[data-vle-mode='light'] .vle-cz-hex,html[data-vle-mode='light'] .vle-cz-sel{background:color-mix(in srgb,var(--vi) 5%,var(--vsurf-1))}",
   // modal input fields (search box, prompts) with the same dark fill pattern.
   "html[data-vle-mode='light'] .vlfm-in{background:color-mix(in srgb,var(--vi) 5%,var(--vsurf-1))}",
+  // journal books: the shelf buttons/spines + plank hardcode a dark wood gradient.
+  // Repaint the fill to a light surface so their dark ink (var(--vi)) reads.
+  "html[data-vle-mode='light'] .vle-book{background:color-mix(in srgb,var(--vg) 8%,var(--vsurf-1))}",
+  "html[data-vle-mode='light'] .vle-book:hover{background:color-mix(in srgb,var(--vg) 16%,var(--vsurf-1))}",
+  "html[data-vle-mode='light'] .vle-jspine{background:linear-gradient(180deg,color-mix(in srgb,var(--vg) 12%,var(--vsurf-1)),color-mix(in srgb,var(--vg) 6%,var(--vsurf-2)))}",
+  "html[data-vle-mode='light'] .vle-shelf-plank{background:linear-gradient(180deg,color-mix(in srgb,var(--vg) 22%,var(--vsurf-2)),color-mix(in srgb,var(--vg) 12%,var(--vsurf-2)));box-shadow:var(--v-shadow-card)}",
+  // the modal shell (.vlfm) hosts the CUSTOMIZE, ACTIONS, and SEARCH panels. Its
+  // background is a hardcoded dark gradient; in light mode repaint it to the skin's
+  // light fill (--vglass = the per-skin light gradient: white for daylit/chrome-
+  // light, cream for parchment/champagne, etc.) with a neutral hairline + head/foot
+  // dividers so the whole panel reads as a light surface, not a recolored dark one.
+  "html[data-vle-mode='light'][data-vle-mode='light'] .vlfm{background:var(--vglass);border-color:var(--v-border-strong)}",
+  "html[data-vle-mode='light'] .vlfm-head{border-bottom-color:var(--v-border-color)}",
+  "html[data-vle-mode='light'] .vlfm-foot{border-top-color:var(--v-border-color)}",
 
 ].join('\n');
 
