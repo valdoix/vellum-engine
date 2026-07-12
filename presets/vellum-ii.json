@@ -2786,7 +2786,7 @@
         "min_depth": null,
         "max_depth": null,
         "trim_strings": [],
-        "run_on_edit": true,
+        "run_on_edit": false,
         "substitute_macros": "none",
         "disabled": true,
         "sort_order": 31,
