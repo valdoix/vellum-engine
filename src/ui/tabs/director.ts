@@ -30,6 +30,9 @@ let _directives: UIDirective[] = [];
 let _nextScene: { location?: string; day?: number; time?: string; note?: string } | null = null;
 // latest rendered state, so click handlers (location/plant forms) can read lists.
 let _state: ChronicleState | null = null;
+// collapsed location ids (their contained places hidden). Session-only UI state;
+// a place stays expanded by default so nothing is hidden unless the user folds it.
+const _locCollapsed = new Set<string>();
 // expanded off-screen feed item ids (Elsewhere Feed). Session-only; items start
 // collapsed except the lone active thread (handled in offscreenView).
 const _feedExpanded = new Set<string>();
@@ -65,7 +68,7 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.source ?? '') + (l.pinned ? 'p' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${(s.scene?.location ?? '')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}:${[..._feedExpanded].sort().join(',')}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.source ?? '') + (l.pinned ? 'p' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${(s.scene?.location ?? '')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}:${[..._feedExpanded].sort().join(',')}`,
   render(s) {
     _state = s;
     const counts: Record<DView, number> = {
@@ -99,6 +102,8 @@ export const directorTab: Component<ChronicleState> = {
       if (ddel) { const id = ddel.getAttribute('data-id'); pushDirectives(_directives.filter((d) => d.id !== id)); return; }
 
       // --- locations ---
+      const ltog = t.closest('[data-loc-toggle]');
+      if (ltog) { const id = ltog.getAttribute('data-id') || ''; if (_locCollapsed.has(id)) _locCollapsed.delete(id); else _locCollapsed.add(id); refreshUI(); return; }
       if (t.closest('[data-loc-add]')) {
         formModal('New Location', [
           { key: 'name', label: 'Place name', type: 'text', placeholder: 'The Salt Docks' },
@@ -283,7 +288,7 @@ function locationsView(s: ChronicleState): string {
     if (age <= 12) return 'cool';
     return 'cold';
   };
-  const plate = (l: typeof list[number], depth: number, kidCount: number): string => {
+  const plate = (l: typeof list[number], depth: number, kidCount: number, collapsed: boolean): string => {
     const isHere = hereName && l.name.trim().toLowerCase() === hereName;
     const pinned = l.pinned === true;
     const isAuto = l.source !== 'user'; // legacy rows w/o source read as auto
@@ -298,7 +303,11 @@ function locationsView(s: ChronicleState): string {
       ? `<div class="vle-atlas-crumb">${path.slice(0, -1).map(esc).join(' <span class="sep">\u25B8</span> ')} <span class="sep">\u25B8</span> <span class="cur">${esc(path[path.length - 1]!)}</span></div>`
       : '';
     const seen = isHere ? 'current scene' : (now - l.lastTurn <= 0 ? 'seen this turn' : `last seen t${l.lastTurn}`);
-    const childTag = kidCount ? `<span class="vle-atlas-childtag">\u21B3 ${kidCount} inside</span>` : '';
+    // a caret toggles contained places (only when the place has any); it doubles as
+    // the "N inside" child tag so collapsed places still show how many they hold.
+    const childTag = kidCount
+      ? `<button class="vle-atlas-childtag toggle${collapsed ? ' closed' : ''}" data-loc-toggle data-id="${esc(l.id)}" title="${collapsed ? 'Show' : 'Hide'} contained places" aria-expanded="${collapsed ? 'false' : 'true'}"><span class="vle-atlas-caret">\u25BE</span> ${kidCount} inside</button>`
+      : '';
     // pin control: target state is the OPPOSITE of current pinned.
     const pinBtn = `<button class="vle-mini${pinned ? ' on' : ''}" data-loc-pin data-id="${esc(l.id)}" data-pinned="${pinned ? '0' : '1'}" title="${pinned ? 'Unpin (send only when recent/near)' : 'Pin (always inject)'}">${pinned ? '\u2691' : '\u2690'}</button>`;
     return `<div class="vle-atlas-plate${isHere ? ' here' : ''}" style="margin-left:${Math.min(depth, 4) * 1.15}rem;--atlas-hue:${hue(rootOf(l))}">`
@@ -316,13 +325,16 @@ function locationsView(s: ChronicleState): string {
       + `</div></div>`;
   };
   // depth-first walk so a child plate always renders under its parent, indented by
-  // depth. A `seen` guard breaks any accidental parent cycle in the data.
+  // depth. A collapsed place hides its whole subtree. A `seen` guard breaks any
+  // accidental parent cycle in the data.
   const seenIds = new Set<string>();
   const walk = (l: typeof list[number], depth: number): string => {
     if (seenIds.has(l.id)) return '';
     seenIds.add(l.id);
     const children = (kids.get(l.id) ?? []).slice().sort(byRecent);
-    return plate(l, depth, children.length) + children.map((c) => walk(c, depth + 1)).join('');
+    const collapsed = children.length > 0 && _locCollapsed.has(l.id);
+    const kidsHtml = collapsed ? '' : children.map((c) => walk(c, depth + 1)).join('');
+    return plate(l, depth, children.length, collapsed) + kidsHtml;
   };
   return head + intro + `<div class="vle-atlas">${roots.sort(byRecent).map((r) => walk(r, 0)).join('')}</div>`;
 }

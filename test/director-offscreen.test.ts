@@ -111,4 +111,41 @@ describe('Director Locations view — The Atlas: plates, breadcrumbs, provenance
     const html = directorTab.render(s);
     expect(html).toContain('\u25CB auto');
   });
+
+  it('a place with children shows a collapse toggle; a leaf does not', () => {
+    const s = freshState();
+    s.locations = [
+      { id: 'harrenhal', name: 'Harrenhal', source: 'auto', firstTurn: 1, lastTurn: 5 },
+      { id: 'yard', name: 'Training yard', parent: 'harrenhal', source: 'auto', firstTurn: 2, lastTurn: 6 },
+    ];
+    switchTo('locations');
+    const html = directorTab.render(s);
+    expect(html).toContain('data-loc-toggle'); // toggle on the parent
+    expect(html).toContain('data-id="harrenhal"');
+    expect(html).toContain('Training yard'); // expanded by default
+  });
+
+  it('collapsing a place hides its whole subtree; toggling restores it', () => {
+    const s = freshState();
+    s.locations = [
+      { id: 'harrenhal', name: 'Harrenhal', source: 'auto', firstTurn: 1, lastTurn: 5 },
+      { id: 'yard', name: 'Training yard', parent: 'harrenhal', source: 'auto', firstTurn: 2, lastTurn: 6 },
+      { id: 'cell', name: 'Dungeon cell', parent: 'yard', source: 'auto', firstTurn: 3, lastTurn: 4 },
+    ];
+    switchTo('locations');
+    // drive the same delegated handler the tab registers, targeting the toggle
+    let handler: ((e: unknown) => void) | null = null;
+    const fakeHost = { addEventListener: (_t: string, h: (e: unknown) => void) => { handler = h; } } as unknown as HTMLElement;
+    directorTab.mount!(fakeHost);
+    const target = { closest: (sel: string) => (sel === '[data-loc-toggle]' ? { getAttribute: () => 'harrenhal' } : null) };
+    handler!({ target });
+    const collapsed = directorTab.render(s);
+    expect(collapsed).not.toContain('Training yard'); // direct child hidden
+    expect(collapsed).not.toContain('Dungeon cell');  // whole subtree hidden
+    expect(collapsed).toContain('Harrenhal');          // parent still shown
+    expect(collapsed).toContain('1 inside');           // direct child-count still visible when collapsed
+    // toggle back open
+    handler!({ target });
+    expect(directorTab.render(s)).toContain('Training yard');
+  });
 });
