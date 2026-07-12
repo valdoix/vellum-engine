@@ -63,6 +63,12 @@ const VELLUM_CLOSE_RE = /\u2039\s*\/\s*vellum\s*\u203a|<\s*\/\s*vellum\s*>?|\[\s
 // what parseState already uses so the two paths agree.
 const REVERIE_CLOSE_RE = /<\s*\/\s*rever[a-z]*\s*>/i;
 const REVERIE_OPEN_RE = /<\s*rever[a-z]*\s*>/i;
+// A turn may be an ASSEMBLED beat, not a bare reply: the host prefixes the
+// player message and a "[Scene]" marker before the assistant reply (see
+// allTurnContents). The reverie lives INSIDE the [Scene] section, so when the
+// reverie open tag is eaten (prefill), the reverie begins right after [Scene] —
+// we must never cut content before it (that ate [Player action] + the user msg).
+const SCENE_MARKER_RE = /\[\s*scene\s*\]/gi;
 
 // Colored-dialogue tags: `[spk=Name]…[/spk]` (whitespace/quote tolerant, matching
 // the preset's display regex). We remove the TAGS but KEEP the quoted line, so the
@@ -117,11 +123,28 @@ export function stripScaffold(content: string): string {
   const vi = vellumSuffixIndex(s);
   if (vi >= 0) s = s.slice(0, vi);
 
-  // A2 — reverie prefix: cut from start to the reverie close (open tag optional,
-  // since it's prefilled and often eaten). Only when a close exists.
+  // A2 — reverie span: cut ONLY the reverie itself, never content before it. In an
+  // assembled beat the reverie is preceded by "[Player action]\n{user msg}\n\n[Scene]",
+  // so cutting from string-start would eat the player action. Anchor the reverie
+  // START at its open tag, or (if the prefill ate the open) at the [Scene] marker
+  // that immediately precedes it; cut [start, close-end], keeping the head intact.
   const rc = s.match(REVERIE_CLOSE_RE);
   if (rc && rc.index !== undefined) {
-    s = s.slice(rc.index + rc[0].length);
+    const closeEnd = rc.index + rc[0].length;
+    const openM = s.slice(0, rc.index).match(REVERIE_OPEN_RE);
+    let start: number;
+    if (openM && openM.index !== undefined) {
+      start = openM.index; // explicit <reverie> — cut from there
+    } else {
+      // open tag eaten: the reverie starts after the LAST [Scene] marker before
+      // the close (its section header), or at string-start if there is none.
+      let sceneEnd = 0;
+      for (const m of s.slice(0, rc.index).matchAll(SCENE_MARKER_RE)) {
+        if (m.index !== undefined) sceneEnd = m.index + m[0].length;
+      }
+      start = sceneEnd;
+    }
+    s = s.slice(0, start) + '\n' + s.slice(closeEnd);
   } else if (REVERIE_OPEN_RE.test(s)) {
     // C — truncated reverie: open but no close. Strip only leading planning
     // blocks (confident-match), stopping at the first block that looks like prose.

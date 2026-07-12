@@ -13,6 +13,56 @@ describe('stripScaffold — happy path', () => {
   });
 });
 
+describe('stripScaffold — assembled beat (keeps player action)', () => {
+  // allTurnContents wraps a beat as "[Player action]\n{user}\n\n[Scene]\n{reply}".
+  // The reverie sits INSIDE the [Scene] section, so stripping it must never eat the
+  // player action or the [Scene]/[Player action] markers that precede it.
+  it('keeps [Player action] + user message when reverie has an explicit open tag', () => {
+    const raw = '[Player action]\nI open the door.\n\n[Scene]\n<reverie>\nSCENE: hallway\nSTATE: x\n</reverie>\nThe door swings wide.\n<vellum>\n{ "turn": 3 }\n</vellum>';
+    const out = stripScaffold(raw);
+    expect(out).toContain('[Player action]');
+    expect(out).toContain('I open the door.');
+    expect(out).toContain('[Scene]');
+    expect(out).toContain('The door swings wide.');
+    expect(out).not.toContain('SCENE: hallway');
+    expect(out).not.toContain('turn');
+  });
+
+  it('keeps the player action when the reverie open tag was eaten by the prefill', () => {
+    // prefill ate "<reverie>", so the beat opens straight into planning after [Scene]
+    const raw = '[Player action]\nI draw my sword.\n\n[Scene]\nSCENE: courtyard\nSTATE: tense\n</reverie>\nSteel rings against steel.\n<vellum>{ "turn": 7 }</vellum>';
+    const out = stripScaffold(raw);
+    expect(out).toContain('[Player action]');
+    expect(out).toContain('I draw my sword.');
+    expect(out).toContain('Steel rings against steel.');
+    expect(out).not.toContain('SCENE: courtyard');
+    expect(out).not.toContain('STATE: tense');
+  });
+});
+
+describe('stripScaffold — assembled beat wrapper (preserve player action)', () => {
+  it('keeps [Player action] + user msg + [Scene] when reverie has an explicit open tag', () => {
+    const raw = '[Player action]\nI open the door.\n\n[Scene]\n<reverie>\nSCENE: hall\nSTATE: x\n</reverie>\nThe door swings wide.\n<vellum>\n{ "turn": 3 }\n</vellum>';
+    const out = stripScaffold(raw);
+    expect(out).toContain('[Player action]');
+    expect(out).toContain('I open the door.');
+    expect(out).toContain('[Scene]');
+    expect(out).toContain('The door swings wide.');
+    expect(out).not.toContain('SCENE: hall');
+    expect(out).not.toContain('turn');
+  });
+
+  it('keeps the player action when the reverie open tag was eaten (prefill)', () => {
+    const raw = '[Player action]\nI wait quietly.\n\n[Scene]\nSCENE: night garden\nSTATE: Lira guarded\n</reverie>\nShe watched me in silence.\n<vellum>\n{ "turn": 7 }\n</vellum>';
+    const out = stripScaffold(raw);
+    expect(out).toContain('[Player action]');
+    expect(out).toContain('I wait quietly.');
+    expect(out).toContain('She watched me in silence.');
+    expect(out).not.toContain('SCENE: night garden');
+    expect(out).not.toContain('STATE: Lira guarded');
+  });
+});
+
 describe('stripScaffold — mangled / truncated vellum suffix', () => {
   it('strips a truncated vellum block with no close tag', () => {
     const raw = 'The door opened.\n<vellum>\n{ "turn": 5, "scene": { "time": "late"';
