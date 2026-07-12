@@ -536,16 +536,41 @@ const slider = (key: string, label: string, min: number, max: number, step: numb
 
 const pct = (v: number): string => Math.round(v * 100) + '%';
 
+// Relative luminance (0..1) of the FIRST color found in a CSS value. Handles
+// #rgb/#rrggbb, rgb()/rgba(), and linear-gradient(...) (first stop). Falls back
+// to 0 (treated as dark) on parse failure. Used only to GROUP skins light/dark
+// in the customizer — cosmetic, never behavioral.
+function relLum(css: string): number {
+  if (!css) return 0;
+  let r = 0, g = 0, b = 0;
+  const hex = css.match(/#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/);
+  const rgb = css.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgb) { r = +rgb[1]!; g = +rgb[2]!; b = +rgb[3]!; }
+  else if (hex && hex[1]) {
+    let h = hex[1];
+    if (h.length === 3) h = h[0]! + h[0]! + h[1]! + h[1]! + h[2]! + h[2]!;
+    r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+  } else return 0;
+  // perceptual luma (sRGB, simple Rec.601-ish), 0..1
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+/** A skin is "light" when its surface is brighter than its ink (dark ink on a
+ * light field). Grouping helper for the customizer only. */
+export function isLightSkin(s: Skin): boolean {
+  return relLum(s.theme.surf1) > relLum(s.theme.ink);
+}
+
 export function customizePanel(tab: CzTab = 'look'): string {
   const t = _theme;
-  // two-tier: a "Look" front tab (themes + size — the 90% case) and an Advanced
-  // cluster (the full cockpit) set off by a divider so it doesn't overwhelm.
-  const front: CzTab[] = ['look'];
-  const advanced: CzTab[] = ['skin', 'mode', 'layout', 'color', 'type', 'window', 'cards', 'sections'];
-  const tabBtn = (id: CzTab): string => `<button class="vle-czt${tab === id ? ' on' : ''}" data-cz-tab="${id}">${id === 'look' ? 'Look' : id}</button>`;
-  const tabs = front.map(tabBtn).join('')
-    + '<span class="vle-czt-sep" title="Advanced">advanced</span>'
-    + advanced.map(tabBtn).join('');
+  // Sidebar layout: a persistent left rail (one item per section) + a spacious
+  // right canvas. One ordered CzTab[] drives both the rail and the body switch.
+  const ALL_TABS: CzTab[] = ['look', 'skin', 'mode', 'layout', 'color', 'type', 'window', 'cards', 'sections'];
+  const ICONS: Record<CzTab, string> = { look: '\u25C8', skin: '\u25D1', mode: '\u25D0', layout: '\u21B3', color: '\u25C6', type: 'T', window: '\u25A1', cards: '\u25A0', sections: '\u2630' };
+  const LABELS: Record<CzTab, string> = { look: 'Look', skin: 'Skins', mode: 'Mode', layout: 'Layout', color: 'Color', type: 'Type', window: 'Window', cards: 'Cards', sections: 'Sections' };
+  const TITLES: Record<CzTab, string> = { look: 'Look', skin: 'Skins', mode: 'Mode', layout: 'Layout', color: 'Color &amp; fills', type: 'Type &amp; size', window: 'Window', cards: 'Card shapes', sections: 'Sections' };
+  const rail = '<nav class="vle-cz-rail"><div class="vle-cz-rail-h">VELLUM</div>'
+    + ALL_TABS.map((id) => `<button class="vle-cz-railitem${tab === id ? ' on' : ''}" data-cz-tab="${id}"><span class="vle-cz-ic">${ICONS[id]}</span><span class="vle-cz-raillbl">${LABELS[id]}</span></button>`).join('')
+    + '</nav>';
   // theme gallery sketch markup (shared by Look + the mode tab)
   const sketch: Record<Chrome, string> = {
     default: '<span class="vle-mode-sk sk-default"><i></i><i></i><i></i></span>',
@@ -563,20 +588,27 @@ export function customizePanel(tab: CzTab = 'look'): string {
   const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'
     + (['dark', 'light'] as const).map((mm) => `<button class="vle-fb-btn${t.mode === mm ? ' on' : ''}" data-cz-colormode="${mm}">${mm}</button>`).join('')
     + '</div>';
+  // compact mode pill for the Skins canvas header (same wiring, no label row)
+  const modePill = '<div class="vle-fbar vle-cz-modepill" data-cz-colormode-bar>'
+    + (['dark', 'light'] as const).map((mm) => `<button class="vle-fb-btn${t.mode === mm ? ' on' : ''}" data-cz-colormode="${mm}">${mm}</button>`).join('')
+    + '</div>';
 
   const themeCards = MODES.map((m) => `<button class="vle-mode${t.chrome === m.id ? ' on' : ''}" data-mode="${m.id}" title="${m.blurb}">`
     + `${sketch[m.id]}<span class="vle-mode-n">${m.name}</span><span class="vle-mode-b">${m.blurb}</span></button>`).join('');
   let body = '';
   if (tab === 'look') {
-    // the approachable front: pick a theme + set size. Everything else is Advanced.
+    // the approachable front: pick a theme + set size. The rail holds the rest.
     body = '<div class="vle-cz-h">Theme</div><div class="vle-modes">' + themeCards + '</div>'
       + modeToggle
       + slider('scale', 'Interface size', 0.85, 1.5, 0.05, t.scale, pct)
-      + '<div class="vle-cz-note">Pick a look, a dark/light mode and size \u2014 that\u2019s usually all you need. For palettes, fonts, layout and window controls, open <b>Advanced</b> above.</div>';
+      + '<div class="vle-cz-note">Pick a look, a dark/light mode and size \u2014 that\u2019s usually all you need. For palettes, fonts, layout and window controls, use the sections in the left rail.</div>';
   } else if (tab === 'skin') {
-    body = '<div class="vle-cz-h">Skins</div><div class="vle-skins">'
-      + SKINS.map((s) => `<button class="vle-skin${t.skin === s.id ? ' on' : ''}" data-skin="${s.id}" title="${s.blurb}" style="--sw:${s.theme.accent}"><span class="vle-skin-sw"></span><span class="vle-skin-n">${s.name}</span></button>`).join('')
-      + '</div>'
+    const skinCard = (s: Skin): string =>
+      `<button class="vle-skin${t.skin === s.id ? ' on' : ''}" data-skin="${s.id}" title="${s.blurb}" style="--sw:${s.theme.accent}"><span class="vle-skin-sw"></span><span class="vle-skin-n">${s.name}</span></button>`;
+    const darkSkins = SKINS.filter((s) => !isLightSkin(s));
+    const lightSkins = SKINS.filter(isLightSkin);
+    body = '<div class="vle-cz-h">Dark skins</div><div class="vle-skins">' + darkSkins.map(skinCard).join('') + '</div>'
+      + '<div class="vle-cz-h">Light skins</div><div class="vle-skins">' + lightSkins.map(skinCard).join('') + '</div>'
       + '<div class="vle-cz-h">Theme</div><div class="vle-cz-row"><button class="vle-cz-btn" data-cz-export>\u2913 Export</button><button class="vle-cz-btn" data-cz-import>\u2912 Import</button><button class="vle-cz-btn danger" data-cz-resetall>\u21BA Reset all</button></div>';
   } else if (tab === 'mode') {
     body = '<div class="vle-cz-h">Theme</div><div class="vle-modes">' + themeCards
@@ -618,26 +650,30 @@ export function customizePanel(tab: CzTab = 'look'): string {
       + '<div class="vle-cz-note">Tip: drag the launcher tab to any screen edge to reposition it.</div>'
       + `<div class="vle-cz-h">Motion</div><div class="vle-cz-row"><label class="vle-cz-chk"><input type="checkbox" data-cz-motion${t.motion ? ' checked' : ''}> animations</label></div>`;
   } else if (tab === 'cards') {
-    // per-surface card shape. First option 'Auto' clears the override so the
-    // surface falls back to the current chrome's default (shown in the label).
+    // Per-surface card shape as a visual tile grid. Each tile carries the real
+    // .v-shape--<id> class so both SHAPE_GEOM geometry and the companion
+    // shapeDetailTile ornament pseudos render on the preview. data-cz-cardshape
+    // + data-shape drive the same patch as the old select (empty = clear override).
     const shapeLabel = (id: ShapeId): string => id.replace(/-/g, ' ');
-    const row = (surface: Surface): string => {
+    const tiles = (surface: Surface): string => {
       const def = CHROME_SHAPES[t.chrome][surface];
       const cur = t.cardShapes[surface];
-      const opts = `<option value=""${cur ? '' : ' selected'}>Auto (${shapeLabel(def)})</option>`
-        + SHAPE_IDS.map((id) => `<option value="${id}"${cur === id ? ' selected' : ''}>${shapeLabel(id)}</option>`).join('');
-      return `<div class="vle-cz-h">${SURFACE_LABELS[surface]}${cur ? ` <span class="vle-cz-rst" data-cz-cardshape-reset="${surface}" title="Reset to Auto">\u21BA</span>` : ''}</div>`
-        + `<div class="vle-cz-row"><select class="vle-cz-sel" data-cz-cardshape="${surface}">${opts}</select></div>`;
+      const reset = cur ? ` <span class="vle-cz-rst" data-cz-cardshape-reset="${surface}" title="Reset to Auto">\u21BA</span>` : '';
+      const autoTile = `<button class="vle-shape${cur ? '' : ' on'}" data-cz-cardshape="${surface}" data-shape="" title="Auto (${shapeLabel(def)})"><span class="vle-shape-tile v-shape--${def}"></span><span class="vle-shape-l">Auto</span></button>`;
+      const shapeTiles = SHAPE_IDS.map((id) => `<button class="vle-shape${cur === id ? ' on' : ''}" data-cz-cardshape="${surface}" data-shape="${id}" title="${shapeLabel(id)}"><span class="vle-shape-tile v-shape--${id}"></span><span class="vle-shape-l">${shapeLabel(id)}</span></button>`).join('');
+      return `<div class="vle-cz-h">${SURFACE_LABELS[surface]}${reset}</div>`
+        + `<div class="vle-shapes">${autoTile}${shapeTiles}</div>`;
     };
-    body = SURFACES.map(row).join('')
-      + '<div class="vle-cz-note">Set a silhouette per card surface. <b>Auto</b> follows the current theme\u2019s default shape. Shapes are geometry only \u2014 palette &amp; type stay from your skin/theme. Exotic edges fall back to a rounded card where unsupported.</div>';
+    body = SURFACES.map(tiles).join('')
+      + '<div class="vle-cz-note">Click a tile to set that surface\u2019s silhouette. Each tile previews the real shape and ornament. <b>Auto</b> follows the current theme\u2019s default \u2014 palette &amp; type stay from your skin.</div>';
   } else {
     // sections = display flags
     body = '<div class="vle-cz-h">Tension display</div><div class="vle-cz-row"><select class="vle-cz-sel" data-cz-tension>'
       + ['both', 'bar', 'num'].map((v) => `<option value="${v}"${t.tensionStyle === v ? ' selected' : ''}>${v === 'num' ? 'number' : v}</option>`).join('') + '</select></div>'
       + '<div class="vle-cz-note">Per-section visibility & order live in the <b>Layout</b> tab \u2192 Custom.</div>';
   }
-  return `<div class="vle-cz"><div class="vle-czt-bar">${tabs}</div><div class="vle-cz-body" data-cz-tab-body data-tab="${tab}">${body}</div></div>`;
+  const canvasHead = `<div class="vle-cz-canvas-h"><h3>${TITLES[tab]}</h3>${tab === 'skin' ? modePill : ''}</div>`;
+  return `<div class="vle-cz vle-cz--sb">${rail}<div class="vle-cz-canvas" data-cz-tab-body data-tab="${tab}">${canvasHead}<div class="vle-cz-canvas-body">${body}</div></div></div>`;
 }
 
 /** Wire all customize controls. rerender(tab) rebuilds the panel; reapply themes. */
@@ -681,6 +717,7 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
     const t = e.target as HTMLElement;
     const tab = t.closest('[data-cz-tab]'); if (tab) { rerender(tab.getAttribute('data-cz-tab') as CzTab); return; }
     const csr = t.closest('[data-cz-cardshape-reset]'); if (csr) { const surface = csr.getAttribute('data-cz-cardshape-reset') as Surface; const next = { ...getTheme().cardShapes }; delete next[surface]; patchTheme({ cardShapes: next }); rerender('cards'); reapply(); return; }
+    const cst = t.closest('[data-cz-cardshape]'); if (cst) { const surface = cst.getAttribute('data-cz-cardshape') as Surface; const val = cst.getAttribute('data-shape') || ''; const next = { ...getTheme().cardShapes }; if (val) next[surface] = val as ShapeId; else delete next[surface]; patchTheme({ cardShapes: next }); rerender('cards'); reapply(); return; }
     const rst = t.closest('[data-cz-reset]'); if (rst) { const k = rst.getAttribute('data-cz-reset')!; patchTheme({ [k]: (DEFAULT as unknown as Record<string, unknown>)[k] } as Partial<Theme>); rerender(curTab()); reapply(); return; }
     if (t.closest('[data-cz-resetall]')) { confirmModal('Reset all appearance settings to defaults?', () => { resetTheme(); rerender('skin'); reapply(); }); return; }
     if (t.closest('[data-cz-export]')) { try { const b = new Blob([exportTheme()], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'vellum-theme.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); } catch { /* ignore */ } return; }

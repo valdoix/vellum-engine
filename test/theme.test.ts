@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel, resolveShape, sanitizeCardShapes, CHROME_SHAPES, SHAPE_IDS, SURFACES, setThemePersist, hydrateTheme } from '../src/ui/theme.js';
+import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel, resolveShape, sanitizeCardShapes, CHROME_SHAPES, SHAPE_IDS, SURFACES, setThemePersist, hydrateTheme, isLightSkin } from '../src/ui/theme.js';
 import { renderBondRadar } from '../src/ui/theme-render.js';
 import { freshState } from '../src/domain/types.js';
 
@@ -91,7 +91,49 @@ describe('theme system', () => {
     const html = customizePanel('look');
     expect(html).toContain('data-mode="modern"'); // theme cards present
     expect(html).toContain('data-cz-num="scale"'); // interface-size slider present
-    expect(html).toContain('vle-czt-sep'); // the Advanced divider exists
+    expect(html).toContain('data-cz-tab="look"'); // rail items present
+    expect(html).toContain('vle-cz-rail'); // rail container exists
+  });
+
+  it('the sidebar rail renders one nav item per CzTab', () => {
+    const html = customizePanel('look');
+    expect(html).toContain('vle-cz--sb'); // sidebar+canvas container
+    expect(html).toContain('vle-cz-rail'); // the left nav rail
+    for (const tab of ['look', 'skin', 'mode', 'layout', 'color', 'type', 'window', 'cards', 'sections']) {
+      expect(html, tab).toContain(`data-cz-tab="${tab}"`);
+    }
+    // the active tab's rail item carries the .on marker
+    expect(html).toContain('class="vle-cz-railitem on" data-cz-tab="look"');
+  });
+});
+
+describe('skin grouping (light / dark)', () => {
+  it('isLightSkin classifies known skins correctly', () => {
+    const byId = (id: string) => SKINS.find((s) => s.id === id)!;
+    // light-field skins (dark ink on a light surface)
+    for (const id of ['parchment', 'daylit', 'graphite-light', 'blush', 'sumi-paper', 'gatsby-champagne']) {
+      expect(isLightSkin(byId(id)), `${id} should be light`).toBe(true);
+    }
+    // dark-field skins (light ink on a dark surface)
+    for (const id of ['illuminated', 'moonlit', 'graphite', 'sumi-ink', 'gatsby-noir', 'noir']) {
+      expect(isLightSkin(byId(id)), `${id} should be dark`).toBe(false);
+    }
+  });
+
+  it('every skin classifies without throwing (parse robustness)', () => {
+    for (const s of SKINS) {
+      expect(() => isLightSkin(s), s.id).not.toThrow();
+      expect(typeof isLightSkin(s), s.id).toBe('boolean');
+    }
+  });
+
+  it('the Skins tab splits into labelled Dark and Light groups', () => {
+    const html = customizePanel('skin');
+    expect(html).toContain('Dark skins');
+    expect(html).toContain('Light skins');
+    // both groups render skin swatch buttons with the unchanged data-skin wiring
+    expect(html).toContain('data-skin="illuminated"'); // a dark skin
+    expect(html).toContain('data-skin="parchment"');   // a light skin
   });
 });
 
@@ -147,10 +189,18 @@ describe('card shapes (per-surface silhouette overrides)', () => {
     patchTheme({ cardShapes: {} }); // reset for other tests
   });
 
-  it('the Cards tab renders a shape select per surface with an Auto option', () => {
+  it('the Cards tab renders clickable shape tiles per surface with an Auto option', () => {
     const html = customizePanel('cards');
+    // no <select> control remains — tiles replaced the dropdown
+    expect(html).not.toContain('<select');
+    // every surface gets a tile group with the unchanged data-cz-cardshape wiring
     for (const surface of SURFACES) expect(html, surface).toContain(`data-cz-cardshape="${surface}"`);
+    // an Auto tile (empty data-shape clears the override) plus real shape tiles
+    expect(html).toContain('data-shape=""');
     expect(html).toContain('Auto (');
+    // each tile carries the real .v-shape--<id> geometry class for the preview
+    for (const id of SHAPE_IDS) expect(html, id).toContain(`v-shape--${id}`);
+    expect(html).toContain('vle-shape-tile');
   });
 });
 

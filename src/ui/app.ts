@@ -271,7 +271,7 @@ function openBoundaries(ctx: Ctx): void {
 function openCustomize(onChange: () => void): void {
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
-  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(440px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Customize</div>'
+  ov.innerHTML = '<div class="vlfm vle-root" style="width:min(880px,96vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Customize</div>'
     + '<div class="vlfm-body" data-cz-host>' + customizePanel('look') + '</div>'
     + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-save" data-close>Done</button></div></div>';
   document.body.appendChild(ov);

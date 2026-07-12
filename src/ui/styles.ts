@@ -118,7 +118,9 @@ const shapeDetail = (id: string, decl: string, pseudo: '::before' | '::after'): 
     .filter(([surface]) => surface !== 'secrets')
     .map(([surface, root]) => `[data-shape-${surface}='${id}'] ${root}${pseudo}`)
     .join(',');
-  return [`${sel}{${decl}}`];
+  // Also emit the SAME declaration for the customize-panel picker tile, so ornament
+  // pseudos preview on the tile (geometry is applied via .v-shape--<id> on the tile).
+  return [`${sel}{${decl}}`, `.vle-shape-tile.v-shape--${id}${pseudo}{${decl}}`];
 };
 const shapeOverrides = (): string[] => {
   const rules: string[] = [];
@@ -1399,6 +1401,30 @@ export const STYLES = [
   ".vlv-pend-c{font-size:11.5px;line-height:1.45;opacity:.75;margin-top:3px}",
   // ---- Customize panel (theme) ----
   ".vle-cz{display:flex;flex-direction:column;gap:7px}",
+  // --- Customize: sidebar (rail) + canvas layout ---
+  ".vle-cz--sb{display:grid;grid-template-columns:168px 1fr;gap:0;min-height:min(440px,70vh)}",
+  ".vle-cz-rail{display:flex;flex-direction:column;gap:2px;padding:4px 8px 8px 0;border-right:1px solid rgba(var(--vg-rgb),.16)}",
+  ".vle-cz-rail-h{font:600 9px/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vg);opacity:.6;padding:4px 11px 8px}",
+  ".vle-cz-railitem{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:8px;font:600 11px/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);background:transparent;border:1px solid transparent;cursor:pointer;text-align:left;width:100%;transition:background .15s,color .15s}",
+  ".vle-cz-railitem:hover{background:rgba(var(--vg-rgb),.08);color:var(--vi)}",
+  ".vle-cz-railitem.on{background:rgba(var(--vg-rgb),.14);color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.3)}",
+  ".vle-cz-ic{flex:none;width:16px;text-align:center;font-size:13px;opacity:.85}",
+  ".vle-cz-raillbl{flex:1}",
+  ".vle-cz-canvas{padding:2px 4px 4px 16px;overflow-y:auto;min-width:0;max-height:min(72vh,640px)}",
+  ".vle-cz-canvas-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid rgba(var(--vg-rgb),.18)}",
+  ".vle-cz-canvas-h h3{font-family:var(--vserif);font-size:18px;letter-spacing:1px;color:var(--vi);margin:0}",
+  ".vle-cz-modepill{margin:0;flex:none}",
+  ".vle-cz-canvas-body{display:flex;flex-direction:column;gap:7px}",
+  // --- shape preview tiles (Cards section) ---
+  ".vle-shapes{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:7px;margin-bottom:4px}",
+  ".vle-shape{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 5px;border:1px solid rgba(var(--vg-rgb),.2);border-radius:9px;background:rgba(var(--vg-rgb),.04);cursor:pointer;transition:border-color .15s,background .15s}",
+  ".vle-shape:hover{border-color:rgba(var(--vg-rgb),.45);background:rgba(var(--vg-rgb),.09)}",
+  ".vle-shape.on{border-color:var(--vg);background:rgba(var(--vg-rgb),.14)}",
+  ".vle-shape-tile{width:100%;height:34px;background:var(--vsurf-1);border:1px solid var(--vle-gold-soft);position:relative;overflow:visible;pointer-events:none}",
+  ".vle-shape-l{font:600 8px/1.1 var(--vmono);letter-spacing:.3px;text-transform:uppercase;color:var(--vi2);text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+  ".vle-shape.on .vle-shape-l{color:var(--vle-gold)}",
+  // narrow drawers: collapse the rail to an icon strip above the canvas
+  "@media (max-width:560px){.vle-cz--sb{grid-template-columns:1fr}.vle-cz-rail{flex-direction:row;flex-wrap:wrap;gap:3px;border-right:none;border-bottom:1px solid rgba(var(--vg-rgb),.16);padding:0 0 8px}.vle-cz-rail-h{display:none}.vle-cz-railitem{width:auto}.vle-cz-raillbl{display:none}.vle-cz-canvas{padding:12px 2px 4px}}",
   ".vle-cz-h{font:600 calc(9.5px * var(--vscale))/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;color:var(--vg);opacity:.7;margin-top:6px}",
   ".vle-cz-row{display:flex;align-items:center;gap:9px}",
   ".vle-cz-color{width:42px;height:34px;padding:0;border:1px solid rgba(var(--vg-rgb),.4);border-radius:9px;background:transparent;cursor:pointer}",
