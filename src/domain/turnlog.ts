@@ -28,7 +28,7 @@ function label(e: VellumEvent, nameOf: (id: string) => string): TurnChange | nul
     case 'scar.form': { const a = e as any; return { icon: '\u2620', text: `${n(a.who)} scar: ${a.was}` }; }
     case 'lore.note': { const a = e as any; return { icon: '\u2756', text: `codex: ${a.fact}` }; }
     case 'item.change': { const a = e as any; return { icon: '\u2726', text: `${a.who === 'world' ? 'scene' : n(a.who)} ${a.op}: ${a.item}` }; }
-    case 'location.set': { const a = e as any; return a.auto ? null : { icon: '\u25C9', text: `location: ${a.name}` }; }
+    case 'location.set': { const a = e as any; return (a.source === 'auto' || a.auto === true) ? null : { icon: '\u25C9', text: `location: ${a.name}` }; }
     case 'trait.drift': { const a = e as any; return { icon: '\u21C4', text: `${n(a.who)} ${a.op}: ${a.trait}${a.from ? ' (was ' + a.from + ')' : ''}` }; }
     case 'faction.member': { const a = e as any; return { icon: '\u2691', text: `${n(a.char)} ${a.op === 'add' ? 'joined' : 'left'} ${a.faction}` }; }
     case 'arc.op': case 'thread.op': { const a = e as any; return { icon: '\u269C', text: `${a.op ?? 'thread'}: ${a.name ?? ''}` }; }

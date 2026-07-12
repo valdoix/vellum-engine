@@ -1,10 +1,11 @@
 import type { ChronicleState, Location } from './types.js';
 
 /**
- * Locations gazetteer — PURE helpers. Locations are auto-collected from visited
- * scenes (`auto:true`) or user-pinned; the injector hands the model the canonical
- * names so it reuses them instead of inventing or renaming places. Capped +
- * recency-ordered so the block stays a light skeleton (the beat-spine lesson).
+ * Locations gazetteer — PURE helpers. Locations are model-collected from visited
+ * scenes (`source:'auto'`) or user-made; each is either PINNED (always injected)
+ * or recency-keyed (injected when fresh / when you're in or near it). The injector
+ * hands the model the canonical names so it reuses them instead of inventing or
+ * renaming places. Capped + recency-ordered so the block stays a light skeleton.
  */
 
 /**
@@ -33,14 +34,15 @@ export function inferLocationParent(newName: string, existing: readonly Location
   return best;
 }
 
-/** Most-recently-seen first, capped. User-pinned (auto !== true) always kept. */
+/** Most-recently-seen first, capped. PINNED places are always kept (always
+ * injected); the rest are recency-keyed and fill the remaining room. */
 export function injectableLocations(state: ChronicleState, cap = 12): Location[] {
   const list = (state.locations ?? []).slice();
   if (list.length <= cap) return list.sort((a, b) => b.lastTurn - a.lastTurn);
-  const pinned = list.filter((l) => l.auto !== true);
-  const auto = list.filter((l) => l.auto === true).sort((a, b) => b.lastTurn - a.lastTurn);
+  const pinned = list.filter((l) => l.pinned === true);
+  const rest = list.filter((l) => l.pinned !== true).sort((a, b) => b.lastTurn - a.lastTurn);
   const room = Math.max(0, cap - pinned.length);
-  return [...pinned, ...auto.slice(0, room)].sort((a, b) => b.lastTurn - a.lastTurn);
+  return [...pinned, ...rest.slice(0, room)].sort((a, b) => b.lastTurn - a.lastTurn);
 }
 
 /** The known sub-places contained by the current scene's location, so they

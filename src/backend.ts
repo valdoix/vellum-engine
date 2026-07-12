@@ -1651,8 +1651,9 @@ const dispatch: Record<string, Handler> = {
     if (!name) return;
     const state = await loadState(chatId);
     const id = p?.id ? String(p.id) : 'loc_' + canonId(name);
-    // user create/edit: auto:false so it sticks and never gets downgraded by auto-collect
-    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'location.set', id, name, ...(p?.note !== undefined ? { note: String(p.note).slice(0, 200) } : {}), ...(p?.parent !== undefined ? { parent: String(p.parent) } : {}), auto: false } as VellumEvent]);
+    // user create/edit: source:'user' (drops the auto icon on edit). New places
+    // default to unpinned (recency-keyed); the user pins to force always-inject.
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'location.set', id, name, ...(p?.note !== undefined ? { note: String(p.note).slice(0, 200) } : {}), ...(p?.parent !== undefined ? { parent: String(p.parent) } : {}), source: 'user' } as VellumEvent]);
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true }, uid);
@@ -1666,16 +1667,17 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true }, uid);
   },
   vellum_location_pin: async (p, uid) => {
-    // pin (auto:false, sticks + always injected) or unpin (auto:true, back to a
-    // recency-capped auto entry). A user-sourced auto flag wins in the reducer.
+    // pin (pinned:true → always injected) or unpin (pinned:false → recency-keyed).
+    // Toggling pin NEVER changes provenance — a model place stays source:'auto'
+    // (so unpinning restores its auto icon), a user place stays source:'user'.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId || !p?.id) return;
     const id = String(p.id);
     const state = await loadState(chatId);
     const cur = (state.locations ?? []).find((l) => l.id === id);
     if (!cur) return;
-    const pinned = p?.pinned === undefined ? cur.auto === true : !!p.pinned; // toggle when unspecified
-    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'location.set', id, name: cur.name, auto: !pinned } as VellumEvent]);
+    const pinned = p?.pinned === undefined ? cur.pinned !== true : !!p.pinned; // toggle when unspecified
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: 0, src: 'user', kind: 'location.set', id, name: cur.name, pinned } as VellumEvent]);
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_location_done', ok: true, pinned }, uid);

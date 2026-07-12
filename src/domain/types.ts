@@ -231,15 +231,26 @@ export interface LoreNote {
 /** A possession: a named, notable item held by a character (`who` = cast id) or
  * present in the scene (`scene: true`, `who` = 'world'). Narrative, not a
  * quantity ledger — no counts, weight, or slots. */
-/** A canonical place in the story. Auto-collected from visited scenes
- * (`auto: true`) or user-pinned. The gazetteer is injected (capped) so the model
- * reuses names instead of inventing or renaming locations. */
+/** A canonical place in the story. The gazetteer is injected (capped) so the
+ * model reuses names instead of inventing or renaming locations.
+ *
+ * Provenance and injection are ORTHOGONAL (mirrors Faction/CastCard):
+ *  - `source`  — who made it: 'auto' (model-collected from a visited scene) vs
+ *                'user' (created OR edited by the user; editing drops the auto
+ *                origin so the ○ icon disappears).
+ *  - `pinned`  — how it's injected: true = ALWAYS injected; false = injected only
+ *                when recently visited or when you're in/near it (recency-keyed).
+ * `auto` is the DEPRECATED legacy field: old logs carry only `auto`, so the
+ * reducer maps it forward (auto:true→{source:'auto',pinned:false};
+ * auto:false→{source:'user',pinned:true}, preserving old always-inject pins). */
 export interface Location {
   id: string;
   name: string;
   note?: string;
-  auto?: boolean;       // engine-collected from a visited scene (vs user-pinned)
-  parent?: string;      // id of the containing location (tavern ⊂ town ⊂ region)
+  source?: 'auto' | 'user'; // provenance: model-collected vs user-made/edited
+  pinned?: boolean;         // injection: always-inject (true) vs recency-keyed (false)
+  auto?: boolean;           // DEPRECATED — legacy field, still read for back-compat
+  parent?: string;          // id of the containing location (tavern ⊂ town ⊂ region)
   firstTurn: number;
   lastTurn: number;
 }

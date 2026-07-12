@@ -48,67 +48,67 @@ describe('Director Off-screen view — renders model-narrated parallel meanwhile
   });
 });
 
-describe('Director Locations view — nests contained places under their parent', () => {
-  it('renders children indented with a branch connector under the parent', () => {
+describe('Director Locations view — The Atlas: plates, breadcrumbs, provenance', () => {
+  it('renders contained places as plates after their parent, indented by depth', () => {
     const s = freshState();
     s.locations = [
-      { id: 'harrenhal', name: 'Harrenhal', auto: true, firstTurn: 1, lastTurn: 5 },
-      { id: 'yard', name: 'Training yard', parent: 'harrenhal', auto: true, firstTurn: 2, lastTurn: 6 },
-      { id: 'hall', name: 'Great Hall', parent: 'harrenhal', auto: true, firstTurn: 3, lastTurn: 4 },
+      { id: 'harrenhal', name: 'Harrenhal', source: 'auto', firstTurn: 1, lastTurn: 5 },
+      { id: 'yard', name: 'Training yard', parent: 'harrenhal', source: 'auto', firstTurn: 2, lastTurn: 6 },
+      { id: 'hall', name: 'Great Hall', parent: 'harrenhal', source: 'auto', firstTurn: 3, lastTurn: 4 },
     ];
     switchTo('locations');
     const html = directorTab.render(s);
-    // children nest inside the parent's node under a .vle-loc-kids wrapper (the
-    // rail + elbow are drawn in CSS, like the timeline — no text glyphs).
+    expect(html).toContain('vle-atlas-plate');
     expect(html).toContain('Harrenhal');
-    expect(html).toContain('vle-loc-kids');
-    // child rows come AFTER the parent row in document order
+    // children render AFTER the parent in document order (depth-first walk)
     expect(html.indexOf('Harrenhal')).toBeLessThan(html.indexOf('Training yard'));
     expect(html.indexOf('Harrenhal')).toBeLessThan(html.indexOf('Great Hall'));
+    // a contained place shows its containment breadcrumb
+    expect(html).toContain('vle-atlas-crumb');
   });
 
   it('a dangling parent ref still renders the place (as a root), never hidden', () => {
     const s = freshState();
-    s.locations = [{ id: 'orphan', name: 'Lost Cave', parent: 'gone', auto: true, firstTurn: 1, lastTurn: 1 }];
+    s.locations = [{ id: 'orphan', name: 'Lost Cave', parent: 'gone', source: 'auto', firstTurn: 1, lastTurn: 1 }];
     switchTo('locations');
     const html = directorTab.render(s);
     expect(html).toContain('Lost Cave');
   });
 
-  it('a parent with children shows a collapse caret; a leaf place does not', () => {
+  it('provenance chip: auto source shows ○ auto; pinned wins with ⚑; user-made shows neither', () => {
     const s = freshState();
+    s.turns = 10;
     s.locations = [
-      { id: 'harrenhal', name: 'Harrenhal', auto: true, firstTurn: 1, lastTurn: 5 },
-      { id: 'yard', name: 'Training yard', parent: 'harrenhal', auto: true, firstTurn: 2, lastTurn: 6 },
+      { id: 'a', name: 'Auto Place', source: 'auto', pinned: false, firstTurn: 1, lastTurn: 5 },
+      { id: 'p', name: 'Pinned Place', source: 'auto', pinned: true, firstTurn: 1, lastTurn: 5 },
+      { id: 'u', name: 'User Place', source: 'user', pinned: false, firstTurn: 1, lastTurn: 5 },
     ];
     switchTo('locations');
     const html = directorTab.render(s);
-    expect(html).toContain('data-loc-toggle'); // caret on the parent
-    expect(html).toContain('data-id="harrenhal"');
-    expect(html).toContain('Training yard'); // expanded by default
+    expect(html).toContain('\u25CB auto');   // auto chip present
+    expect(html).toContain('\u2691 pinned'); // pinned chip present
+    // the user-made, unpinned place carries no provenance chip — count chips
+    const autoChips = (html.match(/\u25CB auto/g) ?? []).length;
+    const pinChips = (html.match(/\u2691 pinned/g) ?? []).length;
+    expect(autoChips).toBe(1); // only the auto+unpinned place
+    expect(pinChips).toBe(1);  // only the pinned place
   });
 
-  it('collapsing a parent hides its children and shows the contained-count badge', () => {
+  it('marks the current scene place with "you are here"', () => {
     const s = freshState();
-    s.locations = [
-      { id: 'harrenhal', name: 'Harrenhal', auto: true, firstTurn: 1, lastTurn: 5 },
-      { id: 'yard', name: 'Training yard', parent: 'harrenhal', auto: true, firstTurn: 2, lastTurn: 6 },
-      { id: 'hall', name: 'Great Hall', parent: 'harrenhal', auto: true, firstTurn: 3, lastTurn: 4 },
-    ];
+    s.scene.location = 'Harrenhal';
+    s.locations = [{ id: 'harrenhal', name: 'Harrenhal', source: 'auto', firstTurn: 1, lastTurn: 5 }];
     switchTo('locations');
-    // click the caret via the same delegated handler used in the tab
-    let handler: ((e: unknown) => void) | null = null;
-    const fakeHost = { addEventListener: (_t: string, h: (e: unknown) => void) => { handler = h; } } as unknown as HTMLElement;
-    directorTab.mount!(fakeHost);
-    const target = { closest: (sel: string) => (sel === '[data-loc-toggle]' ? { getAttribute: () => 'harrenhal' } : null) };
-    handler!({ target });
     const html = directorTab.render(s);
-    expect(html).not.toContain('Training yard'); // children hidden
-    expect(html).not.toContain('Great Hall');
-    expect(html).toContain('vle-loc-count');    // "2" contained-places badge
-    expect(html).toContain('Harrenhal');        // parent still shown
-    // toggle back open
-    handler!({ target });
-    expect(directorTab.render(s)).toContain('Training yard');
+    expect(html).toContain('you are here');
+    expect(html).toContain('vle-atlas-plate here');
+  });
+
+  it('legacy rows without a source field read as auto (○), not user', () => {
+    const s = freshState();
+    s.locations = [{ id: 'old', name: 'Old Place', auto: true, firstTurn: 1, lastTurn: 1 } as any];
+    switchTo('locations');
+    const html = directorTab.render(s);
+    expect(html).toContain('\u25CB auto');
   });
 });

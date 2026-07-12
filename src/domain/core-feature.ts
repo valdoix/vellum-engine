@@ -153,7 +153,7 @@ export const coreFeature: Feature = {
       } as VellumEvent);
       // auto-collect the visited place into the gazetteer (dedupe is in reduce);
       // a real place name only (skip pronouns/blanks). User edits aren't clobbered
-      // because location.set with auto:true never downgrades a user-pinned entry.
+      // because an auto refresh never overwrites a user-owned source or a pin.
       const loc = String(parsed.scene?.loc ?? '').trim();
       if (loc && loc.length >= 2 && !notAName(loc)) {
         const locId = 'loc_' + canonId(loc);
@@ -164,7 +164,7 @@ export const coreFeature: Feature = {
         const known = ctx.state.locations ?? [];
         const isNew = !known.some((l) => l.id === locId || l.name.trim().toLowerCase() === loc.toLowerCase());
         const parent = isNew ? inferLocationParent(loc, known) : '';
-        out.push({ ...base(), kind: 'location.set', id: locId, name: loc, auto: true, ...(parent && parent !== locId ? { parent } : {}) } as VellumEvent);
+        out.push({ ...base(), kind: 'location.set', id: locId, name: loc, source: 'auto', pinned: false, ...(parent && parent !== locId ? { parent } : {}) } as VellumEvent);
       }
     }
     // mark present characters as cast (present status); names seed cards

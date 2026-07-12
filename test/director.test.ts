@@ -22,13 +22,16 @@ describe('locations — reduce', () => {
     expect(s.locations[0]!.lastTurn).toBe(5);
   });
 
-  it('a user edit (auto:false) is not downgraded by a later auto refresh', () => {
+  it('a legacy user pin (auto:false) is not downgraded by a later auto refresh', () => {
+    // legacy compat: auto:false → source:user + pinned:true; a later system
+    // auto:true refresh must not unpin it or overwrite its user provenance.
     const s = reduce([
       ev({ kind: 'location.set', id: 'l1', name: 'Docks', note: 'mine', auto: false, turn: 1 }),
       ev({ kind: 'location.set', id: 'l2', name: 'docks', auto: true, turn: 3 }),
     ]);
     expect(s.locations).toHaveLength(1);
-    expect(s.locations[0]!.auto).toBe(false); // stays pinned
+    expect(s.locations[0]!.pinned).toBe(true);   // stays pinned
+    expect(s.locations[0]!.source).toBe('user'); // provenance preserved
     expect(s.locations[0]!.note).toBe('mine');
   });
 
@@ -37,28 +40,26 @@ describe('locations — reduce', () => {
     expect(s.locations).toHaveLength(0);
   });
 
-  it('a user pin/unpin sets auto either way; a later auto refresh cannot unpin', () => {
-    // start auto, user pins (auto:false), then user unpins (auto:true again)
+  it('user pin/unpin toggles pinned; a later model auto refresh can never unpin', () => {
+    // model place, user pins it (pinned:true, source preserved), then user unpins.
     let s = reduce([
-      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: true, turn: 1 }),
-      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: false, src: 'user', turn: 2 }),
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', source: 'auto', pinned: false, turn: 1 }),
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', pinned: true, src: 'user', turn: 2 }),
     ]);
-    expect(s.locations[0]!.auto).toBe(false); // pinned
+    expect(s.locations[0]!.pinned).toBe(true);
+    expect(s.locations[0]!.source).toBe('auto'); // pinning does not change provenance
     s = reduce([
-      ...[] as VellumEvent[],
-      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: true, turn: 1 }),
-      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: false, src: 'user', turn: 2 }),
-      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: true, src: 'user', turn: 3 }),  // user unpins
-      ev({ kind: 'location.set', id: 'l1', name: 'Keep', auto: false, turn: 4 }),               // auto refresh (model) — cannot unpin, but here it re-pins downward
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', source: 'auto', pinned: false, turn: 1 }),
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', pinned: true, src: 'user', turn: 2 }),
+      ev({ kind: 'location.set', id: 'l1', name: 'Keep', pinned: false, src: 'user', turn: 3 }), // user unpins
     ]);
-    // model auto:false still only downgrades to pinned; that's fine. The point:
-    // the USER unpin at turn 3 took effect (auto flipped true), unlike a model event.
+    expect(s.locations[0]!.pinned).toBe(false); // user unpin took effect
+    // a model auto refresh must NEVER unpin a user-pinned place
     const s2 = reduce([
-      ev({ kind: 'location.set', id: 'l2', name: 'Yard', auto: false, src: 'user', turn: 1 }), // user pins
-      ev({ kind: 'location.set', id: 'l2', name: 'Yard', auto: true, turn: 2 }),                // model refresh tries to unpin
+      ev({ kind: 'location.set', id: 'l2', name: 'Yard', pinned: true, src: 'user', turn: 1 }),  // user pins
+      ev({ kind: 'location.set', id: 'l2', name: 'Yard', source: 'auto', pinned: false, turn: 2 }), // model refresh tries to unpin
     ]);
-    expect(s2.locations[0]!.auto).toBe(false); // model can NEVER unpin
-    void s;
+    expect(s2.locations[0]!.pinned).toBe(true); // model can NEVER unpin
   });
 });
 
@@ -67,8 +68,8 @@ describe('locationList injector', () => {
 
   it('renders names + notes and caps to most-recent (pinned always kept)', () => {
     const s = freshState();
-    for (let i = 1; i <= 20; i++) s.locations.push({ id: 'a' + i, name: 'Place ' + i, auto: true, firstTurn: i, lastTurn: i });
-    s.locations.push({ id: 'pin', name: 'Pinned Hall', note: 'always', auto: false, firstTurn: 1, lastTurn: 1 });
+    for (let i = 1; i <= 20; i++) s.locations.push({ id: 'a' + i, name: 'Place ' + i, source: 'auto', pinned: false, firstTurn: i, lastTurn: i });
+    s.locations.push({ id: 'pin', name: 'Pinned Hall', note: 'always', source: 'user', pinned: true, firstTurn: 1, lastTurn: 1 });
     const inj = injectableLocations(s, 5);
     expect(inj.length).toBe(5);
     expect(inj.some((l) => l.id === 'pin')).toBe(true); // pinned kept despite old lastTurn

@@ -100,7 +100,7 @@ export const EvItemDrop = z.object({ ...base, kind: z.literal('item.drop'), id: 
 // --- Locations: a canonical gazetteer of established places, so the model
 // reuses names instead of inventing/renaming. Auto-collected from visited
 // scenes (auto:true) or user-pinned. Dedupe by normalized name.
-export const EvLocationSet = z.object({ ...base, kind: z.literal('location.set'), id: z.string(), name: z.string(), note: z.string().optional(), auto: z.boolean().optional(), parent: z.string().optional() });
+export const EvLocationSet = z.object({ ...base, kind: z.literal('location.set'), id: z.string(), name: z.string(), note: z.string().optional(), source: z.enum(['auto', 'user']).optional(), pinned: z.boolean().optional(), auto: z.boolean().optional(), parent: z.string().optional() });
 export const EvLocationDrop = z.object({ ...base, kind: z.literal('location.drop'), id: z.string() });
 
 // --- Continuity flags: the passive alarm's advisory findings, persisted as a

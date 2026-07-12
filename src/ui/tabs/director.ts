@@ -30,9 +30,6 @@ let _directives: UIDirective[] = [];
 let _nextScene: { location?: string; day?: number; time?: string; note?: string } | null = null;
 // latest rendered state, so click handlers (location/plant forms) can read lists.
 let _state: ChronicleState | null = null;
-// collapsed location ids (their children hidden). Session-only UI state; a place
-// stays expanded by default so nothing is hidden unless the user folds it.
-const _locCollapsed = new Set<string>();
 // expanded off-screen feed item ids (Elsewhere Feed). Session-only; items start
 // collapsed except the lone active thread (handled in offscreenView).
 const _feedExpanded = new Set<string>();
@@ -68,7 +65,7 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.auto ? 'a' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}:${[..._feedExpanded].sort().join(',')}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.source ?? '') + (l.pinned ? 'p' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${(s.scene?.location ?? '')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}:${[..._feedExpanded].sort().join(',')}`,
   render(s) {
     _state = s;
     const counts: Record<DView, number> = {
@@ -102,8 +99,6 @@ export const directorTab: Component<ChronicleState> = {
       if (ddel) { const id = ddel.getAttribute('data-id'); pushDirectives(_directives.filter((d) => d.id !== id)); return; }
 
       // --- locations ---
-      const ltog = t.closest('[data-loc-toggle]');
-      if (ltog) { const id = ltog.getAttribute('data-id') || ''; if (_locCollapsed.has(id)) _locCollapsed.delete(id); else _locCollapsed.add(id); refreshUI(); return; }
       if (t.closest('[data-loc-add]')) {
         formModal('New Location', [
           { key: 'name', label: 'Place name', type: 'text', placeholder: 'The Salt Docks' },
@@ -250,7 +245,7 @@ function addDirectiveForm(): void {
 function locationsView(s: ChronicleState): string {
   const list = (s.locations ?? []).slice();
   const head = sectionHeader('\u25C9 Locations', { sub: true, count: list.length, action: '<button class="vle-add sm" data-loc-add>+</button>' });
-  const intro = '<div class="vle-cz-note">Established places, injected each turn so the model reuses these names instead of inventing or renaming. Contained places nest under the place they sit inside. Visited scenes are added automatically; pin or edit your own.</div>';
+  const intro = '<div class="vle-cz-note">Established places, injected so the model reuses these names instead of inventing or renaming. <b>Pinned</b> places are always sent; unpinned ones are sent when recently visited or when you\u2019re in/near them. The breadcrumb shows containment; the pulse shows how recently a place was seen.</div>';
   if (!list.length) return head + intro + emptyState('No locations yet.', 'Places you visit are collected here automatically; you can also add and pin your own.');
   // Build the containment tree: a location nests under its `parent` when that
   // parent is itself a known location; otherwise it's a root (a dangling parent
@@ -264,34 +259,72 @@ function locationsView(s: ChronicleState): string {
     else roots.push(l);
   }
   const byRecent = (a: typeof list[number], b: typeof list[number]): number => b.lastTurn - a.lastTurn;
-  const row = (l: typeof list[number], kidCount: number, collapsed: boolean): string => {
-    // a caret toggles children (only when the place has any); leaf places get a
-    // spacer so their dot lines up with the carets above.
-    const caret = kidCount
-      ? `<button class="vle-loc-caret${collapsed ? ' closed' : ''}" data-loc-toggle data-id="${esc(l.id)}" title="${collapsed ? 'Show' : 'Hide'} contained places" aria-expanded="${collapsed ? 'false' : 'true'}">\u25BE</button>`
-      : `<span class="vle-loc-caret spacer" aria-hidden="true"></span>`;
-    return `<div class="vle-loc-row">${caret}`
-      + `<span class="vle-loc-dot" title="${l.auto ? 'auto-collected from a scene' : 'pinned by you'}">${l.auto ? '\u25CB' : '\u2691'}</span>`
-      + `<span class="vle-loc-name">${esc(l.name)}</span>`
-      + (kidCount && collapsed ? `<span class="vle-loc-count" title="${kidCount} contained place(s)">${kidCount}</span>` : '')
-      + (l.note ? `<span class="vle-loc-note">${esc(l.note)}</span>` : '')
-      + `<span class="vle-mem-ctl"><button class="vle-mini${l.auto ? '' : ' on'}" data-loc-pin data-id="${esc(l.id)}" data-pinned="${l.auto ? '1' : '0'}" title="${l.auto ? 'Pin (keep + always inject)' : 'Unpin (back to auto)'}">${l.auto ? '\u2690' : '\u2691'}</button>`
+  const now = s.turns || 0;
+  const hereName = (s.scene?.location ?? '').trim().toLowerCase();
+  // region hue: hash the ROOT ancestor's id so places in the same region share a
+  // spine color (visual grouping without deep indentation).
+  const rootOf = (l: typeof list[number]): string => {
+    let cur = l; const guard = new Set<string>();
+    while (cur.parent && byId.has(cur.parent) && !guard.has(cur.id)) { guard.add(cur.id); cur = byId.get(cur.parent)!; }
+    return cur.id;
+  };
+  const hue = (id: string): number => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h % 360; };
+  // breadcrumb: walk the parent chain to the root, ancestors first (cycle-guarded).
+  const crumb = (l: typeof list[number]): string[] => {
+    const chain: string[] = []; let cur: typeof list[number] | undefined = l; const guard = new Set<string>();
+    while (cur && !guard.has(cur.id)) { guard.add(cur.id); chain.unshift(cur.name); cur = cur.parent ? byId.get(cur.parent) : undefined; }
+    return chain;
+  };
+  // recency bucket → freshness class (fresh = bright, stale = cold).
+  const seenClass = (l: typeof list[number]): string => {
+    const age = now - l.lastTurn;
+    if (age <= 0) return 'fresh';
+    if (age <= 4) return 'warm';
+    if (age <= 12) return 'cool';
+    return 'cold';
+  };
+  const plate = (l: typeof list[number], depth: number, kidCount: number): string => {
+    const isHere = hereName && l.name.trim().toLowerCase() === hereName;
+    const pinned = l.pinned === true;
+    const isAuto = l.source !== 'user'; // legacy rows w/o source read as auto
+    // three-state chip: pinned ⚑ wins; else auto ○; else nothing (user-made/edited).
+    const kind = pinned
+      ? '<span class="vle-atlas-kind pin" title="Always injected into the prompt.">\u2691 pinned</span>'
+      : isAuto
+        ? '<span class="vle-atlas-kind auto" title="Added by the model from a visited scene. Sent when recently visited or when you\u2019re in/near it.">\u25CB auto</span>'
+        : '';
+    const path = crumb(l);
+    const crumbHtml = path.length > 1
+      ? `<div class="vle-atlas-crumb">${path.slice(0, -1).map(esc).join(' <span class="sep">\u25B8</span> ')} <span class="sep">\u25B8</span> <span class="cur">${esc(path[path.length - 1]!)}</span></div>`
+      : '';
+    const seen = isHere ? 'current scene' : (now - l.lastTurn <= 0 ? 'seen this turn' : `last seen t${l.lastTurn}`);
+    const childTag = kidCount ? `<span class="vle-atlas-childtag">\u21B3 ${kidCount} inside</span>` : '';
+    // pin control: target state is the OPPOSITE of current pinned.
+    const pinBtn = `<button class="vle-mini${pinned ? ' on' : ''}" data-loc-pin data-id="${esc(l.id)}" data-pinned="${pinned ? '0' : '1'}" title="${pinned ? 'Unpin (send only when recent/near)' : 'Pin (always inject)'}">${pinned ? '\u2691' : '\u2690'}</button>`;
+    return `<div class="vle-atlas-plate${isHere ? ' here' : ''}" style="margin-left:${Math.min(depth, 4) * 1.15}rem;--atlas-hue:${hue(rootOf(l))}">`
+      + `<div class="vle-atlas-spine"></div>`
+      + `<div class="vle-atlas-body">`
+      + `<div class="vle-atlas-top"><span class="vle-atlas-name">${esc(l.name)}</span>`
+      + (isHere ? '<span class="vle-atlas-here">you are here</span>' : '')
+      + kind + '</div>'
+      + crumbHtml
+      + (l.note ? `<div class="vle-atlas-note">${esc(l.note)}</div>` : '')
+      + `<div class="vle-atlas-foot"><span class="vle-atlas-seen ${seenClass(l)}"><span class="dot"></span>${seen}</span>${childTag}`
+      + `<span class="vle-atlas-ctl">${pinBtn}`
       + `<button class="vle-mini" data-loc-edit data-id="${esc(l.id)}" data-name="${esc(l.name)}" data-note="${esc(l.note ?? '')}" data-parent="${esc(l.parent ?? '')}" title="Edit">\u270E</button>`
-      + `<button class="vle-mini del" data-loc-del data-id="${esc(l.id)}" title="Delete">\u2715</button></span></div>`;
+      + `<button class="vle-mini del" data-loc-del data-id="${esc(l.id)}" title="Delete">\u2715</button></span></div>`
+      + `</div></div>`;
   };
-  // depth-first walk; children nest in their own wrapper so a continuous rail +
-  // elbow can be drawn in CSS (like the timeline), not with text glyphs. A `seen`
-  // guard breaks any accidental parent cycle in the data.
-  const seen = new Set<string>();
-  const walk = (l: typeof list[number]): string => {
-    if (seen.has(l.id)) return '';
-    seen.add(l.id);
+  // depth-first walk so a child plate always renders under its parent, indented by
+  // depth. A `seen` guard breaks any accidental parent cycle in the data.
+  const seenIds = new Set<string>();
+  const walk = (l: typeof list[number], depth: number): string => {
+    if (seenIds.has(l.id)) return '';
+    seenIds.add(l.id);
     const children = (kids.get(l.id) ?? []).slice().sort(byRecent);
-    const collapsed = children.length > 0 && _locCollapsed.has(l.id);
-    const kidsHtml = children.length && !collapsed ? `<div class="vle-loc-kids">${children.map(walk).join('')}</div>` : '';
-    return `<div class="vle-loc-node">${row(l, children.length, collapsed)}${kidsHtml}</div>`;
+    return plate(l, depth, children.length) + children.map((c) => walk(c, depth + 1)).join('');
   };
-  return head + intro + `<div class="vle-loc-tree">${roots.sort(byRecent).map(walk).join('')}</div>`;
+  return head + intro + `<div class="vle-atlas">${roots.sort(byRecent).map((r) => walk(r, 0)).join('')}</div>`;
 }
 
 function nextSceneView(s: ChronicleState): string {

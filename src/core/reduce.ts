@@ -624,17 +624,41 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'location.set': {
       const norm = (x: string): string => x.trim().toLowerCase();
       const cur = s.locations.find((l) => l.id === e.id) ?? s.locations.find((l) => norm(l.name) === norm(e.name));
+      // Resolve the event's intent into the split model (source = provenance,
+      // pinned = injection). New events carry source/pinned directly; LEGACY
+      // events only carry `auto` (auto:true → model/keyed, auto:false → the old
+      // "pinned & sticky" semantics = user-owned + always-injected).
+      const evSource: 'auto' | 'user' | undefined =
+        e.source ?? (e.auto === true ? 'auto' : e.auto === false ? 'user' : undefined);
+      const evPinned: boolean | undefined =
+        e.pinned ?? (e.auto === false ? true : e.auto === true ? false : undefined);
       if (cur) {
+        const isUser = e.src === 'user';
+        const isContentEdit = isUser && (e.note !== undefined || e.parent !== undefined || (e.pinned === undefined && e.auto === undefined));
         cur.name = e.name;
         if (e.note !== undefined) cur.note = e.note;
         if (e.parent !== undefined) { if (e.parent) cur.parent = e.parent; else delete cur.parent; } // '' clears
-        // explicit user pin/unpin wins either way; otherwise an auto refresh may
-        // only downgrade to pinned (auto:false), never silently unpin.
-        if (e.src === 'user' && e.auto !== undefined) cur.auto = e.auto;
-        else if (e.auto === false) cur.auto = false;
+        // pin/unpin: apply the resolved pinned flag. A user action always wins; a
+        // non-user (auto refresh) event must never turn OFF an existing user pin
+        // — mirror the old "auto never downgrades a pin" guard.
+        const wantPinned = e.pinned !== undefined ? e.pinned : evPinned;
+        if (wantPinned !== undefined && (isUser || !(wantPinned === false && cur.pinned === true))) cur.pinned = wantPinned;
+        // provenance: a user CONTENT edit flips a model place to user-owned (drops
+        // the auto icon, per the design). An explicit source applies, but a non-user
+        // (auto refresh) event must never overwrite a user-owned source.
+        if (isContentEdit) cur.source = 'user';
+        else if (e.source !== undefined) { if (isUser || cur.source !== 'user') cur.source = e.source; }
+        else if (evSource === 'user' && cur.source !== 'auto') cur.source = 'user';
         cur.lastTurn = e.turn;
       } else {
-        s.locations.push({ id: e.id, name: e.name, ...(e.note ? { note: e.note } : {}), ...(e.auto !== undefined ? { auto: e.auto } : {}), ...(e.parent ? { parent: e.parent } : {}), firstTurn: e.turn, lastTurn: e.turn });
+        s.locations.push({
+          id: e.id, name: e.name,
+          ...(e.note ? { note: e.note } : {}),
+          ...(evSource !== undefined ? { source: evSource } : {}),
+          ...(evPinned !== undefined ? { pinned: evPinned } : {}),
+          ...(e.parent ? { parent: e.parent } : {}),
+          firstTurn: e.turn, lastTurn: e.turn,
+        });
       }
       break;
     }
