@@ -262,3 +262,28 @@ describe('salvage do-no-harm (existing blocks stay source=json)', () => {
     expect(r.source).toBe('json');
   });
 });
+
+describe('regex fallback unchanged after stripScaffold rewire (B2)', () => {
+  // These have NO valid <vellum> JSON, so parseState falls through to the regex
+  // fallback. The B2 change swapped an ad-hoc reverie strip for stripScaffold;
+  // these confirm the fallback still fires on post-prose ledger directives.
+  it('still parses a terse ledger via regex when no JSON block exists', () => {
+    const r = parseState('She crossed the room.\nSCENE: throne room, dusk\npresent: Cersei, Jaime');
+    expect(r.source).toBe('regex');
+  });
+
+  it('reverie-wrapped planning does not leak into the regex fallback', () => {
+    // the reverie SCENE: line must be stripped so the fallback reads the POST-prose
+    // ledger, not the planning note.
+    const r = parseState('<reverie>\nSCENE: planning note here\n</reverie>\nShe crossed the room.\nSCENE: throne room, dusk');
+    // whether it lands scene from the real ledger or nothing, it must NOT be the
+    // reverie's "planning note here"
+    if (r.state?.scene?.loc) expect(r.state.scene.loc).not.toContain('planning note');
+  });
+
+  it('a well-formed block is still json, never regex (fallback not reached)', () => {
+    const r = parseState('<reverie>\nSTATE: x\n</reverie>\nProse.\n<vellum>{ "scene": { "loc": "Keep" } }</vellum>');
+    expect(r.source).toBe('json');
+    expect(r.state?.scene?.loc).toBe('Keep');
+  });
+});

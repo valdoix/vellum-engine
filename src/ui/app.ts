@@ -611,12 +611,14 @@ function openRebuildModal(ctx: Ctx): void {
     { key: 'mode', label: 'What to do', type: 'select', value: 'full', options: [
       { value: 'full', label: 'Full rebuild \u2014 replace everything from the transcript' },
       { value: 'messages', label: 'Capture messages only \u2014 keep all existing data' },
-    ], hint: 'Full REPLACES cast, relations, knowledge, secrets, journal + messages (recovery). Messages-only ADDS any missing per-turn memories and leaves everything else untouched.' },
+      { value: 'clean', label: 'Re-clean turn memories \u2014 strip leftover scaffold only' },
+    ], hint: 'Full REPLACES cast, relations, knowledge, secrets, journal + messages (recovery). Messages-only ADDS any missing per-turn memories and leaves everything else untouched. Re-clean re-strips reverie/vellum/dialogue scaffold from EXISTING turn memories, changing nothing else.' },
   ], (out) => {
+    const cleanTurns = out.mode === 'clean';
     const messagesOnly = out.mode === 'messages';
     setQolBusy('rebuild', true);
-    ctx.sendToBackend({ type: 'vellum_rebuild', deep: !messagesOnly, messagesOnly });
-    notify(ctx, 'info', messagesOnly ? 'Capturing missing message memories\u2026' : 'Rebuilding full chronicle from transcript\u2026 this may take a moment.');
+    ctx.sendToBackend({ type: 'vellum_rebuild', deep: !messagesOnly && !cleanTurns, messagesOnly, cleanTurns });
+    notify(ctx, 'info', cleanTurns ? 'Re-cleaning turn memories\u2026' : messagesOnly ? 'Capturing missing message memories\u2026' : 'Rebuilding full chronicle from transcript\u2026 this may take a moment.');
   });
 }
 
@@ -1219,7 +1221,9 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
       } else if (p?.type === 'vellum_rebuild_done') {
         setQolBusy('rebuild', false);
-        const what = p.messagesOnly ? (p.turns ? `Captured ${p.turns} missing message memor${p.turns === 1 ? 'y' : 'ies'}` : 'No missing message memories \u2014 nothing to capture') : `Chronicle rebuilt from ${p.turns ?? 0} turn(s)`;
+        const what = p.cleanTurns
+          ? (p.cleaned ? `Cleaned ${p.cleaned} turn memor${p.cleaned === 1 ? 'y' : 'ies'}` : 'No turn memories needed cleaning')
+          : p.messagesOnly ? (p.turns ? `Captured ${p.turns} missing message memor${p.turns === 1 ? 'y' : 'ies'}` : 'No missing message memories \u2014 nothing to capture') : `Chronicle rebuilt from ${p.turns ?? 0} turn(s)`;
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `${what}.` : `Rebuild failed: ${p.reason ?? 'error'}`);
       } else if (p?.type === 'vellum_next_scene_done' || p?.type === 'vellum_next_scene_state') {
         setDirectorNextScene('next' in p ? p.next : null);

@@ -54,6 +54,111 @@ function extractFenced(content: string): string | null {
   return b >= 0 && SCHEMA_KEY.test(content.slice(b)) ? content.slice(b) : null;
 }
 
+// Fence OPEN markers as tolerant regexes (whitespace inside the tag allowed).
+// Used to find where the vellum suffix begins even when the block is mangled.
+const VELLUM_OPEN_RE = /\u2039\s*vellum\s*\u203a|<\s*vellum\s*>|```\s*vellum|\[\s*VELLUM\s*\]/i;
+// A dangling/spaced CLOSE tag implies a block whose open we missed.
+const VELLUM_CLOSE_RE = /\u2039\s*\/\s*vellum\s*\u203a|<\s*\/\s*vellum\s*>?|\[\s*\/\s*VELLUM\s*\]|```/i;
+// Tolerant reverie close (spaced/partial: `</ reverie >`, `</rever…>`), matching
+// what parseState already uses so the two paths agree.
+const REVERIE_CLOSE_RE = /<\s*\/\s*rever[a-z]*\s*>/i;
+const REVERIE_OPEN_RE = /<\s*rever[a-z]*\s*>/i;
+
+// Colored-dialogue tags: `[spk=Name]…[/spk]` (whitespace/quote tolerant, matching
+// the preset's display regex). We remove the TAGS but KEEP the quoted line, so the
+// prose in turns memory reads naturally without the speaker markup — regardless of
+// whether the context-strip regex is enabled host-side.
+const SPK_TAG_RE = /\[\s*\/?\s*spk\b(?:\s*=\s*["']?[^"'\]\r\n]{0,40}["']?)?\s*\]/gi;
+
+// Preset planning fingerprints (Part C): the reverie's own terse note lines and
+// the bracketed directive headers the preset injects. A leading block matching
+// any of these is planning, not prose.
+const PLANNING_LINE_RE = /^\s*(?:SCENE|STATE|CONFIG|BEATS?|GOAL|CONTINUITY|CAST|THREADS?)\s*:/i;
+const PLANNING_HEADER_RE = /^\s*\[(?:REVERIE|CONFIG|GENESIS|THE CARTOGRAPHER|EXAMPLE|OUTPUT FORMAT|STATE BLOCK)/i;
+
+/** Find where the vellum suffix starts. Returns the cut index, or -1 if none.
+ *  Trust order: an OPEN fence variant, else a dangling CLOSE, else a trailing
+ *  schema-keyed balanced {…} in the last ~40% (model emitted JSON, mangled tag). */
+function vellumSuffixIndex(s: string): number {
+  const openM = s.match(VELLUM_OPEN_RE);
+  if (openM && openM.index !== undefined) return openM.index;
+  const closeM = s.match(VELLUM_CLOSE_RE);
+  if (closeM && closeM.index !== undefined) return closeM.index;
+  // fallback: a trailing balanced {…} with schema keys, positioned late in the msg
+  const tailStart = Math.floor(s.length * 0.6);
+  let idx = s.indexOf('{', tailStart);
+  // also try the last '{' before tailStart if nothing later (block may start ~60%)
+  if (idx < 0) { const last = s.lastIndexOf('{'); if (last >= tailStart * 0.5) idx = last; }
+  while (idx >= 0) {
+    const obj = balancedObject(s.slice(idx));
+    // require it to run to (near) end-of-string AND carry schema keys — prose
+    // almost never ends with a schema-keyed JSON object.
+    if (obj && SCHEMA_KEY.test(obj) && idx + obj.length >= s.trimEnd().length - 2) return idx;
+    idx = s.indexOf('{', idx + 1);
+  }
+  return -1;
+}
+
+/**
+ * Remove the reverie (prefix) and vellum (suffix) scaffold from a raw turn,
+ * leaving only the prose. Position-aware and fence-tolerant — as robust as the
+ * parser, and biased to LEAK rather than eat prose.
+ *
+ * The preset enforces a fixed shape (reverie first, prose middle, vellum last),
+ * so we strip by POSITION, which survives mangled/truncated/tag-drifted blocks
+ * that the old tag-pair regexes missed. Never returns empty when the input had
+ * prose (leak-not-eat guard).
+ */
+export function stripScaffold(content: string): string {
+  if (!content) return '';
+  let s = content;
+
+  // A1 — vellum suffix: cut from the earliest vellum marker to end-of-string.
+  const vi = vellumSuffixIndex(s);
+  if (vi >= 0) s = s.slice(0, vi);
+
+  // A2 — reverie prefix: cut from start to the reverie close (open tag optional,
+  // since it's prefilled and often eaten). Only when a close exists.
+  const rc = s.match(REVERIE_CLOSE_RE);
+  if (rc && rc.index !== undefined) {
+    s = s.slice(rc.index + rc[0].length);
+  } else if (REVERIE_OPEN_RE.test(s)) {
+    // C — truncated reverie: open but no close. Strip only leading planning
+    // blocks (confident-match), stopping at the first block that looks like prose.
+    s = stripTruncatedReverie(s);
+  }
+
+  // A3 — remove any residual bare/dangling fence token left behind.
+  s = s.replace(VELLUM_OPEN_RE, ' ').replace(REVERIE_OPEN_RE, ' ').replace(REVERIE_CLOSE_RE, ' ');
+
+  // A4 — strip colored-dialogue tags but keep the quoted line, so the prose reads
+  // cleanly in turns memory even when the host context-strip regex is off.
+  s = s.replace(SPK_TAG_RE, '');
+
+  // leak-not-eat: if stripping emptied a turn that HAD prose, return the original.
+  const stripped = s.trim();
+  if (!stripped && content.trim()) return content;
+  return stripped;
+}
+
+/** Part C: `<reverie>` opened but never closed. Drop leading blank-line-separated
+ *  blocks that match the preset's planning fingerprints; stop at the first block
+ *  that does NOT (that's prose). Confident-match only — if the first block already
+ *  looks like prose, strip nothing. */
+function stripTruncatedReverie(s: string): string {
+  // drop the open tag itself first
+  const body = s.replace(REVERIE_OPEN_RE, '');
+  const blocks = body.split(/\n\s*\n/);
+  let cut = 0;
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i]!;
+    const looksPlanning = b.split(/\n/).some((ln) => PLANNING_LINE_RE.test(ln) || PLANNING_HEADER_RE.test(ln));
+    if (looksPlanning) { cut = i + 1; } else break;
+  }
+  if (cut === 0) return s; // first block is prose → confident-match fails, strip nothing
+  return blocks.slice(cut).join('\n\n');
+}
+
 // smart double/single quote variants the models love to emit
 const SMART_DQ = /[\u201C\u201D\u201E\u201F\u2033]/;
 const SMART_SQ = /[\u2018\u2019\u201A\u2032]/;
@@ -463,10 +568,12 @@ export function parseState(content: string): ParseResult {
   // <reverie> plan speaks the SAME words ("SCENE:", "STATE:", …) as backstage
   // notes, so feeding it the reverie makes the fallback mistake planning prose
   // for real state (e.g. dumping the reverie's SCENE sentence into scene.loc).
-  // Strip the reverie first so the fallback only sees post-prose ledger text.
-  // Open tag optional: a host that doesn't echo the "<reverie>" prefill leaves a
-  // reply that opens mid-plan and only has the closing tag — still strip it.
-  const withoutReverie = content.replace(/(?:<reverie>)?[\s\S]*?<\/\s*rever[a-z]*\s*>/i, ' ');
+  // Use the SAME scaffold stripper the turns-memory gist uses so the two paths
+  // agree: it removes the reverie prefix (open tag optional — prefill often eaten)
+  // and any vellum suffix. A terse plain-text ledger carries neither a fence nor a
+  // schema-keyed trailing JSON object, so stripScaffold leaves it intact for the
+  // fallback to scan.
+  const withoutReverie = stripScaffold(content);
   const fb = parseFallback(withoutReverie);
   if (fb) return { state: fb, source: 'regex' };
 

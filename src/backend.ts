@@ -23,6 +23,7 @@ import { agingInjection } from './domain/aging.js';
 import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
+import { stripScaffold } from './parse/state-block.js';
 import { controllerGenerate, invalidateConnCache, withTimeout, defaultConnectionId } from './host/generation.js';
 import { stampPresetMetadata } from './host/presets.js';
 import type { CallModel } from './retrieval/traverse.js';
@@ -189,10 +190,11 @@ function sigOf(content: string): string { return hashStr(content.slice(0, 4000))
  * preview (first sentence + ellipsis). A large safety guard prevents a
  * pathological mega-message from bloating the log. */
 function turnGist(content: string, names?: { user: string; char: string }): string {
-  let s = content
-    .replace(/(?:\u2039vellum\u203a|<vellum>)[\s\S]*?(?:\u2039\/vellum\u203a|<\/vellum>)/gi, '')
-    .replace(/<reverie>[\s\S]*?<\/reverie>/gi, '')
-    .replace(/\s+/g, ' ').trim();
+  // stripScaffold removes the reverie (prefix) and vellum (suffix) scaffold
+  // position-aware and fence-tolerant — as robust as the parser, so mangled/
+  // truncated/tag-drifted blocks no longer leak into turn memory (and thus not
+  // into chapter summaries or PASS-2 prose extraction, both built on this gist).
+  let s = stripScaffold(content).replace(/\s+/g, ' ').trim();
   if (names?.user) s = s.replace(/\{\{\s*user\s*\}\}/gi, names.user);
   if (names?.char) s = s.replace(/\{\{\s*char\s*\}\}/gi, names.char);
   const MAX = 24000; // ~6k tokens: effectively the whole turn, with a sane ceiling
@@ -1370,7 +1372,7 @@ const dispatch: Record<string, Handler> = {
     if (chatId) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); }
   },
   vellum_rebuild: async (p, uid) => {
-    // Two distinct operations share this handler:
+    // Three distinct operations share this handler:
     //   full (default)  — RECONSTRUCT from the transcript: clear the derived log,
     //                      then re-fold every turn (cast/relations/knowledge/
     //                      journal + per-turn memories). Use to recover after loss.
@@ -1378,9 +1380,44 @@ const dispatch: Record<string, Handler> = {
     //                      the per-turn message memories for any turn missing one,
     //                      leaving all existing cast/relations/knowledge/secrets/
     //                      journal untouched. (memory.record dedups by id.)
+    //   cleanTurns      — NON-DESTRUCTIVE re-clean: re-run turnGist/stripScaffold
+    //                      over EXISTING turn memories and rewrite (memory.edit)
+    //                      only those whose cleaned text changed. Fixes past turns
+    //                      that leaked reverie/vellum/spk scaffold, WITHOUT touching
+    //                      cast/relations/knowledge/journal or re-folding anything.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: 'no_active_chat' }, uid); return; }
     const messagesOnly = !!p?.messagesOnly;
+    const cleanTurns = !!p?.cleanTurns;
+
+    // --- cleanTurns: targeted, non-destructive re-clean of existing turn memories ---
+    if (cleanTurns) {
+      try {
+        const msgs = await allTurnContents(chatId);
+        const names = await chatNames(chatId, uid);
+        const prior = await loadState(chatId);
+        const turnMems = prior.memories.filter((m) => m.tier === 'turn');
+        const evs: VellumEvent[] = [];
+        for (const m of turnMems) {
+          // recover the turn number from the memory id (turn_<chat6>_<n>) so we
+          // re-clean from the RAW transcript, not the already-(partially-)stripped
+          // stored text — that catches leaks the old regex missed entirely.
+          const tn = Number(String(m.id).split('_').pop());
+          const raw = Number.isFinite(tn) ? (msgs[tn - 1] ?? '').trim() : '';
+          const cleaned = raw ? turnGist(raw, names) : turnGist(m.text, names);
+          if (cleaned && cleaned !== m.text) {
+            evs.push({ seq: nextSeqLocal(), turn: m.turn, day: 0, src: 'system', kind: 'memory.edit', id: m.id, text: cleaned } as VellumEvent);
+          }
+        }
+        if (evs.length) { await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, uid); }
+        spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: true, cleaned: evs.length, cleanTurns: true }, uid);
+        spindle.log?.info?.(`[vellum_engine] re-cleaned ${evs.length} turn memor${evs.length === 1 ? 'y' : 'ies'} (non-destructive)`);
+      } catch (e) {
+        spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: (e as Error)?.message ?? 'error' }, uid);
+      }
+      return;
+    }
+
     try {
       const msgs = await allTurnContents(chatId);
       // full rebuild wipes the log; capture the durable tone first so a recovery
