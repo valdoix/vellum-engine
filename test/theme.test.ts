@@ -23,14 +23,30 @@ describe('theme system', () => {
     }
   });
 
-  it('MODES are exactly the nine chromes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'illuminated', 'modern', 'sumi']);
+  it('MODES are exactly the ten chromes', () => {
+    expect(MODES.map((m) => m.id).sort()).toEqual(['bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'illuminated', 'modern', 'sumi']);
   });
 
   it("each mode's dark + light skins exist", () => {
     for (const m of MODES) {
       expect(SKINS.some((s) => s.id === m.skinDark), `${m.id} dark ${m.skinDark}`).toBe(true);
       expect(SKINS.some((s) => s.id === m.skinLight), `${m.id} light ${m.skinLight}`).toBe(true);
+    }
+  });
+
+  it('graphite chrome: mode, skins, shapes, and steel-blue accent resolve', () => {
+    setMode('graphite');
+    const t = getTheme();
+    expect(t.chrome).toBe('graphite');
+    expect(t.skin).toBe('graphite'); // dark default
+    expect(t.accent.toLowerCase()).toBe('#5b8fb0');
+    // its six surfaces map to the new engineer's-desk shapes
+    expect(CHROME_SHAPES.graphite).toEqual({ present: 'rail-cap', bonds: 'spec-frame', cast: 'screw-tab', beats: 'gauge', factions: 'chamfer-bar', items: 'track' });
+    // both skins exist and every new shape id is registered
+    expect(SKINS.some((s) => s.id === 'graphite')).toBe(true);
+    expect(SKINS.some((s) => s.id === 'graphite-light')).toBe(true);
+    for (const id of ['rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar'] as const) {
+      expect(SHAPE_IDS.includes(id), id).toBe(true);
     }
   });
 

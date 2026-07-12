@@ -59,7 +59,7 @@ const F_ETHEREAL = "'Quicksand','Cormorant Garamond',Georgia,serif"; // Ember di
 const F_DECO = "'Poiret One','Playfair Display','Cormorant Garamond',Georgia,serif"; // Gatsby display — true art deco, loads from Google Fonts
 const F_BRUSH = "'Noto Serif JP','Noto Serif',Georgia,serif"; // Sumi display — Japanese brush, loads from Google Fonts
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi' | 'graphite';
 
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
@@ -84,12 +84,13 @@ export type ShapeId =
   | 'slab' | 'left-spine' | 'tarot' | 'notched' | 'split' | 'inset' | 'scalloped'
   | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket'
   | 'toadstool' | 'trellis' | 'bramble' | 'lantern'
-  | 'sunburst' | 'marquee' | 'scallop-deco' | 'stepped' | 'hanko' | 'washi-fold';
+  | 'sunburst' | 'marquee' | 'scallop-deco' | 'stepped' | 'hanko' | 'washi-fold'
+  | 'rail-cap' | 'gauge' | 'screw-tab' | 'track' | 'spec-frame' | 'chamfer-bar';
 // NOTE: `secrets` is intentionally NOT a customizable surface — the secret card
 // owns a fixed left-spine + wax-seal signature across every chrome (rendered via
 // its own ::before/::after), so it isn't offered in the card-shape customizer.
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -122,6 +123,10 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   // ink wash: folded-washi present, torn-deckle bonds, a hanko-sealed portrait cast,
   // a washi-fold beat, a left-spine faction, a deckle item.
   sumi: { present: 'washi-fold', bonds: 'deckle', cast: 'hanko', beats: 'washi-fold', factions: 'left-spine', items: 'deckle' },
+  // engineer's desk: a machined instrument panel — rail-capped present, technical
+  // double-keyline bonds, screw-fastened cast, a bezel-gauge beat, a chamfered
+  // faction, a segmented completion track for items.
+  graphite: { present: 'rail-cap', bonds: 'spec-frame', cast: 'screw-tab', beats: 'gauge', factions: 'chamfer-bar', items: 'track' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -192,6 +197,12 @@ export const MODES: Mode[] = [
   // space, vermillion hanko seals, brush strokes, torn rice-paper edges. Distinct
   // from all: the only minimalist aesthetic, cream-on-black or black-on-cream.
   { id: 'sumi', name: 'Sumi', blurb: 'Ink wash minimalism \u2014 brush strokes, hanko seals, asymmetric negative space, meditative calm.', patch: { chrome: 'sumi', radius: 0, border: 1, texture: 'washi', serif: F_BRUSH, accent: '#c8371a', accent2: '#4a3828', opacity: 1, blur: 0 }, form: 'dashboard', skin: 'sumi-ink', skinDark: 'sumi-ink', skinLight: 'sumi-paper' },
+  // GRAPHITE — "the engineer's desk": cool neutral greys, one restrained steel-blue
+  // accent, machined instrument shapes, no gold, no ornament. The masculine/neutral
+  // register the lineup lacked. Flat and precise, not luminous — its frame casts a
+  // clean shadow with no glow, so it reads correctly in light mode too. Font is the
+  // bundled Inter grotesk (no Google font load needed, unlike Gatsby/Sumi).
+  { id: 'graphite', name: 'Graphite', blurb: 'The engineer\u2019s desk \u2014 cool greys, steel-blue accent, machined and neutral.', patch: { chrome: 'graphite', radius: 4, border: 1, texture: '', serif: F_SANS, accent: '#5b8fb0', accent2: '#7a94ae', opacity: 1, blur: 6 }, form: 'dashboard', skin: 'graphite', skinDark: 'graphite', skinLight: 'graphite-light' },
 ];
 
 
@@ -243,6 +254,12 @@ export const SKINS: Skin[] = [
   { id: 'sumi-ink', name: 'Sumi Ink', blurb: 'Deep sumi ink &amp; charcoal — brush strokes, vermillion seals, meditative dark.', theme: { accent: '#c8371a', serif: F_BRUSH, mono: F_MONO, surf1: 'rgba(26,20,16,.85)', surf2: 'rgba(18,14,10,.9)', ink: '#e8e0d8', ink2: '#a89888', glass: 'linear-gradient(168deg,rgba(22,18,14,.95),rgba(14,10,8,.98))', ...SEM, pos: '#8fa87e', posInk: '#a9c089', neg: '#c8574a', negInk: '#e0776a', info: '#7a9ab8', warn: '#a88ab8', press: '#b88a4e', pressInk: '#d0a868' } },
   // Light: washi paper cream + sumi ink, red hanko
   { id: 'sumi-paper', name: 'Washi Paper', blurb: 'Warm washi paper &amp; ink — cream field, charcoal brush, vermillion seal.', theme: { accent: '#c8371a', serif: F_BRUSH, mono: F_MONO, surf1: 'rgba(250,246,238,.92)', surf2: 'rgba(240,234,225,.92)', ink: '#1a1410', ink2: '#4a3828', glass: 'linear-gradient(168deg,#faf6ee,#f0eae1)', ...SEM, pos: '#5a7a4a', posInk: '#4a6a3a', neg: '#a84a3a', negInk: '#8a3a2a', info: '#4a6a8a', warn: '#7a5a8a', press: '#9a6a3e', pressInk: '#7a5a2e' } },
+  // GRAPHITE SKINS — engineer's desk: cool neutral greys, one steel-blue accent,
+  // no warm gold. The masculine/neutral option the lineup lacked.
+  // Dark: charcoal-slate surfaces, steel-blue accent, cool grey ink.
+  { id: 'graphite', name: 'Graphite', blurb: 'Cool charcoal &amp; steel-blue — machined, neutral, no ornament.', theme: { accent: '#5b8fb0', serif: F_SANS, mono: F_MONO, surf1: 'rgba(48,53,58,.92)', surf2: 'rgba(38,42,47,.94)', ink: '#d4dce4', ink2: '#8a9eb2', glass: 'linear-gradient(168deg,#2a2e33,#1e2126)', ...SEM, pos: '#7a9e6a', posInk: '#96b884', neg: '#c06a5a', negInk: '#d88a7a', info: '#5b8fb0', warn: '#8a7ab0', press: '#b0894e', pressInk: '#c8a468' } },
+  // Light: cool paper-grey, slate ink, the same steel-blue accent.
+  { id: 'graphite-light', name: 'Graphite Light', blurb: 'Cool paper-grey &amp; slate ink — a clean daytime instrument panel.', theme: { accent: '#3f6f90', serif: F_SANS, mono: F_MONO, surf1: 'rgba(244,246,248,.94)', surf2: 'rgba(232,236,240,.94)', ink: '#20262c', ink2: '#586470', glass: 'linear-gradient(168deg,#f4f6f8,#e6eaee)', ...SEM, pos: '#4f7a3f', posInk: '#3d6030', neg: '#b0504a', negInk: '#94403a', info: '#3f6f90', warn: '#6a5a90', press: '#9a6f2e', pressInk: '#7d581a' } },
   // MONOCHROME SKINS — pure grayscale, no hue
   // Dark: true black + white, high contrast
   { id: 'monochrome', name: 'Monochrome', blurb: 'Pure grayscale — true black &amp; white, no color, maximum contrast.', theme: { accent: '#ffffff', serif: F_MONO, mono: F_MONO, surf1: 'rgba(20,20,20,.7)', surf2: 'rgba(10,10,10,.75)', ink: '#f0f0f0', ink2: '#b0b0b0', glass: 'linear-gradient(168deg,rgba(15,15,15,.98),rgba(5,5,5,.99))', pos: '#d0d0d0', posInk: '#e8e8e8', neg: '#888888', negInk: '#a0a0a0', info: '#c0c0c0', warn: '#989898', press: '#e0e0e0', pressInk: '#f8f8f8' } },
@@ -341,7 +358,7 @@ export function hydrateTheme(json: string | null): void {
   try { const t = JSON.parse(json); if (t && t.accent) { _theme = sanitize({ ...DEFAULT, ...t }); } } catch { /* ignore */ }
 }
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
-const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi'] as const;
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi', 'graphite'] as const;
 function sanitize(t: Theme): Theme {
   // migrate a cut chrome/skin to its nearest survivor before validating
   const rawChrome = t.chrome as string;
@@ -427,6 +444,7 @@ export function applyTheme(scope: HTMLElement | null): void {
     el.style.setProperty('--vg2-rgb', hexToRgb(t.accent2));
     el.style.setProperty('--vai', String(t.accentIntensity));
     el.style.setProperty('--vi', t.ink);
+    el.style.setProperty('--vi-rgb', hexToRgb(t.ink));
     el.style.setProperty('--vi2', t.ink2);
     el.style.setProperty('--vink-e', String(t.inkEmphasis));
     el.style.setProperty('--vserif', t.serif);
@@ -539,6 +557,7 @@ export function customizePanel(tab: CzTab = 'look'): string {
     faewild: '<span class="vle-mode-sk sk-faewild"><i></i><i></i><i></i></span>',
     gatsby: '<span class="vle-mode-sk sk-gatsby"><i></i><i></i><i></i></span>',
     sumi: '<span class="vle-mode-sk sk-sumi"><i></i><i></i><i></i></span>',
+    graphite: '<span class="vle-mode-sk sk-graphite"><i></i><i></i><i></i></span>',
   };
   // dark/light segmented toggle — flips every chrome to its paired skin
   const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'

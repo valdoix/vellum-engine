@@ -72,10 +72,29 @@ const SHAPE_GEOM: Record<string, string> = {
   // washi-fold: a folded-paper corner crease at the top-right (pseudo); top pad so
   // the fold triangle never crosses content.
   'washi-fold': `border-radius:calc(${R} * .2);padding:14px 15px 11px`,
+  // GRAPHITE / ENGINEER'S-DESK family — machined-instrument treatments, detail in
+  // reserved padding. Distinct from every existing shape (see notes per entry).
+  // rail-cap: a thin top registration rail sits in reserved top padding (pseudo).
+  'rail-cap': `border-radius:calc(${R} * .3);padding:15px 13px 11px`,
+  // gauge: a segmented instrument tick-scale runs down the left edge (pseudo), a
+  // measured bezel — distinct from binding (round holes) & left-spine (plain rail).
+  gauge: `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:20px`,
+  // screw-tab: four corner fastener screw-heads (pseudo) — distinct from studs
+  // (plain dots). Needs both pseudos, so it can't take the secrets surface.
+  'screw-tab': `border-radius:${R};padding:12px 14px`,
+  // track: a segmented completion tick-track along the bottom edge (pseudo) —
+  // distinct from marquee (dotted top+bottom) & scallop-deco (masked scallop).
+  track: `border-radius:calc(${R} * .3);padding-bottom:14px`,
+  // spec-frame: a technical double-keyline inset frame — distinct from inset
+  // (single keyline). Uses the mode-aware --v-border-color so it reads in light.
+  'spec-frame': `border-radius:calc(${R} * .3);padding:13px 15px;box-shadow:inset 0 0 0 1px var(--v-border-color),inset 0 0 0 4px transparent`,
+  // chamfer-bar: a single 45° machined chamfer on two diagonal corners — distinct
+  // from notched (all four). Needs the CLIP_SHAPES fallback for old UAs.
+  'chamfer-bar': 'clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)',
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
 // small fixed corners that live in padding.
-const CLIP_SHAPES = ['notched'];
+const CLIP_SHAPES = ['notched', 'chamfer-bar'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
@@ -138,7 +157,13 @@ export const STYLES = [
   //   --v-warn violet = the INTERNAL/AMBIGUOUS register ONLY: inner thoughts,
   //                     scars, complex sentiment, romance. If a new use isn't
   //                     "internal/ambiguous", pick another token — don't add to violet.
-  ":root{--vg:#cda84e;--vg-rgb:205,168,78;--vi:#e7d6ad;--vi2:#cdbfa0;--vserif:'Cormorant Garamond',Georgia,serif;--vmono:'JetBrains Mono',ui-monospace,monospace;--vscale:1;--vsurf-1:rgba(28,25,20,.5);--vsurf-2:rgba(18,16,12,.4);--vle-gold:var(--vg);--vle-gold-soft:rgba(var(--vg-rgb),.16);--vle-ink:var(--vi);--vle-ink-muted:var(--vi2);--vle-meta:var(--vi2);--vle-bg:rgba(20,18,14,.55);--vle-bg-solid:#14120e;--vg2:#9bc0e6;--vg2-rgb:155,192,230;--vai:1;--vdscale:1;--vdensity:1;--vopacity:1;--vblur:8px;--vradius:18px;--vborder:1px;--vink-e:1;--v1:4px;--v2:8px;--v3:12px;--v4:16px;--v5:20px;--v6:24px;--vr1:6px;--vr2:9px;--vr3:13px;--rpill:20px;--v-pos:#8fa67e;--v-pos-i:#a9c089;--v-neg:#c96a6a;--v-neg-i:#e09090;--v-info:#9bc0e6;--v-warn:#b48ed0;--v-press:#c8923e;--v-press-i:#dcad62;--vt-display:calc(24px * var(--vscale));--vt-title:calc(18px * var(--vscale));--vt-body:calc(14px * var(--vscale));--vt-meta:calc(11px * var(--vdscale));--vt-eyebrow:calc(10px * var(--vscale))}",
+  ":root{--vg:#cda84e;--vg-rgb:205,168,78;--vi:#e7d6ad;--vi2:#cdbfa0;--vserif:'Cormorant Garamond',Georgia,serif;--vmono:'JetBrains Mono',ui-monospace,monospace;--vscale:1;--vsurf-1:rgba(28,25,20,.5);--vsurf-2:rgba(18,16,12,.4);--vle-gold:var(--vg);--vle-gold-soft:rgba(var(--vg-rgb),.16);--vle-ink:var(--vi);--vle-ink-muted:var(--vi2);--vle-meta:var(--vi2);--vle-bg:rgba(20,18,14,.55);--vle-bg-solid:#14120e;--vg2:#9bc0e6;--vg2-rgb:155,192,230;--vai:1;--vdscale:1;--vdensity:1;--vopacity:1;--vblur:8px;--vradius:18px;--vborder:1px;--vink-e:1;--v1:4px;--v2:8px;--v3:12px;--v4:16px;--v5:20px;--v6:24px;--vr1:6px;--vr2:9px;--vr3:13px;--rpill:20px;--v-pos:#8fa67e;--v-pos-i:#a9c089;--v-neg:#c96a6a;--v-neg-i:#e09090;--v-info:#9bc0e6;--v-warn:#b48ed0;--v-press:#c8923e;--v-press-i:#dcad62;--vi-rgb:231,214,173;--v-shadow-card:0 8px 26px rgba(0,0,0,.35);--v-shadow-pop:0 18px 50px rgba(0,0,0,.5);--v-shadow-hover:0 8px 26px rgba(0,0,0,.35);--v-glow:0 0 10px rgba(var(--vg-rgb),.4);--v-glow-strong:0 0 22px rgba(var(--vg-rgb),.22);--v-scrim:rgba(8,7,5,.6);--v-border-color:rgba(var(--vg-rgb),.26);--v-border-strong:rgba(var(--vg-rgb),.5);--v-page-tint:transparent;--v-blur-eff:var(--vblur);--vt-display:calc(24px * var(--vscale));--vt-title:calc(18px * var(--vscale));--vt-body:calc(14px * var(--vscale));--vt-meta:calc(11px * var(--vdscale));--vt-eyebrow:calc(10px * var(--vscale))}",
+  // LIGHT MODE structural layer: dark mode expresses depth via glow + dark
+  // shadows; light mode must express it via soft neutral shadows + crisp
+  // ink-tinted borders + no glow. These override ONLY the elevation tokens, so
+  // any component that uses them flips its elevation logic without a palette
+  // change. Dark mode is byte-identical (tokens above equal the old literals).
+  "html[data-vle-mode='light']{--v-shadow-card:0 1px 2px rgba(40,30,15,.10),0 6px 18px rgba(40,30,15,.07);--v-shadow-pop:0 4px 10px rgba(40,30,15,.10),0 18px 44px rgba(40,30,15,.12);--v-shadow-hover:0 3px 10px rgba(40,30,15,.14);--v-glow:none;--v-glow-strong:none;--v-scrim:rgba(40,40,50,.28);--v-border-color:rgba(var(--vi-rgb),.16);--v-border-strong:rgba(var(--vi-rgb),.30);--v-page-tint:rgba(0,0,0,.03);--v-blur-eff:0px}",
   // launcher edge + reduced-motion (set on document by theme.ts)
   "html[data-vle-launch='left'] .vlf-launch{right:auto;left:0;top:var(--vlf-lpos,46%);border-radius:0 13px 13px 0;border-right:1px solid rgba(var(--vg-rgb),.5);border-left:none;writing-mode:vertical-rl;transform:rotate(180deg)}",
   "html[data-vle-launch='left'] .vlf-launch .vlf-launch-mark,html[data-vle-launch='left'] .vlf-launch .vlf-launch-t{transform:rotate(180deg)}",
@@ -940,6 +965,14 @@ export const STYLES = [
   // MODERN — flat, quiet, sans title, no manuscript ornament
   "[data-vle-chrome='modern'] .vlf-frame{border-color:rgba(var(--vg-rgb),calc(.28 * var(--vai,1)));box-shadow:0 18px 50px rgba(0,0,0,.5),inset 0 0 0 1px rgba(var(--vg-rgb),.05)}",
   "[data-vle-chrome='modern'] .vlf-bar{background:rgba(var(--vg-rgb),.05);border-bottom-color:rgba(var(--vg-rgb),.14)}",
+  // GRAPHITE — the engineer's desk: a flat machined panel. 4px radius, neutral
+  // steel hairline (ink-tinted, not gold), a soft neutral shadow, and NO glow —
+  // deliberately instrument-flat, not luminous. Reads correctly in light mode for
+  // free (neutral shadow + ink border, no accent halo to flatten).
+  "[data-vle-chrome='graphite'] .vlf-frame{border-radius:4px;border-color:rgba(var(--vi-rgb),.2);box-shadow:0 8px 26px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05)}",
+  "[data-vle-chrome='graphite'] .vlf-bar{background:linear-gradient(135deg,rgba(var(--vg-rgb),.08),transparent);border-bottom-color:rgba(var(--vi-rgb),.14)}",
+  "[data-vle-chrome='graphite'] .vlf-mark{text-shadow:none}",
+  "[data-vle-chrome='graphite'] .vlf-title{letter-spacing:1.5px;font-family:var(--vmono);font-size:calc(15px * var(--vscale))}",
   "[data-vle-chrome='modern'] .vlf-title{font-family:var(--vserif);font-size:calc(16px * var(--vscale));letter-spacing:.5px;text-transform:none}",
   "[data-vle-chrome='modern'] .vlf-mark{text-shadow:none}",
   "[data-vle-chrome='modern'] .vlf-grip{background:none;border:none;right:5px;bottom:5px;width:12px;height:12px;border-right:2px solid rgba(var(--vg-rgb),.4);border-bottom:2px solid rgba(var(--vg-rgb),.4);border-bottom-right-radius:4px}",
@@ -1400,6 +1433,8 @@ export const STYLES = [
   ".vle-mode-sk.sk-gatsby{flex-direction:column;gap:4px;background:radial-gradient(70% 60% at 50% 0%,rgba(212,175,55,.15),transparent),linear-gradient(160deg,#1a1410,#0a0a0a)}.vle-mode-sk.sk-gatsby i{height:6px;border-radius:0;background:linear-gradient(90deg,rgba(212,175,55,.7),rgba(212,175,55,.5));border:1px solid rgba(212,175,55,.4);box-shadow:0 0 4px rgba(212,175,55,.3)}.vle-mode-sk.sk-gatsby i:first-child{height:9px;clip-path:polygon(0 3px,3px 3px,6px 0,50% 0,calc(100% - 6px) 0,calc(100% - 3px) 3px,100% 3px,100% 100%,0 100%)}.vle-mode-sk.sk-gatsby i:last-child{width:65%}",
   // sumi sketch: minimalist ink wash with asymmetric strokes
   ".vle-mode-sk.sk-sumi{flex-direction:column;gap:5px;background:linear-gradient(160deg,#f5ead8,#ebe0ca)}.vle-mode-sk.sk-sumi i{height:6px;border-radius:0;border-left:3px solid rgba(26,20,16,.7);background:linear-gradient(90deg,rgba(26,20,16,.12),transparent 60%);box-shadow:2px 2px 0 rgba(26,20,16,.08)}.vle-mode-sk.sk-sumi i:first-child{height:8px}.vle-mode-sk.sk-sumi i:last-child{width:70%}",
+  // graphite: cool charcoal panel, thin steel-blue machined rows, one squared cap
+  ".vle-mode-sk.sk-graphite{flex-direction:column;gap:4px;background:linear-gradient(160deg,#30353a,#20242a)}.vle-mode-sk.sk-graphite i{height:6px;border-radius:2px;background:rgba(91,143,176,.4);border-left:3px solid rgba(91,143,176,.85)}.vle-mode-sk.sk-graphite i:first-child{height:8px}.vle-mode-sk.sk-graphite i:last-child{width:60%}",
 
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
@@ -2051,6 +2086,17 @@ export const STYLES = [
   // --- SUMI shapes ---
   // washi-fold: a folded-paper corner triangle at the top-right, in the reserved pad.
   ...shapeDetail('washi-fold', "content:'';position:absolute;top:0;right:0;width:0;height:0;pointer-events:none;z-index:1;border-top:16px solid color-mix(in srgb,var(--vi) 12%,transparent);border-left:16px solid transparent;filter:drop-shadow(-1px 1px 1px rgba(var(--vi),.18))", '::before'),
+  // GRAPHITE family (engineer's-desk / machined-instrument). Detail lives in the
+  // padding reserved by SHAPE_GEOM. Steel-neutral, no glow — reads in both modes.
+  // rail-cap: a thin top registration rail spanning the reserved top padding.
+  ...shapeDetail('rail-cap', "content:'';position:absolute;top:6px;left:12px;right:12px;height:2px;pointer-events:none;z-index:1;background:linear-gradient(90deg,var(--vg) 0 10px,transparent 10px,transparent) 0 0/100% 2px,linear-gradient(90deg,transparent,transparent calc(100% - 10px),var(--vg) calc(100% - 10px)) 0 0/100% 2px,linear-gradient(var(--vg),var(--vg)) 0 0/100% 1px no-repeat;opacity:.55", '::before'),
+  // gauge: a segmented instrument tick-scale down the left edge (reserved by pad).
+  ...shapeDetail('gauge', "content:'';position:absolute;left:8px;top:7px;bottom:7px;width:6px;pointer-events:none;z-index:1;background:repeating-linear-gradient(180deg,var(--vg) 0,var(--vg) 2px,transparent 2px,transparent 8px) 0 0/3px 100% no-repeat,linear-gradient(var(--vg),var(--vg)) 5px 0/1px 100% no-repeat;opacity:.7", '::before'),
+  // screw-tab: four slotted fastener screw-heads in the reserved corners.
+  ...shapeDetail('screw-tab', "content:'';position:absolute;inset:6px;pointer-events:none;z-index:1;background:radial-gradient(circle 3px at 0 0,color-mix(in srgb,var(--vg) 70%,transparent) 62%,transparent 66%) 0 0/9px 9px no-repeat,radial-gradient(circle 3px at 100% 0,color-mix(in srgb,var(--vg) 70%,transparent) 62%,transparent 66%) 100% 0/9px 9px no-repeat,radial-gradient(circle 3px at 0 100%,color-mix(in srgb,var(--vg) 70%,transparent) 62%,transparent 66%) 0 100%/9px 9px no-repeat,radial-gradient(circle 3px at 100% 100%,color-mix(in srgb,var(--vg) 70%,transparent) 62%,transparent 66%) 100% 100%/9px 9px no-repeat;opacity:.8", '::before'),
+  ...shapeDetail('screw-tab', "content:'';position:absolute;inset:6px;pointer-events:none;z-index:2;background:linear-gradient(var(--vg),var(--vg)) 0 0/5px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/5px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/5px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/5px 1px no-repeat;background-position:-2px 0,calc(100% + 2px) 0,-2px 100%,calc(100% + 2px) 100%;opacity:.6", '::after'),
+  // track: a segmented completion tick-track along the reserved bottom padding.
+  ...shapeDetail('track', "content:'';position:absolute;bottom:5px;left:10px;right:10px;height:4px;pointer-events:none;z-index:1;background:repeating-linear-gradient(90deg,var(--vg) 0,var(--vg) 6px,transparent 6px,transparent 10px) 0 0/100% 2px no-repeat,linear-gradient(color-mix(in srgb,var(--vg) 30%,transparent),color-mix(in srgb,var(--vg) 30%,transparent)) 0 100%/100% 1px no-repeat;opacity:.65", '::after'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.
@@ -2249,6 +2295,43 @@ export const STYLES = [
   ".vle-ob-btn:hover{background:color-mix(in srgb,var(--vg) 8%,transparent);border-color:var(--vg)}",
   ".vle-ob-btn.primary{background:var(--vg);border-color:var(--vg);color:var(--vsurf-1)}",
   ".vle-ob-btn.primary:hover{background:color-mix(in srgb,var(--vg) 85%,#fff);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}",
+
+  // ==========================================================================
+  // STRUCTURAL LIGHT LAYER (Path A). Dark mode is untouched (every rule above is
+  // byte-identical). These rules ONLY apply under html[data-vle-mode='light'] and
+  // re-express elevation with LIGHT logic: soft grey drop-shadows instead of black
+  // glows, ink-tinted hairlines instead of gold-at-low-alpha smears, opaque
+  // surfaces (no dark bg to reveal), a light scrim, and faded decorative motion.
+  // The doubled attribute (data-vle-mode twice) lifts specificity to (0,3,x) so a
+  // light rule beats a chrome-specific `[data-vle-chrome='x'] .vlf-frame` (0,2,1)
+  // without !important — mirroring the shape system's at() booster.
+  // --------------------------------------------------------------------------
+  // frame: drop the black drop-shadow + accent glow to a soft neutral shadow, kill
+  // backdrop blur (nothing luminous behind it on light), neutral hairline border.
+  "html[data-vle-mode='light'][data-vle-mode='light'] .vlf-frame{box-shadow:var(--v-shadow-pop);border-color:var(--v-border-strong);backdrop-filter:none}",
+  // the drawer/float texture layer is meant to let a dark animated bg glow through;
+  // on light there's nothing to reveal, so make the fill opaque for clean contrast.
+  "html[data-vle-mode='light'] .vlf-tex{opacity:1}",
+  "html[data-vle-mode='light'] .vlf-scrim{opacity:.25;mix-blend-mode:multiply}",
+  // chrome frame ::before/::after inner glows flatten (they're inset accent halos).
+  "html[data-vle-mode='light'][data-vle-mode='light'] .vlf-frame::before,html[data-vle-mode='light'][data-vle-mode='light'] .vlf-frame::after{box-shadow:none}",
+  // launcher tab + tooltip: soft neutral shadow instead of heavy black.
+  "html[data-vle-mode='light'] .vlf-launch{box-shadow:var(--v-shadow-card)}",
+  "html[data-vle-mode='light'] .vlf-launch:hover{box-shadow:var(--v-shadow-hover)}",
+  "html[data-vle-mode='light'] .vlg-tip{box-shadow:var(--v-shadow-card)}",
+  // modal: light scrim (not near-black), soft popover shadow.
+  "html[data-vle-mode='light'] .vlfm-overlay{background:var(--v-scrim);backdrop-filter:blur(2px)}",
+  "html[data-vle-mode='light'][data-vle-mode='light'] .vlfm{box-shadow:var(--v-shadow-pop)}",
+  // page tint: nudge the body a hair darker than the cards so elevation reads
+  // UPWARD (cards sit above the page), the core light-mode elevation cue.
+  "html[data-vle-mode='light'] .vle-body,html[data-vle-mode='light'] .vlf-body{background-color:var(--v-page-tint)}",
+  // decorative motion particles (ember fireflies/bubbles, faewild motes) are
+  // luminous-on-dark; on light they're invisible smudges. Fade them right down.
+  "html[data-vle-mode='light'] .vle-body::before,html[data-vle-mode='light'] .vle-body::after,html[data-vle-mode='light'] .vlf-body::before,html[data-vle-mode='light'] .vlf-body::after{opacity:.12}",
+  // card-surface hover shadows: swap the black drop-shadow for a soft neutral one.
+  "html[data-vle-mode='light'] .vle-leaf:hover,html[data-vle-mode='light'] .vle-card.on{box-shadow:var(--v-shadow-hover)}",
+  // graph stage + diary spread carry heavy black shadows; soften on light.
+  "html[data-vle-mode='light'] .vlg-stage,html[data-vle-mode='light'] .vle-diary{box-shadow:var(--v-shadow-card)}",
 
 ].join('\n');
 
