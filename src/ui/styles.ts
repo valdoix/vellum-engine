@@ -2332,6 +2332,33 @@ export const STYLES = [
   "html[data-vle-mode='light'] .vle-leaf:hover,html[data-vle-mode='light'] .vle-card.on{box-shadow:var(--v-shadow-hover)}",
   // graph stage + diary spread carry heavy black shadows; soften on light.
   "html[data-vle-mode='light'] .vlg-stage,html[data-vle-mode='light'] .vle-diary{box-shadow:var(--v-shadow-card)}",
+  // --- WAVE 2: inner components that HARDCODE a dark rgba fill (rgba(22,20,16,…)
+  // etc.) so dark ink lands on a dark chip in light mode. Repaint their fill from
+  // the light skin surface + a faint accent tint, and neutralize the two hardcoded
+  // light-ink hexes (#cdc3ad, #d8c9a8) that go invisible on paper. color-mix keeps
+  // these correct across EVERY light skin (parchment/daylit/champagne/…).
+  // relations (Now tab + Bonds): dark fill -> light surface tint.
+  "html[data-vle-mode='light'] .vle-rel-card{background:color-mix(in srgb,var(--vg) 5%,var(--vsurf-1))}",
+  // journal entries.
+  "html[data-vle-mode='light'] .vle-jr{background:color-mix(in srgb,var(--vg) 4%,var(--vsurf-1))}",
+  "html[data-vle-mode='light'] .vle-jr-mem{color:var(--vi2)}",
+  // vault entries + suggestion chips + bound-book rows.
+  "html[data-vle-mode='light'] .vlv-entry,html[data-vle-mode='light'] .vlv-bk{background:color-mix(in srgb,var(--vg) 4%,var(--vsurf-1))}",
+  "html[data-vle-mode='light'] .vlv-sug{background:color-mix(in srgb,var(--vg) 6%,var(--vsurf-1))}",
+  "html[data-vle-mode='light'] .vlv-content{color:var(--vi)}",
+  "html[data-vle-mode='light'] .vlv-sug-n{background:color-mix(in srgb,var(--vi) 8%,transparent)}",
+  // injection preview panel (Context tab).
+  "html[data-vle-mode='light'] .vle-inj{background:color-mix(in srgb,var(--vg) 4%,var(--vsurf-1))}",
+  // graph stage: the dark radial/linear fill -> a light paper wash so nodes read.
+  "html[data-vle-mode='light'] .vlg-stage{background:radial-gradient(130% 100% at 50% 0%,rgba(var(--vg-rgb),.05),transparent 55%),var(--vsurf-1);box-shadow:inset 0 1px 12px rgba(40,30,15,.06),var(--v-shadow-card)}",
+  // graph tooltip: dark popover -> light popover with dark ink.
+  "html[data-vle-mode='light'] .vlg-tip{background:var(--vsurf-1);color:var(--vi);box-shadow:var(--v-shadow-card)}",
+  // search results: keep the accent-tint hit, fine on light; no fill hardcode.
+  // actions menu items already use accent-tint fills (fine on light).
+  // customizer text inputs / selects: dark input fill -> light field.
+  "html[data-vle-mode='light'] .vle-cz-hex,html[data-vle-mode='light'] .vle-cz-sel{background:color-mix(in srgb,var(--vi) 5%,var(--vsurf-1))}",
+  // modal input fields (search box, prompts) with the same dark fill pattern.
+  "html[data-vle-mode='light'] .vlfm-in{background:color-mix(in srgb,var(--vi) 5%,var(--vsurf-1))}",
 
 ].join('\n');
 
