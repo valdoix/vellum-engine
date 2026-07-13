@@ -299,6 +299,11 @@ export interface PresetPanelData {
   status: { permission: boolean; generationOk: boolean; provider: string; model: string; extractOk: boolean } | null;
   chatBudget: any | null;                   // raw ContextBudget or null
   previewOpen: boolean;
+  // OPTIONAL roster of every preset (mobile modal only): { id, name, linked }.
+  // When present, Feature 1 renders a picker so a Link/Unlink control is ALWAYS
+  // available even if the active preset didn't auto-resolve. Desktop omits it
+  // (the host editor already scopes to the open preset).
+  presets?: Array<{ id: string; name: string; linked: boolean }>;
 }
 
 /** PURE: build the inner HTML for the preset panel (rail + the six feature
@@ -310,16 +315,44 @@ function presetPanelInner(d: PresetPanelData): string {
 
   // Feature 1: Companion Linking
   const isLinked = preset?.metadata?.vellum_engine?.identifier === 'vellum_engine';
-  const f1 = `<div class="vle-pt-sec">
-    <div class="vle-pt-head">Companion Preset</div>
-    <div class="vle-pt-badge">
-      <span class="vle-pt-dot ${isLinked ? 'linked' : 'unlinked'}"></span>
-      <span>${isLinked ? 'Linked to VELLUM' : 'Not linked'}</span>
-    </div>
-    ${preset ? `<button class="vle-pt-btn" data-pt-link="${isLinked ? 'unlink' : 'link'}" data-pt-preset="${e(presetId)}">
-      ${isLinked ? 'Unlink' : 'Link this preset'}
-    </button>` : '<span style="font-size:11px;opacity:0.6">No companion preset resolved. Open/select a preset first.</span>'}
-  </div>`;
+  // MOBILE MODAL: a roster is supplied → render a picker so Link/Unlink is ALWAYS
+  // reachable, even when the active preset didn't auto-resolve. The picker's
+  // selected preset drives the button; it defaults to the resolved preset (or the
+  // one already linked, or the first). DESKTOP: no roster → the single-preset
+  // control the host editor scopes for us.
+  let f1: string;
+  if (Array.isArray(d.presets) && d.presets.length) {
+    const roster = d.presets;
+    const selId = roster.some((x) => x.id === presetId) ? presetId
+      : (roster.find((x) => x.linked)?.id ?? roster[0]!.id);
+    const sel = roster.find((x) => x.id === selId) ?? roster[0]!;
+    const opts = roster.map((x) =>
+      `<option value="${e(x.id)}"${x.id === selId ? ' selected' : ''}>${x.linked ? '\u2713 ' : ''}${e(x.name)}</option>`
+    ).join('');
+    f1 = `<div class="vle-pt-sec">
+      <div class="vle-pt-head">Companion Preset</div>
+      <div class="vle-pt-badge">
+        <span class="vle-pt-dot ${sel.linked ? 'linked' : 'unlinked'}"></span>
+        <span>${sel.linked ? 'Linked to VELLUM' : 'Not linked'}</span>
+      </div>
+      <select class="vle-pt-select" data-pt-preset-pick>${opts}</select>
+      <button class="vle-pt-btn" data-pt-link="${sel.linked ? 'unlink' : 'link'}" data-pt-preset="${e(sel.id)}">
+        ${sel.linked ? 'Unlink this preset' : 'Link this preset'}
+      </button>
+      <span style="font-size:10px;opacity:0.55">A \u2713 marks presets already linked to VELLUM. Link the one you generate with.</span>
+    </div>`;
+  } else {
+    f1 = `<div class="vle-pt-sec">
+      <div class="vle-pt-head">Companion Preset</div>
+      <div class="vle-pt-badge">
+        <span class="vle-pt-dot ${isLinked ? 'linked' : 'unlinked'}"></span>
+        <span>${isLinked ? 'Linked to VELLUM' : 'Not linked'}</span>
+      </div>
+      ${preset ? `<button class="vle-pt-btn" data-pt-link="${isLinked ? 'unlink' : 'link'}" data-pt-preset="${e(presetId)}">
+        ${isLinked ? 'Unlink' : 'Link this preset'}
+      </button>` : '<span style="font-size:11px;opacity:0.6">No companion preset resolved. Open/select a preset first.</span>'}
+    </div>`;
+  }
 
   // Feature 2: Health Check — scan blocks for the VELLUM state-block signature
   let healthStatus: 'present' | 'missing' | 'no_preset' = 'no_preset';
@@ -444,6 +477,23 @@ function bindPresetPanel(
   onPreviewToggle: () => void,
   hostDraftUpdate?: (presetId: string, link: boolean) => void,
 ): void {
+  // Picker (mobile modal): when the user changes the selected preset, update the
+  // badge dot + button label+attrs in place so they don't need to re-open the
+  // modal; click the button to actually write the link.
+  const pick = root.querySelector('[data-pt-preset-pick]') as HTMLSelectElement | null;
+  const updatePickerBtn = (selectedId: string): void => {
+    // look up linked state from the options' text (✓ prefix) since we can't
+    // access the roster from here; fall back to the attribute on the button.
+    const opt = pick?.querySelector(`option[value="${CSS.escape ? CSS.escape(selectedId) : selectedId}"]`) as HTMLOptionElement | null;
+    const linkedNow = opt?.textContent?.trimStart().startsWith('\u2713') ?? false;
+    const btn = root.querySelector('[data-pt-link]') as HTMLElement | null;
+    const dot = root.querySelector('.vle-pt-dot.linked, .vle-pt-dot.unlinked') as HTMLElement | null;
+    const lbl = root.querySelector('.vle-pt-badge > span:last-child') as HTMLElement | null;
+    if (btn) { btn.setAttribute('data-pt-link', linkedNow ? 'unlink' : 'link'); btn.setAttribute('data-pt-preset', selectedId); btn.textContent = linkedNow ? 'Unlink this preset' : 'Link this preset'; }
+    if (dot) { dot.classList.toggle('linked', linkedNow); dot.classList.toggle('unlinked', !linkedNow); }
+    if (lbl) lbl.textContent = linkedNow ? 'Linked to VELLUM' : 'Not linked';
+  };
+  pick?.addEventListener('change', () => { if (pick.value) updatePickerBtn(pick.value); });
   root.querySelector('[data-pt-link]')?.addEventListener('click', (ev) => {
     const btn = (ev.target as HTMLElement).closest('[data-pt-link]') as HTMLElement | null;
     if (!btn) return;
@@ -591,6 +641,7 @@ let _lastStateAt = 0; // epoch ms of the last vellum_state broadcast (for the po
 // These mirror the per-app state held by the desktop preset tab, kept at module
 // scope so the modal can reopen with fresh data without an extra round-trip.
 let _ppPreset: any | null = null;                  // last resolved companion preset (from backend)
+let _ppRoster: Array<{ id: string; name: string; linked: boolean }> = []; // all presets (mobile picker)
 let _ppInj: { turn: number; chars: number; recalls: number; text: string } | null = null;
 let _ppStatus: { permission: boolean; generationOk: boolean; provider: string; model: string; extractOk: boolean } | null = null;
 let _ppChatBudget: any | null = null;
@@ -607,6 +658,7 @@ function refreshPresetModal(): void {
     status: _ppStatus,
     chatBudget: _ppChatBudget,
     previewOpen: _ppPreviewOpen,
+    presets: _ppRoster.length ? _ppRoster : undefined,
   });
   if (_ctxRef) bindPresetPanel(
     host,
@@ -1249,6 +1301,7 @@ export function setup(ctx: Ctx): () => void {
         // metadata, blocks) so the modal's link/health/budget features work even
         // where the host provides no preset-editor draft to read.
         _ppPreset = (p.preset && typeof p.preset === 'object') ? p.preset : null;
+        _ppRoster = Array.isArray(p.presets) ? p.presets : [];
         refreshPresetModal();
       } else if (p?.type === 'vellum_preset_tab_link_done') {
         if (!p.ok) notify(ctx, 'warning', 'Link update failed.');

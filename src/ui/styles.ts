@@ -2164,6 +2164,8 @@ export const STYLES = [
   ".vle-pt-btn{background:color-mix(in srgb,var(--vg,#d4af37) 12%,transparent);border:1px solid color-mix(in srgb,var(--vg,#d4af37) 30%,transparent);color:var(--lumiverse-text,#cdbfa0);border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;transition:all 0.15s;margin-top:4px}",
   ".vle-pt-btn:hover{background:color-mix(in srgb,var(--vg,#d4af37) 20%,transparent);border-color:var(--vg,#d4af37)}",
   ".vle-pt-btn:active{transform:translateY(1px)}",
+  ".vle-pt-select{width:100%;background:color-mix(in srgb,var(--vg,#d4af37) 8%,transparent);border:1px solid color-mix(in srgb,var(--vg,#d4af37) 30%,transparent);color:var(--lumiverse-text,#cdbfa0);border-radius:4px;padding:5px 8px;font-size:11px;cursor:pointer;margin-top:2px}",
+  ".vle-pt-select:hover{border-color:var(--vg,#d4af37)}",
   ".vle-pt-line{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 80%,transparent)}",
   ".vle-pt-line strong{color:var(--lumiverse-text,#cdbfa0);font-weight:600}",
   ".vle-pt-preview{background:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 4%,transparent);border:1px solid color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 15%,transparent);border-radius:4px;padding:8px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:10px;line-height:1.4;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 85%,transparent);max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;margin-top:6px}",

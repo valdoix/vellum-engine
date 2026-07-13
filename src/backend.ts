@@ -2607,9 +2607,25 @@ const dispatch: Record<string, Handler> = {
    *  one; (4) the first. Returns { id, name, metadata, blocks } for the shared
    *  panel builder. Requires `presets`. */
   vellum_preset_panel_open: async (_p, uid) => {
-    const send = (preset: unknown) => spindle.sendToFrontend?.({ type: 'vellum_preset_panel', preset }, uid ?? currentUser());
+    // The modal gets BOTH the resolved active preset (for health/budget) AND a
+    // roster of every preset (id, name, linked) so a Link/Unlink control is
+    // ALWAYS available — even when auto-resolution finds nothing, the user can
+    // pick any preset and link it. Desktop reads the open editor draft instead,
+    // so `presets` is mobile-only extra data the desktop tab ignores.
+    const send = (preset: unknown, presets: unknown[] = []) => spindle.sendToFrontend?.({ type: 'vellum_preset_panel', preset, presets }, uid ?? currentUser());
     if (!(await has('presets')) || !spindle.presets?.get) { send(null); return; }
     try {
+      // Roster of all presets (best-effort) — powers the always-present picker.
+      let all: any[] = [];
+      if (spindle.presets?.list) {
+        try { const r = await spindle.presets.list({ limit: 100 }, uid); if (Array.isArray(r?.data)) all = r.data; } catch { /* list optional */ }
+      }
+      const roster = all.map((x: any) => ({
+        id: x?.id,
+        name: x?.name ?? x?.id,
+        linked: x?.metadata?.vellum_engine?.identifier === 'vellum_engine',
+      })).filter((x: any) => x.id);
+
       // (1) the active connection's bound preset — the one actually in use. This
       // is the mobile equivalent of "the preset the editor has open" and is the
       // single most important fix: list[0] was almost never the right preset.
@@ -2625,15 +2641,12 @@ const dispatch: Record<string, Handler> = {
 
       // (2/3/4) fall back to the preset list: a linked companion, else (if only
       // one exists) that one, else the first.
-      if (!preset?.id && spindle.presets?.list) {
-        const { data } = await spindle.presets.list({ limit: 50 }, uid);
-        if (Array.isArray(data) && data.length) {
-          preset = data.find((x: any) => x?.metadata?.vellum_engine?.identifier === 'vellum_engine')
-            ?? (data.length === 1 ? data[0] : null)
-            ?? data[0];
-        }
+      if (!preset?.id && all.length) {
+        preset = all.find((x: any) => x?.metadata?.vellum_engine?.identifier === 'vellum_engine')
+          ?? (all.length === 1 ? all[0] : null)
+          ?? all[0];
       }
-      if (!preset?.id) { send(null); return; }
+      if (!preset?.id) { send(null, roster); return; }
 
       // Blocks power the health-check + prompt-budget features. UserPresetDTO
       // carries them as `prompt_order` (not `blocks`); pull them explicitly when
@@ -2643,7 +2656,7 @@ const dispatch: Record<string, Handler> = {
       if (!blocks.length && spindle.presets?.blocks?.list) {
         try { const b = await spindle.presets.blocks.list(preset.id, uid); if (Array.isArray(b)) blocks = b; } catch { /* blocks optional */ }
       }
-      send({ id: preset.id, name: preset.name ?? preset.id, metadata: preset.metadata ?? {}, blocks });
+      send({ id: preset.id, name: preset.name ?? preset.id, metadata: preset.metadata ?? {}, blocks }, roster);
     } catch (e) {
       spindle.log?.warn?.('[vellum_engine] preset_panel_open: ' + ((e as Error)?.message ?? e));
       send(null);
