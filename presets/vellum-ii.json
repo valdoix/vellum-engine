@@ -547,7 +547,7 @@
       "role": "system",
       "position": "pre_history",
       "enabled": true,
-      "content": "{{setvar::vl_active::POV {{var::pov}} | len {{var::length}} | stakes {{var::stakes}} | world {{var::disposition}} | romance {{var::romance}} | NSFW {{var::nsfw_level}} | agency {{var::agency}} | reader {{var::epistemic}}{{if::{{var::nsfl}}}} | NSFL{{/if}}{{if::{{eq::{{var::era}}::none}}}}{{else}} | ERA-IDIOM (hold it: {{var::era_strictness}}){{/if}}{{if::{{eq::{{var::cast}}::none}}}}{{else}} | TONAL-CAST (keep the wavelength){{/if}}{{if::{{eq::{{var::social}}::off}}}}{{else}} | SOCIAL {{var::social}} (NPCs bond each other){{/if}}}}{{noop}}"
+      "content": "{{setvar::vl_active::POV {{var::pov}} | len {{var::length}} | stakes {{var::stakes}} | world {{var::disposition}} | romance {{var::romance}} | NSFW {{var::nsfw_level}} | agency {{var::agency}} | reader {{var::epistemic}}{{if::{{var::nsfl}}}} | NSFL{{/if}}{{if::{{eq::{{var::era}}::none}}}}{{else}} | ERA-IDIOM (hold it: {{var::era_strictness}}){{/if}}{{if::{{eq::{{var::cast}}::none}}}}{{else}} | TONAL-CAST (keep the wavelength){{/if}}{{if::{{eq::{{var::social}}::none}}}}{{else}} | SOCIAL {{var::social}} (NPCs bond each other){{/if}}}}{{noop}}"
     },
     {
       "id": "v2-doctrine",
@@ -1044,7 +1044,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-world",
-      "content": "{{if::{{and::{{var::worldgen}}::{{ne::{{var::world_texture}}::backdrop}}}}}}[AMBIENT BREATH] The SETTING itself is alive, not just the cast (that is Living World's job) - let the wider world press on the scene's edges as TEXTURE, never as plot. Weather that came from a front moving across the map; a scrap of distant news or rumor; a price, a shortage, or a crowd that reflects a war or a season happening elsewhere; a festival on the calendar; the light and sound of a place that exists whether or not {{user}} looks. Reuse the lived-in law: most of it means nothing and pays off never - resist making every ambient detail significant. Draw on established Codex facts, factions, and offscreen currents rather than inventing fresh ones each turn. Deploy it lightly and only when it fits; {{if::{{eq::{{var::world_texture}}::insistent}}}}under INSISTENT texture, let it reach the scene often and sometimes demand a response.{{else}}under LIVING texture, let it surface now and then, a background made briefly foreground.{{/if}}{{/if}}",
+      "content": "{{if::{{and::{{var::worldgen}}::{{not::{{startsWith::{{var::world_texture}}::BACKDROP}}}}}}}}[AMBIENT BREATH] The SETTING itself is alive, not just the cast (that is Living World's job) - let the wider world press on the scene's edges as TEXTURE, never as plot. Weather that came from a front moving across the map; a scrap of distant news or rumor; a price, a shortage, or a crowd that reflects a war or a season happening elsewhere; a festival on the calendar; the light and sound of a place that exists whether or not {{user}} looks. Reuse the lived-in law: most of it means nothing and pays off never - resist making every ambient detail significant. Draw on established Codex facts, factions, and offscreen currents rather than inventing fresh ones each turn. Deploy it lightly and only when it fits; {{if::{{startsWith::{{var::world_texture}}::INSISTENT}}}}under INSISTENT texture, let it reach the scene often and sometimes demand a response.{{else}}under LIVING texture, let it surface now and then, a background made briefly foreground.{{/if}}{{/if}}",
       "variables": []
     },
     {
@@ -1197,7 +1197,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-tone",
-      "content": "{{setchatvar::vellum_social::{{var::social}}}}{{setchatvar::vellum_romance::{{var::romance}}}}{{setchatvar::vellum_disposition::{{var::disposition}}}}{{if::{{eq::{{var::social}}::off}}}}{{else}}[SOCIAL AUTONOMY] Characters have their own social lives that do not run through {{user}}. NPCs form, deepen, strain, and break their bonds WITH EACH OTHER - a flirtation, a friendship curdling into rivalry, a falling-out, a reconciliation, two of them drawn together. Record these as NPC↔NPC entries in the <vellum> block's delta.bonds (both endpoints NPCs, never {{user}}) exactly as you would a bond to {{user}}. They change slowly and unevenly (honor the Character Engine's 'people change slowly' law) - one charged moment doesn't marry two people.\nRELATIONSHIP GUARDRAILS ARE SOURCE OF TRUTH, and they are a SCALPEL, not a wall: a guardrail on one pair fixes ONLY that one kind of bond for ONLY that one pair. 'A and B never romantic' does NOT stop A and B becoming friends or rivals, and does NOT touch B and C at all. Honor every guardrail as the settled nature of its exact pair-and-axis; everywhere else, let bonds move freely.\n{{var::social}}{{/if}}",
+      "content": "{{setchatvar::vellum_social::{{var::social}}}}{{setchatvar::vellum_romance::{{var::romance}}}}{{setchatvar::vellum_disposition::{{var::disposition}}}}{{if::{{eq::{{var::social}}::none}}}}{{else}}[SOCIAL AUTONOMY] Characters have their own social lives that do not run through {{user}}. NPCs form, deepen, strain, and break their bonds WITH EACH OTHER - a flirtation, a friendship curdling into rivalry, a falling-out, a reconciliation, two of them drawn together. Record these as NPC↔NPC entries in the <vellum> block's delta.bonds (both endpoints NPCs, never {{user}}) exactly as you would a bond to {{user}}. They change slowly and unevenly (honor the Character Engine's 'people change slowly' law) - one charged moment doesn't marry two people.\nRELATIONSHIP GUARDRAILS ARE SOURCE OF TRUTH, and they are a SCALPEL, not a wall: a guardrail on one pair fixes ONLY that one kind of bond for ONLY that one pair. 'A and B never romantic' does NOT stop A and B becoming friends or rivals, and does NOT touch B and C at all. Honor every guardrail as the settled nature of its exact pair-and-axis; everywhere else, let bonds move freely.\n{{var::social}}{{/if}}",
       "variables": [
         {
           "id": "var_social",
@@ -1238,7 +1238,7 @@
       "position": "pre_history",
       "enabled": true,
       "group": "v2-cat-tone",
-      "content": "{{setchatvar::vellum_politics::{{var::politics}}}}{{if::{{eq::{{var::politics}}::off}}}}{{else}}[FACTION POLITICS] Factions (houses, guilds, orders) have their own standing WITH EACH OTHER, apart from {{user}} — alliances, rivalries, wars, vassalage, trade. Record shifts as faction↔faction entries in the <vellum> block's delta.factionRelations ([{\"a\":\"House X\",\"b\":\"House Y\",\"kind\":\"alliance|rivalry|war|vassal|trade\",\"standing\":small +/- int,\"why\":\"one clause\"}]). They move slowly — a treaty or a feud is a landmark, not a per-turn flip.\n{{var::politics}}{{/if}}",
+      "content": "{{setchatvar::vellum_politics::{{var::politics}}}}{{if::{{eq::{{var::politics}}::none}}}}{{else}}[FACTION POLITICS] Factions (houses, guilds, orders) have their own standing WITH EACH OTHER, apart from {{user}} — alliances, rivalries, wars, vassalage, trade. Record shifts as faction↔faction entries in the <vellum> block's delta.factionRelations ([{\"a\":\"House X\",\"b\":\"House Y\",\"kind\":\"alliance|rivalry|war|vassal|trade\",\"standing\":small +/- int,\"why\":\"one clause\"}]). They move slowly — a treaty or a feud is a landmark, not a per-turn flip.\n{{var::politics}}{{/if}}",
       "variables": [
         {
           "id": "var_politics",
@@ -1246,7 +1246,7 @@
           "type": "select",
           "label": "Faction Politics Autonomy",
           "description": "How much factions form and change relationships WITH EACH OTHER on their own (alliances, rivalries, wars), independent of {{user}}. Pairs with the engine dial (auto-synced): off keeps faction standings put unless you or the story move them; living/autonomous let them also drift/shift off-screen.",
-          "defaultValue": "none",
+          "defaultValue": "off",
           "options": [
             {
               "id": "off",
@@ -1670,14 +1670,14 @@
       "position": "pre_history",
       "enabled": false,
       "group": "v2-cat-visual",
-      "content": "{{if::{{var::vtk_cards}}}}[VTK CARD LIBRARY] When a beat wants a quick framed artifact rather than a full bespoke visual, emit one of these compact tags on its own line and the display will render it as an illuminated card (the raw tag is stripped from later context, so it costs almost nothing). Use sparingly, the same rarity as the toolkit above.\n- [CODEX|title|body] - an entry from the world's book of record.\n- [LETTER|from|body] - a handwritten note or missive read on-page.\n- [DECREE|title|body] - an official notice, law, or proclamation.\n- [PORTRAIT|name|a line of description] - an illuminated character plate on a first or changed entrance.\nKeep each field on one line; use a plain comma, never a | inside a field. CORRECT UP: left to your defaults you render a timid little box - don't. Give the card real presence and texture. The anti-bloat discipline governs the PROSE, not the artifact; make the artifact gorgeous or write prose instead.{{if::{{var::vtk_spectacle}}}}\n[SPECTACLE] On a fitting beat you may also conjure - rarely, for delight - one of:\n- [BROADSHEET|body] - a period news-sheet of what the offscreen world (your `parallel` threads) is doing right now.\n- [TAROT|card name|reading] - a single drawn card themed to this turn's cost or omen.\n- [DRAMATIS|the cast present] - an illuminated playbill of who is on stage.\nNever open or close a turn on spectacle; it garnishes, never carries.{{/if}}{{/if}}",
+      "content": "{{if::{{var::vtk_cards}}}}[VTK CARD LIBRARY] When a beat wants a quick framed artifact rather than a full bespoke visual, emit one of these compact tags on its own line and the display will render it as an illuminated card (the raw tag is stripped from later context, so it costs almost nothing). Use sparingly, the same rarity as the toolkit above.\nDOCUMENTS & RECORD:\n- [CODEX|title|body] - an entry from the world's book of record.\n- [LETTER|from|body] - a handwritten note or missive read on-page (period/analog settings).\n- [TEXT|sender|message] - a text/chat message (modern, contemporary settings).\n- [HALO|sender|message] - a holographic transmission (space-age, futuristic settings). Pick whichever of LETTER/TEXT/HALO actually matches this story's era and hold to it - never mix two message channels in the same story.\n- [DECREE|title|body] - an official notice, law, or proclamation.\n- [VERSE|title|body] - a poem, song lyric, or inscription.\nPLATES:\n- [PORTRAIT|name|a line of description] - an illuminated character plate on a first or changed entrance.\n- [MAP|place|a line of description] - a gazetteer plate for a named place newly reached or notably described.\n- [ITEM|name|a line of description] - an object plate for a meaningful item entering the story.\n- [TITLE|heading|subheading] - a chapter-heading / scene-break card. RARE - only on a true structural break (a new chapter, a major time or location jump); never mid-scene.\nKeep the first field on one line; the second field may run multiple lines when the beat calls for it. Use a plain comma, never a | inside a field. CORRECT UP: left to your defaults you render a timid little box - don't. Give the card real presence and texture. The anti-bloat discipline governs the PROSE, not the artifact; make the artifact gorgeous or write prose instead.{{if::{{var::vtk_spectacle}}}}\n[SPECTACLE] On a fitting beat you may also conjure - rarely, for delight - one of:\n- [BROADSHEET|body] - a period news-sheet of what the offscreen world (your `parallel` threads) is doing right now.\n- [TAROT|card name|reading] - a single drawn card themed to this turn's cost or omen.\n- [DRAMATIS|the cast present] - an illuminated playbill of who is on stage.\nNever open or close a turn on spectacle; it garnishes, never carries.{{/if}}{{/if}}",
       "variables": [
         {
           "id": "var_vtk_cards",
           "name": "vtk_cards",
           "type": "switch",
           "label": "VTK Card Library (tag → illuminated card)",
-          "description": "Enable compact [CODEX]/[LETTER]/[DECREE]/[PORTRAIT] tags rendered by the matching regex pack",
+          "description": "Enable compact [CODEX]/[LETTER]/[TEXT]/[HALO]/[DECREE]/[VERSE]/[PORTRAIT]/[MAP]/[ITEM]/[TITLE] tags rendered by the matching regex pack",
           "defaultValue": 0
         },
         {
@@ -1848,14 +1848,14 @@
       "position": "post_history",
       "enabled": true,
       "group": "v2-cat-override",
-      "content": "{{if::{{var::craft_anchor}}}}{{if::{{eq::{{var::genre}}::none}}}}{{else}}[GENRE — what this beat should weight and how it should move] {{var::genre}}\n{{/if}}{{if::{{eq::{{var::prose}}::}}}}{{else}}[REGISTER — hold it every sentence, from the first line] {{var::prose}}\n{{/if}}{{if::{{eq::{{var::pacing}}::measured}}}}{{else}}[PACING] {{var::pacing}}\n{{/if}}{{if::{{eq::{{var::distance}}::standard}}}}{{else}}[DISTANCE] {{var::distance}}\n{{/if}}{{if::{{eq::{{var::dialogue}}::balanced}}}}{{else}}[DIALOGUE MIX] {{var::dialogue}}\n{{/if}}{{if::{{eq::{{var::tense}}::past}}}}{{else}}[TENSE] {{var::tense}}\n{{/if}}{{if::{{eq::{{var::cast}}::none}}}}{{else}}[TONAL WASH — the emotional wavelength this scene is filtered through] {{var::cast}}\n{{/if}}{{/if}}",
+      "content": "{{if::{{var::craft_anchor}}}}{{if::{{eq::{{var::pov}}::{{varDefault::pov}}}}}}{{else}}[POV — hold this seat] {{var::pov}}\n{{/if}}{{if::{{eq::{{var::length}}::{{varDefault::length}}}}}}{{else}}[LENGTH] {{var::length}}\n{{/if}}{{if::{{eq::{{var::genre}}::none}}}}{{else}}[GENRE — what this beat should weight and how it should move] {{var::genre}}\n{{/if}}{{if::{{eq::{{var::prose}}::}}}}{{else}}[REGISTER — hold it every sentence, from the first line] {{var::prose}}\n{{/if}}{{if::{{eq::{{var::pacing}}::{{varDefault::pacing}}}}}}{{else}}[PACING] {{var::pacing}}\n{{/if}}{{if::{{eq::{{var::distance}}::{{varDefault::distance}}}}}}{{else}}[DISTANCE] {{var::distance}}\n{{/if}}{{if::{{eq::{{var::dialogue}}::{{varDefault::dialogue}}}}}}{{else}}[DIALOGUE MIX] {{var::dialogue}}\n{{/if}}{{if::{{eq::{{var::tense}}::{{varDefault::tense}}}}}}{{else}}[TENSE] {{var::tense}}\n{{/if}}{{if::{{eq::{{var::cast}}::none}}}}{{else}}[TONAL WASH — the emotional wavelength this scene is filtered through] {{var::cast}}\n{{/if}}{{/if}}",
       "variables": [
         {
           "id": "var_craft_anchor",
           "name": "craft_anchor",
           "type": "switch",
           "label": "Craft Anchor (post-history)",
-          "description": "Re-state the ACTIVE prose dials (genre, register, pacing, distance, dialogue mix, tense, tonal wash) right before generation, so they get the same recency the state block and agency reminders do. Fixes the common complaint that changing register/pacing/distance barely changes the output: those blocks live far up in pre_history, buried under the whole chat history, so the model drifts to its default voice. This echoes ONLY the non-default dials (defaults emit nothing, so a stock config costs zero tokens). Turn off to save the ~30-90 tokens if you don't change prose dials.",
+          "description": "Re-state the ACTIVE prose dials (POV, length, genre, register, pacing, distance, dialogue mix, tense, tonal wash) right before generation, so they get the same recency the state block and agency reminders do. Fixes the common complaint that changing POV/register/pacing/distance barely changes the output: those blocks live far up in pre_history, buried under the whole chat history, so the model drifts to its default voice. This echoes ONLY the non-default dials (defaults emit nothing, so a stock config costs zero tokens). Turn off to save the ~30-110 tokens if you don't change prose dials.",
           "defaultValue": 1
         }
       ]
@@ -2683,8 +2683,8 @@
         "script_id": "vellum2-card-codex",
         "name": "VELLUM II ✧ Card: Codex",
         "description": "Renders [CODEX|title|body] as an illuminated codex entry (display), and strips the raw tag from later context (prompt).",
-        "find_regex": "\\[CODEX\\|([^|\\]]*)\\|([^\\]]*)\\]",
-        "replace_string": "<div style=\"max-width:560px;margin:14px auto;border:1px solid rgba(205,168,78,.30);border-left:3px solid #cda84e;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"padding:13px 18px 5px;font-family:'Cormorant Garamond',Georgia,serif;font-size:19px;letter-spacing:.5px;color:#cda84e\">❖ $1</div><div style=\"padding:4px 18px 16px;font-size:15px;line-height:1.62\">$2</div></div>",
+        "find_regex": "\\[CODEX\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:560px;margin:14px auto;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-left:3px solid var(--vg,#cda84e);border-radius:12px;overflow:hidden;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"padding:13px 18px 5px;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:19px;letter-spacing:.5px;color:var(--vg,#cda84e)\">❖ $1</div><div style=\"padding:4px 18px 16px;font-size:15px;line-height:1.62\">$2</div></div>",
         "target": [
           "display"
         ],
@@ -2708,8 +2708,8 @@
         "script_id": "vellum2-card-letter",
         "name": "VELLUM II ✧ Card: Letter",
         "description": "Renders [LETTER|from|body] as a handwritten missive (display); raw tag stripped from context (prompt).",
-        "find_regex": "\\[LETTER\\|([^|\\]]*)\\|([^\\]]*)\\]",
-        "replace_string": "<div style=\"max-width:520px;margin:14px auto;padding:18px 20px;border:1px solid rgba(205,168,78,.30);border-radius:6px;background:linear-gradient(170deg,rgba(40,34,24,.96),rgba(30,26,19,.97));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.7;font-style:italic;color:#e8dcc0\"><div style=\"white-space:pre-wrap\">$2</div><div style=\"margin-top:12px;text-align:right;color:#cda84e;font-size:16px\">— $1</div></div>",
+        "find_regex": "\\[LETTER\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:520px;margin:14px auto;padding:18px 20px;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-radius:6px;background:linear-gradient(170deg,rgba(40,34,24,.96),rgba(30,26,19,.97));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:17px;line-height:1.7;font-style:italic;color:var(--vi,#e8dcc0)\"><div style=\"white-space:pre-wrap\">$2</div><div style=\"margin-top:12px;text-align:right;color:var(--vg,#cda84e);font-size:16px\">— $1</div></div>",
         "target": [
           "display"
         ],
@@ -2733,8 +2733,8 @@
         "script_id": "vellum2-card-decree",
         "name": "VELLUM II ✧ Card: Decree",
         "description": "Renders [DECREE|title|body] as an official proclamation (display); raw tag stripped from context (prompt).",
-        "find_regex": "\\[DECREE\\|([^|\\]]*)\\|([^\\]]*)\\]",
-        "replace_string": "<div style=\"max-width:560px;margin:14px auto;border:2px double rgba(205,168,78,.30);border-radius:4px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"padding:14px 18px 6px;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:20px;letter-spacing:2px;text-transform:uppercase;color:#cda84e\">$1</div><div style=\"height:1px;background:rgba(205,168,78,.30);margin:0 18px\"></div><div style=\"padding:12px 22px 18px;font-size:15px;line-height:1.62;text-align:center\">$2</div></div>",
+        "find_regex": "\\[DECREE\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:560px;margin:14px auto;border:2px double rgba(var(--vg-rgb,205,168,78),.30);border-radius:4px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"padding:14px 18px 6px;text-align:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:20px;letter-spacing:2px;text-transform:uppercase;color:var(--vg,#cda84e)\">$1</div><div style=\"height:1px;background:rgba(var(--vg-rgb,205,168,78),.30);margin:0 18px\"></div><div style=\"padding:12px 22px 18px;font-size:15px;line-height:1.62;text-align:center\">$2</div></div>",
         "target": [
           "display"
         ],
@@ -2758,8 +2758,8 @@
         "script_id": "vellum2-card-portrait",
         "name": "VELLUM II ✧ Card: Portrait",
         "description": "Renders [PORTRAIT|name|description] as an illuminated character plate (display); raw tag stripped from context (prompt).",
-        "find_regex": "\\[PORTRAIT\\|([^|\\]]*)\\|([^\\]]*)\\]",
-        "replace_string": "<div style=\"max-width:420px;margin:14px auto;display:flex;align-items:center;gap:14px;padding:14px 18px;border:1px solid rgba(205,168,78,.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"flex:0 0 46px;height:46px;border-radius:50%;border:1px solid #cda84e;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#cda84e\">$1</div><div><div style=\"font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;color:#cda84e\">$1</div><div style=\"font-size:14px;line-height:1.5;color:#b9ad92\">$2</div></div></div>",
+        "find_regex": "\\[PORTRAIT\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:420px;margin:14px auto;display:flex;align-items:center;gap:14px;padding:14px 18px;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"flex:0 0 46px;height:46px;border-radius:50%;border:1px solid var(--vg,#cda84e);display:flex;align-items:center;justify-content:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:22px;color:var(--vg,#cda84e)\">$1</div><div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:18px;color:var(--vg,#cda84e)\">$1</div><div style=\"font-size:14px;line-height:1.5;color:var(--vi2,#b9ad92)\">$2</div></div></div>",
         "target": [
           "display"
         ],
@@ -2783,8 +2783,8 @@
         "script_id": "vellum2-card-broadsheet",
         "name": "VELLUM II ✧ Spectacle: Broadsheet",
         "description": "Renders [BROADSHEET|body] as a period news-sheet of offscreen events (display); raw tag stripped from context (prompt).",
-        "find_regex": "\\[BROADSHEET\\|([^\\]]*)\\]",
-        "replace_string": "<div style=\"max-width:560px;margin:14px auto;padding:16px 20px;border:1px solid rgba(205,168,78,.30);border-radius:3px;background:linear-gradient(180deg,rgba(38,33,24,.97),rgba(28,24,18,.97));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;letter-spacing:3px;text-transform:uppercase;color:#cda84e;border-bottom:2px solid rgba(205,168,78,.30);padding-bottom:6px;margin-bottom:10px\">The Chronicle</div><div style=\"font-size:14px;line-height:1.6;column-gap:22px\">$1</div></div>",
+        "find_regex": "\\[BROADSHEET\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:560px;margin:14px auto;padding:16px 20px;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-radius:3px;background:linear-gradient(180deg,rgba(38,33,24,.97),rgba(28,24,18,.97));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"text-align:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:24px;letter-spacing:3px;text-transform:uppercase;color:var(--vg,#cda84e);border-bottom:2px solid rgba(var(--vg-rgb,205,168,78),.30);padding-bottom:6px;margin-bottom:10px\">The Chronicle</div><div style=\"font-size:14px;line-height:1.6;column-gap:22px\">$1</div></div>",
         "target": [
           "display"
         ],
@@ -2808,8 +2808,8 @@
         "script_id": "vellum2-card-tarot",
         "name": "VELLUM II ✧ Spectacle: Tarot",
         "description": "Renders [TAROT|card|reading] as a single drawn card (display); raw tag stripped from context (prompt).",
-        "find_regex": "\\[TAROT\\|([^|\\]]*)\\|([^\\]]*)\\]",
-        "replace_string": "<div style=\"max-width:360px;margin:14px auto;padding:16px;border:1px solid #cda84e;border-radius:14px;text-align:center;background:radial-gradient(120% 100% at 50% 0%,rgba(45,38,28,.97),rgba(22,19,14,.98));box-shadow:0 6px 22px rgba(0,0,0,.4);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"font-size:13px;letter-spacing:3px;color:#b9ad92;text-transform:uppercase\">the draw</div><div style=\"font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#cda84e;margin:6px 0 10px\">$1</div><div style=\"font-size:14px;line-height:1.6;font-style:italic\">$2</div></div>",
+        "find_regex": "\\[TAROT\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:360px;margin:14px auto;padding:16px;border:1px solid var(--vg,#cda84e);border-radius:14px;text-align:center;background:radial-gradient(120% 100% at 50% 0%,rgba(45,38,28,.97),rgba(22,19,14,.98));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"font-size:13px;letter-spacing:3px;color:var(--vi2,#b9ad92);text-transform:uppercase\">the draw</div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:22px;color:var(--vg,#cda84e);margin:6px 0 10px\">$1</div><div style=\"font-size:14px;line-height:1.6;font-style:italic\">$2</div></div>",
         "target": [
           "display"
         ],
@@ -2833,8 +2833,8 @@
         "script_id": "vellum2-card-dramatis",
         "name": "VELLUM II ✧ Spectacle: Dramatis",
         "description": "Renders [DRAMATIS|cast] as an illuminated playbill (display); raw tag stripped from context (prompt).",
-        "find_regex": "\\[DRAMATIS\\|([^\\]]*)\\]",
-        "replace_string": "<div style=\"max-width:480px;margin:14px auto;padding:16px 20px;border:1px solid rgba(205,168,78,.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:15px;letter-spacing:3px;text-transform:uppercase;color:#cda84e;margin-bottom:8px\">Dramatis Personae</div><div style=\"font-size:15px;line-height:1.7;text-align:center\">$1</div></div>",
+        "find_regex": "\\[DRAMATIS\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:480px;margin:14px auto;padding:16px 20px;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"text-align:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:15px;letter-spacing:3px;text-transform:uppercase;color:var(--vg,#cda84e);margin-bottom:8px\">Dramatis Personæ</div><div style=\"font-size:15px;line-height:1.7;text-align:center\">$1</div></div>",
         "target": [
           "display"
         ],
@@ -2857,8 +2857,8 @@
         "metadata": {},
         "script_id": "vellum2-cards-context-strip",
         "name": "VELLUM II ✧ Cards (context strip)",
-        "description": "Strips every VTK card/spectacle tag ([CODEX]/[LETTER]/[DECREE]/[PORTRAIT]/[BROADSHEET]/[TAROT]/[DRAMATIS]) from the context sent to the model on later turns. The card still renders in chat; this only keeps the tag out of the prompt.",
-        "find_regex": "\\s*\\[(?:CODEX|LETTER|DECREE|PORTRAIT|BROADSHEET|TAROT|DRAMATIS)\\|[^\\]]*\\]\\s*",
+        "description": "Strips every VTK card/spectacle tag ([CODEX]/[LETTER]/[DECREE]/[PORTRAIT]/[BROADSHEET]/[TAROT]/[DRAMATIS]/[TITLE]/[MAP]/[TEXT]/[HALO]/[ITEM]/[VERSE]) from the context sent to the model on later turns. The card still renders in chat; this only keeps the tag out of the prompt.",
+        "find_regex": "\\s*\\[(?:CODEX|LETTER|DECREE|PORTRAIT|BROADSHEET|TAROT|DRAMATIS|TITLE|MAP|TEXT|HALO|ITEM|VERSE)\\|[\\s\\S]*?\\](?=[ \\t]*(?:\\r?\\n|$))\\s*",
         "replace_string": "",
         "target": [
           "prompt"
@@ -2939,6 +2939,156 @@
         "substitute_macros": "none",
         "disabled": true,
         "sort_order": 31,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-card-title",
+        "name": "VELLUM II ✧ Card: Title",
+        "folder": "VELLUM II",
+        "description": "Renders [TITLE|heading|subheading] as an illuminated chapter-heading card (display); raw tag stripped from context (prompt).",
+        "find_regex": "\\[TITLE\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:600px;margin:22px auto;padding:22px 20px;text-align:center;border-top:1px solid rgba(var(--vg-rgb,205,168,78),.35);border-bottom:1px solid rgba(var(--vg-rgb,205,168,78),.35);font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--vi2,#b9ad92);opacity:.65;margin-bottom:6px\">❀ ❀ ❀</div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:28px;letter-spacing:1px;color:var(--vg,#cda84e)\">$1</div><div style=\"font-size:14px;font-style:italic;color:var(--vi2,#b9ad92);margin-top:6px\">$2</div></div>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 40,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-card-map",
+        "name": "VELLUM II ✧ Card: Map",
+        "folder": "VELLUM II",
+        "description": "Renders [MAP|place|description] as a gazetteer plate with a compass motif (display); raw tag stripped from context (prompt).",
+        "find_regex": "\\[MAP\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:480px;margin:14px auto;padding:16px 18px;border:1px dashed rgba(var(--vg-rgb,205,168,78),.40);border-radius:8px;background:linear-gradient(160deg,rgba(34,30,22,.95),rgba(24,21,16,.97));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0);display:flex;gap:14px;align-items:flex-start\"><div style=\"flex:0 0 34px;height:34px;border-radius:50%;border:1px solid var(--vg,#cda84e);display:flex;align-items:center;justify-content:center;color:var(--vg,#cda84e);font-size:16px;transform:rotate(45deg)\">✦</div><div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:18px;letter-spacing:.5px;color:var(--vg,#cda84e)\">$1</div><div style=\"font-size:14px;line-height:1.55;color:var(--vi2,#b9ad92);margin-top:2px\">$2</div></div></div>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 41,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-card-text",
+        "name": "VELLUM II ✧ Card: Text",
+        "folder": "VELLUM II",
+        "description": "Renders [TEXT|sender|message] as a modern SMS-style message bubble (display); raw tag stripped from context (prompt). Era-appropriate alternative to LETTER for modern/contemporary settings.",
+        "find_regex": "\\[TEXT\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:340px;margin:14px auto;font-family:system-ui,-apple-system,'Segoe UI',sans-serif\"><div style=\"font-size:11px;color:var(--vi2,#b9ad92);opacity:.7;margin-bottom:4px;padding-left:4px\">$1</div><div style=\"display:inline-block;padding:10px 14px;border-radius:16px 16px 16px 4px;background:linear-gradient(160deg,rgba(50,44,32,.95),rgba(38,33,24,.96));border:1px solid rgba(var(--vg-rgb,205,168,78),.22);box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-size:15px;line-height:1.4;color:var(--vi,#e8dcc0);white-space:pre-wrap\">$2</div></div>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 42,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-card-halo",
+        "name": "VELLUM II ✧ Card: Halo",
+        "folder": "VELLUM II",
+        "description": "Renders [HALO|sender|message] as a holographic transmission (display); raw tag stripped from context (prompt). Space-age/futuristic alternative to LETTER/TEXT.",
+        "find_regex": "\\[HALO\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:420px;margin:14px auto;padding:14px 18px;border:1px solid rgba(120,220,255,.4);border-radius:8px;background:linear-gradient(160deg,rgba(10,26,32,.92),rgba(6,16,20,.95));box-shadow:0 0 18px rgba(120,220,255,.18),var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vmono,'JetBrains Mono',ui-monospace,monospace);color:#cdf3ff\"><div style=\"font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#7adcff;opacity:.8;margin-bottom:6px\">◈ transmission · $1</div><div style=\"font-size:14px;line-height:1.6;text-shadow:0 0 6px rgba(120,220,255,.35)\">$2</div></div>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 43,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-card-item",
+        "name": "VELLUM II ✧ Card: Item",
+        "folder": "VELLUM II",
+        "description": "Renders [ITEM|name|description] as an inventory plate with corner brackets (display); raw tag stripped from context (prompt).",
+        "find_regex": "\\[ITEM\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:380px;margin:14px auto;padding:14px 16px;position:relative;border:1px solid rgba(var(--vg-rgb,205,168,78),.28);border-radius:6px;background:linear-gradient(160deg,rgba(28,25,19,.96),rgba(20,18,14,.97));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"position:absolute;top:4px;left:4px;width:8px;height:8px;border-top:1px solid var(--vg,#cda84e);border-left:1px solid var(--vg,#cda84e)\"></div><div style=\"position:absolute;bottom:4px;right:4px;width:8px;height:8px;border-bottom:1px solid var(--vg,#cda84e);border-right:1px solid var(--vg,#cda84e)\"></div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:17px;color:var(--vg,#cda84e);letter-spacing:.5px\">$1</div><div style=\"font-size:14px;line-height:1.5;color:var(--vi2,#b9ad92);margin-top:4px\">$2</div></div>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 44,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-card-verse",
+        "name": "VELLUM II ✧ Card: Verse",
+        "folder": "VELLUM II",
+        "description": "Renders [VERSE|title|body] as a poem or song lyric plate (display); raw tag stripped from context (prompt).",
+        "find_regex": "\\[VERSE\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+        "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:440px;margin:16px auto;padding:16px 22px;text-align:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--vi2,#b9ad92);opacity:.7;margin-bottom:8px\">$1</div><div style=\"font-size:16px;font-style:italic;line-height:1.9;white-space:pre-wrap\">$2</div><div style=\"margin-top:8px;color:var(--vg,#cda84e);opacity:.6;font-size:13px\">❀</div></div>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 45,
         "metadata": {}
       }
     ]
