@@ -276,6 +276,46 @@
               "id": "comedy",
               "label": "Comedy",
               "value": "COMEDY - timing, escalation, the deflating turn. Salience: incongruity, the gap between dignity and reality, misunderstanding compounding, the perfect wrong moment. Pacing: setup -> escalation -> payoff/deflation; let a bit build then puncture it. Promise the laugh through situation and character, not winking at the reader."
+            },
+            {
+              "id": "drama",
+              "label": "Drama / Literary",
+              "value": "LITERARY / DRAMA - character and theme ARE the plot. Salience: interior contradiction, the moral gray, the telling detail, meaning accreting under the surface; the ordinary choice that reveals a whole life. Pacing: slow pressure, the quiet turn that reframes what came before. Promise resonance, not resolution - earn the ending, never tie it in a bow, never manufacture a crisis the characters wouldn't."
+            },
+            {
+              "id": "tragedy",
+              "label": "Tragedy",
+              "value": "TRAGEDY - the fall is structural and the reader sees it before the character does. Salience: the flaw that drives the choice, the fatal decision dressed as the reasonable one, the irony of knowledge withheld from the one who needs it most. Pacing: inevitability tightening; each beat quietly closes an exit. Promise catharsis, not rescue - the doom is earned by character, never arbitrary, and the near-miss makes it worse, not safe."
+            },
+            {
+              "id": "noir",
+              "label": "Noir",
+              "value": "NOIR - a corrupt world and a compromised eye; no clean hands. Salience: moral rot under the surface, the seductive wrong choice, atmosphere as fate, the favor that becomes a debt. Pacing: descent, not ascent - the win that costs more than the loss, the truth that ruins whoever finds it. Promise mood and consequence; never a hero who stays clean, never a light at the end that isn't paid for."
+            },
+            {
+              "id": "coming_of_age",
+              "label": "Coming-of-Age",
+              "value": "COMING-OF-AGE - the self before and after a threshold. Salience: the first real loss of innocence, the gap between the child's certainties and the world's answer, the mentor who disappoints, the choice that can't be taken back. Pacing: accumulating small initiations toward one irreversible turn. Promise change that costs something - never a lesson handed over cleanly, never growth without a scar."
+            },
+            {
+              "id": "political",
+              "label": "Political / Intrigue",
+              "value": "POLITICAL / INTRIGUE - power is the plot and information is the currency. Salience: factions and their true aims, leverage and debt, the public word against the private one, who benefits, the alliance that is also a knife. Pacing: maneuver and counter-maneuver; the reveal that recolors an earlier scene. Promise that schemes have logic and cost - never a plot that only works because someone acts stupidly, never a betrayal without a motive."
+            },
+            {
+              "id": "western",
+              "label": "Western",
+              "value": "WESTERN - the frontier where law is thin and the code fills the gap. Salience: land and distance, the personal reckoning, violence and its price, the individual against encroaching order, what a person owes and to whom. Pacing: stillness and heat, then the sudden decisive act. Promise consequence for the gun and weight to the code - never bloodless violence, never a myth that costs the teller nothing."
+            },
+            {
+              "id": "wuxia",
+              "label": "Wuxia",
+              "value": "WUXIA - martial honor in the jianghu; power is mastered skill, not magic. Salience: the code (loyalty, vengeance, righteousness outside the law), sect and master-disciple bonds, the blood debt, the duel as moral argument. Pacing: stillness then decisive violence; the confrontation earned through obligation. Promise honor tested at real cost - render the martial feats concretely and physically, never as generic action, never as sorcery."
+            },
+            {
+              "id": "xianxia",
+              "label": "Xianxia",
+              "value": "XIANXIA - the long cultivation climb toward immortality. Salience: qi refinement and hard-won breakthroughs, spirit herbs and alchemy, tribulation and karma, defying heaven, the mortal against a celestial hierarchy that does not care. Pacing: patient ascent punctuated by trial; each gain paid for in years, blood, or bond. Promise progression that COSTS - never a power-up without a price, never enlightenment handed over cheap."
             }
           ]
         },
@@ -456,6 +496,46 @@
               "id": "comedy",
               "label": "Comedy",
               "value": "COMEDY - timing, escalation, the deflating turn. Salience: incongruity, the gap between dignity and reality, misunderstanding compounding, the perfect wrong moment. Pacing: setup -> escalation -> payoff/deflation; let a bit build then puncture it. Promise the laugh through situation and character, not winking at the reader."
+            },
+            {
+              "id": "drama",
+              "label": "Drama / Literary",
+              "value": "LITERARY / DRAMA - character and theme ARE the plot. Salience: interior contradiction, the moral gray, the telling detail, meaning accreting under the surface; the ordinary choice that reveals a whole life. Pacing: slow pressure, the quiet turn that reframes what came before. Promise resonance, not resolution - earn the ending, never tie it in a bow, never manufacture a crisis the characters wouldn't."
+            },
+            {
+              "id": "tragedy",
+              "label": "Tragedy",
+              "value": "TRAGEDY - the fall is structural and the reader sees it before the character does. Salience: the flaw that drives the choice, the fatal decision dressed as the reasonable one, the irony of knowledge withheld from the one who needs it most. Pacing: inevitability tightening; each beat quietly closes an exit. Promise catharsis, not rescue - the doom is earned by character, never arbitrary, and the near-miss makes it worse, not safe."
+            },
+            {
+              "id": "noir",
+              "label": "Noir",
+              "value": "NOIR - a corrupt world and a compromised eye; no clean hands. Salience: moral rot under the surface, the seductive wrong choice, atmosphere as fate, the favor that becomes a debt. Pacing: descent, not ascent - the win that costs more than the loss, the truth that ruins whoever finds it. Promise mood and consequence; never a hero who stays clean, never a light at the end that isn't paid for."
+            },
+            {
+              "id": "coming_of_age",
+              "label": "Coming-of-Age",
+              "value": "COMING-OF-AGE - the self before and after a threshold. Salience: the first real loss of innocence, the gap between the child's certainties and the world's answer, the mentor who disappoints, the choice that can't be taken back. Pacing: accumulating small initiations toward one irreversible turn. Promise change that costs something - never a lesson handed over cleanly, never growth without a scar."
+            },
+            {
+              "id": "political",
+              "label": "Political / Intrigue",
+              "value": "POLITICAL / INTRIGUE - power is the plot and information is the currency. Salience: factions and their true aims, leverage and debt, the public word against the private one, who benefits, the alliance that is also a knife. Pacing: maneuver and counter-maneuver; the reveal that recolors an earlier scene. Promise that schemes have logic and cost - never a plot that only works because someone acts stupidly, never a betrayal without a motive."
+            },
+            {
+              "id": "western",
+              "label": "Western",
+              "value": "WESTERN - the frontier where law is thin and the code fills the gap. Salience: land and distance, the personal reckoning, violence and its price, the individual against encroaching order, what a person owes and to whom. Pacing: stillness and heat, then the sudden decisive act. Promise consequence for the gun and weight to the code - never bloodless violence, never a myth that costs the teller nothing."
+            },
+            {
+              "id": "wuxia",
+              "label": "Wuxia",
+              "value": "WUXIA - martial honor in the jianghu; power is mastered skill, not magic. Salience: the code (loyalty, vengeance, righteousness outside the law), sect and master-disciple bonds, the blood debt, the duel as moral argument. Pacing: stillness then decisive violence; the confrontation earned through obligation. Promise honor tested at real cost - render the martial feats concretely and physically, never as generic action, never as sorcery."
+            },
+            {
+              "id": "xianxia",
+              "label": "Xianxia",
+              "value": "XIANXIA - the long cultivation climb toward immortality. Salience: qi refinement and hard-won breakthroughs, spirit herbs and alchemy, tribulation and karma, defying heaven, the mortal against a celestial hierarchy that does not care. Pacing: patient ascent punctuated by trial; each gain paid for in years, blood, or bond. Promise progression that COSTS - never a power-up without a price, never enlightenment handed over cheap."
             }
           ]
         }
