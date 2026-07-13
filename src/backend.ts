@@ -1,7 +1,7 @@
 import { VELLUM_VERSION } from './version.js';
 import { restoreUser, rememberUser, currentUser, requireUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar, invalidateChatVars } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar, invalidateChatVars, getRawMessages, activeContent } from './host/chats.js';
 import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logHasKind, truncateAfterTurn, turnSigs, turnDays, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -23,7 +23,9 @@ import { agingInjection } from './domain/aging.js';
 import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
+import { repairStateBlock, buildRepairContext } from './bus/block-repair.js';
 import { stripScaffold } from './parse/state-block.js';
+import { validateTurnStructure, missingBlockMessage, looksLikeVellumTurn } from './host/validation.js';
 import { controllerGenerate, invalidateConnCache, withTimeout, defaultConnectionId } from './host/generation.js';
 import { stampPresetMetadata } from './host/presets.js';
 import type { CallModel } from './retrieval/traverse.js';
@@ -114,6 +116,12 @@ declare const spindle: any;
 registerFeature(coreFeature);
 
 const lastSigByChat = new Map<string, string>();
+// Per-chat guard so the "only one block" warning toasts at most once per turn
+// number (a regenerate of the same turn can re-warn; steady folding does not spam).
+const _blockWarnByChat = new Map<string, number>();
+// Block-repair guard: keyed by `chatId\0messageId`, capped at one repair attempt
+// per unique message so the chained re-fold can never re-enter repair.
+const _blockRepairAttempts = new Set<string>();
 // Consecutive deep-extractor failures; emit one diagnostic toast at the threshold
 // then reset so a persistently broken generation connection is visible, not silent.
 let _extractFails = 0;
@@ -140,7 +148,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -156,6 +164,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     readCalendar(chatId),
     readTheme(),
     readPrefs(),
+    getChatVar(chatId, 'vellum_autoretry_block').catch(() => ''),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
@@ -163,7 +172,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const traversalMode = travOn ? (travModeRaw === 'tree' ? 'tree' : 'flat') : 'off';
   const theme = themeRaw ?? null;
   const prefs = prefsRaw ?? null;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs }, userId ?? currentUser());
+  const autoRetryBlock = !!autoRetryRaw;
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -401,6 +411,9 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   }
   let added = 0;
   const foldedEvents: VellumEvent[] = []; // accumulate for Plot Director self-clear
+  // Track the latest turn's raw content + parse source for post-loop block validation.
+  let _latestContent = '';
+  let _latestSource: 'json' | 'json-partial' | 'regex' | 'none' = 'none';
   // PASS 1 (fast, no LLM) queues each folded turn's prose for the deep extractor,
   // which runs in PASS 2 AFTER an early broadcast — so the scene/cast/relations/
   // mood the <vellum> block already established reach the "Now" window immediately
@@ -415,6 +428,9 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     if (!content) continue;
     const dayCap = priorTurnDays?.get(turnNo);
     const { events, source, sig, dropped } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, ...(dayCap !== undefined ? { dayCap } : {}) });
+    // remember the newest turn's raw content + parse verdict for the block-
+    // structure check below (the "only one block" warning).
+    if (turnNo === msgs.length) { _latestContent = content; _latestSource = source; }
     const evs: VellumEvent[] = [...events];
     // reuse foldTurn's already-computed content signature (same hashStr of the
     // first 4000 chars) instead of recomputing sigOf(content) here.
@@ -442,6 +458,60 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     }
   }
   if (!added) return;
+  // BLOCK REPAIR (Option C) — opt-in auto-recovery of a dropped <vellum> block.
+  // When the NEWEST turn folded with source 'none' (the parser recovered no state
+  // at all) and the reply still looks like a VELLUM turn, transcribe its prose
+  // into a valid block with ONE bounded LLM call, append it to the stored message,
+  // and re-fold via the reconcile path so the block lands the canonical way.
+  // Runs BEFORE the early broadcast / PASS-2 so we don't broadcast the block-less
+  // state and run PASS-2 only to immediately discard it on the re-fold. Gated,
+  // newest-turn-only, capped at ONE attempt per message; a failure falls through
+  // to the existing PASS-2 safety net unchanged.
+  if (_latestSource === 'none' && _latestContent && looksLikeVellumTurn(_latestContent)) {
+    let autoretry = false;
+    try { autoretry = !!(await getChatVar(chatId, 'vellum_autoretry_block')); } catch { /* best effort */ }
+    if (autoretry && (await has('generation'))) {
+      try {
+        // newest assistant message: the one to append the recovered block to.
+        const raw = await getRawMessages(chatId);
+        let asst: any = null;
+        for (let i = raw.length - 1; i >= 0; i--) { if (raw[i]?.role === 'assistant') { asst = raw[i]; break; } }
+        const msgId = asst?.id ? String(asst.id) : '';
+        const guardKey = chatId + '\u0000' + msgId;
+        if (msgId && !_blockRepairAttempts.has(guardKey)) {
+          _blockRepairAttempts.add(guardKey); // cap at ONE attempt per message (success or fail)
+          const asstContent = activeContent(asst);
+          // Tell the user WHY the tracker paused: the block is missing and we're
+          // actively recovering it. This replaces the generic "missing block"
+          // validation warning below (suppressed while repair is on) so the user
+          // sees a single, honest, in-progress message instead of a scary error.
+          try { spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'info', msg: 'VELLUM: the state block is missing from this reply \u2014 recovering it from the prose\u2026' }, userId ?? currentUser()); } catch { /* best effort */ }
+          // feed the extractor the PROSE only (strip any reverie prefix / partial
+          // block), so it transcribes the narrative rather than echoing scaffold.
+          const prose = stripScaffold(asstContent);
+          const ctxHeader = buildRepairContext(prior, msgs.length);
+          const repaired = await repairStateBlock(prose, ctxHeader, userId);
+          if (repaired && spindle.chat?.updateMessage) {
+            // content-only patch: mirrors into the active swipe, emits MESSAGE_EDITED
+            // only (NOT a fold trigger), so this cannot auto-loop.
+            await spindle.chat.updateMessage(chatId, msgId, { content: asstContent + '\n\n' + repaired.block });
+            spindle.log?.info?.(`[vellum_engine] block-repair: recovered a <vellum> block for turn ${msgs.length} (${repaired.source}); re-folding.`);
+            try { spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'success', msg: 'VELLUM: recovered the missing state block and updated the chronicle.' }, userId ?? currentUser()); } catch { /* best effort */ }
+            // re-fold: divergedTurn sees the changed signature, rolls back the
+            // block-less turn, and re-folds it with the block present (source json).
+            void foldChat(chatId, userId);
+            return;
+          }
+          // Repair attempted but produced no usable block — tell the user it
+          // fell back, then let PASS-2 prose extraction (below) do its best.
+          spindle.log?.info?.(`[vellum_engine] block-repair: no valid block recovered for turn ${msgs.length}; falling back to prose extraction.`);
+          try { spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: 'VELLUM: could not rebuild the missing state block \u2014 recovering what it can from the prose. Consider regenerating.' }, userId ?? currentUser()); } catch { /* best effort */ }
+          // suppress the generic validation warning below (we already spoke).
+          _blockWarnByChat.set(chatId, msgs.length);
+        }
+      } catch (e) { spindle.log?.warn?.('[vellum_engine] block-repair: ' + ((e as Error)?.message ?? e)); }
+    }
+  }
   // A deep (LLM) extraction pass follows only if we queued gists AND the
   // generation permission is granted; otherwise phase 1 is the whole update.
   const willExtract = extractQueue.length > 0 && (await has('generation'));
@@ -457,6 +527,40 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   // progress toast, phase 1 of N: the live scene is in. When a deep pass follows,
   // this reads "… (1/2)"; when it doesn't, the frontend shows a single done toast.
   spindle.sendToFrontend?.({ type: 'vellum_fold_progress', chatId, phase: 1, total: foldTotal }, userId ?? currentUser());
+  // BLOCK-STRUCTURE VALIDATION: warn when the latest turn looks like a VELLUM
+  // reply but is missing one of the two scaffold blocks. Self-gates on tag
+  // presence so plain (non-VELLUM) chats never false-positive. Throttled to one
+  // warning per unique turn (the _blockWarnByChat map stores the last warned
+  // msgs.length); a regenerate of the same turn re-warns, steady folding doesn't
+  // spam. Only the state-missing case is 'error' (chronicle didn't advance); the
+  // reverie-missing case is 'warning' (harmless on reasoning models).
+  try {
+    if (_latestContent && looksLikeVellumTurn(_latestContent)) {
+      const lastWarnAt = _blockWarnByChat.get(chatId) ?? -1;
+      if (lastWarnAt !== msgs.length) {
+        // The backend can't read the preset's reverie/state_on toggles, so we
+        // infer intent conservatively to avoid false positives:
+        //  - state is ALWAYS expected once a turn looks like VELLUM (the ledger
+        //    must advance) → catches the damaging "reverie only, no state" bug.
+        //  - reverie is expected ONLY when its tag is actually present — a turn
+        //    with state but no reverie is a VALID state-only config (reverie
+        //    toggle off) OR a reasoning model planning in a hidden channel, both
+        //    harmless, so we never flag a missing reverie.
+        const vr = validateTurnStructure(
+          _latestContent,
+          { reverie: false, state: true },
+          _latestSource,
+        );
+        const msg = missingBlockMessage(vr);
+        if (msg) {
+          _blockWarnByChat.set(chatId, msgs.length);
+          const level = vr.missing.includes('state') ? 'warning' : 'info';
+          spindle.sendToFrontend?.({ type: 'vellum_toast', level, msg }, userId ?? currentUser());
+          spindle.log?.warn?.('[vellum_engine] block validation: ' + msg);
+        }
+      }
+    }
+  } catch { /* validation is best-effort — never throw into the fold */ }
   // PASS 2 (slow, LLM): prose-driven extraction — knowledge / secrets / journal /
   // bonds (incl. the player) the model didn't hand-write in a <vellum> block. When
   // a turn had NO parseable block, this is the SAFETY NET: the schema-guaranteed
@@ -581,7 +685,7 @@ async function stampCompanionPreset(chatId: string, userId: string | null): Prom
     // take the user's first/default preset as the companion candidate. This is a
     // best-effort heuristic — ideally the host would tell us which preset is active,
     // but that's not in the context object. We stamp the first preset we find.
-    const { data } = await spindle.presets.list({ limit: 50 }, uid);
+    const { data } = await spindle.presets.list({ limit: 50, ...(uid ? { userId: uid } : {}) });
     if (!Array.isArray(data) || !data.length) return;
     // Prefer a preset already marked with vellum_engine metadata
     let preset = data.find((p: any) => p?.metadata?.vellum_engine);
@@ -1290,6 +1394,10 @@ function pruneChatState(chatId: string): void {
   _summarizing.delete(chatId);
   _treeCache.delete(chatId);
   _precomputing.delete(chatId);
+  _blockWarnByChat.delete(chatId);
+  // clear this chat's block-repair attempt keys (keyed by chatId\0messageId)
+  const rp = chatId + '\u0000';
+  for (const k of _blockRepairAttempts) if (k.startsWith(rp)) _blockRepairAttempts.delete(k);
 }
 
 // The chat we last saw active, so a CHAT_SWITCHED (which only carries the new
@@ -2305,6 +2413,16 @@ const dispatch: Record<string, Handler> = {
     // for the cadence gate (every Nth turn). Off the response path.
     if (enabled) void simulateOffscreen(chatId, uid);
   },
+  vellum_set_autoretry: async (p, uid) => {
+    // toggle block auto-repair; persist in a chat var. Costs ONE extra generation
+    // per turn that drops its <vellum> block, so it's opt-in and gated on the
+    // generation perm (mirrors the off-screen/tidy toggles).
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const enabled = !!p?.enabled;
+    try { await setChatVar(chatId, 'vellum_autoretry_block', enabled ? '1' : ''); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_autoretry_set_done', ok: true, enabled, available: await has('generation') }, uid);
+  },
   vellum_set_living_clock: async (p, uid) => {
     // toggle the Living Clock: on a detected time-skip, inject advisory decay for
     // time-sensitive state (wounds, plants, distant beats, aging). Off by default;
@@ -2476,6 +2594,89 @@ const dispatch: Record<string, Handler> = {
       model,
       extractOk,
     }, uid ?? currentUser());
+  },
+
+  /** Mobile fallback: resolve the IN-USE preset + its blocks backend-side so the
+   *  Actions -> "Preset editor" modal shows the same link/health/budget features
+   *  the desktop host tab does. On desktop the tab reads ctx.ui.presetEditor
+   *  .getState() (the preset OPEN in the editor); that host API is ABSENT on
+   *  mobile, so we must resolve the preset ourselves. Resolution order, best
+   *  first: (1) the active connection's preset_id — the preset actually driving
+   *  generation, which is what the user means by "my preset"; (2) any preset
+   *  carrying vellum_engine link metadata; (3) the sole preset if there's only
+   *  one; (4) the first. Returns { id, name, metadata, blocks } for the shared
+   *  panel builder. Requires `presets`. */
+  vellum_preset_panel_open: async (_p, uid) => {
+    // The modal gets BOTH the resolved active preset (for health/budget) AND a
+    // roster of every preset (id, name, linked) so a Link/Unlink control is
+    // ALWAYS available — even when auto-resolution finds nothing, the user can
+    // pick any preset and link it. Desktop reads the open editor draft instead,
+    // so `presets` is mobile-only extra data the desktop tab ignores.
+    const send = (preset: unknown, presets: unknown[] = []) => spindle.sendToFrontend?.({ type: 'vellum_preset_panel', preset, presets }, uid ?? currentUser());
+    if (!(await has('presets')) || !spindle.presets?.get) { send(null); return; }
+    try {
+      // Roster of all presets (best-effort) — powers the always-present picker.
+      let all: any[] = [];
+      if (spindle.presets?.list) {
+        try { const r = await spindle.presets.list({ limit: 100, ...(uid ? { userId: uid } : {}) }); if (Array.isArray(r?.data)) all = r.data; } catch { /* list optional */ }
+      }
+      const roster = all.map((x: any) => ({
+        id: x?.id,
+        name: x?.name ?? x?.id,
+        linked: x?.metadata?.vellum_engine?.identifier === 'vellum_engine',
+      })).filter((x: any) => x.id);
+      // AUTHORITATIVE LINKED-STATE: presets.list() metadata can be stale or
+      // summarized (list-vs-get divergence), so a freshly-linked preset can read
+      // linked:false in the roster even though get() shows it linked — that's the
+      // "linked in the tab, not in the modal" bug. Re-fetch each roster entry via
+      // presets.get (authoritative, same source the desktop draft reflects) and
+      // trust its metadata. Bounded to a sane cap so a huge preset library can't
+      // storm the host; beyond it we keep the list flag.
+      if (spindle.presets?.get && roster.length) {
+        const CAP = 40;
+        await Promise.all(roster.slice(0, CAP).map(async (r: any) => {
+          try {
+            const full = await spindle.presets.get(r.id, uid);
+            if (full) r.linked = full?.metadata?.vellum_engine?.identifier === 'vellum_engine';
+          } catch { /* keep the list-derived flag on a failed refetch */ }
+        }));
+      }
+
+      // (1) the active connection's bound preset — the one actually in use. This
+      // is the mobile equivalent of "the preset the editor has open" and is the
+      // single most important fix: list[0] was almost never the right preset.
+      let preset: any = null;
+      try {
+        const connId = await defaultConnectionId(uid);
+        if (connId && spindle.connections?.get) {
+          const conn = await spindle.connections.get(connId, uid);
+          const pid = conn?.preset_id;
+          if (pid) preset = await spindle.presets.get(pid, uid);
+        }
+      } catch { /* connection/preset lookup best-effort — fall through to list */ }
+
+      // (2/3/4) fall back to the preset list: a linked companion, else (if only
+      // one exists) that one, else the first.
+      if (!preset?.id && all.length) {
+        preset = all.find((x: any) => x?.metadata?.vellum_engine?.identifier === 'vellum_engine')
+          ?? (all.length === 1 ? all[0] : null)
+          ?? all[0];
+      }
+      if (!preset?.id) { send(null, roster); return; }
+
+      // Blocks power the health-check + prompt-budget features. UserPresetDTO
+      // carries them as `prompt_order` (not `blocks`); pull them explicitly when
+      // neither field is already populated.
+      let blocks: unknown[] = Array.isArray(preset.blocks) ? preset.blocks
+        : Array.isArray(preset.prompt_order) ? preset.prompt_order : [];
+      if (!blocks.length && spindle.presets?.blocks?.list) {
+        try { const b = await spindle.presets.blocks.list(preset.id, uid); if (Array.isArray(b)) blocks = b; } catch { /* blocks optional */ }
+      }
+      send({ id: preset.id, name: preset.name ?? preset.id, metadata: preset.metadata ?? {}, blocks }, roster);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] preset_panel_open: ' + ((e as Error)?.message ?? e));
+      send(null);
+    }
   },
 };
 

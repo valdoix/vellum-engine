@@ -1,6 +1,6 @@
 {
   "name": "vellum-engine",
-  "version": "2.1.0-beta.1",
+  "version": "2.1.0-beta.2",
   "description": "VELLUM II (Palimpsest) — a living-narrative engine for Lumiverse: event-log chronicle, hybrid recall, dramatic-irony knowledge model, and an illuminated UI.",
   "license": "AGPL-3.0-only",
   "private": true,

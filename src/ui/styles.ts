@@ -2140,6 +2140,11 @@ export const STYLES = [
   ".vle-pt-rail-item{font-size:10px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 75%,transparent);padding:4px 0;border-bottom:1px dashed color-mix(in srgb,var(--vg,#d4af37) 15%,transparent)}",
   ".vle-pt-rail-item:last-child{border-bottom:none}",
   ".vle-pt-canvas{display:flex;flex-direction:column;gap:14px;min-width:0}",
+  // Mobile-fallback modal host: force single column + drop the sticky rail (the
+  // modal body is its own scroll container, so sticky-to-viewport misbehaves).
+  "[data-pp-host] .vle-pt-root{grid-template-columns:1fr;padding:14px}",
+  "[data-pp-host] .vle-pt-rail{position:static;flex-direction:row;flex-wrap:wrap;gap:4px 12px;align-items:baseline}",
+  "[data-pp-host] .vle-pt-rail-item{border-bottom:none;padding:2px 0}",
   ".vle-pt-cat{flex:0 0 96px;font-size:10px;text-transform:uppercase;letter-spacing:0.4px;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
   ".vle-pt-bar{flex:0 0 76px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:11px;color:var(--vg,#d4af37);letter-spacing:0;white-space:nowrap}",
   ".vle-pt-tok{margin-left:auto;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:10px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 75%,transparent);white-space:nowrap}",
@@ -2159,6 +2164,8 @@ export const STYLES = [
   ".vle-pt-btn{background:color-mix(in srgb,var(--vg,#d4af37) 12%,transparent);border:1px solid color-mix(in srgb,var(--vg,#d4af37) 30%,transparent);color:var(--lumiverse-text,#cdbfa0);border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;transition:all 0.15s;margin-top:4px}",
   ".vle-pt-btn:hover{background:color-mix(in srgb,var(--vg,#d4af37) 20%,transparent);border-color:var(--vg,#d4af37)}",
   ".vle-pt-btn:active{transform:translateY(1px)}",
+  ".vle-pt-select{width:100%;background:color-mix(in srgb,var(--vg,#d4af37) 8%,transparent);border:1px solid color-mix(in srgb,var(--vg,#d4af37) 30%,transparent);color:var(--lumiverse-text,#cdbfa0);border-radius:4px;padding:5px 8px;font-size:11px;cursor:pointer;margin-top:2px}",
+  ".vle-pt-select:hover{border-color:var(--vg,#d4af37)}",
   ".vle-pt-line{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 80%,transparent)}",
   ".vle-pt-line strong{color:var(--lumiverse-text,#cdbfa0);font-weight:600}",
   ".vle-pt-preview{background:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 4%,transparent);border:1px solid color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 15%,transparent);border-radius:4px;padding:8px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:10px;line-height:1.4;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 85%,transparent);max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;margin-top:6px}",
