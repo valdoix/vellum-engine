@@ -2155,6 +2155,8 @@ export const STYLES = [
   ".vle-pt-sec{background:color-mix(in srgb,var(--vg,#d4af37) 6%,transparent);border-left:2px solid color-mix(in srgb,var(--vg,#d4af37) 40%,transparent);border-radius:4px;padding:10px;display:flex;flex-direction:column;gap:8px}",
   ".vle-pt-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--vg,#d4af37);opacity:0.9}",
   ".vle-pt-badge{display:flex;align-items:center;gap:6px;font-size:12px}",
+  ".vle-pt-toolbar{display:flex;align-items:center;gap:8px;padding:2px 0}",
+  ".vle-pt-toolbar .vle-pt-btn{margin-top:0}",
   ".vle-pt-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}",
   ".vle-pt-dot.linked{background:var(--v-ok,#90ee90)}",
   ".vle-pt-dot.unlinked{background:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 30%,transparent)}",
