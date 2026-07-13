@@ -323,6 +323,15 @@ function presetPanelInner(d: PresetPanelData): string {
   let f1: string;
   if (Array.isArray(d.presets) && d.presets.length) {
     const roster = d.presets;
+    // AUTHORITATIVE OVERLAY: the resolved preset (d.preset) came from presets.get
+    // and carries fresh metadata; its roster row may still read stale linked:false
+    // if presets.list lagged and the backend refetch was capped. Trust the resolved
+    // preset's own metadata for its row so a just-linked preset shows linked here
+    // exactly as it does in the desktop tab.
+    if (presetId) {
+      const row = roster.find((x) => x.id === presetId);
+      if (row) row.linked = isLinked;
+    }
     const selId = roster.some((x) => x.id === presetId) ? presetId
       : (roster.find((x) => x.linked)?.id ?? roster[0]!.id);
     const sel = roster.find((x) => x.id === selId) ?? roster[0]!;

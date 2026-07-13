@@ -2625,6 +2625,22 @@ const dispatch: Record<string, Handler> = {
         name: x?.name ?? x?.id,
         linked: x?.metadata?.vellum_engine?.identifier === 'vellum_engine',
       })).filter((x: any) => x.id);
+      // AUTHORITATIVE LINKED-STATE: presets.list() metadata can be stale or
+      // summarized (list-vs-get divergence), so a freshly-linked preset can read
+      // linked:false in the roster even though get() shows it linked — that's the
+      // "linked in the tab, not in the modal" bug. Re-fetch each roster entry via
+      // presets.get (authoritative, same source the desktop draft reflects) and
+      // trust its metadata. Bounded to a sane cap so a huge preset library can't
+      // storm the host; beyond it we keep the list flag.
+      if (spindle.presets?.get && roster.length) {
+        const CAP = 40;
+        await Promise.all(roster.slice(0, CAP).map(async (r: any) => {
+          try {
+            const full = await spindle.presets.get(r.id, uid);
+            if (full) r.linked = full?.metadata?.vellum_engine?.identifier === 'vellum_engine';
+          } catch { /* keep the list-derived flag on a failed refetch */ }
+        }));
+      }
 
       // (1) the active connection's bound preset — the one actually in use. This
       // is the mobile equivalent of "the preset the editor has open" and is the
