@@ -2468,6 +2468,56 @@
         "metadata": {}
       },
       {
+        "script_id": "vellum2-state-card-graphite",
+        "name": "VELLUM II ✧ State Block — Graphite theme (display)",
+        "folder": "VELLUM II",
+        "description": "Graphite-theme variant of the <vellum> state card: machined charcoal panel, steel-blue accent, squared corners, sans header + mono body — matches the Graphite chrome. Disabled by default. Enable this + the Graphite Reverie card and DISABLE the Default 'State Block (display)' / 'Reverie (display)' so only one styling matches per block.",
+        "find_regex": "(?:‹vellum›|<vellum>|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:‹\\/vellum›|<\\/vellum>|\\[\\/VELLUM\\]|```)",
+        "replace_string": "<style>.v2sG{max-width:780px;margin:12px auto;font-family:ui-monospace,'JetBrains Mono',Consolas,monospace}.v2sG-card{border:1px solid rgba(91,143,176,.28);border-left:3px solid #5b8fb0;border-radius:4px;overflow:hidden;background:linear-gradient(160deg,rgba(48,53,58,.95),rgba(30,33,38,.97))}.v2sG-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:#d4dce4}.v2sG-card>summary::-webkit-details-marker{display:none}.v2sG-card>summary::before{content:'▤ ';color:#5b8fb0}.v2sG-in{padding:6px 16px 14px;font-size:11px;line-height:1.55;color:#8a9eb2;white-space:pre-wrap;word-break:break-word;border-top:1px solid rgba(91,143,176,.16)}</style><details class='v2sG v2sG-card'><summary>State — the engine’s ledger</summary><div class='v2sG-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 36,
+        "metadata": {}
+      },
+      {
+        "script_id": "vellum2-reverie-card-graphite",
+        "name": "VELLUM II ✧ Reverie — Graphite theme (display)",
+        "folder": "VELLUM II",
+        "description": "Graphite-theme variant of the <reverie> planning card: machined charcoal panel, muted slate accent, squared corners, sans header + mono body — matches the Graphite chrome. Disabled by default. Enable alongside the Graphite State card and disable the Default pair.",
+        "find_regex": "(?:<reverie>)?([\\s\\S]*?)<\\/\\s*rever[a-z]*\\s*>",
+        "replace_string": "<style>.v2rG{max-width:780px;margin:12px auto;font-family:ui-monospace,'JetBrains Mono',Consolas,monospace}.v2rG-card{border:1px solid rgba(122,148,174,.26);border-left:3px solid #7a94ae;border-radius:4px;overflow:hidden;background:linear-gradient(160deg,rgba(42,46,51,.95),rgba(30,33,38,.97))}.v2rG-card>summary{cursor:pointer;list-style:none;padding:9px 15px;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:#cdd6df}.v2rG-card>summary::-webkit-details-marker{display:none}.v2rG-card>summary::before{content:'❖ ';color:#7a94ae}.v2rG-in{padding:6px 16px 14px;font-size:11.5px;line-height:1.6;color:#8a9eb2;white-space:pre-wrap;border-top:1px solid rgba(122,148,174,.16)}</style><details class='v2rG v2rG-card'><summary>Reverie — the writer’s notebook</summary><div class='v2rG-in'>$1</div></details>",
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "target": [
+          "display"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": true,
+        "sort_order": 37,
+        "metadata": {}
+      },
+      {
         "script_id": "vellum2-vtk-context-strip",
         "name": "VELLUM II ✧ Visual Toolkit (context strip)",
         "folder": "VELLUM II",

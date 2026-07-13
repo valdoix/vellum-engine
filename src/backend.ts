@@ -481,6 +481,11 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
         if (msgId && !_blockRepairAttempts.has(guardKey)) {
           _blockRepairAttempts.add(guardKey); // cap at ONE attempt per message (success or fail)
           const asstContent = activeContent(asst);
+          // Tell the user WHY the tracker paused: the block is missing and we're
+          // actively recovering it. This replaces the generic "missing block"
+          // validation warning below (suppressed while repair is on) so the user
+          // sees a single, honest, in-progress message instead of a scary error.
+          try { spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'info', msg: 'VELLUM: the state block is missing from this reply \u2014 recovering it from the prose\u2026' }, userId ?? currentUser()); } catch { /* best effort */ }
           // feed the extractor the PROSE only (strip any reverie prefix / partial
           // block), so it transcribes the narrative rather than echoing scaffold.
           const prose = stripScaffold(asstContent);
@@ -491,13 +496,18 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
             // only (NOT a fold trigger), so this cannot auto-loop.
             await spindle.chat.updateMessage(chatId, msgId, { content: asstContent + '\n\n' + repaired.block });
             spindle.log?.info?.(`[vellum_engine] block-repair: recovered a <vellum> block for turn ${msgs.length} (${repaired.source}); re-folding.`);
-            try { spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'info', msg: 'VELLUM recovered a missing state block and updated the chronicle.' }, userId ?? currentUser()); } catch { /* best effort */ }
+            try { spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'success', msg: 'VELLUM: recovered the missing state block and updated the chronicle.' }, userId ?? currentUser()); } catch { /* best effort */ }
             // re-fold: divergedTurn sees the changed signature, rolls back the
             // block-less turn, and re-folds it with the block present (source json).
             void foldChat(chatId, userId);
             return;
           }
+          // Repair attempted but produced no usable block — tell the user it
+          // fell back, then let PASS-2 prose extraction (below) do its best.
           spindle.log?.info?.(`[vellum_engine] block-repair: no valid block recovered for turn ${msgs.length}; falling back to prose extraction.`);
+          try { spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: 'VELLUM: could not rebuild the missing state block \u2014 recovering what it can from the prose. Consider regenerating.' }, userId ?? currentUser()); } catch { /* best effort */ }
+          // suppress the generic validation warning below (we already spoke).
+          _blockWarnByChat.set(chatId, msgs.length);
         }
       } catch (e) { spindle.log?.warn?.('[vellum_engine] block-repair: ' + ((e as Error)?.message ?? e)); }
     }
@@ -2586,27 +2596,50 @@ const dispatch: Record<string, Handler> = {
     }, uid ?? currentUser());
   },
 
-  /** Mobile fallback: resolve the companion preset + its blocks backend-side so
-   *  the Actions -> "Preset editor" modal can render the same six features the
-   *  desktop host tab does. On desktop the tab reads ctx.ui.presetEditor.getState()
-   *  directly; that host API is ABSENT on mobile (no Preset Editor surface), so we
-   *  resolve here instead: prefer a preset already marked with vellum_engine
-   *  metadata, else the user's default/first. Returns a shape the shared panel
-   *  builder accepts (id, name, metadata, blocks). Requires `presets`. */
+  /** Mobile fallback: resolve the IN-USE preset + its blocks backend-side so the
+   *  Actions -> "Preset editor" modal shows the same link/health/budget features
+   *  the desktop host tab does. On desktop the tab reads ctx.ui.presetEditor
+   *  .getState() (the preset OPEN in the editor); that host API is ABSENT on
+   *  mobile, so we must resolve the preset ourselves. Resolution order, best
+   *  first: (1) the active connection's preset_id — the preset actually driving
+   *  generation, which is what the user means by "my preset"; (2) any preset
+   *  carrying vellum_engine link metadata; (3) the sole preset if there's only
+   *  one; (4) the first. Returns { id, name, metadata, blocks } for the shared
+   *  panel builder. Requires `presets`. */
   vellum_preset_panel_open: async (_p, uid) => {
     const send = (preset: unknown) => spindle.sendToFrontend?.({ type: 'vellum_preset_panel', preset }, uid ?? currentUser());
-    if (!(await has('presets')) || !spindle.presets?.list) { send(null); return; }
+    if (!(await has('presets')) || !spindle.presets?.get) { send(null); return; }
     try {
-      const { data } = await spindle.presets.list({ limit: 50 }, uid);
-      if (!Array.isArray(data) || !data.length) { send(null); return; }
-      // prefer a linked companion; else the default; else the first.
-      const preset = data.find((x: any) => x?.metadata?.vellum_engine?.identifier === 'vellum_engine')
-        ?? data.find((x: any) => x?.is_default)
-        ?? data[0];
+      // (1) the active connection's bound preset — the one actually in use. This
+      // is the mobile equivalent of "the preset the editor has open" and is the
+      // single most important fix: list[0] was almost never the right preset.
+      let preset: any = null;
+      try {
+        const connId = await defaultConnectionId(uid);
+        if (connId && spindle.connections?.get) {
+          const conn = await spindle.connections.get(connId, uid);
+          const pid = conn?.preset_id;
+          if (pid) preset = await spindle.presets.get(pid, uid);
+        }
+      } catch { /* connection/preset lookup best-effort — fall through to list */ }
+
+      // (2/3/4) fall back to the preset list: a linked companion, else (if only
+      // one exists) that one, else the first.
+      if (!preset?.id && spindle.presets?.list) {
+        const { data } = await spindle.presets.list({ limit: 50 }, uid);
+        if (Array.isArray(data) && data.length) {
+          preset = data.find((x: any) => x?.metadata?.vellum_engine?.identifier === 'vellum_engine')
+            ?? (data.length === 1 ? data[0] : null)
+            ?? data[0];
+        }
+      }
       if (!preset?.id) { send(null); return; }
-      // fetch the blocks so the health-check + prompt-budget features work. The
-      // list DTO may already carry them; if not, pull them explicitly.
-      let blocks: unknown[] = Array.isArray(preset.blocks) ? preset.blocks : [];
+
+      // Blocks power the health-check + prompt-budget features. UserPresetDTO
+      // carries them as `prompt_order` (not `blocks`); pull them explicitly when
+      // neither field is already populated.
+      let blocks: unknown[] = Array.isArray(preset.blocks) ? preset.blocks
+        : Array.isArray(preset.prompt_order) ? preset.prompt_order : [];
       if (!blocks.length && spindle.presets?.blocks?.list) {
         try { const b = await spindle.presets.blocks.list(preset.id, uid); if (Array.isArray(b)) blocks = b; } catch { /* blocks optional */ }
       }
