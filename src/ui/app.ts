@@ -154,10 +154,12 @@ const QOL = [
   { id: 'budget', label: '\u2696 Context budget', title: 'How much VELLUM injects per turn: master dial + per-injector caps + off-screen/summary cadence', group: 'settings' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'settings' },
   { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc prompts', group: 'settings' },
+  { id: 'preset', label: '\u25A4 Preset editor', title: 'Companion preset diagnostics: link status, state-block health check, live injection preview, extraction status, and prompt/context budgets. Mirrors the desktop Preset Editor tab (which the mobile host does not provide).', group: 'settings' },
   // toggles = persistent on/off state
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
+  { id: 'autoretry', label: '\u21BB Repair block', title: 'Auto-repair a missing state block: if a turn drops its <vellum> block, transcribe its prose into one and update the chronicle (needs generation permission; 1 extra generation per affected turn)', group: 'toggle' },
   { id: 'foldtoast', label: '\u2261 Tracker Update Toast', title: 'Show a brief toast after each turn as the tracker updates (scene first, then the deep memory pass). Off by default.', group: 'toggle' },
   // run = one-shot verbs
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'run' },
@@ -283,6 +285,184 @@ function openCustomize(onChange: () => void): void {
   ov.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-close]')) close(); });
 }
 
+// ── Preset panel (shared) ─────────────────────────────────────────────────
+// The six diagnostic "preset editor" features (companion link, state-block
+// health, injection preview, extraction status, preset budget, chat budget)
+// render identically whether they live in the host Preset Editor tab (desktop)
+// or in the fallback Actions → "Preset editor" modal (mobile, where the host
+// exposes no registerPresetEditorTab API). Both paths call these two helpers so
+// the markup + wiring stay in one place.
+
+export interface PresetPanelData {
+  preset: any | null;                       // resolved preset (host draft or backend-resolved)
+  inj: { turn: number; chars: number; recalls: number; text: string } | null;
+  status: { permission: boolean; generationOk: boolean; provider: string; model: string; extractOk: boolean } | null;
+  chatBudget: any | null;                   // raw ContextBudget or null
+  previewOpen: boolean;
+}
+
+/** PURE: build the inner HTML for the preset panel (rail + the six feature
+ *  sections). Shared by the desktop tab and the mobile modal. */
+function presetPanelInner(d: PresetPanelData): string {
+  const e = esc;
+  const preset = d.preset ?? null;
+  const presetId: string = preset?.id ?? '';
+
+  // Feature 1: Companion Linking
+  const isLinked = preset?.metadata?.vellum_engine?.identifier === 'vellum_engine';
+  const f1 = `<div class="vle-pt-sec">
+    <div class="vle-pt-head">Companion Preset</div>
+    <div class="vle-pt-badge">
+      <span class="vle-pt-dot ${isLinked ? 'linked' : 'unlinked'}"></span>
+      <span>${isLinked ? 'Linked to VELLUM' : 'Not linked'}</span>
+    </div>
+    ${preset ? `<button class="vle-pt-btn" data-pt-link="${isLinked ? 'unlink' : 'link'}" data-pt-preset="${e(presetId)}">
+      ${isLinked ? 'Unlink' : 'Link this preset'}
+    </button>` : '<span style="font-size:11px;opacity:0.6">No companion preset resolved. Open/select a preset first.</span>'}
+  </div>`;
+
+  // Feature 2: Health Check — scan blocks for the VELLUM state-block signature
+  let healthStatus: 'present' | 'missing' | 'no_preset' = 'no_preset';
+  let healthBlockName = '';
+  if (preset) {
+    const blocks: any[] = Array.isArray(preset.blocks) ? preset.blocks
+      : Array.isArray(preset.prompt_order) ? preset.prompt_order : [];
+    const sig = /\[VELLUM\s+STATE\]|<vellum>/i;
+    const found = blocks.find((b: any) => typeof b?.content === 'string' && sig.test(b.content));
+    if (found) { healthStatus = 'present'; healthBlockName = found.name ?? found.id ?? ''; }
+    else healthStatus = 'missing';
+  }
+  const healthDot = healthStatus === 'present' ? 'ok' : healthStatus === 'missing' ? 'err' : 'warn';
+  const healthLabel = healthStatus === 'present' ? `Present${healthBlockName ? ` \u2014 \u201c${e(healthBlockName)}\u201d` : ''}` : healthStatus === 'missing' ? 'Missing' : 'No preset open';
+  const f2 = `<div class="vle-pt-sec">
+    <div class="vle-pt-head">State Block Instructions</div>
+    <div class="vle-pt-badge">
+      <span class="vle-pt-dot ${healthDot}"></span>
+      <span>${healthLabel}</span>
+    </div>
+    ${healthStatus === 'missing' ? `<button class="vle-pt-btn" data-pt-fix-instructions data-pt-preset="${e(presetId)}">Insert canonical block</button>` : ''}
+  </div>`;
+
+  // Feature 3: Injection Preview
+  const inj = d.inj;
+  const previewToggle = inj ? `<span class="vle-pt-toggle" data-pt-preview-toggle>${d.previewOpen ? '\u25b4 Hide' : '\u25be Show'}</span>` : '';
+  const previewBody = inj && d.previewOpen
+    ? `<div class="vle-pt-coll open"><div class="vle-pt-preview">${e(inj.text)}</div></div>`
+    : inj ? '<div class="vle-pt-coll"></div>' : '';
+  const f3 = `<div class="vle-pt-sec">
+    <div class="vle-pt-head">Live Injection Preview <span style="font-size:10px;opacity:0.6">(current chat)</span></div>
+    ${inj
+      ? `<div class="vle-pt-badge"><span class="vle-pt-dot ok"></span><span>Turn ${inj.turn} \u2022 ${inj.chars.toLocaleString()} chars \u2022 ${inj.recalls} recall${inj.recalls === 1 ? '' : 's'}</span></div>${previewToggle}${previewBody}`
+      : '<span style="font-size:11px;opacity:0.6">No injection yet this session.</span>'
+    }
+  </div>`;
+
+  // Feature 4: Extraction Status
+  const st = d.status;
+  const f4 = `<div class="vle-pt-sec">
+    <div class="vle-pt-head">Extraction (Internal)</div>
+    ${st
+      ? `<div class="vle-pt-line"><span>Schema enforcement</span><strong>${st.permission ? 'Active' : 'Not available'}</strong></div>
+         <div class="vle-pt-line"><span>Permission</span><strong>${st.permission ? 'generation_parameters \u2713' : 'not granted'}</strong></div>
+         ${st.generationOk && st.provider ? `<div class="vle-pt-line"><span>Provider</span><strong>${e(st.provider)}${st.model ? ' / ' + e(st.model.slice(0, 28)) : ''}</strong></div>` : ''}
+         <div class="vle-pt-line"><span>Last extraction</span>
+           <strong>
+             <span class="vle-pt-dot ${st.extractOk ? 'ok' : 'err'}" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>${st.extractOk ? 'OK' : 'Failing'}
+           </strong>
+         </div>`
+      : '<span style="font-size:11px;opacity:0.6">Loading\u2026</span>'
+    }
+  </div>`;
+
+  // Feature 5: Preset Prompt Budget — honest token estimate from enabled blocks
+  let f5 = '';
+  if (preset && Array.isArray(preset.blocks) && preset.blocks.length) {
+    const promptVars = (preset.metadata && typeof preset.metadata === 'object' && preset.metadata.promptVariables) || {};
+    const budget = calculatePresetBudget(preset.blocks, promptVars as any);
+    const catRows = Object.entries(budget.byCategory)
+      .sort((a, b) => (b[1] as any).tokens - (a[1] as any).tokens)
+      .map(([cat, data]: [string, any]) => {
+        const pct = budget.totalTokens > 0 ? Math.round((data.tokens / budget.totalTokens) * 100) : 0;
+        const filled = Math.max(0, Math.min(10, Math.floor(pct / 10)));
+        const barFill = '\u2588'.repeat(filled) + '\u2591'.repeat(10 - filled);
+        return `<div class="vle-pt-line"><span class="vle-pt-cat">${e(cat)}</span><span class="vle-pt-bar">${barFill}</span><span class="vle-pt-tok">${data.tokens.toLocaleString()}</span></div>`;
+      }).join('');
+    const heavyRows = budget.heaviest.map((h, i) =>
+      `<div class="vle-pt-line"><span class="vle-pt-rank">${i + 1}.</span><span class="vle-pt-cat" style="flex:1">${e(h.name)}</span><span class="vle-pt-tok">${h.tokens.toLocaleString()}</span></div>`
+    ).join('');
+    f5 = `<div class="vle-pt-sec">
+      <div class="vle-pt-head">Preset Prompt Budget</div>
+      <div class="vle-pt-badge"><strong>\u2248${budget.totalTokens.toLocaleString()} tokens</strong>&nbsp;standing prompt</div>
+      <div class="vle-pt-line"><span style="opacity:0.65;font-size:10px">estimate from ${budget.enabledCount} enabled block${budget.enabledCount === 1 ? '' : 's'}${budget.disabledCount ? ` \u00b7 ${budget.disabledCount} disabled` : ''}</span></div>
+      ${catRows ? `<div class="vle-pt-subhead">By category</div>${catRows}` : ''}
+      ${heavyRows ? `<div class="vle-pt-subhead">Heaviest blocks</div>${heavyRows}` : ''}
+    </div>`;
+  }
+
+  // Feature 6: Active Chat Context Budget (read-only diagnostic)
+  let f6 = '';
+  if (d.chatBudget) {
+    const resolved = resolveBudget(d.chatBudget);
+    const injRows = [
+      { label: 'Spine (chronicle)', val: resolved.spine },
+      { label: 'Locations', val: resolved.locations },
+      { label: 'Drift (mood)', val: resolved.drift },
+      { label: 'Locks (knowledge)', val: resolved.locks },
+      { label: 'Plants (Chekhov)', val: resolved.plants },
+      { label: 'Off-screen', val: resolved.offscreen },
+      { label: 'Recall depth', val: resolved.recallDepth },
+    ].map((r) => `<div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">${r.label}</span><span class="vle-pt-tok">${r.val}</span></div>`).join('');
+    f6 = `<div class="vle-pt-sec">
+      <div class="vle-pt-head">Active Chat Context Budget <span style="font-size:10px;opacity:0.6">(current chat)</span></div>
+      <div class="vle-pt-badge">Preset: <strong>&nbsp;${e(String(d.chatBudget.preset ?? 'balanced'))}</strong></div>
+      <div class="vle-pt-subhead">Injector caps</div>
+      ${injRows}
+      <div class="vle-pt-subhead">Cadence</div>
+      <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Off-screen sim</span><span class="vle-pt-tok">every ${resolved.simInterval || '\u2014'} turns</span></div>
+      <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Auto-summarize</span><span class="vle-pt-tok">after ${resolved.autoSummaryAt} turns</span></div>
+      <div class="vle-pt-note" style="margin-top:8px;opacity:0.65;font-size:10px">Edit via <b>Actions \u2192 Context budget</b></div>
+    </div>`;
+  }
+
+  return `<div class="vle-pt-root vle-root">
+    <div class="vle-pt-rail">
+      <div class="vle-pt-rail-head">VELLUM II</div>
+      <div class="vle-pt-rail-item">Version: ${e(VELLUM_VERSION)}</div>
+      <div class="vle-pt-rail-item">Preset: ${preset ? e(preset.name ?? presetId) : 'none'}</div>
+      <div class="vle-pt-rail-item">Link: ${isLinked ? 'active' : 'inactive'}</div>
+    </div>
+    <div class="vle-pt-canvas">${f1}${f2}${f3}${f4}${f5}${f6}</div>
+  </div>`;
+}
+
+/** Wire the link / insert-block / preview-toggle buttons on a rendered preset
+ *  panel. `hostDraftUpdate` (desktop only) mirrors the link into the host's live
+ *  preset draft; on mobile it's omitted and the backend write is the sole path. */
+function bindPresetPanel(
+  root: HTMLElement,
+  send: (payload: any) => void,
+  onPreviewToggle: () => void,
+  hostDraftUpdate?: (presetId: string, link: boolean) => void,
+): void {
+  root.querySelector('[data-pt-link]')?.addEventListener('click', (ev) => {
+    const btn = (ev.target as HTMLElement).closest('[data-pt-link]') as HTMLElement | null;
+    if (!btn) return;
+    const pid = btn.getAttribute('data-pt-preset') ?? '';
+    const link = btn.getAttribute('data-pt-link') === 'link';
+    if (!pid) return;
+    try { hostDraftUpdate?.(pid, link); } catch { /* host draft API optional */ }
+    send({ type: 'vellum_preset_tab_link', presetId: pid, link });
+  });
+  root.querySelector('[data-pt-fix-instructions]')?.addEventListener('click', (ev) => {
+    const btn = (ev.target as HTMLElement).closest('[data-pt-fix-instructions]') as HTMLElement | null;
+    if (!btn) return;
+    const pid = btn.getAttribute('data-pt-preset') ?? '';
+    if (!pid) return;
+    send({ type: 'vellum_preset_tab_fix_instructions', presetId: pid });
+  });
+  root.querySelector('[data-pt-preview-toggle]')?.addEventListener('click', onPreviewToggle);
+}
+
 /** A self-contained shell instance: renders the tab bar + toolbar + body. */
 function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const root = document.createElement('div');
@@ -386,6 +566,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
+let _autoRetryOn = false; // auto-repair a dropped <vellum> block, mirrored from backend
 let _traverseMode = 'off'; // off | flat | tree
 let _traverseAxis = 'temporal'; // temporal | character | hybrid (tree only)
 const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === 'hybrid' ? 'by char+time' : 'by time';
@@ -405,6 +586,63 @@ let _summarizerCfg: Record<string, unknown> | null = null; // last-known summari
 let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
 let _lastStateAt = 0; // epoch ms of the last vellum_state broadcast (for the post-turn safety poll)
+
+// ── Preset panel modal state (mobile fallback) ────────────────────────────
+// These mirror the per-app state held by the desktop preset tab, kept at module
+// scope so the modal can reopen with fresh data without an extra round-trip.
+let _ppPreset: any | null = null;                  // last resolved companion preset (from backend)
+let _ppInj: { turn: number; chars: number; recalls: number; text: string } | null = null;
+let _ppStatus: { permission: boolean; generationOk: boolean; provider: string; model: string; extractOk: boolean } | null = null;
+let _ppChatBudget: any | null = null;
+let _ppPreviewOpen = false;
+let _ppOverlay: HTMLElement | null = null;         // live modal root (null when closed)
+
+/** Re-render the preset panel modal in place after async data arrives. */
+function refreshPresetModal(): void {
+  const host = _ppOverlay?.querySelector('[data-pp-host]') as HTMLElement | null;
+  if (!host) return;
+  host.innerHTML = presetPanelInner({
+    preset: _ppPreset,
+    inj: _ppInj ?? null,
+    status: _ppStatus,
+    chatBudget: _ppChatBudget,
+    previewOpen: _ppPreviewOpen,
+  });
+  if (_ctxRef) bindPresetPanel(
+    host,
+    (payload) => _ctxRef!.sendToBackend(payload),
+    () => { _ppPreviewOpen = !_ppPreviewOpen; refreshPresetModal(); },
+    // no host draft update on mobile — backend write is the sole path
+  );
+}
+
+/** Open the preset panel as a self-contained modal overlay. Works on all
+ *  platforms — specifically the mobile fallback when the host does not provide
+ *  registerPresetEditorTab. Fetches data from the backend on open. */
+function openPresetPanel(ctx: Ctx): void {
+  if (_ppOverlay) { try { _ppOverlay.remove(); } catch { /* ignore */ } _ppOverlay = null; }
+  const ov = document.createElement('div');
+  ov.className = 'vlfm-overlay';
+  ov.innerHTML = `<div class="vlfm vle-root" style="width:min(820px,96vw);max-height:min(92vh,820px);display:flex;flex-direction:column">
+    <div class="vlfm-head"><span class="vlfm-mark">\u25a4</span>Preset editor <span style="font-size:11px;opacity:0.55;font-weight:400;margin-left:6px">(VELLUM II diagnostics)</span></div>
+    <div class="vlfm-body" data-pp-host style="flex:1;overflow-y:auto;padding:0">
+      <div style="padding:28px;text-align:center;opacity:0.5;font-size:12px">Loading\u2026</div>
+    </div>
+    <div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-close>Close</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  applyTheme(ov.querySelector('.vlfm') as HTMLElement);
+  _ppOverlay = ov;
+  const close = (): void => { try { ov.remove(); } catch { /* ignore */ } if (_ppOverlay === ov) _ppOverlay = null; };
+  ov.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-close]')) close(); });
+  // Fetch all required async data in parallel. Each reply arrives via the
+  // normal onBackendMessage handler (which calls refreshPresetModal).
+  try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ }
+  try { ctx.sendToBackend({ type: 'vellum_preset_tab_get_status' }); } catch { /* ignore */ }
+  try { ctx.sendToBackend({ type: 'vellum_get_injection' }); } catch { /* ignore */ }
+  if (!_ppChatBudget) { try { ctx.sendToBackend({ type: 'vellum_get_budget' }); } catch { /* ignore */ } }
+  else { refreshPresetModal(); } // budget already cached — render immediately
+}
 // per-client display preference: show the post-turn "tracker updated" toast.
 // Off by default so the common turn is silent; persisted via prefs (host-backed
 // so it survives an extension reload, like the rest of the window prefs).
@@ -436,6 +674,7 @@ function openActions(ctx: Ctx): void {
     const toggleState: Record<string, string> = {
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
+      autoretry: _autoRetryOn ? 'on' : 'off',
       foldtoast: _foldToastOn ? 'on' : 'off',
       traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
       tone: (_tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living' && _tone.politics === 'off') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition} \u00b7 ${_tone.social}${_tone.politics !== 'off' ? ' \u00b7 pol:' + _tone.politics : ''}`,
@@ -534,6 +773,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
+  else if (id === 'autoretry') { _autoRetryOn = !_autoRetryOn; ctx.sendToBackend({ type: 'vellum_set_autoretry', enabled: _autoRetryOn }); }
   else if (id === 'foldtoast') {
     _foldToastOn = !_foldToastOn;
     setPref('foldToast', _foldToastOn);
@@ -555,6 +795,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'tidyfacts') { setQolBusy('tidyfacts', true); ctx.sendToBackend({ type: 'vellum_tidy_facts_now' }); notify(ctx, 'info', 'Folding duplicate knowledge & secrets\u2026'); }
   else if (id === 'resummarize') { setQolBusy('resummarize', true); ctx.sendToBackend({ type: 'vellum_resummarize' }); notify(ctx, 'info', 'Rebuilding all chapter summaries\u2026'); }
   else if (id === 'summarizer') { ctx.sendToBackend({ type: 'vellum_get_summarizer' }); /* modal opens when state arrives */ }
+  else if (id === 'preset') { openPresetPanel(ctx); }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'exportmd') { setQolBusy('exportmd', true); ctx.sendToBackend({ type: 'vellum_export_markdown' }); }
   else if (id === 'import') { triggerImport(ctx); }
@@ -773,9 +1014,6 @@ export function setup(ctx: Ctx): () => void {
   let _ptChatBudget: any = null; // ContextBudget from vellum_budget response
   let _ptBudgetPending = false;  // tab requested the budget; suppress the modal on the reply
 
-  /** Escape HTML for safe insertion. */
-  const ptEsc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-
   /** Render the full preset editor tab. Called on preset change and data updates. */
   function renderPresetEditorTab(): void {
     if (!presetEditorTab) return;
@@ -783,172 +1021,42 @@ export function setup(ctx: Ctx): () => void {
     let editorState: any = null;
     try { editorState = (ctx.ui as any).presetEditor?.getState?.(); } catch { /* API may not be present */ }
     const preset = editorState?.preset ?? null;
-    const presetId: string = preset?.id ?? '';
 
-    // Feature 1: Companion Linking
-    const isLinked = preset?.metadata?.vellum_engine?.identifier === 'vellum_engine';
-    const f1 = `<div class="vle-pt-sec">
-      <div class="vle-pt-head">Companion Preset</div>
-      <div class="vle-pt-badge">
-        <span class="vle-pt-dot ${isLinked ? 'linked' : 'unlinked'}"></span>
-        <span>${isLinked ? 'Linked to VELLUM' : 'Not linked'}</span>
-      </div>
-      ${preset ? `<button class="vle-pt-btn" data-pt-link="${isLinked ? 'unlink' : 'link'}" data-pt-preset="${ptEsc(presetId)}">
-        ${isLinked ? 'Unlink' : 'Link this preset'}
-      </button>` : '<span style="font-size:11px;opacity:0.6">Open a preset to link it.</span>'}
-    </div>`;
-
-    // Feature 2: Health Check — scan blocks for VELLUM state-block signature
-    let healthStatus: 'present' | 'missing' | 'no_preset' = 'no_preset';
-    let healthBlockName = '';
-    if (preset) {
-      const blocks: any[] = Array.isArray(preset.blocks) ? preset.blocks
-        : Array.isArray(preset.prompt_order) ? preset.prompt_order : [];
-      const sig = /\[VELLUM\s+STATE\]|<vellum>/i;
-      const found = blocks.find((b: any) => typeof b?.content === 'string' && sig.test(b.content));
-      if (found) { healthStatus = 'present'; healthBlockName = found.name ?? found.id ?? ''; }
-      else healthStatus = 'missing';
-    }
-    const healthDot = healthStatus === 'present' ? 'ok' : healthStatus === 'missing' ? 'err' : 'warn';
-    const healthLabel = healthStatus === 'present' ? `Present${healthBlockName ? ` \u2014 \u201c${ptEsc(healthBlockName)}\u201d` : ''}` : healthStatus === 'missing' ? 'Missing' : 'No preset open';
-    const f2 = `<div class="vle-pt-sec">
-      <div class="vle-pt-head">State Block Instructions</div>
-      <div class="vle-pt-badge">
-        <span class="vle-pt-dot ${healthDot}"></span>
-        <span>${healthLabel}</span>
-      </div>
-      ${healthStatus === 'missing' ? `<button class="vle-pt-btn" data-pt-fix-instructions data-pt-preset="${ptEsc(presetId)}">Insert canonical block</button>` : ''}
-    </div>`;
-
-    // Feature 3: Injection Preview
-    const inj = _ptInjRecord;
-    const previewToggle = inj ? `<span class="vle-pt-toggle" data-pt-preview-toggle>${_ptPreviewOpen ? '\u25b4 Hide' : '\u25be Show'}</span>` : '';
-    const previewBody = inj && _ptPreviewOpen
-      ? `<div class="vle-pt-coll open"><div class="vle-pt-preview">${ptEsc(inj.text)}</div></div>`
-      : inj ? '<div class="vle-pt-coll"></div>' : '';
-    const f3 = `<div class="vle-pt-sec">
-      <div class="vle-pt-head">Live Injection Preview <span style="font-size:10px;opacity:0.6">(current chat)</span></div>
-      ${inj
-        ? `<div class="vle-pt-badge"><span class="vle-pt-dot ok"></span><span>Turn ${inj.turn} \u2022 ${inj.chars.toLocaleString()} chars \u2022 ${inj.recalls} recall${inj.recalls === 1 ? '' : 's'}</span></div>${previewToggle}${previewBody}`
-        : '<span style="font-size:11px;opacity:0.6">No injection yet this session.</span>'
-      }
-    </div>`;
-
-    // Feature 4: Extraction Status
-    const st = _ptStatus;
-    const f4 = `<div class="vle-pt-sec">
-      <div class="vle-pt-head">Extraction (Internal)</div>
-      ${st
-        ? `<div class="vle-pt-line"><span>Schema enforcement</span><strong>${st.permission ? 'Active' : 'Not available'}</strong></div>
-           <div class="vle-pt-line"><span>Permission</span><strong>${st.permission ? 'generation_parameters \u2713' : 'not granted'}</strong></div>
-           ${st.generationOk && st.provider ? `<div class="vle-pt-line"><span>Provider</span><strong>${ptEsc(st.provider)}${st.model ? ' / ' + ptEsc(st.model.slice(0, 28)) : ''}</strong></div>` : ''}
-           <div class="vle-pt-line"><span>Last extraction</span>
-             <strong>
-               <span class="vle-pt-dot ${st.extractOk ? 'ok' : 'err'}" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>${st.extractOk ? 'OK' : 'Failing'}
-             </strong>
-           </div>`
-        : '<span style="font-size:11px;opacity:0.6">Loading\u2026</span>'
-      }
-    </div>`;
-
-    // Feature 5: Preset Prompt Budget — honest token estimate from enabled blocks
-    let f5 = '';
-    if (preset && Array.isArray(preset.blocks) && preset.blocks.length) {
-      const promptVars = (preset.metadata && typeof preset.metadata === 'object' && preset.metadata.promptVariables) || {};
-      const budget = calculatePresetBudget(preset.blocks, promptVars as any);
-      const catRows = Object.entries(budget.byCategory)
-        .sort((a, b) => (b[1] as any).tokens - (a[1] as any).tokens)
-        .map(([cat, data]: [string, any]) => {
-          const pct = budget.totalTokens > 0 ? Math.round((data.tokens / budget.totalTokens) * 100) : 0;
-          const filled = Math.max(0, Math.min(10, Math.floor(pct / 10)));
-          const barFill = '\u2588'.repeat(filled) + '\u2591'.repeat(10 - filled);
-          return `<div class="vle-pt-line"><span class="vle-pt-cat">${ptEsc(cat)}</span><span class="vle-pt-bar">${barFill}</span><span class="vle-pt-tok">${data.tokens.toLocaleString()}</span></div>`;
-        }).join('');
-      const heavyRows = budget.heaviest.map((h, i) =>
-        `<div class="vle-pt-line"><span class="vle-pt-rank">${i + 1}.</span><span class="vle-pt-cat" style="flex:1">${ptEsc(h.name)}</span><span class="vle-pt-tok">${h.tokens.toLocaleString()}</span></div>`
-      ).join('');
-      f5 = `<div class="vle-pt-sec">
-        <div class="vle-pt-head">Preset Prompt Budget</div>
-        <div class="vle-pt-badge"><strong>\u2248${budget.totalTokens.toLocaleString()} tokens</strong>&nbsp;standing prompt</div>
-        <div class="vle-pt-line"><span style="opacity:0.65;font-size:10px">estimate from ${budget.enabledCount} enabled block${budget.enabledCount === 1 ? '' : 's'}${budget.disabledCount ? ` \u00b7 ${budget.disabledCount} disabled` : ''}</span></div>
-        ${catRows ? `<div class="vle-pt-subhead">By category</div>${catRows}` : ''}
-        ${heavyRows ? `<div class="vle-pt-subhead">Heaviest blocks</div>${heavyRows}` : ''}
-      </div>`;
-    }
-
-    // Feature 6: Active Chat Context Budget (read-only diagnostic)
-    let f6 = '';
-    if (_ptChatBudget) {
-      const resolved = resolveBudget(_ptChatBudget);
-      const injRows = [
-        { label: 'Spine (chronicle)', val: resolved.spine },
-        { label: 'Locations', val: resolved.locations },
-        { label: 'Drift (mood)', val: resolved.drift },
-        { label: 'Locks (knowledge)', val: resolved.locks },
-        { label: 'Plants (Chekhov)', val: resolved.plants },
-        { label: 'Off-screen', val: resolved.offscreen },
-        { label: 'Recall depth', val: resolved.recallDepth },
-      ].map((r) => `<div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">${r.label}</span><span class="vle-pt-tok">${r.val}</span></div>`).join('');
-      f6 = `<div class="vle-pt-sec">
-        <div class="vle-pt-head">Active Chat Context Budget <span style="font-size:10px;opacity:0.6">(current chat)</span></div>
-        <div class="vle-pt-badge">Preset: <strong>&nbsp;${ptEsc(String(_ptChatBudget.preset ?? 'balanced'))}</strong></div>
-        <div class="vle-pt-subhead">Injector caps</div>
-        ${injRows}
-        <div class="vle-pt-subhead">Cadence</div>
-        <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Off-screen sim</span><span class="vle-pt-tok">every ${resolved.simInterval || '\u2014'} turns</span></div>
-        <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Auto-summarize</span><span class="vle-pt-tok">after ${resolved.autoSummaryAt} turns</span></div>
-        <div class="vle-pt-note" style="margin-top:8px;opacity:0.65;font-size:10px">Edit via <b>Actions \u2192 Context budget</b></div>
-      </div>`;
-    } else {
+    if (!_ptChatBudget) {
       // Request the chat budget once; the response repaints the tab. Flag it so
       // the shared vellum_budget_state handler doesn't pop the Actions modal.
       _ptBudgetPending = true;
       try { ctx.sendToBackend({ type: 'vellum_get_budget' }); } catch { /* ignore */ }
     }
 
-    root.innerHTML = `<div class="vle-pt-root vle-root">
-      <div class="vle-pt-rail">
-        <div class="vle-pt-rail-head">VELLUM II</div>
-        <div class="vle-pt-rail-item">Version: ${esc(VELLUM_VERSION)}</div>
-        <div class="vle-pt-rail-item">Preset: ${preset ? esc(preset.name ?? presetId) : 'none'}</div>
-        <div class="vle-pt-rail-item">Link: ${isLinked ? 'active' : 'inactive'}</div>
-      </div>
-      <div class="vle-pt-canvas">${f1}${f2}${f3}${f4}${f5}${f6}</div>
-    </div>`;
+    root.innerHTML = presetPanelInner({
+      preset,
+      inj: _ptInjRecord,
+      status: _ptStatus,
+      chatBudget: _ptChatBudget,
+      previewOpen: _ptPreviewOpen,
+    });
 
-    // Bind events
-    root.querySelector('[data-pt-link]')?.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-pt-link]') as HTMLElement | null;
-      if (!btn) return;
-      const pid = btn.getAttribute('data-pt-preset') ?? '';
-      const link = btn.getAttribute('data-pt-link') === 'link';
-      if (!pid) return;
-      // Write directly through updatePreset so the host's draft updates immediately
-      // and triggers onChange → re-render. Backend call persists to DB.
-      try {
-        (ctx.ui as any).presetEditor?.updatePreset?.((preset: any) => ({
-          ...preset,
-          metadata: {
-            ...preset.metadata,
-            vellum_engine: link
-              ? { ...(preset.metadata?.vellum_engine ?? {}), version: '2.0.0-beta.1', identifier: 'vellum_engine', linkedAt: Date.now() }
-              : { ...(preset.metadata?.vellum_engine ?? {}), identifier: null },
-          },
-        }), { immediate: true });
-      } catch { /* API may not be available — fall back to backend-only */ }
-      ctx.sendToBackend({ type: 'vellum_preset_tab_link', presetId: pid, link });
-    });
-    root.querySelector('[data-pt-fix-instructions]')?.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-pt-fix-instructions]') as HTMLElement | null;
-      if (!btn) return;
-      const pid = btn.getAttribute('data-pt-preset') ?? '';
-      if (!pid) return;
-      ctx.sendToBackend({ type: 'vellum_preset_tab_fix_instructions', presetId: pid });
-    });
-    root.querySelector('[data-pt-preview-toggle]')?.addEventListener('click', () => {
-      _ptPreviewOpen = !_ptPreviewOpen;
-      renderPresetEditorTab();
-    });
+    bindPresetPanel(
+      root,
+      (payload) => ctx.sendToBackend(payload),
+      () => { _ptPreviewOpen = !_ptPreviewOpen; renderPresetEditorTab(); },
+      // desktop: mirror the link into the host's live preset draft so the editor
+      // reflects it immediately (onChange → re-render); backend call persists.
+      (pid, link) => {
+        try {
+          (ctx.ui as any).presetEditor?.updatePreset?.((preset: any) => ({
+            ...preset,
+            metadata: {
+              ...preset.metadata,
+              vellum_engine: link
+                ? { ...(preset.metadata?.vellum_engine ?? {}), version: '2.0.0-beta.1', identifier: 'vellum_engine', linkedAt: Date.now() }
+                : { ...(preset.metadata?.vellum_engine ?? {}), identifier: null },
+            },
+          }), { immediate: true });
+        } catch { /* API may not be available — fall back to backend-only */ }
+      },
+    );
   }
 
   try {
@@ -1058,6 +1166,7 @@ export function setup(ctx: Ctx): () => void {
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
+        if (typeof p.autoRetryBlock === 'boolean') { _autoRetryOn = p.autoRetryBlock; document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn)); }
         if (typeof p.hide === 'boolean') { _hideOn = p.hide; document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn)); }
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
@@ -1114,7 +1223,7 @@ export function setup(ctx: Ctx): () => void {
         // Preset editor tab: mirror the latest injection into its preview (feature 3).
         // Backend sends the ring oldest-first, so the newest is the last element.
         const latest = Array.isArray(p.log) && p.log.length ? p.log[p.log.length - 1] : null;
-        if (latest) { _ptInjRecord = { turn: Number(latest.turn) || 0, chars: Number(latest.chars) || 0, recalls: Array.isArray(latest.recallIds) ? latest.recallIds.length : 0, text: String(latest.text ?? '') }; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }
+        if (latest) { _ptInjRecord = { turn: Number(latest.turn) || 0, chars: Number(latest.chars) || 0, recalls: Array.isArray(latest.recallIds) ? latest.recallIds.length : 0, text: String(latest.text ?? '') }; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } _ppInj = _ptInjRecord; refreshPresetModal(); }
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection_push') {
         // Fix 11 — live retrieval feed: stream the new record in as it happens
@@ -1122,6 +1231,7 @@ export function setup(ctx: Ctx): () => void {
           // Preset editor tab preview: stream the newest record in too (feature 3).
           _ptInjRecord = { turn: Number(p.record.turn) || 0, chars: Number(p.record.chars) || 0, recalls: Array.isArray(p.record.recallIds) ? p.record.recallIds.length : 0, text: String(p.record.text ?? '') };
           try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+          _ppInj = _ptInjRecord; refreshPresetModal();
         }
       } else if (p?.type === 'vellum_preset_tab_status') {
         // Preset editor tab: extraction status (feature 4)
@@ -1133,11 +1243,22 @@ export function setup(ctx: Ctx): () => void {
           extractOk: !!p.extractOk,
         };
         try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+        _ppStatus = _ptStatus; refreshPresetModal();
+      } else if (p?.type === 'vellum_preset_panel') {
+        // Mobile fallback modal: the backend-resolved companion preset (id, name,
+        // metadata, blocks) so the modal's link/health/budget features work even
+        // where the host provides no preset-editor draft to read.
+        _ppPreset = (p.preset && typeof p.preset === 'object') ? p.preset : null;
+        refreshPresetModal();
       } else if (p?.type === 'vellum_preset_tab_link_done') {
         if (!p.ok) notify(ctx, 'warning', 'Link update failed.');
+        // modal path: re-resolve the preset so the link badge repaints
+        else if (_ppOverlay) { try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ } }
       } else if (p?.type === 'vellum_preset_tab_fix_done') {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? 'Inserted the VELLUM state block.' : `Could not insert block: ${p.reason ?? 'error'}`);
         setTimeout(() => { try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }, 150);
+        // modal path: re-resolve the preset so the health badge + block list repaint
+        if (p.ok && _ppOverlay) setTimeout(() => { try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ } }, 150);
       } else if (p?.type === 'vellum_continuity') {
         // Plot Director: passive continuity warnings — advise, never block.
         if (Array.isArray(p.warnings) && p.warnings.length) notify(ctx, 'warning', 'Continuity: ' + p.warnings.map((w: { text: string }) => w.text).join(' '));
@@ -1236,14 +1357,18 @@ export function setup(ctx: Ctx): () => void {
         if (typeof p.limits === 'string') _hardLimits = p.limits;
       } else if (p?.type === 'vellum_budget_state') {
         _budget = (p.budget && typeof p.budget === 'object') ? p.budget as Record<string, unknown> : {};
-        // Preset editor tab: populate its read-only budget panel too.
+        // Preset editor tab + mobile modal: populate their read-only budget panel too.
         _ptChatBudget = _budget;
+        _ppChatBudget = _budget;
         try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
-        // Only open the Actions modal when this wasn't a tab-initiated fetch.
+        try { refreshPresetModal(); } catch { /* modal may be closed */ }
+        // Only open the Actions budget modal when this wasn't a tab- OR preset-
+        // panel-initiated fetch (either would otherwise pop the wrong modal).
         if (_ptBudgetPending) { _ptBudgetPending = false; }
+        else if (_ppOverlay) { /* preset panel requested it — already consumed above */ }
         else if (_ctxRef) openBudgetModal(_ctxRef);
       } else if (p?.type === 'vellum_budget_done') {
-        if (p.budget && typeof p.budget === 'object') { _budget = p.budget as Record<string, unknown>; _ptChatBudget = _budget; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }
+        if (p.budget && typeof p.budget === 'object') { _budget = p.budget as Record<string, unknown>; _ptChatBudget = _budget; _ppChatBudget = _budget; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } try { refreshPresetModal(); } catch { /* modal may be closed */ } }
       } else if (p?.type === 'vellum_calendar_done') {
         if (typeof p.calendar === 'string') { _calendar = p.calendar; setDashCalendar(_calendar); }
       } else if (p?.type === 'vellum_hide_done') {
@@ -1280,6 +1405,11 @@ export function setup(ctx: Ctx): () => void {
         _offscreenOn = !!p.enabled;
         if (p.enabled && !p.available) notify(ctx, 'warning', 'Off-screen sim needs the generation permission to run.');
         else notify(ctx, 'success', p.enabled ? 'Off-screen simulation on \u2014 the world ticks every few turns.' : 'Off-screen simulation off.');
+      } else if (p?.type === 'vellum_autoretry_set_done') {
+        _autoRetryOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn));
+        if (p.enabled && !p.available) notify(ctx, 'warning', 'Block auto-repair needs the generation permission to run.');
+        else notify(ctx, 'success', p.enabled ? 'Block auto-repair on \u2014 a dropped state block is recovered with one extra generation.' : 'Block auto-repair off.');
       } else if (p?.type === 'vellum_offthread_done') {
         // only the manual advance/simulate-all path reports a reason; the CRUD
         // ops send a bare ok:true (nothing to announce).

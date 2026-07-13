@@ -2140,6 +2140,11 @@ export const STYLES = [
   ".vle-pt-rail-item{font-size:10px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 75%,transparent);padding:4px 0;border-bottom:1px dashed color-mix(in srgb,var(--vg,#d4af37) 15%,transparent)}",
   ".vle-pt-rail-item:last-child{border-bottom:none}",
   ".vle-pt-canvas{display:flex;flex-direction:column;gap:14px;min-width:0}",
+  // Mobile-fallback modal host: force single column + drop the sticky rail (the
+  // modal body is its own scroll container, so sticky-to-viewport misbehaves).
+  "[data-pp-host] .vle-pt-root{grid-template-columns:1fr;padding:14px}",
+  "[data-pp-host] .vle-pt-rail{position:static;flex-direction:row;flex-wrap:wrap;gap:4px 12px;align-items:baseline}",
+  "[data-pp-host] .vle-pt-rail-item{border-bottom:none;padding:2px 0}",
   ".vle-pt-cat{flex:0 0 96px;font-size:10px;text-transform:uppercase;letter-spacing:0.4px;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
   ".vle-pt-bar{flex:0 0 76px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:11px;color:var(--vg,#d4af37);letter-spacing:0;white-space:nowrap}",
   ".vle-pt-tok{margin-left:auto;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:10px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 75%,transparent);white-space:nowrap}",
