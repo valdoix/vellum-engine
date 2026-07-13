@@ -685,7 +685,7 @@ async function stampCompanionPreset(chatId: string, userId: string | null): Prom
     // take the user's first/default preset as the companion candidate. This is a
     // best-effort heuristic — ideally the host would tell us which preset is active,
     // but that's not in the context object. We stamp the first preset we find.
-    const { data } = await spindle.presets.list({ limit: 50 }, uid);
+    const { data } = await spindle.presets.list({ limit: 50, ...(uid ? { userId: uid } : {}) });
     if (!Array.isArray(data) || !data.length) return;
     // Prefer a preset already marked with vellum_engine metadata
     let preset = data.find((p: any) => p?.metadata?.vellum_engine);
@@ -2618,7 +2618,7 @@ const dispatch: Record<string, Handler> = {
       // Roster of all presets (best-effort) — powers the always-present picker.
       let all: any[] = [];
       if (spindle.presets?.list) {
-        try { const r = await spindle.presets.list({ limit: 100 }, uid); if (Array.isArray(r?.data)) all = r.data; } catch { /* list optional */ }
+        try { const r = await spindle.presets.list({ limit: 100, ...(uid ? { userId: uid } : {}) }); if (Array.isArray(r?.data)) all = r.data; } catch { /* list optional */ }
       }
       const roster = all.map((x: any) => ({
         id: x?.id,

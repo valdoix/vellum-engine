@@ -656,6 +656,7 @@ let _ppStatus: { permission: boolean; generationOk: boolean; provider: string; m
 let _ppChatBudget: any | null = null;
 let _ppPreviewOpen = false;
 let _ppOverlay: HTMLElement | null = null;         // live modal root (null when closed)
+let _ppDraftMode = false;                          // desktop: modal is driven by the host editor draft, not backend resolution
 
 /** Re-render the preset panel modal in place after async data arrives. */
 function refreshPresetModal(): void {
@@ -696,6 +697,15 @@ function openPresetPanel(ctx: Ctx): void {
   _ppOverlay = ov;
   const close = (): void => { try { ov.remove(); } catch { /* ignore */ } if (_ppOverlay === ov) _ppOverlay = null; };
   ov.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-close]')) close(); });
+  // DESKTOP: if the host exposes the preset-editor draft (the SAME source the
+  // desktop tab reads, and what link/unlink mutates in place), use it directly so
+  // the modal matches the tab exactly — no round-trip, always-fresh linked state.
+  // On mobile this API is absent, so we fall back to backend resolution below.
+  _ppDraftMode = false;
+  try {
+    const draft = (ctx.ui as any).presetEditor?.getState?.()?.preset;
+    if (draft) { _ppDraftMode = true; _ppPreset = draft; _ppRoster = []; refreshPresetModal(); }
+  } catch { /* editor draft optional (absent on mobile) */ }
   // Fetch all required async data in parallel. Each reply arrives via the
   // normal onBackendMessage handler (which calls refreshPresetModal).
   try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ }
@@ -1306,12 +1316,23 @@ export function setup(ctx: Ctx): () => void {
         try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
         _ppStatus = _ptStatus; refreshPresetModal();
       } else if (p?.type === 'vellum_preset_panel') {
-        // Mobile fallback modal: the backend-resolved companion preset (id, name,
-        // metadata, blocks) so the modal's link/health/budget features work even
-        // where the host provides no preset-editor draft to read.
-        _ppPreset = (p.preset && typeof p.preset === 'object') ? p.preset : null;
-        _ppRoster = Array.isArray(p.presets) ? p.presets : [];
-        refreshPresetModal();
+        // Mobile fallback modal: backend-resolved preset (id, name, metadata, blocks).
+        // On DESKTOP the modal is already seeded with the editor draft (_ppDraftMode),
+        // which is the same authoritative source the desktop tab uses. In that case
+        // only accept the backend roster (for the picker), never let a backend null
+        // or mismatched preset overwrite the good draft. On mobile (_ppDraftMode false)
+        // the backend result is the only source so it wins unconditionally.
+        if (_ppDraftMode) {
+          // draft already set — only take the roster for the picker if it arrived
+          if (Array.isArray(p.presets) && p.presets.length) {
+            _ppRoster = p.presets;
+            refreshPresetModal();
+          }
+        } else {
+          _ppPreset = (p.preset && typeof p.preset === 'object') ? p.preset : null;
+          _ppRoster = Array.isArray(p.presets) ? p.presets : [];
+          refreshPresetModal();
+        }
       } else if (p?.type === 'vellum_preset_tab_link_done') {
         if (!p.ok) notify(ctx, 'warning', 'Link update failed.');
         // modal path: re-resolve the preset so the link badge repaints
