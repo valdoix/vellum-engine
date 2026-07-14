@@ -91,10 +91,42 @@ const SHAPE_GEOM: Record<string, string> = {
   // chamfer-bar: a single 45° machined chamfer on two diagonal corners — distinct
   // from notched (all four). Needs the CLIP_SHAPES fallback for old UAs.
   'chamfer-bar': 'clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)',
+  // MAXIMALIST-CHROME signature shapes (12; 3 per chrome). Same v4 discipline:
+  // geometry only here (never color/type); the defining detail lives in reserved
+  // padding as a pseudo (see shapeDetail below), so a wide row never clips text.
+  // --- ARCADE (hard/beveled/pixel) ---
+  // arcade-btn: a pressable cabinet button — small radius + a chunky bottom bevel
+  // (the hard offset lives in the chrome block; geometry just reserves the shape).
+  'arcade-btn': `border-radius:4px`,
+  // pixel-step: 8-bit stepped corners via clip-path (CLIP_SHAPES fallback).
+  'pixel-step': 'clip-path:polygon(0 6px,6px 6px,6px 0,calc(100% - 6px) 0,calc(100% - 6px) 6px,100% 6px,100% calc(100% - 6px),calc(100% - 6px) calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,6px calc(100% - 6px),0 calc(100% - 6px))',
+  // coin-slot: a horizontal coin-slot bar rides the reserved top padding (pseudo).
+  'coin-slot': `border-radius:4px;padding:15px 13px 11px`,
+  // --- RIOT (torn/taped/xerox) ---
+  // taped: a rotated tape strip sits in the reserved top padding (pseudo).
+  taped: `border-radius:1px;padding:15px 13px 11px`,
+  // torn-edge: a ragged photocopied bottom edge (mask); MASK_SHAPES fallback.
+  'torn-edge': `border-radius:1px;padding-bottom:13px;-webkit-mask:radial-gradient(circle 3px at 4px 100%,transparent 96%,#000) 0 100%/9px 10px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 5px) no-repeat;mask:radial-gradient(circle 3px at 4px 100%,transparent 96%,#000) 0 100%/9px 10px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 5px) no-repeat`,
+  // ransom-cut: irregular ransom-note notched corners via clip-path (CLIP fallback).
+  'ransom-cut': 'clip-path:polygon(0 4px,7px 0,40% 5px,60% 0,100% 4px,calc(100% - 5px) 40%,100% calc(100% - 6px),55% 100%,45% calc(100% - 5px),8px 100%,5px 55%,0 45%)',
+  // --- GRIMOIRE (illuminated/arcane) ---
+  // dropcap: an illuminated initial block in the reserved top-left padding (pseudo).
+  dropcap: `border-radius:calc(${R} * .8);padding:14px 13px 11px 40px`,
+  // sigil-seal: an arcane wax sigil rides the reserved top-right padding (pseudo).
+  'sigil-seal': `border-radius:calc(${R} * .8);padding:15px 15px 11px 13px`,
+  // rune-spine: runic glyph ticks run down a thick left rail (pseudo); left pad.
+  'rune-spine': `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:20px`,
+  // --- BESTIARY (vine/heraldic) ---
+  // vine-frame: acanthus vine sprigs tuck into two corners (pseudo, in the padding).
+  'vine-frame': `border-radius:calc(${R} * .6);padding:13px 15px`,
+  // heraldic-shield: a shield point notch at the bottom-center (mask); MASK fallback.
+  'heraldic-shield': `border-radius:calc(${R} * .5) calc(${R} * .5) 0 0;padding-bottom:16px;-webkit-mask:radial-gradient(circle 14px at 50% 100%,transparent 96%,#000) 50% 100%/28px 16px no-repeat,linear-gradient(#000,#000) 0 0/100% calc(100% - 8px) no-repeat,linear-gradient(#000,#000) 0 100%/50% 16px no-repeat,linear-gradient(#000,#000) 100% 100%/50% 16px no-repeat;mask:radial-gradient(circle 14px at 50% 100%,transparent 96%,#000) 50% 100%/28px 16px no-repeat,linear-gradient(#000,#000) 0 0/100% calc(100% - 8px) no-repeat,linear-gradient(#000,#000) 0 100%/50% 16px no-repeat,linear-gradient(#000,#000) 100% 100%/50% 16px no-repeat`,
+  // manuscript-rule: a rubricated paragraph mark on a thick left rail (pseudo).
+  'manuscript-rule': `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:22px`,
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
 // small fixed corners that live in padding.
-const CLIP_SHAPES = ['notched', 'chamfer-bar'];
+const CLIP_SHAPES = ['notched', 'chamfer-bar', 'pixel-step', 'ransom-cut'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
@@ -102,7 +134,7 @@ const SHAPE_SURFACE_ROOT: Record<string, string> = {
   beats: '.vle-mem--beat', factions: '.vle-fac', items: '.vle-item-row', secrets: '.vle-mem--secret',
 };
 // shapes whose edge is a CSS mask; on old UAs they drop the mask and round off.
-const MASK_SHAPES = ['scalloped', 'deckle', 'scallop-deco'];
+const MASK_SHAPES = ['scalloped', 'deckle', 'scallop-deco', 'torn-edge', 'heraldic-shield'];
 const shapePrimitives = (): string[] => [
   `:root{--v-shape-radius:var(--vradius)}`,
   ...Object.entries(SHAPE_GEOM).map(([id, body]) => `.v-shape--${id}{${body}}`),
@@ -1461,6 +1493,11 @@ export const STYLES = [
   ".vle-mode-sk.sk-sumi{flex-direction:column;gap:5px;background:linear-gradient(160deg,#f5ead8,#ebe0ca)}.vle-mode-sk.sk-sumi i{height:6px;border-radius:0;border-left:3px solid rgba(26,20,16,.7);background:linear-gradient(90deg,rgba(26,20,16,.12),transparent 60%);box-shadow:2px 2px 0 rgba(26,20,16,.08)}.vle-mode-sk.sk-sumi i:first-child{height:8px}.vle-mode-sk.sk-sumi i:last-child{width:70%}",
   // graphite: cool charcoal panel, thin steel-blue machined rows, one squared cap
   ".vle-mode-sk.sk-graphite{flex-direction:column;gap:4px;background:linear-gradient(160deg,#30353a,#20242a)}.vle-mode-sk.sk-graphite i{height:6px;border-radius:2px;background:rgba(91,143,176,.4);border-left:3px solid rgba(91,143,176,.85)}.vle-mode-sk.sk-graphite i:first-child{height:8px}.vle-mode-sk.sk-graphite i:last-child{width:60%}",
+  // maximalist chromes: loud neon/collage/arcane/heraldic mini-swatches
+  ".vle-mode-sk.sk-arcade{flex-direction:column;gap:4px;background:repeating-linear-gradient(0deg,rgba(255,46,166,.06) 0 2px,transparent 2px 4px),linear-gradient(160deg,#170f22,#0a0710)}.vle-mode-sk.sk-arcade i{height:6px;border-radius:2px;background:linear-gradient(90deg,#ff2ea6,#2ef0ff);box-shadow:0 0 5px rgba(255,46,166,.6)}.vle-mode-sk.sk-arcade i:first-child{height:9px}.vle-mode-sk.sk-arcade i:last-child{width:55%}",
+  ".vle-mode-sk.sk-riot{flex-direction:column;gap:4px;background:radial-gradient(circle at 1px 1px,rgba(0,0,0,.16) 1px,transparent 1.4px) 0 0/6px 6px,#ececdf}.vle-mode-sk.sk-riot i{height:6px;border-radius:0;background:#e8ff2e;border:1.5px solid #101014;box-shadow:2px 2px 0 #c400ff}.vle-mode-sk.sk-riot i:first-child{height:9px;transform:rotate(-2deg)}.vle-mode-sk.sk-riot i:last-child{width:60%;background:#c400ff}",
+  ".vle-mode-sk.sk-grimoire{flex-direction:column;gap:4px;background:radial-gradient(70% 60% at 50% 0%,rgba(162,76,255,.2),transparent),linear-gradient(160deg,#1a1230,#0d0819)}.vle-mode-sk.sk-grimoire i{height:6px;border-radius:5px;background:linear-gradient(90deg,rgba(162,76,255,.7),rgba(47,212,143,.55));box-shadow:0 0 5px rgba(162,76,255,.5)}.vle-mode-sk.sk-grimoire i:first-child{height:9px}.vle-mode-sk.sk-grimoire i:last-child{width:55%}",
+  ".vle-mode-sk.sk-bestiary{flex-direction:column;gap:4px;background:radial-gradient(circle at 10px 10px,rgba(200,162,78,.14) 2px,transparent 3px) 0 0/22px 22px,linear-gradient(160deg,#241a10,#160f08)}.vle-mode-sk.sk-bestiary i{height:6px;border-radius:2px;background:linear-gradient(90deg,rgba(200,162,78,.7),rgba(163,36,58,.5));border-left:3px solid rgba(200,162,78,.9)}.vle-mode-sk.sk-bestiary i:first-child{height:8px}.vle-mode-sk.sk-bestiary i:last-child{width:62%}",
 
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
@@ -2021,6 +2058,184 @@ export const STYLES = [
   "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='sumi'] .vle-card,html[data-vle-chrome='sumi'] .vle-rel-card,html[data-vle-chrome='sumi'] .vld-sec{animation:none}}",
 
   // ============================================================================
+  // ARCADE CHROME — 80s CRT / arcade cabinet: hot-pink & cyan neon on black,
+  // scanlines, arcade-button cards, chromatic flicker. Heavily animated; every
+  // animation is gated by data-vle-motion='off' + prefers-reduced-motion.
+  // ============================================================================
+  "html[data-vle-chrome='arcade'] .vle-root{font-family:var(--vmono);background-image:radial-gradient(120% 80% at 50% -10%,rgba(var(--vg-rgb),.14),transparent 60%),radial-gradient(100% 70% at 90% 110%,rgba(var(--vg2-rgb),.1),transparent 60%)}",
+  "html[data-vle-chrome='arcade'] .vle-navpanel{border-radius:3px;border:2px solid var(--vg);background:linear-gradient(180deg,rgba(var(--vg-rgb),.1),transparent),var(--vsurf-1);box-shadow:0 0 0 1px rgba(var(--vg2-rgb),.4),0 0 26px rgba(var(--vg-rgb),.28)}",
+  "html[data-vle-chrome='arcade'] .vle-head{font-family:var(--vmono);font-weight:700;letter-spacing:.12em;text-transform:uppercase;border-bottom:2px solid var(--vg);font-size:calc(12px * var(--vscale));color:var(--vg2);text-shadow:0 0 8px rgba(var(--vg2-rgb),.7)}",
+  "html[data-vle-chrome='arcade'] .vle-mark{text-shadow:0 0 10px rgba(var(--vg-rgb),.8)}",
+  "html[data-vle-chrome='arcade'] .vle-stats{font-family:var(--vmono);letter-spacing:.1em;text-transform:uppercase;opacity:.8}",
+  "html[data-vle-chrome='arcade'] .vle-tabbtn{border-radius:2px;border:1px solid rgba(var(--vg2-rgb),.4);letter-spacing:.08em;text-transform:uppercase;font-family:var(--vmono);font-size:calc(11px * var(--vscale));font-weight:700}",
+  "html[data-vle-chrome='arcade'] .vle-tabbtn:hover{background:rgba(var(--vg2-rgb),.1)}",
+  "html[data-vle-chrome='arcade'] .vle-tabbtn.on{color:var(--vg2);border-color:var(--vg2);background:linear-gradient(180deg,rgba(var(--vg2-rgb),.16),rgba(var(--vg2-rgb),.05));box-shadow:inset 0 0 12px rgba(var(--vg2-rgb),.25),0 0 12px rgba(var(--vg2-rgb),.3)}",
+  "html[data-vle-chrome='arcade'] .vle-card,html[data-vle-chrome='arcade'] .vle-rel-card,html[data-vle-chrome='arcade'] .vld-sec,html[data-vle-chrome='arcade'] .vld-pc{border-radius:3px;border:2px solid var(--vg2);background:linear-gradient(180deg,var(--vsurf-1),var(--vsurf-2));box-shadow:4px 4px 0 rgba(var(--vg-rgb),.5),inset 0 0 18px rgba(var(--vg2-rgb),.08)}",
+  "html[data-vle-chrome='arcade'] .vld-h,html[data-vle-chrome='arcade'] .vle-sec-h{font-family:var(--vmono);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--vg2);font-size:calc(10px * var(--vscale));text-shadow:0 0 8px rgba(var(--vg2-rgb),.6)}",
+  "html[data-vle-chrome='arcade'] .vld-h::before,html[data-vle-chrome='arcade'] .vle-sec-h::before{content:'\\25B6 ';color:var(--vg)}",
+  "html[data-vle-chrome='arcade'] .vld-hero{font-family:var(--vmono);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:calc(15px * var(--vscale));text-shadow:0 0 12px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='arcade'] .vle-av,html[data-vle-chrome='arcade'] .vld-pc-av{border-radius:3px;background:#0a0710;border:2px solid var(--vg);color:var(--vg2);font-family:var(--vmono);box-shadow:0 0 10px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='arcade'] .vld-dot.on{background:var(--vg2);box-shadow:0 0 8px var(--vg2)}",
+  "html[data-vle-chrome='arcade'] .vld-tension-f{background:linear-gradient(90deg,var(--vg),var(--vg2))!important;box-shadow:0 0 10px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='arcade'] .v-chip{border-radius:2px;border:1px solid var(--vg2);background:rgba(var(--vg2-rgb),.1);color:var(--vg2)}",
+  "html[data-vle-chrome='arcade'] .vlfm{border-radius:3px;border:2px solid var(--vg);box-shadow:0 0 30px rgba(var(--vg-rgb),.3),0 24px 70px rgba(0,0,0,.7)}",
+  "html[data-vle-chrome='arcade'] .vlfm-head{font-family:var(--vmono);text-transform:uppercase;letter-spacing:.1em;border-bottom:2px solid var(--vg)}",
+  // float shell
+  "html[data-vle-chrome='arcade'] .vlf-frame{border-radius:3px;border:2px solid var(--vg);background-clip:padding-box;box-shadow:0 0 0 1px rgba(var(--vg2-rgb),.4),0 0 22px rgba(var(--vg-rgb),.32),0 0 48px rgba(var(--vg2-rgb),.16),0 18px 50px rgba(0,0,0,.6)}",
+  "html[data-vle-chrome='arcade'] .vlf-bar{background:linear-gradient(90deg,rgba(var(--vg-rgb),.22),rgba(var(--vg2-rgb),.12),transparent);border-bottom:2px solid var(--vg)}",
+  "html[data-vle-chrome='arcade'] .vlf-title{font-family:var(--vmono);font-size:calc(11px * var(--vscale));font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--vg2);text-shadow:0 0 8px rgba(var(--vg2-rgb),.7)}",
+  "html[data-vle-chrome='arcade'] .vlf-x{border-radius:2px;background:#0a0710;border:1px solid var(--vg);color:var(--vg2);box-shadow:0 0 10px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='arcade'] .vlf-x:hover{background:var(--vg);color:#0a0710}",
+  "html[data-vle-chrome='arcade'] .vlf-grip{background:none;border:none;right:4px;bottom:4px;width:12px;height:12px;border-right:2px solid var(--vg2);border-bottom:2px solid var(--vg2);border-radius:0;opacity:.7}",
+  "html[data-vle-chrome='arcade'] .vlf-launch{border-radius:0;border-width:1px 0 1px 1px}",
+  // --- Arcade animations: CRT scanline sweep, neon flicker, chromatic jitter ---
+  "html[data-vle-chrome='arcade'] .vle-body,html[data-vle-chrome='arcade'] .vlf-body{position:relative}",
+  "html[data-vle-chrome='arcade'] .vle-body>*,html[data-vle-chrome='arcade'] .vlf-body>*{position:relative;z-index:1}",
+  "html[data-vle-chrome='arcade'] .vle-body::after,html[data-vle-chrome='arcade'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background:repeating-linear-gradient(0deg,rgba(var(--vg2-rgb),.05) 0 2px,transparent 2px 4px);opacity:.6}",
+  "html[data-vle-chrome='arcade'] .vle-body::before,html[data-vle-chrome='arcade'] .vlf-body::before{content:'';position:absolute;left:0;right:0;height:64px;top:-64px;pointer-events:none;z-index:0;background:linear-gradient(180deg,transparent,rgba(var(--vg2-rgb),.12),transparent);animation:vle-arcade-scan 6s linear infinite}",
+  "@keyframes vle-arcade-scan{0%{transform:translateY(0)}100%{transform:translateY(calc(100vh + 128px))}}",
+  "html[data-vle-chrome='arcade'] .vlf-title,html[data-vle-chrome='arcade'] .vle-mark{animation:vle-arcade-flicker 3.2s steps(1) infinite}",
+  "@keyframes vle-arcade-flicker{0%,92%,100%{opacity:1;text-shadow:0 0 8px rgba(var(--vg2-rgb),.7)}93%{opacity:.6}94%{opacity:1}96%{opacity:.7}97%{opacity:1}}",
+  "html[data-vle-chrome='arcade'] .vle-tabbtn.on{animation:vle-arcade-attract 1.4s ease-in-out infinite}",
+  "@keyframes vle-arcade-attract{0%,100%{box-shadow:inset 0 0 12px rgba(var(--vg2-rgb),.25),0 0 10px rgba(var(--vg2-rgb),.25)}50%{box-shadow:inset 0 0 14px rgba(var(--vg2-rgb),.4),0 0 18px rgba(var(--vg2-rgb),.5)}}",
+  "html[data-vle-chrome='arcade'] .vld-h::before,html[data-vle-chrome='arcade'] .vle-sec-h::before{animation:vle-arcade-aberr 2.4s steps(2) infinite}",
+  "@keyframes vle-arcade-aberr{0%,100%{text-shadow:-1px 0 rgba(var(--vg-rgb),.9),1px 0 rgba(var(--vg2-rgb),.9)}50%{text-shadow:1px 0 rgba(var(--vg-rgb),.9),-1px 0 rgba(var(--vg2-rgb),.9)}}",
+  "html[data-vle-chrome='arcade'][data-vle-motion='off'] .vle-body::before,html[data-vle-chrome='arcade'][data-vle-motion='off'] .vlf-body::before,html[data-vle-chrome='arcade'][data-vle-motion='off'] .vlf-title,html[data-vle-chrome='arcade'][data-vle-motion='off'] .vle-mark,html[data-vle-chrome='arcade'][data-vle-motion='off'] .vle-tabbtn.on,html[data-vle-chrome='arcade'][data-vle-motion='off'] .vld-h::before,html[data-vle-chrome='arcade'][data-vle-motion='off'] .vle-sec-h::before{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='arcade'] .vle-body::before,html[data-vle-chrome='arcade'] .vlf-body::before,html[data-vle-chrome='arcade'] .vlf-title,html[data-vle-chrome='arcade'] .vle-mark,html[data-vle-chrome='arcade'] .vle-tabbtn.on,html[data-vle-chrome='arcade'] .vld-h::before,html[data-vle-chrome='arcade'] .vle-sec-h::before{animation:none}}",
+
+  // ============================================================================
+  // RIOT CHROME — DIY punk zine collage: acid yellow & violet, halftone paper,
+  // taped/torn cards, xerox glitch. Paper-on-ink. Animations gated as above.
+  // ============================================================================
+  "html[data-vle-chrome='riot'] .vle-root{font-family:var(--vserif)}",
+  "html[data-vle-chrome='riot'] .vle-navpanel{border-radius:0;border:3px solid var(--vi);background:var(--vsurf-1);box-shadow:6px 6px 0 var(--vg2)}",
+  "html[data-vle-chrome='riot'] .vle-head{font-family:var(--vserif);font-weight:700;letter-spacing:2px;text-transform:uppercase;border-bottom:3px solid var(--vg2);background:var(--vi);color:var(--vg);padding:calc(6px * var(--vscale)) calc(8px * var(--vscale));font-size:calc(15px * var(--vscale))}",
+  "html[data-vle-chrome='riot'] .vle-mark{text-shadow:none}",
+  "html[data-vle-chrome='riot'] .vle-stats{font-family:var(--vserif);text-transform:uppercase;letter-spacing:1px;opacity:.8}",
+  "html[data-vle-chrome='riot'] .vle-tabbtn{border-radius:0;border:2px solid var(--vi);letter-spacing:1px;text-transform:uppercase;font-family:var(--vserif);font-size:calc(12px * var(--vscale));font-weight:700;background:var(--vsurf-1)}",
+  "html[data-vle-chrome='riot'] .vle-tabbtn:hover{background:var(--vg)}",
+  "html[data-vle-chrome='riot'] .vle-tabbtn.on{color:#fff;background:var(--vg2);border-color:var(--vi);box-shadow:3px 3px 0 var(--vi)}",
+  "html[data-vle-chrome='riot'] .vle-card,html[data-vle-chrome='riot'] .vle-rel-card,html[data-vle-chrome='riot'] .vld-sec,html[data-vle-chrome='riot'] .vld-pc{border-radius:0;border:3px solid var(--vi);background:var(--vsurf-1);box-shadow:4px 4px 0 var(--vi)}",
+  "html[data-vle-chrome='riot'] .vld-h,html[data-vle-chrome='riot'] .vle-sec-h{font-family:var(--vserif);font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--vi);background:var(--vg);display:inline-block;padding:1px 7px;transform:rotate(-1.2deg)}",
+  "html[data-vle-chrome='riot'] .vld-hero{font-family:var(--vserif);font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:calc(20px * var(--vscale))}",
+  "html[data-vle-chrome='riot'] .vle-av,html[data-vle-chrome='riot'] .vld-pc-av{border-radius:0;background:var(--vg);border:2.5px solid var(--vi);color:var(--vi);font-family:var(--vserif);transform:rotate(-3deg)}",
+  "html[data-vle-chrome='riot'] .vld-dot.on{background:var(--vg2);border-radius:0}",
+  "html[data-vle-chrome='riot'] .vld-tension{border:1.5px solid var(--vi);border-radius:0}",
+  "html[data-vle-chrome='riot'] .vld-tension-f{background:repeating-linear-gradient(45deg,var(--vg2) 0 5px,var(--vi) 5px 10px)!important}",
+  "html[data-vle-chrome='riot'] .v-chip{border-radius:0;background:var(--vg);border:2px solid var(--vi);color:var(--vi);transform:rotate(-1deg);text-transform:uppercase;font-weight:700}",
+  "html[data-vle-chrome='riot'] .vlfm{border-radius:0;border:3px solid var(--vi);box-shadow:8px 8px 0 var(--vg2)}",
+  "html[data-vle-chrome='riot'] .vlfm-head{font-family:var(--vserif);text-transform:uppercase;letter-spacing:1px;border-bottom:3px solid var(--vg2)}",
+  // float shell
+  "html[data-vle-chrome='riot'] .vlf-frame{border-radius:0;border:3px solid var(--vi);box-shadow:6px 6px 0 var(--vg2),12px 12px 0 rgba(var(--vg-rgb),.9)}",
+  "html[data-vle-chrome='riot'] .vlf-bar{background:var(--vi);color:var(--vg);border-bottom:3px solid var(--vg2);overflow:hidden}",
+  "html[data-vle-chrome='riot'] .vlf-title{font-family:var(--vserif);font-size:calc(14px * var(--vscale));font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}",
+  "html[data-vle-chrome='riot'] .vlf-x{border-radius:0;background:var(--vg);border:2px solid var(--vi);color:var(--vi)}",
+  "html[data-vle-chrome='riot'] .vlf-x:hover{background:var(--neg,#ff1744);color:#fff}",
+  "html[data-vle-chrome='riot'] .vlf-grip{background:none;border:none;right:5px;bottom:5px;width:12px;height:12px;border-right:2.5px solid var(--vg2);border-bottom:2.5px solid var(--vg2);border-radius:0}",
+  "html[data-vle-chrome='riot'] .vlf-launch{border-radius:0}",
+  // --- Riot animations: halftone drift, xerox jitter, tape flutter, marquee ---
+  "html[data-vle-chrome='riot'] .vle-body,html[data-vle-chrome='riot'] .vlf-body{position:relative}",
+  "html[data-vle-chrome='riot'] .vle-body>*,html[data-vle-chrome='riot'] .vlf-body>*{position:relative;z-index:1}",
+  "html[data-vle-chrome='riot'] .vle-body::after,html[data-vle-chrome='riot'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(circle at 1px 1px,rgba(var(--vi-rgb),.12) 1px,transparent 1.4px);background-size:7px 7px;opacity:.5;animation:vle-riot-halftone 8s linear infinite}",
+  "@keyframes vle-riot-halftone{0%{background-position:0 0}100%{background-position:28px 14px}}",
+  "html[data-vle-chrome='riot'] .vle-card,html[data-vle-chrome='riot'] .vle-rel-card{animation:vle-riot-jitter .5s steps(2) infinite}",
+  "html[data-vle-chrome='riot'] .vle-card:nth-child(2n),html[data-vle-chrome='riot'] .vle-rel-card:nth-child(2n){animation-delay:-.24s}",
+  "html[data-vle-chrome='riot'] .vle-card:nth-child(3n),html[data-vle-chrome='riot'] .vle-rel-card:nth-child(3n){animation-delay:-.37s}",
+  "@keyframes vle-riot-jitter{0%{transform:translate(0,0)}50%{transform:translate(.5px,-.5px)}100%{transform:translate(-.5px,.5px)}}",
+  "html[data-vle-chrome='riot'] .vld-h,html[data-vle-chrome='riot'] .vle-sec-h{animation:vle-riot-tape 3s ease-in-out infinite}",
+  "@keyframes vle-riot-tape{0%,100%{transform:rotate(-1.2deg)}50%{transform:rotate(.6deg)}}",
+  "html[data-vle-chrome='riot'] .vlf-title{animation:vle-riot-marquee 9s linear infinite}",
+  "@keyframes vle-riot-marquee{0%{transform:translateX(6%)}100%{transform:translateX(-6%)}}",
+  "html[data-vle-chrome='riot'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='riot'][data-vle-motion='off'] .vlf-body::after,html[data-vle-chrome='riot'][data-vle-motion='off'] .vle-card,html[data-vle-chrome='riot'][data-vle-motion='off'] .vle-rel-card,html[data-vle-chrome='riot'][data-vle-motion='off'] .vld-h,html[data-vle-chrome='riot'][data-vle-motion='off'] .vle-sec-h,html[data-vle-chrome='riot'][data-vle-motion='off'] .vlf-title{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='riot'] .vle-body::after,html[data-vle-chrome='riot'] .vlf-body::after,html[data-vle-chrome='riot'] .vle-card,html[data-vle-chrome='riot'] .vle-rel-card,html[data-vle-chrome='riot'] .vld-h,html[data-vle-chrome='riot'] .vle-sec-h,html[data-vle-chrome='riot'] .vlf-title{animation:none}}",
+
+  // ============================================================================
+  // GRIMOIRE CHROME — the living spellbook: arcane violet & emerald, glowing
+  // runes, illuminated drop-caps, drifting arcane motes. Animations gated.
+  // ============================================================================
+  "html[data-vle-chrome='grimoire'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(120% 80% at 50% -10%,rgba(var(--vg-rgb),.16),transparent 58%),radial-gradient(90% 60% at 88% 108%,rgba(var(--vg2-rgb),.11),transparent 58%)}",
+  "html[data-vle-chrome='grimoire'] .vle-navpanel{border-radius:12px;border:1px solid color-mix(in srgb,var(--vg) 45%,transparent);background:radial-gradient(140% 160% at 50% 0%,color-mix(in srgb,var(--vg) 14%,transparent),transparent 62%),var(--vsurf-1);box-shadow:0 0 24px rgba(var(--vg-rgb),.2)}",
+  "html[data-vle-chrome='grimoire'] .vle-head{font-family:var(--vserif);font-weight:700;letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid color-mix(in srgb,var(--vg) 40%,transparent);color:color-mix(in srgb,var(--vg) 80%,#fff);text-shadow:0 0 12px rgba(var(--vg-rgb),.6)}",
+  "html[data-vle-chrome='grimoire'] .vle-mark{text-shadow:0 0 14px rgba(var(--vg-rgb),.6)}",
+  "html[data-vle-chrome='grimoire'] .vle-mark::after{content:'\\2726';margin-left:7px;color:var(--vg2);opacity:.85;font-size:.78em}",
+  "html[data-vle-chrome='grimoire'] .vle-stats{font-family:var(--vserif);font-variant:small-caps;letter-spacing:1px;opacity:.7}",
+  "html[data-vle-chrome='grimoire'] .vle-tabbtn{border-radius:8px;border:1px solid color-mix(in srgb,var(--vg) 30%,transparent);letter-spacing:1px;text-transform:uppercase;font-family:var(--vserif);font-size:calc(12px * var(--vscale));font-weight:700}",
+  "html[data-vle-chrome='grimoire'] .vle-tabbtn:hover{background:color-mix(in srgb,var(--vg) 12%,transparent)}",
+  "html[data-vle-chrome='grimoire'] .vle-tabbtn.on{color:var(--vg);border-color:transparent;background:linear-gradient(120deg,color-mix(in srgb,var(--vg) 22%,transparent),color-mix(in srgb,var(--vg2) 18%,transparent));box-shadow:0 0 16px rgba(var(--vg-rgb),.28)}",
+  "html[data-vle-chrome='grimoire'] .vle-card,html[data-vle-chrome='grimoire'] .vle-rel-card,html[data-vle-chrome='grimoire'] .vld-sec,html[data-vle-chrome='grimoire'] .vld-pc{border-radius:12px;border:1px solid color-mix(in srgb,var(--vg) 30%,transparent);background:linear-gradient(168deg,var(--vsurf-1),var(--vsurf-2));box-shadow:inset 0 0 24px rgba(var(--vg-rgb),.1),0 6px 20px rgba(8,4,20,.5)}",
+  "html[data-vle-chrome='grimoire'] .vld-h,html[data-vle-chrome='grimoire'] .vle-sec-h{font-family:var(--vserif);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:color-mix(in srgb,var(--vg) 75%,#fff);text-shadow:0 0 10px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='grimoire'] .vld-h::before,html[data-vle-chrome='grimoire'] .vle-sec-h::before{content:'\\2727 ';color:var(--vg2);opacity:.85}",
+  "html[data-vle-chrome='grimoire'] .vld-hero{font-family:var(--vserif);font-weight:600;font-style:italic;letter-spacing:.3px;text-shadow:0 0 16px rgba(var(--vg-rgb),.4),0 0 32px rgba(var(--vg2-rgb),.18)}",
+  "html[data-vle-chrome='grimoire'] .vle-av,html[data-vle-chrome='grimoire'] .vld-pc-av{border-radius:50%;background:radial-gradient(circle at 30% 30%,#2a1a44,#120a24);border:1px solid var(--vg);color:var(--warn,#ffcf5a);font-family:var(--vserif);box-shadow:0 0 14px rgba(var(--vg-rgb),.5),inset 0 0 8px rgba(var(--vg2-rgb),.2)}",
+  "html[data-vle-chrome='grimoire'] .vld-dot.on{background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--vg) 80%,#fff),var(--vg));box-shadow:0 0 8px rgba(var(--vg-rgb),.6)}",
+  "html[data-vle-chrome='grimoire'] .vld-tension-f{background:linear-gradient(90deg,var(--vg),var(--vg2),var(--vg))!important;background-size:200% 100%;box-shadow:0 0 12px rgba(var(--vg-rgb),.55)}",
+  "html[data-vle-chrome='grimoire'] .v-chip{border-radius:var(--rpill);border:1px solid color-mix(in srgb,var(--vg) 45%,transparent);background:color-mix(in srgb,var(--vg) 14%,transparent);box-shadow:0 0 8px rgba(var(--vg-rgb),.12)}",
+  "html[data-vle-chrome='grimoire'] .vlfm{border-radius:16px;border:1px solid color-mix(in srgb,var(--vg) 40%,transparent);box-shadow:0 0 40px rgba(var(--vg-rgb),.2),0 24px 70px rgba(0,0,0,.6)}",
+  "html[data-vle-chrome='grimoire'] .vlfm-head{font-family:var(--vserif);text-transform:uppercase;letter-spacing:1.5px;border-bottom:1px solid color-mix(in srgb,var(--vg) 35%,transparent)}",
+  // float shell
+  "html[data-vle-chrome='grimoire'] .vlf-frame{border-radius:14px;border:1px solid color-mix(in srgb,var(--vg) 40%,transparent);box-shadow:0 0 24px rgba(var(--vg-rgb),.2),0 0 60px rgba(var(--vg2-rgb),.14),0 18px 60px rgba(8,4,20,.6)}",
+  "html[data-vle-chrome='grimoire'] .vlf-bar{background:linear-gradient(90deg,rgba(var(--vg-rgb),.24),rgba(var(--vg2-rgb),.1),transparent);border-bottom:1px solid color-mix(in srgb,var(--vg) 32%,transparent)}",
+  "html[data-vle-chrome='grimoire'] .vlf-title{font-family:var(--vserif);font-weight:700;font-size:calc(15px * var(--vscale));letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 12px rgba(var(--vg-rgb),.55)}",
+  "html[data-vle-chrome='grimoire'] .vlf-x{border-radius:50%;background:radial-gradient(circle at 40% 35%,#2a1a44,#120a24);border:1px solid var(--vg);color:var(--warn,#ffcf5a);box-shadow:0 0 12px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='grimoire'] .vlf-x:hover{background:radial-gradient(circle at 40% 35%,var(--vg),#2a1a44)}",
+  "html[data-vle-chrome='grimoire'] .vlf-grip{background:none;border:none;right:7px;bottom:7px;width:12px;height:12px;border-right:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-bottom:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-radius:0 0 8px 0;opacity:.7}",
+  "html[data-vle-chrome='grimoire'] .vlf-launch{border-radius:12px 0 0 12px;box-shadow:-5px 4px 22px rgba(0,0,0,.5),0 0 18px rgba(var(--vg-rgb),.2)}",
+  // --- Grimoire animations: arcane motes, rune shimmer, flowing tension, halo ---
+  "html[data-vle-chrome='grimoire'] .vle-body,html[data-vle-chrome='grimoire'] .vlf-body{position:relative}",
+  "html[data-vle-chrome='grimoire'] .vle-body>*,html[data-vle-chrome='grimoire'] .vlf-body>*{position:relative;z-index:1}",
+  "html[data-vle-chrome='grimoire'] .vle-body::after,html[data-vle-chrome='grimoire'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(1.5px 1.5px at 14% 20%,rgba(var(--vg-rgb),.6),transparent),radial-gradient(1px 1px at 72% 30%,rgba(var(--vg2-rgb),.5),transparent),radial-gradient(2px 2px at 40% 66%,rgba(var(--vg-rgb),.45),transparent),radial-gradient(1px 1px at 86% 76%,rgba(var(--vg2-rgb),.5),transparent),radial-gradient(1.5px 1.5px at 54% 14%,rgba(255,207,90,.4),transparent),radial-gradient(1px 1px at 26% 86%,rgba(var(--vg2-rgb),.4),transparent);background-repeat:no-repeat;opacity:.6;animation:vle-grim-motes 20s ease-in-out infinite}",
+  "@keyframes vle-grim-motes{0%{transform:translate(0,0);opacity:.6}33%{transform:translate(6px,-8px);opacity:.4}66%{transform:translate(-5px,-4px);opacity:.55}100%{transform:translate(0,0);opacity:.6}}",
+  "html[data-vle-chrome='grimoire'] .vld-h,html[data-vle-chrome='grimoire'] .vle-sec-h{animation:vle-grim-rune 4s ease-in-out infinite}",
+  "@keyframes vle-grim-rune{0%,100%{text-shadow:0 0 10px rgba(var(--vg-rgb),.5)}50%{text-shadow:0 0 18px rgba(var(--vg-rgb),.85),0 0 28px rgba(var(--vg2-rgb),.4)}}",
+  "html[data-vle-chrome='grimoire'] .vld-tension-f{animation:vle-grim-flow 3s linear infinite}",
+  "@keyframes vle-grim-flow{0%{background-position:0 0}100%{background-position:200% 0}}",
+  "html[data-vle-chrome='grimoire'] .vle-card--present .vle-av,html[data-vle-chrome='grimoire'] .vld-pc-av{animation:vle-grim-halo 2.6s ease-in-out infinite}",
+  "@keyframes vle-grim-halo{0%,100%{box-shadow:0 0 14px rgba(var(--vg-rgb),.45),inset 0 0 8px rgba(var(--vg2-rgb),.2)}50%{box-shadow:0 0 22px rgba(var(--vg-rgb),.7),inset 0 0 12px rgba(var(--vg2-rgb),.3)}}",
+  "html[data-vle-chrome='grimoire'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='grimoire'][data-vle-motion='off'] .vlf-body::after,html[data-vle-chrome='grimoire'][data-vle-motion='off'] .vld-h,html[data-vle-chrome='grimoire'][data-vle-motion='off'] .vle-sec-h,html[data-vle-chrome='grimoire'][data-vle-motion='off'] .vld-tension-f,html[data-vle-chrome='grimoire'][data-vle-motion='off'] .vld-pc-av{animation:none;opacity:1}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='grimoire'] .vle-body::after,html[data-vle-chrome='grimoire'] .vlf-body::after,html[data-vle-chrome='grimoire'] .vld-h,html[data-vle-chrome='grimoire'] .vle-sec-h,html[data-vle-chrome='grimoire'] .vld-tension-f,html[data-vle-chrome='grimoire'] .vld-pc-av{animation:none}}",
+
+  // ============================================================================
+  // BESTIARY CHROME — illuminated menagerie: crimson, royal blue & gilt on
+  // vellum, vine frames, heraldic shields, gold-leaf shimmer. Animations gated.
+  // ============================================================================
+  "html[data-vle-chrome='bestiary'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(circle at 14px 14px,rgba(var(--vg-rgb),.1) 2px,transparent 3px);background-size:44px 44px}",
+  "html[data-vle-chrome='bestiary'] .vle-navpanel{border-radius:4px;border:3px double var(--vg);background:var(--vsurf-1);box-shadow:0 0 0 3px color-mix(in srgb,var(--vg2) 40%,transparent),0 10px 30px rgba(40,20,8,.4)}",
+  "html[data-vle-chrome='bestiary'] .vle-head{font-family:var(--vserif);font-weight:700;letter-spacing:1px;border-bottom:3px solid var(--vg);color:var(--vg2);font-size:calc(17px * var(--vscale))}",
+  "html[data-vle-chrome='bestiary'] .vle-mark{text-shadow:0 1px 0 rgba(255,255,255,.3)}",
+  "html[data-vle-chrome='bestiary'] .vle-stats{font-family:var(--vserif);font-variant:small-caps;letter-spacing:1px;opacity:.75}",
+  "html[data-vle-chrome='bestiary'] .vle-tabbtn{border-radius:3px;border:1.5px solid color-mix(in srgb,var(--vg) 55%,transparent);letter-spacing:.5px;font-family:var(--vserif);font-size:calc(13px * var(--vscale));font-weight:700}",
+  "html[data-vle-chrome='bestiary'] .vle-tabbtn:hover{background:color-mix(in srgb,var(--vg) 14%,transparent)}",
+  "html[data-vle-chrome='bestiary'] .vle-tabbtn.on{color:var(--vg2);border-color:var(--vg);background:linear-gradient(180deg,color-mix(in srgb,var(--vg) 20%,transparent),transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--vg) 30%,transparent)}",
+  "html[data-vle-chrome='bestiary'] .vle-card,html[data-vle-chrome='bestiary'] .vle-rel-card,html[data-vle-chrome='bestiary'] .vld-sec,html[data-vle-chrome='bestiary'] .vld-pc{border-radius:4px;border:2px solid var(--vg);background:var(--vsurf-1);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--vg) 40%,transparent),inset 0 0 0 3px var(--vsurf-1),inset 0 0 0 4px color-mix(in srgb,var(--vg2) 30%,transparent),0 4px 12px rgba(40,20,8,.25)}",
+  "html[data-vle-chrome='bestiary'] .vld-h,html[data-vle-chrome='bestiary'] .vle-sec-h{font-family:var(--vserif);font-weight:700;letter-spacing:.5px;color:var(--vg2)}",
+  "html[data-vle-chrome='bestiary'] .vld-h::before,html[data-vle-chrome='bestiary'] .vle-sec-h::before{content:'\\2767 ';color:var(--vg);opacity:.85}",
+  "html[data-vle-chrome='bestiary'] .vld-hero{font-family:var(--vserif);font-weight:700;letter-spacing:.5px;font-size:calc(21px * var(--vscale));color:var(--vg2)}",
+  "html[data-vle-chrome='bestiary'] .vle-av,html[data-vle-chrome='bestiary'] .vld-pc-av{border-radius:50%;background:var(--info,#2f4a9a);color:var(--vg);border:2px solid var(--vg);font-family:var(--vserif);box-shadow:0 0 0 1px var(--vg2)}",
+  "html[data-vle-chrome='bestiary'] .vld-dot.on{background:var(--vg2)}",
+  "html[data-vle-chrome='bestiary'] .vld-tension{border:1px solid var(--vg);border-radius:2px}",
+  "html[data-vle-chrome='bestiary'] .vld-tension-f{background:repeating-linear-gradient(90deg,var(--info,#2f4a9a) 0 6px,var(--vg2) 6px 12px)!important}",
+  "html[data-vle-chrome='bestiary'] .v-chip{border-radius:2px;background:var(--vsurf-1);border:1.5px solid var(--vg);color:var(--vg2);font-family:var(--vserif)}",
+  "html[data-vle-chrome='bestiary'] .vlfm{border-radius:4px;border:3px double var(--vg);box-shadow:0 0 0 3px color-mix(in srgb,var(--vg2) 40%,transparent),0 24px 60px rgba(0,0,0,.5)}",
+  "html[data-vle-chrome='bestiary'] .vlfm-head{font-family:var(--vserif);letter-spacing:1px;border-bottom:3px solid var(--vg)}",
+  // float shell
+  "html[data-vle-chrome='bestiary'] .vlf-frame{border-radius:4px;border:3px double var(--vg);box-shadow:0 0 0 3px color-mix(in srgb,var(--vg2) 45%,transparent),0 0 0 4px var(--vg),0 18px 50px rgba(40,20,8,.5)}",
+  "html[data-vle-chrome='bestiary'] .vlf-bar{background:linear-gradient(90deg,var(--vg2),color-mix(in srgb,var(--vg2) 60%,#000));border-bottom:3px solid var(--vg);color:var(--vsurf-1)}",
+  "html[data-vle-chrome='bestiary'] .vlf-title{font-family:var(--vserif);font-size:calc(17px * var(--vscale));font-weight:700;letter-spacing:1px}",
+  "html[data-vle-chrome='bestiary'] .vlf-x{border-radius:3px;background:var(--vg);border:1px solid var(--vg2);color:var(--vg2)}",
+  "html[data-vle-chrome='bestiary'] .vlf-x:hover{background:var(--vg2);color:var(--vsurf-1)}",
+  "html[data-vle-chrome='bestiary'] .vlf-grip{background:none;border:none;right:6px;bottom:6px;width:12px;height:12px;border-right:2px solid var(--vg);border-bottom:2px solid var(--vg);border-radius:0}",
+  "html[data-vle-chrome='bestiary'] .vlf-launch{border-radius:4px 0 0 4px}",
+  // --- Bestiary animations: gold-leaf shimmer, vine grow, candlelight flicker ---
+  "html[data-vle-chrome='bestiary'] .vle-card,html[data-vle-chrome='bestiary'] .vle-rel-card,html[data-vle-chrome='bestiary'] .vld-sec{animation:vle-best-grow .7s ease-out}",
+  "@keyframes vle-best-grow{0%{opacity:0;transform:translateY(6px) scale(.99)}100%{opacity:1;transform:translateY(0) scale(1)}}",
+  "html[data-vle-chrome='bestiary'] .vle-head,html[data-vle-chrome='bestiary'] .vlf-title{animation:vle-best-leaf 5s ease-in-out infinite}",
+  "@keyframes vle-best-leaf{0%,100%{text-shadow:0 1px 0 rgba(255,255,255,.3)}50%{text-shadow:0 1px 0 rgba(255,255,255,.3),0 0 12px rgba(var(--vg-rgb),.6)}}",
+  "html[data-vle-chrome='bestiary'] .vld-h::before,html[data-vle-chrome='bestiary'] .vle-sec-h::before{animation:vle-best-bob 3s ease-in-out infinite;display:inline-block}",
+  "@keyframes vle-best-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}",
+  "html[data-vle-chrome='bestiary'][data-vle-motion='off'] .vle-card,html[data-vle-chrome='bestiary'][data-vle-motion='off'] .vle-rel-card,html[data-vle-chrome='bestiary'][data-vle-motion='off'] .vld-sec,html[data-vle-chrome='bestiary'][data-vle-motion='off'] .vle-head,html[data-vle-chrome='bestiary'][data-vle-motion='off'] .vlf-title,html[data-vle-chrome='bestiary'][data-vle-motion='off'] .vld-h::before,html[data-vle-chrome='bestiary'][data-vle-motion='off'] .vle-sec-h::before{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='bestiary'] .vle-card,html[data-vle-chrome='bestiary'] .vle-rel-card,html[data-vle-chrome='bestiary'] .vld-sec,html[data-vle-chrome='bestiary'] .vle-head,html[data-vle-chrome='bestiary'] .vlf-title,html[data-vle-chrome='bestiary'] .vld-h::before,html[data-vle-chrome='bestiary'] .vle-sec-h::before{animation:none}}",
+
+  // ============================================================================
   // CARD SHAPE PRIMITIVES + per-surface overrides (mockup 24 / 30-35).
   // Both are generated from the single SHAPE_GEOM map above (geometry only, never
   // color/type). Primitives (.v-shape--<id>) are used directly by renderers;
@@ -2123,6 +2338,24 @@ export const STYLES = [
   ...shapeDetail('screw-tab', "content:'';position:absolute;inset:6px;pointer-events:none;z-index:2;background:linear-gradient(var(--vg),var(--vg)) 0 0/5px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 0/5px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 100%/5px 1px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 100%/5px 1px no-repeat;background-position:-2px 0,calc(100% + 2px) 0,-2px 100%,calc(100% + 2px) 100%;opacity:.6", '::after'),
   // track: a segmented completion tick-track along the reserved bottom padding.
   ...shapeDetail('track', "content:'';position:absolute;bottom:5px;left:10px;right:10px;height:4px;pointer-events:none;z-index:1;background:repeating-linear-gradient(90deg,var(--vg) 0,var(--vg) 6px,transparent 6px,transparent 10px) 0 0/100% 2px no-repeat,linear-gradient(color-mix(in srgb,var(--vg) 30%,transparent),color-mix(in srgb,var(--vg) 30%,transparent)) 0 100%/100% 1px no-repeat;opacity:.65", '::after'),
+  // --- MAXIMALIST-CHROME signature shape details (12; 3 per chrome). All colors
+  // reference themed vars so each skin recolors them for free; all pinned into the
+  // padding reserved by SHAPE_GEOM so they never touch text.
+  // ARCADE: coin-slot -- a horizontal coin-slot bar in the reserved top padding.
+  ...shapeDetail('coin-slot', "content:'';position:absolute;top:6px;left:50%;transform:translateX(-50%);width:34px;height:4px;pointer-events:none;z-index:1;background:var(--vg2,var(--vg));border-radius:2px;box-shadow:0 0 8px rgba(var(--vg-rgb),.6),inset 0 0 3px rgba(0,0,0,.5)", '::before'),
+  // RIOT: taped -- a rotated translucent tape strip in the reserved top padding.
+  ...shapeDetail('taped', "content:'';position:absolute;top:2px;left:16px;width:54px;height:18px;pointer-events:none;z-index:1;background:color-mix(in srgb,var(--vg) 55%,transparent);border:1px solid color-mix(in srgb,var(--vi) 30%,transparent);transform:rotate(-6deg);box-shadow:0 1px 2px rgba(0,0,0,.25)", '::before'),
+  // GRIMOIRE: dropcap -- an illuminated initial block in the reserved top-left pad.
+  ...shapeDetail('dropcap', "content:'';position:absolute;top:11px;left:9px;width:24px;height:28px;pointer-events:none;z-index:1;border-radius:4px;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--vg) 30%,transparent),color-mix(in srgb,var(--vg2) 22%,transparent));border:1px solid color-mix(in srgb,var(--vg) 50%,transparent);box-shadow:inset 0 0 8px rgba(var(--vg-rgb),.35),0 0 10px rgba(var(--vg-rgb),.25)", '::before'),
+  // GRIMOIRE: sigil-seal -- an arcane sigil wax seal in the reserved top-right pad.
+  ...shapeDetail('sigil-seal', "content:'\\2721';position:absolute;top:3px;right:6px;width:22px;height:22px;pointer-events:none;z-index:1;display:flex;align-items:center;justify-content:center;color:var(--vg);font-size:13px;line-height:1;border-radius:50%;border:1px solid color-mix(in srgb,var(--vg) 55%,transparent);background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--vg) 30%,transparent),transparent 72%);text-shadow:0 0 8px rgba(var(--vg-rgb),.7)", '::after'),
+  // GRIMOIRE: rune-spine -- runic glyph ticks running down the thick left rail.
+  ...shapeDetail('rune-spine', "content:'';position:absolute;left:7px;top:8px;bottom:8px;width:7px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 3px 0/1px 100% no-repeat,linear-gradient(var(--vg),var(--vg)) 0 12%/7px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 12%/2px 10px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 50%/7px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 0 88%/7px 2px no-repeat,linear-gradient(var(--vg),var(--vg)) 100% 88%/2px 10px no-repeat;opacity:.7", '::before'),
+  // BESTIARY: vine-frame -- acanthus vine sprigs tucked into two opposite corners.
+  ...shapeDetail('vine-frame', "content:'';position:absolute;top:4px;left:4px;width:22px;height:22px;pointer-events:none;z-index:1;border-top:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-left:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-top-left-radius:12px;background:radial-gradient(circle 3px at 60% 4px,color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent),radial-gradient(circle 3px at 4px 60%,color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent);background-repeat:no-repeat;opacity:.75", '::before'),
+  ...shapeDetail('vine-frame', "content:'';position:absolute;bottom:4px;right:4px;width:22px;height:22px;pointer-events:none;z-index:1;border-bottom:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-right:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-bottom-right-radius:12px;background:radial-gradient(circle 3px at 40% calc(100% - 4px),color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent),radial-gradient(circle 3px at calc(100% - 4px) 40%,color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent);background-repeat:no-repeat;opacity:.75", '::after'),
+  // BESTIARY: manuscript-rule -- a rubricated paragraph mark on the thick left rail.
+  ...shapeDetail('manuscript-rule', "content:'\\00B6';position:absolute;left:6px;top:10px;width:12px;pointer-events:none;z-index:1;color:var(--vg);font-size:14px;line-height:1;opacity:.8", '::before'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.

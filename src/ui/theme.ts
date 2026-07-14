@@ -60,8 +60,12 @@ const F_HUD = "'Orbitron','JetBrains Mono',ui-monospace,monospace"; // Futuristi
 const F_ETHEREAL = "'Quicksand','Cormorant Garamond',Georgia,serif"; // Ember display — airy rounded geometric (bundled), Cormorant as graceful fallback
 const F_DECO = "'Poiret One','Playfair Display','Cormorant Garamond',Georgia,serif"; // Gatsby display — true art deco, loads from Google Fonts
 const F_BRUSH = "'Noto Serif JP','Noto Serif',Georgia,serif"; // Sumi display — Japanese brush, loads from Google Fonts
+const F_ARCADE = "'Press Start 2P',ui-monospace,monospace"; // Arcade display — 8-bit pixel, loads from Google Fonts
+const F_ZINE = "'Anton','Oswald',Impact,sans-serif"; // Riot display — condensed poster grotesque, loads from Google Fonts
+const F_ARCANE = "'Cinzel Decorative','Cinzel',Georgia,serif"; // Grimoire display — ornate roman caps (Cinzel bundled; Decorative loads from Google)
+const F_UNCIAL = "'MedievalSharp','UnifrakturCook',Georgia,serif"; // Bestiary display — medieval uncial, loads from Google Fonts
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi' | 'graphite';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary';
 
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
@@ -87,12 +91,17 @@ export type ShapeId =
   | 'aperture' | 'deckle' | 'stitch' | 'gilt-edge' | 'binding' | 'studs' | 'bracket'
   | 'toadstool' | 'trellis' | 'bramble' | 'lantern'
   | 'sunburst' | 'marquee' | 'scallop-deco' | 'stepped' | 'hanko' | 'washi-fold'
-  | 'rail-cap' | 'gauge' | 'screw-tab' | 'track' | 'spec-frame' | 'chamfer-bar';
+  | 'rail-cap' | 'gauge' | 'screw-tab' | 'track' | 'spec-frame' | 'chamfer-bar'
+  // maximalist chrome signature shapes (3 per chrome): arcade / riot / grimoire / bestiary
+  | 'arcade-btn' | 'pixel-step' | 'coin-slot'
+  | 'taped' | 'torn-edge' | 'ransom-cut'
+  | 'dropcap' | 'sigil-seal' | 'rune-spine'
+  | 'vine-frame' | 'heraldic-shield' | 'manuscript-rule';
 // NOTE: `secrets` is intentionally NOT a customizable surface — the secret card
 // owns a fixed left-spine + wax-seal signature across every chrome (rendered via
 // its own ::before/::after), so it isn't offered in the card-shape customizer.
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -129,6 +138,23 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   // double-keyline bonds, screw-fastened cast, a bezel-gauge beat, a chamfered
   // faction, a segmented completion track for items.
   graphite: { present: 'rail-cap', bonds: 'spec-frame', cast: 'screw-tab', beats: 'gauge', factions: 'chamfer-bar', items: 'track' },
+  // arcade cabinet: a pressable arcade-button present, hard reticle bonds, an 8-bit
+  // pixel-stepped cast, a coin-slot beat, a scanline-inset faction, end-bracket items.
+  // 3 signature shapes (arcade-btn/pixel-step/coin-slot) + 3 survivors.
+  arcade: { present: 'arcade-btn', bonds: 'notched', cast: 'pixel-step', beats: 'coin-slot', factions: 'inset', items: 'bracket' },
+  // punk zine: a taped-corner present, a torn-edge bond, a stitched (cut-paste) cast,
+  // stapled beats, a marker-box faction, ransom-note cut items.
+  // 3 signature shapes (taped/torn-edge/ransom-cut) + 3 survivors.
+  riot: { present: 'taped', bonds: 'torn-edge', cast: 'stitch', beats: 'studs', factions: 'inset', items: 'ransom-cut' },
+  // living spellbook: an illuminated drop-cap present, a sigil-seal bond, a reliquary
+  // (tarot) cast plate, a scroll (deckle) beat, a runic-spine faction, a clasped item.
+  // 3 signature shapes (dropcap/sigil-seal/rune-spine) + 3 survivors.
+  grimoire: { present: 'dropcap', bonds: 'sigil-seal', cast: 'tarot', beats: 'deckle', factions: 'rune-spine', items: 'gilt-edge' },
+  // illuminated bestiary: a vine-framed present, a gilt-edge illumination bond, a
+  // portrait (tarot) cast, a scalloped banner beat, a heraldic-shield faction, a
+  // rubricated manuscript-rule item. 3 signature (vine-frame/heraldic-shield/
+  // manuscript-rule) + 3 survivors.
+  bestiary: { present: 'vine-frame', bonds: 'gilt-edge', cast: 'tarot', beats: 'scalloped', factions: 'heraldic-shield', items: 'manuscript-rule' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -205,6 +231,25 @@ export const MODES: Mode[] = [
   // clean shadow with no glow, so it reads correctly in light mode too. Font is the
   // bundled Inter grotesk (no Google font load needed, unlike Gatsby/Sumi).
   { id: 'graphite', name: 'Graphite', blurb: 'The engineer\u2019s desk \u2014 cool greys, steel-blue accent, machined and neutral.', patch: { chrome: 'graphite', radius: 4, border: 1, texture: '', serif: F_SANS, accent: '#5b8fb0', accent2: '#7a94ae', opacity: 1, blur: 6 }, form: 'dashboard', skin: 'graphite', skinDark: 'graphite', skinLight: 'graphite-light' },
+  // --- MAXIMALIST CHROMES: loud, bright, heavily animated. Each has a distinct
+  // signature card-shape trio (see CHROME_SHAPES) and a chrome-scoped motion layer.
+  // ARCADE — "80s CRT / arcade cabinet": hot pink & cyan neon on black, scanlines,
+  // arcade-button cards. Distinct from Futuristic (calm cyan HUD): Arcade is loud,
+  // glowing, and flickering. Light twin = a bright cabinet (arcade-sun).
+  { id: 'arcade', name: 'Arcade', blurb: 'Insert coin \u2014 hot pink &amp; cyan on black, CRT scanlines, arcade-button cards.', patch: { chrome: 'arcade', radius: 3, border: 2, texture: 'scanline', serif: F_ARCADE, accent: '#ff2ea6', accent2: '#2ef0ff', opacity: 1, blur: 6 }, form: 'dashboard', skin: 'arcade-crt', skinDark: 'arcade-crt', skinLight: 'arcade-sun' },
+  // RIOT — "DIY punk zine collage": acid yellow & violet, halftone, taped/torn cards,
+  // xerox glitch. Distinct from all: the only paper-on-ink collage chrome. Light twin
+  // = a photocopied paper zine (riot-paper).
+  { id: 'riot', name: 'Riot', blurb: 'Cut-and-paste chaos \u2014 acid yellow &amp; violet, halftone, taped &amp; torn cards.', patch: { chrome: 'riot', radius: 0, border: 3, texture: 'halftone', serif: F_ZINE, accent: '#e8ff2e', accent2: '#c400ff', opacity: 1, blur: 0 }, form: 'dashboard', skin: 'riot-black', skinDark: 'riot-black', skinLight: 'riot-paper' },
+  // GRIMOIRE — "the living spellbook": arcane violet & emerald, glowing runes,
+  // illuminated drop-caps, drifting arcane motes. Distinct from Illuminated (quiet
+  // gold manuscript): Grimoire is jewel-toned and animated. Light twin = spell parchment.
+  { id: 'grimoire', name: 'Grimoire', blurb: 'A living spellbook \u2014 arcane violet &amp; emerald, glowing runes, illuminated drop-caps.', patch: { chrome: 'grimoire', radius: 12, border: 1, texture: 'constellation', serif: F_ARCANE, accent: '#a24cff', accent2: '#2fd48f', opacity: 0.92, blur: 10 }, form: 'dashboard', skin: 'grimoire-arcane', skinDark: 'grimoire-arcane', skinLight: 'grimoire-parchment' },
+  // BESTIARY — "maximalist illuminated menagerie": crimson, royal blue & gilt on
+  // vellum, vine borders, heraldic shields, gold-leaf shimmer. Distinct from
+  // Illuminated (restrained) & Gatsby (geometric): Bestiary is dense, painterly,
+  // medieval. Light-led; dark twin = candlelit scriptorium.
+  { id: 'bestiary', name: 'Bestiary', blurb: 'An illuminated bestiary \u2014 crimson, royal blue &amp; gilt, vine borders, heraldic shields.', patch: { chrome: 'bestiary', radius: 4, border: 2, texture: 'bestiary-vines', serif: F_UNCIAL, accent: '#c8a24e', accent2: '#a3243a', opacity: 1, blur: 4 }, form: 'dashboard', skin: 'bestiary-vellum', skinDark: 'bestiary-candlelit', skinLight: 'bestiary-vellum' },
 ];
 
 
@@ -271,6 +316,27 @@ export const SKINS: Skin[] = [
   { id: 'monochrome-sepia', name: 'Sepia Tone', blurb: 'Warm sepia — vintage brown tones, aged photograph aesthetic, nostalgic warmth.', theme: { accent: '#d4a574', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(32,26,20,.7)', surf2: 'rgba(20,16,12,.75)', ink: '#e8d8c8', ink2: '#b8a898', glass: 'linear-gradient(168deg,rgba(28,22,18,.98),rgba(16,12,8,.99))', pos: '#c8b098', posInk: '#d8c8b0', neg: '#a08070', negInk: '#b09080', info: '#b0a090', warn: '#a89888', press: '#d4a574', pressInk: '#e4c094' } },
   // Blue-tone: cool cyan-blue, moonlit night aesthetic
   { id: 'monochrome-blue', name: 'Blue Tone', blurb: 'Cool blue-gray — moonlit tones, cinematic night aesthetic, calm focus.', theme: { accent: '#7ab8d8', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(18,22,28,.7)', surf2: 'rgba(10,14,18,.75)', ink: '#d8e4f0', ink2: '#a8b8c8', glass: 'linear-gradient(168deg,rgba(16,20,26,.98),rgba(8,12,16,.99))', pos: '#98b8c8', posInk: '#b0d0e0', neg: '#8898a8', negInk: '#a0b0c0', info: '#7ab8d8', warn: '#9098b0', press: '#90b8d0', pressInk: '#b0d8f0' } },
+  // ARCADE SKINS — 80s CRT / arcade cabinet: neon on black. Values ported from
+  // mockups/new-chromes.html (.arcade block). Semantics pushed to full neon.
+  // Dark: hot pink + cyan on near-black, glowing.
+  { id: 'arcade-crt', name: 'Arcade CRT', blurb: 'Insert coin \u2014 hot pink &amp; cyan neon on black, CRT glow.', theme: { accent: '#ff2ea6', serif: F_ARCADE, mono: F_MONO, surf1: 'rgba(23,16,31,.92)', surf2: 'rgba(14,9,22,.94)', ink: '#f4eaff', ink2: '#b79fd0', glass: 'linear-gradient(168deg,#170f22,#0a0710)', ...SEM, pos: '#2bff88', posInk: '#7dffb4', neg: '#ff2e5e', negInk: '#ff7a9a', info: '#2ef0ff', warn: '#ffe23a', press: '#ff2ea6', pressInk: '#ff7ac6' } },
+  // Light: a bright cabinet — pale arcade white, deep ink, the same neon accents.
+  { id: 'arcade-sun', name: 'Arcade Sun', blurb: 'A daylit cabinet \u2014 pale screen, deep ink, neon pink &amp; teal.', theme: { accent: '#c81a7a', serif: F_ARCADE, mono: F_MONO, surf1: 'rgba(248,244,252,.94)', surf2: 'rgba(238,232,246,.94)', ink: '#1a1024', ink2: '#5a4a6a', glass: 'linear-gradient(168deg,#f8f4fc,#ece4f4)', ...SEM, pos: '#0f9c5a', posInk: '#0c7a46', neg: '#d61a4a', negInk: '#b0143a', info: '#0f8fa0', warn: '#b58a1e', press: '#c81a7a', pressInk: '#a01462' } },
+  // RIOT SKINS — DIY punk zine collage: paper-on-ink. Values from the .riot mockup.
+  // Dark: acid yellow + violet on near-black, halftone paper accents.
+  { id: 'riot-black', name: 'Riot Black', blurb: 'Cut-and-paste chaos \u2014 acid yellow &amp; violet on black, halftone.', theme: { accent: '#e8ff2e', serif: F_ZINE, mono: F_ZINE, surf1: 'rgba(24,24,20,.94)', surf2: 'rgba(14,14,12,.96)', ink: '#ececdf', ink2: '#9a9a8e', glass: 'linear-gradient(168deg,#161612,#0a0a08)', ...SEM, pos: '#00c853', posInk: '#5cf08a', neg: '#ff1744', negInk: '#ff6a86', info: '#2979ff', warn: '#ff9100', press: '#e8ff2e', pressInk: '#f2ff7a' } },
+  // Light: the zine on paper \u2014 off-white newsprint, black ink, violet accent.
+  { id: 'riot-paper', name: 'Riot Paper', blurb: 'The zine on paper \u2014 newsprint white, black ink, violet &amp; acid.', theme: { accent: '#8a00c4', serif: F_ZINE, mono: F_ZINE, surf1: 'rgba(255,255,255,.95)', surf2: 'rgba(236,236,223,.95)', ink: '#101014', ink2: '#55555c', glass: 'linear-gradient(168deg,#fff,#ececdf)', ...SEM, pos: '#00994d', posInk: '#007a3d', neg: '#e00c38', negInk: '#b80a2e', info: '#1f5fd0', warn: '#d67300', press: '#8a00c4', pressInk: '#6e009c' } },
+  // GRIMOIRE SKINS — the living spellbook: arcane violet + emerald. From .grimoire.
+  // Dark: luminous ink on amethyst-black, gilt drop-caps.
+  { id: 'grimoire-arcane', name: 'Grimoire Arcane', blurb: 'A living spellbook \u2014 arcane violet &amp; emerald, glowing runes.', theme: { accent: '#a24cff', serif: F_ARCANE, mono: F_MONO, surf1: 'rgba(38,26,58,.72)', surf2: 'rgba(24,16,40,.72)', ink: '#ece2ff', ink2: '#a98fd0', glass: 'linear-gradient(168deg,#1a1230,#0d0819)', ...SEM, pos: '#2fd48f', posInk: '#6fe6b4', neg: '#ff5c6a', negInk: '#ff8a94', info: '#6ab8ff', warn: '#ffcf5a', press: '#a24cff', pressInk: '#c48aff' } },
+  // Light: aged spell-parchment \u2014 cream page, plum ink, vivid arcane accents.
+  { id: 'grimoire-parchment', name: 'Grimoire Parchment', blurb: 'Aged spell-parchment \u2014 cream page, plum ink, vivid arcane inks.', theme: { accent: '#7a2ed0', serif: F_ARCANE, mono: F_MONO, surf1: 'rgba(246,238,224,.94)', surf2: 'rgba(236,226,206,.94)', ink: '#2a1c3a', ink2: '#5f4a78', glass: 'linear-gradient(168deg,#f6eee0,#ece2ce)', ...SEM, pos: '#1f8a5f', posInk: '#176e4a', neg: '#c83a4a', negInk: '#a42e3c', info: '#3f6fb8', warn: '#b58a1e', press: '#7a2ed0', pressInk: '#6224a8' } },
+  // BESTIARY SKINS — illuminated menagerie: crimson, royal blue &amp; gilt. From .bestiary.
+  // Dark: candlelit \u2014 deep umber field, gilt ink, crimson &amp; royal accents.
+  { id: 'bestiary-candlelit', name: 'Bestiary Candlelit', blurb: 'A candlelit bestiary \u2014 deep umber, gilt ink, crimson &amp; royal blue.', theme: { accent: '#c8a24e', serif: F_UNCIAL, mono: F_MONO, surf1: 'rgba(38,28,18,.92)', surf2: 'rgba(26,19,12,.94)', ink: '#f0e2c4', ink2: '#b8a276', glass: 'linear-gradient(168deg,#241a10,#160f08)', ...SEM, pos: '#7a9e4a', posInk: '#96b866', neg: '#c8434a', negInk: '#e0777c', info: '#5a7ab8', warn: '#a87ad0', press: '#c8a24e', pressInk: '#e0c078' } },
+  // Light: the vellum page \u2014 cream field, brown-black ink, gilt &amp; crimson.
+  { id: 'bestiary-vellum', name: 'Bestiary Vellum', blurb: 'An illuminated vellum page \u2014 cream field, gilt, crimson &amp; royal blue.', theme: { accent: '#a07818', serif: F_UNCIAL, mono: F_MONO, surf1: 'rgba(243,230,196,.95)', surf2: 'rgba(234,220,182,.95)', ink: '#2a1c0e', ink2: '#6a5638', glass: 'linear-gradient(168deg,#f3e6c4,#ecdcb0)', ...SEM, pos: '#3f7a3a', posInk: '#2f602c', neg: '#a3243a', negInk: '#82182e', info: '#2f5a8a', warn: '#5a3a8a', press: '#a07818', pressInk: '#836010' } },
 ];
 
 
@@ -370,7 +436,7 @@ export function hydrateTheme(json: string | null): void {
   try { const t = JSON.parse(json); if (t && t.accent) { _theme = sanitize({ ...DEFAULT, ...t }); } } catch { /* ignore */ }
 }
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
-const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi', 'graphite'] as const;
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary'] as const;
 function sanitize(t: Theme): Theme {
   // migrate a cut chrome/skin to its nearest survivor before validating
   const rawChrome = t.chrome as string;
@@ -410,6 +476,10 @@ function loadGoogleFontsForChrome(chrome: Chrome): void {
   const fontMap: Record<string, string> = {
     gatsby: 'https://fonts.googleapis.com/css2?family=Poiret+One&display=swap',
     sumi: 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap',
+    arcade: 'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap',
+    riot: 'https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;700&display=swap',
+    grimoire: 'https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&display=swap',
+    bestiary: 'https://fonts.googleapis.com/css2?family=MedievalSharp&family=UnifrakturCook:wght@700&display=swap',
   };
   const fontUrl = fontMap[chrome];
   if (fontUrl) injectFontLink(fontUrl, chrome);
@@ -596,6 +666,10 @@ export function customizePanel(tab: CzTab = 'look'): string {
     gatsby: '<span class="vle-mode-sk sk-gatsby"><i></i><i></i><i></i></span>',
     sumi: '<span class="vle-mode-sk sk-sumi"><i></i><i></i><i></i></span>',
     graphite: '<span class="vle-mode-sk sk-graphite"><i></i><i></i><i></i></span>',
+    arcade: '<span class="vle-mode-sk sk-arcade"><i></i><i></i><i></i></span>',
+    riot: '<span class="vle-mode-sk sk-riot"><i></i><i></i><i></i></span>',
+    grimoire: '<span class="vle-mode-sk sk-grimoire"><i></i><i></i><i></i></span>',
+    bestiary: '<span class="vle-mode-sk sk-bestiary"><i></i><i></i><i></i></span>',
   };
   // dark/light segmented toggle — flips every chrome to its paired skin
   const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'

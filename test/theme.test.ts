@@ -23,8 +23,8 @@ describe('theme system', () => {
     }
   });
 
-  it('MODES are exactly the ten chromes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'illuminated', 'modern', 'sumi']);
+  it('MODES are exactly the fourteen chromes', () => {
+    expect(MODES.map((m) => m.id).sort()).toEqual(['arcade', 'bestiary', 'bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'grimoire', 'illuminated', 'modern', 'riot', 'sumi']);
   });
 
   it("each mode's dark + light skins exist", () => {
@@ -47,6 +47,34 @@ describe('theme system', () => {
     expect(SKINS.some((s) => s.id === 'graphite-light')).toBe(true);
     for (const id of ['rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar'] as const) {
       expect(SHAPE_IDS.includes(id), id).toBe(true);
+    }
+  });
+
+  it('maximalist chromes: mode, paired skins, accent, shapes, and signature shape ids resolve', () => {
+    const cases = [
+      { id: 'arcade', skin: 'arcade-crt', light: 'arcade-sun', accent: '#ff2ea6',
+        shapes: { present: 'arcade-btn', bonds: 'notched', cast: 'pixel-step', beats: 'coin-slot', factions: 'inset', items: 'bracket' },
+        sig: ['arcade-btn', 'pixel-step', 'coin-slot'] },
+      { id: 'riot', skin: 'riot-black', light: 'riot-paper', accent: '#e8ff2e',
+        shapes: { present: 'taped', bonds: 'torn-edge', cast: 'stitch', beats: 'studs', factions: 'inset', items: 'ransom-cut' },
+        sig: ['taped', 'torn-edge', 'ransom-cut'] },
+      { id: 'grimoire', skin: 'grimoire-arcane', light: 'grimoire-parchment', accent: '#a24cff',
+        shapes: { present: 'dropcap', bonds: 'sigil-seal', cast: 'tarot', beats: 'deckle', factions: 'rune-spine', items: 'gilt-edge' },
+        sig: ['dropcap', 'sigil-seal', 'rune-spine'] },
+      { id: 'bestiary', skin: 'bestiary-candlelit', light: 'bestiary-vellum', accent: '#c8a24e',
+        shapes: { present: 'vine-frame', bonds: 'gilt-edge', cast: 'tarot', beats: 'scalloped', factions: 'heraldic-shield', items: 'manuscript-rule' },
+        sig: ['vine-frame', 'heraldic-shield', 'manuscript-rule'] },
+    ] as const;
+    for (const c of cases) {
+      setMode(c.id);
+      const t = getTheme();
+      expect(t.chrome, c.id).toBe(c.id);
+      expect(t.skin, c.id).toBe(c.skin); // dark default
+      expect(t.accent.toLowerCase(), c.id).toBe(c.accent);
+      expect(SKINS.some((s) => s.id === c.skin), `${c.id} dark`).toBe(true);
+      expect(SKINS.some((s) => s.id === c.light), `${c.id} light`).toBe(true);
+      expect(CHROME_SHAPES[c.id], c.id).toEqual(c.shapes);
+      for (const id of c.sig) expect(SHAPE_IDS.includes(id), `${c.id}:${id}`).toBe(true);
     }
   });
 
