@@ -685,7 +685,7 @@ export function customizePanel(tab: CzTab = 'look'): string {
   let body = '';
   if (tab === 'look') {
     // the approachable front: pick a theme + set size. The rail holds the rest.
-    body = '<div class="vle-cz-h">Theme</div><div class="vle-modes">' + themeCards + '</div>'
+    body = '<div class="vle-cz-h">Theme</div><div class="vle-modes vle-modes--h">' + themeCards + '</div>'
       + modeToggle
       + slider('scale', 'Interface size', 0.85, 1.5, 0.05, t.scale, pct)
       + '<div class="vle-cz-note">Pick a look, a dark/light mode and size \u2014 that\u2019s usually all you need. For palettes, fonts, layout and window controls, use the sections in the left rail.</div>';

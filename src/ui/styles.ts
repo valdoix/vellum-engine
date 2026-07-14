@@ -1476,6 +1476,14 @@ export const STYLES = [
   ".vle-mode{display:grid;grid-template-columns:64px 1fr;grid-template-rows:auto auto;gap:2px 12px;align-items:center;text-align:left;padding:11px 13px;border:1px solid rgba(var(--vg-rgb),.2);border-radius:12px;background:rgba(var(--vg-rgb),.05);cursor:pointer;transition:border-color .15s,background .15s}",
   ".vle-mode:hover{background:rgba(var(--vg-rgb),.12)}",
   ".vle-mode.on{border-color:var(--vg);background:rgba(var(--vg-rgb),.16);box-shadow:0 0 12px rgba(var(--vg-rgb),.28)}",
+  // Look tab: lay the theme cards out HORIZONTALLY in a wrapping grid of compact
+  // tiles (sketch on top, name below, blurb hidden) so it reads differently from
+  // the Mode tab's vertical list of wide labelled cards.
+  ".vle-modes--h{flex-direction:row;flex-wrap:wrap;gap:8px}",
+  ".vle-modes--h .vle-mode{grid-template-columns:1fr;grid-template-rows:auto auto;justify-items:center;gap:6px;padding:9px 8px;width:calc(33.333% - 6px);min-width:76px}",
+  ".vle-modes--h .vle-mode-sk{grid-row:auto;width:100%;height:40px}",
+  ".vle-modes--h .vle-mode-n{align-self:center;text-align:center}",
+  ".vle-modes--h .vle-mode-b{display:none}",
   ".vle-mode-sk{grid-row:1 / 3;width:64px;height:48px;border-radius:6px;border:1px solid rgba(var(--vg-rgb),.35);background:rgba(0,0,0,.25);display:flex;gap:3px;padding:5px;overflow:hidden}",
   ".vle-mode-sk i{background:rgba(var(--vg-rgb),.4);border-radius:2px;display:block}",
   ".vle-mode-sk.sk-default{flex-direction:column;gap:4px}.vle-mode-sk.sk-default i{height:8px}.vle-mode-sk.sk-default i:first-child{height:12px}",
@@ -2198,7 +2206,7 @@ export const STYLES = [
   // BESTIARY CHROME — illuminated menagerie: crimson, royal blue & gilt on
   // vellum, vine frames, heraldic shields, gold-leaf shimmer. Animations gated.
   // ============================================================================
-  "html[data-vle-chrome='bestiary'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(circle at 14px 14px,rgba(var(--vg-rgb),.1) 2px,transparent 3px);background-size:44px 44px}",
+  "html[data-vle-chrome='bestiary'] .vle-root{font-family:var(--vserif)}",
   "html[data-vle-chrome='bestiary'] .vle-navpanel{border-radius:4px;border:3px double var(--vg);background:var(--vsurf-1);box-shadow:0 0 0 3px color-mix(in srgb,var(--vg2) 40%,transparent),0 10px 30px rgba(40,20,8,.4)}",
   "html[data-vle-chrome='bestiary'] .vle-head{font-family:var(--vserif);font-weight:700;letter-spacing:1px;border-bottom:3px solid var(--vg);color:var(--vg2);font-size:calc(17px * var(--vscale))}",
   "html[data-vle-chrome='bestiary'] .vle-mark{text-shadow:0 1px 0 rgba(255,255,255,.3)}",
