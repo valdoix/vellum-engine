@@ -18,6 +18,8 @@ export interface Theme {
   skin: string;
   accent: string; accent2: string; accentIntensity: number; // 0.5–1.6
   serif: string; mono: string;
+  serifUrl?: string;   // '' | validated https://fonts.googleapis.com/... ; re-injected each load
+  monoUrl?: string;    // '' | validated https://fonts.googleapis.com/... ; re-injected each load
   scale: number;       // chrome size 0.85–1.5
   dataScale: number;   // data/mono text size 0.85–1.3
   density: number;     // gap/padding multiplier 0.7–1.4
@@ -341,6 +343,16 @@ const SKIN_REMAP: Record<string, string> = {
 const clamp = (v: number, lo: number, hi: number, d: number): number => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
 function hexToRgb(hex: string): string { const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim()); if (!m) return '205,168,78'; const n = parseInt(m[1]!, 16); return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`; }
 function safeFont(stack: string): string { const s = String(stack || '').replace(/[<>{}]/g, '').slice(0, 200); return s ? s + ',Georgia,serif' : F_SERIF; }
+export function safeFontUrl(u: string): string {
+  const s = String(u || '').trim();
+  return /^https:\/\/fonts\.googleapis\.com\/[^\s"'<>]+$/i.test(s) ? s : '';
+}
+export function familyFromFontUrl(u: string): string {
+  const m = /[?&]family=([^&]+)/.exec(u);
+  if (!m) return '';
+  const raw = decodeURIComponent(m[1]!.split(':')[0]!).replace(/\+/g, ' ').trim();
+  return raw.replace(/["<>{}]/g, '').slice(0, 80);
+}
 function safeHexOpt(v: string): string { const s = String(v || '').trim(); return /^#[0-9a-fA-F]{6}$/.test(s) ? s : ''; } // '' = derive from skin
 function safeTexture(t: string): string {
   if (!t) return 'none';
@@ -370,6 +382,8 @@ function sanitize(t: Theme): Theme {
     density: clamp(t.density, 0.7, 1.4, 1), opacity: clamp(t.opacity, 0.4, 1, 1), blur: clamp(t.blur, 0, 16, 8), radius: clamp(t.radius, 0, 24, 18),
     border: clamp(t.border, 0.5, 2.5, 1), inkEmphasis: clamp(t.inkEmphasis, 0.7, 1.15, 1),
     serif: safeFont(t.serif), mono: safeFont(t.mono),
+    serifUrl: safeFontUrl(t.serifUrl ?? ''),
+    monoUrl: safeFontUrl(t.monoUrl ?? ''),
     bg: safeHexOpt(t.bg), surf1c: safeHexOpt(t.surf1c), surf2c: safeHexOpt(t.surf2c),
     mode: t.mode === 'light' ? 'light' : 'dark',
     chrome,
@@ -380,28 +394,28 @@ function save(): void { try { localStorage.setItem(KEY, JSON.stringify(_theme));
 
 // Load Google Fonts dynamically for chromes that need them or when selected
 let _loadedFonts: Set<string> = new Set();
+// Single code path for stylesheet-link injection + dedup, shared by every font
+// loader below. dedupKey lets callers dedup by chrome id, family name, or URL.
+function injectFontLink(url: string, dedupKey: string): void {
+  if (!url || _loadedFonts.has(dedupKey)) return;
+  if (document.querySelector(`link[href="${url}"]`)) { _loadedFonts.add(dedupKey); return; }
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = url;
+  document.head.appendChild(link);
+  _loadedFonts.add(dedupKey);
+}
+
 function loadGoogleFontsForChrome(chrome: Chrome): void {
   const fontMap: Record<string, string> = {
     gatsby: 'https://fonts.googleapis.com/css2?family=Poiret+One&display=swap',
     sumi: 'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap',
   };
   const fontUrl = fontMap[chrome];
-  if (!fontUrl || _loadedFonts.has(chrome)) return;
-  // Check if link already exists
-  const existing = document.querySelector(`link[href="${fontUrl}"]`);
-  if (existing) {
-    _loadedFonts.add(chrome);
-    return;
-  }
-  // Create and append font link
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = fontUrl;
-  document.head.appendChild(link);
-  _loadedFonts.add(chrome);
+  if (fontUrl) injectFontLink(fontUrl, chrome);
 }
 
-// Load Google Fonts by font family name (for customizer)
+// Load Google Fonts by font family name (for the built-in picker whitelist)
 function loadGoogleFontByName(fontStack: string): void {
   const fontNameMap: Record<string, string> = {
     'Poiret One': 'https://fonts.googleapis.com/css2?family=Poiret+One&display=swap',
@@ -412,25 +426,20 @@ function loadGoogleFontByName(fontStack: string): void {
     'Fira Code': 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap',
     'IBM Plex Mono': 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap',
   };
-  
   // Extract font name from stack (first quoted font)
   const match = fontStack.match(/'([^']+)'/);
   const fontName = match?.[1];
   if (!fontName) return;
   const fontUrl = fontNameMap[fontName];
-  
-  if (!fontUrl || _loadedFonts.has(fontName)) return;
-  const existing = document.querySelector(`link[href="${fontUrl}"]`);
-  if (existing) {
-    _loadedFonts.add(fontName);
-    return;
-  }
-  
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = fontUrl;
-  document.head.appendChild(link);
-  _loadedFonts.add(fontName);
+  if (fontUrl) injectFontLink(fontUrl, fontName);
+}
+
+// Load an arbitrary user-pasted Google Fonts URL (Customize -> Type). The URL is
+// re-validated here against the fonts.googleapis.com allowlist so a tampered
+// persisted theme can never inject an arbitrary remote stylesheet.
+function loadGoogleFontByUrl(url: string): void {
+  const safe = safeFontUrl(url);
+  if (safe) injectFontLink(safe, 'url:' + safe);
 }
 
 export function getTheme(): Theme { return _theme; }
@@ -481,6 +490,10 @@ export function applyTheme(scope: HTMLElement | null): void {
   document.documentElement.setAttribute('data-vle-motion', t.motion ? 'on' : 'off');
   // Load Google Fonts for Gatsby and Sumi chromes on demand
   loadGoogleFontsForChrome(t.chrome);
+  // Re-inject any user-pasted Google Fonts URL so it survives reload (bundled
+  // fonts live in fonts.ts; a user URL font is not bundled and must be re-added).
+  if (t.serifUrl) loadGoogleFontByUrl(t.serifUrl);
+  if (t.monoUrl) loadGoogleFontByUrl(t.monoUrl);
   // per-surface card shape. Emission rule:
   //   - explicit user override        -> emit the override (always wins)
   //   - a NON-default chrome, no ovr   -> emit that chrome's gallery shape
@@ -632,7 +645,10 @@ export function customizePanel(tab: CzTab = 'look'): string {
     const fopts = (sel: string) => FONT_CHOICES.map((f) => `<option value="${f.stack.replace(/"/g, '&quot;')}"${sel === f.stack ? ' selected' : ''}>${f.label}</option>`).join('');
     const mopts = MONO_CHOICES.map((f) => `<option value="${f.stack.replace(/"/g, '&quot;')}"${t.mono === f.stack ? ' selected' : ''}>${f.label}</option>`).join('');
     body = `<div class="vle-cz-h">Display font</div><div class="vle-cz-row"><select class="vle-cz-sel" data-cz-font>${fopts(t.serif)}</select></div>`
+      + `<div class="vle-cz-h">Display font URL <span class="vle-cz-rst" data-cz-reset="serifUrl" title="Reset to picker">\u21BA</span></div><div class="vle-cz-row"><input type="text" class="vle-cz-hex" data-cz-fonturl placeholder="https://fonts.googleapis.com/css2?family=\u2026" value="${(t.serifUrl || '').replace(/"/g, '&quot;')}" spellcheck="false"></div>`
       + `<div class="vle-cz-h">Data font</div><div class="vle-cz-row"><select class="vle-cz-sel" data-cz-mono>${mopts}</select></div>`
+      + `<div class="vle-cz-h">Data font URL <span class="vle-cz-rst" data-cz-reset="monoUrl" title="Reset to picker">\u21BA</span></div><div class="vle-cz-row"><input type="text" class="vle-cz-hex" data-cz-monourl placeholder="https://fonts.googleapis.com/css2?family=\u2026" value="${(t.monoUrl || '').replace(/"/g, '&quot;')}" spellcheck="false"></div>`
+      + '<div class="vle-cz-note">Paste a <b>Google Fonts</b> URL (fonts.google.com \u2192 pick a family \u2192 the CSS <code>&lt;link&gt;</code> href) to use any family. Only <code>fonts.googleapis.com</code> links are accepted, and the font loads from Google\u2019s servers when set. Leave blank to use the picker above.</div>'
       + slider('scale', 'Interface size', 0.85, 1.5, 0.05, t.scale, pct)
       + slider('dataScale', 'Data text size', 0.85, 1.3, 0.05, t.dataScale, pct);
   } else if (tab === 'window') {
@@ -689,6 +705,18 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
     else if (el.matches('[data-cz-hex]') && !el.matches('[data-cz-textureurl]')) { const v = el.value.trim(); if (/^#?[0-9a-fA-F]{6}$/.test(v)) { patchTheme({ accent: v.startsWith('#') ? v : '#' + v }); reapply(); } }
     else if (el.matches('[data-cz-hex2]')) { const v = el.value.trim(); if (/^#?[0-9a-fA-F]{6}$/.test(v)) { patchTheme({ accent2: v.startsWith('#') ? v : '#' + v }); reapply(); } }
     else if (el.matches('[data-cz-textureurl]')) { const v = el.value.trim(); patchTheme({ texture: v }); reapply(); }
+    // user-pasted Google Fonts URL: blank clears back to the picker; a valid
+    // fonts.googleapis.com URL loads the font and points the stack at its family.
+    else if (el.matches('[data-cz-fonturl]')) {
+      const raw = el.value.trim();
+      if (raw === '') { patchTheme({ serifUrl: '', serif: F_SERIF }); reapply(); }
+      else { const safe = safeFontUrl(raw); if (safe) { const fam = familyFromFontUrl(safe); loadGoogleFontByUrl(safe); patchTheme({ serifUrl: safe, ...(fam ? { serif: `'${fam}',Georgia,serif` } : {}) }); reapply(); } }
+    }
+    else if (el.matches('[data-cz-monourl]')) {
+      const raw = el.value.trim();
+      if (raw === '') { patchTheme({ monoUrl: '', mono: F_MONO }); reapply(); }
+      else { const safe = safeFontUrl(raw); if (safe) { const fam = familyFromFontUrl(safe); loadGoogleFontByUrl(safe); patchTheme({ monoUrl: safe, ...(fam ? { mono: `'${fam}',Consolas,monospace` } : {}) }); reapply(); } }
+    }
     // custom fill colors: color pickers (always valid hex) + hex fields (blank = reset to skin, sanitize clears)
     else if (el.matches('[data-cz-bg]')) { patchTheme({ bg: el.value }); const hx = host.querySelector('[data-cz-bghex]') as HTMLInputElement | null; if (hx) hx.value = el.value; reapply(); }
     else if (el.matches('[data-cz-surf1]')) { patchTheme({ surf1c: el.value }); const hx = host.querySelector('[data-cz-surf1hex]') as HTMLInputElement | null; if (hx) hx.value = el.value; reapply(); }
@@ -718,7 +746,15 @@ export function wireCustomize(host: HTMLElement, onChange: () => void, rerender:
     const tab = t.closest('[data-cz-tab]'); if (tab) { rerender(tab.getAttribute('data-cz-tab') as CzTab); return; }
     const csr = t.closest('[data-cz-cardshape-reset]'); if (csr) { const surface = csr.getAttribute('data-cz-cardshape-reset') as Surface; const next = { ...getTheme().cardShapes }; delete next[surface]; patchTheme({ cardShapes: next }); rerender('cards'); reapply(); return; }
     const cst = t.closest('[data-cz-cardshape]'); if (cst) { const surface = cst.getAttribute('data-cz-cardshape') as Surface; const val = cst.getAttribute('data-shape') || ''; const next = { ...getTheme().cardShapes }; if (val) next[surface] = val as ShapeId; else delete next[surface]; patchTheme({ cardShapes: next }); rerender('cards'); reapply(); return; }
-    const rst = t.closest('[data-cz-reset]'); if (rst) { const k = rst.getAttribute('data-cz-reset')!; patchTheme({ [k]: (DEFAULT as unknown as Record<string, unknown>)[k] } as Partial<Theme>); rerender(curTab()); reapply(); return; }
+    const rst = t.closest('[data-cz-reset]'); if (rst) {
+      const k = rst.getAttribute('data-cz-reset')!;
+      // font-URL resets must also restore the stack to its default; the generic
+      // path only clears the URL, leaving the stack pointed at a dead family.
+      if (k === 'serifUrl') { patchTheme({ serifUrl: '', serif: F_SERIF }); }
+      else if (k === 'monoUrl') { patchTheme({ monoUrl: '', mono: F_MONO }); }
+      else { patchTheme({ [k]: (DEFAULT as unknown as Record<string, unknown>)[k] } as Partial<Theme>); }
+      rerender(curTab()); reapply(); return;
+    }
     if (t.closest('[data-cz-resetall]')) { confirmModal('Reset all appearance settings to defaults?', () => { resetTheme(); rerender('skin'); reapply(); }); return; }
     if (t.closest('[data-cz-export]')) { try { const b = new Blob([exportTheme()], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'vellum-theme.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); } catch { /* ignore */ } return; }
     if (t.closest('[data-cz-import]')) { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json,.json'; inp.addEventListener('change', () => { const f = inp.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { if (importTheme(String(r.result))) { rerender('skin'); reapply(); } }; r.readAsText(f); }); inp.click(); return; }

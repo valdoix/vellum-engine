@@ -56,6 +56,10 @@ When you open the VELLUM preset in Lumiverse's preset editor, you'll see a new *
 
 Linking a preset to the extension is one click — no manual tagging or config files. Unlinking is just as easy. This is the control panel for making the preset and extension talk.
 
+### Custom Google Fonts URL (Customize → Type)
+
+The panel's **Customize → Type** tab now accepts a **Google Fonts URL** for the display and data fonts, so you're no longer limited to the built-in picker. Paste a `fonts.googleapis.com` link and the panel restyles live and remembers it across reloads. Only Google Fonts links are accepted, and — like the Gatsby and Sumi looks — a set URL loads that font from Google's CDN; leave it blank to keep everything local.
+
 ### Lumiverse Themes (Bonus)
 
 The `lumithemes/` folder includes **five Lumiverse host themes** inspired by VELLUM's visual language — illuminated-manuscript palettes, custom typography, and layout touches designed to complement the engine's aesthetic. Each theme comes in **two versions: static and animated**.
@@ -129,7 +133,7 @@ The extension is a Lumiverse "Spindle" extension installed straight from this Gi
    ```
    https://github.com/valdoix/vellum-engine
    ```
-4. Confirm. Lumiverse downloads the extension and asks you to **grant permissions** — approve them. Each one is explained in the [Permissions](#permissions) section below; the short version is that VELLUM needs them to read your messages, write its hidden status block back, and store the chronicle. Nothing leaves your Lumiverse instance.
+4. Confirm. Lumiverse downloads the extension and asks you to **grant permissions** — approve them. Each one is explained in the [Permissions](#permissions) section below; the short version is that VELLUM needs them to read your messages, write its hidden status block back, and store the chronicle. Your story data never leaves your Lumiverse instance (the only optional outside request is loading a web font — see [Permissions](#permissions)).
 5. Once installed, you'll see a new **VELLUM** panel/drawer available in your chat view. Open it any time to see your chronicle.
 
 That's the whole install. There's nothing to build or configure — the extension ships ready to run.
@@ -406,7 +410,7 @@ Open the VELLUM drawer to find these. There's also a compact floating **"Now"** 
 
 **Tools** (in the toolbar / Actions menu) — everything is optional:
 
-- **Customize** — theme the panel: colors, font, size, skins.
+- **Customize** — theme the panel: colors, fonts (including a **custom Google Fonts URL**), size, skins.
 - **Summarize** — compress older turns into chapter memories now.
 - **Rescan / Rebuild** — re-read the latest turn, or reconstruct the whole chronicle from the transcript (recovery).
 - **Undo turn** — drop the most recent turn's tracked changes.
@@ -419,6 +423,19 @@ Open the VELLUM drawer to find these. There's also a compact floating **"Now"** 
 - **Clear** — erase this chat's chronicle (quarantined as a destructive action).
 
 Everything model-authored is safely escaped, and each panel fails in isolation — one glitchy panel can never freeze the rest.
+
+### Using a custom font (Customize → Type)
+
+The panel ships a set of built-in fonts (Cormorant, EB Garamond, Playfair, Lora, and more), but you can point it at **any Google Fonts family** without editing code:
+
+1. Open **Customize → Type**.
+2. In **Display font URL** (or **Data font URL** for the mono/data text), paste a Google Fonts CSS URL — e.g. `https://fonts.googleapis.com/css2?family=Lora:wght@400;700`. Get one from [fonts.google.com](https://fonts.google.com): pick a family, choose the styles, and copy the URL from the `<link>` the site gives you.
+3. The panel restyles immediately and remembers the choice. Clear the box (or hit the ↺) to fall back to the picker.
+
+Notes:
+- Only `fonts.googleapis.com` links are accepted — arbitrary stylesheet URLs are rejected for safety.
+- When a font URL is set, the font is fetched **from Google's servers** each session. Leave the box blank to keep everything local to your Lumiverse instance.
+- This is the extension's own panel typography. It's separate from Lumiverse's host-theme fonts (see [`lumithemes/CUSTOMIZING.md`](lumithemes/CUSTOMIZING.md)), which go through the host's own CSS editor.
 
 ---
 
@@ -451,7 +468,7 @@ When you install the extension, Lumiverse asks you to grant these. Here's what e
 | `memories` | Semantic recall via the host's embeddings | Recall still works, keyword-only |
 | `presets` | The VELLUM tab in the Preset Editor (link status, health check, prompt budget) | No preset editor tab |
 
-Everything runs inside your Lumiverse instance; the extension makes no outside calls of its own.
+Everything runs inside your Lumiverse instance. The only optional outside request is loading a **web font**: the Gatsby and Sumi looks, a few Google-hosted picker fonts, and any Google Fonts URL you paste in **Customize → Type**, fetch from Google's font CDN (`fonts.googleapis.com`). Leave those unset and the extension makes no outside calls at all — your chronicle data and code never leave your instance either way.
 
 ---
 
