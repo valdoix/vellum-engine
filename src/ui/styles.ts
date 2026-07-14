@@ -123,10 +123,40 @@ const SHAPE_GEOM: Record<string, string> = {
   'heraldic-shield': `border-radius:calc(${R} * .5) calc(${R} * .5) 0 0;padding-bottom:16px;-webkit-mask:radial-gradient(circle 14px at 50% 100%,transparent 96%,#000) 50% 100%/28px 16px no-repeat,linear-gradient(#000,#000) 0 0/100% calc(100% - 8px) no-repeat,linear-gradient(#000,#000) 0 100%/50% 16px no-repeat,linear-gradient(#000,#000) 100% 100%/50% 16px no-repeat;mask:radial-gradient(circle 14px at 50% 100%,transparent 96%,#000) 50% 100%/28px 16px no-repeat,linear-gradient(#000,#000) 0 0/100% calc(100% - 8px) no-repeat,linear-gradient(#000,#000) 0 100%/50% 16px no-repeat,linear-gradient(#000,#000) 100% 100%/50% 16px no-repeat`,
   // manuscript-rule: a rubricated paragraph mark on a thick left rail (pseudo).
   'manuscript-rule': `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:22px`,
+  // NATURE/LIGHT-CHROME signature shapes (12; 3 per chrome). Same v4 discipline:
+  // geometry only here; the defining detail lives in reserved padding as a pseudo.
+  // --- TERRACOTTA (glazed tile / vessel) ---
+  // azulejo: a glazed-tile double keyline inset frame (pseudo); generous pad.
+  azulejo: `border-radius:8px;padding:13px 15px`,
+  // amphora: a vessel silhouette — wide rounded shoulders, narrower foot.
+  amphora: `border-radius:calc(${R} * 1.6) calc(${R} * 1.6) calc(${R} * .5) calc(${R} * .5);padding:13px 14px 15px`,
+  // glaze-drip: kiln-glaze drips run down the bottom edge (pseudo); bottom pad.
+  'glaze-drip': `border-radius:8px 8px calc(${R} * .4) calc(${R} * .4);padding-bottom:15px`,
+  // --- GREENHOUSE (glass pane / nouveau vine) ---
+  // pane: a glasshouse muntin grid rides in the reserved padding (pseudo).
+  pane: `border-radius:6px 6px 16px 16px;padding:13px 14px`,
+  // whiplash-vine: an art-nouveau vine climbs a thick left rail (pseudo); left pad.
+  'whiplash-vine': `border-radius:0 6px 16px 0;border-left-width:3px;padding-left:20px`,
+  // nouveau-arch: a rounded nouveau arch top (big top radius) + top pad.
+  'nouveau-arch': `border-radius:calc(${R} * 1.8) calc(${R} * 1.8) 6px 6px;padding:15px 14px 11px`,
+  // --- AURORA (glacier / ribbon) ---
+  // ribbon-edge: a glowing aurora ribbon line rides the reserved top pad (pseudo).
+  'ribbon-edge': `border-radius:14px;padding:14px 14px 11px`,
+  // glacier: faceted ice corners via clip-path (CLIP_SHAPES fallback).
+  glacier: 'clip-path:polygon(0 10px,10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)',
+  // icicle: pointed icicles hang from the bottom edge (mask); MASK_SHAPES fallback.
+  icicle: `border-radius:14px 14px 0 0;padding-bottom:16px;-webkit-mask:radial-gradient(circle 6px at 6px 0,#000 96%,transparent) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 8px) no-repeat;mask:radial-gradient(circle 6px at 6px 0,#000 96%,transparent) 0 100%/12px 12px repeat-x,linear-gradient(#000,#000) 0 0/100% calc(100% - 8px) no-repeat`,
+  // --- ROSACE (gothic tracery / leaded glass) ---
+  // rose-window: radial tracery spokes ride the reserved top-left pad (pseudo).
+  'rose-window': `border-radius:calc(${R} * 1.2) calc(${R} * 1.2) 4px 4px;padding:15px 14px 11px`,
+  // lancet: a pointed-arch top (asymmetric big top radius); top pad.
+  lancet: `border-radius:calc(${R} * 2) calc(${R} * 2) 4px 4px;padding:15px 14px 11px`,
+  // came-bar: a thick leaded-came rule down the left edge (pseudo); left pad.
+  'came-bar': `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:20px`,
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
 // small fixed corners that live in padding.
-const CLIP_SHAPES = ['notched', 'chamfer-bar', 'pixel-step', 'ransom-cut'];
+const CLIP_SHAPES = ['notched', 'chamfer-bar', 'pixel-step', 'ransom-cut', 'glacier'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
@@ -134,7 +164,7 @@ const SHAPE_SURFACE_ROOT: Record<string, string> = {
   beats: '.vle-mem--beat', factions: '.vle-fac', items: '.vle-item-row', secrets: '.vle-mem--secret',
 };
 // shapes whose edge is a CSS mask; on old UAs they drop the mask and round off.
-const MASK_SHAPES = ['scalloped', 'deckle', 'scallop-deco', 'torn-edge', 'heraldic-shield'];
+const MASK_SHAPES = ['scalloped', 'deckle', 'scallop-deco', 'torn-edge', 'heraldic-shield', 'icicle'];
 const shapePrimitives = (): string[] => [
   `:root{--v-shape-radius:var(--vradius)}`,
   ...Object.entries(SHAPE_GEOM).map(([id, body]) => `.v-shape--${id}{${body}}`),
@@ -1506,6 +1536,11 @@ export const STYLES = [
   ".vle-mode-sk.sk-riot{flex-direction:column;gap:4px;background:radial-gradient(circle at 1px 1px,rgba(0,0,0,.16) 1px,transparent 1.4px) 0 0/6px 6px,#ececdf}.vle-mode-sk.sk-riot i{height:6px;border-radius:0;background:#e8ff2e;border:1.5px solid #101014;box-shadow:2px 2px 0 #c400ff}.vle-mode-sk.sk-riot i:first-child{height:9px;transform:rotate(-2deg)}.vle-mode-sk.sk-riot i:last-child{width:60%;background:#c400ff}",
   ".vle-mode-sk.sk-grimoire{flex-direction:column;gap:4px;background:radial-gradient(70% 60% at 50% 0%,rgba(162,76,255,.2),transparent),linear-gradient(160deg,#1a1230,#0d0819)}.vle-mode-sk.sk-grimoire i{height:6px;border-radius:5px;background:linear-gradient(90deg,rgba(162,76,255,.7),rgba(47,212,143,.55));box-shadow:0 0 5px rgba(162,76,255,.5)}.vle-mode-sk.sk-grimoire i:first-child{height:9px}.vle-mode-sk.sk-grimoire i:last-child{width:55%}",
   ".vle-mode-sk.sk-bestiary{flex-direction:column;gap:4px;background:radial-gradient(circle at 10px 10px,rgba(200,162,78,.14) 2px,transparent 3px) 0 0/22px 22px,linear-gradient(160deg,#241a10,#160f08)}.vle-mode-sk.sk-bestiary i{height:6px;border-radius:2px;background:linear-gradient(90deg,rgba(200,162,78,.7),rgba(163,36,58,.5));border-left:3px solid rgba(200,162,78,.9)}.vle-mode-sk.sk-bestiary i:first-child{height:8px}.vle-mode-sk.sk-bestiary i:last-child{width:62%}",
+  // nature/light chromes: terracotta tile / greenhouse glass / aurora curtain / rosace leaded glass
+  ".vle-mode-sk.sk-terracotta{flex-direction:column;gap:4px;background:repeating-linear-gradient(0deg,rgba(58,36,24,.06) 0 1px,transparent 1px 11px),linear-gradient(160deg,#efe0c8,#e6cfae)}.vle-mode-sk.sk-terracotta i{height:6px;border-radius:3px;background:linear-gradient(90deg,#c96f4a,#2f8f8f);box-shadow:inset 0 0 0 1px rgba(255,255,255,.4)}.vle-mode-sk.sk-terracotta i:first-child{height:8px}.vle-mode-sk.sk-terracotta i:last-child{width:60%}",
+  ".vle-mode-sk.sk-greenhouse{flex-direction:column;gap:4px;background:linear-gradient(rgba(63,143,87,.14) 1px,transparent 1px) 0 0/11px 11px,linear-gradient(90deg,rgba(63,143,87,.14) 1px,transparent 1px) 0 0/11px 11px,linear-gradient(160deg,#eef5e4,#dfeacd)}.vle-mode-sk.sk-greenhouse i{height:6px;border-radius:2px 2px 6px 6px;background:linear-gradient(90deg,#3f8f57,#c69a3e)}.vle-mode-sk.sk-greenhouse i:first-child{height:8px}.vle-mode-sk.sk-greenhouse i:last-child{width:58%}",
+  ".vle-mode-sk.sk-aurora{flex-direction:column;gap:4px;background:radial-gradient(90% 60% at 50% -10%,rgba(79,240,192,.22),transparent 60%),radial-gradient(70% 50% at 80% -5%,rgba(154,108,255,.18),transparent 62%),linear-gradient(180deg,#0c1830,#060c1c)}.vle-mode-sk.sk-aurora i{height:6px;border-radius:5px;background:linear-gradient(90deg,#4ff0c0,#9a6cff);box-shadow:0 0 5px rgba(79,240,192,.5)}.vle-mode-sk.sk-aurora i:first-child{height:8px}.vle-mode-sk.sk-aurora i:last-child{width:55%}",
+  ".vle-mode-sk.sk-rosace{flex-direction:column;gap:4px;background:repeating-linear-gradient(60deg,rgba(0,0,0,.4) 0 2px,transparent 2px 10px),repeating-linear-gradient(-60deg,rgba(0,0,0,.4) 0 2px,transparent 2px 10px),linear-gradient(160deg,#14122a,#08060f)}.vle-mode-sk.sk-rosace i{height:6px;border-radius:4px 4px 2px 2px;background:linear-gradient(90deg,#1f6fe0,#9a4ce0,#e0243f);box-shadow:0 0 5px rgba(31,111,224,.5)}.vle-mode-sk.sk-rosace i:first-child{height:8px}.vle-mode-sk.sk-rosace i:last-child{width:58%}",
 
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
@@ -2244,6 +2279,103 @@ export const STYLES = [
   "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='bestiary'] .vle-card,html[data-vle-chrome='bestiary'] .vle-rel-card,html[data-vle-chrome='bestiary'] .vld-sec,html[data-vle-chrome='bestiary'] .vle-head,html[data-vle-chrome='bestiary'] .vlf-title,html[data-vle-chrome='bestiary'] .vld-h::before,html[data-vle-chrome='bestiary'] .vle-sec-h::before{animation:none}}",
 
   // ============================================================================
+  // TERRACOTTA CHROME — sun-baked Mediterranean: fired clay & glazed teal,
+  // talavera tiles, glazed-sheen sweep + kiln-warm pulse. Animations gated.
+  // ============================================================================
+  "html[data-vle-chrome='terracotta'] .vle-root{font-family:var(--vserif)}",
+  "html[data-vle-chrome='terracotta'] .vle-head,html[data-vle-chrome='terracotta'] .vlf-title{font-family:var(--vserif);font-weight:700;letter-spacing:1px;color:var(--vg)}",
+  "html[data-vle-chrome='terracotta'] .vle-card,html[data-vle-chrome='terracotta'] .vle-rel-card,html[data-vle-chrome='terracotta'] .vld-sec,html[data-vle-chrome='terracotta'] .vld-pc{position:relative;border-radius:8px;border:1.5px solid color-mix(in srgb,var(--vg) 45%,transparent);box-shadow:inset 0 0 0 3px rgba(255,255,255,.35),inset 0 0 0 4px color-mix(in srgb,var(--vg) 28%,transparent),0 4px 12px rgba(120,70,30,.18)}",
+  "html[data-vle-chrome='terracotta'] .vld-h,html[data-vle-chrome='terracotta'] .vle-sec-h{font-family:var(--vserif);font-weight:700;color:var(--vg)}",
+  "html[data-vle-chrome='terracotta'] .vle-tabbtn{border-radius:6px;font-family:var(--vserif);font-weight:700}",
+  "html[data-vle-chrome='terracotta'] .vle-tabbtn.on{color:var(--vg2);border-color:var(--vg2);background:color-mix(in srgb,var(--vg2) 12%,transparent)}",
+  "html[data-vle-chrome='terracotta'] .vle-av,html[data-vle-chrome='terracotta'] .vld-pc-av{border-radius:6px;background:linear-gradient(135deg,var(--vg2),color-mix(in srgb,var(--vg2) 60%,#000));color:#f6ead7;border:2px solid rgba(246,234,215,.85);box-shadow:0 0 0 1px var(--vg2);font-family:var(--vserif)}",
+  "html[data-vle-chrome='terracotta'] .vld-tension{border:1px solid color-mix(in srgb,var(--vg) 45%,transparent)}",
+  "html[data-vle-chrome='terracotta'] .vld-tension-f{background:repeating-linear-gradient(90deg,var(--vg) 0 8px,var(--vg2) 8px 16px)!important}",
+  "html[data-vle-chrome='terracotta'] .v-chip{border-radius:4px;background:color-mix(in srgb,var(--vg) 14%,transparent);border:1px solid var(--vg);color:var(--vg)}",
+  "html[data-vle-chrome='terracotta'] .vlf-frame{border-radius:10px;border:2px solid var(--vg);box-shadow:0 0 0 4px color-mix(in srgb,var(--vg) 18%,transparent),0 18px 44px rgba(90,50,24,.4)}",
+  "html[data-vle-chrome='terracotta'] .vlf-bar{background:linear-gradient(90deg,var(--vg),color-mix(in srgb,var(--vg) 70%,#000));border-bottom:3px solid var(--vg2);color:#f6ead7}",
+  // --- Terracotta animations: glazed sheen sweep across tiles + kiln pulse on present ---
+  "html[data-vle-chrome='terracotta'] .vle-card::after,html[data-vle-chrome='terracotta'] .vle-rel-card::after,html[data-vle-chrome='terracotta'] .vld-sec::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:2;border-radius:inherit;background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.32) 50%,transparent 58%);background-size:260% 260%;animation:vle-terra-glaze 7s ease-in-out infinite}",
+  "@keyframes vle-terra-glaze{0%{background-position:130% 0}100%{background-position:-40% 0}}",
+  "html[data-vle-chrome='terracotta'] .vld-pc{animation:vle-terra-kiln 5s ease-in-out infinite}",
+  "@keyframes vle-terra-kiln{0%,100%{box-shadow:inset 0 0 0 3px rgba(255,255,255,.35),inset 0 0 0 4px color-mix(in srgb,var(--vg2) 30%,transparent),0 4px 12px rgba(120,70,30,.18)}50%{box-shadow:inset 0 0 0 3px rgba(255,255,255,.5),inset 0 0 0 4px color-mix(in srgb,var(--vg2) 50%,transparent),0 4px 20px rgba(var(--vg-rgb),.4)}}",
+  "html[data-vle-chrome='terracotta'][data-vle-motion='off'] .vle-card::after,html[data-vle-chrome='terracotta'][data-vle-motion='off'] .vle-rel-card::after,html[data-vle-chrome='terracotta'][data-vle-motion='off'] .vld-sec::after,html[data-vle-chrome='terracotta'][data-vle-motion='off'] .vld-pc{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='terracotta'] .vle-card::after,html[data-vle-chrome='terracotta'] .vle-rel-card::after,html[data-vle-chrome='terracotta'] .vld-sec::after,html[data-vle-chrome='terracotta'] .vld-pc{animation:none}}",
+
+  // ============================================================================
+  // GREENHOUSE CHROME — solarpunk conservatory: leaf-green & brass, glass panes,
+  // nouveau vines, a slow sun-dapple sweep + vine grow. Animations gated.
+  // ============================================================================
+  "html[data-vle-chrome='greenhouse'] .vle-root{font-family:var(--vserif)}",
+  "html[data-vle-chrome='greenhouse'] .vle-head,html[data-vle-chrome='greenhouse'] .vlf-title{font-family:var(--vserif);letter-spacing:.5px;color:var(--vg)}",
+  "html[data-vle-chrome='greenhouse'] .vle-card,html[data-vle-chrome='greenhouse'] .vle-rel-card,html[data-vle-chrome='greenhouse'] .vld-sec,html[data-vle-chrome='greenhouse'] .vld-pc{position:relative;border-radius:6px 6px 16px 16px;border:1px solid color-mix(in srgb,var(--vg2) 40%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 6px 16px rgba(40,60,30,.14)}",
+  "html[data-vle-chrome='greenhouse'] .vld-h,html[data-vle-chrome='greenhouse'] .vle-sec-h{font-family:var(--vserif);color:var(--vg)}",
+  "html[data-vle-chrome='greenhouse'] .vle-tabbtn{border-radius:6px 6px 12px 12px;font-family:var(--vserif)}",
+  "html[data-vle-chrome='greenhouse'] .vle-tabbtn.on{color:var(--vg2);border-color:var(--vg);background:color-mix(in srgb,var(--vg) 12%,transparent)}",
+  "html[data-vle-chrome='greenhouse'] .vle-av,html[data-vle-chrome='greenhouse'] .vld-pc-av{border-radius:50%;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--vg) 60%,#fff),var(--vg));border:2px solid var(--vg2);color:#fff;font-family:var(--vserif)}",
+  "html[data-vle-chrome='greenhouse'] .vld-tension{border-radius:99px}",
+  "html[data-vle-chrome='greenhouse'] .vld-tension-f{background:linear-gradient(90deg,var(--vg),var(--vg2))!important}",
+  "html[data-vle-chrome='greenhouse'] .v-chip{border-radius:99px;background:color-mix(in srgb,var(--vg) 12%,transparent);border:1px solid var(--vg);color:var(--vg)}",
+  "html[data-vle-chrome='greenhouse'] .vlf-frame{border-radius:16px;border:2px solid var(--vg2);box-shadow:0 0 0 1px color-mix(in srgb,var(--vg) 22%,transparent),0 20px 50px rgba(30,50,25,.28)}",
+  "html[data-vle-chrome='greenhouse'] .vlf-bar{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 28%,transparent),color-mix(in srgb,var(--vg) 12%,transparent),transparent);border-bottom:1px solid color-mix(in srgb,var(--vg2) 50%,transparent);color:var(--vg)}",
+  // --- Greenhouse animations: sun-dapple sweep + nouveau-vine grow ---
+  "html[data-vle-chrome='greenhouse'] .vlf-body::after,html[data-vle-chrome='greenhouse'] .vle-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background:linear-gradient(115deg,transparent 30%,color-mix(in srgb,var(--vg2) 22%,transparent) 48%,transparent 66%);background-size:260% 100%;animation:vle-gh-sun 11s ease-in-out infinite}",
+  "@keyframes vle-gh-sun{0%{background-position:120% 0}100%{background-position:-40% 0}}",
+  "html[data-vle-chrome='greenhouse'] .vld-h::before,html[data-vle-chrome='greenhouse'] .vle-sec-h::before{content:'\\2767';color:var(--vg2);margin-right:.4em;display:inline-block;animation:vle-gh-grow 3.6s ease-in-out infinite;transform-origin:bottom center}",
+  "@keyframes vle-gh-grow{0%,100%{transform:scaleY(.86) rotate(0deg)}50%{transform:scaleY(1.05) rotate(-4deg)}}",
+  "html[data-vle-chrome='greenhouse'][data-vle-motion='off'] .vlf-body::after,html[data-vle-chrome='greenhouse'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='greenhouse'][data-vle-motion='off'] .vld-h::before,html[data-vle-chrome='greenhouse'][data-vle-motion='off'] .vle-sec-h::before{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='greenhouse'] .vlf-body::after,html[data-vle-chrome='greenhouse'] .vle-body::after,html[data-vle-chrome='greenhouse'] .vld-h::before,html[data-vle-chrome='greenhouse'] .vle-sec-h::before{animation:none}}",
+
+  // ============================================================================
+  // AURORA CHROME — northern lights over a glacier: teal & violet curtains,
+  // starfield, glacial glass cards, waving aurora + edge-flow. Animations gated.
+  // ============================================================================
+  "html[data-vle-chrome='aurora'] .vle-root{font-family:var(--vserif)}",
+  "html[data-vle-chrome='aurora'] .vle-head,html[data-vle-chrome='aurora'] .vlf-title{font-family:var(--vserif);font-weight:400;letter-spacing:4px;text-transform:uppercase;color:var(--vg);text-shadow:0 0 12px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='aurora'] .vle-card,html[data-vle-chrome='aurora'] .vle-rel-card,html[data-vle-chrome='aurora'] .vld-sec,html[data-vle-chrome='aurora'] .vld-pc{position:relative;border-radius:14px;border:1px solid color-mix(in srgb,var(--vg) 22%,transparent);background:var(--vsurf-1);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 6px 22px rgba(2,6,18,.5);backdrop-filter:blur(4px)}",
+  "html[data-vle-chrome='aurora'] .vld-h,html[data-vle-chrome='aurora'] .vle-sec-h{font-family:var(--vserif);font-weight:600;letter-spacing:2px;color:var(--vg);text-shadow:0 0 10px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='aurora'] .vle-tabbtn{border-radius:12px;font-family:var(--vserif);letter-spacing:2px;text-transform:uppercase}",
+  "html[data-vle-chrome='aurora'] .vle-tabbtn.on{color:var(--vg2);border-color:color-mix(in srgb,var(--vg2) 45%,transparent);background:color-mix(in srgb,var(--vg2) 12%,transparent)}",
+  "html[data-vle-chrome='aurora'] .vle-av,html[data-vle-chrome='aurora'] .vld-pc-av{border-radius:50%;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--vg) 30%,#16324a),#0a1830);border:1px solid var(--vg);color:var(--vg);box-shadow:0 0 14px rgba(var(--vg-rgb),.4)}",
+  "html[data-vle-chrome='aurora'] .vld-tension-f{background:linear-gradient(90deg,var(--vg),var(--vg2))!important;box-shadow:0 0 10px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='aurora'] .v-chip{border-radius:99px;background:color-mix(in srgb,var(--vg) 12%,transparent);border:1px solid var(--vg);color:var(--vg)}",
+  "html[data-vle-chrome='aurora'] .vlf-frame{border-radius:16px;border:1px solid color-mix(in srgb,var(--vg) 30%,transparent);box-shadow:0 0 40px rgba(var(--vg-rgb),.14),0 20px 60px rgba(2,6,18,.7)}",
+  "html[data-vle-chrome='aurora'] .vlf-bar{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 16%,transparent),color-mix(in srgb,var(--vg2) 12%,transparent),transparent);border-bottom:1px solid color-mix(in srgb,var(--vg) 28%,transparent);color:var(--vg)}",
+  // --- Aurora animations: waving aurora curtain, starfield twinkle, edge hue-flow ---
+  "html[data-vle-chrome='aurora'] .vlf-body::before,html[data-vle-chrome='aurora'] .vle-body::before{content:'';position:absolute;top:0;left:-20%;right:-20%;height:60%;z-index:0;pointer-events:none;background:linear-gradient(100deg,transparent 20%,rgba(var(--vg-rgb),.2) 40%,rgba(var(--vg2-rgb),.16) 58%,transparent 78%);filter:blur(14px);background-size:200% 100%;animation:vle-au-wave 9s ease-in-out infinite}",
+  "@keyframes vle-au-wave{0%,100%{background-position:0 0;transform:translateY(0)}50%{background-position:100% 0;transform:translateY(6px)}}",
+  "html[data-vle-chrome='aurora'] .vle-card::before,html[data-vle-chrome='aurora'] .vle-rel-card::before,html[data-vle-chrome='aurora'] .vld-sec::before{content:'';position:absolute;top:0;left:12px;right:12px;height:2px;pointer-events:none;z-index:2;background:linear-gradient(90deg,var(--vg),var(--vg2),var(--info,#6ab8ff),var(--vg));background-size:300% 100%;box-shadow:0 0 10px rgba(var(--vg-rgb),.5);animation:vle-au-flow 6s linear infinite}",
+  "@keyframes vle-au-flow{0%{background-position:0 0}100%{background-position:300% 0}}",
+  "html[data-vle-chrome='aurora'][data-vle-motion='off'] .vlf-body::before,html[data-vle-chrome='aurora'][data-vle-motion='off'] .vle-body::before,html[data-vle-chrome='aurora'][data-vle-motion='off'] .vle-card::before,html[data-vle-chrome='aurora'][data-vle-motion='off'] .vle-rel-card::before,html[data-vle-chrome='aurora'][data-vle-motion='off'] .vld-sec::before{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='aurora'] .vlf-body::before,html[data-vle-chrome='aurora'] .vle-body::before,html[data-vle-chrome='aurora'] .vle-card::before,html[data-vle-chrome='aurora'] .vle-rel-card::before,html[data-vle-chrome='aurora'] .vld-sec::before{animation:none}}",
+
+  // ============================================================================
+  // ROSACE CHROME — cathedral stained glass: cobalt/ruby/amber panes, gothic
+  // tracery, a slow sun-sweep pane-bloom + jewel shimmer. Animations gated.
+  // ============================================================================
+  "html[data-vle-chrome='rosace'] .vle-root{font-family:var(--vserif)}",
+  "html[data-vle-chrome='rosace'] .vle-head,html[data-vle-chrome='rosace'] .vlf-title{font-family:var(--vserif);letter-spacing:3px;text-transform:uppercase;color:var(--vg);text-shadow:0 0 12px rgba(var(--vg-rgb),.6)}",
+  "html[data-vle-chrome='rosace'] .vle-card,html[data-vle-chrome='rosace'] .vle-rel-card,html[data-vle-chrome='rosace'] .vld-sec,html[data-vle-chrome='rosace'] .vld-pc{position:relative;border-radius:10px 10px 4px 4px;border:2.5px solid #05040a;background:var(--vsurf-1);box-shadow:inset 0 0 22px rgba(var(--vg-rgb),.18)}",
+  "html[data-vle-chrome='rosace'] .vld-h,html[data-vle-chrome='rosace'] .vle-sec-h{font-family:var(--vserif);letter-spacing:1.5px;color:var(--vg);text-shadow:0 0 10px rgba(var(--vg-rgb),.6)}",
+  "html[data-vle-chrome='rosace'] .vle-tabbtn{border-radius:10px 10px 3px 3px;font-family:var(--vserif);letter-spacing:1.5px}",
+  "html[data-vle-chrome='rosace'] .vle-tabbtn.on{color:var(--vg2);border-color:#05040a;background:color-mix(in srgb,var(--vg2) 14%,transparent)}",
+  "html[data-vle-chrome='rosace'] .vle-av,html[data-vle-chrome='rosace'] .vld-pc-av{border-radius:0;clip-path:polygon(50% 0,90% 25%,90% 75%,50% 100%,10% 75%,10% 25%);background:radial-gradient(circle at 40% 35%,color-mix(in srgb,var(--vg) 60%,#14122a),#14122a);border:2px solid #05040a;color:var(--warn,#ffd98a);box-shadow:0 0 0 1px color-mix(in srgb,var(--warn,#e8a41f) 40%,transparent),0 0 14px rgba(var(--vg-rgb),.5)}",
+  "html[data-vle-chrome='rosace'] .vld-tension{border:1px solid rgba(120,120,140,.3)}",
+  "html[data-vle-chrome='rosace'] .vld-tension-f{background:linear-gradient(90deg,var(--vg),var(--press,#9a4ce0),var(--vg2))!important;box-shadow:0 0 12px rgba(var(--vg-rgb),.6)}",
+  "html[data-vle-chrome='rosace'] .v-chip{border-radius:4px;background:color-mix(in srgb,var(--vg) 16%,transparent);border:1px solid var(--vg);color:var(--vg)}",
+  "html[data-vle-chrome='rosace'] .vlf-frame{border-radius:10px;border:3px solid #05040a;box-shadow:inset 0 0 60px rgba(var(--vg-rgb),.18),0 0 0 2px rgba(120,120,140,.25),0 20px 60px rgba(0,0,0,.7)}",
+  "html[data-vle-chrome='rosace'] .vlf-bar{background:linear-gradient(90deg,color-mix(in srgb,var(--vg) 40%,transparent),color-mix(in srgb,var(--vg2) 28%,transparent),transparent);border-bottom:3px solid #05040a;color:#f0ecff}",
+  // --- Rosace animations: sun-sweep pane bloom (staggered) + jewel shimmer on headers ---
+  "html[data-vle-chrome='rosace'] .vle-card,html[data-vle-chrome='rosace'] .vle-rel-card,html[data-vle-chrome='rosace'] .vld-sec{animation:vle-rosace-bloom 9s ease-in-out infinite}",
+  "html[data-vle-chrome='rosace'] .vle-card:nth-child(2n){animation-delay:-3s}",
+  "html[data-vle-chrome='rosace'] .vle-card:nth-child(3n){animation-delay:-6s}",
+  "@keyframes vle-rosace-bloom{0%,100%{filter:saturate(.85) brightness(.9)}50%{filter:saturate(1.35) brightness(1.15)}}",
+  "html[data-vle-chrome='rosace'] .vlf-body::before,html[data-vle-chrome='rosace'] .vle-body::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background:radial-gradient(60% 90% at 20% 20%,rgba(255,255,255,.14),transparent 40%);animation:vle-rosace-sun 14s ease-in-out infinite}",
+  "@keyframes vle-rosace-sun{0%,100%{transform:translate(-30%,-10%);opacity:.5}50%{transform:translate(60%,20%);opacity:.95}}",
+  "html[data-vle-chrome='rosace'][data-vle-motion='off'] .vle-card,html[data-vle-chrome='rosace'][data-vle-motion='off'] .vle-rel-card,html[data-vle-chrome='rosace'][data-vle-motion='off'] .vld-sec,html[data-vle-chrome='rosace'][data-vle-motion='off'] .vlf-body::before,html[data-vle-chrome='rosace'][data-vle-motion='off'] .vle-body::before{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='rosace'] .vle-card,html[data-vle-chrome='rosace'] .vle-rel-card,html[data-vle-chrome='rosace'] .vld-sec,html[data-vle-chrome='rosace'] .vlf-body::before,html[data-vle-chrome='rosace'] .vle-body::before{animation:none}}",
+
+  // ============================================================================
   // CARD SHAPE PRIMITIVES + per-surface overrides (mockup 24 / 30-35).
   // Both are generated from the single SHAPE_GEOM map above (geometry only, never
   // color/type). Primitives (.v-shape--<id>) are used directly by renderers;
@@ -2364,6 +2496,22 @@ export const STYLES = [
   ...shapeDetail('vine-frame', "content:'';position:absolute;bottom:4px;right:4px;width:22px;height:22px;pointer-events:none;z-index:1;border-bottom:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-right:2px solid color-mix(in srgb,var(--vg) 55%,transparent);border-bottom-right-radius:12px;background:radial-gradient(circle 3px at 40% calc(100% - 4px),color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent),radial-gradient(circle 3px at calc(100% - 4px) 40%,color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent);background-repeat:no-repeat;opacity:.75", '::after'),
   // BESTIARY: manuscript-rule -- a rubricated paragraph mark on the thick left rail.
   ...shapeDetail('manuscript-rule', "content:'\\00B6';position:absolute;left:6px;top:10px;width:12px;pointer-events:none;z-index:1;color:var(--vg);font-size:14px;line-height:1;opacity:.8", '::before'),
+  // --- NATURE/LIGHT-CHROME signature shape details (12; 3 per chrome). All colors
+  // reference themed vars so each skin recolors them; all pinned into padding.
+  // TERRACOTTA: azulejo -- a glazed-tile double keyline inset frame.
+  ...shapeDetail('azulejo', "content:'';position:absolute;inset:4px;pointer-events:none;z-index:1;border:1px solid color-mix(in srgb,var(--vg) 45%,transparent);border-radius:5px;box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--vsurf-1,#fff) 45%,transparent),inset 0 0 0 3px color-mix(in srgb,var(--vg2) 30%,transparent);opacity:.85", '::before'),
+  // TERRACOTTA: glaze-drip -- kiln-glaze drips run down the reserved bottom padding.
+  ...shapeDetail('glaze-drip', "content:'';position:absolute;bottom:3px;left:10px;right:10px;height:8px;pointer-events:none;z-index:1;background:radial-gradient(circle 4px at 18% 0,color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent),radial-gradient(circle 3px at 46% 0,color-mix(in srgb,var(--vg) 50%,transparent) 96%,transparent),radial-gradient(circle 5px at 76% 0,color-mix(in srgb,var(--vg2) 50%,transparent) 96%,transparent);background-repeat:no-repeat;opacity:.7", '::after'),
+  // GREENHOUSE: pane -- a glasshouse muntin grid drawn faintly across the card.
+  ...shapeDetail('pane', "content:'';position:absolute;inset:5px;pointer-events:none;z-index:1;background:linear-gradient(color-mix(in srgb,var(--vg) 22%,transparent),color-mix(in srgb,var(--vg) 22%,transparent)) 50% 0/1px 100% no-repeat,linear-gradient(color-mix(in srgb,var(--vg) 22%,transparent),color-mix(in srgb,var(--vg) 22%,transparent)) 0 50%/100% 1px no-repeat;opacity:.5", '::before'),
+  // GREENHOUSE: whiplash-vine -- an art-nouveau vine climbs the thick left rail.
+  ...shapeDetail('whiplash-vine', "content:'';position:absolute;left:7px;top:7px;bottom:7px;width:9px;pointer-events:none;z-index:1;background:linear-gradient(color-mix(in srgb,var(--vg) 55%,transparent),color-mix(in srgb,var(--vg) 55%,transparent)) 4px 0/2px 100% no-repeat,radial-gradient(circle 3px at 100% 20%,color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent),radial-gradient(circle 3px at 0 52%,color-mix(in srgb,var(--vg) 50%,transparent) 96%,transparent),radial-gradient(circle 3px at 100% 84%,color-mix(in srgb,var(--vg2) 55%,transparent) 96%,transparent);background-repeat:no-repeat;opacity:.8", '::before'),
+  // AURORA: ribbon-edge -- a glowing hue-shifting aurora line rides the top padding.
+  ...shapeDetail('ribbon-edge', "content:'';position:absolute;top:5px;left:12px;right:12px;height:2px;pointer-events:none;z-index:1;background:linear-gradient(90deg,var(--vg),var(--vg2),var(--v-info,var(--vg)),var(--vg));border-radius:2px;box-shadow:0 0 10px rgba(var(--vg-rgb),.5);opacity:.85", '::before'),
+  // ROSACE: rose-window -- radial tracery spokes drawn in the reserved top padding.
+  ...shapeDetail('rose-window', "content:'\\273B';position:absolute;top:1px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:1;color:var(--vg);font-size:15px;line-height:1;text-shadow:0 0 10px rgba(var(--vg-rgb),.7);opacity:.8", '::before'),
+  // ROSACE: came-bar -- a thick leaded-came rule with a glint down the left rail.
+  ...shapeDetail('came-bar', "content:'';position:absolute;left:6px;top:7px;bottom:7px;width:8px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/3px 100% no-repeat,linear-gradient(180deg,transparent,color-mix(in srgb,var(--vg2) 60%,transparent),transparent) 4px 0/2px 100% no-repeat;opacity:.7", '::before'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.

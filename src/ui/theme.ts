@@ -64,8 +64,12 @@ const F_ARCADE = "'Press Start 2P',ui-monospace,monospace"; // Arcade display �
 const F_ZINE = "'Anton','Oswald',Impact,sans-serif"; // Riot display — condensed poster grotesque, loads from Google Fonts
 const F_ARCANE = "'Cinzel Decorative','Cinzel',Georgia,serif"; // Grimoire display — ornate roman caps (Cinzel bundled; Decorative loads from Google)
 const F_UNCIAL = "'MedievalSharp','UnifrakturCook',Georgia,serif"; // Bestiary display — medieval uncial, loads from Google Fonts
+const F_CLAY = "'Fraunces',Georgia,serif"; // Terracotta display — warm optical serif, loads from Google Fonts
+const F_NOUVEAU = "'Yeseva One','Cormorant Garamond',Georgia,serif"; // Greenhouse display — art-nouveau high-contrast serif, loads from Google Fonts
+const F_POLAR = "'Josefin Sans',system-ui,sans-serif"; // Aurora display — airy geometric sans, loads from Google Fonts
+const F_LEADED = "'Marcellus','Cormorant Garamond',Georgia,serif"; // Rosace display — inscriptional roman, loads from Google Fonts
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary' | 'terracotta' | 'greenhouse' | 'aurora' | 'rosace';
 
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
@@ -96,12 +100,17 @@ export type ShapeId =
   | 'arcade-btn' | 'pixel-step' | 'coin-slot'
   | 'taped' | 'torn-edge' | 'ransom-cut'
   | 'dropcap' | 'sigil-seal' | 'rune-spine'
-  | 'vine-frame' | 'heraldic-shield' | 'manuscript-rule';
+  | 'vine-frame' | 'heraldic-shield' | 'manuscript-rule'
+  // nature/light chrome signature shapes (3 per chrome): terracotta / greenhouse / aurora / rosace
+  | 'azulejo' | 'amphora' | 'glaze-drip'
+  | 'pane' | 'whiplash-vine' | 'nouveau-arch'
+  | 'ribbon-edge' | 'glacier' | 'icicle'
+  | 'rose-window' | 'lancet' | 'came-bar';
 // NOTE: `secrets` is intentionally NOT a customizable surface — the secret card
 // owns a fixed left-spine + wax-seal signature across every chrome (rendered via
 // its own ::before/::after), so it isn't offered in the card-shape customizer.
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule', 'azulejo', 'amphora', 'glaze-drip', 'pane', 'whiplash-vine', 'nouveau-arch', 'ribbon-edge', 'glacier', 'icicle', 'rose-window', 'lancet', 'came-bar'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -155,6 +164,22 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   // rubricated manuscript-rule item. 3 signature (vine-frame/heraldic-shield/
   // manuscript-rule) + 3 survivors.
   bestiary: { present: 'vine-frame', bonds: 'gilt-edge', cast: 'tarot', beats: 'scalloped', factions: 'heraldic-shield', items: 'manuscript-rule' },
+  // sun-baked Mediterranean: an azulejo-tiled present, an amphora-curved bond, a
+  // portrait (tarot) cast, a glaze-drip beat, a scalloped faction, a stitched item.
+  // 3 signature (azulejo/amphora/glaze-drip) + 3 survivors.
+  terracotta: { present: 'azulejo', bonds: 'amphora', cast: 'tarot', beats: 'glaze-drip', factions: 'scalloped', items: 'stitch' },
+  // solarpunk glasshouse: a glass-pane present, a whiplash-vine bond, an inset cast,
+  // a nouveau-arch beat, a trellis faction, a paned item.
+  // 3 signature (pane/whiplash-vine/nouveau-arch) + 3 survivors.
+  greenhouse: { present: 'pane', bonds: 'whiplash-vine', cast: 'inset', beats: 'nouveau-arch', factions: 'trellis', items: 'pane' },
+  // northern lights: a ribbon-edge present, a slab bond, an inset cast, a glacier
+  // beat, a ribbon-edge faction, an icicle item.
+  // 3 signature (ribbon-edge/glacier/icicle) + 3 survivors.
+  aurora: { present: 'ribbon-edge', bonds: 'slab', cast: 'inset', beats: 'glacier', factions: 'ribbon-edge', items: 'icicle' },
+  // cathedral stained glass: a rose-window present, a lancet bond, a tarot cast,
+  // a came-bar beat, a lancet faction, a came-bar item.
+  // 3 signature (rose-window/lancet/came-bar) + 3 survivors.
+  rosace: { present: 'rose-window', bonds: 'lancet', cast: 'tarot', beats: 'came-bar', factions: 'lancet', items: 'came-bar' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -250,6 +275,20 @@ export const MODES: Mode[] = [
   // Illuminated (restrained) & Gatsby (geometric): Bestiary is dense, painterly,
   // medieval. Light-led; dark twin = candlelit scriptorium.
   { id: 'bestiary', name: 'Bestiary', blurb: 'An illuminated bestiary \u2014 crimson, royal blue &amp; gilt, vine borders, heraldic shields.', patch: { chrome: 'bestiary', radius: 4, border: 2, texture: 'bestiary-vines', serif: F_UNCIAL, accent: '#c8a24e', accent2: '#a3243a', opacity: 1, blur: 4 }, form: 'dashboard', skin: 'bestiary-vellum', skinDark: 'bestiary-candlelit', skinLight: 'bestiary-vellum' },
+  // TERRACOTTA — "sun-baked Mediterranean": fired clay & glazed azulejo teal on warm
+  // plaster, talavera tiles, kiln-warm glow. Light-led; dark twin = a fired kiln.
+  { id: 'terracotta', name: 'Terracotta', blurb: 'Sun-baked courtyard \u2014 fired clay &amp; glazed teal, talavera tiles, kiln-warm glow.', patch: { chrome: 'terracotta', radius: 8, border: 1, texture: 'talavera', serif: F_CLAY, accent: '#c96f4a', accent2: '#2f8f8f', opacity: 1, blur: 4 }, form: 'dashboard', skin: 'terracotta-plaster', skinDark: 'terracotta-kiln', skinLight: 'terracotta-plaster' },
+  // GREENHOUSE — "solarpunk glasshouse": leaf-green & brass, glass panes, art-nouveau
+  // whiplash vines, a moving sun. The bright, optimistic nature chrome. Light-led.
+  { id: 'greenhouse', name: 'Greenhouse', blurb: 'A solarpunk conservatory \u2014 leaf-green &amp; brass, glass panes, nouveau vines, moving sun.', patch: { chrome: 'greenhouse', radius: 16, border: 2, texture: 'glasshouse', serif: F_NOUVEAU, accent: '#3f8f57', accent2: '#c69a3e', opacity: 1, blur: 4 }, form: 'dashboard', skin: 'greenhouse-glass', skinDark: 'greenhouse-dusk', skinLight: 'greenhouse-glass' },
+  // AURORA — "northern lights over a glacier": teal & violet curtains on polar navy,
+  // starfield, glacial glass. Distinct from Ember (indigo firefly night): Aurora is
+  // cold, waving, boreal. Light twin = a pale arctic daybreak.
+  { id: 'aurora', name: 'Aurora', blurb: 'Northern lights over a glacier \u2014 teal &amp; violet curtains, starfield, glacial glass.', patch: { chrome: 'aurora', radius: 14, border: 1, texture: 'aurora-curtain', serif: F_POLAR, accent: '#4ff0c0', accent2: '#9a6cff', opacity: 0.92, blur: 8 }, form: 'dashboard', skin: 'aurora-polar', skinDark: 'aurora-polar', skinLight: 'aurora-daybreak' },
+  // ROSACE — "cathedral stained glass": cobalt, ruby & amber panes in black leading,
+  // gothic tracery, a slow-moving sun. Distinct from Illuminated (gilt ink) & Grimoire
+  // (arcane glow): Rosace is light through leaded glass. Light twin = a limewashed nave.
+  { id: 'rosace', name: 'Rosace', blurb: 'Light through leaded glass \u2014 cobalt, ruby &amp; amber panes, gothic tracery, a moving sun.', patch: { chrome: 'rosace', radius: 10, border: 3, texture: 'leadwork', serif: F_LEADED, accent: '#1f6fe0', accent2: '#e0243f', opacity: 0.92, blur: 8 }, form: 'dashboard', skin: 'rosace-leaded', skinDark: 'rosace-leaded', skinLight: 'rosace-nave' },
 ];
 
 
@@ -337,6 +376,26 @@ export const SKINS: Skin[] = [
   { id: 'bestiary-candlelit', name: 'Bestiary Candlelit', blurb: 'A candlelit bestiary \u2014 deep umber, gilt ink, crimson &amp; royal blue.', theme: { accent: '#c8a24e', serif: F_UNCIAL, mono: F_MONO, surf1: 'rgba(38,28,18,.92)', surf2: 'rgba(26,19,12,.94)', ink: '#f0e2c4', ink2: '#b8a276', glass: 'linear-gradient(168deg,#241a10,#160f08)', ...SEM, pos: '#7a9e4a', posInk: '#96b866', neg: '#c8434a', negInk: '#e0777c', info: '#5a7ab8', warn: '#a87ad0', press: '#c8a24e', pressInk: '#e0c078' } },
   // Light: the vellum page \u2014 cream field, brown-black ink, gilt &amp; crimson.
   { id: 'bestiary-vellum', name: 'Bestiary Vellum', blurb: 'An illuminated vellum page \u2014 cream field, gilt, crimson &amp; royal blue.', theme: { accent: '#a07818', serif: F_UNCIAL, mono: F_MONO, surf1: 'rgba(243,230,196,.95)', surf2: 'rgba(234,220,182,.95)', ink: '#2a1c0e', ink2: '#6a5638', glass: 'linear-gradient(168deg,#f3e6c4,#ecdcb0)', ...SEM, pos: '#3f7a3a', posInk: '#2f602c', neg: '#a3243a', negInk: '#82182e', info: '#2f5a8a', warn: '#5a3a8a', press: '#a07818', pressInk: '#836010' } },
+  // TERRACOTTA SKINS — sun-baked Mediterranean: fired clay & glazed teal. From .terracotta.
+  // Light: warm plaster field, clay ink, azulejo-teal accent2.
+  { id: 'terracotta-plaster', name: 'Terracotta Plaster', blurb: 'Sun-baked plaster \u2014 warm clay &amp; glazed teal, talavera tiles.', theme: { accent: '#c96f4a', serif: F_CLAY, mono: F_MONO, surf1: 'rgba(244,230,210,.95)', surf2: 'rgba(236,216,189,.95)', ink: '#3a2418', ink2: '#8a6a4a', glass: 'linear-gradient(168deg,#efe0c8,#e6cfae)', ...SEM, pos: '#6f8f3a', posInk: '#556f28', neg: '#b5432f', negInk: '#933323', info: '#2f8f8f', warn: '#d99a2e', press: '#c96f4a', pressInk: '#a85535' } },
+  // Dark: a fired kiln \u2014 deep terracotta-brown field, warm cream ink.
+  { id: 'terracotta-kiln', name: 'Terracotta Kiln', blurb: 'A fired kiln \u2014 deep terracotta-brown, warm cream ink, glazed teal.', theme: { accent: '#e08a5a', serif: F_CLAY, mono: F_MONO, surf1: 'rgba(46,30,20,.94)', surf2: 'rgba(32,20,13,.96)', ink: '#f4e2cc', ink2: '#c0a082', glass: 'linear-gradient(168deg,#2e1e14,#1c120b)', ...SEM, pos: '#8faa4e', posInk: '#a8c268', neg: '#e0603f', negInk: '#f0876a', info: '#4fb0b0', warn: '#e0a83e', press: '#e08a5a', pressInk: '#f0a878' } },
+  // GREENHOUSE SKINS — solarpunk glasshouse: leaf-green & brass. From .greenhouse.
+  // Light: bright glass field, deep-leaf ink, brass accent2.
+  { id: 'greenhouse-glass', name: 'Greenhouse Glass', blurb: 'A sunlit glasshouse \u2014 leaf-green &amp; brass, glass panes, nouveau vines.', theme: { accent: '#3f8f57', serif: F_NOUVEAU, mono: F_MONO, surf1: 'rgba(248,251,242,.94)', surf2: 'rgba(233,242,224,.94)', ink: '#21301d', ink2: '#5c6b52', glass: 'linear-gradient(168deg,#eef5e4,#dfeacd)', ...SEM, pos: '#4f9a44', posInk: '#3a7a30', neg: '#c65a4a', negInk: '#a8483a', info: '#4a8ab0', warn: '#b3812a', press: '#3f8f57', pressInk: '#2f7043' } },
+  // Dark: dusk conservatory \u2014 deep botanical green field, brass ink.
+  { id: 'greenhouse-dusk', name: 'Greenhouse Dusk', blurb: 'A dusk conservatory \u2014 deep botanical green, brass ink, glass panes.', theme: { accent: '#6cbf6c', serif: F_NOUVEAU, mono: F_MONO, surf1: 'rgba(22,36,26,.92)', surf2: 'rgba(14,24,17,.94)', ink: '#e2eed8', ink2: '#9ab090', glass: 'linear-gradient(168deg,#16241a,#0e1811)', ...SEM, pos: '#6cbf6c', posInk: '#88d488', neg: '#d67a68', negInk: '#e89684', info: '#6aa8cc', warn: '#d4a84e', press: '#c69a3e', pressInk: '#e0b658' } },
+  // AURORA SKINS — northern lights over a glacier: teal & violet. From .aurora.
+  // Dark: polar navy field, ice-white ink, aurora-teal accent.
+  { id: 'aurora-polar', name: 'Aurora Polar', blurb: 'Northern lights \u2014 polar navy, ice-white ink, teal &amp; violet curtains.', theme: { accent: '#4ff0c0', serif: F_POLAR, mono: F_MONO, surf1: 'rgba(16,26,44,.72)', surf2: 'rgba(9,16,32,.78)', ink: '#e6f0f7', ink2: '#8fa8bc', glass: 'linear-gradient(168deg,#0c1830,#060c1c)', ...SEM, pos: '#4ff0c0', posInk: '#88f6d8', neg: '#ff6a8a', negInk: '#ff96ac', info: '#6ab8ff', warn: '#ffd66a', press: '#9a6cff', pressInk: '#b696ff' } },
+  // Light: arctic daybreak \u2014 pale ice-blue field, deep polar ink.
+  { id: 'aurora-daybreak', name: 'Aurora Daybreak', blurb: 'An arctic daybreak \u2014 pale ice-blue, deep polar ink, waking teal.', theme: { accent: '#1f9a86', serif: F_POLAR, mono: F_MONO, surf1: 'rgba(240,248,252,.94)', surf2: 'rgba(224,238,246,.94)', ink: '#132436', ink2: '#4f6b80', glass: 'linear-gradient(168deg,#f0f8fc,#e0eef6)', ...SEM, pos: '#1f9a7a', posInk: '#177a60', neg: '#d6486a', negInk: '#b03654', info: '#2f88d0', warn: '#c99a1e', press: '#7a52d0', pressInk: '#6240a8' } },
+  // ROSACE SKINS — cathedral stained glass: cobalt, ruby & amber. From .rosace.
+  // Dark: black leading, jewel-lit panes \u2014 cobalt accent, ruby accent2.
+  { id: 'rosace-leaded', name: 'Rosace Leaded', blurb: 'Light through leaded glass \u2014 cobalt, ruby &amp; amber panes, black came.', theme: { accent: '#1f6fe0', serif: F_LEADED, mono: F_MONO, surf1: 'rgba(20,18,38,.82)', surf2: 'rgba(12,10,26,.86)', ink: '#eae6ff', ink2: '#9a93c0', glass: 'linear-gradient(168deg,#14122a,#08060f)', ...SEM, pos: '#23c05a', posInk: '#5fd888', neg: '#e0243f', negInk: '#f06a7e', info: '#1f6fe0', warn: '#e8a41f', press: '#9a4ce0', pressInk: '#b678ee' } },
+  // Light: a limewashed nave \u2014 pale stone field, deep ink, sun through color.
+  { id: 'rosace-nave', name: 'Rosace Nave', blurb: 'A limewashed nave \u2014 pale stone, deep ink, sun pouring through color.', theme: { accent: '#1f5fc0', serif: F_LEADED, mono: F_MONO, surf1: 'rgba(244,242,236,.94)', surf2: 'rgba(232,229,220,.94)', ink: '#1c1a2e', ink2: '#5a5470', glass: 'linear-gradient(168deg,#f4f2ec,#e6e3da)', ...SEM, pos: '#1f9a4a', posInk: '#177a38', neg: '#c8203a', negInk: '#a2182e', info: '#1f5fc0', warn: '#c9871a', press: '#7a3ac0', pressInk: '#622a9c' } },
 ];
 
 
@@ -436,7 +495,7 @@ export function hydrateTheme(json: string | null): void {
   try { const t = JSON.parse(json); if (t && t.accent) { _theme = sanitize({ ...DEFAULT, ...t }); } } catch { /* ignore */ }
 }
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
-const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary'] as const;
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary', 'terracotta', 'greenhouse', 'aurora', 'rosace'] as const;
 function sanitize(t: Theme): Theme {
   // migrate a cut chrome/skin to its nearest survivor before validating
   const rawChrome = t.chrome as string;
@@ -480,6 +539,10 @@ function loadGoogleFontsForChrome(chrome: Chrome): void {
     riot: 'https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;700&display=swap',
     grimoire: 'https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&display=swap',
     bestiary: 'https://fonts.googleapis.com/css2?family=MedievalSharp&family=UnifrakturCook:wght@700&display=swap',
+    terracotta: 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&display=swap',
+    greenhouse: 'https://fonts.googleapis.com/css2?family=Yeseva+One&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap',
+    aurora: 'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600&display=swap',
+    rosace: 'https://fonts.googleapis.com/css2?family=Marcellus&display=swap',
   };
   const fontUrl = fontMap[chrome];
   if (fontUrl) injectFontLink(fontUrl, chrome);
@@ -670,6 +733,10 @@ export function customizePanel(tab: CzTab = 'look'): string {
     riot: '<span class="vle-mode-sk sk-riot"><i></i><i></i><i></i></span>',
     grimoire: '<span class="vle-mode-sk sk-grimoire"><i></i><i></i><i></i></span>',
     bestiary: '<span class="vle-mode-sk sk-bestiary"><i></i><i></i><i></i></span>',
+    terracotta: '<span class="vle-mode-sk sk-terracotta"><i></i><i></i><i></i></span>',
+    greenhouse: '<span class="vle-mode-sk sk-greenhouse"><i></i><i></i><i></i></span>',
+    aurora: '<span class="vle-mode-sk sk-aurora"><i></i><i></i><i></i></span>',
+    rosace: '<span class="vle-mode-sk sk-rosace"><i></i><i></i><i></i></span>',
   };
   // dark/light segmented toggle — flips every chrome to its paired skin
   const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'

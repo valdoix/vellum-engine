@@ -23,8 +23,8 @@ describe('theme system', () => {
     }
   });
 
-  it('MODES are exactly the fourteen chromes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['arcade', 'bestiary', 'bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'grimoire', 'illuminated', 'modern', 'riot', 'sumi']);
+  it('MODES are exactly the eighteen chromes', () => {
+    expect(MODES.map((m) => m.id).sort()).toEqual(['arcade', 'aurora', 'bestiary', 'bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'greenhouse', 'grimoire', 'illuminated', 'modern', 'riot', 'rosace', 'sumi', 'terracotta']);
   });
 
   it("each mode's dark + light skins exist", () => {
@@ -64,6 +64,34 @@ describe('theme system', () => {
       { id: 'bestiary', skin: 'bestiary-candlelit', light: 'bestiary-vellum', accent: '#c8a24e',
         shapes: { present: 'vine-frame', bonds: 'gilt-edge', cast: 'tarot', beats: 'scalloped', factions: 'heraldic-shield', items: 'manuscript-rule' },
         sig: ['vine-frame', 'heraldic-shield', 'manuscript-rule'] },
+    ] as const;
+    for (const c of cases) {
+      setMode(c.id);
+      const t = getTheme();
+      expect(t.chrome, c.id).toBe(c.id);
+      expect(t.skin, c.id).toBe(c.skin); // dark default
+      expect(t.accent.toLowerCase(), c.id).toBe(c.accent);
+      expect(SKINS.some((s) => s.id === c.skin), `${c.id} dark`).toBe(true);
+      expect(SKINS.some((s) => s.id === c.light), `${c.id} light`).toBe(true);
+      expect(CHROME_SHAPES[c.id], c.id).toEqual(c.shapes);
+      for (const id of c.sig) expect(SHAPE_IDS.includes(id), `${c.id}:${id}`).toBe(true);
+    }
+  });
+
+  it('nature/light chromes: mode, paired skins, accent, shapes, and signature shape ids resolve', () => {
+    const cases = [
+      { id: 'terracotta', skin: 'terracotta-kiln', light: 'terracotta-plaster', accent: '#c96f4a',
+        shapes: { present: 'azulejo', bonds: 'amphora', cast: 'tarot', beats: 'glaze-drip', factions: 'scalloped', items: 'stitch' },
+        sig: ['azulejo', 'amphora', 'glaze-drip'] },
+      { id: 'greenhouse', skin: 'greenhouse-dusk', light: 'greenhouse-glass', accent: '#3f8f57',
+        shapes: { present: 'pane', bonds: 'whiplash-vine', cast: 'inset', beats: 'nouveau-arch', factions: 'trellis', items: 'pane' },
+        sig: ['pane', 'whiplash-vine', 'nouveau-arch'] },
+      { id: 'aurora', skin: 'aurora-polar', light: 'aurora-daybreak', accent: '#4ff0c0',
+        shapes: { present: 'ribbon-edge', bonds: 'slab', cast: 'inset', beats: 'glacier', factions: 'ribbon-edge', items: 'icicle' },
+        sig: ['ribbon-edge', 'glacier', 'icicle'] },
+      { id: 'rosace', skin: 'rosace-leaded', light: 'rosace-nave', accent: '#1f6fe0',
+        shapes: { present: 'rose-window', bonds: 'lancet', cast: 'tarot', beats: 'came-bar', factions: 'lancet', items: 'came-bar' },
+        sig: ['rose-window', 'lancet', 'came-bar'] },
     ] as const;
     for (const c of cases) {
       setMode(c.id);
