@@ -522,6 +522,74 @@ function bindPresetPanel(
   root.querySelector('[data-pt-preview-toggle]')?.addEventListener('click', onPreviewToggle);
 }
 
+/** Write the companion link into the host's live preset draft. Prefers the new
+ *  SCOPED helper (`ctx.ui.presetEditor.extension.updateMetadata`), which writes
+ *  ONLY `metadata[vellum_engine]` through the host's serialized save coordinator
+ *  and therefore can't clobber a concurrent prompt-variable/native edit. Falls
+ *  back to the older unscoped `updatePreset` whole-preset write on hosts that
+ *  don't expose the scoped surface. Both paths stamp the CURRENT VELLUM_VERSION.
+ *  The host fires presetEditor.onChange after the write, re-rendering the tab. */
+function writeHostDraftLink(ctx: Ctx, link: boolean): void {
+  const patchVellum = (current: any): any => (link
+    ? {
+        ...(current && typeof current === 'object' ? current : {}),
+        version: VELLUM_VERSION,
+        identifier: 'vellum_engine',
+        linkedAt: Date.now(),
+      }
+    : {
+        ...(current && typeof current === 'object' ? current : {}),
+        identifier: null,
+      });
+  // Preferred: scoped, coordinator-serialized metadata-only write.
+  try {
+    const editor = (ctx.ui as any).presetEditor?.extension;
+    if (editor?.updateMetadata) {
+      editor.updateMetadata((current: any) => patchVellum(current), { immediate: true });
+      return;
+    }
+  } catch { /* scoped helper absent/older host — fall through to unscoped */ }
+  // Fallback: unscoped whole-preset write (older hosts).
+  try {
+    (ctx.ui as any).presetEditor?.updatePreset?.((preset: any) => ({
+      ...preset,
+      metadata: {
+        ...preset.metadata,
+        vellum_engine: patchVellum(preset.metadata?.vellum_engine),
+      },
+    }), { immediate: true });
+  } catch { /* host draft API optional — backend write is still the source of truth */ }
+}
+
+/** PURE: compact Link/Unlink control (status dot + button) for the preset-editor
+ *  TOOLBAR item. Shares the `data-pt-link` / `data-pt-preset` contract with the
+ *  tab's Feature 1 so `wireLinkControl` can drive either. */
+function linkControlHtml(isLinked: boolean, presetId: string): string {
+  const e = esc;
+  if (!presetId) {
+    return `<div class="vle-pt-toolbar"><span class="vle-pt-dot unlinked"></span><span style="font-size:11px;opacity:0.6">No preset open</span></div>`;
+  }
+  return `<div class="vle-pt-toolbar">
+    <span class="vle-pt-dot ${isLinked ? 'linked' : 'unlinked'}"></span>
+    <span style="font-size:11px">${isLinked ? 'Linked to VELLUM' : 'Not linked'}</span>
+    <button class="vle-pt-btn" data-pt-link="${isLinked ? 'unlink' : 'link'}" data-pt-preset="${e(presetId)}">${isLinked ? 'Unlink' : 'Link this preset'}</button>
+  </div>`;
+}
+
+/** Wire the Link/Unlink button in a toolbar control: mirror into the host draft
+ *  AND send the backend write, exactly as the tab's Feature 1 does. */
+function wireLinkControl(root: HTMLElement, ctx: Ctx): void {
+  root.querySelector('[data-pt-link]')?.addEventListener('click', (ev) => {
+    const btn = (ev.target as HTMLElement).closest('[data-pt-link]') as HTMLElement | null;
+    if (!btn) return;
+    const pid = btn.getAttribute('data-pt-preset') ?? '';
+    const link = btn.getAttribute('data-pt-link') === 'link';
+    if (!pid) return;
+    try { writeHostDraftLink(ctx, link); } catch { /* host draft optional */ }
+    try { ctx.sendToBackend({ type: 'vellum_preset_tab_link', presetId: pid, link }); } catch { /* ignore */ }
+  });
+}
+
 /** A self-contained shell instance: renders the tab bar + toolbar + body. */
 function createShell(ctx: Ctx, getState: () => ChronicleState) {
   const root = document.createElement('div');
@@ -1073,10 +1141,11 @@ export function setup(ctx: Ctx): () => void {
   const drawer = createShell(ctx, getState);
   tab.root.appendChild(drawer.root);
 
-  // PRESET EDITOR TAB: register a VELLUM panel inside the Preset Editor where
-  // users author the companion preset. Probe for the API first; register only
-  // when present. Requires `presets` + `ui_panels`.
+  // PRESET EDITOR TAB + TOOLBAR ITEM: register a VELLUM panel and a compact
+  // Link/Unlink toolbar control inside the Preset Editor. Both probe for their
+  // respective APIs first and silently skip on older hosts. Requires `presets`.
   let presetEditorTab: any = null;
+  let presetToolbarItem: any = null;
   // Per-tab state for features 3 + 4 (injection preview, extraction status).
   // These are fetched async and re-rendered into the tab root.
   let _ptInjRecord: { turn: number; chars: number; recalls: number; text: string } | null = null;
@@ -1114,20 +1183,26 @@ export function setup(ctx: Ctx): () => void {
       () => { _ptPreviewOpen = !_ptPreviewOpen; renderPresetEditorTab(); },
       // desktop: mirror the link into the host's live preset draft so the editor
       // reflects it immediately (onChange → re-render); backend call persists.
-      (pid, link) => {
-        try {
-          (ctx.ui as any).presetEditor?.updatePreset?.((preset: any) => ({
-            ...preset,
-            metadata: {
-              ...preset.metadata,
-              vellum_engine: link
-                ? { ...(preset.metadata?.vellum_engine ?? {}), version: '2.0.0-beta.1', identifier: 'vellum_engine', linkedAt: Date.now() }
-                : { ...(preset.metadata?.vellum_engine ?? {}), identifier: null },
-            },
-          }), { immediate: true });
-        } catch { /* API may not be available — fall back to backend-only */ }
-      },
+      // Prefers the scoped coordinator write; falls back to unscoped on older
+      // hosts. Uses the current VELLUM_VERSION (no hardcoded literal).
+      (_pid, link) => { writeHostDraftLink(ctx, link); },
     );
+  }
+
+  /** Render the compact toolbar Link/Unlink control. Reads the SAME unscoped
+   *  editor draft the tab does (for `preset.id` + linked state), draws the
+   *  shared link control, and hides the whole item when no preset is open. */
+  function renderPresetToolbar(): void {
+    if (!presetToolbarItem) return;
+    const root = presetToolbarItem.root as HTMLElement;
+    let editorState: any = null;
+    try { editorState = (ctx.ui as any).presetEditor?.getState?.(); } catch { /* API may not be present */ }
+    const preset = editorState?.preset ?? null;
+    const presetId: string = preset?.id ?? '';
+    const isLinked = preset?.metadata?.vellum_engine?.identifier === 'vellum_engine';
+    try { presetToolbarItem.setVisible?.(!!presetId); } catch { /* setVisible optional */ }
+    root.innerHTML = linkControlHtml(isLinked, presetId);
+    wireLinkControl(root, ctx);
   }
 
   try {
@@ -1140,7 +1215,7 @@ export function setup(ctx: Ctx): () => void {
       renderPresetEditorTab();
       // Re-render whenever the open preset changes
       try {
-        (ctx.ui as any).presetEditor?.onChange?.(renderPresetEditorTab);
+        (ctx.ui as any).presetEditor?.onChange?.(() => { renderPresetEditorTab(); renderPresetToolbar(); });
       } catch { /* presetEditor helper may not be present on all builds */ }
       // Re-fetch status each time the tab is shown, so a provider/model the user
       // switched while the tab was open (or since last open) reflects the CURRENT
@@ -1158,6 +1233,31 @@ export function setup(ctx: Ctx): () => void {
   } catch (e) {
     // Host without registerPresetEditorTab or permission not granted — silently skip
     try { console.info('[vellum] preset editor tab not available:', e); } catch { /* ignore */ }
+  }
+
+  // PRESET EDITOR TOOLBAR: a compact Link/Unlink control above the editor's
+  // list/edit area — more discoverable than the control inside the VELLUM tab.
+  // Max ONE per extension; additive and independent of the tab (either can be
+  // absent on a given host). Reuses the same scoped-write + backend path.
+  try {
+    if ((ctx.ui as any).registerPresetEditorToolbarItem) {
+      presetToolbarItem = (ctx.ui as any).registerPresetEditorToolbarItem({
+        id: 'vellum_engine',
+        ariaLabel: 'VELLUM link controls',
+      });
+      renderPresetToolbar();
+      // Keep the toolbar's linked/open state live with the editor draft. The tab
+      // (if present) already subscribes; guard against a double-register by only
+      // subscribing here when the tab did not.
+      if (!presetEditorTab) {
+        try {
+          (ctx.ui as any).presetEditor?.onChange?.(renderPresetToolbar);
+        } catch { /* presetEditor helper optional */ }
+      }
+    }
+  } catch (e) {
+    // Host without registerPresetEditorToolbarItem or permission not granted — skip
+    try { console.info('[vellum] preset editor toolbar not available:', e); } catch { /* ignore */ }
   }
 
   // apply the saved theme to the drawer shell + document (launcher/toggle/icon)
@@ -1556,6 +1656,7 @@ export function setup(ctx: Ctx): () => void {
     try { inputBtn?.destroy(); } catch { /* ignore */ }
     try { tab.destroy(); } catch { /* ignore */ }
     try { presetEditorTab?.destroy(); } catch { /* ignore */ }
+    try { presetToolbarItem?.destroy(); } catch { /* ignore */ }
     try { style.remove(); } catch { /* ignore */ }
     try { _spkStyle?.remove(); } catch { /* ignore */ }
     try { cleanupToasts(); } catch { /* ignore */ }

@@ -13,7 +13,7 @@
         "@fontsource/orbitron": "^5.2.8",
         "@fontsource/quicksand": "^5.2.10",
         "@types/node": "^22.0.0",
-        "lumiverse-spindle-types": "^0.5.28",
+        "lumiverse-spindle-types": "^0.6.3",
         "tsup": "^8.0.0",
         "typescript": "^5.6.0",
         "vitest": "^2.0.0",
@@ -207,7 +207,7 @@
 
     "loupe": ["loupe@3.2.1", "", {}, "sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ=="],
 
-    "lumiverse-spindle-types": ["lumiverse-spindle-types@0.5.28", "", {}, "sha512-E1yfmeT+F9hY6MlYXLYVfDCbnMmzLNfHO8F4iXiVewqRUIa1GgT7VM+LVpQ0sk0SCq7ulB5Q+XRi4hOck5nQjw=="],
+    "lumiverse-spindle-types": ["lumiverse-spindle-types@0.6.3", "", {}, "sha512-r5XGVBnw9qkOMYmZUURmGZlrr+DLbLSrPypndoX+XXbkX1JFROCzuaOO31ZSivYUTx7jbT8N1hGNNsiwXeoqNA=="],
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 

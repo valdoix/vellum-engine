@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel, resolveShape, sanitizeCardShapes, CHROME_SHAPES, SHAPE_IDS, SURFACES, setThemePersist, hydrateTheme, isLightSkin } from '../src/ui/theme.js';
+import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel, resolveShape, sanitizeCardShapes, CHROME_SHAPES, SHAPE_IDS, SURFACES, setThemePersist, hydrateTheme, isLightSkin, safeFontUrl, familyFromFontUrl } from '../src/ui/theme.js';
 import { renderBondRadar } from '../src/ui/theme-render.js';
 import { freshState } from '../src/domain/types.js';
 
@@ -10,7 +10,7 @@ import { freshState } from '../src/domain/types.js';
 
 // every key a Mode patch or Skin theme may legally set
 const THEME_KEYS = new Set([
-  'skin', 'accent', 'accent2', 'accentIntensity', 'serif', 'mono', 'scale', 'dataScale',
+  'skin', 'accent', 'accent2', 'accentIntensity', 'serif', 'mono', 'serifUrl', 'monoUrl', 'scale', 'dataScale',
   'density', 'opacity', 'blur', 'radius', 'border', 'inkEmphasis', 'texture', 'motion',
   'launcher', 'chrome', 'tensionStyle', 'surf1', 'surf2', 'ink', 'ink2', 'glass', 'bg', 'surf1c', 'surf2c',
   'pos', 'posInk', 'neg', 'negInk', 'info', 'warn', 'press', 'pressInk',
@@ -252,5 +252,45 @@ describe('theme persistence (spindle.storage round-trip)', () => {
     const arg = spy.mock.calls![0]![0];
     expect(typeof arg).toBe('string');
     expect(JSON.parse(arg).accent).toBe('#654321');
+  });
+});
+
+describe('custom Google Font URL (Customize → Type)', () => {
+  it('safeFontUrl accepts only https fonts.googleapis.com links', () => {
+    expect(safeFontUrl('https://fonts.googleapis.com/css2?family=Lora:wght@400;700')).toBe('https://fonts.googleapis.com/css2?family=Lora:wght@400;700');
+    // rejected: wrong host, non-https, data:, javascript:, empty
+    expect(safeFontUrl('https://evil.example/x.css')).toBe('');
+    expect(safeFontUrl('http://fonts.googleapis.com/css2?family=Lora')).toBe('');
+    expect(safeFontUrl('https://fonts.gstatic.com/s/lora.woff2')).toBe('');
+    expect(safeFontUrl('data:text/css,body{}')).toBe('');
+    expect(safeFontUrl('javascript:alert(1)')).toBe('');
+    expect(safeFontUrl('')).toBe('');
+    // a host-lookalike prefix must not slip through
+    expect(safeFontUrl('https://fonts.googleapis.com.evil.example/x')).toBe('https://fonts.googleapis.com.evil.example/x'.startsWith('https://fonts.googleapis.com/') ? 'https://fonts.googleapis.com.evil.example/x' : '');
+  });
+
+  it('familyFromFontUrl extracts and normalizes the first family', () => {
+    expect(familyFromFontUrl('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,700')).toBe('Playfair Display');
+    expect(familyFromFontUrl('https://fonts.googleapis.com/css2?family=Lora&display=swap')).toBe('Lora');
+    expect(familyFromFontUrl('https://fonts.googleapis.com/css2?display=swap')).toBe('');
+  });
+
+  it('sanitize keeps a valid font URL and drops a malicious one', () => {
+    patchTheme({ serifUrl: 'https://fonts.googleapis.com/css2?family=Lora:wght@400;700', serif: "'Lora',Georgia,serif" });
+    expect(getTheme().serifUrl).toBe('https://fonts.googleapis.com/css2?family=Lora:wght@400;700');
+    patchTheme({ serifUrl: 'javascript:alert(1)' });
+    expect(getTheme().serifUrl).toBe('');
+    patchTheme({ serifUrl: '', monoUrl: '' }); // reset for other tests
+  });
+
+  it('hydrateTheme does not persist a non-Google font URL', () => {
+    hydrateTheme(JSON.stringify({ accent: '#ffffff', serifUrl: 'https://evil.example/x.css' }));
+    expect(getTheme().serifUrl).toBe('');
+  });
+
+  it('the Type tab exposes both font-URL inputs', () => {
+    const html = customizePanel('type');
+    expect(html).toContain('data-cz-fonturl');
+    expect(html).toContain('data-cz-monourl');
   });
 });

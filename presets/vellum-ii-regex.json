@@ -566,8 +566,8 @@
     "script_id": "vellum2-card-codex",
     "name": "VELLUM II ✧ Card: Codex",
     "description": "Renders [CODEX|title|body] as an illuminated codex entry (display), and strips the raw tag from later context (prompt).",
-    "find_regex": "\\[CODEX\\|([^|\\]]*)\\|([^\\]]*)\\]",
-    "replace_string": "<div style=\"max-width:560px;margin:14px auto;border:1px solid rgba(205,168,78,.30);border-left:3px solid #cda84e;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"padding:13px 18px 5px;font-family:'Cormorant Garamond',Georgia,serif;font-size:19px;letter-spacing:.5px;color:#cda84e\">❖ $1</div><div style=\"padding:4px 18px 16px;font-size:15px;line-height:1.62\">$2</div></div>",
+    "find_regex": "\\[CODEX\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:560px;margin:14px auto;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-left:3px solid var(--vg,#cda84e);border-radius:12px;overflow:hidden;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"padding:13px 18px 5px;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:19px;letter-spacing:.5px;color:var(--vg,#cda84e)\">❖ $1</div><div style=\"padding:4px 18px 16px;font-size:15px;line-height:1.62\">$2</div></div>",
     "target": [
       "display"
     ],
@@ -591,8 +591,8 @@
     "script_id": "vellum2-card-letter",
     "name": "VELLUM II ✧ Card: Letter",
     "description": "Renders [LETTER|from|body] as a handwritten missive (display); raw tag stripped from context (prompt).",
-    "find_regex": "\\[LETTER\\|([^|\\]]*)\\|([^\\]]*)\\]",
-    "replace_string": "<div style=\"max-width:520px;margin:14px auto;padding:18px 20px;border:1px solid rgba(205,168,78,.30);border-radius:6px;background:linear-gradient(170deg,rgba(40,34,24,.96),rgba(30,26,19,.97));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.7;font-style:italic;color:#e8dcc0\"><div style=\"white-space:pre-wrap\">$2</div><div style=\"margin-top:12px;text-align:right;color:#cda84e;font-size:16px\">— $1</div></div>",
+    "find_regex": "\\[LETTER\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:520px;margin:14px auto;padding:18px 20px;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-radius:6px;background:linear-gradient(170deg,rgba(40,34,24,.96),rgba(30,26,19,.97));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:17px;line-height:1.7;font-style:italic;color:var(--vi,#e8dcc0)\"><div style=\"white-space:pre-wrap\">$2</div><div style=\"margin-top:12px;text-align:right;color:var(--vg,#cda84e);font-size:16px\">— $1</div></div>",
     "target": [
       "display"
     ],
@@ -616,8 +616,8 @@
     "script_id": "vellum2-card-decree",
     "name": "VELLUM II ✧ Card: Decree",
     "description": "Renders [DECREE|title|body] as an official proclamation (display); raw tag stripped from context (prompt).",
-    "find_regex": "\\[DECREE\\|([^|\\]]*)\\|([^\\]]*)\\]",
-    "replace_string": "<div style=\"max-width:560px;margin:14px auto;border:2px double rgba(205,168,78,.30);border-radius:4px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"padding:14px 18px 6px;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:20px;letter-spacing:2px;text-transform:uppercase;color:#cda84e\">$1</div><div style=\"height:1px;background:rgba(205,168,78,.30);margin:0 18px\"></div><div style=\"padding:12px 22px 18px;font-size:15px;line-height:1.62;text-align:center\">$2</div></div>",
+    "find_regex": "\\[DECREE\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:560px;margin:14px auto;border:2px double rgba(var(--vg-rgb,205,168,78),.30);border-radius:4px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"padding:14px 18px 6px;text-align:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:20px;letter-spacing:2px;text-transform:uppercase;color:var(--vg,#cda84e)\">$1</div><div style=\"height:1px;background:rgba(var(--vg-rgb,205,168,78),.30);margin:0 18px\"></div><div style=\"padding:12px 22px 18px;font-size:15px;line-height:1.62;text-align:center\">$2</div></div>",
     "target": [
       "display"
     ],
@@ -641,8 +641,8 @@
     "script_id": "vellum2-card-portrait",
     "name": "VELLUM II ✧ Card: Portrait",
     "description": "Renders [PORTRAIT|name|description] as an illuminated character plate (display); raw tag stripped from context (prompt).",
-    "find_regex": "\\[PORTRAIT\\|([^|\\]]*)\\|([^\\]]*)\\]",
-    "replace_string": "<div style=\"max-width:420px;margin:14px auto;display:flex;align-items:center;gap:14px;padding:14px 18px;border:1px solid rgba(205,168,78,.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"flex:0 0 46px;height:46px;border-radius:50%;border:1px solid #cda84e;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#cda84e\">$1</div><div><div style=\"font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;color:#cda84e\">$1</div><div style=\"font-size:14px;line-height:1.5;color:#b9ad92\">$2</div></div></div>",
+    "find_regex": "\\[PORTRAIT\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:420px;margin:14px auto;display:flex;align-items:center;gap:14px;padding:14px 18px;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"flex:0 0 46px;height:46px;border-radius:50%;border:1px solid var(--vg,#cda84e);display:flex;align-items:center;justify-content:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:22px;color:var(--vg,#cda84e)\">$1</div><div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:18px;color:var(--vg,#cda84e)\">$1</div><div style=\"font-size:14px;line-height:1.5;color:var(--vi2,#b9ad92)\">$2</div></div></div>",
     "target": [
       "display"
     ],
@@ -666,8 +666,8 @@
     "script_id": "vellum2-card-broadsheet",
     "name": "VELLUM II ✧ Spectacle: Broadsheet",
     "description": "Renders [BROADSHEET|body] as a period news-sheet of offscreen events (display); raw tag stripped from context (prompt).",
-    "find_regex": "\\[BROADSHEET\\|([^\\]]*)\\]",
-    "replace_string": "<div style=\"max-width:560px;margin:14px auto;padding:16px 20px;border:1px solid rgba(205,168,78,.30);border-radius:3px;background:linear-gradient(180deg,rgba(38,33,24,.97),rgba(28,24,18,.97));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;letter-spacing:3px;text-transform:uppercase;color:#cda84e;border-bottom:2px solid rgba(205,168,78,.30);padding-bottom:6px;margin-bottom:10px\">The Chronicle</div><div style=\"font-size:14px;line-height:1.6;column-gap:22px\">$1</div></div>",
+    "find_regex": "\\[BROADSHEET\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:560px;margin:14px auto;padding:16px 20px;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-radius:3px;background:linear-gradient(180deg,rgba(38,33,24,.97),rgba(28,24,18,.97));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"text-align:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:24px;letter-spacing:3px;text-transform:uppercase;color:var(--vg,#cda84e);border-bottom:2px solid rgba(var(--vg-rgb,205,168,78),.30);padding-bottom:6px;margin-bottom:10px\">The Chronicle</div><div style=\"font-size:14px;line-height:1.6;column-gap:22px\">$1</div></div>",
     "target": [
       "display"
     ],
@@ -691,8 +691,8 @@
     "script_id": "vellum2-card-tarot",
     "name": "VELLUM II ✧ Spectacle: Tarot",
     "description": "Renders [TAROT|card|reading] as a single drawn card (display); raw tag stripped from context (prompt).",
-    "find_regex": "\\[TAROT\\|([^|\\]]*)\\|([^\\]]*)\\]",
-    "replace_string": "<div style=\"max-width:360px;margin:14px auto;padding:16px;border:1px solid #cda84e;border-radius:14px;text-align:center;background:radial-gradient(120% 100% at 50% 0%,rgba(45,38,28,.97),rgba(22,19,14,.98));box-shadow:0 6px 22px rgba(0,0,0,.4);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"font-size:13px;letter-spacing:3px;color:#b9ad92;text-transform:uppercase\">the draw</div><div style=\"font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;color:#cda84e;margin:6px 0 10px\">$1</div><div style=\"font-size:14px;line-height:1.6;font-style:italic\">$2</div></div>",
+    "find_regex": "\\[TAROT\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:360px;margin:14px auto;padding:16px;border:1px solid var(--vg,#cda84e);border-radius:14px;text-align:center;background:radial-gradient(120% 100% at 50% 0%,rgba(45,38,28,.97),rgba(22,19,14,.98));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"font-size:13px;letter-spacing:3px;color:var(--vi2,#b9ad92);text-transform:uppercase\">the draw</div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:22px;color:var(--vg,#cda84e);margin:6px 0 10px\">$1</div><div style=\"font-size:14px;line-height:1.6;font-style:italic\">$2</div></div>",
     "target": [
       "display"
     ],
@@ -716,8 +716,8 @@
     "script_id": "vellum2-card-dramatis",
     "name": "VELLUM II ✧ Spectacle: Dramatis",
     "description": "Renders [DRAMATIS|cast] as an illuminated playbill (display); raw tag stripped from context (prompt).",
-    "find_regex": "\\[DRAMATIS\\|([^\\]]*)\\]",
-    "replace_string": "<div style=\"max-width:480px;margin:14px auto;padding:16px 20px;border:1px solid rgba(205,168,78,.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:0 6px 22px rgba(0,0,0,.35);font-family:ui-serif,Georgia,serif;color:#e8dcc0\"><div style=\"text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-size:15px;letter-spacing:3px;text-transform:uppercase;color:#cda84e;margin-bottom:8px\">Dramatis Personae</div><div style=\"font-size:15px;line-height:1.7;text-align:center\">$1</div></div>",
+    "find_regex": "\\[DRAMATIS\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:480px;margin:14px auto;padding:16px 20px;border:1px solid rgba(var(--vg-rgb,205,168,78),.30);border-radius:12px;background:linear-gradient(160deg,rgba(24,21,16,.97),rgba(32,27,20,.96));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"text-align:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:15px;letter-spacing:3px;text-transform:uppercase;color:var(--vg,#cda84e);margin-bottom:8px\">Dramatis Personæ</div><div style=\"font-size:15px;line-height:1.7;text-align:center\">$1</div></div>",
     "target": [
       "display"
     ],
@@ -740,8 +740,8 @@
     "metadata": {},
     "script_id": "vellum2-cards-context-strip",
     "name": "VELLUM II ✧ Cards (context strip)",
-    "description": "Strips every VTK card/spectacle tag ([CODEX]/[LETTER]/[DECREE]/[PORTRAIT]/[BROADSHEET]/[TAROT]/[DRAMATIS]) from the context sent to the model on later turns. The card still renders in chat; this only keeps the tag out of the prompt.",
-    "find_regex": "\\s*\\[(?:CODEX|LETTER|DECREE|PORTRAIT|BROADSHEET|TAROT|DRAMATIS)\\|[^\\]]*\\]\\s*",
+    "description": "Strips every VTK card/spectacle tag ([CODEX]/[LETTER]/[DECREE]/[PORTRAIT]/[BROADSHEET]/[TAROT]/[DRAMATIS]/[TITLE]/[MAP]/[TEXT]/[HALO]/[ITEM]/[VERSE]) from the context sent to the model on later turns. The card still renders in chat; this only keeps the tag out of the prompt.",
+    "find_regex": "\\s*\\[(?:CODEX|LETTER|DECREE|PORTRAIT|BROADSHEET|TAROT|DRAMATIS|TITLE|MAP|TEXT|HALO|ITEM|VERSE)\\|[\\s\\S]*?\\](?=[ \\t]*(?:\\r?\\n|$))\\s*",
     "replace_string": "",
     "target": [
       "prompt"
@@ -872,6 +872,156 @@
     "substitute_macros": "none",
     "disabled": true,
     "sort_order": 37,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-card-title",
+    "name": "VELLUM II ✧ Card: Title",
+    "folder": "VELLUM II",
+    "description": "Renders [TITLE|heading|subheading] as an illuminated chapter-heading card (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[TITLE\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:600px;margin:22px auto;padding:22px 20px;text-align:center;border-top:1px solid rgba(var(--vg-rgb,205,168,78),.35);border-bottom:1px solid rgba(var(--vg-rgb,205,168,78),.35);font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--vi2,#b9ad92);opacity:.65;margin-bottom:6px\">❀ ❀ ❀</div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:28px;letter-spacing:1px;color:var(--vg,#cda84e)\">$1</div><div style=\"font-size:14px;font-style:italic;color:var(--vi2,#b9ad92);margin-top:6px\">$2</div></div>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": false,
+    "sort_order": 40,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-card-map",
+    "name": "VELLUM II ✧ Card: Map",
+    "folder": "VELLUM II",
+    "description": "Renders [MAP|place|description] as a gazetteer plate with a compass motif (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[MAP\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:480px;margin:14px auto;padding:16px 18px;border:1px dashed rgba(var(--vg-rgb,205,168,78),.40);border-radius:8px;background:linear-gradient(160deg,rgba(34,30,22,.95),rgba(24,21,16,.97));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0);display:flex;gap:14px;align-items:flex-start\"><div style=\"flex:0 0 34px;height:34px;border-radius:50%;border:1px solid var(--vg,#cda84e);display:flex;align-items:center;justify-content:center;color:var(--vg,#cda84e);font-size:16px;transform:rotate(45deg)\">✦</div><div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:18px;letter-spacing:.5px;color:var(--vg,#cda84e)\">$1</div><div style=\"font-size:14px;line-height:1.55;color:var(--vi2,#b9ad92);margin-top:2px\">$2</div></div></div>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": false,
+    "sort_order": 41,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-card-text",
+    "name": "VELLUM II ✧ Card: Text",
+    "folder": "VELLUM II",
+    "description": "Renders [TEXT|sender|message] as a modern SMS-style message bubble (display); raw tag stripped from context (prompt). Era-appropriate alternative to LETTER for modern/contemporary settings.",
+    "find_regex": "\\[TEXT\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:340px;margin:14px auto;font-family:system-ui,-apple-system,'Segoe UI',sans-serif\"><div style=\"font-size:11px;color:var(--vi2,#b9ad92);opacity:.7;margin-bottom:4px;padding-left:4px\">$1</div><div style=\"display:inline-block;padding:10px 14px;border-radius:16px 16px 16px 4px;background:linear-gradient(160deg,rgba(50,44,32,.95),rgba(38,33,24,.96));border:1px solid rgba(var(--vg-rgb,205,168,78),.22);box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-size:15px;line-height:1.4;color:var(--vi,#e8dcc0);white-space:pre-wrap\">$2</div></div>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": false,
+    "sort_order": 42,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-card-halo",
+    "name": "VELLUM II ✧ Card: Halo",
+    "folder": "VELLUM II",
+    "description": "Renders [HALO|sender|message] as a holographic transmission (display); raw tag stripped from context (prompt). Space-age/futuristic alternative to LETTER/TEXT.",
+    "find_regex": "\\[HALO\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:420px;margin:14px auto;padding:14px 18px;border:1px solid rgba(120,220,255,.4);border-radius:8px;background:linear-gradient(160deg,rgba(10,26,32,.92),rgba(6,16,20,.95));box-shadow:0 0 18px rgba(120,220,255,.18),var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vmono,'JetBrains Mono',ui-monospace,monospace);color:#cdf3ff\"><div style=\"font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#7adcff;opacity:.8;margin-bottom:6px\">◈ transmission · $1</div><div style=\"font-size:14px;line-height:1.6;text-shadow:0 0 6px rgba(120,220,255,.35)\">$2</div></div>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": false,
+    "sort_order": 43,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-card-item",
+    "name": "VELLUM II ✧ Card: Item",
+    "folder": "VELLUM II",
+    "description": "Renders [ITEM|name|description] as an inventory plate with corner brackets (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[ITEM\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:380px;margin:14px auto;padding:14px 16px;position:relative;border:1px solid rgba(var(--vg-rgb,205,168,78),.28);border-radius:6px;background:linear-gradient(160deg,rgba(28,25,19,.96),rgba(20,18,14,.97));box-shadow:var(--v-shadow-card,0 6px 22px rgba(0,0,0,.35));font-family:var(--vserif,ui-serif,Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"position:absolute;top:4px;left:4px;width:8px;height:8px;border-top:1px solid var(--vg,#cda84e);border-left:1px solid var(--vg,#cda84e)\"></div><div style=\"position:absolute;bottom:4px;right:4px;width:8px;height:8px;border-bottom:1px solid var(--vg,#cda84e);border-right:1px solid var(--vg,#cda84e)\"></div><div style=\"font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:17px;color:var(--vg,#cda84e);letter-spacing:.5px\">$1</div><div style=\"font-size:14px;line-height:1.5;color:var(--vi2,#b9ad92);margin-top:4px\">$2</div></div>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": false,
+    "sort_order": 44,
+    "metadata": {}
+  },
+  {
+    "script_id": "vellum2-card-verse",
+    "name": "VELLUM II ✧ Card: Verse",
+    "folder": "VELLUM II",
+    "description": "Renders [VERSE|title|body] as a poem or song lyric plate (display); raw tag stripped from context (prompt).",
+    "find_regex": "\\[VERSE\\|([^|\\n]*)\\|([\\s\\S]*?)\\](?=[ \\t]*(?:\\r?\\n|$))",
+    "replace_string": "<style>@keyframes vtkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style><div style=\"animation:vtkin .35s ease-out both;max-width:440px;margin:16px auto;padding:16px 22px;text-align:center;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);color:var(--vi,#e8dcc0)\"><div style=\"font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--vi2,#b9ad92);opacity:.7;margin-bottom:8px\">$1</div><div style=\"font-size:16px;font-style:italic;line-height:1.9;white-space:pre-wrap\">$2</div><div style=\"margin-top:8px;color:var(--vg,#cda84e);opacity:.6;font-size:13px\">❀</div></div>",
+    "flags": "gi",
+    "placement": [
+      "ai_output"
+    ],
+    "target": [
+      "display"
+    ],
+    "scope": "global",
+    "scope_id": null,
+    "min_depth": null,
+    "max_depth": null,
+    "trim_strings": [],
+    "run_on_edit": true,
+    "substitute_macros": "none",
+    "disabled": false,
+    "sort_order": 45,
     "metadata": {}
   }
 ]
