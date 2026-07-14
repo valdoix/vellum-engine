@@ -29,36 +29,84 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-### Redesigned Chronicle Views
+> **2.1.0-beta.3** — preset panel polish, prose reliability, new story cards, custom fonts, and a wave of under-the-hood fixes.
 
-The Chronicle tab has been completely rebuilt for clarity and density. All five record views — **Memory**, **Knowledge**, **Secrets**, **Scars**, and **Codex** — now use visual hierarchy and grouping instead of flat lists.
+### The AI now follows your prose settings more reliably
 
-- **Memory**: Layered compression. Arc summaries are wide spine covers, chapters are collapsible cards showing their source turns, and uncovered turns sit at the bottom as dense chips.
-- **Knowledge**: Grouped by character. Dramatic irony (false beliefs) reads at a glance with a crimson row tint and a `⚠ false` badge.
-- **Secrets**: Danger-coded envelope cards. A colored left bar (blue/amber/crimson for minor/major/explosive) signals threat level instantly. Revealed secrets show a watermark and go translucent.
-- **Scars**: Palimpsest wound cards grouped by character. The old belief is struck through in red-faded ink above a dashed divider; the moment it was proven wrong sits below.
-- **Codex**: Tag-grouped canon index. Facts are organized by category (Geography, History, Custom) with a thin gold border signaling ground truth.
+This is the biggest invisible improvement in this release. Settings like **Pacing**, **Narrative Distance**, **Tense**, and **Genre** are now re-stated to the AI right before it writes — not just once at the top of the prompt where they get buried as the story grows. Think of it as a sticky note the AI re-reads every turn instead of a memo it filed away weeks ago.
 
-These aren't cosmetic — they make scanning faster and reduce cognitive load when your story has dozens of facts, secrets, or memories.
+In practice: if you set Pacing to *Lingering*, the AI will now actually slow down. If you picked *Present Tense*, it won't silently drift back to past. The instructions were always there — they just weren't in the right place.
 
-### Time Sync Tab
+The option descriptions themselves were also sharpened. "Propulsive pacing" used to be one word; it's now a full rule with a concrete test ("if a sentence can be removed without losing anything, cut it"). Same for every distance and tense option. Less room for the AI to fudge it.
 
-The desync inspector (which tracked lagging plot threads and off-screen subplots) is now its own tab in the **Story** section, no longer buried at the bottom of World. When a time-skip leaves threads behind, they appear here with catch-up options. When everything is in sync, you see a clean empty state.
+### More genres to choose from
 
-### Preset Editor Tab (Extension Feature)
+Eight new genres were added to the **Genre** setting in the Prompt Variables menu:
 
-When you open the VELLUM preset in Lumiverse's preset editor, you'll see a new **VELLUM** tab alongside the built-in Preset tab. It shows:
+**Drama, Tragedy, Noir, Coming-of-Age, Political, Western, Wuxia, Xianxia**
 
-- **Link status**: whether the open preset is linked to the extension (so the extension knows to inject chronicle data for this preset)
-- **Health check**: confirms the preset has the required `<vellum>` state block
-- **Injection preview**: shows what the extension *would* inject into the prompt right now (characters, relationships, recalled turns, facts)
-- **Extraction status**: recent turns and whether the extension successfully read their state blocks
+You can now blend two genres (use the Secondary Genre slot) for combinations like Western + Horror or Political + Drama. Each genre shapes how the story is framed, not just what setting it's in.
 
-Linking a preset to the extension is one click — no manual tagging or config files. Unlinking is just as easy. This is the control panel for making the preset and extension talk.
+### The AI bounces back from a missing state block automatically
 
-### Custom Google Fonts URL (Customize → Type)
+The `<vellum>` data block at the end of each AI reply is how VELLUM tracks everything — who's in the scene, relationship changes, new facts. Sometimes a model forgets to write it, or cuts it off mid-reply.
 
-The panel's **Customize → Type** tab now accepts a **Google Fonts URL** for the display and data fonts, so you're no longer limited to the built-in picker. Paste a `fonts.googleapis.com` link and the panel restyles live and remembers it across reloads. Only Google Fonts links are accepted, and — like the Gatsby and Sumi looks — a set URL loads that font from Google's CDN; leave it blank to keep everything local.
+There's now an **Auto-Repair** option (off by default, enable via the Actions menu). When enabled: if the AI's reply has no state block, VELLUM quietly reads the prose itself, figures out what changed, and writes the block in — all without interrupting you. You'll see a small toast notification when this happens. If the repair fails, it falls back to the existing prose-mining system it already had.
+
+The repair also became smarter in general — it now recovers more kinds of state (clock/day tracking, NPC thoughts, character traits, and more) than it did before.
+
+### Preset linking from the Actions menu (works on mobile too)
+
+Previously you could only link or unlink a preset from the desktop **Preset Editor tab** — a tab that simply doesn't exist on mobile Lumiverse. Now the same controls live in the **Actions menu** (the ≡ toolbar button), so linking works everywhere.
+
+A bug was also fixed where the Actions menu would show a preset as "Not linked" even after you'd just linked it from the desktop tab. Both views now always agree.
+
+### New and redesigned visual cards (VTK)
+
+If you use the **Visual Toolkit** (the feature that lets the AI render scenes as small illustrated cards — a letter, a codex entry, a portrait), this release adds six new card types and overhauls how all cards look:
+
+**New tags the AI can use:**
+- `[TITLE]` — a chapter or scene heading card
+- `[MAP]` — a gazetteer-style location plate
+- `[ITEM]` — an object description plate
+- `[VERSE]` — a poem or song lyric, set in display type
+- `[TEXT]` — a modern SMS-style message (for contemporary settings)
+- `[HALO]` — a holographic display (for sci-fi / space-age settings)
+
+All cards now inherit your active theme's colors and fonts instead of being hardcoded, so a Gatsby card looks gold-and-midnight and a Faewild card looks sage-and-lilac automatically.
+
+The regex patterns that render these cards were also tightened to handle multi-line content and edge cases that previously caused broken display.
+
+### Custom font URL in Customize → Type
+
+The panel's **Customize → Type** tab now has a text box where you can paste any **Google Fonts URL** to use a font that isn't in the built-in picker. Get a URL from [fonts.google.com](https://fonts.google.com) — pick a family, click "Get font", copy the `<link>` URL — paste it in, and the panel restyles immediately and remembers it. Clear the box (or hit the ↺ reset) to go back to the picker.
+
+Only `fonts.googleapis.com` links are accepted for safety; arbitrary external stylesheets are rejected.
+
+### Graphite theme cards
+
+Two new **display cards** for the Graphite chrome were added to the preset: a machined-steel state card and a matching reverie card, both using the Graphite palette (charcoal, steel-blue, Inter font). Enable them from the preset's regex scripts tab and disable the Default pair to match.
+
+### Under-the-hood fixes
+
+A handful of quieter bugs were squashed:
+
+- Several preset conditions that compare dial settings were broken — the **Craft Anchor**, **Social Autonomy**, **Faction Politics**, and **Ambient Breath** blocks were always picking the same branch regardless of what you set. Fixed.
+- The Preset Editor tab now uses the correct API for writing link metadata, ending a loop where the version stamp kept triggering redundant re-links.
+- The preset panel now correctly identifies which preset is *actually in use* in the current chat (it was sometimes picking the wrong one, so the health check and link badge were wrong).
+- Repair and recovery now show cleaner, more informative toast messages instead of the generic warning.
+
+---
+
+### Previous version highlights (2.1.0-beta.2)
+
+The features below shipped in beta.2 and are still part of this release:
+
+**Redesigned Chronicle views** — Memory, Knowledge, Secrets, Scars, and Codex were rebuilt with visual hierarchy, grouping, and color-coding to make long stories scannable at a glance.
+
+**Time Sync tab** — the desync inspector (for catching plot threads that fell behind after a time-skip) now has its own dedicated tab instead of being buried at the bottom of World.
+
+**Preset Editor tab** — when the VELLUM preset is open in Lumiverse's preset editor, a VELLUM tab appears beside it showing link status, health check, what the extension would inject this turn, and whether recent turns were read correctly.
 
 ### Lumiverse Themes (Bonus)
 
