@@ -29,9 +29,35 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **2.1.0-beta.3** — preset panel polish, prose reliability, new story cards, custom fonts, and a wave of under-the-hood fixes.
+> **2.1.0-beta.4** — a slimmer, sharper theme lineup, a configurable floating window, and simpler display cards.
 
-### The AI now follows your prose settings more reliably
+### Choose which tabs show in the floating window
+
+The compact floating window is no longer locked to a fixed set of tabs. A new **Tabs** button (☷) in the window's title bar opens a picker where you decide **which** tabs appear and **in what order** — and you can now pull in the "tools" tabs (Journal, Graph, Vault, Context) alongside the usual five (Now, Cast, Bonds, Chronicle, Director).
+
+Check a tab to show it, uncheck to hide it, use the ↑↓ arrows to reorder, and hit **Reset to default** to go back to the original five. Your choice is remembered across reloads (and synced the same way your theme is). At least one tab always stays visible, so you can't accidentally empty the window.
+
+### A tighter theme lineup
+
+Three of the more niche art/craft themes — **Aquarelle** (watercolor), **Werkbund** (Bauhaus), and **Terrazzo** (Memphis) — have been retired to keep the theme picker focused on the looks people actually use. The lineup is now **eighteen chromes** instead of twenty-one.
+
+If you were using one of the removed themes, nothing breaks: your saved theme is automatically migrated to the closest surviving look (Aquarelle and Terrazzo → Bloom, Werkbund → Modern) the next time the panel loads.
+
+### Simpler state & reverie display cards
+
+The preset used to ship a separate hand-styled `<vellum>` state card and Reverie card for *each* theme (Fantasy, Modern, Futuristic, Bloom, Ember, and more) — dozens of near-duplicate regex scripts you had to manually enable and disable to match your chrome.
+
+Those per-theme variants are gone. There's now a **single unified State Block card and Reverie card** that automatically inherit your active theme's colors and fonts — the same way the visual cards already do. One card, every theme, no toggling. This makes the preset lighter and removes a whole category of "why are two cards showing" confusion.
+
+> Upgrading note: if you had manually enabled one of the old per-theme cards, re-import `vellum-ii.json` so the unified defaults take over.
+
+---
+
+### Previous version highlights (2.1.0-beta.3)
+
+The features below shipped in beta.3 and are still part of this release:
+
+**The AI follows your prose settings more reliably**
 
 This is the biggest invisible improvement in this release. Settings like **Pacing**, **Narrative Distance**, **Tense**, and **Genre** are now re-stated to the AI right before it writes — not just once at the top of the prompt where they get buried as the story grows. Think of it as a sticky note the AI re-reads every turn instead of a memo it filed away weeks ago.
 
