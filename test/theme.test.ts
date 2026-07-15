@@ -23,8 +23,8 @@ describe('theme system', () => {
     }
   });
 
-  it('MODES are exactly the eighteen chromes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['arcade', 'aurora', 'bestiary', 'bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'greenhouse', 'grimoire', 'illuminated', 'modern', 'riot', 'rosace', 'sumi', 'terracotta']);
+  it('MODES are exactly the twenty-one chromes', () => {
+    expect(MODES.map((m) => m.id).sort()).toEqual(['aquarelle', 'arcade', 'aurora', 'bestiary', 'bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'greenhouse', 'grimoire', 'illuminated', 'modern', 'riot', 'rosace', 'sumi', 'terracotta', 'terrazzo', 'werkbund']);
   });
 
   it("each mode's dark + light skins exist", () => {
@@ -101,6 +101,31 @@ describe('theme system', () => {
       expect(t.accent.toLowerCase(), c.id).toBe(c.accent);
       expect(SKINS.some((s) => s.id === c.skin), `${c.id} dark`).toBe(true);
       expect(SKINS.some((s) => s.id === c.light), `${c.id} light`).toBe(true);
+      expect(CHROME_SHAPES[c.id], c.id).toEqual(c.shapes);
+      for (const id of c.sig) expect(SHAPE_IDS.includes(id), `${c.id}:${id}`).toBe(true);
+    }
+  });
+
+  it('art/craft chromes: mode, paired skins, accent, shapes, and signature shape ids resolve', () => {
+    const cases = [
+      { id: 'aquarelle', main: 'aquarelle-paper', light: 'aquarelle-paper', dark: 'aquarelle-nocturne', accent: '#4a6fa5',
+        shapes: { present: 'wash', bonds: 'bleed', cast: 'tarot', beats: 'granulate', factions: 'scalloped', items: 'wash' },
+        sig: ['wash', 'bleed', 'granulate'] },
+      { id: 'werkbund', main: 'werkbund-paper', light: 'werkbund-paper', dark: 'werkbund-nacht', accent: '#e2231a',
+        shapes: { present: 'blockframe', bonds: 'colorblock', cast: 'circle-square', beats: 'slab', factions: 'colorblock', items: 'inset' },
+        sig: ['blockframe', 'colorblock', 'circle-square'] },
+      { id: 'terrazzo', main: 'terrazzo-cream', light: 'terrazzo-cream', dark: 'terrazzo-neon', accent: '#ff5c8a',
+        shapes: { present: 'chip', bonds: 'squiggle', cast: 'confetti', beats: 'chip', factions: 'confetti', items: 'squiggle' },
+        sig: ['chip', 'squiggle', 'confetti'] },
+    ] as const;
+    for (const c of cases) {
+      setMode(c.id);
+      const t = getTheme();
+      expect(t.chrome, c.id).toBe(c.id);
+      expect(t.accent.toLowerCase(), c.id).toBe(c.accent);
+      expect(SKINS.some((s) => s.id === c.main), `${c.id} main`).toBe(true);
+      expect(SKINS.some((s) => s.id === c.light), `${c.id} light`).toBe(true);
+      expect(SKINS.some((s) => s.id === c.dark), `${c.id} dark`).toBe(true);
       expect(CHROME_SHAPES[c.id], c.id).toEqual(c.shapes);
       for (const id of c.sig) expect(SHAPE_IDS.includes(id), `${c.id}:${id}`).toBe(true);
     }
