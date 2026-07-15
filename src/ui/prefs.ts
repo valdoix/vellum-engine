@@ -1,8 +1,9 @@
 /**
  * UI PREFERENCES — the small, non-palette bits of "how the floating window is
  * arranged" that must survive an extension RELOAD: the chosen layout, the
- * density preset, the hand-built custom layout, the float's tab + geometry, the
- * auto-name color mode, and the fold-toast toggle.
+ * density preset, the hand-built custom layout, the float's active tab, the
+ * float's visible tab set + order, its geometry, the auto-name color mode, and
+ * the fold-toast toggle.
  *
  * localStorage alone is NOT durable here — the host can drop it on an extension
  * reload/reinstall (that's why the theme keeps a backend mirror). So every pref
@@ -24,6 +25,7 @@ const LEGACY: Array<{ from: string; key: string; json?: boolean; bool?: boolean 
   { from: 'vellum2.density', key: 'density' },
   { from: 'vellum2.layout.custom', key: 'customLayout', json: true },
   { from: 'vellum2.float.tab', key: 'floatTab' },
+  { from: 'vellum2.float.tabs', key: 'floatTabs', json: true },
   { from: 'vellum2.float.geo', key: 'floatGeo', json: true },
   { from: 'vellum2.autoname', key: 'autoName' },
   { from: 'vellum2.foldToast', key: 'foldToast', bool: true },

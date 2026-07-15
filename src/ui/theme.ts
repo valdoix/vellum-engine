@@ -68,11 +68,8 @@ const F_CLAY = "'Fraunces',Georgia,serif"; // Terracotta display — warm optica
 const F_NOUVEAU = "'Yeseva One','Cormorant Garamond',Georgia,serif"; // Greenhouse display — art-nouveau high-contrast serif, loads from Google Fonts
 const F_POLAR = "'Josefin Sans',system-ui,sans-serif"; // Aurora display — airy geometric sans, loads from Google Fonts
 const F_LEADED = "'Marcellus','Cormorant Garamond',Georgia,serif"; // Rosace display — inscriptional roman, loads from Google Fonts
-const F_WASH = "'Caveat','Petrona',Georgia,cursive"; // Aquarelle display — watercolor hand, loads from Google Fonts
-const F_GROTESK = "'Jost',system-ui,sans-serif"; // Werkbund display — Bauhaus geometric grotesque, loads from Google Fonts
-const F_MEMPHIS = "'Fredoka',system-ui,sans-serif"; // Terrazzo display — rounded Memphis playful, loads from Google Fonts
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary' | 'terracotta' | 'greenhouse' | 'aurora' | 'rosace' | 'aquarelle' | 'werkbund' | 'terrazzo';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary' | 'terracotta' | 'greenhouse' | 'aurora' | 'rosace';
 
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
@@ -108,16 +105,12 @@ export type ShapeId =
   | 'azulejo' | 'amphora' | 'glaze-drip'
   | 'pane' | 'whiplash-vine' | 'nouveau-arch'
   | 'ribbon-edge' | 'glacier' | 'icicle'
-  | 'rose-window' | 'lancet' | 'came-bar'
-  // art/craft chrome signature shapes (3 per chrome): aquarelle / werkbund / terrazzo
-  | 'wash' | 'bleed' | 'granulate'
-  | 'blockframe' | 'colorblock' | 'circle-square'
-  | 'chip' | 'squiggle' | 'confetti';
+  | 'rose-window' | 'lancet' | 'came-bar';
 // NOTE: `secrets` is intentionally NOT a customizable surface — the secret card
 // owns a fixed left-spine + wax-seal signature across every chrome (rendered via
 // its own ::before/::after), so it isn't offered in the card-shape customizer.
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule', 'azulejo', 'amphora', 'glaze-drip', 'pane', 'whiplash-vine', 'nouveau-arch', 'ribbon-edge', 'glacier', 'icicle', 'rose-window', 'lancet', 'came-bar', 'wash', 'bleed', 'granulate', 'blockframe', 'colorblock', 'circle-square', 'chip', 'squiggle', 'confetti'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule', 'azulejo', 'amphora', 'glaze-drip', 'pane', 'whiplash-vine', 'nouveau-arch', 'ribbon-edge', 'glacier', 'icicle', 'rose-window', 'lancet', 'came-bar'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -187,17 +180,6 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   // a came-bar beat, a lancet faction, a came-bar item.
   // 3 signature (rose-window/lancet/came-bar) + 3 survivors.
   rosace: { present: 'rose-window', bonds: 'lancet', cast: 'tarot', beats: 'came-bar', factions: 'lancet', items: 'came-bar' },
-  // wet-on-wet watercolor: a washed present, a bleeding-edge bond, a soft portrait
-  // (tarot) cast, a granulated beat, a scalloped faction, a washed item.
-  // 3 signature (wash/bleed/granulate) + 3 survivors.
-  aquarelle: { present: 'wash', bonds: 'bleed', cast: 'tarot', beats: 'granulate', factions: 'scalloped', items: 'wash' },
-  // Bauhaus geometry: a block-frame present, a color-block bond, a circle-square
-  // cast badge, a slab beat, a color-block faction, an inset item.
-  // 3 signature (blockframe/colorblock/circle-square) + 3 survivors.
-  werkbund: { present: 'blockframe', bonds: 'colorblock', cast: 'circle-square', beats: 'slab', factions: 'colorblock', items: 'inset' },
-  // Memphis confetti: a chip present, a squiggle bond, a confetti cast, a chip beat,
-  // a confetti faction, a squiggle item. 3 signature (chip/squiggle/confetti).
-  terrazzo: { present: 'chip', bonds: 'squiggle', cast: 'confetti', beats: 'chip', factions: 'confetti', items: 'squiggle' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -307,15 +289,6 @@ export const MODES: Mode[] = [
   // gothic tracery, a slow-moving sun. Distinct from Illuminated (gilt ink) & Grimoire
   // (arcane glow): Rosace is light through leaded glass. Light twin = a limewashed nave.
   { id: 'rosace', name: 'Rosace', blurb: 'Light through leaded glass \u2014 cobalt, ruby &amp; amber panes, gothic tracery, a moving sun.', patch: { chrome: 'rosace', radius: 10, border: 3, texture: 'leadwork', serif: F_LEADED, accent: '#1f6fe0', accent2: '#e0243f', opacity: 0.92, blur: 8 }, form: 'dashboard', skin: 'rosace-leaded', skinDark: 'rosace-leaded', skinLight: 'rosace-nave' },
-  // AQUARELLE — "wet-on-wet watercolor": indigo & rose pigment blooms on cold-press
-  // paper, granulated washes, soft bleeding edges. Light-led; dark twin = nocturne wash.
-  { id: 'aquarelle', name: 'Aquarelle', blurb: 'Wet-on-wet watercolor \u2014 indigo &amp; rose blooms, granulated washes on cold-press paper.', patch: { chrome: 'aquarelle', radius: 14, border: 1, texture: 'coldpress', serif: F_WASH, accent: '#4a6fa5', accent2: '#c65f7a', opacity: 0.96, blur: 6 }, form: 'dashboard', skin: 'aquarelle-paper', skinDark: 'aquarelle-nocturne', skinLight: 'aquarelle-paper' },
-  // WERKBUND — "Bauhaus primary geometry": red, cobalt & chrome-yellow blocks on
-  // black-and-white, hard grid, flat color fields. Light-led; dark twin = Nacht black.
-  { id: 'werkbund', name: 'Werkbund', blurb: 'Bauhaus primary geometry \u2014 red, cobalt &amp; chrome-yellow blocks, hard grid, flat fields.', patch: { chrome: 'werkbund', radius: 0, border: 2.5, texture: 'letterpress', serif: F_GROTESK, accent: '#e2231a', accent2: '#1c4fd8', opacity: 1, blur: 0 }, form: 'dashboard', skin: 'werkbund-paper', skinDark: 'werkbund-nacht', skinLight: 'werkbund-paper' },
-  // TERRAZZO — "Memphis-80s confetti": pink, teal & yellow chips on cream, squiggles
-  // & zigzags, playful geometry. Light-led; dark twin = neon Memphis.
-  { id: 'terrazzo', name: 'Terrazzo', blurb: 'Memphis-80s confetti \u2014 pink, teal &amp; yellow chips, squiggles &amp; zigzags, playful geometry.', patch: { chrome: 'terrazzo', radius: 16, border: 2.5, texture: 'confetti', serif: F_MEMPHIS, accent: '#ff5c8a', accent2: '#23c4b8', opacity: 1, blur: 0 }, form: 'dashboard', skin: 'terrazzo-cream', skinDark: 'terrazzo-neon', skinLight: 'terrazzo-cream' },
 ];
 
 
@@ -423,18 +396,6 @@ export const SKINS: Skin[] = [
   { id: 'rosace-leaded', name: 'Rosace Leaded', blurb: 'Light through leaded glass \u2014 cobalt, ruby &amp; amber panes, black came.', theme: { accent: '#1f6fe0', serif: F_LEADED, mono: F_MONO, surf1: 'rgba(20,18,38,.82)', surf2: 'rgba(12,10,26,.86)', ink: '#eae6ff', ink2: '#9a93c0', glass: 'linear-gradient(168deg,#14122a,#08060f)', ...SEM, pos: '#23c05a', posInk: '#5fd888', neg: '#e0243f', negInk: '#f06a7e', info: '#1f6fe0', warn: '#e8a41f', press: '#9a4ce0', pressInk: '#b678ee' } },
   // Light: a limewashed nave \u2014 pale stone field, deep ink, sun through color.
   { id: 'rosace-nave', name: 'Rosace Nave', blurb: 'A limewashed nave \u2014 pale stone, deep ink, sun pouring through color.', theme: { accent: '#1f5fc0', serif: F_LEADED, mono: F_MONO, surf1: 'rgba(244,242,236,.94)', surf2: 'rgba(232,229,220,.94)', ink: '#1c1a2e', ink2: '#5a5470', glass: 'linear-gradient(168deg,#f4f2ec,#e6e3da)', ...SEM, pos: '#1f9a4a', posInk: '#177a38', neg: '#c8203a', negInk: '#a2182e', info: '#1f5fc0', warn: '#c9871a', press: '#7a3ac0', pressInk: '#622a9c' } },
-  // AQUARELLE SKINS — wet-on-wet watercolor. From .aquarelle.
-  // Light: cold-press paper, indigo & rose blooms. Dark: nocturne wash, deeper blooms.
-  { id: 'aquarelle-paper', name: 'Aquarelle Paper', blurb: 'Cold-press paper \u2014 indigo &amp; rose blooms, granulated washes.', theme: { accent: '#4a6fa5', serif: F_WASH, mono: F_MONO, surf1: 'rgba(251,249,244,.96)', surf2: 'rgba(242,238,227,.96)', ink: '#3a4152', ink2: '#7c8296', glass: 'linear-gradient(168deg,#fbf9f4,#f0eadf)', ...SEM, pos: '#5c9a6a', posInk: '#3d7a4a', neg: '#c05a52', negInk: '#a03830', info: '#4a6fa5', warn: '#c99a3a', press: '#c65f7a', pressInk: '#a83f5a' } },
-  { id: 'aquarelle-nocturne', name: 'Aquarelle Nocturne', blurb: 'Nocturne wash \u2014 deeper blooms, wet pigment on evening blue.', theme: { accent: '#6f92c4', serif: F_WASH, mono: F_MONO, surf1: 'rgba(26,30,42,.94)', surf2: 'rgba(18,22,32,.96)', ink: '#d0d8ea', ink2: '#8a96b0', glass: 'linear-gradient(168deg,#1e2232,#14181f)', ...SEM, pos: '#7fb087', posInk: '#9ac4a0', neg: '#d07068', negInk: '#e89088', info: '#6f92c4', warn: '#d9b460', press: '#d87a94', pressInk: '#e89aae' } },
-  // WERKBUND SKINS — Bauhaus primary geometry. From .werkbund.
-  // Light: paper-white, primary blocks. Dark: Nacht black, full-punch primaries.
-  { id: 'werkbund-paper', name: 'Werkbund Paper', blurb: 'Bauhaus paper \u2014 red, cobalt &amp; chrome-yellow on white, hard grid.', theme: { accent: '#e2231a', serif: F_GROTESK, mono: F_MONO, surf1: 'rgba(255,255,255,1)', surf2: 'rgba(244,242,236,1)', ink: '#111111', ink2: '#555555', glass: 'linear-gradient(168deg,#ffffff,#f4f2ec)', ...SEM, pos: '#1c4fd8', posInk: '#143a9c', neg: '#e2231a', negInk: '#a8180f', info: '#1c4fd8', warn: '#f4c20d', press: '#f4c20d', pressInk: '#8a6a00' } },
-  { id: 'werkbund-nacht', name: 'Werkbund Nacht', blurb: 'Bauhaus Nacht \u2014 full-punch primaries on ink black, grid at full contrast.', theme: { accent: '#e2231a', serif: F_GROTESK, mono: F_MONO, surf1: 'rgba(17,17,17,1)', surf2: 'rgba(28,28,28,1)', ink: '#f4f2ec', ink2: '#acacac', glass: 'linear-gradient(168deg,#1a1a1a,#141414)', ...SEM, pos: '#1c4fd8', posInk: '#4a7aff', neg: '#e2231a', negInk: '#ff5c4a', info: '#1c4fd8', warn: '#f4c20d', press: '#f4c20d', pressInk: '#ffe040' } },
-  // TERRAZZO SKINS — Memphis-80s confetti. From .terrazzo.
-  // Light: cream, pink/teal/yellow chips. Dark: neon Memphis, saturated chips on deep violet.
-  { id: 'terrazzo-cream', name: 'Terrazzo Cream', blurb: 'Memphis cream \u2014 pink, teal &amp; yellow chips, squiggles on warm cream.', theme: { accent: '#ff5c8a', serif: F_MEMPHIS, mono: F_MONO, surf1: 'rgba(255,253,248,1)', surf2: 'rgba(246,242,234,1)', ink: '#2a2540', ink2: '#6f6a88', glass: 'linear-gradient(168deg,#fffdf8,#f2ede2)', ...SEM, pos: '#3ec48a', posInk: '#1f9a56', neg: '#ff5c6a', negInk: '#d03848', info: '#4a7aff', warn: '#ffb43a', press: '#23c4b8', pressInk: '#18a090' } },
-  { id: 'terrazzo-neon', name: 'Terrazzo Neon', blurb: 'Memphis neon \u2014 saturated chips on deep violet, full-punch squiggles.', theme: { accent: '#ff5c8a', serif: F_MEMPHIS, mono: F_MONO, surf1: 'rgba(42,37,64,.96)', surf2: 'rgba(32,28,52,.98)', ink: '#f4e8ff', ink2: '#b0a4c8', glass: 'linear-gradient(168deg,#2c253e,#1c182a)', ...SEM, pos: '#4aecac', posInk: '#6effc8', neg: '#ff7088', negInk: '#ff9aac', info: '#6a9aff', warn: '#ffca5a', press: '#3aecdc', pressInk: '#60fff4' } },
 ];
 
 
@@ -499,9 +460,15 @@ const DEFAULT: Theme = {
 // saved theme never lands on an invalid chrome after update.
 const CHROME_REMAP: Record<string, Chrome> = {
   nocturne: 'futuristic', atelier: 'illuminated', glimmerwood: 'bloom', marginalia: 'bloom',
+  // art/craft chromes cut: remap to their nearest surviving chrome.
+  aquarelle: 'bloom', werkbund: 'modern', terrazzo: 'bloom',
 };
 const SKIN_REMAP: Record<string, string> = {
   nocturne: 'moonlit', atelier: 'vellum-dark', glimmerwood: 'blush-noir', marginalia: 'blush-noir',
+  // art/craft skins cut: remap to their nearest surviving skin.
+  'aquarelle-paper': 'daylit', 'aquarelle-nocturne': 'moonlit',
+  'werkbund-paper': 'daylit', 'werkbund-nacht': 'monochrome',
+  'terrazzo-cream': 'blush', 'terrazzo-neon': 'orchid',
 };
 
 const clamp = (v: number, lo: number, hi: number, d: number): number => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
@@ -534,7 +501,7 @@ export function hydrateTheme(json: string | null): void {
   try { const t = JSON.parse(json); if (t && t.accent) { _theme = sanitize({ ...DEFAULT, ...t }); } } catch { /* ignore */ }
 }
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
-const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary', 'terracotta', 'greenhouse', 'aurora', 'rosace', 'aquarelle', 'werkbund', 'terrazzo'] as const;
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary', 'terracotta', 'greenhouse', 'aurora', 'rosace'] as const;
 function sanitize(t: Theme): Theme {
   // migrate a cut chrome/skin to its nearest survivor before validating
   const rawChrome = t.chrome as string;
@@ -582,9 +549,6 @@ function loadGoogleFontsForChrome(chrome: Chrome): void {
     greenhouse: 'https://fonts.googleapis.com/css2?family=Yeseva+One&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap',
     aurora: 'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600&display=swap',
     rosace: 'https://fonts.googleapis.com/css2?family=Marcellus&display=swap',
-    aquarelle: 'https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Petrona:ital,wght@0,500;1,500&display=swap',
-    werkbund: 'https://fonts.googleapis.com/css2?family=Jost:wght@400;500;700&display=swap',
-    terrazzo: 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap',
   };
   const fontUrl = fontMap[chrome];
   if (fontUrl) injectFontLink(fontUrl, chrome);
@@ -779,9 +743,6 @@ export function customizePanel(tab: CzTab = 'look'): string {
     greenhouse: '<span class="vle-mode-sk sk-greenhouse"><i></i><i></i><i></i></span>',
     aurora: '<span class="vle-mode-sk sk-aurora"><i></i><i></i><i></i></span>',
     rosace: '<span class="vle-mode-sk sk-rosace"><i></i><i></i><i></i></span>',
-    aquarelle: '<span class="vle-mode-sk sk-aquarelle"><i></i><i></i><i></i></span>',
-    werkbund: '<span class="vle-mode-sk sk-werkbund"><i></i><i></i><i></i></span>',
-    terrazzo: '<span class="vle-mode-sk sk-terrazzo"><i></i><i></i><i></i></span>',
   };
   // dark/light segmented toggle — flips every chrome to its paired skin
   const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'

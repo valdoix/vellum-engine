@@ -153,24 +153,6 @@ const SHAPE_GEOM: Record<string, string> = {
   lancet: `border-radius:calc(${R} * 2) calc(${R} * 2) 4px 4px;padding:15px 14px 11px`,
   // came-bar: a thick leaded-came rule down the left edge (pseudo); left pad.
   'came-bar': `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:20px`,
-  // AQUARELLE: wash — soft irregular watercolor radius (asymmetric corners).
-  'wash': `border-radius:14px 12px 16px 12px`,
-  // AQUARELLE: bleed — a bleeding pigment edge via soft border + left pad.
-  'bleed': `border-radius:10px;border-left-width:2px;padding-left:18px`,
-  // AQUARELLE: granulate — a subtle granulated texture radius.
-  'granulate': `border-radius:12px`,
-  // WERKBUND: blockframe — hard corner block-frame (thick top rail + left block).
-  'blockframe': `border-radius:0;border-top-width:3px;padding-top:18px`,
-  // WERKBUND: colorblock — flat color-block header bar (thick top + left).
-  'colorblock': `border-radius:0;border-top-width:3px;border-left-width:3px;padding-top:18px;padding-left:18px`,
-  // WERKBUND: circle-square — a geometric badge corner (no radius, square base).
-  'circle-square': `border-radius:0`,
-  // TERRAZZO: chip — a playful rounded chip (asymmetric organic radius).
-  'chip': `border-radius:16px 12px 18px 14px`,
-  // TERRAZZO: squiggle — a squiggled top rail (thicker border + padding).
-  'squiggle': `border-radius:14px;border-top-width:2px;padding-top:16px`,
-  // TERRAZZO: confetti — scattered chip radius (organic asymmetric).
-  'confetti': `border-radius:14px 18px 12px 16px`,
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
 // small fixed corners that live in padding.
@@ -322,6 +304,16 @@ export const STYLES = [
   "@container (max-width:320px){.vlf-tab-l{display:none}}",
   ".vlf-tabbody{flex:1;min-height:0;overflow-y:auto;padding:calc(12px * var(--vscale)) calc(14px * var(--vscale)) calc(16px * var(--vscale))}",
   ".vlf-tabbody .vlm-comp{display:block}",
+  // float tab picker (Window Tabs modal): one row per tab — checkbox + group hint + reorder
+  ".vlf-tabpick{display:flex;flex-direction:column;gap:2px;margin:0 0 calc(10px * var(--vscale))}",
+  ".vlf-tabpick-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px}",
+  ".vlf-tabpick-row:hover{background:rgba(var(--vg-rgb),.07)}",
+  ".vlf-tabpick-row .vle-cz-chk{flex:1;display:flex;align-items:center;gap:7px;margin:0}",
+  ".vlf-tabpick-grp{font:600 calc(9.5px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vi2);opacity:.7}",
+  ".vlf-tabpick-mvs{display:inline-flex;gap:3px}",
+  ".vlf-tabpick-mv{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(var(--vg-rgb),.28);border-radius:6px;background:transparent;color:var(--vi);cursor:pointer;font-size:12px;line-height:1}",
+  ".vlf-tabpick-mv:hover{background:rgba(var(--vg-rgb),.14)}",
+  ".vlf-tabpick-mv.is-off{opacity:.2;cursor:default;border-color:transparent}",
   // chronicle sub-nav (segmented in-tab views)
   ".vle-subnav{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 calc(11px * var(--vscale))}",
   // soft group label between sub-nav clusters (forces a wrap to its own line)
@@ -1559,10 +1551,6 @@ export const STYLES = [
   ".vle-mode-sk.sk-greenhouse{flex-direction:column;gap:4px;background:linear-gradient(rgba(63,143,87,.14) 1px,transparent 1px) 0 0/11px 11px,linear-gradient(90deg,rgba(63,143,87,.14) 1px,transparent 1px) 0 0/11px 11px,linear-gradient(160deg,#eef5e4,#dfeacd)}.vle-mode-sk.sk-greenhouse i{height:6px;border-radius:2px 2px 6px 6px;background:linear-gradient(90deg,#3f8f57,#c69a3e)}.vle-mode-sk.sk-greenhouse i:first-child{height:8px}.vle-mode-sk.sk-greenhouse i:last-child{width:58%}",
   ".vle-mode-sk.sk-aurora{flex-direction:column;gap:4px;background:radial-gradient(90% 60% at 50% -10%,rgba(79,240,192,.22),transparent 60%),radial-gradient(70% 50% at 80% -5%,rgba(154,108,255,.18),transparent 62%),linear-gradient(180deg,#0c1830,#060c1c)}.vle-mode-sk.sk-aurora i{height:6px;border-radius:5px;background:linear-gradient(90deg,#4ff0c0,#9a6cff);box-shadow:0 0 5px rgba(79,240,192,.5)}.vle-mode-sk.sk-aurora i:first-child{height:8px}.vle-mode-sk.sk-aurora i:last-child{width:55%}",
   ".vle-mode-sk.sk-rosace{flex-direction:column;gap:4px;background:repeating-linear-gradient(60deg,rgba(0,0,0,.4) 0 2px,transparent 2px 10px),repeating-linear-gradient(-60deg,rgba(0,0,0,.4) 0 2px,transparent 2px 10px),linear-gradient(160deg,#14122a,#08060f)}.vle-mode-sk.sk-rosace i{height:6px;border-radius:4px 4px 2px 2px;background:linear-gradient(90deg,#1f6fe0,#9a4ce0,#e0243f);box-shadow:0 0 5px rgba(31,111,224,.5)}.vle-mode-sk.sk-rosace i:first-child{height:8px}.vle-mode-sk.sk-rosace i:last-child{width:58%}",
-  // art/craft chromes: aquarelle watercolor / werkbund Bauhaus / terrazzo Memphis
-  ".vle-mode-sk.sk-aquarelle{flex-direction:column;gap:4px;background:radial-gradient(40% 60% at 25% 20%,rgba(74,111,165,.3),transparent 70%),radial-gradient(40% 60% at 80% 70%,rgba(198,95,122,.28),transparent 72%),linear-gradient(160deg,#fbf9f4,#f0ebdf)}.vle-mode-sk.sk-aquarelle i{height:6px;border-radius:6px 5px 7px 5px;background:linear-gradient(90deg,#4a6fa5,#c65f7a)}.vle-mode-sk.sk-aquarelle i:first-child{height:8px}.vle-mode-sk.sk-aquarelle i:last-child{width:56%}",
-  ".vle-mode-sk.sk-werkbund{flex-direction:column;gap:4px;background:#f4f2ec}.vle-mode-sk.sk-werkbund i{height:6px;border-radius:0;background:#f4c20d;border:1.5px solid #111;box-shadow:3px 3px 0 #111}.vle-mode-sk.sk-werkbund i:first-child{height:9px;background:#e2231a}.vle-mode-sk.sk-werkbund i:last-child{width:58%;background:#1c4fd8}",
-  ".vle-mode-sk.sk-terrazzo{flex-direction:column;gap:4px;background:radial-gradient(circle at 20% 25%,#ff5c8a 0 3px,transparent 4px),radial-gradient(circle at 75% 30%,#23c4b8 0 3px,transparent 4px),radial-gradient(circle at 55% 75%,#ffb43a 0 3px,transparent 4px),linear-gradient(160deg,#fffdf8,#f2ede2)}.vle-mode-sk.sk-terrazzo i{height:6px;border-radius:99px;background:repeating-linear-gradient(45deg,#ff5c8a 0 6px,#ffb43a 6px 12px);border:1.5px solid #2a2540}.vle-mode-sk.sk-terrazzo i:first-child{height:8px}.vle-mode-sk.sk-terrazzo i:last-child{width:58%}",
 
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
@@ -2398,42 +2386,6 @@ export const STYLES = [
   "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='rosace'] .vle-card,html[data-vle-chrome='rosace'] .vle-rel-card,html[data-vle-chrome='rosace'] .vld-sec,html[data-vle-chrome='rosace'] .vlf-body::before,html[data-vle-chrome='rosace'] .vle-body::before{animation:none}}",
 
   // ============================================================================
-  // AQUARELLE — wet-on-wet watercolor: indigo & rose pigment blooms on cold-press
-  // paper, granulated washes, soft bleeding edges. Light mode is the main look.
-  // ============================================================================
-  "html[data-vle-chrome='aquarelle'] .vle-body,html[data-vle-chrome='aquarelle'] .vlf-body{background:radial-gradient(38% 30% at 22% 16%,rgba(74,111,165,.22),transparent 70%),radial-gradient(34% 28% at 82% 24%,rgba(198,95,122,.2),transparent 72%),radial-gradient(40% 34% at 68% 90%,rgba(92,154,106,.18),transparent 72%),radial-gradient(30% 26% at 8% 82%,rgba(201,154,58,.16),transparent 74%),linear-gradient(160deg,#fbf9f4,#f0ebdf)}",
-  // cold-press paper tooth (faint stipple texture).
-  "html[data-vle-chrome='aquarelle'] .vle-body::before,html[data-vle-chrome='aquarelle'] .vlf-body::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.5;mix-blend-mode:multiply;background-image:radial-gradient(circle at 1px 1px,rgba(120,110,90,.09) 1px,transparent 1.5px);background-size:5px 5px}",
-  // pigment blooms breathe/spread slowly across the page.
-  "html[data-vle-chrome='aquarelle'] .vle-body::after,html[data-vle-chrome='aquarelle'] .vlf-body::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background:radial-gradient(30% 24% at 46% 40%,rgba(74,111,165,.12),transparent 70%),radial-gradient(26% 22% at 60% 66%,rgba(198,95,122,.12),transparent 72%);animation:vle-aqua-bloom 12s ease-in-out infinite}",
-  "@keyframes vle-aqua-bloom{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.12);opacity:.95}}",
-  "html[data-vle-chrome='aquarelle'] .vle-card,html[data-vle-chrome='aquarelle'] .vle-rel-card,html[data-vle-chrome='aquarelle'] .vld-sec{border:1px solid rgba(120,110,90,.18);box-shadow:0 3px 10px rgba(90,90,100,.1)}",
-  // each card washed with a soft irregular pigment inset.
-  "html[data-vle-chrome='aquarelle'] .vle-card::before,html[data-vle-chrome='aquarelle'] .vle-rel-card::before,html[data-vle-chrome='aquarelle'] .vld-sec::before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;box-shadow:inset 0 0 0 2px rgba(74,111,165,.14),inset 0 0 16px rgba(74,111,165,.08)}",
-  "html[data-vle-chrome='aquarelle'][data-vle-motion='off'] .vle-body::after,html[data-vle-chrome='aquarelle'][data-vle-motion='off'] .vlf-body::after{animation:none}",
-  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='aquarelle'] .vle-body::after,html[data-vle-chrome='aquarelle'] .vlf-body::after{animation:none}}",
-
-  // ============================================================================
-  // WERKBUND — Bauhaus primary geometry: red, cobalt & chrome-yellow blocks on
-  // black-and-white, hard grid, flat color fields. Light mode is the main look.
-  // ============================================================================
-  "html[data-vle-chrome='werkbund'] .vle-body,html[data-vle-chrome='werkbund'] .vlf-body{background:#f4f2ec}",
-  "html[data-vle-chrome='werkbund'] .vle-card,html[data-vle-chrome='werkbund'] .vle-rel-card,html[data-vle-chrome='werkbund'] .vld-sec{border:2.5px solid var(--vi);box-shadow:5px 5px 0 var(--vi)}",
-  // the primary corner block cycles through the three primaries (blockframe).
-  "@keyframes vle-werk-cycle{0%{background:var(--vg)}33%{background:var(--vg2)}66%{background:var(--v-warn)}100%{background:var(--vg)}}",
-  // the circle-square badge rotates slowly (circle-square).
-  "@keyframes vle-werk-spin{to{transform:rotate(360deg)}}",
-
-  // ============================================================================
-  // TERRAZZO — Memphis-80s confetti: pink, teal & yellow chips on cream,
-  // squiggles & zigzags, playful geometry. Light mode is the main look.
-  // ============================================================================
-  "html[data-vle-chrome='terrazzo'] .vle-body,html[data-vle-chrome='terrazzo'] .vlf-body{background:radial-gradient(circle at 14% 20%,#ff5c8a 0 5px,transparent 6px),radial-gradient(circle at 78% 14%,#23c4b8 0 6px,transparent 7px),radial-gradient(circle at 40% 82%,#ffb43a 0 4px,transparent 5px),radial-gradient(circle at 90% 66%,#4a7aff 0 5px,transparent 6px),radial-gradient(circle at 62% 40%,#2a2540 0 3px,transparent 4px),radial-gradient(circle at 24% 62%,#23c4b8 0 4px,transparent 5px),linear-gradient(160deg,#fffdf8,#f2ede2);background-size:130px 130px,150px 150px,120px 120px,160px 160px,100px 100px,140px 140px,100% 100%}",
-  "html[data-vle-chrome='terrazzo'] .vle-card,html[data-vle-chrome='terrazzo'] .vle-rel-card,html[data-vle-chrome='terrazzo'] .vld-sec{border:2.5px solid var(--vi);box-shadow:4px 4px 0 var(--vi)}",
-  // the squiggle ornament wiggles in the corner (baked into the squiggle shapeDetail).
-  "@keyframes vle-terr-wiggle{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}",
-
-  // ============================================================================
   // CARD SHAPE PRIMITIVES + per-surface overrides (mockup 24 / 30-35).
   // Both are generated from the single SHAPE_GEOM map above (geometry only, never
   // color/type). Primitives (.v-shape--<id>) are used directly by renderers;
@@ -2570,19 +2522,6 @@ export const STYLES = [
   ...shapeDetail('rose-window', "content:'\\273B';position:absolute;top:1px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:1;color:var(--vg);font-size:15px;line-height:1;text-shadow:0 0 10px rgba(var(--vg-rgb),.7);opacity:.8", '::before'),
   // ROSACE: came-bar -- a thick leaded-came rule with a glint down the left rail.
   ...shapeDetail('came-bar', "content:'';position:absolute;left:6px;top:7px;bottom:7px;width:8px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/3px 100% no-repeat,linear-gradient(180deg,transparent,color-mix(in srgb,var(--vg2) 60%,transparent),transparent) 4px 0/2px 100% no-repeat;opacity:.7", '::before'),
-  // --- ART/CRAFT-CHROME signature shape details (9; 3 per chrome). ---
-  // AQUARELLE: bleed -- a soft bleeding pigment edge down the left.
-  ...shapeDetail('bleed', "content:'';position:absolute;left:5px;top:8px;bottom:8px;width:6px;pointer-events:none;z-index:1;background:linear-gradient(180deg,color-mix(in srgb,var(--vg) 55%,transparent),color-mix(in srgb,var(--vg2) 45%,transparent));border-radius:99px;filter:blur(1px);opacity:.7", '::before'),
-  // AQUARELLE: granulate -- a faint granulated pigment speckle in the corner.
-  ...shapeDetail('granulate', "content:'';position:absolute;inset:0;pointer-events:none;z-index:0;border-radius:inherit;background-image:radial-gradient(circle at 1px 1px,rgba(var(--vg-rgb),.16) 1px,transparent 1.5px);background-size:6px 6px;opacity:.5", '::before'),
-  // WERKBUND: blockframe -- a solid primary corner block that cycles the primaries.
-  ...shapeDetail('blockframe', "content:'';position:absolute;top:0;right:0;width:22px;height:22px;pointer-events:none;z-index:1;background:var(--vg2);animation:vle-werk-cycle 6s steps(1) infinite", '::before'),
-  // WERKBUND: circle-square -- a geometric circle-over-square badge that spins.
-  ...shapeDetail('circle-square', "content:'';position:absolute;top:6px;right:6px;width:16px;height:16px;pointer-events:none;z-index:1;background:var(--vg);box-shadow:0 0 0 2px var(--vi);animation:vle-werk-spin 8s linear infinite", '::after'),
-  // TERRAZZO: squiggle -- three confetti dots wiggling in the corner.
-  ...shapeDetail('squiggle', "content:'';position:absolute;top:7px;right:9px;width:22px;height:8px;pointer-events:none;z-index:1;background:radial-gradient(circle at 3px 4px,var(--vg2) 0 2.5px,transparent 3px),radial-gradient(circle at 11px 4px,var(--vg) 0 2.5px,transparent 3px),radial-gradient(circle at 19px 4px,var(--v-warn,#ffb43a) 0 2.5px,transparent 3px);background-repeat:no-repeat;transform-origin:center;animation:vle-terr-wiggle 2.4s ease-in-out infinite", '::before'),
-  // TERRAZZO: confetti -- scattered chips of color in the corner.
-  ...shapeDetail('confetti', "content:'';position:absolute;top:8px;right:8px;width:18px;height:18px;pointer-events:none;z-index:1;background:radial-gradient(circle at 4px 4px,var(--vg) 0 2px,transparent 2.5px),radial-gradient(circle at 13px 7px,var(--vg2) 0 2px,transparent 2.5px),radial-gradient(circle at 7px 14px,var(--v-warn,#ffb43a) 0 2px,transparent 2.5px);background-repeat:no-repeat;opacity:.85", '::before'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.

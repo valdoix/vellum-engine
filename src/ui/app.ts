@@ -1268,16 +1268,125 @@ export function setup(ctx: Ctx): () => void {
   wireBridge((payload) => ctx.sendToBackend(payload), (force?: boolean) => { drawer.update(force); float.refresh(); });
 
   // beautiful floating window — a live scene DASHBOARD with a refresh button
-  const FLOAT_TABS = TABS.filter((t) => t.group === 'primary');
+  // Which tabs appear in the float (and their order) is user-configurable via the
+  // "Tabs" action; any of the nine TABS are eligible. Absent pref = the five
+  // primary tabs, in registry order. The set is validated against the live TABS
+  // (drops unknown/duplicate ids) so a stale/invalid pref can never break the float.
+  const DEFAULT_FLOAT_TABS = TABS.filter((t) => t.group === 'primary').map((t) => t.id);
+  const resolveFloatTabs = (): typeof TABS[number][] => {
+    const saved = getPref<string[]>('floatTabs', DEFAULT_FLOAT_TABS);
+    const ids = Array.isArray(saved) ? saved : DEFAULT_FLOAT_TABS;
+    const seen = new Set<string>();
+    const picked = ids
+      .filter((id) => typeof id === 'string' && !seen.has(id) && (seen.add(id), true))
+      .map((id) => TABS.find((t) => t.id === id))
+      .filter((t): t is typeof TABS[number] => !!t);
+    return picked.length ? picked : TABS.filter((t) => t.group === 'primary');
+  };
+  let FLOAT_TABS = resolveFloatTabs();
   let floatTab = getPref<string>('floatTab', 'now');
   let floatMounted: Mounted<ChronicleState> | null = null;
   let floatMountedId: string | null = null;
   const floatTabStrip = (): string => FLOAT_TABS.map((t) =>
     `<button class="vlf-tab${t.id === floatTab ? ' on' : ''}" data-vlf-tab="${t.id}" title="${t.label}" aria-label="${t.label}">${icon(t.icon, { size: 16 })}<span class="vlf-tab-l">${t.label}</span></button>`).join('');
+  // Recompute the visible set after an edit or a backend hydrate, keeping the
+  // active tab valid (reset to the first visible when the current one is hidden).
+  const refreshFloatTabs = (): void => {
+    FLOAT_TABS = resolveFloatTabs();
+    if (!FLOAT_TABS.some((t) => t.id === floatTab)) {
+      floatTab = FLOAT_TABS[0]!.id;
+      setPref('floatTab', floatTab);
+    }
+    float.refresh();
+  };
+  // The tab picker: a small modal that lists every tab with a visibility checkbox
+  // and up/down reorder controls. Selection + order persist to the `floatTabs`
+  // pref (order = the saved array order); "Reset" clears it back to the primary
+  // default. At least one tab must stay visible.
+  const openFloatTabs = (): void => {
+    const ov = document.createElement('div');
+    ov.className = 'vlfm-overlay';
+    const rebuild = (): void => {
+      const selected = FLOAT_TABS.map((t) => t.id);
+      // selected tabs first (in their saved order), then the rest as unchecked
+      const rest = TABS.filter((t) => !selected.includes(t.id));
+      const ordered = [...FLOAT_TABS, ...rest];
+      const rows = ordered.map((t, i) => {
+        const on = selected.includes(t.id);
+        const idx = selected.indexOf(t.id);
+        const up = on && idx > 0 ? `<button class="vlf-tabpick-mv" data-fp-up="${t.id}" title="Move up">\u2191</button>` : '<span class="vlf-tabpick-mv is-off">\u2191</span>';
+        const dn = on && idx >= 0 && idx < selected.length - 1 ? `<button class="vlf-tabpick-mv" data-fp-dn="${t.id}" title="Move down">\u2193</button>` : '<span class="vlf-tabpick-mv is-off">\u2193</span>';
+        void i;
+        return `<div class="vlf-tabpick-row">`
+          + `<label class="vle-cz-chk"><input type="checkbox" data-fp-tog="${t.id}"${on ? ' checked' : ''}> ${icon(t.icon, { size: 15 })} <span>${t.label}</span></label>`
+          + `<span class="vlf-tabpick-grp">${t.group}</span>`
+          + `<span class="vlf-tabpick-mvs">${up}${dn}</span>`
+          + `</div>`;
+      }).join('');
+      body.innerHTML = '<div class="vle-cz-h">Floating window tabs</div>'
+        + '<div class="vlf-tabpick">' + rows + '</div>'
+        + '<div class="vle-cz-row"><button class="vle-cz-btn" data-fp-reset>\u21BA Reset to default</button></div>'
+        + '<div class="vle-cz-note">Choose which tabs appear in the floating window and their order. Checked tabs show; use \u2191\u2193 to reorder. At least one tab stays visible.</div>';
+    };
+    ov.innerHTML = '<div class="vlfm vle-root" style="width:min(440px,94vw)"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Window Tabs</div>'
+      + '<div class="vlfm-body" data-fp-host></div>'
+      + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-save" data-close>Done</button></div></div>';
+    document.body.appendChild(ov);
+    const body = ov.querySelector('[data-fp-host]') as HTMLElement;
+    try { applyTheme(ov.querySelector('.vlfm') as HTMLElement); } catch { /* ignore */ }
+    rebuild();
+    const save = (ids: string[]): void => {
+      // never persist an empty selection; fall back to the primary default
+      setPref('floatTabs', ids.length ? ids : null);
+      refreshFloatTabs();
+      rebuild();
+    };
+    body.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      const reset = t.closest('[data-fp-reset]');
+      if (reset) { save([]); return; }
+      const up = t.closest('[data-fp-up]');
+      if (up) {
+        const id = up.getAttribute('data-fp-up')!;
+        const ids: string[] = FLOAT_TABS.map((x) => x.id);
+        const i = ids.indexOf(id);
+        if (i > 0) { [ids[i - 1], ids[i]] = [ids[i]!, ids[i - 1]!]; save(ids); }
+        return;
+      }
+      const dn = t.closest('[data-fp-dn]');
+      if (dn) {
+        const id = dn.getAttribute('data-fp-dn')!;
+        const ids: string[] = FLOAT_TABS.map((x) => x.id);
+        const i = ids.indexOf(id);
+        if (i >= 0 && i < ids.length - 1) { [ids[i], ids[i + 1]] = [ids[i + 1]!, ids[i]!]; save(ids); }
+        return;
+      }
+    });
+    body.addEventListener('change', (e) => {
+      const cb = (e.target as HTMLElement).closest('[data-fp-tog]') as HTMLInputElement | null;
+      if (!cb) return;
+      const id = cb.getAttribute('data-fp-tog')!;
+      const ids: string[] = FLOAT_TABS.map((x) => x.id);
+      if (cb.checked) { if (!ids.includes(id)) ids.push(id); }
+      else {
+        if (ids.length <= 1) { cb.checked = true; return; } // keep at least one
+        const i = ids.indexOf(id); if (i >= 0) ids.splice(i, 1);
+      }
+      save(ids);
+    });
+    const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
+    ov.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-close]')) close(); });
+  };
   const float: FloatWindow = createFloatWindow({
     title: 'VELLUM',
-    actions: [{ id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' }],
-    onAction: (id) => { if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); notify(ctx, 'info', 'Refreshing the tracker\u2026'); } },
+    actions: [
+      { id: 'tabs', label: '\u2637', title: 'Choose which tabs show in this window' },
+      { id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' },
+    ],
+    onAction: (id) => {
+      if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); notify(ctx, 'info', 'Refreshing the tracker\u2026'); }
+      else if (id === 'tabs') { openFloatTabs(); }
+    },
     render: (host) => {
       // a mini-app: the primary tabs (Now/Cast/Bonds/Chronicle/Director) mount into the body.
       let tabsEl = host.querySelector('[data-vlf-tabs]') as HTMLElement | null;
@@ -1369,6 +1478,7 @@ export function setup(ctx: Ctx): () => void {
           document.querySelectorAll('[data-qol=\'foldtoast\']').forEach((b) => b.classList.toggle('on', _foldToastOn));
           const nextFloatTab = getPref<string>('floatTab', 'now');
           if (nextFloatTab !== floatTab) floatTab = nextFloatTab;
+          refreshFloatTabs();
           try { float.reloadGeo(); } catch { /* ignore */ }
           try { applyTheme(drawer.root); } catch { /* ignore */ }
         }
