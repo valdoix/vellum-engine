@@ -27,7 +27,7 @@ import { repairStateBlock, buildRepairContext } from './bus/block-repair.js';
 import { stripScaffold } from './parse/state-block.js';
 import { validateTurnStructure, missingBlockMessage, looksLikeVellumTurn } from './host/validation.js';
 import { controllerGenerate, invalidateConnCache, withTimeout, defaultConnectionId } from './host/generation.js';
-import { stampPresetMetadata } from './host/presets.js';
+import { stampPresetMetadata, updatePresetMetadataKey } from './host/presets.js';
 import type { CallModel } from './retrieval/traverse.js';
 import { traverseTree, type TreeTraversalResult } from './retrieval/traverse-tree.js';
 
@@ -2594,6 +2594,22 @@ const dispatch: Record<string, Handler> = {
       model,
       extractOk,
     }, uid ?? currentUser());
+  },
+
+  /** Persist the companion preset's prompt-variable VALUES chosen in the host
+   *  preset tab's Loom editor. Backend fallback for hosts without the scoped
+   *  save-coordinator write (older hosts / mobile); the desktop path prefers
+   *  ctx.ui.presetEditor.updatePreset. Writes metadata.promptVariables via the
+   *  shared revision-safe merge (retries once on a revision conflict) and never
+   *  touches prompt content. Requires `presets`. */
+  vellum_preset_vars_save: async (p, uid) => {
+    const presetId = String(p?.presetId ?? '').trim();
+    const pv = (p && typeof p.promptVariables === 'object' && p.promptVariables) ? p.promptVariables : {};
+    const done = (ok: boolean) => spindle.sendToFrontend?.({ type: 'vellum_preset_vars_saved', ok, presetId }, uid ?? currentUser());
+    if (!presetId) { done(false); return; }
+    const res = await updatePresetMetadataKey(presetId, 'promptVariables', pv, uid);
+    if (!res.ok) spindle.log?.warn?.('[vellum_engine] preset_vars_save: ' + res.error);
+    done(res.ok);
   },
 
   /** Mobile fallback: resolve the IN-USE preset + its blocks backend-side so the

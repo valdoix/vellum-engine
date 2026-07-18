@@ -1153,8 +1153,128 @@ export function setup(ctx: Ctx): () => void {
   let _ptPreviewOpen = false;
   let _ptChatBudget: any = null; // ContextBudget from vellum_budget response
   let _ptBudgetPending = false;  // tab requested the budget; suppress the modal on the reply
+  // Loom editor mount state. The editor is the PRIMARY content of the host preset
+  // tab; diagnostics live below it in a collapsible section. The editor mounts
+  // into a STABLE slot that is never innerHTML-repainted (only the diagnostics
+  // child is), so async status/injection/budget replies can't tear it down and
+  // lose focus/in-progress edits. _loomPresetId tracks the mounted preset so a
+  // same-preset repaint patches value in place instead of remounting.
+  let _loomEditor: any = null;
+  let _loomPresetId = '';
+  let _ptShellBuilt = false;
+  let _loomSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Render the full preset editor tab. Called on preset change and data updates. */
+  /** Persist the Loom editor's prompt-variable values into
+   *  metadata.promptVariables. Debounced so a burst of edits is one write.
+   *  Prefers the host save coordinator (unscoped updatePreset — the scoped
+   *  extension.updateMetadata can only write metadata[vellum_engine], not
+   *  promptVariables); falls back to a backend revision-aware write. */
+  function onLoomChange(presetId: string, next: any): void {
+    const pv = (next && typeof next.promptVariableValues === 'object' && next.promptVariableValues) || {};
+    if (_loomSaveTimer) clearTimeout(_loomSaveTimer);
+    _loomSaveTimer = setTimeout(() => {
+      _loomSaveTimer = null;
+      const editor = (ctx.ui as any).presetEditor;
+      if (editor?.updatePreset) {
+        try {
+          editor.updatePreset(
+            (p: any) => ({ ...p, metadata: { ...(p?.metadata ?? {}), promptVariables: pv } }),
+            { immediate: false },
+          );
+          return;
+        } catch { /* fall through to backend */ }
+      }
+      try { ctx.sendToBackend({ type: 'vellum_preset_vars_save', presetId, promptVariables: pv }); } catch { /* ignore */ }
+    }, 400);
+  }
+
+  /** Mount (or update) the native Loom block editor into the stable editor slot.
+   *  Only offered for a linked companion preset that has blocks and on a host
+   *  exposing ctx.components.mountLoomBlockEditor. Mounts once; a same-preset call
+   *  patches value in place (no focus loss), a different preset remounts, and an
+   *  ineligible preset tears the editor down. Toggles the editor vs. diagnostics
+   *  emphasis by opening the diagnostics <details> only when no editor is shown. */
+  function mountOrUpdateLoom(root: HTMLElement, preset: any): void {
+    const slot = root.querySelector<HTMLElement>('[data-vle-loom-slot]');
+    const section = root.querySelector<HTMLElement>('[data-vle-loom-sec]');
+    const details = root.querySelector<HTMLDetailsElement>('[data-vle-diag-details]');
+    const canMount = !!(ctx as any).components?.mountLoomBlockEditor;
+    const linked = preset?.metadata?.vellum_engine?.identifier === 'vellum_engine';
+    const eligible = !!slot && canMount && !!preset?.id && linked
+      && Array.isArray(preset.blocks) && preset.blocks.length > 0;
+
+    if (!eligible) {
+      try { _loomEditor?.destroy(); } catch { /* ignore */ }
+      _loomEditor = null; _loomPresetId = '';
+      if (section) section.style.display = 'none';
+      // No editor → diagnostics become the primary content (expanded).
+      if (details) details.open = true;
+      return;
+    }
+
+    if (section) section.style.display = '';
+    if (details && _loomPresetId !== preset.id) details.open = false; // editor is the focus
+
+    const value = {
+      blocks: preset.blocks,
+      promptVariableValues: (preset.metadata?.promptVariables ?? {}),
+    };
+
+    // Same preset already mounted → patch value in place (no focus loss).
+    if (_loomEditor && _loomPresetId === preset.id) {
+      try { _loomEditor.update({ value }); return; } catch { /* fall through to remount */ }
+    }
+
+    // Different preset (or first mount) → tear down any stale handle, mount fresh.
+    try { _loomEditor?.destroy(); } catch { /* ignore */ }
+    _loomEditor = null;
+    try {
+      _loomEditor = (ctx as any).components.mountLoomBlockEditor(slot, {
+        value,
+        compact: true,
+        // Phase 1: variable configuration. Blocks are shown for context; only the
+        // promptVariableValues are persisted (see onLoomChange). readOnly:false so
+        // the variable controls are interactive.
+        onChange: (n: any) => onLoomChange(preset.id, n),
+      });
+      _loomPresetId = preset.id;
+    } catch (e) {
+      try { console.info('[vellum] loom editor mount failed:', e); } catch { /* ignore */ }
+      _loomEditor = null; _loomPresetId = '';
+      if (section) section.style.display = 'none';
+      if (details) details.open = true;
+    }
+  }
+
+  /** Repaint ONLY the diagnostics child (the six shared features). Called on
+   *  async status/injection/budget replies so the editor mount is never touched. */
+  function renderTabDiagnostics(): void {
+    if (!presetEditorTab) return;
+    const root = presetEditorTab.root as HTMLElement;
+    const diag = root.querySelector<HTMLElement>('[data-vle-diag]');
+    if (!diag) return;
+    let editorState: any = null;
+    try { editorState = (ctx.ui as any).presetEditor?.getState?.(); } catch { /* API may not be present */ }
+    const preset = editorState?.preset ?? null;
+    diag.innerHTML = presetPanelInner({
+      preset,
+      inj: _ptInjRecord,
+      status: _ptStatus,
+      chatBudget: _ptChatBudget,
+      previewOpen: _ptPreviewOpen,
+    });
+    bindPresetPanel(
+      diag,
+      (payload) => ctx.sendToBackend(payload),
+      () => { _ptPreviewOpen = !_ptPreviewOpen; renderTabDiagnostics(); },
+      (_pid, link) => { writeHostDraftLink(ctx, link); },
+    );
+  }
+
+  /** Full render of the host preset editor tab. The editor is the PRIMARY content;
+   *  the six diagnostics sit below in a collapsible section. Builds a stable shell
+   *  once (so the editor slot survives repaints), then mounts/updates the editor
+   *  and repaints the diagnostics child. Called on preset-change events. */
   function renderPresetEditorTab(): void {
     if (!presetEditorTab) return;
     const root = presetEditorTab.root as HTMLElement;
@@ -1163,30 +1283,29 @@ export function setup(ctx: Ctx): () => void {
     const preset = editorState?.preset ?? null;
 
     if (!_ptChatBudget) {
-      // Request the chat budget once; the response repaints the tab. Flag it so
-      // the shared vellum_budget_state handler doesn't pop the Actions modal.
+      // Request the chat budget once; the response repaints the diagnostics. Flag
+      // it so the shared vellum_budget_state handler doesn't pop the Actions modal.
       _ptBudgetPending = true;
       try { ctx.sendToBackend({ type: 'vellum_get_budget' }); } catch { /* ignore */ }
     }
 
-    root.innerHTML = presetPanelInner({
-      preset,
-      inj: _ptInjRecord,
-      status: _ptStatus,
-      chatBudget: _ptChatBudget,
-      previewOpen: _ptPreviewOpen,
-    });
+    // Build the stable shell ONCE: editor slot on top (never innerHTML-repainted),
+    // collapsible "Diagnostics" below with its own repaintable child container.
+    if (!_ptShellBuilt) {
+      root.innerHTML = `<div class="vle-pt-loom" data-vle-loom-sec style="display:none">
+        <div class="vle-pt-head">Configure companion preset</div>
+        <div class="vle-pt-loom-note">Values save to this preset. Live macro previews are only in the native editor.</div>
+        <div data-vle-loom-slot></div>
+      </div>
+      <details class="vle-pt-diag" data-vle-diag-details>
+        <summary class="vle-pt-diag-sum">Diagnostics</summary>
+        <div data-vle-diag></div>
+      </details>`;
+      _ptShellBuilt = true;
+    }
 
-    bindPresetPanel(
-      root,
-      (payload) => ctx.sendToBackend(payload),
-      () => { _ptPreviewOpen = !_ptPreviewOpen; renderPresetEditorTab(); },
-      // desktop: mirror the link into the host's live preset draft so the editor
-      // reflects it immediately (onChange → re-render); backend call persists.
-      // Prefers the scoped coordinator write; falls back to unscoped on older
-      // hosts. Uses the current VELLUM_VERSION (no hardcoded literal).
-      (_pid, link) => { writeHostDraftLink(ctx, link); },
-    );
+    mountOrUpdateLoom(root, preset);
+    renderTabDiagnostics();
   }
 
   /** Render the compact toolbar Link/Unlink control. Reads the SAME unscoped
@@ -1504,14 +1623,14 @@ export function setup(ctx: Ctx): () => void {
         // Preset editor tab: mirror the latest injection into its preview (feature 3).
         // Backend sends the ring oldest-first, so the newest is the last element.
         const latest = Array.isArray(p.log) && p.log.length ? p.log[p.log.length - 1] : null;
-        if (latest) { _ptInjRecord = { turn: Number(latest.turn) || 0, chars: Number(latest.chars) || 0, recalls: Array.isArray(latest.recallIds) ? latest.recallIds.length : 0, text: String(latest.text ?? '') }; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } _ppInj = _ptInjRecord; refreshPresetModal(); }
+        if (latest) { _ptInjRecord = { turn: Number(latest.turn) || 0, chars: Number(latest.chars) || 0, recalls: Array.isArray(latest.recallIds) ? latest.recallIds.length : 0, text: String(latest.text ?? '') }; try { renderTabDiagnostics(); } catch { /* tab may be absent */ } _ppInj = _ptInjRecord; refreshPresetModal(); }
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection_push') {
         // Fix 11 — live retrieval feed: stream the new record in as it happens
         if (p.record) { pushInjectionRecord(p.record); if (p.record.chars) setSysInfo({ injChars: p.record.chars }); drawer.update(); float.refresh();
           // Preset editor tab preview: stream the newest record in too (feature 3).
           _ptInjRecord = { turn: Number(p.record.turn) || 0, chars: Number(p.record.chars) || 0, recalls: Array.isArray(p.record.recallIds) ? p.record.recallIds.length : 0, text: String(p.record.text ?? '') };
-          try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+          try { renderTabDiagnostics(); } catch { /* tab may be absent */ }
           _ppInj = _ptInjRecord; refreshPresetModal();
         }
       } else if (p?.type === 'vellum_preset_tab_status') {
@@ -1523,7 +1642,7 @@ export function setup(ctx: Ctx): () => void {
           model: String(p.model ?? ''),
           extractOk: !!p.extractOk,
         };
-        try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+        try { renderTabDiagnostics(); } catch { /* tab may be absent */ }
         _ppStatus = _ptStatus; refreshPresetModal();
       } else if (p?.type === 'vellum_preset_panel') {
         // Mobile fallback modal: backend-resolved preset (id, name, metadata, blocks).
@@ -1552,6 +1671,11 @@ export function setup(ctx: Ctx): () => void {
         setTimeout(() => { try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }, 150);
         // modal path: re-resolve the preset so the health badge + block list repaint
         if (p.ok && _ppOverlay) setTimeout(() => { try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ } }, 150);
+      } else if (p?.type === 'vellum_preset_vars_saved') {
+        // Backend fallback write of prompt-variable values completed (older hosts /
+        // mobile). The coordinator path reflects on its own, so this only fires when
+        // the backend handled the save. Quietly note failure; success is silent.
+        if (!p.ok) notify(ctx, 'warning', 'Could not save preset variables.');
       } else if (p?.type === 'vellum_continuity') {
         // Plot Director: passive continuity warnings — advise, never block.
         if (Array.isArray(p.warnings) && p.warnings.length) notify(ctx, 'warning', 'Continuity: ' + p.warnings.map((w: { text: string }) => w.text).join(' '));
@@ -1653,7 +1777,7 @@ export function setup(ctx: Ctx): () => void {
         // Preset editor tab + mobile modal: populate their read-only budget panel too.
         _ptChatBudget = _budget;
         _ppChatBudget = _budget;
-        try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+        try { renderTabDiagnostics(); } catch { /* tab may be absent */ }
         try { refreshPresetModal(); } catch { /* modal may be closed */ }
         // Only open the Actions budget modal when this wasn't a tab- OR preset-
         // panel-initiated fetch (either would otherwise pop the wrong modal).
@@ -1661,7 +1785,7 @@ export function setup(ctx: Ctx): () => void {
         else if (_ppOverlay) { /* preset panel requested it — already consumed above */ }
         else if (_ctxRef) openBudgetModal(_ctxRef);
       } else if (p?.type === 'vellum_budget_done') {
-        if (p.budget && typeof p.budget === 'object') { _budget = p.budget as Record<string, unknown>; _ptChatBudget = _budget; _ppChatBudget = _budget; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } try { refreshPresetModal(); } catch { /* modal may be closed */ } }
+        if (p.budget && typeof p.budget === 'object') { _budget = p.budget as Record<string, unknown>; _ptChatBudget = _budget; _ppChatBudget = _budget; try { renderTabDiagnostics(); } catch { /* tab may be absent */ } try { refreshPresetModal(); } catch { /* modal may be closed */ } }
       } else if (p?.type === 'vellum_calendar_done') {
         if (typeof p.calendar === 'string') { _calendar = p.calendar; setDashCalendar(_calendar); }
       } else if (p?.type === 'vellum_hide_done') {
@@ -1765,6 +1889,9 @@ export function setup(ctx: Ctx): () => void {
     try { float.destroy(); } catch { /* ignore */ }
     try { inputBtn?.destroy(); } catch { /* ignore */ }
     try { tab.destroy(); } catch { /* ignore */ }
+    try { if (_loomSaveTimer) clearTimeout(_loomSaveTimer); } catch { /* ignore */ }
+    try { _loomEditor?.destroy(); } catch { /* ignore */ }
+    _loomEditor = null; _loomPresetId = '';
     try { presetEditorTab?.destroy(); } catch { /* ignore */ }
     try { presetToolbarItem?.destroy(); } catch { /* ignore */ }
     try { style.remove(); } catch { /* ignore */ }

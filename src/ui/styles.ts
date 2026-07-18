@@ -2575,6 +2575,19 @@ export const STYLES = [
   ".vle-pt-coll{display:none}",
   ".vle-pt-coll.open{display:block}",
 
+  // --- Preset tab: editor-first layout ---
+  // Primary Loom editor section
+  ".vle-pt-loom{display:flex;flex-direction:column;gap:8px;padding:10px}",
+  ".vle-pt-loom-note{font-size:10px;opacity:0.55;color:var(--lumiverse-text,#cdbfa0);font-style:italic;line-height:1.4}",
+  // Collapsible diagnostics below the editor
+  ".vle-pt-diag{border-top:1px solid color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 12%,transparent);margin-top:6px}",
+  ".vle-pt-diag-sum{cursor:pointer;user-select:none;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 55%,transparent);padding:8px 10px;list-style:none;display:flex;align-items:center;gap:6px;transition:color 0.15s}",
+  ".vle-pt-diag-sum:hover{color:var(--lumiverse-text,#cdbfa0)}",
+  ".vle-pt-diag-sum::-webkit-details-marker{display:none}",
+  ".vle-pt-diag-sum::before{content:'\u25B8';display:inline-block;transition:transform 0.15s;font-size:9px}",
+  "details.vle-pt-diag[open] .vle-pt-diag-sum::before{transform:rotate(90deg)}",
+  "[data-vle-diag]{padding:0 4px 8px}",
+
   // ===== CHRONICLE REDESIGN — Memory / Knowledge / Secrets / Scars / Codex =====
   // MEMORY — Arc spine covers
   ".vle-m-arc{display:flex;gap:0;margin-bottom:0.5rem;border-radius:6px;overflow:hidden;border:1px solid var(--vle-keyline);background:linear-gradient(135deg,color-mix(in srgb,var(--vg) 8%,transparent),color-mix(in srgb,var(--vsurf-2) 55%,transparent));transition:border-color .18s,box-shadow .18s}",
