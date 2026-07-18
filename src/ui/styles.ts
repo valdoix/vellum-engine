@@ -2576,9 +2576,19 @@ export const STYLES = [
   ".vle-pt-coll.open{display:block}",
 
   // --- Preset tab: editor-first layout ---
-  // Primary Loom editor section
-  ".vle-pt-loom{display:flex;flex-direction:column;gap:8px;padding:10px}",
-  ".vle-pt-loom-note{font-size:10px;opacity:0.55;color:var(--lumiverse-text,#cdbfa0);font-style:italic;line-height:1.4}",
+  // Primary prompt-variables editor section
+  ".vle-pt-vars{display:flex;flex-direction:column;gap:10px;padding:10px}",
+  ".vle-pt-vars-note{font-size:10px;opacity:0.55;color:var(--lumiverse-text,#cdbfa0);font-style:italic;line-height:1.4}",
+  // Grouped variables: one group per block/category, each with a titled body
+  ".vle-vars-groups{display:flex;flex-direction:column;gap:12px}",
+  ".vle-vg{border:1px solid color-mix(in srgb,var(--vg,#d4af37) 22%,transparent);border-radius:6px;overflow:hidden;background:color-mix(in srgb,var(--vg,#d4af37) 4%,transparent)}",
+  ".vle-vg-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--vg,#d4af37);padding:7px 10px;background:color-mix(in srgb,var(--vg,#d4af37) 10%,transparent);border-bottom:1px solid color-mix(in srgb,var(--vg,#d4af37) 18%,transparent)}",
+  ".vle-vg-body{display:flex;flex-direction:column;gap:10px;padding:10px}",
+  // One variable row: label, optional description, then the mounted control slot
+  ".vle-vr{display:flex;flex-direction:column;gap:4px}",
+  ".vle-vr-label{font-size:11px;font-weight:600;color:var(--lumiverse-text,#cdbfa0)}",
+  ".vle-vr-desc{font-size:10px;opacity:0.6;color:var(--lumiverse-text,#cdbfa0);line-height:1.35}",
+  ".vle-vr-slot{min-height:24px}",
   // Collapsible diagnostics below the editor
   ".vle-pt-diag{border-top:1px solid color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 12%,transparent);margin-top:6px}",
   ".vle-pt-diag-sum{cursor:pointer;user-select:none;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 55%,transparent);padding:8px 10px;list-style:none;display:flex;align-items:center;gap:6px;transition:color 0.15s}",

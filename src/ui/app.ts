@@ -1153,27 +1153,31 @@ export function setup(ctx: Ctx): () => void {
   let _ptPreviewOpen = false;
   let _ptChatBudget: any = null; // ContextBudget from vellum_budget response
   let _ptBudgetPending = false;  // tab requested the budget; suppress the modal on the reply
-  // Loom editor mount state. The editor is the PRIMARY content of the host preset
-  // tab; diagnostics live below it in a collapsible section. The editor mounts
-  // into a STABLE slot that is never innerHTML-repainted (only the diagnostics
-  // child is), so async status/injection/budget replies can't tear it down and
-  // lose focus/in-progress edits. _loomPresetId tracks the mounted preset so a
-  // same-preset repaint patches value in place instead of remounting.
-  let _loomEditor: any = null;
-  let _loomPresetId = '';
+  // Prompt-variable editor state. This is the PRIMARY content of the host preset
+  // tab — a variables-only surface (like the host's "Configure prompt variables"),
+  // built from the host's individual form controls (mountSelect/mountSwitch/…),
+  // grouped by block/category. Diagnostics live below it in a collapsible section.
+  // Controls mount into STABLE per-variable slots that are never innerHTML-
+  // repainted (only the diagnostics child is), so async status/injection/budget
+  // replies can't tear them down. _varPresetId tracks the preset the controls were
+  // built for so a same-preset re-render (incl. our own save-triggered onChange)
+  // leaves the live controls untouched instead of rebuilding + losing focus.
+  let _varControls: any[] = [];                                  // mounted handles (teardown)
+  let _varPresetId = '';                                         // preset the controls belong to
+  let _varValues: Record<string, Record<string, unknown>> = {};  // working copy of promptVariableValues
   let _ptShellBuilt = false;
-  let _loomSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let _varSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Persist the Loom editor's prompt-variable values into
-   *  metadata.promptVariables. Debounced so a burst of edits is one write.
-   *  Prefers the host save coordinator (unscoped updatePreset — the scoped
-   *  extension.updateMetadata can only write metadata[vellum_engine], not
-   *  promptVariables); falls back to a backend revision-aware write. */
-  function onLoomChange(presetId: string, next: any): void {
-    const pv = (next && typeof next.promptVariableValues === 'object' && next.promptVariableValues) || {};
-    if (_loomSaveTimer) clearTimeout(_loomSaveTimer);
-    _loomSaveTimer = setTimeout(() => {
-      _loomSaveTimer = null;
+  /** Persist the working prompt-variable values into metadata.promptVariables.
+   *  Debounced so a burst of edits is one write. Prefers the host save coordinator
+   *  (unscoped updatePreset — the scoped extension.updateMetadata can only write
+   *  metadata[vellum_engine], not promptVariables); falls back to a backend
+   *  revision-aware write. */
+  function saveVarValues(presetId: string): void {
+    if (_varSaveTimer) clearTimeout(_varSaveTimer);
+    _varSaveTimer = setTimeout(() => {
+      _varSaveTimer = null;
+      const pv = _varValues;
       const editor = (ctx.ui as any).presetEditor;
       if (editor?.updatePreset) {
         try {
@@ -1188,62 +1192,148 @@ export function setup(ctx: Ctx): () => void {
     }, 400);
   }
 
-  /** Mount (or update) the native Loom block editor into the stable editor slot.
-   *  Only offered for a linked companion preset that has blocks and on a host
-   *  exposing ctx.components.mountLoomBlockEditor. Mounts once; a same-preset call
-   *  patches value in place (no focus loss), a different preset remounts, and an
-   *  ineligible preset tears the editor down. Toggles the editor vs. diagnostics
-   *  emphasis by opening the diagnostics <details> only when no editor is shown. */
-  function mountOrUpdateLoom(root: HTMLElement, preset: any): void {
-    const slot = root.querySelector<HTMLElement>('[data-vle-loom-slot]');
-    const section = root.querySelector<HTMLElement>('[data-vle-loom-sec]');
+  function destroyVarControls(): void {
+    for (const h of _varControls) { try { h?.destroy?.(); } catch { /* ignore */ } }
+    _varControls = [];
+  }
+
+  /** Mount one host form control into a slot for a single prompt variable, wired
+   *  to update the working values + debounced save. Type → control mapping mirrors
+   *  the host's native "Configure prompt variables" panel. */
+  function mountVarControl(slot: HTMLElement, blockId: string, v: any): void {
+    const comp = (ctx as any).components;
+    if (!comp) return;
+    const cur = _varValues[blockId]?.[v?.name];
+    const setVal = (val: unknown): void => {
+      if (!_varValues[blockId]) _varValues[blockId] = {};
+      _varValues[blockId][v.name] = val;
+      saveVarValues(_varPresetId);
+    };
+    const num = (x: unknown, d: unknown): number | null => {
+      const n = Number(x ?? d);
+      return Number.isFinite(n) ? n : null;
+    };
+    const opts = Array.isArray(v?.options)
+      ? v.options.map((o: any) => ({ value: String(o?.id ?? ''), label: String(o?.label ?? o?.id ?? '') }))
+      : [];
+    let handle: any = null;
+    try {
+      switch (v?.type) {
+        case 'text':
+          handle = comp.mountTextInput?.(slot, { value: String(cur ?? v.defaultValue ?? ''), ariaLabel: v.label || v.name, onChange: (val: string) => setVal(val) });
+          break;
+        case 'textarea':
+          handle = comp.mountTextArea?.(slot, { value: String(cur ?? v.defaultValue ?? ''), ...(v.rows ? { rows: v.rows } : {}), ariaLabel: v.label || v.name, onChange: (val: string) => setVal(val) });
+          break;
+        case 'number':
+          handle = comp.mountNumericInput?.(slot, { value: num(cur, v.defaultValue), ...(v.min !== undefined ? { min: v.min } : {}), ...(v.max !== undefined ? { max: v.max } : {}), ...(v.step !== undefined ? { step: v.step } : {}), ariaLabel: v.label || v.name, onChange: (val: number | null) => setVal(val) });
+          break;
+        case 'slider': {
+          const min = Number(v.min ?? 0); const max = Number(v.max ?? 100);
+          handle = comp.mountRangeSlider?.(slot, { min, max, value: num(cur, v.defaultValue) ?? min, ...(v.step !== undefined ? { step: v.step } : {}), label: v.label || v.name, onCommit: (val: number) => setVal(val) });
+          break;
+        }
+        case 'switch':
+          handle = comp.mountSwitch?.(slot, { checked: (cur ?? v.defaultValue) === 1 || cur === true || cur === '1', ariaLabel: v.label || v.name, onChange: (c: boolean) => setVal(c ? 1 : 0) });
+          break;
+        case 'select':
+          handle = comp.mountSelect?.(slot, { value: String(cur ?? v.defaultValue ?? ''), options: opts, ariaLabel: v.label || v.name, onChange: (val: string) => setVal(val) });
+          break;
+        case 'multiselect':
+          handle = comp.mountMultiSelect?.(slot, { value: Array.isArray(cur) ? cur : (Array.isArray(v.defaultValue) ? v.defaultValue : []), options: opts, ariaLabel: v.label || v.name, onChange: (val: string[]) => setVal(val) });
+          break;
+        default:
+          break;
+      }
+    } catch (e) {
+      try { console.info('[vellum] var control mount failed:', v?.name, e); } catch { /* ignore */ }
+    }
+    if (handle) _varControls.push(handle);
+  }
+
+  /** Render the grouped, variables-only editor into the stable vars section. Only
+   *  offered for a linked companion preset that declares prompt variables, on a
+   *  host exposing ctx.components. Rebuilds the grouped skeleton + control mounts
+   *  ONLY when the open preset changes; a same-preset re-render (including our own
+   *  save-triggered onChange) is a no-op so live controls keep focus/state. An
+   *  ineligible preset tears the controls down and expands the diagnostics. */
+  function renderVariablesEditor(root: HTMLElement, preset: any): void {
+    const section = root.querySelector<HTMLElement>('[data-vle-vars-sec]');
+    const groupsHost = root.querySelector<HTMLElement>('[data-vle-vars-groups]');
     const details = root.querySelector<HTMLDetailsElement>('[data-vle-diag-details]');
-    const canMount = !!(ctx as any).components?.mountLoomBlockEditor;
+    const comp = (ctx as any).components;
+    const canMount = !!(comp?.mountSelect || comp?.mountSwitch || comp?.mountTextInput);
     const linked = preset?.metadata?.vellum_engine?.identifier === 'vellum_engine';
-    const eligible = !!slot && canMount && !!preset?.id && linked
-      && Array.isArray(preset.blocks) && preset.blocks.length > 0;
+
+    // Variable DEFINITIONS + current VALUES come from the SCOPED editor state
+    // (projected PromptBlockDTO[] carrying each block's variables[], plus
+    // promptVariableValues). The unscoped draft is not used here.
+    let scoped: any = null;
+    try { scoped = (ctx.ui as any).presetEditor?.extension?.getState?.(); } catch { /* older host / no scoped helper */ }
+    const scopedBlocks = Array.isArray(scoped?.blocks) ? scoped.blocks : [];
+    const groups = scopedBlocks
+      .map((b: any) => ({ block: b, vars: Array.isArray(b?.variables) ? b.variables : [] }))
+      .filter((g: any) => g.vars.length > 0);
+    const hasVars = groups.length > 0;
+    const eligible = !!section && !!groupsHost && canMount && !!preset?.id && linked && hasVars;
 
     if (!eligible) {
-      try { _loomEditor?.destroy(); } catch { /* ignore */ }
-      _loomEditor = null; _loomPresetId = '';
+      try {
+        console.info('[vellum] vars editor gate:', {
+          hasSection: !!section,
+          hasComponentsApi: canMount,
+          hasPresetId: !!preset?.id,
+          linked,
+          hasScopedHelper: !!scoped,
+          groupCount: groups.length,
+          varCount: groups.reduce((n: number, g: any) => n + g.vars.length, 0),
+        });
+      } catch { /* ignore */ }
+      destroyVarControls();
+      _varPresetId = '';
       if (section) section.style.display = 'none';
-      // No editor → diagnostics become the primary content (expanded).
-      if (details) details.open = true;
+      if (details) details.open = true; // no editor → diagnostics become primary
       return;
     }
 
     if (section) section.style.display = '';
-    if (details && _loomPresetId !== preset.id) details.open = false; // editor is the focus
+    if (details && _varPresetId !== preset.id) details.open = false; // editor is the focus
 
-    const value = {
-      blocks: preset.blocks,
-      promptVariableValues: (preset.metadata?.promptVariables ?? {}),
-    };
+    // Same preset already built → leave the live controls untouched. This is what
+    // makes our own save-triggered presetEditor.onChange a no-op (no focus loss).
+    if (_varPresetId === preset.id && _varControls.length) return;
 
-    // Same preset already mounted → patch value in place (no focus loss).
-    if (_loomEditor && _loomPresetId === preset.id) {
-      try { _loomEditor.update({ value }); return; } catch { /* fall through to remount */ }
+    // Preset changed (or first build) → tear down, reseed working values, rebuild
+    // the grouped skeleton once, then mount each control into its stable slot.
+    destroyVarControls();
+    try { _varValues = JSON.parse(JSON.stringify(scoped?.promptVariableValues ?? {})); }
+    catch { _varValues = {}; }
+
+    const tasks: Array<{ idx: number; blockId: string; v: any }> = [];
+    let idx = 0;
+    const html = groups.map((g: any) => {
+      const title = String(g.block?.name || 'Variables');
+      const rows = g.vars.map((v: any) => {
+        const myIdx = idx++;
+        tasks.push({ idx: myIdx, blockId: String(g.block?.id ?? ''), v });
+        return `<div class="vle-vr" data-vle-vr>
+          <label class="vle-vr-label">${esc(String(v?.label || v?.name || ''))}</label>
+          ${v?.description ? `<div class="vle-vr-desc">${esc(String(v.description))}</div>` : ''}
+          <div class="vle-vr-slot" data-vle-var-slot="${myIdx}"></div>
+        </div>`;
+      }).join('');
+      return `<div class="vle-vg" data-vle-vg>
+        <div class="vle-vg-title">${esc(title)}</div>
+        <div class="vle-vg-body">${rows}</div>
+      </div>`;
+    }).join('');
+    groupsHost.innerHTML = html;
+
+    for (const t of tasks) {
+      const slot = groupsHost.querySelector<HTMLElement>(`[data-vle-var-slot="${t.idx}"]`);
+      if (slot) mountVarControl(slot, t.blockId, t.v);
     }
-
-    // Different preset (or first mount) → tear down any stale handle, mount fresh.
-    try { _loomEditor?.destroy(); } catch { /* ignore */ }
-    _loomEditor = null;
-    try {
-      _loomEditor = (ctx as any).components.mountLoomBlockEditor(slot, {
-        value,
-        compact: true,
-        // Phase 1: variable configuration. Blocks are shown for context; only the
-        // promptVariableValues are persisted (see onLoomChange). readOnly:false so
-        // the variable controls are interactive.
-        onChange: (n: any) => onLoomChange(preset.id, n),
-      });
-      _loomPresetId = preset.id;
-    } catch (e) {
-      try { console.info('[vellum] loom editor mount failed:', e); } catch { /* ignore */ }
-      _loomEditor = null; _loomPresetId = '';
-      if (section) section.style.display = 'none';
-      if (details) details.open = true;
-    }
+    _varPresetId = preset.id;
   }
 
   /** Repaint ONLY the diagnostics child (the six shared features). Called on
@@ -1289,13 +1379,14 @@ export function setup(ctx: Ctx): () => void {
       try { ctx.sendToBackend({ type: 'vellum_get_budget' }); } catch { /* ignore */ }
     }
 
-    // Build the stable shell ONCE: editor slot on top (never innerHTML-repainted),
+    // Build the stable shell ONCE: the grouped variables editor on top (its group
+    // container is repainted only on preset change, never on a diagnostics tick),
     // collapsible "Diagnostics" below with its own repaintable child container.
     if (!_ptShellBuilt) {
-      root.innerHTML = `<div class="vle-pt-loom" data-vle-loom-sec style="display:none">
-        <div class="vle-pt-head">Configure companion preset</div>
-        <div class="vle-pt-loom-note">Values save to this preset. Live macro previews are only in the native editor.</div>
-        <div data-vle-loom-slot></div>
+      root.innerHTML = `<div class="vle-pt-vars" data-vle-vars-sec style="display:none">
+        <div class="vle-pt-head">Configure prompt variables</div>
+        <div class="vle-pt-vars-note">Choices save to this preset. Live macro previews are only in the native editor.</div>
+        <div class="vle-vars-groups" data-vle-vars-groups></div>
       </div>
       <details class="vle-pt-diag" data-vle-diag-details>
         <summary class="vle-pt-diag-sum">Diagnostics</summary>
@@ -1304,7 +1395,7 @@ export function setup(ctx: Ctx): () => void {
       _ptShellBuilt = true;
     }
 
-    mountOrUpdateLoom(root, preset);
+    renderVariablesEditor(root, preset);
     renderTabDiagnostics();
   }
 
@@ -1889,9 +1980,9 @@ export function setup(ctx: Ctx): () => void {
     try { float.destroy(); } catch { /* ignore */ }
     try { inputBtn?.destroy(); } catch { /* ignore */ }
     try { tab.destroy(); } catch { /* ignore */ }
-    try { if (_loomSaveTimer) clearTimeout(_loomSaveTimer); } catch { /* ignore */ }
-    try { _loomEditor?.destroy(); } catch { /* ignore */ }
-    _loomEditor = null; _loomPresetId = '';
+    try { if (_varSaveTimer) clearTimeout(_varSaveTimer); } catch { /* ignore */ }
+    try { destroyVarControls(); } catch { /* ignore */ }
+    _varPresetId = '';
     try { presetEditorTab?.destroy(); } catch { /* ignore */ }
     try { presetToolbarItem?.destroy(); } catch { /* ignore */ }
     try { style.remove(); } catch { /* ignore */ }

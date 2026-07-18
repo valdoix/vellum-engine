@@ -2518,8 +2518,11 @@ const dispatch: Record<string, Handler> = {
     const presetId = String(p?.presetId ?? '').trim();
     const link = !!p?.link;
     const done = (ok: boolean) => spindle.sendToFrontend?.({ type: 'vellum_preset_tab_link_done', ok, linked: link }, uid ?? currentUser());
-    if (!presetId) { done(false); return; }
-    if (!(await has('presets'))) { done(false); return; }
+    spindle.log?.info?.(`[vellum_engine] preset_tab_link: received presetId=${presetId || '(empty)'} link=${link} uid=${uid || '(none)'}`);
+    if (!presetId) { spindle.log?.warn?.('[vellum_engine] preset_tab_link: no presetId — aborting'); done(false); return; }
+    const hasPresets = await has('presets');
+    spindle.log?.info?.(`[vellum_engine] preset_tab_link: has(presets)=${hasPresets} presets.get=${!!spindle.presets?.get} presets.update=${!!spindle.presets?.update} presets.updateMetadata=${!!spindle.presets?.updateMetadata}`);
+    if (!hasPresets) { spindle.log?.warn?.('[vellum_engine] preset_tab_link: presets permission not granted — aborting'); done(false); return; }
     let res;
     if (link) {
       const meta = { version: VELLUM_VERSION, identifier: 'vellum_engine', linkedAt: Date.now() };
@@ -2533,6 +2536,7 @@ const dispatch: Record<string, Handler> = {
       const meta = { ...vellum, identifier: null };
       res = await stampPresetMetadata(presetId, meta, uid);
     }
+    spindle.log?.info?.(`[vellum_engine] preset_tab_link: stamp result ok=${!!res?.ok}${res && !res.ok ? ' error=' + res.error : ''}`);
     done(!!res?.ok);
   },
 
