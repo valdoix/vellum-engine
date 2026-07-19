@@ -29,7 +29,54 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **2.1.0-beta.4** — a slimmer, sharper theme lineup, a configurable floating window, and simpler display cards.
+> **2.1.0-beta.5** — a variables editor right inside the preset tab, a live sample-paragraph preview, and significantly smarter per-model errata.
+
+### Configure your variables without leaving the preset editor
+
+When you open **VELLUM II** in Lumiverse's preset editor, a **VELLUM tab** now appears alongside the usual tabs. Inside it you'll find a **grouped variables editor** — every prompt variable neatly laid out with labels, organized by category, using the same dropdown/toggle/slider controls you already know from the Prompt Variables menu.
+
+There's no need to scroll through raw JSON or navigate away from the preset editor. Change a setting, hit **Save variables**, and you'll see a "Saved ✓" confirmation. Changes go straight to the preset in the database.
+
+> **One thing to know:** Lumiverse's own "Configure prompt variables" modal (in the native preset editor) won't show your changes until you **reload Lumiverse**. This is a host limitation — the preset data is correct in the database, but the native view reads from its own in-memory copy and only refreshes on page load. The note in the tab says this plainly.
+
+### Sample paragraph preview
+
+Below the stat strip there's a new **Sample Paragraph** panel. Once you have a chat open:
+
+1. Click **Generate sample ✦**
+2. The extension assembles only the **prose-shaping blocks** (register, era, tonal cast, genre, fine-tuning dials, anti-slop, and more) with your current variable values — no character card, no story history, no scene context.
+3. It runs a quiet background generation and displays the result as a short prose paragraph demonstrating what your variable combination actually sounds like.
+
+After a result appears, a **↻ regenerate** button lets you get a fresh sample any time. Changing a variable automatically resets the panel to the "Generate sample" button so you always know whether the displayed sample reflects your current settings.
+
+The preview uses the model you're connected to and counts against your token budget, which is why it's manual rather than automatic.
+
+### Much smarter Model Errata
+
+The **Model Errata** setting (in Planning & Engine → Model Errata) now contains significantly expanded, model-specific guidance. Each option is now split into two parts:
+
+**Prose failures** — specific writing tics each model reaches for reflexively, named precisely so the model can avoid them. For example:
+- **Claude**: the "and yet" upward pivot after a hard beat, post-gesture explanation, "something twisted in her chest" emotion-avoidance phrases, and the reflective coda that turns a live scene into past summary.
+- **Gemini**: rhetorical questions used as fake interiority, em-dashes as dramatic pause, floating universal-truth sentences, and bare repetition with ellipsis.
+- **DeepSeek**: adverb-modified verbs, "in that moment" significance-announce phrases, character voice collapsing into the narration register, passive voice under pressure.
+- **Kimi**: beat compression (cramming approach + exchange + retreat into one sentence), dialogue with no physical grounding, comma splices under momentum.
+- **GLM**: emotional flatness, generic blocking verbs ("nodded", "smiled"), flat SVO rhythm, character voice that sounds identical regardless of who's speaking.
+
+**State block & reverie failures** — each model has a specific *false completion signal* that makes it drop the `<vellum>` block. These are now named directly:
+- Claude feels the prose is "done" when the emotional beat lands — the errata now names this mechanism explicitly and explains why it's wrong.
+- Gemini aestheticizes the reverie into literary paragraphs — the errata caps it at 80 words and specifies bullet-short note format.
+- DeepSeek writes prose inside the `<vellum>` block instead of JSON — the errata shows the wrong format and the correct format side by side.
+- Kimi skips the reverie entirely when momentum is high — the errata gives a strict three-step sequence.
+- GLM embeds state information in the final prose sentence — the errata explicitly names this as "the block is still missing."
+- Reasoning models put the JSON in their hidden thinking channel — the errata states "your thinking channel is not output" and tells them to copy it out.
+
+If you've been frustrated with a particular model forgetting the state block, ignoring your prose settings, or inserting analysis before writing — update to the Model Errata option for that model.
+
+---
+
+### Previous version highlights (2.1.0-beta.4)
+
+> A slimmer theme lineup, a configurable floating window, and simpler display cards.
 
 ### Choose which tabs show in the floating window
 
