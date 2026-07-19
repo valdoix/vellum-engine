@@ -1153,8 +1153,400 @@ export function setup(ctx: Ctx): () => void {
   let _ptPreviewOpen = false;
   let _ptChatBudget: any = null; // ContextBudget from vellum_budget response
   let _ptBudgetPending = false;  // tab requested the budget; suppress the modal on the reply
+  // Prompt-variable editor state. This is the PRIMARY content of the host preset
+  // tab — a variables-only surface (like the host's "Configure prompt variables"),
+  // built from the host's individual form controls (mountSelect/mountSwitch/…),
+  // grouped by block/category. Diagnostics live below it in a collapsible section.
+  // Controls mount into STABLE per-variable slots that are never innerHTML-
+  // repainted (only the diagnostics child is), so async status/injection/budget
+  // replies can't tear them down. _varPresetId tracks the preset the controls were
+  // built for so a same-preset re-render (incl. our own save-triggered onChange)
+  // leaves the live controls untouched instead of rebuilding + losing focus.
+  let _varControls: any[] = [];                                  // mounted handles (teardown)
+  let _varPresetId = '';                                         // preset the controls belong to
+  let _varValues: Record<string, Record<string, unknown>> = {};  // working copy of promptVariableValues
+  let _varDirty = new Set<string>();                             // blockId\0varName keys edited since last confirmed save
+  let _ptShellBuilt = false;
+  let _varSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let _pvChatId = '';                                            // active chat for preview
+  let _pvTimer: ReturnType<typeof setTimeout> | null = null;    // 800ms debounce
+  let _pvAbort: AbortController | null = null;                  // cancel in-flight assemble
+  let _pvLast: string | null | '__uninit__' = '__uninit__' as any; // sentinel so first render always fires
 
-  /** Render the full preset editor tab. Called on preset change and data updates. */
+  /** Persist the working prompt-variable values into metadata.promptVariables.
+   *  Debounced so a burst of edits is one write. ALWAYS uses the backend
+   *  revision-aware write (updatePresetMetadataKey) because the host's
+   *  `presetEditor.updatePreset` feeds the draft through `applyPresetEditorDraft`
+   *  which re-derives promptVariables from the controller's current LoomPreset,
+   *  discarding any `metadata.promptVariables` the mutator set on the draft. The
+   *  scoped `extension.updateMetadata` is also unusable — it can only write
+   *  `metadata[<extId>]`, and `promptVariables` is a Loom-owned reserved key. */
+  function saveVarValues(presetId: string): void {
+    if (_varSaveTimer) clearTimeout(_varSaveTimer);
+    _varSaveTimer = setTimeout(() => {
+      _varSaveTimer = null;
+      const pv = _varValues;
+      try { ctx.sendToBackend({ type: 'vellum_preset_vars_save', presetId, promptVariables: pv }); } catch { /* ignore */ }
+      // Preview is manual now (Generate sample button) — a save does NOT auto-fire
+      // a generation. If a sample is already showing, drop it back to the idle
+      // button so the user knows it's stale for the new variable values.
+      if (typeof _pvLast === 'string' && _pvLast !== '__pending__' && _pvLast !== '__idle__') {
+        _pvLast = '__uninit__' as any;
+        try { renderPreview(); } catch { /* tab may be absent */ }
+      }
+    }, 400);
+  }
+
+  /** Immediate (no debounce) save — used by the manual Save button. Cancels any
+   *  pending debounced write first so the user's manual save is always the latest. */
+  function flushVarSaveNow(presetId: string): void {
+    if (_varSaveTimer) { clearTimeout(_varSaveTimer); _varSaveTimer = null; }
+    const pv = _varValues;
+    const stateEl = presetEditorTab ? (presetEditorTab.root as HTMLElement).querySelector<HTMLElement>('[data-vle-vars-savestate]') : null;
+    if (stateEl) { stateEl.textContent = 'Saving\u2026'; stateEl.className = 'vle-vars-savestate saving'; }
+    ctx.sendToBackend({ type: 'vellum_preset_vars_save', presetId, promptVariables: pv });
+    schedulePreviewAssemble();
+  }
+
+  function destroyVarControls(): void {
+    for (const h of _varControls) { try { h?.destroy?.(); } catch { /* ignore */ } }
+    _varControls = [];
+  }
+
+  /** Mount one host form control into a slot for a single prompt variable, wired
+   *  to update the working values + debounced save. Type → control mapping mirrors
+   *  the host's native "Configure prompt variables" panel. */
+  function mountVarControl(slot: HTMLElement, blockId: string, v: any): void {
+    const comp = (ctx as any).components;
+    if (!comp) return;
+    const cur = _varValues[blockId]?.[v?.name];
+    const setVal = (val: unknown): void => {
+      if (!_varValues[blockId]) _varValues[blockId] = {};
+      _varValues[blockId][v.name] = val;
+      _varDirty.add(blockId + '\u0000' + String(v.name));
+      saveVarValues(_varPresetId);
+    };
+    const num = (x: unknown, d: unknown): number | null => {
+      const n = Number(x ?? d);
+      return Number.isFinite(n) ? n : null;
+    };
+    const opts = Array.isArray(v?.options)
+      ? v.options.map((o: any) => ({ value: String(o?.id ?? ''), label: String(o?.label ?? o?.id ?? '') }))
+      : [];
+    let handle: any = null;
+    try {
+      switch (v?.type) {
+        case 'text':
+          handle = comp.mountTextInput?.(slot, { value: String(cur ?? v.defaultValue ?? ''), ariaLabel: v.label || v.name, onChange: (val: string) => setVal(val) });
+          break;
+        case 'textarea':
+          handle = comp.mountTextArea?.(slot, { value: String(cur ?? v.defaultValue ?? ''), ...(v.rows ? { rows: v.rows } : {}), ariaLabel: v.label || v.name, onChange: (val: string) => setVal(val) });
+          break;
+        case 'number':
+          handle = comp.mountNumericInput?.(slot, { value: num(cur, v.defaultValue), ...(v.min !== undefined ? { min: v.min } : {}), ...(v.max !== undefined ? { max: v.max } : {}), ...(v.step !== undefined ? { step: v.step } : {}), ariaLabel: v.label || v.name, onChange: (val: number | null) => setVal(val) });
+          break;
+        case 'slider': {
+          const min = Number(v.min ?? 0); const max = Number(v.max ?? 100);
+          handle = comp.mountRangeSlider?.(slot, { min, max, value: num(cur, v.defaultValue) ?? min, ...(v.step !== undefined ? { step: v.step } : {}), label: v.label || v.name, onCommit: (val: number) => setVal(val) });
+          break;
+        }
+        case 'switch':
+          handle = comp.mountSwitch?.(slot, { checked: (cur ?? v.defaultValue) === 1 || cur === true || cur === '1', ariaLabel: v.label || v.name, onChange: (c: boolean) => setVal(c ? 1 : 0) });
+          break;
+        case 'select':
+          handle = comp.mountSelect?.(slot, { value: String(cur ?? v.defaultValue ?? ''), options: opts, ariaLabel: v.label || v.name, onChange: (val: string) => setVal(val) });
+          break;
+        case 'multiselect':
+          handle = comp.mountMultiSelect?.(slot, { value: Array.isArray(cur) ? cur : (Array.isArray(v.defaultValue) ? v.defaultValue : []), options: opts, ariaLabel: v.label || v.name, onChange: (val: string[]) => setVal(val) });
+          break;
+        default:
+          break;
+      }
+    } catch (e) {
+      try { console.info('[vellum] var control mount failed:', v?.name, e); } catch { /* ignore */ }
+    }
+    if (handle) _varControls.push(handle);
+  }
+
+  /** Render the grouped, variables-only editor into the stable vars section. Only
+   *  offered for a linked companion preset that declares prompt variables, on a
+   *  host exposing ctx.components. Rebuilds the grouped skeleton + control mounts
+   *  ONLY when the open preset changes; a same-preset re-render (including our own
+   *  save-triggered onChange) is a no-op so live controls keep focus/state. An
+   *  ineligible preset tears the controls down and expands the diagnostics. */
+  function renderVariablesEditor(root: HTMLElement, preset: any): void {
+    const section = root.querySelector<HTMLElement>('[data-vle-vars-sec]');
+    const groupsHost = root.querySelector<HTMLElement>('[data-vle-vars-groups]');
+    const details = root.querySelector<HTMLDetailsElement>('[data-vle-diag-details]');
+    const comp = (ctx as any).components;
+    const canMount = !!(comp?.mountSelect || comp?.mountSwitch || comp?.mountTextInput);
+    const linked = preset?.metadata?.vellum_engine?.identifier === 'vellum_engine';
+
+    // Variable DEFINITIONS + current VALUES come from the SCOPED editor state
+    // (projected PromptBlockDTO[] carrying each block's variables[], plus
+    // promptVariableValues). The unscoped draft is not used here.
+    let scoped: any = null;
+    try { scoped = (ctx.ui as any).presetEditor?.extension?.getState?.(); } catch { /* older host / no scoped helper */ }
+    const scopedBlocks = Array.isArray(scoped?.blocks) ? scoped.blocks : [];
+    const groups = scopedBlocks
+      .map((b: any) => ({ block: b, vars: Array.isArray(b?.variables) ? b.variables : [] }))
+      .filter((g: any) => g.vars.length > 0);
+    const hasVars = groups.length > 0;
+    const eligible = !!section && !!groupsHost && canMount && !!preset?.id && linked && hasVars;
+
+    if (!eligible) {
+      try {
+        console.info('[vellum] vars editor gate:', {
+          hasSection: !!section,
+          hasComponentsApi: canMount,
+          hasPresetId: !!preset?.id,
+          linked,
+          hasScopedHelper: !!scoped,
+          groupCount: groups.length,
+          varCount: groups.reduce((n: number, g: any) => n + g.vars.length, 0),
+        });
+      } catch { /* ignore */ }
+      destroyVarControls();
+      _varPresetId = '';
+      if (section) section.style.display = 'none';
+      if (details) details.open = true; // no editor → diagnostics become primary
+      return;
+    }
+
+    if (section) section.style.display = '';
+    if (details && _varPresetId !== preset.id) details.open = false; // editor is the focus
+
+    // Same preset already built → normally leave the live controls untouched so
+    // our own save-triggered onChange is a no-op (no focus loss). BUT if the
+    // authoritative scoped values have diverged from our working copy for keys
+    // the user is NOT currently editing (e.g. the coordinator rebased in fresh
+    // values from another surface), rebuild so the tab reflects them without a
+    // manual tab-switch remount. Keys in _varDirty (pending our own save) are
+    // excluded from the divergence check so we never clobber an in-flight edit.
+    if (_varPresetId === preset.id && _varControls.length) {
+      const scopedVals = scoped?.promptVariableValues ?? {};
+      let diverged = false;
+      for (const g of groups) {
+        const bid = String(g.block?.id ?? '');
+        for (const v of g.vars) {
+          const key = bid + '\u0000' + String(v?.name ?? '');
+          if (_varDirty.has(key)) continue;
+          const mine = _varValues?.[bid]?.[v?.name];
+          const theirs = (scopedVals as any)?.[bid]?.[v?.name];
+          if (JSON.stringify(mine) !== JSON.stringify(theirs)) { diverged = true; break; }
+        }
+        if (diverged) break;
+      }
+      if (!diverged) return;
+    }
+
+    // Preset changed (or first build, or diverged) → tear down, reseed working
+    // values, rebuild the grouped skeleton once, mount each control in its slot.
+    destroyVarControls();
+    try { _varValues = JSON.parse(JSON.stringify(scoped?.promptVariableValues ?? {})); }
+    catch { _varValues = {}; }
+    _pvLast = null;
+
+    const tasks: Array<{ idx: number; blockId: string; v: any }> = [];
+    let idx = 0;
+    const html = groups.map((g: any) => {
+      const title = String(g.block?.name || 'Variables');
+      const rows = g.vars.map((v: any) => {
+        const myIdx = idx++;
+        tasks.push({ idx: myIdx, blockId: String(g.block?.id ?? ''), v });
+        return `<div class="vle-vr" data-vle-vr>
+          <label class="vle-vr-label">${esc(String(v?.label || v?.name || ''))}</label>
+          ${v?.description ? `<div class="vle-vr-desc">${esc(String(v.description))}</div>` : ''}
+          <div class="vle-vr-slot" data-vle-var-slot="${myIdx}"></div>
+        </div>`;
+      }).join('');
+      return `<div class="vle-vg" data-vle-vg>
+        <div class="vle-vg-title">${esc(title)}</div>
+        <div class="vle-vg-body">${rows}</div>
+      </div>`;
+    }).join('');
+    groupsHost.innerHTML = html;
+
+    for (const t of tasks) {
+      const slot = groupsHost.querySelector<HTMLElement>(`[data-vle-var-slot="${t.idx}"]`);
+      if (slot) mountVarControl(slot, t.blockId, t.v);
+    }
+    _varPresetId = preset.id;
+  }
+
+  /** Render the stat strip (4 cells: variable count, standing tokens,
+   *  state-block health, extraction status). Pure render of existing tab state;
+   *  safe to call from any async reply handler without touching editor mounts. */
+  function renderStatStrip(): void {
+    if (!presetEditorTab) return;
+    const root = presetEditorTab.root as HTMLElement;
+    const el = root.querySelector<HTMLElement>('[data-vle-strip]');
+    if (!el) return;
+    let scoped: any = null;
+    try { scoped = (ctx.ui as any).presetEditor?.extension?.getState?.(); } catch { /* older host */ }
+    const scopedBlocks = Array.isArray(scoped?.blocks) ? scoped.blocks : [];
+    const groups = scopedBlocks
+      .map((b: any) => ({ block: b, vars: Array.isArray(b?.variables) ? b.variables : [] }))
+      .filter((g: any) => g.vars.length > 0);
+    const varCount = groups.reduce((n: number, g: any) => n + g.vars.length, 0);
+    const budget = _ptChatBudget;
+    const tokens = budget && typeof budget === 'object'
+      ? (typeof budget.preset === 'string' ? fmtTokens(calculatePresetBudget(
+          ((ctx.ui as any).presetEditor?.getState?.()?.preset as any)?.blocks ?? [],
+          (budget as any).promptVariables ?? {},
+        ).totalTokens) : '\u2014')
+      : '\u2014';
+    const healthOk = _ptStatus?.extractOk;
+    const healthLabel = healthOk ? '\u2713' : healthOk === false ? '\u2717' : '\u2014';
+    const healthCls = healthOk ? 'ok' : healthOk === false ? 'err' : '';
+    const extOk = _ptStatus?.permission;
+    const extLabel = extOk ? 'on' : extOk === false ? 'off' : '\u2014';
+    const extCls = extOk ? 'ok' : '';
+    const cell = (v: string, k: string, cls: string): string =>
+      `<div class="vle-stat${cls ? ' ' + cls : ''}"><span class="v">${esc(v)}</span><span class="k">${esc(k)}</span></div>`;
+    el.innerHTML = cell(String(varCount || '\u2014'), 'vars', '')
+      + cell(String(tokens), 'tok', '')
+      + cell(healthLabel, 'block', healthCls)
+      + cell(extLabel, 'ext', extCls);
+  }
+
+  /** Resolve the active chat id. The frontend has no direct spindle access,
+   *  so we request it from the backend. Fires vellum_preview_resolve_chat and
+   *  caches the reply in _pvChatId. If the reply comes back empty (no active
+   *  chat yet), we retry every 2 s so that opening a chat after the tab mounts
+   *  still triggers the preview. */
+  let _pvChatResolvePending = false;
+  let _pvRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  function resolveChatId(): string {
+    if (_pvChatId) return _pvChatId;
+    if (!_pvChatResolvePending) {
+      _pvChatResolvePending = true;
+      try { ctx.sendToBackend({ type: 'vellum_preview_resolve_chat' }); } catch { /* ignore */ }
+    }
+    return '';
+  }
+  function scheduleRetryResolve(): void {
+    if (_pvRetryTimer) return; // already scheduled
+    _pvRetryTimer = setTimeout(() => {
+      _pvRetryTimer = null;
+      if (_pvChatId) return; // resolved meanwhile
+      _pvChatResolvePending = false; // allow re-fire
+      resolveChatId();
+    }, 2000);
+  }
+
+  /** Schedule a debounced preview assemble (800ms). Aborts any in-flight
+   *  request first. When debounceMs is 0, fires immediately. */
+  function schedulePreviewAssemble(debounceMs = 800): void {
+    if (_pvTimer) { clearTimeout(_pvTimer); _pvTimer = null; }
+    try { _pvAbort?.abort(); } catch { /* ignore */ }
+    _pvAbort = new AbortController();
+    const fire = (): void => {
+      _pvTimer = null;
+      if (!_varPresetId || !_pvChatId) return;
+      try {
+        ctx.sendToBackend({
+          type: 'vellum_preview_assemble',
+          presetId: _varPresetId,
+          chatId: _pvChatId,
+          promptVariables: _varValues,
+        });
+      } catch { /* ignore */ }
+    };
+    if (debounceMs <= 0) { fire(); return; }
+    _pvTimer = setTimeout(fire, debounceMs);
+  }
+
+  /** Paint the generated sample paragraph. Suppresses identical rerenders. */
+  function paintPreviewBody(sampleText: string | null, error?: string): void {
+    if (!presetEditorTab) return;
+    const root = presetEditorTab.root as HTMLElement;
+    const el = root.querySelector<HTMLElement>('[data-vle-pv]');
+    if (!el) return;
+    if (sampleText === _pvLast && !error) return;
+    _pvLast = sampleText;
+    if (!sampleText) {
+      const message = error === 'no_chat'
+        ? 'Open a chat to generate a sample'
+        : error
+          ? 'Sample generation failed'
+          : 'Open a chat to generate a sample';
+      el.innerHTML = `<div class="vle-pv-empty"><span class="vle-pv-empty-glyph">\u25C6</span><span class="vle-pv-empty-msg">${esc(message)}</span></div>`;
+      return;
+    }
+    const excerpt = esc(sampleText.slice(0, 2400));
+    const dials = Object.values(_varValues).flatMap((bv: any) =>
+      Object.entries(bv).map(([k, v]) => `${esc(k)}:${esc(String(v))}`)
+    ).join(' \u00b7 ');
+    el.innerHTML = `<div class="vle-pv-top"><span class="vle-pv-spark"></span><span class="vle-pv-title">Sample Paragraph</span><span class="vle-pv-tag">generated with current variables</span></div>
+      <div class="vle-pv-body">${excerpt}</div>
+      <div class="vle-pv-foot">${dials || '\u2014'}<button class="vle-pv-refresh" data-vle-pv-refresh>\u21BB regenerate</button></div>`;
+    const refreshBtn = el.querySelector('[data-vle-pv-refresh]');
+    if (refreshBtn) refreshBtn.addEventListener('click', () => schedulePreviewAssemble(0));
+  }
+
+  /** Render the live manuscript preview panel. Resolves the active chat,
+   *  renders the fallback when no chat is available, or shows the idle
+   *  "Generate sample" button when ready. Never auto-fires generation —
+   *  generation only starts when the user clicks the button. */
+  function renderPreview(): void {
+    if (!presetEditorTab) return;
+    const chatId = resolveChatId();
+    if (chatId && chatId !== _pvChatId) {
+      _pvChatId = chatId;
+      // Chat changed — reset so the idle button appears for the new context.
+      if (_pvLast !== '__uninit__' as any && _pvLast !== '__pending__' as any) {
+        _pvLast = '__uninit__' as any;
+      }
+    }
+    const el = (presetEditorTab.root as HTMLElement).querySelector<HTMLElement>('[data-vle-pv]');
+    if (!el) return;
+    if (!_pvChatId || !_varPresetId) {
+      paintPreviewBody(null);
+      return;
+    }
+    // Already has a real result or is currently generating → leave it.
+    if (_pvLast !== '__uninit__' as any) return;
+    // Idle state: chat is open, no sample yet — show the generate button.
+    _pvLast = '__idle__' as any;
+    el.innerHTML = `<div class="vle-pv-empty vle-pv-idle"><span class="vle-pv-empty-glyph">\u2726</span><button class="vle-pv-genbtn" data-vle-pv-generate>Generate sample</button></div>`;
+    const btn = el.querySelector<HTMLElement>('[data-vle-pv-generate]');
+    if (btn) btn.addEventListener('click', () => {
+      _pvLast = '__pending__' as any;
+      el.innerHTML = `<div class="vle-pv-top"><span class="vle-pv-spark"></span><span class="vle-pv-title">Sample Paragraph</span><span class="vle-pv-tag">generating\u2026</span></div><div class="vle-pv-body" style="opacity:.4">Writing with the current variables\u2026</div>`;
+      schedulePreviewAssemble(0);
+    });
+  }
+
+  /** Repaint ONLY the diagnostics child (the six shared features). Called on
+   *  async status/injection/budget replies so the editor mount is never touched. */
+  function renderTabDiagnostics(): void {
+    if (!presetEditorTab) return;
+    const root = presetEditorTab.root as HTMLElement;
+    const diag = root.querySelector<HTMLElement>('[data-vle-diag]');
+    if (!diag) return;
+    let editorState: any = null;
+    try { editorState = (ctx.ui as any).presetEditor?.getState?.(); } catch { /* API may not be present */ }
+    const preset = editorState?.preset ?? null;
+    diag.innerHTML = presetPanelInner({
+      preset,
+      inj: _ptInjRecord,
+      status: _ptStatus,
+      chatBudget: _ptChatBudget,
+      previewOpen: _ptPreviewOpen,
+    });
+    bindPresetPanel(
+      diag,
+      (payload) => ctx.sendToBackend(payload),
+      () => { _ptPreviewOpen = !_ptPreviewOpen; renderTabDiagnostics(); },
+      (_pid, link) => { writeHostDraftLink(ctx, link); },
+    );
+  }
+
+  /** Full render of the host preset editor tab. The editor is the PRIMARY content;
+   *  the six diagnostics sit below in a collapsible section. Builds a stable shell
+   *  once (so the editor slot survives repaints), then mounts/updates the editor
+   *  and repaints the diagnostics child. Called on preset-change events. */
   function renderPresetEditorTab(): void {
     if (!presetEditorTab) return;
     const root = presetEditorTab.root as HTMLElement;
@@ -1163,30 +1555,41 @@ export function setup(ctx: Ctx): () => void {
     const preset = editorState?.preset ?? null;
 
     if (!_ptChatBudget) {
-      // Request the chat budget once; the response repaints the tab. Flag it so
-      // the shared vellum_budget_state handler doesn't pop the Actions modal.
+      // Request the chat budget once; the response repaints the diagnostics. Flag
+      // it so the shared vellum_budget_state handler doesn't pop the Actions modal.
       _ptBudgetPending = true;
       try { ctx.sendToBackend({ type: 'vellum_get_budget' }); } catch { /* ignore */ }
     }
 
-    root.innerHTML = presetPanelInner({
-      preset,
-      inj: _ptInjRecord,
-      status: _ptStatus,
-      chatBudget: _ptChatBudget,
-      previewOpen: _ptPreviewOpen,
-    });
+    // Build the stable shell ONCE: the grouped variables editor on top (its group
+    // container is repainted only on preset change, never on a diagnostics tick),
+    // collapsible "Diagnostics" below with its own repaintable child container.
+    if (!_ptShellBuilt) {
+      root.innerHTML = `<div class="vle-strip" data-vle-strip></div>
+      <div class="vle-pv" data-vle-pv></div>
+      <div class="vle-pt-vars" data-vle-vars-sec style="display:none">
+        <div class="vle-pt-head">Configure prompt variables</div>
+        <div class="vle-pt-vars-note">Choices save to this preset. The native editor won't reflect the change until you reload Lumiverse.</div>
+        <div class="vle-vars-groups" data-vle-vars-groups></div>
+        <div class="vle-vars-actions"><span class="vle-vars-savestate" data-vle-vars-savestate></span><button class="vle-vars-savebtn" data-vle-vars-save>Save variables</button></div>
+      </div>
+      <details class="vle-pt-diag" data-vle-diag-details>
+        <summary class="vle-pt-diag-sum">Diagnostics</summary>
+        <div data-vle-diag></div>
+      </details>`;
+      _ptShellBuilt = true;
+      // Wire the manual Save button once (the shell is built a single time).
+      const saveBtn = root.querySelector<HTMLElement>('[data-vle-vars-save]');
+      if (saveBtn) saveBtn.addEventListener('click', () => {
+        if (!_varPresetId) return;
+        flushVarSaveNow(_varPresetId);
+      });
+    }
 
-    bindPresetPanel(
-      root,
-      (payload) => ctx.sendToBackend(payload),
-      () => { _ptPreviewOpen = !_ptPreviewOpen; renderPresetEditorTab(); },
-      // desktop: mirror the link into the host's live preset draft so the editor
-      // reflects it immediately (onChange → re-render); backend call persists.
-      // Prefers the scoped coordinator write; falls back to unscoped on older
-      // hosts. Uses the current VELLUM_VERSION (no hardcoded literal).
-      (_pid, link) => { writeHostDraftLink(ctx, link); },
-    );
+    renderStatStrip();
+    renderPreview();
+    renderVariablesEditor(root, preset);
+    renderTabDiagnostics();
   }
 
   /** Render the compact toolbar Link/Unlink control. Reads the SAME unscoped
@@ -1224,6 +1627,12 @@ export function setup(ctx: Ctx): () => void {
         presetEditorTab.onActivate?.(() => {
           try { ctx.sendToBackend({ type: 'vellum_preset_tab_get_status' }); } catch { /* ignore */ }
           try { ctx.sendToBackend({ type: 'vellum_get_injection' }); } catch { /* ignore */ }
+          // Re-resolve the active chat each time the tab is shown so switching
+          // chats (or opening the first chat after mounting) updates the preview.
+          _pvChatId = '';
+          _pvChatResolvePending = false;
+          _pvLast = '__uninit__' as any;
+          resolveChatId();
         });
       } catch { /* onActivate optional on older hosts */ }
       // Request status data on first mount
@@ -1437,6 +1846,15 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, lvl, String(p.msg ?? ''));
       } else if (p?.type === 'vellum_state') {
         _lastStateAt = Date.now(); // mark arrival so the post-turn safety poll can skip
+        // The state broadcast always carries the active chatId — the most reliable
+        // source for the preview (getActive can be empty before the first turn).
+        if (typeof p.chatId === 'string' && p.chatId && p.chatId !== _pvChatId) {
+          _pvChatId = p.chatId;
+          _pvChatResolvePending = false;
+          if (_pvRetryTimer) { try { clearTimeout(_pvRetryTimer); } catch { /* ignore */ } _pvRetryTimer = null; }
+          _pvLast = '__uninit__' as any;
+          try { renderPreview(); } catch { /* tab may be absent */ }
+        }
         state = p.state ?? freshState();
         updateDialogueColors(state?.cast); // live-update dialogue color stylesheet from cast
         if (p.tone) {
@@ -1504,14 +1922,14 @@ export function setup(ctx: Ctx): () => void {
         // Preset editor tab: mirror the latest injection into its preview (feature 3).
         // Backend sends the ring oldest-first, so the newest is the last element.
         const latest = Array.isArray(p.log) && p.log.length ? p.log[p.log.length - 1] : null;
-        if (latest) { _ptInjRecord = { turn: Number(latest.turn) || 0, chars: Number(latest.chars) || 0, recalls: Array.isArray(latest.recallIds) ? latest.recallIds.length : 0, text: String(latest.text ?? '') }; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } _ppInj = _ptInjRecord; refreshPresetModal(); }
+        if (latest) { _ptInjRecord = { turn: Number(latest.turn) || 0, chars: Number(latest.chars) || 0, recalls: Array.isArray(latest.recallIds) ? latest.recallIds.length : 0, text: String(latest.text ?? '') }; try { renderTabDiagnostics(); } catch { /* tab may be absent */ } _ppInj = _ptInjRecord; refreshPresetModal(); }
         drawer.update(); float.refresh();
       } else if (p?.type === 'vellum_injection_push') {
         // Fix 11 — live retrieval feed: stream the new record in as it happens
         if (p.record) { pushInjectionRecord(p.record); if (p.record.chars) setSysInfo({ injChars: p.record.chars }); drawer.update(); float.refresh();
           // Preset editor tab preview: stream the newest record in too (feature 3).
           _ptInjRecord = { turn: Number(p.record.turn) || 0, chars: Number(p.record.chars) || 0, recalls: Array.isArray(p.record.recallIds) ? p.record.recallIds.length : 0, text: String(p.record.text ?? '') };
-          try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+          try { renderTabDiagnostics(); } catch { /* tab may be absent */ }
           _ppInj = _ptInjRecord; refreshPresetModal();
         }
       } else if (p?.type === 'vellum_preset_tab_status') {
@@ -1523,7 +1941,8 @@ export function setup(ctx: Ctx): () => void {
           model: String(p.model ?? ''),
           extractOk: !!p.extractOk,
         };
-        try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+        try { renderStatStrip(); } catch { /* tab may be absent */ }
+        try { renderTabDiagnostics(); } catch { /* tab may be absent */ }
         _ppStatus = _ptStatus; refreshPresetModal();
       } else if (p?.type === 'vellum_preset_panel') {
         // Mobile fallback modal: backend-resolved preset (id, name, metadata, blocks).
@@ -1552,6 +1971,44 @@ export function setup(ctx: Ctx): () => void {
         setTimeout(() => { try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }, 150);
         // modal path: re-resolve the preset so the health badge + block list repaint
         if (p.ok && _ppOverlay) setTimeout(() => { try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ } }, 150);
+      } else if (p?.type === 'vellum_preset_vars_saved') {
+        // Backend direct write of prompt-variable values completed.
+        const stateEl = presetEditorTab ? (presetEditorTab.root as HTMLElement).querySelector<HTMLElement>('[data-vle-vars-savestate]') : null;
+        if (!p.ok) {
+          notify(ctx, 'warning', 'Could not save preset variables.');
+          if (stateEl) { stateEl.textContent = 'Save failed'; stateEl.className = 'vle-vars-savestate err'; }
+        } else {
+          // Our write is now the authoritative DB state — clear the dirty set so
+          // a subsequent coordinator sync can reconcile the controls freely.
+          _varDirty.clear();
+          if (stateEl) { stateEl.textContent = 'Saved'; stateEl.className = 'vle-vars-savestate ok'; setTimeout(() => { if (stateEl) { stateEl.textContent = ''; stateEl.className = 'vle-vars-savestate'; } }, 2500); }
+          // Trigger coordinator re-sync so the host's native variables modal reflects the new values.
+          try {
+            const editor = (ctx.ui as any).presetEditor;
+            if (editor?.extension?.updateMetadata) {
+              editor.extension.updateMetadata(
+                (cur: any) => ({ ...(cur ?? {}), _vle_ts: Date.now() }),
+                { immediate: true },
+              );
+            }
+          } catch { /* host may not support scoped helper */ }
+        }
+      } else if (p?.type === 'vellum_preview_assembled') {
+        if (typeof p.sampleText === 'string' || p.sampleText === null) {
+          try { paintPreviewBody(p.sampleText, typeof p.error === 'string' ? p.error : undefined); } catch { /* tab may be absent */ }
+        }
+      } else if (p?.type === 'vellum_preview_chat_resolved') {
+        const resolvedId = String(p?.chatId ?? '').trim();
+        _pvChatResolvePending = false; // always clear so a future resolve can re-fire
+        if (resolvedId && resolvedId !== _pvChatId) {
+          _pvChatId = resolvedId;
+          _pvLast = '__uninit__' as any;
+          try { renderPreview(); } catch { /* tab may be absent */ }
+        } else if (!resolvedId && !_pvChatId) {
+          // No active chat yet (tab opened before a chat was selected). Retry so
+          // opening a chat afterwards still lights up the preview.
+          scheduleRetryResolve();
+        }
       } else if (p?.type === 'vellum_continuity') {
         // Plot Director: passive continuity warnings — advise, never block.
         if (Array.isArray(p.warnings) && p.warnings.length) notify(ctx, 'warning', 'Continuity: ' + p.warnings.map((w: { text: string }) => w.text).join(' '));
@@ -1653,7 +2110,8 @@ export function setup(ctx: Ctx): () => void {
         // Preset editor tab + mobile modal: populate their read-only budget panel too.
         _ptChatBudget = _budget;
         _ppChatBudget = _budget;
-        try { renderPresetEditorTab(); } catch { /* tab may be absent */ }
+        try { renderStatStrip(); } catch { /* tab may be absent */ }
+        try { renderTabDiagnostics(); } catch { /* tab may be absent */ }
         try { refreshPresetModal(); } catch { /* modal may be closed */ }
         // Only open the Actions budget modal when this wasn't a tab- OR preset-
         // panel-initiated fetch (either would otherwise pop the wrong modal).
@@ -1661,7 +2119,7 @@ export function setup(ctx: Ctx): () => void {
         else if (_ppOverlay) { /* preset panel requested it — already consumed above */ }
         else if (_ctxRef) openBudgetModal(_ctxRef);
       } else if (p?.type === 'vellum_budget_done') {
-        if (p.budget && typeof p.budget === 'object') { _budget = p.budget as Record<string, unknown>; _ptChatBudget = _budget; _ppChatBudget = _budget; try { renderPresetEditorTab(); } catch { /* tab may be absent */ } try { refreshPresetModal(); } catch { /* modal may be closed */ } }
+        if (p.budget && typeof p.budget === 'object') { _budget = p.budget as Record<string, unknown>; _ptChatBudget = _budget; _ppChatBudget = _budget; try { renderTabDiagnostics(); } catch { /* tab may be absent */ } try { refreshPresetModal(); } catch { /* modal may be closed */ } }
       } else if (p?.type === 'vellum_calendar_done') {
         if (typeof p.calendar === 'string') { _calendar = p.calendar; setDashCalendar(_calendar); }
       } else if (p?.type === 'vellum_hide_done') {
@@ -1740,7 +2198,21 @@ export function setup(ctx: Ctx): () => void {
     } catch (e) { try { console.warn('[vellum] message handler:', e); } catch { /* ignore */ } }
   });
 
-  const offChat = ctx.events?.on('CHAT_SWITCHED', () => { resetGraphCache(); ctx.sendToBackend({ type: 'vellum_get_state' }); });
+  const offChat = ctx.events?.on('CHAT_SWITCHED', (payload?: any) => {
+    resetGraphCache();
+    ctx.sendToBackend({ type: 'vellum_get_state' });
+    // The WS CHAT_SWITCHED event carries { chatId } directly — the most reliable
+    // frontend-side source for the live preview (no backend round-trip, no
+    // dependency on chats.getActive). Feed it straight into the preview.
+    const cid = String(payload?.chatId ?? payload?.chat_id ?? '').trim();
+    if (cid && cid !== _pvChatId) {
+      _pvChatId = cid;
+      _pvChatResolvePending = false;
+      if (_pvRetryTimer) { try { clearTimeout(_pvRetryTimer); } catch { /* ignore */ } _pvRetryTimer = null; }
+      _pvLast = '__uninit__' as any;
+      try { renderPreview(); } catch { /* tab may be absent */ }
+    }
+  });
   // After a turn finishes the backend folds and broadcasts vellum_state on its
   // own (including an EARLY broadcast before the slow prose extractor). So this is
   // just a safety net for the case where that broadcast never arrives (a missed
@@ -1765,6 +2237,12 @@ export function setup(ctx: Ctx): () => void {
     try { float.destroy(); } catch { /* ignore */ }
     try { inputBtn?.destroy(); } catch { /* ignore */ }
     try { tab.destroy(); } catch { /* ignore */ }
+    try { if (_varSaveTimer) clearTimeout(_varSaveTimer); } catch { /* ignore */ }
+    try { if (_pvTimer) clearTimeout(_pvTimer); } catch { /* ignore */ }
+    try { if (_pvRetryTimer) clearTimeout(_pvRetryTimer); } catch { /* ignore */ }
+    try { _pvAbort?.abort(); } catch { /* ignore */ }
+    try { destroyVarControls(); } catch { /* ignore */ }
+    _varPresetId = '';
     try { presetEditorTab?.destroy(); } catch { /* ignore */ }
     try { presetToolbarItem?.destroy(); } catch { /* ignore */ }
     try { style.remove(); } catch { /* ignore */ }

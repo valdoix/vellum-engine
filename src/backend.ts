@@ -16,6 +16,7 @@ import { locationList } from './domain/locations.js';
 import { driftInjection } from './domain/drift.js';
 import { formatDate } from './domain/date-format.js';
 import { turnLog } from './domain/turnlog.js';
+import { internalGenerate } from './host/generation.js';
 import { toMarkdown } from './domain/markdown.js';
 import { moodInjectionCached, invalidateMood } from './domain/mood.js';
 import { plantsInjection } from './domain/plants.js';
@@ -27,7 +28,7 @@ import { repairStateBlock, buildRepairContext } from './bus/block-repair.js';
 import { stripScaffold } from './parse/state-block.js';
 import { validateTurnStructure, missingBlockMessage, looksLikeVellumTurn } from './host/validation.js';
 import { controllerGenerate, invalidateConnCache, withTimeout, defaultConnectionId } from './host/generation.js';
-import { stampPresetMetadata } from './host/presets.js';
+import { stampPresetMetadata, updatePresetMetadataKey } from './host/presets.js';
 import type { CallModel } from './retrieval/traverse.js';
 import { traverseTree, type TreeTraversalResult } from './retrieval/traverse-tree.js';
 
@@ -1413,6 +1414,10 @@ try {
     if (_prevActiveChat && _prevActiveChat !== next) pruneChatState(_prevActiveChat);
     _prevActiveChat = next;
     if (p?.chatId) invalidate();
+    // Push the new active chat to the preset-editor tab's live preview so it can
+    // (re)assemble against the current chat without relying on chats.getActive
+    // (which is empty before the first turn on a cold worker).
+    try { spindle.sendToFrontend?.({ type: 'vellum_preview_chat_resolved', chatId: next ? String(next) : '' }, p?.userId ?? currentUser()); } catch { /* best effort */ }
   });
 } catch { /* events optional */ }
 
@@ -2518,8 +2523,11 @@ const dispatch: Record<string, Handler> = {
     const presetId = String(p?.presetId ?? '').trim();
     const link = !!p?.link;
     const done = (ok: boolean) => spindle.sendToFrontend?.({ type: 'vellum_preset_tab_link_done', ok, linked: link }, uid ?? currentUser());
-    if (!presetId) { done(false); return; }
-    if (!(await has('presets'))) { done(false); return; }
+    spindle.log?.info?.(`[vellum_engine] preset_tab_link: received presetId=${presetId || '(empty)'} link=${link} uid=${uid || '(none)'}`);
+    if (!presetId) { spindle.log?.warn?.('[vellum_engine] preset_tab_link: no presetId — aborting'); done(false); return; }
+    const hasPresets = await has('presets');
+    spindle.log?.info?.(`[vellum_engine] preset_tab_link: has(presets)=${hasPresets} presets.get=${!!spindle.presets?.get} presets.update=${!!spindle.presets?.update} presets.updateMetadata=${!!spindle.presets?.updateMetadata}`);
+    if (!hasPresets) { spindle.log?.warn?.('[vellum_engine] preset_tab_link: presets permission not granted — aborting'); done(false); return; }
     let res;
     if (link) {
       const meta = { version: VELLUM_VERSION, identifier: 'vellum_engine', linkedAt: Date.now() };
@@ -2533,6 +2541,7 @@ const dispatch: Record<string, Handler> = {
       const meta = { ...vellum, identifier: null };
       res = await stampPresetMetadata(presetId, meta, uid);
     }
+    spindle.log?.info?.(`[vellum_engine] preset_tab_link: stamp result ok=${!!res?.ok}${res && !res.ok ? ' error=' + res.error : ''}`);
     done(!!res?.ok);
   },
 
@@ -2594,6 +2603,131 @@ const dispatch: Record<string, Handler> = {
       model,
       extractOk,
     }, uid ?? currentUser());
+  },
+
+  /** Persist the companion preset's prompt-variable VALUES chosen in the host
+   *  preset tab's Loom editor. Backend fallback for hosts without the scoped
+   *  save-coordinator write (older hosts / mobile); the desktop path prefers
+   *  ctx.ui.presetEditor.updatePreset. Writes metadata.promptVariables via the
+   *  shared revision-safe merge (retries once on a revision conflict) and never
+   *  touches prompt content. Requires `presets`. */
+  vellum_preset_vars_save: async (p, uid) => {
+    const presetId = String(p?.presetId ?? '').trim();
+    const pv = (p && typeof p.promptVariables === 'object' && p.promptVariables) ? p.promptVariables : {};
+    const done = (ok: boolean) => spindle.sendToFrontend?.({ type: 'vellum_preset_vars_saved', ok, presetId }, uid ?? currentUser());
+    if (!presetId) { done(false); return; }
+    const res = await updatePresetMetadataKey(presetId, 'promptVariables', pv, uid);
+    if (!res.ok) spindle.log?.warn?.('[vellum_engine] preset_vars_save: ' + res.error);
+    done(res.ok);
+  },
+
+  /** Assemble the preset against a live chat with the in-progress variables,
+   *  then run one quiet generation to produce a short prose sample. */
+  vellum_preview_assemble: async (p, uid) => {
+    const resolvedUid = uid ?? currentUser();
+    const presetId = String(p?.presetId ?? '').trim();
+    const chatId = String(p?.chatId ?? '').trim();
+    const pv = (p && typeof p.promptVariables === 'object' && p.promptVariables) ? p.promptVariables : {};
+    const done = (sampleText: string | null, error?: string) => spindle.sendToFrontend?.(
+      { type: 'vellum_preview_assembled', sampleText, ...(error ? { error } : {}) }, resolvedUid);
+    if (!presetId || !chatId) { done(null, 'no_chat'); return; }
+    if (!(await has('generation')) || !(spindle as any).assemble) { done(null, 'generation_unavailable'); return; }
+    try {
+      const preset = await (spindle as any).presets?.get?.(presetId, resolvedUid);
+      // The preset object stores blocks under `prompt_order` (NOT `blocks`).
+      // spindle.assemble's input field is `blocks`, fed from preset.prompt_order.
+      const allBlocks = Array.isArray(preset?.prompt_order) ? preset.prompt_order
+        : Array.isArray(preset?.blocks) ? preset.blocks
+        : null;
+      if (!allBlocks || !allBlocks.length) { done(null, 'no_blocks'); return; }
+      // VELLUM-specific: the sample must showcase ONLY the variables that shape
+      // the PROSE ITSELF — voice, register, genre, era, tonal cast, pacing,
+      // fine-tuning, imperfection, scribe rotation, romance/disposition warmth.
+      // Everything else (character card, scenario, world info, chat history,
+      // engine contract, state block, visual toolkit, NSFW, jailbreak, memory,
+      // errata) is excluded so the paragraph reflects the dials, not the story.
+      const PROSE_BLOCK_IDS = new Set<string>([
+        'v2-config',        // pov, length, tense, prose, stakes, genre, dialogue, agency, distance, pacing, genre2
+        'v2-doctrine',      // doctrine_strictness, sentence_cap
+        'v2-register',      // house style
+        'v2-prose-tuning',  // metaphor, diction, sensory, filter_words, paragraph_shape, profanity
+        'v2-genre',         // genre grammar
+        'v2-era',           // era / idiom
+        'v2-tonal-cast',    // emotional filter / wavelength
+        'v2-antislop',      // anti-slop
+        'v2-romance',       // romance pace (warmth of prose)
+        'v2-disposition',   // world disposition (warmth/chill of diction)
+        'v2-scribes',       // voice rotation
+        'v2-imperfection',  // rough hand
+      ]);
+      const proseBlocks = allBlocks.filter((b: any) => b?.id && PROSE_BLOCK_IDS.has(String(b.id)));
+      const blocks = proseBlocks.length ? proseBlocks : allBlocks;
+      const result = await (spindle as any).assemble({ blocks, chatId, promptVariables: pv }, resolvedUid);
+      const partText = (c: any): string => {
+        if (typeof c === 'string') return c;
+        if (Array.isArray(c)) return c.map((seg: any) => typeof seg === 'string' ? seg : (typeof seg?.text === 'string' ? seg.text : '')).join('');
+        return '';
+      };
+      const messages = Array.isArray(result?.messages)
+        ? result.messages
+          .filter((m: any) => m?.role === 'system' || m?.role === 'user' || m?.role === 'assistant')
+          .map((m: any) => ({ role: m.role, content: partText(m.content) }))
+          .filter((m: any) => m.content.trim())
+        : [];
+      if (!messages.length) { done(null, 'assembly_empty'); return; }
+      // Strip all chat history — keep only system messages so generation is a
+      // style demo, not a continuation of the active scene. Add a single neutral
+      // trigger so the model writes without anchoring to any specific scene.
+      const systemOnly = messages.filter((m: any) => m.role === 'system');
+      if (!systemOnly.length) { done(null, 'assembly_empty'); return; }
+      // Single-line probe so the model has nothing to analyse. A leading space
+      // in the assistant prefill prevents empty-content issues on strict providers.
+      systemOnly.push(
+        { role: 'system', content: 'Write one short standalone paragraph of fiction in this style. No characters from any story. No analysis. No explanation. Output only the paragraph.' },
+        { role: 'assistant', content: ' ' },
+      );
+      const generated = await internalGenerate(
+        systemOnly,
+        { max_tokens: 1200, temperature: 0.85 },
+        resolvedUid,
+        { reasoningOff: true, timeoutMs: 45_000 },
+      );
+      if (!generated.ok || !generated.value.trim()) {
+        done(null, generated.ok ? 'generation_empty' : generated.error);
+        return;
+      }
+      // Strip XML reasoning tags.
+      const REASONING_RE = /<(think|thinking|reverie|reasoning|reflection|scratchpad|antml:thinking|draft|plan|planning)>[\s\S]*?<\/\1>/gi;
+      const afterTags = generated.value.replace(REASONING_RE, '').trim();
+      // Planning always comes first; the actual prose paragraph is always last.
+      // Take the final paragraph that is longer than 40 chars as the sample.
+      const paras = afterTags.split(/\n\s*\n/).map((s: string) => s.trim()).filter((s: string) => s.length > 40);
+      const sample = paras[paras.length - 1] ?? afterTags;
+      done(sample.trim() || null);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] preview_assemble: ' + ((e as Error)?.message ?? e));
+      done(null, 'generation_failed');
+    }
+  },
+
+  /** Resolve the active chat id for the preset editor tab's live preview.
+   *  Uses spindle.chats.getActive (the host's authoritative active-chat surface).
+   *  Returns the chat id or an empty string. */
+  vellum_preview_resolve_chat: async (_p, uid) => {
+    // Must resolve an actual user id — passing null to getActive throws on this
+    // host because it's user-scoped and the null path is not guarded.
+    const resolvedUid = uid ?? currentUser();
+    let chatId = '';
+    try {
+      const c = await (spindle as any).chats?.getActive?.(resolvedUid);
+      chatId = c?.id ? String(c.id) : '';
+    } catch { /* best effort */ }
+    // Fallback: the last chat we saw via CHAT_SWITCHED. getActive reads the
+    // user's activeChatId setting and can be empty on a cold worker (before the
+    // first turn / before the uid is known), whereas _prevActiveChat is captured
+    // from the switch event and is reliable once the user has opened any chat.
+    if (!chatId && _prevActiveChat) chatId = String(_prevActiveChat);
+    spindle.sendToFrontend?.({ type: 'vellum_preview_chat_resolved', chatId }, resolvedUid);
   },
 
   /** Mobile fallback: resolve the IN-USE preset + its blocks backend-side so the

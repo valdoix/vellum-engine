@@ -2575,6 +2575,60 @@ export const STYLES = [
   ".vle-pt-coll{display:none}",
   ".vle-pt-coll.open{display:block}",
 
+  // --- Preset tab: stat strip (4 cells: vars, tokens, block health, extraction) ---
+  ".vle-strip{display:flex;gap:1px;background:color-mix(in srgb,var(--vg,#d4af37) 18%,transparent);border-radius:5px;overflow:hidden;margin-bottom:10px}",
+  ".vle-stat{flex:1;display:flex;flex-direction:column;align-items:center;padding:6px 8px;background:linear-gradient(180deg,color-mix(in srgb,var(--vg,#d4af37) 5%,rgba(16,14,10,.95)),rgba(14,12,9,.97))}",
+  ".vle-stat .v{font:700 calc(14px * var(--vscale,1))/1 var(--vmono,ui-monospace,monospace);color:var(--vg,#d4af37);letter-spacing:.3px}",
+  ".vle-stat .k{font:500 8px/1.2 var(--vmono,ui-monospace,monospace);text-transform:uppercase;letter-spacing:.5px;color:color-mix(in srgb,var(--vg,#d4af37) 55%,transparent);margin-top:2px}",
+  ".vle-stat.ok .v{color:var(--v-pos,#8fa67e)}",
+  ".vle-stat.err .v{color:var(--v-neg,#c96a6a)}",
+
+  // --- Preset tab: live manuscript preview ---
+  ".vle-pv{border:1px solid color-mix(in srgb,var(--vg,#d4af37) 25%,transparent);border-radius:6px;overflow:hidden;background:linear-gradient(170deg,color-mix(in srgb,var(--vg,#d4af37) 4%,rgba(16,14,10,.6)),rgba(14,12,9,.8));margin-bottom:10px}",
+  ".vle-pv-top{display:flex;align-items:center;gap:8px;padding:7px 11px;border-bottom:1px solid color-mix(in srgb,var(--vg,#d4af37) 15%,transparent)}",
+  ".vle-pv-spark{width:7px;height:7px;border-radius:50%;background:var(--vg,#d4af37);box-shadow:0 0 6px rgba(var(--vg-rgb,205,168,78),.6);animation:vle-pv-pulse 2.4s ease-in-out infinite}",
+  "@keyframes vle-pv-pulse{0%,100%{opacity:.55}50%{opacity:1}}",
+  "@media (prefers-reduced-motion:reduce){.vle-pv-spark{animation:none;opacity:.8}}",
+  ".vle-pv-title{font:600 10px/1 var(--vmono,ui-monospace,monospace);text-transform:uppercase;letter-spacing:.5px;color:var(--vg,#d4af37)}",
+  ".vle-pv-tag{font:500 8px/1 var(--vmono,ui-monospace,monospace);color:color-mix(in srgb,var(--vg,#d4af37) 55%,transparent);margin-left:auto;text-transform:uppercase;letter-spacing:.3px}",
+  ".vle-pv-body{max-height:200px;overflow-y:auto;padding:8px 11px;font-family:var(--vserif,'Cormorant Garamond',Georgia,serif);font-size:calc(12.5px * var(--vscale,1));line-height:1.45;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 80%,transparent);scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--vg,#d4af37) 30%,transparent) transparent}",
+  ".vle-pv-body::-webkit-scrollbar{width:4px}.vle-pv-body::-webkit-scrollbar-track{background:transparent}.vle-pv-body::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--vg,#d4af37) 30%,transparent);border-radius:2px}",
+  ".vle-pv-hl{color:var(--vg,#d4af37);font-style:italic}",
+  ".vle-pv-foot{display:flex;align-items:center;gap:8px;padding:5px 11px;border-top:1px solid color-mix(in srgb,var(--vg,#d4af37) 12%,transparent);font:500 9px/1.3 var(--vmono,ui-monospace,monospace);color:color-mix(in srgb,var(--vg,#d4af37) 50%,transparent);flex-wrap:wrap}",
+  ".vle-pv-refresh{background:none;border:none;cursor:pointer;font:inherit;color:var(--vg,#d4af37);padding:0;margin-left:auto;opacity:.7;transition:opacity .12s}",
+  ".vle-pv-refresh:hover{opacity:1}",
+  ".vle-pv-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 11px;gap:6px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 45%,transparent)}",
+  ".vle-pv-idle{gap:8px}",
+  ".vle-pv-empty-glyph{font-size:18px;color:var(--vg,#d4af37);opacity:.5}",
+  ".vle-pv-empty-msg{font:500 10px/1.3 var(--vmono,ui-monospace,monospace);text-transform:uppercase;letter-spacing:.4px}",
+  ".vle-pv-genbtn{font-size:11px;padding:5px 14px;border-radius:4px;border:1px solid color-mix(in srgb,var(--vg,#d4af37) 50%,transparent);background:color-mix(in srgb,var(--vg,#d4af37) 10%,transparent);color:var(--lumiverse-text,#cdbfa0);cursor:pointer;transition:background 0.15s;letter-spacing:.2px}.vle-pv-genbtn:hover{background:color-mix(in srgb,var(--vg,#d4af37) 22%,transparent)}",
+
+  // --- Preset tab: editor-first layout ---
+  // Primary prompt-variables editor section
+  ".vle-pt-vars{display:flex;flex-direction:column;gap:10px;padding:10px}",
+  ".vle-pt-vars-note{font-size:10px;opacity:0.55;color:var(--lumiverse-text,#cdbfa0);font-style:italic;line-height:1.4}",
+  ".vle-vars-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 0 2px}",
+  ".vle-vars-savestate{font-size:10px;opacity:0.7;color:var(--lumiverse-text,#cdbfa0)}.vle-vars-savestate.ok{color:#7dbf7d;opacity:1}.vle-vars-savestate.err{color:#e07070;opacity:1}.vle-vars-savestate.saving{opacity:0.6}",
+  ".vle-vars-savebtn{font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid color-mix(in srgb,var(--vg,#d4af37) 45%,transparent);background:color-mix(in srgb,var(--vg,#d4af37) 12%,transparent);color:var(--lumiverse-text,#cdbfa0);cursor:pointer;transition:background 0.15s}.vle-vars-savebtn:hover{background:color-mix(in srgb,var(--vg,#d4af37) 22%,transparent)}",
+  // Grouped variables: one group per block/category, each with a titled body
+  ".vle-vars-groups{display:flex;flex-direction:column;gap:12px}",
+  ".vle-vg{border:1px solid color-mix(in srgb,var(--vg,#d4af37) 22%,transparent);border-radius:6px;overflow:hidden;background:color-mix(in srgb,var(--vg,#d4af37) 4%,transparent)}",
+  ".vle-vg-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--vg,#d4af37);padding:7px 10px;background:color-mix(in srgb,var(--vg,#d4af37) 10%,transparent);border-bottom:1px solid color-mix(in srgb,var(--vg,#d4af37) 18%,transparent)}",
+  ".vle-vg-body{display:flex;flex-direction:column;gap:10px;padding:10px}",
+  // One variable row: label, optional description, then the mounted control slot
+  ".vle-vr{display:flex;flex-direction:column;gap:4px}",
+  ".vle-vr-label{font-size:11px;font-weight:600;color:var(--lumiverse-text,#cdbfa0)}",
+  ".vle-vr-desc{font-size:10px;opacity:0.6;color:var(--lumiverse-text,#cdbfa0);line-height:1.35}",
+  ".vle-vr-slot{min-height:24px}",
+  // Collapsible diagnostics below the editor
+  ".vle-pt-diag{border-top:1px solid color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 12%,transparent);margin-top:6px}",
+  ".vle-pt-diag-sum{cursor:pointer;user-select:none;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:color-mix(in srgb,var(--lumiverse-text,#cdbfa0) 55%,transparent);padding:8px 10px;list-style:none;display:flex;align-items:center;gap:6px;transition:color 0.15s}",
+  ".vle-pt-diag-sum:hover{color:var(--lumiverse-text,#cdbfa0)}",
+  ".vle-pt-diag-sum::-webkit-details-marker{display:none}",
+  ".vle-pt-diag-sum::before{content:'\u25B8';display:inline-block;transition:transform 0.15s;font-size:9px}",
+  "details.vle-pt-diag[open] .vle-pt-diag-sum::before{transform:rotate(90deg)}",
+  "[data-vle-diag]{padding:0 4px 8px}",
+
   // ===== CHRONICLE REDESIGN — Memory / Knowledge / Secrets / Scars / Codex =====
   // MEMORY — Arc spine covers
   ".vle-m-arc{display:flex;gap:0;margin-bottom:0.5rem;border-radius:6px;overflow:hidden;border:1px solid var(--vle-keyline);background:linear-gradient(135deg,color-mix(in srgb,var(--vg) 8%,transparent),color-mix(in srgb,var(--vsurf-2) 55%,transparent));transition:border-color .18s,box-shadow .18s}",
