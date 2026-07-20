@@ -25,7 +25,7 @@ import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { repairStateBlock, buildRepairContext } from './bus/block-repair.js';
-import { stripScaffold, parseState } from './parse/state-block.js';
+import { stripScaffold, parseState, extractVellumBlock } from './parse/state-block.js';
 import { validateTurnStructure, missingBlockMessage, looksLikeVellumTurn } from './host/validation.js';
 import { controllerGenerate, invalidateConnCache, withTimeout, defaultConnectionId } from './host/generation.js';
 import { stampPresetMetadata, updatePresetMetadataKey } from './host/presets.js';
@@ -149,7 +149,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -166,6 +166,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     readTheme(),
     readPrefs(),
     getChatVar(chatId, 'vellum_autoretry_block').catch(() => ''),
+    getChatVar(chatId, 'vellum_block_example').catch(() => ''),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
@@ -174,7 +175,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const theme = themeRaw ?? null;
   const prefs = prefsRaw ?? null;
   const autoRetryBlock = !!autoRetryRaw;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock }, userId ?? currentUser());
+  const blockExample = !!blockExampleRaw2;
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample }, userId ?? currentUser());
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -1281,7 +1283,7 @@ async function wireCapabilities(): Promise<void> {
           // cached, but this also removes serialized await-chains on the hot
           // pre-response path). The traversal-mode read gates the controller/
           // precompute choice, so it's awaited first; everything else overlaps.
-          const [tmodeRaw, caps, directives, locks, calText, nextSceneText, limitsText, logEvents, livingRaw, lastSimRaw] = await Promise.all([
+          const [tmodeRaw, caps, directives, locks, calText, nextSceneText, limitsText, logEvents, livingRaw, lastSimRaw, blockExampleRaw] = await Promise.all([
             getChatVar(chatId, 'vellum_traversal_mode').catch(() => ''),
             budgetCaps(chatId),
             readDirectives(chatId),
@@ -1292,6 +1294,7 @@ async function wireCapabilities(): Promise<void> {
             loadLog(chatId).then((l) => l.events).catch(() => [] as VellumEvent[]),
             getChatVar(chatId, 'vellum_living_clock').catch(() => ''),
             getChatVar(chatId, 'vellum_sim_day').catch(() => ''),
+            getChatVar(chatId, 'vellum_block_example').catch(() => ''),
           ]);
           const tmode = tmodeRaw === 'tree' ? 'tree' : 'flat';
           // Controller-guided traversal (variant A), opt-in per chat. Builds a
@@ -1345,7 +1348,29 @@ async function wireCapabilities(): Promise<void> {
           // Relationship guardrails — locks for pairs PRESENT this turn, phrased
           // positively (prevention half; the fold strip is the hard guarantee).
           const lockText = lockInjection(locks, present, nameOf, caps.locks);
-          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText].filter(Boolean).join('\n\n');
+          // Block example — when enabled, inject the previous turn's actual
+          // <vellum> block as a worked example so the model sees a concrete,
+          // story-specific instance of the expected output format. Placed LAST
+          // in the injection so it sits closest to the generation point, where
+          // recency bias is strongest. Off by default (opt-in via Actions menu)
+          // because it costs ~400–700 tokens per turn.
+          let blockExampleText = '';
+          if (blockExampleRaw === '1' || blockExampleRaw === 'true' || blockExampleRaw === 'on') {
+            try {
+              const lastAsst = await latestAssistantContent(chatId);
+              if (lastAsst.ok && lastAsst.value) {
+                const raw = extractVellumBlock(lastAsst.value);
+                if (raw) {
+                  // Cap at 2400 chars: a legitimately large block (many NPCs,
+                  // full delta) can run ~2000 chars; 2400 avoids truncating it
+                  // while capping a pathologically verbose model.
+                  const capped = raw.length > 2400 ? raw.slice(0, 2400) + '\n…' : raw;
+                  blockExampleText = '[BLOCK EXAMPLE — your previous turn\'s state block, shown so you can match its structure exactly. Reproduce the same format in your reply.]\n' + capped;
+                }
+              }
+            } catch { /* best effort — never block generation */ }
+          }
+          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
@@ -2490,6 +2515,17 @@ const dispatch: Record<string, Handler> = {
     const enabled = !!p?.enabled;
     try { await setChatVar(chatId, 'vellum_autoretry_block', enabled ? '1' : ''); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_autoretry_set_done', ok: true, enabled, available: await has('generation') }, uid);
+  },
+  vellum_set_block_example: async (p, uid) => {
+    // toggle the block-example injection: prepends the previous turn's actual
+    // <vellum> block as a worked example at the end of the VELLUM system
+    // injection (closest to the generation point). Pure injection, no generation
+    // cost beyond the ~400–700 token overhead per turn.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const enabled = !!p?.enabled;
+    try { await setChatVar(chatId, 'vellum_block_example', enabled ? '1' : ''); } catch { /* best effort */ }
+    spindle.sendToFrontend?.({ type: 'vellum_block_example_set_done', ok: true, enabled }, uid);
   },
   vellum_set_living_clock: async (p, uid) => {
     // toggle the Living Clock: on a detected time-skip, inject advisory decay for

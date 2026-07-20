@@ -29,7 +29,28 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **2.1.0-beta.6** — a manual state-block repair button, and a fixed greeting that seeds the cast correctly.
+> **2.1.0-beta.7** — more reliable state-block repair on reasoning models, and an opt-in "show the model its last block" format aid.
+
+### Block repair now works on DeepSeek (and other reasoning models)
+
+A few users reported that even the new **Repair state block** button showed *"Could not reconstruct the state block from the prose"* on DeepSeek. Two things were fighting the repair:
+
+- DeepSeek (and other reasoners) leak their `<think>…</think>` reasoning into the reply even when thinking is asked off. The repair used to grab the first `{…}` it saw — which was often a stray brace *inside* the reasoning — and give up when that didn't validate. It now **strips reasoning tags and code fences first**, then scans **every** JSON object in the reply and keeps the first one that's actually a valid state block.
+- Reasoning models often return an empty reply when thinking is forced off. The repair now **escalates automatically**: if the first (thinking-off) attempt comes back empty or unusable, it retries once with thinking on and a larger budget, so the block can land in the reasoning channel where it's still recoverable.
+
+The repair prompt was also hardened against **Gemini's** habit of dressing structured output up as prose — it now insists on raw JSON only, no preamble, no code fence, no commentary.
+
+### Show the model its own last block (opt-in format aid)
+
+There's a new **⟦⟧ Block example** toggle in the Actions menu. When on, VELLUM injects your **previous turn's actual `<vellum>` block** as a worked example, placed right at the end of the injection — closest to where the model starts writing, where it's most likely to be imitated.
+
+This is for models that keep forgetting the format or drifting from it: instead of an abstract spec, they see a concrete, story-specific example of exactly what they wrote last time. It's **off by default** because it costs roughly 400–700 extra tokens per turn; turn it on only for a model that needs the nudge.
+
+---
+
+### Previous version highlights (2.1.0-beta.6)
+
+> A manual state-block repair button, and a fixed greeting that seeds the cast correctly.
 
 ### Repair a missing state block on demand
 

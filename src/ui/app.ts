@@ -160,6 +160,7 @@ const QOL = [
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
   { id: 'autoretry', label: '\u21BB Repair block', title: 'Auto-repair a missing state block: if a turn drops its <vellum> block, transcribe its prose into one and update the chronicle (needs generation permission; 1 extra generation per affected turn)', group: 'toggle' },
+  { id: 'blockexample', label: '\u27E6\u27E7 Block example', title: 'Inject the previous turn\'s actual <vellum> block as a worked example at the end of the VELLUM injection — closest to the generation point. Helps models that forget the format. Costs ~400–700 extra tokens per turn.', group: 'toggle' },
   { id: 'foldtoast', label: '\u2261 Tracker Update Toast', title: 'Show a brief toast after each turn as the tracker updates (scene first, then the deep memory pass). Off by default.', group: 'toggle' },
   // run = one-shot verbs
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'run' },
@@ -694,6 +695,7 @@ let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
 let _autoRetryOn = false; // auto-repair a dropped <vellum> block, mirrored from backend
+let _blockExampleOn = false; // inject previous turn's block as worked example, mirrored from backend
 let _traverseMode = 'off'; // off | flat | tree
 let _traverseAxis = 'temporal'; // temporal | character | hybrid (tree only)
 const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === 'hybrid' ? 'by char+time' : 'by time';
@@ -913,6 +915,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'autoretry') { _autoRetryOn = !_autoRetryOn; ctx.sendToBackend({ type: 'vellum_set_autoretry', enabled: _autoRetryOn }); }
+  else if (id === 'blockexample') { _blockExampleOn = !_blockExampleOn; ctx.sendToBackend({ type: 'vellum_set_block_example', enabled: _blockExampleOn }); }
   else if (id === 'foldtoast') {
     _foldToastOn = !_foldToastOn;
     setPref('foldToast', _foldToastOn);
@@ -1867,6 +1870,7 @@ export function setup(ctx: Ctx): () => void {
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
         if (typeof p.autoRetryBlock === 'boolean') { _autoRetryOn = p.autoRetryBlock; document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn)); }
+        if (typeof p.blockExample === 'boolean') { _blockExampleOn = p.blockExample; document.querySelectorAll('[data-qol=\'blockexample\']').forEach((b) => b.classList.toggle('on', _blockExampleOn)); }
         if (typeof p.hide === 'boolean') { _hideOn = p.hide; document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn)); }
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
@@ -2177,6 +2181,10 @@ export function setup(ctx: Ctx): () => void {
         document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn));
         if (p.enabled && !p.available) notify(ctx, 'warning', 'Block auto-repair needs the generation permission to run.');
         else notify(ctx, 'success', p.enabled ? 'Block auto-repair on \u2014 a dropped state block is recovered with one extra generation.' : 'Block auto-repair off.');
+      } else if (p?.type === 'vellum_block_example_set_done') {
+        _blockExampleOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'blockexample\']').forEach((b) => b.classList.toggle('on', _blockExampleOn));
+        notify(ctx, 'success', p.enabled ? 'Block example on \u2014 the previous turn\'s state block is shown to the model as a format example.' : 'Block example off.');
       } else if (p?.type === 'vellum_offthread_done') {
         // only the manual advance/simulate-all path reports a reason; the CRUD
         // ops send a bare ok:true (nothing to announce).

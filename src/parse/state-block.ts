@@ -654,3 +654,24 @@ function normalizeBlock(obj: Record<string, unknown>): void {
 export function hasState(content: string): boolean {
   return parseState(content).state !== null;
 }
+
+/**
+ * Extract the raw `<vellum>…</vellum>` block (or bare JSON suffix) from a
+ * turn's raw content. Returns the block string — including the fence tags —
+ * or null when no block is present. Used to inject a worked example of the
+ * previous turn's actual block into the VELLUM system injection so the model
+ * sees a concrete, story-specific example of the expected output format.
+ */
+export function extractVellumBlock(content: string): string | null {
+  if (!content) return null;
+  const idx = vellumSuffixIndex(content);
+  if (idx < 0) return null;
+  const suffix = content.slice(idx).trim();
+  // Validate it carries real state AND has at least one schema key — the
+  // parser is lenient enough to hoist an empty delta from {"foo":"bar"},
+  // so gate explicitly on SCHEMA_KEY before calling this a usable example.
+  if (!SCHEMA_KEY.test(suffix)) return null;
+  const { state } = parseState(suffix);
+  if (!state) return null;
+  return suffix;
+}
