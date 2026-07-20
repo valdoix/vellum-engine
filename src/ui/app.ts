@@ -1791,9 +1791,11 @@ export function setup(ctx: Ctx): () => void {
     actions: [
       { id: 'tabs', label: '\u2637', title: 'Choose which tabs show in this window' },
       { id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' },
+      { id: 'repair', label: '\u21BB\u2338', title: 'Repair state block: rebuild a missing <vellum> block for the latest turn from its prose (needs generation permission). Use if auto-repair failed or is off.' },
     ],
     onAction: (id) => {
       if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); notify(ctx, 'info', 'Refreshing the tracker\u2026'); }
+      else if (id === 'repair') { ctx.sendToBackend({ type: 'vellum_repair_block' }); notify(ctx, 'info', 'Rebuilding the state block from the prose\u2026'); }
       else if (id === 'tabs') { openFloatTabs(); }
     },
     render: (host) => {
@@ -2087,6 +2089,20 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, 'success', 'Rescanned.');
       } else if (p?.type === 'vellum_refresh_done') {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? (p.refolded ? `Re-folded turn ${p.refolded}.` : 'Tracker refreshed.') : (p.reason === 'no_active_chat' ? 'No active chat.' : 'Refresh failed.'));
+      } else if (p?.type === 'vellum_repair_block_done') {
+        if (p.ok) {
+          notify(ctx, 'success', 'State block rebuilt \u2014 chronicle updated.');
+        } else if (p.reason === 'already_parsed') {
+          notify(ctx, 'info', 'The latest turn already has a valid state block.');
+        } else if (p.reason === 'no_generation') {
+          notify(ctx, 'warning', 'Repair needs generation permission \u2014 enable it in the host settings.');
+        } else if (p.reason === 'no_active_chat' || p.reason === 'no_turn') {
+          notify(ctx, 'warning', 'No active chat or no assistant turn to repair.');
+        } else if (p.reason === 'no_block') {
+          notify(ctx, 'warning', 'Could not reconstruct the state block from the prose. Try regenerating the turn.');
+        } else {
+          notify(ctx, 'warning', 'Block repair failed \u2014 try regenerating the turn.');
+        }
       } else if (p?.type === 'vellum_undo_done') {
         setQolBusy('undo', false);
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));

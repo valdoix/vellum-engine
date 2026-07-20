@@ -1,7 +1,7 @@
 import { VELLUM_VERSION } from './version.js';
 import { restoreUser, rememberUser, currentUser, requireUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, getChatVar, setChatVar, invalidateChatVars, getRawMessages, activeContent } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, looksLikeTimestamp, getChatVar, setChatVar, invalidateChatVars, getRawMessages, activeContent } from './host/chats.js';
 import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logHasKind, truncateAfterTurn, turnSigs, turnDays, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -25,7 +25,7 @@ import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { repairStateBlock, buildRepairContext } from './bus/block-repair.js';
-import { stripScaffold } from './parse/state-block.js';
+import { stripScaffold, parseState } from './parse/state-block.js';
 import { validateTurnStructure, missingBlockMessage, looksLikeVellumTurn } from './host/validation.js';
 import { controllerGenerate, invalidateConnCache, withTimeout, defaultConnectionId } from './host/generation.js';
 import { stampPresetMetadata, updatePresetMetadataKey } from './host/presets.js';
@@ -459,6 +459,22 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
     }
   }
   if (!added) return;
+  // GREETING SEED — a first-message greeting almost never carries a <vellum>
+  // block, so the character the card is about never enters the cast until the
+  // model happens to re-emit them. When we've only folded the opening turn(s)
+  // and the cast is still empty, seed a single `cast.seen` for the card's
+  // character so the tracker isn't blank on turn 1. Guarded against junk names:
+  // chatNames already rejects timestamp titles, but re-check here so a bad
+  // author string can never become a cast card (the "Jul 19, 2026, ..." bug).
+  if (names.char && !looksLikeTimestamp(names.char) && (prior.turns ?? 0) <= 1 && Object.keys(prior.cast).length === 0) {
+    const seedId = canonId(names.char);
+    if (seedId) {
+      const seedEv = { seq: nextSeqLocal(), turn: prior.turns || 1, day: prior.day || 0, src: 'system', kind: 'cast.seen', id: seedId, name: names.char, status: 'present' } as VellumEvent;
+      prior = await appendDeferred(chatId, [seedEv]);
+      added += 1;
+      spindle.log?.info?.(`[vellum_engine] greeting seed: seeded '${names.char}' into cast from card (no <vellum> block on greeting turn)`);
+    }
+  }
   // BLOCK REPAIR (Option C) — opt-in auto-recovery of a dropped <vellum> block.
   // When the NEWEST turn folded with source 'none' (the parser recovered no state
   // at all) and the reply still looks like a VELLUM turn, transcribe its prose
@@ -2320,6 +2336,53 @@ const dispatch: Record<string, Handler> = {
     } catch (e) {
       spindle.log?.warn?.('[vellum_engine] refresh: ' + ((e as Error)?.message ?? e));
       spindle.sendToFrontend?.({ type: 'vellum_refresh_done', ok: false, reason: 'error' }, uid);
+    }
+  },
+  vellum_repair_block: async (p, uid) => {
+    // MANUAL block repair — the on-demand sibling of the auto-repair path in
+    // foldChatInner. Unlike auto-repair it does NOT require the
+    // `vellum_autoretry_block` toggle and IGNORES the per-message attempt cap
+    // (`_blockRepairAttempts`), so a user can retry after the one automatic
+    // attempt failed. Transcribes the latest assistant turn's prose into a
+    // <vellum> block, appends it, and re-folds. Idempotent-ish: if the latest
+    // turn already parses to real state, we report that instead of stacking a
+    // second block.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    const done = (ok: boolean, reason?: string): void => { spindle.sendToFrontend?.({ type: 'vellum_repair_block_done', ok, ...(reason ? { reason } : {}) }, uid); };
+    if (!chatId) { done(false, 'no_active_chat'); return; }
+    if (!(await has('generation'))) { done(false, 'no_generation'); return; }
+    try {
+      // newest assistant message: the one to transcribe + patch.
+      const raw = await getRawMessages(chatId);
+      let asst: any = null;
+      for (let i = raw.length - 1; i >= 0; i--) { if (raw[i]?.role === 'assistant') { asst = raw[i]; break; } }
+      const msgId = asst?.id ? String(asst.id) : '';
+      if (!msgId) { done(false, 'no_turn'); return; }
+      const asstContent = activeContent(asst);
+      // Already has a parseable state block? Don't stack a second one. This
+      // checks ONLY for a foldable <vellum> block via the shared parser — it
+      // deliberately does NOT require a <reverie> block. Some models (deepseek
+      // especially) routinely omit reverie while still emitting/needing state,
+      // so gating manual repair on reverie would wrongly block or skip it.
+      const { state: existingState, source: existingSource } = parseState(asstContent);
+      if (existingState && (existingSource === 'json' || existingSource === 'json-partial')) { done(false, 'already_parsed'); return; }
+      if (!spindle.chat?.updateMessage) { done(false, 'unsupported'); return; }
+      const prior = await loadState(chatId);
+      const msgs = await allTurnContents(chatId);
+      const prose = stripScaffold(asstContent);
+      const ctxHeader = buildRepairContext(prior, msgs.length || (prior.turns || 0) + 1);
+      const repaired = await repairStateBlock(prose, ctxHeader, uid);
+      if (!repaired) { done(false, 'no_block'); return; }
+      await spindle.chat.updateMessage(chatId, msgId, { content: asstContent + '\n\n' + repaired.block });
+      // clear both guards so the re-fold isn't blocked and a later auto-pass is fresh.
+      _blockRepairAttempts.delete(chatId + '\u0000' + msgId);
+      _blockWarnByChat.delete(chatId);
+      spindle.log?.info?.(`[vellum_engine] manual block-repair: recovered a <vellum> block for the latest turn (${repaired.source}); re-folding.`);
+      void foldChat(chatId, uid);
+      done(true);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] manual block-repair: ' + ((e as Error)?.message ?? e));
+      done(false, 'error');
     }
   },
   vellum_set_hide: async (p, uid) => {

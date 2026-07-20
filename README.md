@@ -29,7 +29,25 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **2.1.0-beta.5** — a variables editor right inside the preset tab, a live sample-paragraph preview, and significantly smarter per-model errata.
+> **2.1.0-beta.6** — a manual state-block repair button, and a fixed greeting that seeds the cast correctly.
+
+### Repair a missing state block on demand
+
+Auto-Repair (in the Actions menu) already rebuilds a dropped `<vellum>` block for you automatically — but only when it's toggled on, and only once per reply. If it's off, or its single automatic attempt didn't land, there was no way to try again short of regenerating the whole turn.
+
+The floating window's title bar now has a **Repair state block** button (↻⌸). Click it and VELLUM reads the latest reply's prose, reconstructs the missing `<vellum>` block, and folds it into the chronicle — no toggle required, and you can retry as many times as you like. It works even on replies that never emitted a **reverie** planning block (some models, DeepSeek especially, routinely skip it), because the button only cares about the state block. If the latest turn already has a valid block, it tells you so instead of stacking a duplicate.
+
+### The opening scene's character now shows up immediately
+
+A first-message greeting almost never carries a `<vellum>` block, so the character the card is about used to stay missing from the cast until the model happened to re-introduce them a turn or two later. VELLUM now **seeds the cast from the character card** on the opening turn, so the tracker isn't blank when you first open it.
+
+This also fixes a bug where an untitled chat could seed a cast member named after the chat's creation timestamp (e.g. *"Jul 19, 2026, 10:37:00 PM"*). Timestamp-like names are now rejected outright, so only a real character name is ever seeded.
+
+---
+
+### Previous version highlights (2.1.0-beta.5)
+
+> A variables editor right inside the preset tab, a live sample-paragraph preview, and significantly smarter per-model errata.
 
 ### Configure your variables without leaving the preset editor
 
