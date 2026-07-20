@@ -211,6 +211,22 @@ export async function setChatVar(chatId: string, key: string, value: string): Pr
   try { await spindle.variables?.chat?.set?.(chatId, key, value); } catch { /* best effort */ }
 }
 
+/** A chat TITLE / author string that is really a creation timestamp, not a
+ * name — Lumiverse defaults untitled chats to their creation date (e.g.
+ * "Jul 19, 2026, 10:37:00 PM"). Such strings must never be treated as the
+ * character name: they poison the greeting-seed cast card and {{char}}
+ * placeholder replacement. Best-effort structural match (locale-agnostic on
+ * the numeric/clock parts). */
+export function looksLikeTimestamp(s: string): boolean {
+  const t = String(s || '').trim();
+  if (!t) return false;
+  if (/\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\b/i.test(t)) return true; // clock time 10:37 / 10:37:00 PM
+  if (/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}\b/i.test(t)) return true; // "Jul 19"
+  if (/\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b/.test(t)) return true; // 2026-07-19
+  if (/\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b/.test(t)) return true; // 07/19/2026
+  return false;
+}
+
 /** Resolve the persona ({{user}}) + character ({{char}}) display names for the
  * active chat, so the prose extractor can replace placeholders with real names
  * and attribute knowledge/secrets/journal to the player too. Best-effort. */
@@ -219,13 +235,18 @@ export async function chatNames(chatId: string, userId: string | null): Promise<
   try {
     const chat = await (spindle.chats?.get?.(chatId, userId) ?? spindle.chats?.get?.(chatId));
     out.user = String(chat?.persona?.name || chat?.personaName || chat?.user_name || chat?.metadata?.persona_name || '').trim();
-    out.char = String(chat?.character?.name || chat?.characterName || chat?.char_name || chat?.metadata?.character_name || chat?.name || '').trim();
+    // Prefer the real character fields. chat?.name is the chat TITLE, which
+    // defaults to a creation timestamp — only accept it as a last resort when
+    // it isn't a date/time string (else the greeting seed makes a cast card
+    // named "Jul 19, 2026, 10:37:00 PM").
+    out.char = String(chat?.character?.name || chat?.characterName || chat?.char_name || chat?.metadata?.character_name || '').trim();
+    if (!out.char) { const title = String(chat?.name || '').trim(); if (title && !looksLikeTimestamp(title)) out.char = title; }
     // fallback: last USER message author / first ASSISTANT author
     if (!out.user || !out.char) {
       const msgs = await getRawMessages(chatId);
       if (Array.isArray(msgs)) {
         if (!out.user) { const um = [...msgs].reverse().find((m) => m?.role === 'user' && m?.name); out.user = String(um?.name || '').trim(); }
-        if (!out.char) { const am = msgs.find((m) => m?.role === 'assistant' && m?.name); out.char = String(am?.name || '').trim(); }
+        if (!out.char) { const am = msgs.find((m) => m?.role === 'assistant' && m?.name); const nm = String(am?.name || '').trim(); if (nm && !looksLikeTimestamp(nm)) out.char = nm; }
       }
     }
   } catch { /* best effort */ }
