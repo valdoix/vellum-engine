@@ -2,15 +2,25 @@ import { autoHue } from '../core/palette.js';
 
 /**
  * Dialogue coloring (display-only). The preset's `[spk=Name]` display regex wraps
- * each attributed quote in `<span class="v-spk" data-spk="Name">`; this module
- * builds the ONE stylesheet the extension injects to color those spans. Coloring
- * never touches stored text or model context — it is pure CSS over host-rendered
- * spans, so it applies to both the backlog and every future turn without the
- * extension ever touching chat DOM.
+ * each attributed quote in a `.v-spk` span carrying `--vle-spk-color`; this module
+ * builds the ONE stylesheet the extension injects to resolve that variable from
+ * the cast. Coloring never touches stored text or model context — it is pure CSS
+ * over host-rendered spans, so it applies to both the backlog and every future
+ * turn without the extension ever touching chat DOM.
  */
 
 const HEX = /^#[0-9a-f]{3,8}$/i;
 const HEX6 = /^#[0-9a-f]{6}$/i;
+
+/** Canonical display-regex replacement shared by VELLUM and ARGENT LOOM.
+ *
+ * Lumiverse's current renderer gives authored colors precedence inside its own
+ * nested dialogue/emphasis spans when an ancestor span has an inline `color`
+ * declaration. The value stays indirect so the extension can update cast colors
+ * for both old and newly rendered messages by changing one stylesheet. Without
+ * the extension, `inherit` keeps the prose readable.
+ */
+export const SPEAKER_SPAN_REPLACEMENT = '<span class="v-spk" data-spk="$1" style="color:var(--vle-spk-color,inherit)">$2</span>';
 
 export interface SpeakerColor { name: string; aka: string[]; color: string; }
 
@@ -64,16 +74,15 @@ function cssAttr(s: string): string { return s.replace(/["\\]/g, '\\$&'); }
 /** Emit the stylesheet. Matches on data-spk by name AND every alias, case-
  *  insensitively (the `i` flag), so "elara"/"Elara" and any aka all color.
  *
- *  Each rule targets BOTH the span AND all its descendants (`.v-spk[...] , .v-spk[...] *`):
- *  the host's settled render runs its own `colorizeDialogue`, which injects a
- *  `<span class="proseDialogue">` (colored via `--lumiverse-prose-dialogue`)
- *  INSIDE our span, around the quote text. Coloring only `.v-spk` leaves that
- *  nested span to win, so the text reverts to the host default on completion
- *  (colored during streaming, lost when the tag finished). The descendant
- *  selector colors the host's inner span too — regardless of its hashed
- *  CSS-module class name — and `!important` beats the host's own color rule. */
+ *  The inline color marker emitted by SPEAKER_SPAN_REPLACEMENT is the current
+ *  Lumiverse renderer contract: its nested dialogue/emphasis spans inherit the
+ *  authored color. We also retain an explicit outer/descendant fallback for old
+ *  imported regex packs and older renderers that did not implement that rule. */
 export function speakerColorCss(speakers: SpeakerColor[], fallback = 'inherit'): string {
-  const rules: string[] = [`.v-spk,.v-spk *{color:var(--vle-spk-default,${fallback})}`];
+  const rules: string[] = [
+    `.v-spk{--vle-spk-color:var(--vle-spk-default,${fallback});color:var(--vle-spk-color)!important}`,
+    `.v-spk *{color:inherit!important}`,
+  ];
   const seen = new Set<string>();
   for (const s of speakers) {
     for (const key of [s.name, ...s.aka]) {
@@ -83,7 +92,7 @@ export function speakerColorCss(speakers: SpeakerColor[], fallback = 'inherit'):
       if (seen.has(dedupe)) continue;
       seen.add(dedupe);
       const sel = `.v-spk[data-spk="${cssAttr(k)}" i]`;
-      rules.push(`${sel},${sel} *{color:${s.color} !important}`);
+      rules.push(`${sel}{--vle-spk-color:${s.color}}`);
     }
   }
   return rules.join('\n');

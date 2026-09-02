@@ -4,6 +4,7 @@ import {
   collapseGradient,
   resolveDialogueColor,
   buildSpeakerColors,
+  SPEAKER_SPAN_REPLACEMENT,
   speakerColorCss,
   speakerSig,
 } from '../src/domain/dialogue-colors.js';
@@ -65,20 +66,27 @@ describe('buildSpeakerColors', () => {
 });
 
 describe('speakerColorCss', () => {
-  it('always emits the .v-spk fallback rule first', () => {
+  it('shares the inline authored-color marker required by current Lumiverse', () => {
+    expect(SPEAKER_SPAN_REPLACEMENT).toBe(
+      '<span class="v-spk" data-spk="$1" style="color:var(--vle-spk-color,inherit)">$2</span>',
+    );
+  });
+
+  it('always emits variable and legacy-renderer fallback rules first', () => {
     const css = speakerColorCss([]);
-    expect(css.split('\n')[0]).toBe('.v-spk,.v-spk *{color:var(--vle-spk-default,inherit)}');
+    expect(css.split('\n')[0]).toBe('.v-spk{--vle-spk-color:var(--vle-spk-default,inherit);color:var(--vle-spk-color)!important}');
+    expect(css.split('\n')[1]).toBe('.v-spk *{color:inherit!important}');
   });
 
   it('emits a case-insensitive rule per name and alias', () => {
     const css = speakerColorCss([{ name: 'Elara', aka: ['El'], color: '#e0736b' }]);
-    expect(css).toContain('.v-spk[data-spk="Elara" i],.v-spk[data-spk="Elara" i] *{color:#e0736b !important}');
-    expect(css).toContain('.v-spk[data-spk="El" i],.v-spk[data-spk="El" i] *{color:#e0736b !important}');
+    expect(css).toContain('.v-spk[data-spk="Elara" i]{--vle-spk-color:#e0736b}');
+    expect(css).toContain('.v-spk[data-spk="El" i]{--vle-spk-color:#e0736b}');
   });
 
   it('escapes quotes and backslashes in names', () => {
     const css = speakerColorCss([{ name: 'He said "hi"', aka: [], color: '#fff' }]);
-    expect(css).toContain('.v-spk[data-spk="He said \\"hi\\"" i],.v-spk[data-spk="He said \\"hi\\"" i] *{color:#fff !important}');
+    expect(css).toContain('.v-spk[data-spk="He said \\"hi\\"" i]{--vle-spk-color:#fff}');
   });
 
   it('dedupes identical name+color rules', () => {

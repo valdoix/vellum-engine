@@ -378,9 +378,9 @@
     "script_id": "vellum2-spk-display",
     "name": "VELLUM II ✧ Colored dialogue (display)",
     "folder": "VELLUM II",
-    "description": "Wraps [spk=Name]\"...\"[/spk] dialogue in a <span class=\"v-spk\" data-spk=\"Name\"> so the VELLUM extension can color each speaker from their cast-card color. If the extension is absent the span simply inherits normal text color (graceful). The AI emits the tags (Colored Dialogue block); this display script rewrites them and the paired context-strip script removes them from model context.",
-    "find_regex": "\\[\\s*spk\\s*=\\s*[\"']?\\s*([^\"'\\]\\r\\n]{1,40}?)\\s*[\"']?\\s*\\]([\\s\\S]*?)(?:\\[\\s*/\\s*spk\\s*\\]|(?=\\[\\s*spk\\b)|$)",
-    "replace_string": "<span class=\"v-spk\" data-spk=\"$1\">$2</span>",
+    "description": "Wraps [spk=Name]\"...\"[/spk] dialogue in the same current-Lumiverse authored-color span used by ARGENT LOOM, so the VELLUM extension can resolve each speaker from cast-card colors. If the extension is absent the span inherits normal text color. The paired context-strip script removes the presentation tags from model context.",
+    "find_regex": "\\[\\s*spk\\s*=\\s*[\"']?\\s*([^\"'\\]\\r\\n]{1,80}?)\\s*[\"']?\\s*\\]([\\s\\S]*?)(?:\\[\\s*\\/\\s*spk\\s*\\]|(?=\\[\\s*spk\\b|<\\s*(?:vellum|reverie|argent-choices)\\b|‹vellum›|```vellum|\\[VELLUM\\])|$)",
+    "replace_string": "<span class=\"v-spk\" data-spk=\"$1\" style=\"color:var(--vle-spk-color,inherit)\">$2</span>",
     "flags": "gi",
     "placement": [
       "ai_output"
