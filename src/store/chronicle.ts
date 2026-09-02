@@ -6,7 +6,7 @@ import { sweepProvisionalCast } from '../domain/cast-hygiene.js';
 import { migrate } from '../core/migrate.js';
 import { tryCatchAsync } from '../core/result.js';
 
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /**
  * Persistence for the append-only event log + a cached derived snapshot.
@@ -41,6 +41,13 @@ interface CacheEntry {
   mergeSig?: string;
 }
 const _cache = new Map<string, CacheEntry>();
+/** One cold-load promise per chat. Without this, two first-use callers can both
+ * read the same file and the later cache assignment can discard events appended
+ * by the earlier caller. */
+const _loads = new Map<string, Promise<EventLog>>();
+/** Main-log writes are serialized per chat. The host storage API does not offer
+ * compare-and-swap, so ordered writes are the durability boundary. */
+const _writeQueues = new Map<string, Promise<void>>();
 
 /** THE single derived-state construction path. Every place that builds a full
  * ChronicleState from scratch (fresh load, recover, import, clear, truncate)
@@ -87,6 +94,17 @@ export function lenientLog(raw: unknown, chatId: string): { log: EventLog; dropp
 }
 
 export async function loadLog(chatId: string): Promise<EventLog> {
+  const cached = _cache.get(chatId);
+  if (cached) return cached.log;
+  const pending = _loads.get(chatId);
+  if (pending) return pending;
+  const task = loadLogUncached(chatId);
+  _loads.set(chatId, task);
+  try { return await task; }
+  finally { if (_loads.get(chatId) === task) _loads.delete(chatId); }
+}
+
+async function loadLogUncached(chatId: string): Promise<EventLog> {
   const cached = _cache.get(chatId);
   if (cached) return cached.log;
   let log = freshLog(chatId);
@@ -169,15 +187,20 @@ export async function loadState(chatId: string): Promise<ChronicleState> {
   return c.state;
 }
 
-async function persist(chatId: string): Promise<void> {
+async function persistNow(chatId: string): Promise<void> {
   const c = _cache.get(chatId);
   if (!c) return;
-  if (c.readonly) { spindle.log?.warn?.('[vellum_engine] refusing to persist ' + chatId + ' (read-only — would risk overwriting recoverable data).'); return; }
+  if (c.readonly) {
+    const msg = 'refusing to persist ' + chatId + ' (read-only — would risk overwriting recoverable data)';
+    spindle.log?.warn?.('[vellum_engine] ' + msg + '.');
+    throw new Error(msg);
+  }
   c.log.updatedAt = Date.now();
   c.log.version = SCHEMA_VERSION;
+  const snapshotCount = c.log.events.length;
   const next = JSON.stringify(c.log);
-  await tryCatchAsync(async () => {
-    if (!spindle.storage?.write) { c.dirty = false; return; }
+  if (!spindle.storage?.write) return; // test/degraded host: retain dirty state
+  try {
     // Backup the last good on-disk log before overwriting — but NEVER let a
     // SHORTER log clobber a LONGER backup. A rollback/truncation that shrinks the
     // log must not destroy the only copy of the fuller history (the wipe vector).
@@ -212,9 +235,27 @@ async function persist(chatId: string): Promise<void> {
     await spindle.storage.write(path(chatId), next);
     // this write is now the on-disk truth: remember it for the next backup guard
     c.serialized = next;
-    c.persistedCount = c.log.events.length;
-    c.dirty = false;
-  });
+    c.persistedCount = snapshotCount;
+    // A deferred append may have landed while this snapshot was in flight.
+    // Only clear dirty when the successful write contains the current tail.
+    c.dirty = c.log.events.length !== snapshotCount;
+  } catch (e) {
+    c.dirty = true;
+    const msg = e instanceof Error ? e.message : String(e);
+    spindle.log?.warn?.('[vellum_engine] log write failed for ' + chatId + ': ' + msg + ' (kept dirty for retry).');
+    throw e;
+  }
+}
+
+/** Queue a persistence attempt after every earlier attempt for this chat. A
+ * rejected predecessor is deliberately ignored here: its dirty snapshot is
+ * still in memory and the next flush must be allowed to retry it. */
+async function persist(chatId: string): Promise<void> {
+  const previous = _writeQueues.get(chatId) ?? Promise.resolve();
+  const run = previous.catch(() => {}).then(() => persistNow(chatId));
+  _writeQueues.set(chatId, run);
+  try { await run; }
+  finally { if (_writeQueues.get(chatId) === run) _writeQueues.delete(chatId); }
 }
 
 /**
@@ -228,7 +269,10 @@ export async function appendDeferred(chatId: string, events: VellumEvent[]): Pro
   if (!events.length) return loadState(chatId);
   await loadLog(chatId);
   const c = _cache.get(chatId)!;
-  if (c.readonly) { spindle.log?.warn?.('[vellum_engine] not appending to read-only ' + chatId); return loadState(chatId); }
+  if (c.readonly) {
+    spindle.log?.warn?.('[vellum_engine] not appending to read-only ' + chatId);
+    throw new Error('chronicle_read_only');
+  }
   c.log.events.push(...events);
   c.dirty = true;
   return loadState(chatId);
@@ -275,15 +319,19 @@ export async function append(chatId: string, events: VellumEvent[]): Promise<Chr
   if (!events.length) return loadState(chatId);
   await loadLog(chatId);
   const c = _cache.get(chatId)!;
-  if (c.readonly) { spindle.log?.warn?.('[vellum_engine] not appending to read-only ' + chatId); return loadState(chatId); }
+  if (c.readonly) {
+    spindle.log?.warn?.('[vellum_engine] not appending to read-only ' + chatId);
+    throw new Error('chronicle_read_only');
+  }
   c.log.events.push(...events);
+  c.dirty = true;
   await persist(chatId);
   return loadState(chatId);
 }
 
 export function invalidate(chatId?: string): void {
-  if (chatId) _cache.delete(chatId);
-  else _cache.clear();
+  if (chatId) { _cache.delete(chatId); _loads.delete(chatId); }
+  else { _cache.clear(); _loads.clear(); }
 }
 
 /** Is this chat in the protective read-only state (load failed)? */
@@ -352,6 +400,7 @@ export async function truncateAfterTurn(chatId: string, turn: number): Promise<C
   c.state = buildState(kept); // full re-reduce: truncation isn't a forward fold
   c.reduced = kept.length;
   c.mergeSig = undefined; // force a re-merge on the next fold (state changed shape)
+  c.dirty = true;
   await persist(chatId);
   return c.state;
 }
@@ -359,7 +408,7 @@ export async function truncateAfterTurn(chatId: string, turn: number): Promise<C
 /** Wipe a chat's event log entirely (clear all data). Explicit user action, so
  * it clears the read-only guard and persists the empty log intentionally. */
 export async function clearLog(chatId: string): Promise<void> {
-  _cache.set(chatId, { log: freshLog(chatId), state: buildState([]), reduced: 0, readonly: false });
+  _cache.set(chatId, { log: freshLog(chatId), state: buildState([]), reduced: 0, readonly: false, dirty: true });
   await persist(chatId);
 }
 
@@ -372,7 +421,7 @@ export async function exportLog(chatId: string): Promise<EventLog> {
  * Explicit user action → clears the read-only guard. */
 export async function importLog(chatId: string, log: EventLog): Promise<ChronicleState> {
   const { log: next } = lenientLog(log, chatId);
-  _cache.set(chatId, { log: next, state: buildState(next.events), reduced: next.events.length, readonly: false });
+  _cache.set(chatId, { log: next, state: buildState(next.events), reduced: next.events.length, readonly: false, dirty: true });
   await persist(chatId);
   return _cache.get(chatId)!.state;
 }

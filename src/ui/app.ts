@@ -11,7 +11,7 @@ import { journalTab } from './tabs/journal.js';
 import { injectionTab, setInjectionLog, pushInjectionRecord } from './tabs/injection.js';
 import { vaultTab, setVaultSnap } from './tabs/vault.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
-import { applyTheme, customizePanel, wireCustomize, setThemePersist, hydrateTheme } from './theme.js';
+import { applyTheme, cleanupTheme, customizePanel, wireCustomize, setThemePersist, hydrateTheme } from './theme.js';
 import { setPrefsPersist, hydratePrefs, getPref, setPref } from './prefs.js';
 import { reloadLayoutFromPrefs } from './layout-defs.js';
 import { reloadAutoNameFromPrefs } from './format.js';
@@ -23,11 +23,12 @@ import { esc } from './format.js';
 import { icon, hasIcon } from './icons.js';
 import type { Component } from './component.js';
 import { wireBridge, wirePagers, wireFilters, refreshUI, send, cmd } from './bridge.js';
-import { maybeShowOnboarding, openOnboarding } from './onboarding.js';
-import { confirmModal, formModal } from './modal.js';
+import { closeOnboarding, maybeShowOnboarding, openOnboarding } from './onboarding.js';
+import { cleanupModals, confirmModal, formModal, setModalHost } from './modal.js';
 import { calculatePresetBudget } from '../domain/preset-budget.js';
 import { resolveBudget, type ContextBudget } from '../domain/context-budget.js';
 import { VELLUM_VERSION } from '../version.js';
+import type { SpindleFrontendContext, SpindleInputBarActionHandle } from 'lumiverse-spindle-types';
 
 /**
  * Frontend entrypoint. One reusable shell (tab bar + QOL toolbar + body) is
@@ -37,17 +38,10 @@ import { VELLUM_VERSION } from '../version.js';
  * one entry in TABS.
  */
 
-interface Ctx {
-  ui: {
-    registerDrawerTab(opts: Record<string, unknown>): { root: HTMLElement; destroy(): void };
-    registerInputBarAction?(opts: Record<string, unknown>): { destroy(): void };
-  };
-  dom: { addStyle(css: string): { remove(): void }; cleanup(): void };
-  sendToBackend(payload: Record<string, unknown>): void;
-  onBackendMessage(handler: (payload: any) => void): () => void;
-  events?: { on(name: string, fn: (...args: any[]) => void): () => void };
+type Ctx = SpindleFrontendContext & {
+  /** Older/future hosts may expose toast directly; current staging does not. */
   toast?: { success?(msg: string): void; info?(msg: string): void; warning?(msg: string): void };
-}
+};
 
 // Lumiverse's frontend context does NOT provide a toast API (ctx.toast was
 // always undefined → every ctx.toast?.x?.() was a silent no-op). Own a tiny
@@ -160,6 +154,7 @@ const QOL = [
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
   { id: 'autoretry', label: '\u21BB Repair block', title: 'Auto-repair a missing state block: if a turn drops its <vellum> block, transcribe its prose into one and update the chronicle (needs generation permission; 1 extra generation per affected turn)', group: 'toggle' },
+  { id: 'blockexample', label: '\u27E6\u27E7 Block example', title: 'Inject the previous turn\'s actual <vellum> block as a worked example at the end of the VELLUM injection — closest to the generation point. Helps models that forget the format. Costs ~400–700 extra tokens per turn.', group: 'toggle' },
   { id: 'foldtoast', label: '\u2261 Tracker Update Toast', title: 'Show a brief toast after each turn as the tracker updates (scene first, then the deep memory pass). Off by default.', group: 'toggle' },
   // run = one-shot verbs
   { id: 'summarize', label: '\u2727 Summarize', title: 'Compress older turns into chapter memories', group: 'run' },
@@ -694,6 +689,7 @@ let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
 let _autoRetryOn = false; // auto-repair a dropped <vellum> block, mirrored from backend
+let _blockExampleOn = false; // inject previous turn's block as worked example, mirrored from backend
 let _traverseMode = 'off'; // off | flat | tree
 let _traverseAxis = 'temporal'; // temporal | character | hybrid (tree only)
 const axisLabel = (a: string): string => a === 'character' ? 'by char' : a === 'hybrid' ? 'by char+time' : 'by time';
@@ -814,6 +810,7 @@ function openActions(ctx: Ctx): void {
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
       autoretry: _autoRetryOn ? 'on' : 'off',
+      blockexample: _blockExampleOn ? 'on' : 'off',
       foldtoast: _foldToastOn ? 'on' : 'off',
       traverse: _traverseMode === 'off' ? 'off' : (_traverseMode === 'tree' ? `tree \u00b7 ${axisLabel(_traverseAxis)}` : 'flat'),
       tone: (_tone.romance === 'medium' && _tone.disposition === 'fair' && _tone.social === 'living' && _tone.politics === 'off') ? 'default' : `${_tone.romance.replace('_', ' ')} \u00b7 ${_tone.disposition} \u00b7 ${_tone.social}${_tone.politics !== 'off' ? ' \u00b7 pol:' + _tone.politics : ''}`,
@@ -913,6 +910,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'autoretry') { _autoRetryOn = !_autoRetryOn; ctx.sendToBackend({ type: 'vellum_set_autoretry', enabled: _autoRetryOn }); }
+  else if (id === 'blockexample') { _blockExampleOn = !_blockExampleOn; ctx.sendToBackend({ type: 'vellum_set_block_example', enabled: _blockExampleOn }); }
   else if (id === 'foldtoast') {
     _foldToastOn = !_foldToastOn;
     setPref('foldToast', _foldToastOn);
@@ -1106,7 +1104,14 @@ function downloadText(name: string, text: string, mime = 'text/plain'): void {
 }
 
 export function setup(ctx: Ctx): () => void {
+  setModalHost(ctx.ui);
   _ctxRef = ctx;
+  const teardownTimers = new Set<ReturnType<typeof setTimeout>>();
+  const later = (fn: () => void, delayMs: number): ReturnType<typeof setTimeout> => {
+    const timer = setTimeout(() => { teardownTimers.delete(timer); fn(); }, delayMs);
+    teardownTimers.add(timer);
+    return timer;
+  };
   setThemePersist((json) => ctx.sendToBackend({ type: 'vellum_set_theme', theme: json }));
   // window PREFS (layout / density / custom arrangement / float tab & geometry /
   // auto-name / fold-toast) persist host-side too, so they survive an extension
@@ -1121,14 +1126,14 @@ export function setup(ctx: Ctx): () => void {
   // <span class="v-spk" data-spk="Name">; these rules color those spans. Because it
   // is CSS (not injected DOM), it applies to the backlog AND every future turn the
   // preset regex produces — which is what fixes the "new turns don't color" bug.
-  let _spkStyle: { remove(): void } | null = null;
+  let _spkStyle: (() => void) | null = null;
   let _spkSig = '';
   const updateDialogueColors = (cast: Record<string, unknown> | undefined): void => {
     if (!cast) return;
     const css = speakerColorCss(buildSpeakerColors(cast as Parameters<typeof buildSpeakerColors>[0]));
     if (css === _spkSig) return; // unchanged — skip the DOM churn
     _spkSig = css;
-    try { _spkStyle?.remove(); } catch { /* ignore */ }
+    try { _spkStyle?.(); } catch { /* ignore */ }
     _spkStyle = ctx.dom.addStyle(css);
   };
 
@@ -1791,9 +1796,11 @@ export function setup(ctx: Ctx): () => void {
     actions: [
       { id: 'tabs', label: '\u2637', title: 'Choose which tabs show in this window' },
       { id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' },
+      { id: 'repair', label: '\u21BB\u2338', title: 'Repair state block: rebuild a missing <vellum> block for the latest turn from its prose (needs generation permission). Use if auto-repair failed or is off.' },
     ],
     onAction: (id) => {
       if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); notify(ctx, 'info', 'Refreshing the tracker\u2026'); }
+      else if (id === 'repair') { ctx.sendToBackend({ type: 'vellum_repair_block' }); notify(ctx, 'info', 'Rebuilding the state block from the prose\u2026'); }
       else if (id === 'tabs') { openFloatTabs(); }
     },
     render: (host) => {
@@ -1834,9 +1841,16 @@ export function setup(ctx: Ctx): () => void {
   let floatShell: ReturnType<typeof createShell> | null = null;
   void floatShell; void createShell;
 
-  let inputBtn: { destroy(): void } | null = null;
+  let inputBtn: SpindleInputBarActionHandle | null = null;
+  let offInputClick: (() => void) | null = null;
   try {
-    inputBtn = ctx.ui.registerInputBarAction?.({ id: 'vellum-float-toggle', title: 'VELLUM window', iconSvg: ICON, onClick: () => float.toggle() }) ?? null;
+    inputBtn = ctx.ui.registerInputBarAction({
+      id: 'vellum-float-toggle',
+      label: 'VELLUM',
+      subtitle: 'Open the VELLUM chronicle',
+      iconSvg: ICON,
+    });
+    offInputClick = inputBtn.onClick(() => float.toggle());
   } catch { /* optional */ }
 
   const unsub = ctx.onBackendMessage((p: any) => {
@@ -1865,6 +1879,7 @@ export function setup(ctx: Ctx): () => void {
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
         if (typeof p.autoRetryBlock === 'boolean') { _autoRetryOn = p.autoRetryBlock; document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn)); }
+        if (typeof p.blockExample === 'boolean') { _blockExampleOn = p.blockExample; document.querySelectorAll('[data-qol=\'blockexample\']').forEach((b) => b.classList.toggle('on', _blockExampleOn)); }
         if (typeof p.hide === 'boolean') { _hideOn = p.hide; document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn)); }
         if (typeof p.chapterVault === 'string') _chapterVault = p.chapterVault;
         if (Array.isArray(p.relationLocks)) setRelationLocks(p.relationLocks);
@@ -1968,9 +1983,9 @@ export function setup(ctx: Ctx): () => void {
         else if (_ppOverlay) { try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ } }
       } else if (p?.type === 'vellum_preset_tab_fix_done') {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? 'Inserted the VELLUM state block.' : `Could not insert block: ${p.reason ?? 'error'}`);
-        setTimeout(() => { try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }, 150);
+        later(() => { try { renderPresetEditorTab(); } catch { /* tab may be absent */ } }, 150);
         // modal path: re-resolve the preset so the health badge + block list repaint
-        if (p.ok && _ppOverlay) setTimeout(() => { try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ } }, 150);
+        if (p.ok && _ppOverlay) later(() => { try { ctx.sendToBackend({ type: 'vellum_preset_panel_open' }); } catch { /* ignore */ } }, 150);
       } else if (p?.type === 'vellum_preset_vars_saved') {
         // Backend direct write of prompt-variable values completed.
         const stateEl = presetEditorTab ? (presetEditorTab.root as HTMLElement).querySelector<HTMLElement>('[data-vle-vars-savestate]') : null;
@@ -1981,7 +1996,7 @@ export function setup(ctx: Ctx): () => void {
           // Our write is now the authoritative DB state — clear the dirty set so
           // a subsequent coordinator sync can reconcile the controls freely.
           _varDirty.clear();
-          if (stateEl) { stateEl.textContent = 'Saved'; stateEl.className = 'vle-vars-savestate ok'; setTimeout(() => { if (stateEl) { stateEl.textContent = ''; stateEl.className = 'vle-vars-savestate'; } }, 2500); }
+          if (stateEl) { stateEl.textContent = 'Saved'; stateEl.className = 'vle-vars-savestate ok'; later(() => { if (stateEl) { stateEl.textContent = ''; stateEl.className = 'vle-vars-savestate'; } }, 2500); }
           // Trigger coordinator re-sync so the host's native variables modal reflects the new values.
           try {
             const editor = (ctx.ui as any).presetEditor;
@@ -2087,6 +2102,20 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, 'success', 'Rescanned.');
       } else if (p?.type === 'vellum_refresh_done') {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? (p.refolded ? `Re-folded turn ${p.refolded}.` : 'Tracker refreshed.') : (p.reason === 'no_active_chat' ? 'No active chat.' : 'Refresh failed.'));
+      } else if (p?.type === 'vellum_repair_block_done') {
+        if (p.ok) {
+          notify(ctx, 'success', 'State block rebuilt \u2014 chronicle updated.');
+        } else if (p.reason === 'already_parsed') {
+          notify(ctx, 'info', 'The latest turn already has a valid state block.');
+        } else if (p.reason === 'no_generation') {
+          notify(ctx, 'warning', 'Repair needs generation permission \u2014 enable it in the host settings.');
+        } else if (p.reason === 'no_active_chat' || p.reason === 'no_turn') {
+          notify(ctx, 'warning', 'No active chat or no assistant turn to repair.');
+        } else if (p.reason === 'no_block') {
+          notify(ctx, 'warning', 'Could not reconstruct the state block from the prose. Try regenerating the turn.');
+        } else {
+          notify(ctx, 'warning', 'Block repair failed \u2014 try regenerating the turn.');
+        }
       } else if (p?.type === 'vellum_undo_done') {
         setQolBusy('undo', false);
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? `Undid turn ${p.undoneTurn ?? ''}.` : (p.reason === 'nothing_to_undo' ? 'Nothing to undo.' : `Undo failed: ${p.reason ?? 'error'}`));
@@ -2161,6 +2190,10 @@ export function setup(ctx: Ctx): () => void {
         document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn));
         if (p.enabled && !p.available) notify(ctx, 'warning', 'Block auto-repair needs the generation permission to run.');
         else notify(ctx, 'success', p.enabled ? 'Block auto-repair on \u2014 a dropped state block is recovered with one extra generation.' : 'Block auto-repair off.');
+      } else if (p?.type === 'vellum_block_example_set_done') {
+        _blockExampleOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'blockexample\']').forEach((b) => b.classList.toggle('on', _blockExampleOn));
+        notify(ctx, 'success', p.enabled ? 'Block example on \u2014 the previous turn\'s state block is shown to the model as a format example.' : 'Block example off.');
       } else if (p?.type === 'vellum_offthread_done') {
         // only the manual advance/simulate-all path reports a reason; the CRUD
         // ops send a bare ok:true (nothing to announce).
@@ -2222,7 +2255,7 @@ export function setup(ctx: Ctx): () => void {
   // fetch that would force another full fold.
   const offGen = ctx.events?.on('GENERATION_ENDED', () => {
     const mark = Date.now();
-    setTimeout(() => { if (_lastStateAt < mark) ctx.sendToBackend({ type: 'vellum_get_state' }); }, 700);
+    later(() => { if (_lastStateAt < mark) ctx.sendToBackend({ type: 'vellum_get_state' }); }, 700);
   });
   ctx.sendToBackend({ type: 'vellum_get_state' });
 
@@ -2235,8 +2268,13 @@ export function setup(ctx: Ctx): () => void {
     try { offGen?.(); } catch { /* ignore */ }
     try { drawer.destroy(); } catch { /* ignore */ }
     try { float.destroy(); } catch { /* ignore */ }
+    try { offInputClick?.(); } catch { /* ignore */ }
     try { inputBtn?.destroy(); } catch { /* ignore */ }
     try { tab.destroy(); } catch { /* ignore */ }
+    for (const timer of teardownTimers) { try { clearTimeout(timer); } catch { /* ignore */ } }
+    teardownTimers.clear();
+    for (const timer of _busyTimers.values()) { try { clearTimeout(timer); } catch { /* ignore */ } }
+    _busyTimers.clear();
     try { if (_varSaveTimer) clearTimeout(_varSaveTimer); } catch { /* ignore */ }
     try { if (_pvTimer) clearTimeout(_pvTimer); } catch { /* ignore */ }
     try { if (_pvRetryTimer) clearTimeout(_pvRetryTimer); } catch { /* ignore */ }
@@ -2245,9 +2283,14 @@ export function setup(ctx: Ctx): () => void {
     _varPresetId = '';
     try { presetEditorTab?.destroy(); } catch { /* ignore */ }
     try { presetToolbarItem?.destroy(); } catch { /* ignore */ }
-    try { style.remove(); } catch { /* ignore */ }
-    try { _spkStyle?.remove(); } catch { /* ignore */ }
+    try { style(); } catch { /* ignore */ }
+    try { _spkStyle?.(); } catch { /* ignore */ }
     try { cleanupToasts(); } catch { /* ignore */ }
+    try { cleanupModals(); } catch { /* ignore */ }
+    try { closeOnboarding(); } catch { /* ignore */ }
+    try { document.querySelectorAll('.vlfm-overlay, .vle-ob').forEach((el) => el.remove()); } catch { /* ignore */ }
+    try { cleanupTheme(); } catch { /* ignore */ }
+    setModalHost(null);
     try { ctx.dom.cleanup(); } catch { /* ignore */ }
   };
 }

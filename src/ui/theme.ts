@@ -533,6 +533,7 @@ function injectFontLink(url: string, dedupKey: string): void {
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = url;
+  link.dataset.vellumFont = 'true';
   document.head.appendChild(link);
   _loadedFonts.add(dedupKey);
 }
@@ -645,6 +646,25 @@ export function applyTheme(scope: HTMLElement | null): void {
     if (shape) document.documentElement.setAttribute('data-shape-' + surface, shape);
     else document.documentElement.removeAttribute('data-shape-' + surface);
   }
+}
+
+/** Restore every document-level artifact owned by VELLUM. Theme variables are
+ * intentionally placed on the root so detached launchers inherit them; teardown
+ * must therefore be equally explicit. */
+export function cleanupTheme(): void {
+  const root = document.documentElement;
+  for (const prop of [
+    '--vg', '--vg-rgb', '--vg2', '--vg2-rgb', '--vai', '--vi', '--vi-rgb', '--vi2',
+    '--vink-e', '--vserif', '--vmono', '--vscale', '--vdscale', '--vdensity',
+    '--vopacity', '--vblur', '--vradius', '--vborder', '--vtexture', '--vmotion',
+    '--vsurf-1', '--vsurf-2', '--vglass', '--vle-bg-custom', '--v-pos', '--v-pos-i',
+    '--v-neg', '--v-neg-i', '--v-info', '--v-warn', '--v-press', '--v-press-i',
+    '--vlf-lpos',
+  ]) root.style.removeProperty(prop);
+  for (const attr of ['data-vle-launch', 'data-vle-chrome', 'data-vle-mode', 'data-vle-bg', 'data-vle-motion']) root.removeAttribute(attr);
+  for (const surface of SURFACES) root.removeAttribute('data-shape-' + surface);
+  document.querySelectorAll('link[data-vellum-font="true"]').forEach((link) => link.remove());
+  _loadedFonts.clear();
 }
 
 export function setSkin(id: string): void { const s = SKINS.find((x) => x.id === id); if (s) { _theme = sanitize({ ..._theme, skin: id, ...s.theme }); save(); } }

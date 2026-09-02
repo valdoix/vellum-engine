@@ -5,7 +5,7 @@ import { internalGenerate } from '../host/generation.js';
 import { nextSeq } from '../core/ids.js';
 import { DEFAULT_CFG, resolvePrompt, type SummarizerCfg } from '../domain/summarizer-config.js';
 
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /** Rough token estimate (chars/4) — used only for the live usage toast, never
  * for budgeting. Good enough to show the user "how much it's using". */

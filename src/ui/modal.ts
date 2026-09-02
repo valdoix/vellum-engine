@@ -4,6 +4,7 @@
  * calls back. Self-contained DOM; no framework. Also a confirm() wrapper for
  * destructive actions. Field values for checkbox groups are comma-joined.
  */
+import type { SpindleFrontendContext } from 'lumiverse-spindle-types';
 
 export interface Field {
   key: string;
@@ -31,6 +32,14 @@ export interface FormModalOpts {
 const esc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+let _modalUi: Pick<SpindleFrontendContext['ui'], 'showConfirm'> | null = null;
+const _openClosers = new Set<() => void>();
+
+export function setModalHost(ui: Pick<SpindleFrontendContext['ui'], 'showConfirm'> | null): void { _modalUi = ui; }
+export function cleanupModals(): void {
+  for (const close of Array.from(_openClosers)) { try { close(); } catch { /* best effort */ } }
+  _openClosers.clear();
+}
 
 /** Keep Tab focus cycling WITHIN the overlay so keyboard users can't tab into the
  * page behind an open modal. Returns a keydown handler to register/remove. */
@@ -90,7 +99,16 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
   const trap = makeFocusTrap(overlay);
   overlay.addEventListener('keydown', trap);
   let onKey: ((e: KeyboardEvent) => void) | null = null;
-  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); try { prevFocus?.focus?.(); } catch { /* ignore */ } };
+  let closed = false;
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    _openClosers.delete(close);
+    try { overlay.remove(); } catch { /* ignore */ }
+    if (onKey) document.removeEventListener('keydown', onKey);
+    try { prevFocus?.focus?.(); } catch { /* ignore */ }
+  };
+  _openClosers.add(close);
   const save = (): void => {
     const values: Record<string, string> = {};
     overlay.querySelectorAll('[data-f]').forEach((el) => { values[el.getAttribute('data-f')!] = (el as HTMLInputElement).value; });
@@ -148,11 +166,10 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
  * required), falling back to the DOM implementation on older hosts.
  */
 export function confirmModal(message: string, onConfirm: () => void): void {
-  const s: any = (globalThis as any).spindle;
-  if (s?.ui?.showConfirm) {
+  if (_modalUi?.showConfirm) {
     // Host API available: use the native themed confirmation dialog
-    Promise.resolve(s.ui.showConfirm({ message, title: 'Confirm' }))
-      .then((result: any) => { if (result?.confirmed) onConfirm(); })
+    Promise.resolve(_modalUi.showConfirm({ message, title: 'Confirm' }))
+      .then((result) => { if (result.confirmed) onConfirm(); })
       .catch(() => confirmModalDom(message, onConfirm)); // fall back on API error
     return;
   }
@@ -176,7 +193,16 @@ function confirmModalDom(message: string, onConfirm: () => void): void {
   const trap = makeFocusTrap(overlay);
   overlay.addEventListener('keydown', trap);
   let onKey: ((e: KeyboardEvent) => void) | null = null;
-  const close = (): void => { try { overlay.remove(); } catch { /* ignore */ } if (onKey) document.removeEventListener('keydown', onKey); try { prevFocus?.focus?.(); } catch { /* ignore */ } };
+  let closed = false;
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    _openClosers.delete(close);
+    try { overlay.remove(); } catch { /* ignore */ }
+    if (onKey) document.removeEventListener('keydown', onKey);
+    try { prevFocus?.focus?.(); } catch { /* ignore */ }
+  };
+  _openClosers.add(close);
   const confirmIt = (): void => { close(); onConfirm(); };
   // intentionally no backdrop-close: only the Cancel/Done button (or Esc) dismisses
   overlay.querySelector('[data-cancel]')!.addEventListener('click', close);

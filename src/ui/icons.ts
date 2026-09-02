@@ -55,6 +55,10 @@ const PATHS: Record<string, string> = {
   // repair block = a retry arc looping a small state block (the ‹vellum› square),
   // reads as "regenerate the block". Distinct from rescan/recover (no inner block).
   autoretry: '<path d="M19 12a7 7 0 1 1-2-4.9"/><path d="M19 4.5V8h-3.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/>',
+  // block example = an injection frame (outer rect) containing a state block
+  // (inner rect + content line), reading as "a block shown as a reference".
+  // Distinct from autoretry (retry arc) and rebuild (circular arrows) at 14–15px.
+  blockexample: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><rect x="7" y="9" width="10" height="6" rx="1"/><path d="M9.5 12h5" opacity=".7"/>',
   hide: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 4l16 16" opacity=".8"/>',
   traverse: '<circle cx="12" cy="5" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M12 7v4M12 11l-5 5M12 11l5 5"/>',
   tone: '<path d="M12 20s-7-4.5-7-9.5A4 4 0 0 1 12 7a4 4 0 0 1 7 3.5C19 15.5 12 20 12 20z"/>',

@@ -1,7 +1,7 @@
 import { tryCatchAsync } from '../core/result.js';
 import { has } from './capability.js';
 
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /**
  * Hide-on-file: once turns are folded into chapter memories, the raw messages

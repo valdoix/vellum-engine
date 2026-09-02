@@ -2,6 +2,8 @@
 
 **A memory and continuity engine for [Lumiverse](https://lumiverse.chat) roleplay.**
 
+VELLUM is an independent, unofficial community extension. It is not affiliated with or endorsed by Lumiverse or its maintainers.
+
 VELLUM II watches your story as you play it and quietly keeps track of everything that matters — who's in the room, how people feel about each other, what each character secretly knows (and what they're wrong about), what's happening off-screen, and what happened fifty messages ago that the AI would otherwise forget. It then feeds the *relevant* slice of that history back into the AI on every turn, so your characters stay consistent and the world keeps its shape over a long story.
 
 **VELLUM II is a matched set: preset + extension, designed to work together.** The preset tells the AI how to write and what to track. The extension reads that tracking data and builds a living chronicle of your story. You *can* use one without the other, but they're strongest as a pair — like a pen and paper, not two separate tools.
@@ -28,6 +30,26 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 ---
 
 ## What's New in This Version
+
+> **Extension 2.1.0-beta.7** — updated for Lumiverse 1.1.6 and Spindle SDK 0.6.27, with safer Chronicle persistence, authenticated multi-user routing, mutation reconciliation, permission-aware lifecycle cleanup, and the hardened state-block repair flow.
+
+> **Preset 2.3.0** — a bounded Reverie controller, stronger character fidelity and causality, adaptive interiority, earned relationship progression, and rigorous T0→T1 time continuity.
+
+### One-pass Reverie
+
+Reverie no longer assigns plot pressure, mandatory costs, or surprise events from dice. It now runs one compact controller pass—contract, continuity, knowledge, cast, causality, interpersonal landing, presentation, and state audit—then commits to the prose once. The Augury remains available, but its rolls can change only framing, rhythm, and focal attention; they cannot change canon, outcomes, costs, or `<vellum>` deltas. Marginalia now activates only when the first plan is generic or repetitive.
+
+### Character fidelity, causality, and interiority
+
+The Character Engine now reopens established sources, rotates underused character facets, checks dialogue and action with a swap test, and reconciles gaps between intent and behavior. A new Causal Momentum block requires motive, knowledge, access, resources, route, and elapsed time before major interruptions, discoveries, failures, or escalation. A new **Interiority Mode** setting controls how consciousness enters the prose: Adaptive, Embedded, Filtered, Defensive, or Sensory-first.
+
+### Time is now a real ledger
+
+Every planned beat starts from the last established day, ending clock, location, and action in progress (T0), estimates the duration of serial and concurrent actions, and derives the new endpoint (T1). Scene cuts and flashbacks cannot overwrite the live clock; midnight rolls the day; travel, healing, fatigue, opening hours, deadlines, weather, off-screen action, and information travel all inherit the same elapsed interval. The worked turn example now demonstrates a forward numeric `scene.clock` and the required NPC private thought.
+
+### Relationship landing, not relationship dice
+
+Romance now distinguishes attraction, trust, disclosure, comfort, dependency, commitment, and shared interpretation. The optional Emotional Save has become **Emotional Landing**: a causal intent → delivery → access → interpretation → defense → aftermath pass, with no random gate and no authority over the player.
 
 > **2.1.0-beta.5** — a variables editor right inside the preset tab, a live sample-paragraph preview, and significantly smarter per-model errata.
 
@@ -285,11 +307,11 @@ When VELLUM II is active, the AI ends each reply with a small block wrapped in `
 
 ## The Prompt Variables menu — every setting explained
 
-When you select the preset and open its **sliders / settings icon**, Lumiverse shows the **Prompt Variables** menu: a friendly panel of dropdowns and toggles. You never edit raw preset text. This section documents **every one of the 53 settings**, grouped the way the preset groups them, with the options, the **default**, and when you'd change it.
+When you select the preset and open its **sliders / settings icon**, Lumiverse shows the **Prompt Variables** menu: a friendly panel of dropdowns and toggles. You never edit raw preset text. This section documents **every one of the 54 settings**, grouped the way the preset groups them, with the options, the **default**, and when you'd change it.
 
 > **Defaults are good.** You can play a full story without touching any of these. Skim for the handful you care about (POV, Length, NSFW Level) and leave the rest.
 
-Twelve blocks ship **off by default** and only activate when you opt in: Possession Tracker, Emotional Save, The Scribes, Rough Hand, NSFL/Dark, VTK Card Library, VTK Spectacle, Colored Dialogue, host Memory Cortex entities, Hard Jailbreak Fallback, World Broadsheet card, and the Slop Proofreader.
+Twelve blocks ship **off by default** and only activate when you opt in: Possession Tracker, Emotional Landing, The Scribes, Rough Hand, NSFL/Dark, VTK Card Library, VTK Spectacle, Colored Dialogue, host Memory Cortex entities, Hard Jailbreak Fallback, World Broadsheet card, and the Slop Proofreader.
 
 ### Session Settings
 
@@ -331,9 +353,10 @@ The voice of the whole story.
 
 ### World & cast
 
-- **Group-scene handling** — *on by default.* In crowds, characters talk to *each other*, not just to you.
+- **Group-scene handling** — *on by default.* In crowds, a focal one or two drive the beat while peripheral characters work, listen, interrupt, withdraw, or recede. NPC-to-NPC exchanges arise from agendas rather than a per-turn quota.
 - **Living World** — Off ({{user}}-centric) / Minimal (protagonist) / **Active** *(default)* / Sandbox (autonomous, opportunities can expire). How much the world moves on its own.
-- **Time Continuity** — *on by default.* Tracks the passage of days/time so "Day 47" stays coherent.
+- **Time Continuity** — *on by default.* Treats time as a T0 + elapsed = T1 ledger; distinguishes serial/concurrent action, protects the live clock across flashbacks, advances day at midnight, and synchronizes travel, healing, deadlines, off-screen activity, and information speed.
+- **Causal Momentum** — *always on.* Moves one smallest meaningful change per response and requires motive, knowledge, access, resources, route, and elapsed time before major events. Failure follows an actual attempt; pressure never becomes predestination.
 - **The Cartographer (world genesis)** — *on by default.* Fires once at a new chat's opening (or on demand via `((worldgen))`) to establish a coherent world frame. Sub-settings:
   - **World Premise (optional)** — free text; seed the world with a one-line premise.
   - **World Scale** — Chamber (one place) / **Locale (a town)** *(default)* / Realm (a region) / World (a civilization) / Cosmos (many worlds).
@@ -347,22 +370,23 @@ The voice of the whole story.
 ### Tone & relationships
 
 - **Romance Pace** — Off / Slow Burn / **Measured** *(default)* / Fast-Paced / Erotic. *When* intimacy becomes reachable (separate from how explicit it may get).
+- **Interiority Mode** — **Adaptive** *(default)* / Embedded / Filtered / Defensive / Sensory-first. Controls how thought enters the prose without making characters more self-aware than they are.
 - **World Disposition** — Kind / Warm / **Fair** *(default)* / Harsh / Brutal. The social climate *before* you've earned anything (a prior, not a guarantee).
 - **NPC Social Autonomy (NPC↔NPC)** — Off (you drive relationships) / Reactive (on-screen only) / **Living** *(default)* / Autonomous (full lives).
 - **Faction Politics Autonomy (faction↔faction)** — **Off** *(default)* / Living (standings drift off-screen) / Autonomous (factions maneuver).
-- **Emotional Save (d20 on charged beats)** *(off by default)* — rolls a die on emotionally charged beats so a character's reaction isn't always the obvious one.
+- **Emotional Landing (charged beats)** *(off by default)* — traces intent, delivery, access, interpretation, defense, and aftermath. It is causal rather than random and never decides the player's response.
 
 ### Variance suite (anti-repetition)
 
-- **The Augury (dice-seeded variance)** — *on by default.* Privately rolls pressure / shape / cost / a rare omen each turn to break the mold.
-- **Marginalia (diversity anchors)** — *on by default.* Sketches three anchored directions, keeps the best, discards the rest (anchors never appear in prose).
+- **The Augury (presentation variance)** — *on by default.* Privately varies framing, sentence texture, and focal attention. It cannot create plot events, costs, revelations, or state changes.
+- **Marginalia (conditional diversity anchors)** — *on by default.* If the first movement is generic or repeats the last turn, sketches two anchored alternatives and keeps the more causal, character-specific one; otherwise it does nothing.
 - **The Scribes (rotate authorial voice)** *(off by default)* — rotates the narrating voice turn to turn from a **Scribe pool** you pick: The Miniaturist / The Ironist / The Elegist / The Brawler / The Fabulist / The Clinician.
 - **Rough Hand (one deliberate imperfection)** *(off by default)* — permits one purposeful human imperfection per turn to defeat the over-polished sheen.
 - **The Palimpsest (belief scars)** — *on by default.* A disproven belief becomes a scar that can resurface as doubt (shows in the Scars tab).
 
 ### Planning & engine
 
-- **Reverie (chain-of-thought)** — *on by default.* The AI's hidden plan-once-then-write step.
+- **Reverie (bounded planning)** — *on by default.* A hidden one-pass controller for agency, continuity, knowledge, character fidelity, causality, relationship landing, presentation, and the state audit.
   - **Reasoning Depth** — Vibes (lean) / **Standard** *(default)* / Deep.
 - **Emit State Block** — *on by default.* Emits the hidden `<vellum>` report the extension reads. Turn off only to use the preset with no extension.
   - **State Spec Verbosity** — **Lean (compact)** *(default)* / Full (with example). Switch to Full while teaching a new model the format.
@@ -447,14 +471,14 @@ A dial for how much the world acts on its own when you're not looking:
 
 The newest and most distinctive part of the preset. These exist because even a good model gets *repetitive* over a long story — same sentence shapes, same scene openings. They inject controlled randomness so no two turns feel stamped from the same mold. All of this happens inside the AI's hidden planning block, so it costs you nothing in the visible chat:
 
-- **The Augury** *(on by default)* — at the start of each turn the AI privately "rolls the lots": a **pressure** level (should this beat be still, or should something break?), a **shape** (an opening constraint, e.g. *open mid-gesture* or *on a threshold narrowing*), a **cost** (what this moment spends — time, trust, safety, a truth that can't be unsaid), and a rare **omen** that drops in a surprise. A cooldown stops the same big "eclipse" beat from firing two turns running.
-- **Marginalia** *(on by default)* — the AI draws three random "anchors," sketches three possible directions for the beat using them, picks the best, and discards the rest. The anchors never appear in the prose; they just knock the model off its first, most-clichéd instinct.
+- **The Augury** *(on by default)* — privately varies three presentation axes: framing, sentence texture, and focal attention. It cannot create a fact, event, cost, revelation, injury, relationship shift, or state delta; causality is settled first.
+- **Marginalia** *(on by default)* — activates only when the first movement is generic or repeats the recent shape. It uses random anchors to sketch two one-line alternatives, keeps the more causal and character-specific direction, and discards the anchors before prose.
 - **The Scribes** *(off by default)* — rotates the *authorial voice* turn to turn from a pool you choose (the Miniaturist, the Ironist, the Elegist, the Brawler, the Fabulist, the Clinician), so the narration doesn't settle into one groove.
 - **Rough Hand** *(off by default)* — permits exactly one deliberate human imperfection per turn (a thought abandoned mid-reach, a register that slips), to defeat the over-polished "AI sheen."
 
 ### Planning, model tuning & the state block
 
-- **Reverie** — the AI's hidden planning step before it writes. You set the **depth** (*Vibes* / *Standard* / *Deep*). It plans once, then writes once — it's notes, never a rough draft. The preset also shows it a one-line read-back of your current settings and the story's "phase" (opening, rising, cruising, marathon, endurance) so it adapts as the story ages.
+- **Reverie** — the AI's hidden bounded controller before it writes. You set the **depth** (*Vibes* / *Standard* / *Deep*). It checks the player contract, T0→T1 continuity, knowledge sources, character fidelity, one causal movement, interpersonal landing, presentation, and state output—once, as terse notes, with no message-count phase and no rough draft.
 - **Model Errata** — opt-in fixes for specific AI families' known quirks (Claude's tendency to soften, Gemini's "absolute/sheer" crutch and robotic transitions, DeepSeek's purple drift, Kimi's over-thinking, GLM's under-planning). Pick the one matching your model.
 - **The State Block** — the hidden `<vellum>` report the extension reads. You can dial its **verbosity** (lean by default to save tokens; full, with a worked example, while teaching a new model the format). If the AI can't manage the JSON, a single terse line still works as a fallback.
 

@@ -28,6 +28,7 @@ describe('internalGenerate — response_format forwarding', () => {
     expect(lastReq.parameters.response_format?.type).toBe('json_schema');
     expect(lastReq.parameters.temperature).toBe(0.2);
     expect(lastReq.reasoning?.source).toBe('off');
+    expect(lastReq.type).toBe('raw');
   });
 
   it('omits response_format when not requested', async () => {
@@ -58,6 +59,14 @@ describe('controllerGenerate — reasoning-channel + maxTokens', () => {
   it('defaults max_tokens to 200 (latency-sensitive callers unchanged)', async () => {
     await controllerGenerate([{ role: 'user', content: 'x' }], null);
     expect(lastReq.parameters.max_tokens).toBe(200);
+    expect(lastReq.type).toBe('raw');
+  });
+  it('uses the quiet request discriminator when the quiet API is available', async () => {
+    (globalThis as any).spindle.generate.quiet = async (req: any) => { lastReq = req; return { content: 'ok' }; };
+    const r = await controllerGenerate([{ role: 'user', content: 'x' }], 'u1');
+    expect(r.ok).toBe(true);
+    expect(lastReq.type).toBe('quiet');
+    expect(lastReq.userId).toBe('u1');
   });
 });
 

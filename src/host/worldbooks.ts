@@ -2,7 +2,7 @@ import { has } from './capability.js';
 import { tryCatchAsync, type Result, Ok, Err } from '../core/result.js';
 import { settingsToEntryFields, type EntrySettings } from '../domain/vault.js';
 
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /**
  * Thin wrapper over the host world_books API. Operator-scoped: every call
@@ -86,7 +86,7 @@ export async function vaultSnapshot(chatId: string, uid: string | null): Promise
   if (!a) return { ok: false, reason: 'no_permission', books: [], attached: [], activated: [] };
   const out: VaultSnapshot = { ok: true, books: [], attached: [], activated: [] };
   if (chatId && spindle.chats?.get) {
-    try { const chat = await spindle.chats.get(chatId, uid); out.attached = Array.isArray(chat?.metadata?.chat_world_book_ids) ? chat.metadata.chat_world_book_ids.slice() : []; }
+    try { const chat = await spindle.chats.get(chatId, uid ?? undefined); out.attached = Array.isArray(chat?.metadata?.chat_world_book_ids) ? chat.metadata.chat_world_book_ids.slice() : []; }
     catch { try { const chat2 = await spindle.chats.get(chatId); out.attached = Array.isArray(chat2?.metadata?.chat_world_book_ids) ? chat2.metadata.chat_world_book_ids.slice() : []; } catch { /* ignore */ } }
   }
   let globalIds: string[] = [];
@@ -111,7 +111,7 @@ export async function vaultSnapshot(chatId: string, uid: string | null): Promise
 export async function setBookAttached(chatId: string, bookId: string, attach: boolean, uid: string | null): Promise<boolean> {
   if (!chatId || !bookId || !spindle.chats?.get || !spindle.chats?.update) return false;
   const r = await tryCatchAsync(async () => {
-    const chat = await spindle.chats.get(chatId, uid);
+    const chat = await spindle.chats.get(chatId, uid ?? undefined);
     if (!chat) return false;
     const meta = { ...(chat.metadata || {}) };
     const cur: string[] = Array.isArray(meta.chat_world_book_ids) ? meta.chat_world_book_ids.slice() : [];
@@ -119,7 +119,7 @@ export async function setBookAttached(chatId: string, bookId: string, attach: bo
     if (attach && !has2) meta.chat_world_book_ids = cur.concat(bookId);
     else if (!attach && has2) meta.chat_world_book_ids = cur.filter((x) => x !== bookId);
     else return true;
-    await spindle.chats.update(chatId, { metadata: meta }, uid);
+    await spindle.chats.update(chatId, { metadata: meta }, uid ?? undefined);
     return true;
   });
   return r.ok ? r.value : false;

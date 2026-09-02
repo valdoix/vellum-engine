@@ -1,6 +1,6 @@
 import { parseState } from '../parse/state-block.js';
 import type { ChronicleState } from '../domain/types.js';
-import { internalGenerate } from '../host/generation.js';
+import { internalGenerate, type GenMsg } from '../host/generation.js';
 import { has } from '../host/capability.js';
 
 /**
@@ -69,7 +69,12 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'for setups and their resolutions.\n'
   + 'Invent nothing the prose does not support, but capture everything it DOES. Omit any section with '
   + 'nothing new. A minimal { "turn": N, "day": D, "present": [...] } is valid when truly nothing else '
-  + 'changed. Output the JSON object and STOP.';
+  + 'changed.\n'
+  + 'OUTPUT FORMAT — ABSOLUTE: your entire reply is ONE raw JSON object. Do NOT write literary paragraphs, '
+  + 'a preamble, or a summary. Do NOT introduce it ("Here is the JSON:", "Certainly,"), do NOT add any '
+  + 'sentence before the opening `{` or after the closing `}`, and do NOT wrap it in a ```json code fence. '
+  + 'String VALUES stay terse and factual — a value is data, not prose to be embellished. Begin your reply '
+  + 'with the character `{` and end it immediately with `}`. Output the JSON object and STOP.';
 
 /** Compact CONTEXT header so the model emits correct forward deltas (right turn/
  *  day, scene continuity, real cast names, live threads) instead of guessing.
@@ -111,27 +116,54 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number): strin
   return '[CONTEXT]\n' + lines.join('\n');
 }
 
-/** Quote/bracket-aware extraction of the first balanced top-level {…} object from
- *  a string (the model may wrap the JSON in a stray fence or a line of prose).
- *  Returns null when no complete object closes. Mirrors the discipline used by
- *  the state-block parser so a brace inside a string can't end the scan early. */
-function firstBalancedObject(s: string): string | null {
-  const start = s.indexOf('{');
-  if (start < 0) return null;
-  let depth = 0, inStr = false, esc = false, quote = '"';
-  for (let i = start; i < s.length; i++) {
-    const c = s[i]!;
-    if (inStr) {
-      if (esc) { esc = false; continue; }
-      if (c === '\\') { esc = true; continue; }
-      if (c === quote) inStr = false;
-      continue;
+// Reasoning/thinking tags a model may leak into `content` even with
+// `reasoning: off` (DeepSeek especially, and any provider that ignores the
+// flag). These commonly contain their own braces — the model reasoning ABOUT
+// the JSON shape — which would otherwise be the first balanced object we find.
+// Mirrors the REASONING_RE used by the preview path and extract.ts's strip.
+const REASONING_RE = /<(think|thinking|reverie|reasoning|reflection|scratchpad|analysis|draft|plan|planning)>[\s\S]*?<\/\1>/gi;
+
+/** Strip reasoning tags and code fences so the JSON scan isn't derailed by a
+ *  brace inside a `<think>` block or a ```json fence. Also drops a dangling
+ *  unclosed reasoning tag (a `<think>` with no close, truncated mid-stream). */
+function stripReasoning(s: string): string {
+  return String(s || '')
+    .replace(REASONING_RE, '')
+    .replace(/<(think|thinking|reverie|reasoning|reflection|scratchpad|analysis|draft|plan|planning)>[\s\S]*$/i, '')
+    .replace(/```[a-z]*\n?|```/gi, '')
+    .trim();
+}
+
+/** Quote/bracket-aware extraction of ALL balanced top-level {…} objects from a
+ *  string, in order. The model may wrap the JSON in a stray fence, precede it
+ *  with a line of prose, or (DeepSeek) emit a reasoning object before the real
+ *  state object — so the caller tries each candidate until one validates rather
+ *  than giving up on the first. Mirrors the state-block parser's discipline so a
+ *  brace inside a string can't end a scan early. */
+function balancedObjects(s: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < s.length) {
+    const start = s.indexOf('{', i);
+    if (start < 0) break;
+    let depth = 0, inStr = false, esc = false, quote = '"', closed = false;
+    let j = start;
+    for (; j < s.length; j++) {
+      const c = s[j]!;
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (c === '\\') { esc = true; continue; }
+        if (c === quote) inStr = false;
+        continue;
+      }
+      if (c === '"' || c === '\'') { inStr = true; quote = c; continue; }
+      if (c === '{' || c === '[') depth++;
+      else if (c === '}' || c === ']') { depth--; if (depth === 0) { out.push(s.slice(start, j + 1)); closed = true; break; } }
     }
-    if (c === '"' || c === '\'') { inStr = true; quote = c; continue; }
-    if (c === '{' || c === '[') depth++;
-    else if (c === '}' || c === ']') { depth--; if (depth === 0) return s.slice(start, i + 1); }
+    // advance past this object (or past the stray '{' if it never closed)
+    i = closed ? j + 1 : start + 1;
   }
-  return null;
+  return out;
 }
 
 export interface RepairedBlock {
@@ -149,17 +181,26 @@ export interface RepairedBlock {
  * failed repair can never write garbage into the transcript.
  */
 export function assembleBlock(rawReply: string): RepairedBlock | null {
-  const json = firstBalancedObject(String(rawReply || ''));
-  if (!json) return null;
-  // require at least one real state key BEFORE wrapping: the shared parser is
-  // lenient (an object of junk like {"foo":"bar"} hoists an empty delta and
-  // validates as source 'json'), which would write a meaningless block and mark
-  // the turn "repaired". Gate on the same keys the parser uses to recognize its
-  // own block (state-block.ts SCHEMA_KEY) so only a genuine state block lands.
-  if (!SCHEMA_KEY.test(json)) return null;
-  const block = '<vellum>\n' + json + '\n</vellum>';
-  const { state, source } = parseState(block);
-  if (state && (source === 'json' || source === 'json-partial')) return { block, source };
+  // Strip reasoning tags / fences FIRST — otherwise a `{…}` the model wrote
+  // while reasoning about the schema (common on DeepSeek and other reasoners
+  // that leak <think> into content even with reasoning off) is the first object
+  // we'd find, and it never validates.
+  const cleaned = stripReasoning(rawReply);
+  const candidates = balancedObjects(cleaned);
+  if (!candidates.length) return null;
+  for (const json of candidates) {
+    // require at least one real state key BEFORE wrapping: the shared parser is
+    // lenient (an object of junk like {"foo":"bar"} hoists an empty delta and
+    // validates as source 'json'), which would write a meaningless block and
+    // mark the turn "repaired". Gate on the same keys the parser uses to
+    // recognize its own block (state-block.ts SCHEMA_KEY) so only a genuine
+    // state block lands. Skip non-matching candidates (e.g. a reasoning object)
+    // and keep trying — the real block may come after prose or a stray object.
+    if (!SCHEMA_KEY.test(json)) continue;
+    const block = '<vellum>\n' + json + '\n</vellum>';
+    const { state, source } = parseState(block);
+    if (state && (source === 'json' || source === 'json-partial')) return { block, source };
+  }
   return null;
 }
 
@@ -177,20 +218,38 @@ export async function repairStateBlock(
   userId: string | null,
 ): Promise<RepairedBlock | null> {
   if (!prose || !prose.trim() || !(await has('generation'))) return null;
-  const gen = await internalGenerate(
-    [
-      { role: 'system', content: VELLUM_BLOCK_REPAIR_SYS },
-      { role: 'user', content: context + '\n\n[PROSE]\n' + prose.slice(0, 8000) },
-    ],
-    // 900 tokens: a full block (every on-stage NPC's thought, parallel, journal,
-    // ext) legitimately runs past the old 500 cap — a truncated block fails to
-    // close and parseState rejects it, so under-budgeting defeats the repair.
+  const messages: GenMsg[] = [
+    { role: 'system', content: VELLUM_BLOCK_REPAIR_SYS },
+    { role: 'user', content: context + '\n\n[PROSE]\n' + prose.slice(0, 8000) },
+  ];
+  // ATTEMPT 1 — reasoning OFF, cheap and fast. 900 tokens: a full block (every
+  // on-stage NPC's thought, parallel, journal, ext) legitimately runs past the
+  // old 500 cap — a truncated block fails to close and parseState rejects it.
+  const first = await internalGenerate(
+    messages,
     { temperature: 0.2, max_tokens: 900 },
     userId,
     { reasoningOff: true, responseFormat: REPAIR_SCHEMA, timeoutMs: 30000 },
   );
-  if (!gen.ok) return null;
-  return assembleBlock(gen.value);
+  if (first.ok) {
+    const block = assembleBlock(first.value);
+    if (block) return block;
+  }
+  // ATTEMPT 2 — ESCALATE with reasoning ON. Reasoning models (DeepSeek in
+  // particular) frequently return EMPTY content when reasoning is forced off,
+  // or bury the object inside a <think> block; letting them reason lets the
+  // JSON land in the reasoning channel that extractGenContent harvests, and
+  // assembleBlock's reasoning-strip + multi-object scan pulls out the real
+  // block. Higher token budget so reasoning + a full block both fit. Gated to
+  // one retry so a stubborn model can't loop.
+  const second = await internalGenerate(
+    messages,
+    { temperature: 0.2, max_tokens: 1800 },
+    userId,
+    { reasoningOff: false, responseFormat: REPAIR_SCHEMA, timeoutMs: 45000 },
+  );
+  if (!second.ok) return null;
+  return assembleBlock(second.value);
 }
 
 // JSON-schema for the repair output. Best-effort: enforced only when

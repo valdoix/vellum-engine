@@ -1,6 +1,6 @@
 import { embeddingsEnabled } from '../host/capability.js';
 
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /**
  * Host-embeddings adapter. VELLUM does NOT run its own vector store — Lumiverse
@@ -33,7 +33,7 @@ export async function vectorSearch(
   try {
     const cortex = spindle.memories?.cortex;
     if (!cortex?.query) return null;
-    const res = await cortex.query({ chatId, queryText: query, topK, includeRelationships: false, userId });
+    const res = await cortex.query({ chatId, queryText: query, topK, includeRelationships: false, userId: userId ?? undefined });
     const mems: any[] = Array.isArray(res?.memories) ? res.memories : Array.isArray(res) ? res : [];
     const hits: VectorHit[] = [];
     for (const m of mems) {

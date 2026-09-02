@@ -1,7 +1,7 @@
 import { type Result, Ok, Err, tryCatchAsync } from '../core/result.js';
 import { has } from './capability.js';
 
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /**
  * The host's optimistic-concurrency conflict code. When a preset update's
@@ -37,12 +37,12 @@ async function updatePresetMetadata(
   // Resolve the current metadata + revision. On a retry we already know the
   // authoritative revision from the conflict, but we still re-read so the
   // metadata we merge onto is the freshest (another writer may have changed it).
-  const preset = await spindle.presets.get(presetId, userId);
+  const preset = await spindle.presets.get(presetId, userId ?? undefined);
   if (!preset) throw new Error('preset_not_found');
   const revision = knownRevision ?? preset.cache_revision ?? 0;
   // metadata-ONLY patch — never marshal prompts / prompt_order / parameters.
   const metadata = { ...(preset.metadata ?? {}), vellum_engine: meta };
-  await spindle.presets.update(presetId, { metadata, expected_cache_revision: revision }, userId);
+  await spindle.presets.update(presetId, { metadata, expected_cache_revision: revision }, userId ?? undefined);
 }
 
 /**
@@ -62,13 +62,6 @@ export async function stampPresetMetadata(
   userId: string | null,
 ): Promise<Result<void, string>> {
   if (!(await has('presets'))) return Err('no_presets_permission');
-  // Prefer a metadata-only merge API if a future host exposes one; otherwise we
-  // need get + update to satisfy the revision precondition.
-  if (spindle.presets?.updateMetadata) {
-    return tryCatchAsync(async () => {
-      await spindle.presets.updateMetadata(presetId, { vellum_engine: meta }, userId);
-    });
-  }
   if (!spindle.presets?.get || !spindle.presets?.update) return Err('no_presets_api');
 
   return tryCatchAsync(async () => {
@@ -103,11 +96,11 @@ export async function updatePresetMetadataKey(
   if (!spindle.presets?.get || !spindle.presets?.update) return Err('no_presets_api');
 
   const write = async (knownRevision?: number): Promise<void> => {
-    const preset = await spindle.presets.get(presetId, userId);
+    const preset = await spindle.presets.get(presetId, userId ?? undefined);
     if (!preset) throw new Error('preset_not_found');
     const revision = knownRevision ?? preset.cache_revision ?? 0;
     const metadata = { ...(preset.metadata ?? {}), [key]: value };
-    await spindle.presets.update(presetId, { metadata, expected_cache_revision: revision }, userId);
+    await spindle.presets.update(presetId, { metadata, expected_cache_revision: revision }, userId ?? undefined);
   };
 
   return tryCatchAsync(async () => {

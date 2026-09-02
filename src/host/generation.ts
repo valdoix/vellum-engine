@@ -1,7 +1,7 @@
 import { type Result, Ok, Err, tryCatchAsync } from '../core/result.js';
 import { has } from './capability.js';
 
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /** Pull generated text from whichever channel it lands in. `reasoning: off`
  * doesn't cover every provider (OpenRouter etc. still think), so the answer can
@@ -81,11 +81,11 @@ export async function internalGenerate(
   // down and tryCatchAsync surfaces the abort as an Err so callers fall back.
   const timeoutMs = opts?.timeoutMs;
   const signal = timeoutMs && typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
-  const req = { messages, parameters: params2, userId, ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}), ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
+  const req = { messages, parameters: params2, ...(userId ? { userId } : {}), ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}), ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
   return tryCatchAsync(async () => {
     const call = spindle.generate.quiet
-      ? spindle.generate.quiet(req)
-      : spindle.generate.raw(req);
+      ? spindle.generate.quiet({ type: 'quiet', ...req })
+      : spindle.generate.raw({ type: 'raw', ...req });
     // Enforce the deadline ourselves — don't trust the host to honor `signal`.
     const r = timeoutMs ? await withTimeout(call, timeoutMs, 'internalGenerate') : await call;
     return extractGenContent(r);
@@ -134,11 +134,11 @@ export async function controllerGenerate(
   if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
   const connId = await defaultConnectionId(userId); // run on the user's own model
-  const req = { messages, parameters: { max_tokens: maxTokens, temperature: 0 }, reasoning: { source: 'off' as const }, userId, ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}) };
+  const req = { messages, parameters: { max_tokens: maxTokens, temperature: 0 }, reasoning: { source: 'off' as const }, ...(userId ? { userId } : {}), ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}) };
   return tryCatchAsync(async () => {
     const call = spindle.generate.quiet
-      ? spindle.generate.quiet(req)
-      : spindle.generate.raw(req);
+      ? spindle.generate.quiet({ type: 'quiet', ...req })
+      : spindle.generate.raw({ type: 'raw', ...req });
     // Hard wall-clock deadline independent of AbortSignal — this runs on the
     // synchronous interceptor path and must never block prompt assembly.
     const r = await withTimeout(call, timeoutMs, 'controllerGenerate');

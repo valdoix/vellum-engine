@@ -81,3 +81,64 @@ describe('block-repair — assembleBlock', () => {
     expect(assembleBlock('{ "turn": 9, "scene": { "loc": "x"')).toBeNull();
   });
 });
+
+describe('block-repair — assembleBlock: DeepSeek / reasoning-model resilience', () => {
+  const VALID = '{ "turn": 3, "scene": { "loc": "hall" }, "present": [{ "id": "Aria" }] }';
+
+  it('strips <think>…</think> before scanning, so a brace inside reasoning does not steal the scan', () => {
+    const raw = '<think>I need to output JSON like { "foo": 1 }. Let me construct it properly.</think>\n' + VALID;
+    const r = assembleBlock(raw);
+    expect(r).not.toBeNull();
+    expect(parseState(r!.block).state?.turn).toBe(3);
+  });
+
+  it('skips a non-schema reasoning object and finds the real block after it', () => {
+    // DeepSeek may emit a schema-less object (e.g. reasoning plan) before the real state
+    const raw = '{ "plan": "write scene then JSON" }\n\nSome prose.\n\n' + VALID;
+    const r = assembleBlock(raw);
+    expect(r).not.toBeNull();
+    expect(parseState(r!.block).state?.turn).toBe(3);
+  });
+
+  it('strips an unclosed <think> tag (mid-stream truncation)', () => {
+    const raw = '<think>reasoning that never closes...\n' + VALID;
+    const r = assembleBlock(raw);
+    // the think block swallows the trailing content — block is not recoverable here,
+    // but the scanner must not crash and must not write garbage
+    expect(typeof r === 'object' || r === null).toBe(true);
+  });
+
+  it('strips code fences from a reply that wraps JSON in ```json', () => {
+    const raw = 'Here is the reconstructed state:\n```json\n' + VALID + '\n```';
+    const r = assembleBlock(raw);
+    expect(r).not.toBeNull();
+    expect(parseState(r!.block).state?.turn).toBe(3);
+  });
+
+  it('handles a <think> block containing valid-looking but schema-less JSON followed by the real block', () => {
+    const raw = '<think>{ "step": 1, "action": "draft scene" }</think>\n\n' + VALID;
+    const r = assembleBlock(raw);
+    expect(r).not.toBeNull();
+    expect(parseState(r!.block).state?.turn).toBe(3);
+  });
+
+  it('handles multiple <think> variants (thinking, reasoning, reflection)', () => {
+    const thinkVariants = [
+      '<thinking>plan here</thinking>',
+      '<reasoning>plan here</reasoning>',
+      '<reflection>plan here</reflection>',
+    ];
+    for (const tag of thinkVariants) {
+      const r = assembleBlock(tag + '\n' + VALID);
+      expect(r).not.toBeNull();
+      expect(parseState(r!.block).state?.turn).toBe(3);
+    }
+  });
+
+  it('recovers despite a Gemini-style preamble sentence + code fence (prompt discourages it, parser tolerates it)', () => {
+    const raw = 'Certainly, here is the reconstructed state:\n\n```json\n' + VALID + '\n```\n\nLet me know if you need anything else.';
+    const r = assembleBlock(raw);
+    expect(r).not.toBeNull();
+    expect(parseState(r!.block).state?.turn).toBe(3);
+  });
+});

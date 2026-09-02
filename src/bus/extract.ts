@@ -7,7 +7,7 @@ import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate } from '../host/generation.js';
 import { has } from '../host/capability.js';
 
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /**
  * PROSE-DRIVEN EXTRACTOR (the legacy LIVING_SYS pass, rebuilt). The model writes

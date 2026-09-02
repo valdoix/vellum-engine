@@ -105,16 +105,15 @@ describe('stampPresetMetadata — revision-aware update contract', () => {
     expect(r).toEqual({ ok: false, error: 'no_presets_api' });
   });
 
-  it('prefers a metadata-only host API when available', async () => {
-    let metaArgs: any = null;
-    (globalThis as any).spindle.presets.updateMetadata = async (id: string, patch: any, uid: string) => {
-      metaArgs = { id, patch, uid };
+  it('uses the supported get/update contract even if a legacy host exposes updateMetadata', async () => {
+    (globalThis as any).spindle.presets.updateMetadata = async () => {
+      throw new Error('out-of-contract updateMetadata must not be called');
     };
     const r = await stampPresetMetadata('p1', { identifier: 'vellum_engine' }, 'u1');
     expect(r.ok).toBe(true);
-    expect(metaArgs.patch.vellum_engine.identifier).toBe('vellum_engine');
-    // the revision-aware fallback is not exercised when updateMetadata exists
-    expect(updateArgs).toHaveLength(0);
-    expect(getCalls).toBe(0);
+    expect(updateArgs).toHaveLength(1);
+    expect(updateArgs[0].input.metadata.vellum_engine.identifier).toBe('vellum_engine');
+    expect(updateArgs[0].input.expected_cache_revision).toBe(3);
+    expect(getCalls).toBe(1);
   });
 });

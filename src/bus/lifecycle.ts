@@ -28,7 +28,10 @@ export interface FoldResult {
 }
 
 export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number }): FoldResult {
-  const sig = hashStr(content.slice(0, 4000));
+  // Hash the complete active content. The state block lives at the end of the
+  // message, so a prefix-only signature misses precisely the edits/swipes that
+  // must invalidate canonical state on long replies.
+  const sig = hashStr(content);
   const { state: parsed, source, dropped } = parseState(content);
   if (!parsed) return { events: [], source, sig };
 

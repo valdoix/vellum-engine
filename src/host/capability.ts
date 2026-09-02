@@ -1,4 +1,4 @@
-declare const spindle: any;
+declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
 /**
  * Capability probing. Every optional feature (embeddings, world books,
@@ -53,7 +53,7 @@ export async function embeddingsEnabled(chatId: string, userId: string | null): 
   let enabled = false;
   try {
     if ((await has('memories')) && spindle.memories?.chatMemory?.warm) {
-      const w = await spindle.memories.chatMemory.warm(chatId, { force: false, userId });
+      const w = await spindle.memories.chatMemory.warm(chatId, { force: false, userId: userId ?? undefined });
       enabled = !(w && w.status === 'skipped');
     }
   } catch { enabled = false; }

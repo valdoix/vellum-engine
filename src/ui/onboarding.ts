@@ -379,6 +379,10 @@ const SLIDES = [
   }
 ];
 
+let _closeOnboarding: (() => void) | null = null;
+
+export function closeOnboarding(): void { _closeOnboarding?.(); }
+
 export function openOnboarding(onClose?: () => void): void {
   try {
     if (document.querySelector('.vle-ob')) return; // already open
@@ -388,11 +392,13 @@ export function openOnboarding(onClose?: () => void): void {
     let onKey: ((e: KeyboardEvent) => void) | null = null;
 
     const close = (): void => {
+      if (_closeOnboarding === close) _closeOnboarding = null;
       markOnboarded();
       if (onKey) document.removeEventListener('keydown', onKey);
       try { ov.remove(); } catch { /* ignore */ }
       onClose?.();
     };
+    _closeOnboarding = close;
     const next = (): void => { if (slide < SLIDES.length - 1) { slide++; render(); } else close(); };
     const back = (): void => { if (slide > 0) { slide--; render(); } };
 

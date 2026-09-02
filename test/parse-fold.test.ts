@@ -186,6 +186,13 @@ describe('foldTurn → events → reduce', () => {
     expect(a.sig).toBe(b.sig);
   });
 
+  it('changes signature when only a suffix beyond 4,000 characters changes', () => {
+    const prefix = 'x'.repeat(4500);
+    const a = foldTurn(prefix + '<vellum>{"turn":1,"day":1}</vellum>', freshState(), 1);
+    const b = foldTurn(prefix + '<vellum>{"turn":1,"day":2}</vellum>', freshState(), 1);
+    expect(a.sig).not.toBe(b.sig);
+  });
+
   it('turn is POSITIONAL: ignores the model-supplied turn (prevents the t1 freeze + duplicate-delta bug)', () => {
     // a block that lies with "turn": 1 must still be stamped with the loop position
     const block = [
