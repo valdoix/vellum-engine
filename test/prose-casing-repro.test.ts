@@ -44,19 +44,26 @@ describe('prose-casing validator — rejects mis-segmented common-noun runs', ()
 describe('prose-casing validator — preserves legitimate names', () => {
   const prose = 'Daeron knelt beside Cersei and confessed what he had done.';
 
+  const withDaeron = (full = false) => {
+    const state = freshState();
+    const id = full ? 'daeron_targaryen' : 'daeron';
+    const name = full ? 'Daeron Targaryen' : 'Daeron';
+    state.cast[id] = { id, name, aka: [], status: 'present', source: 'auto', firstTurn: 5, lastTurn: 5, userEdited: false } as any;
+    return state;
+  };
+
   it('keeps a proper name capitalized in the prose ("Daeron")', () => {
-    const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'confessed the deed' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'confessed the deed' }] }, 5, 1, names, sf, withDaeron(), undefined, prose);
     expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(1);
   });
 
-  it('keeps a fuller supplied surname absent from the prose ("Daeron Targaryen")', () => {
-    // "Targaryen" isn't in the prose at all → no lowercase signal → allowed.
-    const evs = mapExtracted({ knowledge: [{ who: 'Daeron Targaryen', fact: 'x' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+  it('keeps an established full identity when only its given name appears', () => {
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron Targaryen', fact: 'x' }] }, 5, 1, names, sf, withDaeron(true), undefined, prose);
     expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(1);
   });
 
   it('keeps a sentence-initial name (capitalized at least once)', () => {
-    const evs = mapExtracted({ journal: [{ who: 'Daeron', memory: 'I told her the truth' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+    const evs = mapExtracted({ journal: [{ who: 'Daeron', memory: 'I told her the truth' }] }, 5, 1, names, sf, withDaeron(), undefined, prose);
     expect(evs.filter((e) => e.kind === 'journal.entry')).toHaveLength(1);
   });
 

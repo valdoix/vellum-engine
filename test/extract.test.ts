@@ -77,6 +77,12 @@ describe('mapExtracted — pure JSON → events', () => {
 describe('mapExtracted — prose gate (anti-hallucination / anti-misattribution)', () => {
   const prose = 'Daeron knelt beside Cersei and confessed what he had done. She wept.';
 
+  const withDaeron = () => {
+    const state = freshState();
+    state.cast.daeron = { id: 'daeron', name: 'Daeron', aka: [], status: 'present', source: 'auto', firstTurn: 5, lastTurn: 5, userEdited: false } as any;
+    return state;
+  };
+
   it('drops a hallucinated subject not in the prose ("Aegon")', () => {
     const evs = mapExtracted({ knowledge: [{ who: 'Aegon', fact: 'plots in secret' }] }, 5, 1, names, sf, freshState(), undefined, prose);
     expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(0);
@@ -89,21 +95,56 @@ describe('mapExtracted — prose gate (anti-hallucination / anti-misattribution)
     expect(evs.filter((e) => e.kind === 'journal.entry')).toHaveLength(0);
   });
 
-  it('keeps a subject present in the prose (Daeron, by token)', () => {
+  it('does not create a plausible new name until the canonical state pass establishes it', () => {
     const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'admitted the deed' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+    expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(0);
+  });
+
+  it('keeps an established subject present in the prose (Daeron, by token)', () => {
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'admitted the deed' }] }, 5, 1, names, sf, withDaeron(), undefined, prose);
     expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(1);
   });
 
-  it('matches by token: "Daeron Targaryen" subject lands when prose says "Daeron"', () => {
-    const evs = mapExtracted({ knowledge: [{ who: 'Daeron Targaryen', fact: 'x' }] }, 5, 1, names, sf, freshState(), undefined, prose);
-    expect(evs.filter((e) => e.kind === 'knowledge.learn')).toHaveLength(1);
+  it('matches an established full identity by token when prose uses the given name', () => {
+    const state = freshState();
+    state.cast.daeron_targaryen = { id: 'daeron_targaryen', name: 'Daeron Targaryen', aka: [], status: 'present', source: 'auto', firstTurn: 5, lastTurn: 5, userEdited: false } as any;
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron Targaryen', fact: 'x' }] }, 5, 1, names, sf, state, undefined, prose);
+    const knowledge = evs.find((e) => e.kind === 'knowledge.learn') as any;
+    expect(knowledge?.who).toBe('daeron_targaryen');
   });
 
-  it('allows an OBJECT (about) to be someone absent from the prose', () => {
-    const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'Aegon is dead', about: 'Aegon' }] }, 5, 1, names, sf, freshState(), undefined, prose);
+  it('drops an unknown OBJECT identity instead of letting about mint a cast card', () => {
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'Aegon is dead', about: 'Aegon' }] }, 5, 1, names, sf, withDaeron(), undefined, prose);
     const k = evs.find((e) => e.kind === 'knowledge.learn') as any;
     expect(k).toBeDefined();
-    expect(k.about).toBe('aegon'); // topic can be absent; only the SUBJECT is gated
+    expect(k.about).toBeUndefined();
+  });
+
+  it('allows about to point at an established cast member who is absent from the prose', () => {
+    const state = withDaeron();
+    state.cast.aegon = { id: 'aegon', name: 'Aegon', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 3, userEdited: false } as any;
+    const evs = mapExtracted({ knowledge: [{ who: 'Daeron', fact: 'Aegon is dead', about: 'Aegon' }] }, 5, 1, names, sf, state, undefined, prose);
+    const k = evs.find((e) => e.kind === 'knowledge.learn') as any;
+    expect(k?.about).toBe('aegon');
+  });
+
+  it('rejects capitalized non-characters across every cast-bearing extractor slot', () => {
+    const scene = 'Morning settled over Winterfell. The Letter lay beside Cersei while Silence filled the hall.';
+    const evs = mapExtracted({
+      present: [{ who: 'Morning', mood: 'cold' }],
+      knowledge: [{ who: 'Cersei', fact: 'winter has come', about: 'Winterfell' }],
+      secrets: [{ keeper: 'Cersei', secret: 'the seal is forged', from: 'The Letter' }],
+      journal: [{ who: 'Cersei', about: 'Silence', memory: 'The quiet pressed in.' }],
+      bonds: [{ a: 'Cersei', b: 'The Letter', aff: 10 }],
+      factions: [{ name: 'Citadel', members: ['Morning'] }],
+    }, 5, 1, names, sf, freshState(), undefined, scene);
+
+    expect(evs.some((e) => e.kind === 'cast.seen')).toBe(false);
+    expect(evs.some((e) => e.kind === 'bond.delta')).toBe(false);
+    expect(evs.some((e) => e.kind === 'faction.member')).toBe(false);
+    expect((evs.find((e) => e.kind === 'knowledge.learn') as any)?.about).toBeUndefined();
+    expect((evs.find((e) => e.kind === 'secret.form') as any)?.from).toEqual([]);
+    expect((evs.find((e) => e.kind === 'journal.entry') as any)?.about).toBeUndefined();
   });
 
   it('persona ({{user}}) is always allowed even if not literally in the prose', () => {
@@ -136,9 +177,11 @@ describe('mapExtracted — present + inner-thought recovery', () => {
   });
 
   it('never emits present interiority for the player ({{user}}/persona)', () => {
+    const state = freshState();
+    state.cast.daeron = { id: 'daeron', name: 'Daeron', aka: [], status: 'present', source: 'auto', firstTurn: 6, lastTurn: 6, userEdited: false } as any;
     const evs = mapExtracted({
       present: [{ who: '{{user}}', mood: 'furious', thought: 'I should have known.' }, { who: 'Daeron', thought: 'She saw through me.' }],
-    }, 6, 1, names, sf, freshState(), undefined, prose);
+    }, 6, 1, names, sf, state, undefined, prose);
     const scene = evs.find((e) => e.kind === 'scene.set') as any;
     expect(scene.present).not.toContain('anne'); // persona excluded
     expect(scene.detail.some((d: any) => d.id === 'anne')).toBe(false);

@@ -30,9 +30,10 @@ const EXTRACT_SYS =
   + '"secrets":[{"secret":"one clause","keeper":"Name","from":"Name(s) comma-sep or omit","danger":"minor|major|explosive"}],'
   + '"journal":[{"who":"Name","about":"Name or omit","memory":"one vivid sentence from WHO\'S point of view","kind":"interaction|promise|betrayal|gift|shared|wound|observation","weight":"trivial|minor|significant|defining","sentiment":"positive|negative|neutral|complex"}],'
   + '"bonds":[{"a":"Name","b":"Name","aff":<int -40..40>,"trust":<int -40..40>,"cat":["familial|romantic|alliance|rivalry|social"],"why":"one clause"}],"factions":[{"name":"Group name","kind":"household|house|guild|order","members":["Name"],"standing":<int -40..40 toward the player, optional>}]}. '
-  + 'RULES: use ONLY real character names that LITERALLY APPEAR in the prose excerpt below (the persona/player and the characters named in it), never placeholders or unnamed figures (a guard, a servant). '
+  + 'RULES: character slots may use ONLY a real individual from the KNOWN CHARACTERS roster supplied with the prose. A capitalized object, place, time, event, title, role, group, or narrative phrase is NOT a character. If a prose name is not on that roster, OMIT it; the canonical state pass, not this supplemental prose pass, creates new cast identities. '
+  + 'The chosen roster name must also LITERALLY APPEAR in the prose excerpt (except the persona/player), never placeholders or unnamed figures (a guard, a servant). '
   + 'NEVER invent a name, and NEVER substitute a different or more-famous name for the one written — if the prose says "Daeron", attribute to Daeron, never to "Rhaegar" or any other character, even if they seem related or similar. Copy the name EXACTLY as it appears. If you are unsure who acted, OMIT the entry rather than guess. '
-  + 'EVERY NAMED CHARACTER COUNTS — not just the lead or the player. Attribute knowledge, secrets, and journal entries to side characters, rivals, family, and minor figures too whenever the prose gives them a real name; the chronicle tracks them all equally. '
+  + 'EVERY ROSTERED NAMED CHARACTER COUNTS — not just the lead or the player. Attribute knowledge, secrets, and journal entries to side characters, rivals, family, and minor figures too whenever the prose uses their rostered name; the chronicle tracks them all equally. '
   + 'KNOWLEDGE is the engine of dramatic irony — track the INFORMATION STATE. Extract when ANY character (including the player) learns, realizes, infers, overhears, confesses, or comes to wrongly believe something — e.g. "Cersei revealed her father beat her" => {who:"<listener>",fact:"<speaker>\'s father beat <speaker>"} AND a secret if it was hidden. '
   + 'reliability = the knower\'s stance (wrong = they believe something untrue); truth = the ACTUAL state regardless of belief (a mistaken belief is reliability:"wrong",truth:"false"); source = how they came to it. '
   + 'PREFER facts that create tension, irony, or asymmetric knowledge (someone believes a falsehood, someone hides something, one party knows what another does not). OMIT routine perceptions everyone present already shares ("the door was open", "it was cold") — those are not knowledge. '
@@ -40,7 +41,7 @@ const EXTRACT_SYS =
   + 'JOURNAL: extract genuine TURNING POINTS a character would personally carry — a confession, promise, betrayal, gift, wound, first kiss, a moment of being truly seen — written from that character\'s POV; the PLAYER can and should hold journal entries too. '
   + 'BONDS: aff/trust are the CHANGE this excerpt caused to how A feels toward B; omit pairs that did not move; cat only when the bond\'s nature changed. '
   + 'FACTIONS: name a GROUP (household staff, a house, a guild) when it acts, is referenced as a bloc, or a character belongs to one; list known members and the group\'s standing toward the player if it shifted. Capture every real reveal/turning-point that carries dramatic weight, invent nothing the prose does not support. Empty arrays are fine. '
-  + 'PRESENT + INNER THOUGHT: for EACH individually-named character on-stage in this excerpt, emit a present[] entry with their current mood and what they are doing, and — this is the point — their `thought`: the genuine, unspoken first-person inner voice they carry through this beat, framed by ONLY what THAT character knows (never omniscient, never the narrator\'s summary). If the prose already renders a character\'s interiority (a line of free-indirect thought, a private fear, what they don\'t say aloud), capture it as `thought` in their own voice. Do NOT invent interiority the prose gives no basis for; omit `thought` when the character is a cipher this beat. NEVER emit a present entry for the player/persona ({{user}}) — their inner state is authored only by the player; and never for a group. '
+  + 'PRESENT + INNER THOUGHT: for EACH rostered, individually-named character on-stage in this excerpt, emit a present[] entry with their current mood and what they are doing, and — this is the point — their `thought`: the genuine, unspoken first-person inner voice they carry through this beat, framed by ONLY what THAT character knows (never omniscient, never the narrator\'s summary). If the prose already renders a character\'s interiority (a line of free-indirect thought, a private fear, what they don\'t say aloud), capture it as `thought` in their own voice. Do NOT invent interiority the prose gives no basis for; omit `thought` when the character is a cipher this beat. NEVER emit a present entry for the player/persona ({{user}}) — their inner state is authored only by the player; and never for a group. '
   + 'CRITICAL: a COLLECTIVE or GROUP is a FACTION, never a character. "The household staff", "the court", "the Kingsguard", "the guards", "the council", "House Lannister" are GROUPS — put them ONLY in factions[].name (with members), NEVER in a who/a/b/keeper/present character slot. Those slots take individual named people only. If a group already exists (see the FACTIONS list in context), reuse its EXACT name; do not coin a synonym.';
 
 function parseJson(text: string): any | null {
@@ -66,20 +67,22 @@ function bad(name: string): boolean {
 }
 
 /**
- * Anti-hallucination / anti-misattribution gate for SUBJECT names (the knower,
- * keeper, journaller, bond endpoints, faction members). A character can only
- * LEARN/HOLD/ACT if they are actually in THIS turn's prose — so a subject name
- * is accepted only when it (or its first/last token) appears in the prose, OR is
- * the persona/{{char}}. This kills two failure classes at once:
+ * Anti-hallucination / anti-misattribution gate for character references. A
+ * character can only LEARN/HOLD/ACT if they are actually in THIS turn's prose,
+ * and the supplemental prose pass may only refer to a cast identity already
+ * established by the canonical state pass (plus the persona/{{char}}). This
+ * kills three failure classes at once:
  *   - pure hallucination (the model invents "Aegon" who isn't in the text)
  *   - misattribution to an off-scene cast member (writes "Rhaegar" for a Daeron
  *     scene — Rhaegar isn't in this prose, so it's dropped)
+ *   - capitalized non-characters ("Morning", "The Letter", a location) that
+ *     happen to occur literally and previously passed the casing-only filter
  *   - same-surname misfiling (writes "Tywin Lannister" when only "Cersei
  *     Lannister" is in the prose — a trailing SHARED token like "lannister" must
  *     not admit Tywin; require the given name, or a surname unique to one cast)
- * OBJECT slots (about / secret `from` / faction name) are NOT gated here: you can
- * learn a fact ABOUT someone absent. `proseTokens` is the lowercased word set of
- * the turn's narration. */
+ * An OBJECT character slot (about / secret `from`) may still name someone absent
+ * from this turn, but only when it resolves to that established cast. Faction
+ * names use their separate identity namespace. */
 function buildProseTokens(prose: string): ProseTokens {
   // Scan the ORIGINAL text (not a lowercased copy) so casing survives: `all` is
   // every word seen (lowercased for lookup); `caps` is the subset that appeared
@@ -148,11 +151,28 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   const badN = (name: string): boolean => bad(name) || (knownPeople.length > 0 && isNameMash(name, knownPeople));
   const userCanon = names.user ? canonId(names.user) : '';
   const charCanon = names.char ? canonId(names.char) : '';
-  // subject-name gate: a knower/holder/actor must be in THIS prose (or persona).
-  // When no prose is supplied (older callers/tests), the gate is a no-op so
-  // behaviour is unchanged. OBJECT names (about/from/faction) bypass it.
+  // Character-admission gate. PASS 1 folds the authoritative <vellum> state
+  // before this supplemental prose pass, so every legitimate new identity from
+  // the turn is already in `state.cast`. Refusing to mint additional identities
+  // here is deliberately stronger than another ever-growing noun denylist: a
+  // capitalized object/place/time phrase cannot become a cast card merely by
+  // appearing in prose. The persona and primary {{char}} remain trusted roots.
+  // When no prose is supplied (pure/legacy callers), retain the old mapping
+  // behavior; production extraction always supplies prose and state.
   const tokens = prose ? buildProseTokens(prose) : null;
-  const present = (name: string): boolean => !tokens || inProse(name, tokens, userCanon, charCanon, state?.cast);
+  const established = (name: string): boolean => {
+    if (!tokens || !state) return true;
+    const rawId = canonId(name);
+    const resolved = rid(name);
+    return rawId === userCanon || rawId === charCanon || !!state.cast[resolved];
+  };
+  const subject = (name: string): boolean => established(name)
+    && (!tokens || inProse(name, tokens, userCanon, charCanon, state?.cast));
+  // about/from can point at an off-scene character, but must never create one.
+  const objectId = (name: string): string | undefined => {
+    if (!name || badN(name) || !established(name)) return undefined;
+    return rid(name);
+  };
 
   // PRESENT + INNER THOUGHT recovery: rebuild the on-stage roster and per-
   // character detail (mood/doing/condition/thought) from prose so a dropped or
@@ -165,7 +185,7 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   const seenPres = new Set<string>();
   for (const p of Array.isArray(obj.present) ? obj.present : []) {
     const who = realName(p?.who, names);
-    if (badN(who) || !present(who)) continue;
+    if (badN(who) || !subject(who)) continue;
     const id = rid(who);
     if (id === userCanon) continue; // never author the player's inner state
     if (seenPres.has(id)) continue;
@@ -185,30 +205,32 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
 
   for (const k of Array.isArray(obj.knowledge) ? obj.knowledge : []) {
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
-    if (badN(who) || !fact || !present(who)) continue;
+    if (badN(who) || !fact || !subject(who)) continue;
     const about = realName(k?.about, names);
+    const aboutId = objectId(about);
     const reliability = REL.has(String(k?.reliability)) ? k.reliability : undefined;
     const truth = TRU.has(String(k?.truth)) ? k.truth : undefined;
     const source = String(k?.source || '').trim().slice(0, 120) || undefined;
-    out.push({ ...base(), kind: 'knowledge.learn', who: rid(who), fact, ...(about && !badN(about) ? { about: rid(about) } : {}), ...(reliability ? { reliability } : {}), ...(truth ? { truth } : {}), ...(source ? { source } : {}) } as VellumEvent);
+    out.push({ ...base(), kind: 'knowledge.learn', who: rid(who), fact, ...(aboutId ? { about: aboutId } : {}), ...(reliability ? { reliability } : {}), ...(truth ? { truth } : {}), ...(source ? { source } : {}) } as VellumEvent);
   }
   let si = 0;
   for (const s of Array.isArray(obj.secrets) ? obj.secrets : []) {
     const keeper = realName(s?.keeper, names); const text = String(s?.secret || s?.text || '').trim();
-    if (badN(keeper) || !text || !present(keeper)) continue;
-    const from = String(s?.from || '').split(',').map((x: string) => realName(x, names)).filter((x: string) => x && !badN(x)).map(rid);
+    if (badN(keeper) || !text || !subject(keeper)) continue;
+    const from = String(s?.from || '').split(',').map((x: string) => objectId(realName(x, names))).filter((x): x is string => !!x);
     out.push({ ...base(), kind: 'secret.form', id: 'sec_' + turn + '_' + (si++), keeper: rid(keeper), from, text } as VellumEvent);
   }
   let ji = 0;
   for (const j of Array.isArray(obj.journal) ? obj.journal : []) {
     const who = realName(j?.who, names); const memory = String(j?.memory || '').trim();
-    if (badN(who) || !memory || !present(who)) continue;
+    if (badN(who) || !memory || !subject(who)) continue;
     const about = realName(j?.about, names);
-    out.push({ ...base(), kind: 'journal.entry', id: 'mj_' + rid(who) + '_' + turn + '_' + (ji++), who: rid(who), ...(about && !badN(about) ? { about: rid(about) } : {}), memory, jkind: jk(j?.kind), weight: jw(j?.weight), sentiment: js(j?.sentiment) } as VellumEvent);
+    const aboutId = objectId(about);
+    out.push({ ...base(), kind: 'journal.entry', id: 'mj_' + rid(who) + '_' + turn + '_' + (ji++), who: rid(who), ...(aboutId ? { about: aboutId } : {}), memory, jkind: jk(j?.kind), weight: jw(j?.weight), sentiment: js(j?.sentiment) } as VellumEvent);
   }
   for (const b of Array.isArray(obj.bonds) ? obj.bonds : []) {
     const a = realName(b?.a, names), bb = realName(b?.b, names);
-    if (badN(a) || badN(bb) || rid(a) === rid(bb) || !present(a) || !present(bb)) continue;
+    if (badN(a) || badN(bb) || rid(a) === rid(bb) || !subject(a) || !subject(bb)) continue;
     const cats = (Array.isArray(b?.cat) ? b.cat : []).map((c: string) => String(c).toLowerCase()).filter(isCategory) as Category[];
     const aff = clamp(b?.aff), trust = clamp(b?.trust);
     if (!aff && !trust && !cats.length) continue;
@@ -232,7 +254,7 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     out.push({ ...base(), kind: 'faction.seen', id: fid, name, status: 'active' } as VellumEvent);
     if (fx?.kind) out.push({ ...base(), kind: 'faction.edit', id: fid, patch: { kind: String(fx.kind) } } as VellumEvent);
     const members = Array.isArray(fx?.members) ? fx.members : String(fx?.members || '').split(',');
-    for (const mn of members) { const m = realName(mn, names); if (m && !badN(m) && present(m)) out.push({ ...base(), kind: 'faction.member', char: rid(m), faction: fid, op: 'add' } as VellumEvent); }
+    for (const mn of members) { const m = realName(mn, names); if (m && !badN(m) && subject(m)) out.push({ ...base(), kind: 'faction.member', char: rid(m), faction: fid, op: 'add' } as VellumEvent); }
     const seed = isNew ? seedFactionStanding(tone) : 0;
     const delta = (Number.isFinite(fx?.standing) ? clamp(fx.standing) : 0) + seed;
     if (delta) out.push({ ...base(), kind: 'faction.standing', faction: fid, standing: Math.max(-100, Math.min(100, delta)) } as VellumEvent);
@@ -247,8 +269,17 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
  */
 export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null, state?: ChronicleState, tone: Tone = DEFAULT_TONE): Promise<VellumEvent[]> {
   if (!prose || !prose.trim() || !(await has('generation'))) return [];
+  const roster = Array.from(new Set([
+    names.user,
+    names.char,
+    ...Object.values(state?.cast ?? {}).flatMap((c) => [c.name, ...(c.aka ?? [])]),
+  ].map((x) => String(x || '').trim()).filter(Boolean))).slice(0, 250);
+  const factions = Object.values(state?.factions ?? {}).map((f) => f.name).filter(Boolean).slice(0, 100);
+  const context = '[KNOWN CHARACTERS]\n' + (roster.length ? roster.join('\n') : '(none)')
+    + '\n\n[KNOWN FACTIONS]\n' + (factions.length ? factions.join('\n') : '(none)')
+    + '\n\n[RECENT NARRATIVE PROSE]\n' + prose.slice(0, 8000);
   const gen = await internalGenerate(
-    [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: prose.slice(0, 8000) }],
+    [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: context }],
     { temperature: 0.2, max_tokens: 900 },
     userId,
     { reasoningOff: true, responseFormat: EXTRACT_SCHEMA, timeoutMs: 45000 },
