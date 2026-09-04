@@ -84,6 +84,25 @@ describe('speakerColorCss', () => {
     expect(css).toContain('.v-spk[data-spk="El" i]{--vle-spk-color:#e0736b}');
   });
 
+  it('colors unambiguous short forms of formal cast names', () => {
+    const css = speakerColorCss([{ name: 'Lady Mara Vey', aka: [], color: '#c0ffee' }]);
+    expect(css).toContain('.v-spk[data-spk="Mara Vey" i]{--vle-spk-color:#c0ffee}');
+    expect(css).toContain('.v-spk[data-spk="Mara" i]{--vle-spk-color:#c0ffee}');
+    expect(css).toContain('.v-spk[data-spk="Vey" i]{--vle-spk-color:#c0ffee}');
+  });
+
+  it('does not assign an ambiguous short name or surname to either speaker', () => {
+    const css = speakerColorCss([
+      { name: 'Jon Snow', aka: [], color: '#111111' },
+      { name: 'Jon Rivers', aka: [], color: '#222222' },
+      { name: 'Arya Snow', aka: [], color: '#333333' },
+    ]);
+    expect(css).not.toMatch(/data-spk="Jon"/);
+    expect(css).not.toMatch(/data-spk="Snow"/);
+    expect(css).toContain('.v-spk[data-spk="Rivers" i]{--vle-spk-color:#222222}');
+    expect(css).toContain('.v-spk[data-spk="Arya" i]{--vle-spk-color:#333333}');
+  });
+
   it('escapes quotes and backslashes in names', () => {
     const css = speakerColorCss([{ name: 'He said "hi"', aka: [], color: '#fff' }]);
     expect(css).toContain('.v-spk[data-spk="He said \\"hi\\"" i]{--vle-spk-color:#fff}');

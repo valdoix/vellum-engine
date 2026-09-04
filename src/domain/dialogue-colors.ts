@@ -71,6 +71,34 @@ export function buildSpeakerColors(cast: Record<string, CastLike> | undefined): 
 /** Escape a name for safe use inside a CSS attribute-selector string. */
 function cssAttr(s: string): string { return s.replace(/["\\]/g, '\\$&'); }
 
+const NAME_TITLES = new Set([
+  'mr', 'mrs', 'ms', 'miss', 'mx', 'dr', 'doctor', 'prof', 'professor',
+  'sir', 'dame', 'lady', 'lord', 'prince', 'princess', 'king', 'queen',
+  'captain', 'commander', 'general', 'colonel', 'major', 'sergeant',
+  'father', 'mother', 'sister', 'brother', 'saint', 'st',
+]);
+
+/** Conservative short forms the model commonly emits in `[spk=...]` even when
+ *  CAST supplied a full formal name. They are installed only when exactly one
+ *  cast member owns the form, so shared given names/surnames never pick a color
+ *  by accident. Explicit aliases still participate in the same ambiguity gate. */
+function implicitNameForms(name: string): string[] {
+  const raw = name.trim();
+  if (!raw) return [];
+  const parts = raw.split(/\s+/);
+  let start = 0;
+  while (start < parts.length - 1 && NAME_TITLES.has(parts[start]!.replace(/\.$/, '').toLowerCase())) start++;
+  const core = parts.slice(start);
+  const out: string[] = [];
+  const untitled = core.join(' ');
+  if (untitled && untitled.toLowerCase() !== raw.toLowerCase()) out.push(untitled);
+  if (core.length > 1) {
+    out.push(core[0]!);
+    out.push(core[core.length - 1]!);
+  }
+  return [...new Set(out.map((v) => v.trim()).filter((v) => v.length >= 2))];
+}
+
 /** Emit the stylesheet. Matches on data-spk by name AND every alias, case-
  *  insensitively (the `i` flag), so "elara"/"Elara" and any aka all color.
  *
@@ -83,11 +111,23 @@ export function speakerColorCss(speakers: SpeakerColor[], fallback = 'inherit'):
     `.v-spk{--vle-spk-color:var(--vle-spk-default,${fallback});color:var(--vle-spk-color)!important}`,
     `.v-spk *{color:inherit!important}`,
   ];
+  const keysBySpeaker = speakers.map((s) => [...new Set([s.name, ...s.aka, ...implicitNameForms(s.name)].map((v) => v.trim()).filter(Boolean))]);
+  const owners = new Map<string, Set<number>>();
+  for (let i = 0; i < keysBySpeaker.length; i++) {
+    for (const key of keysBySpeaker[i]!) {
+      const normalized = key.toLowerCase();
+      const set = owners.get(normalized) ?? new Set<number>();
+      set.add(i);
+      owners.set(normalized, set);
+    }
+  }
   const seen = new Set<string>();
-  for (const s of speakers) {
-    for (const key of [s.name, ...s.aka]) {
+  for (let i = 0; i < speakers.length; i++) {
+    const s = speakers[i]!;
+    for (const key of keysBySpeaker[i]!) {
       const k = key.trim();
       if (!k) continue;
+      if ((owners.get(k.toLowerCase())?.size ?? 0) !== 1) continue;
       const dedupe = k.toLowerCase() + '\u0000' + s.color;
       if (seen.has(dedupe)) continue;
       seen.add(dedupe);

@@ -134,6 +134,11 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         // string — but never overwrite an existing authored clock (merge = fill).
         const mClock = s.scene.clock ?? e.clock ?? (e.time ? parseClock(e.time) : undefined);
         s.scene = { ...s.scene, present, detail, ...(mClock !== undefined ? { clock: mClock } : {}) };
+        // Recovery may discover another on-stage character after the authored
+        // block was folded. A character cannot simultaneously remain in the
+        // current parallel/elsewhere snapshot.
+        const here = new Set(present.map(canonId));
+        s.parallel = s.parallel.filter((it) => !it.who || !here.has(canonId(it.who)));
         break;
       }
       // ordered clock: prefer the event's explicit clock, else derive from the
@@ -151,6 +156,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         present: e.present,
         detail: e.detail ? e.detail.map((d) => ({ id: d.id, ...(d.mood ? { mood: d.mood } : {}), ...(d.doing ? { doing: d.doing } : {}), ...(d.condition ? { condition: d.condition } : {}), ...(d.thought ? { thought: d.thought } : {}) })) : (e.present.length ? s.scene.detail.filter((d) => e.present.includes(d.id)) : s.scene.detail),
       };
+      // `parallel` is a replace-all NOW snapshot, not history. Every
+      // authoritative scene snapshot invalidates the previous turn's feed; a
+      // following parallel.set in the same fold repopulates it with T1 data.
+      s.parallel = [];
       // demote cast who LEFT: an authoritative present list means anyone still
       // flagged 'present' but no longer on stage steps back to 'active' (in play,
       // offscreen). Without this, 'present' accrues everyone ever seen. The
@@ -171,7 +180,20 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'parallel.set': {
-      s.parallel = e.items.map((it) => ({ ...(it.who ? { who: it.who } : {}), ...(it.where ? { where: it.where } : {}), activity: it.activity, ...(it.note ? { note: it.note } : {}), ...(it.src ? { src: it.src } : {}), turn: e.turn, day: e.day }));
+      const here = new Set(s.scene.present.map(canonId));
+      const next: ChronicleState['parallel'] = [];
+      const seen = new Set<string>();
+      // Walk backward so a contradictory duplicate resolves to the last T1 row
+      // instead of displaying one actor in two places. Present actors are always
+      // rejected; the state compiler must keep them solely in scene.present.
+      for (let i = e.items.length - 1; i >= 0; i--) {
+        const it = e.items[i]!;
+        const who = it.who ? canonId(it.who) : '';
+        if (who && (here.has(who) || seen.has(who))) continue;
+        if (who) seen.add(who);
+        next.push({ ...(who ? { who } : {}), ...(it.where ? { where: it.where } : {}), activity: it.activity, ...(it.note ? { note: it.note } : {}), ...(it.src ? { src: it.src } : {}), turn: e.turn, day: e.day });
+      }
+      s.parallel = next.reverse();
       break;
     }
     case 'cast.seen': {

@@ -327,8 +327,10 @@ export const coreFeature: Feature = {
     }
 
     // off-screen parallel events
-    const par = parsed.delta?.parallel ?? [];
-    if (par.length) {
+    const par = parsed.delta?.parallel;
+    // An explicitly empty array is meaningful: parallel is a replace-all T1
+    // snapshot, so [] clears stale "meanwhile" rows from the prior turn.
+    if (par !== undefined) {
       out.push({
         ...base(), kind: 'parallel.set',
         items: par.map((p) => ({ ...(p.who ? { who: rid(p.who) } : {}), ...(p.where ? { where: p.where } : {}), activity: String(p.activity || '').trim(), ...(p.note ? { note: p.note } : {}) })).filter((p) => p.activity),

@@ -50,13 +50,13 @@ describe('misattribution repro — same-surname characters', () => {
     expect(j?.who).toBe('cersei_lannister');
   });
 
-  it('FIXED: a unique surname-only match still lands (no contention)', () => {
+  it('STRICT: even a unique surname-only mention is rejected unless declared as an alias', () => {
     const state = freshState();
     state.cast.petyr_baelish = { id: 'petyr_baelish', name: 'Petyr Baelish', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false } as any;
     const prose = 'Baelish smiled his thin smile.'; // only the surname appears
     const evs = mapExtracted({ knowledge: [{ who: 'Petyr Baelish', fact: 'he schemes' }] }, 10, 1, names, sf, state, undefined, prose);
     const k = evs.find((e) => e.kind === 'knowledge.learn') as any;
-    expect(k?.who).toBe('petyr_baelish'); // unique surname → still admitted
+    expect(k).toBeUndefined(); // no fuzzy surname derivation in the prose extractor
   });
 
   it('CANDIDATE BUG: extractor returns the WRONG name (model misattributes who); engine trusts it', () => {
