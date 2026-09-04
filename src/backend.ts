@@ -56,6 +56,7 @@ import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, op
 import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOffscreenCatchupPrompt, parseCatchupReply, validateCatchupBeats, catchupTargets, offscreenCatchupTargets, threadsAwaitingCatchup, offscreensAwaitingCatchup } from './domain/thread-catchup.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
+import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
 
 /**
  * Canonical VELLUM state-block instruction — inserted into presets that are
@@ -208,7 +209,9 @@ function turnGist(content: string, names?: { user: string; char: string }): stri
   // position-aware and fence-tolerant — as robust as the parser, so mangled/
   // truncated/tag-drifted blocks no longer leak into turn memory (and thus not
   // into chapter summaries or PASS-2 prose extraction, both built on this gist).
-  let s = stripScaffold(content).replace(/\s+/g, ' ').trim();
+  let s = stripProseRefreshCommand(stripScaffold(content))
+    .replace(/\[Player action\]\s*(?=\[Scene\])/gi, '')
+    .replace(/\s+/g, ' ').trim();
   if (names?.user) s = s.replace(/\{\{\s*user\s*\}\}/gi, names.user);
   if (names?.char) s = s.replace(/\{\{\s*char\s*\}\}/gi, names.char);
   const MAX = 24000; // ~6k tokens: effectively the whole turn, with a sane ceiling
@@ -1185,7 +1188,7 @@ function sceneQuery(messages: readonly any[], ctx?: { activatedWorldInfo?: reado
     const history = messages.filter(m => m?.__isChatHistory !== false && !m?.__isWorldInfoEntry);
     const base = messages; // existing derivation, unchanged
     const source = history.length ? history : base; // prefer history; fall back if flags absent
-    return source.slice(-4).map((m: any) => (typeof m?.content === 'string' ? m.content : '')).join(' ').slice(0, 2000);
+    return source.slice(-4).map((m: any) => stripProseRefreshCommand(typeof m?.content === 'string' ? m.content : '')).join(' ').slice(0, 2000);
   } catch { /* ignore */ }
   return '';
 }
@@ -1278,7 +1281,13 @@ async function wireCapabilitiesInner(): Promise<void> {
       // message rather than returning a custom shape — returning anything
       // without `.messages` breaks the host's `normalized.messages`.
       _interceptorDispose = spindle.registerInterceptor(async (messages, context: InterceptorContextDTO) => {
-        const out = Array.isArray(messages) ? messages : [];
+        const rawOut = Array.isArray(messages) ? messages : [];
+        // Stateless one-turn command. It is computed outside the timed build so
+        // a slow recall path can still fall back to the refresh governor.
+        const refreshText = proseRefreshInjection(rawOut, stripScaffold);
+        // Consume current and historical command lines from this transient
+        // prompt copy. The saved conversation remains untouched.
+        const out = scrubProseRefreshCommands(rawOut);
         // Race the entire injection build against a hard deadline. If the build
         // (host warm + up to 4 controller calls) stalls, we return the untouched
         // messages so a slow host API can never hang the chat or eat the budget.
@@ -1293,7 +1302,12 @@ async function wireCapabilitiesInner(): Promise<void> {
           if (!chatId) return out;
           if (context.presetId) _presetByUserChat.set(userChatKey(uid, chatId), context.presetId);
           const state = await loadState(chatId);
-          if (!state.turns && !Object.keys(state.cast).length) return out;
+          if (!state.turns && !Object.keys(state.cast).length) {
+            if (!refreshText) return out;
+            const rec = recordInjection(chatId, 0, refreshText, [], { source: 'prose-refresh' });
+            try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
+            return { messages: [{ role: 'system', content: refreshText }, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Prose Refresh' }] };
+          }
           const present = state.scene.present ?? [];
           const nameOf = (id: string): string => state.cast[id]?.name ?? id;
           const version = logVersion(chatId);
@@ -1322,7 +1336,10 @@ async function wireCapabilitiesInner(): Promise<void> {
           // turn) — zero prompt-path latency. Else drill live, tightening each of
           // the up-to-4 calls so the inline budget stays bounded (~3.2s).
           const pre = tmode === 'tree' ? getPrecomputedTree(chatId) : null;
-          const controller = pre ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
+          // The refresh command should be immediate and reliable. Use the normal
+          // deterministic recall path for this one turn instead of spending the
+          // interceptor deadline on optional controller traversal.
+          const controller = (pre || refreshText) ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
           // EXPERIMENTAL: Interceptor "halt generation momentarily" (Item 6). Gated
           // behind a per-chat opt-in var (vellum_halt_on_warm, default off) AND a
           // short cap (1500ms) to avoid user-perceived stalls. When disabled, this
@@ -1388,7 +1405,10 @@ async function wireCapabilitiesInner(): Promise<void> {
               }
             } catch { /* best effort — never block generation */ }
           }
-          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText].filter(Boolean).join('\n\n');
+          // Refresh goes last inside VELLUM's system injection so it is the
+          // freshest style instruction while every continuity/output contract
+          // above it remains binding.
+          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText].filter(Boolean).join('\n\n');
           if (!injText) return out;
           const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
@@ -1410,8 +1430,11 @@ async function wireCapabilitiesInner(): Promise<void> {
         try {
           return await withTimeout(build, INTERCEPTOR_DEADLINE_MS, 'interceptor');
         } catch (e) {
-          // Timeout OR any build error — never block the chat; ship messages as-is.
+          // Timeout OR any build error — never block the chat. A user-requested
+          // prose refresh still gets its lightweight governor even if recall
+          // failed; otherwise ship messages byte-for-byte untouched.
           spindle.log?.warn?.('[vellum_engine] interceptor: ' + ((e as Error)?.message ?? e));
+          if (refreshText) return { messages: [{ role: 'system', content: refreshText }, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Prose Refresh' }] };
           return out;
         }
       }, 120);

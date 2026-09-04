@@ -632,7 +632,9 @@ Yes. The extension can mine your AI's prose for facts on its own. It works best 
 Switch the **State Spec Verbosity** to *Full* for a while so the model sees a worked example, and consider enabling the matching **Model Errata** block. Even if it never produces JSON, the terse one-line fallback and prose mining keep the chronicle alive.
 
 **The story feels repetitive.**
-Make sure **The Augury** and **Marginalia** are on, try turning on **The Scribes** with a few voices selected, and consider **Rough Hand**. These exist specifically to fight repetition.
+Send `OOC: ((refresh))` on its own line. For the next reply only, VELLUM audits the recent assistant prose for repeated openings, phrases, cadence, punctuation, imagery, and body-language beats, then asks the model to use a materially different prose strategy. It preserves the exact scene, numeric clock, canon, character voices, player agency, speaker-color tags, and state block; the command is not treated as an in-world action and is excluded from Chronicle memory. Regenerating the same reply keeps the refresh active, while your following message returns prose control to normal.
+
+You can also keep **The Augury** and **Marginalia** on, try **The Scribes** with a few voices selected, and consider **Rough Hand** for broader ongoing variation.
 
 **A character knows something they shouldn't.**
 That's exactly what the **Knowledge Discipline** block prevents — make sure it's enabled. You can also inspect the **Knowledge** tab to see who the engine thinks knows what, and edit it.
