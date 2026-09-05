@@ -31,6 +31,15 @@ describe('parseState', () => {
     expect(r.state?.delta?.bonds?.[0]?.addCats).toContain('romantic');
   });
 
+  it('drops invalid scene.clock values without dropping the state block', () => {
+    for (const clock of [-1, 1440, 12.5]) {
+      const r = parseState(`<vellum>{"scene":{"loc":"Hall","time":"07:45","clock":${clock}}}</vellum>`);
+      expect(r.source).toBe('json');
+      expect(r.state?.scene?.clock).toBeUndefined();
+      expect(r.state?.scene?.time).toBe('07:45');
+    }
+  });
+
   it('normalizes preset bond grammar `cat` → `addCats` (would otherwise be dropped)', () => {
     // the <vellum> block teaches the model "cat":[...], but ParsedBond wants addCats
     const block = '\u2039vellum\u203a\n' + JSON.stringify({

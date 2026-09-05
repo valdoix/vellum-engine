@@ -76,6 +76,44 @@ describe('Codex lore — reduce + core-feature reroute', () => {
   it('ext.codex entries become lore notes', () => {
     const out = coreFeature.extract!({ ext: { codex: [{ fact: 'wrist-brand rite' }, 'salt tithe paid at dusk'] } } as any, ctx());
     expect(out.filter((e) => e.kind === 'lore.note')).toHaveLength(2);
+    expect(out.filter((e) => e.kind === 'lore.note')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'auto', status: 'provisional' }),
+    ]));
+  });
+
+  it('lets the user confirm provisional model-minted canon', () => {
+    const s = reduce([
+      ev({ kind: 'lore.note', id: 'l1', fact: 'The bell tolls only for debtors', source: 'auto', status: 'provisional' }),
+      ev({ kind: 'lore.confirm', id: 'l1' }),
+    ]);
+    expect(s.lore[0]).toMatchObject({ source: 'user', status: 'confirmed' });
+  });
+
+  it('does not let a later model restatement erase confirmed user provenance', () => {
+    const s = reduce([
+      ev({ kind: 'lore.note', id: 'l1', fact: 'The debtor bell tolls at dawn', source: 'user', status: 'confirmed' }),
+      ev({ kind: 'lore.note', id: 'l2', fact: 'The debtor bell tolls at dawn for those in arrears', source: 'auto', status: 'provisional' }),
+    ]);
+    expect(s.lore).toHaveLength(1);
+    expect(s.lore[0]).toMatchObject({ source: 'user', status: 'confirmed' });
+  });
+
+  it('supports correction history, rejection, and restoration without losing provenance', () => {
+    const corrected = reduce([
+      ev({ kind: 'lore.note', id: 'l1', fact: 'The bell tolls at dawn', source: 'auto', status: 'provisional' }),
+      ev({ kind: 'lore.correct', id: 'l1', fact: 'The bell tolls at dusk' }),
+      ev({ kind: 'lore.reject', id: 'l1' }),
+    ]);
+    expect(corrected.lore[0]).toMatchObject({ fact: 'The bell tolls at dusk', source: 'user', status: 'rejected' });
+    expect(corrected.lore[0]!.revisions).toEqual([{ fact: 'The bell tolls at dawn', turn: 5 }]);
+    const restored = reduce([
+      ...[
+        ev({ kind: 'lore.note', id: 'l1', fact: 'The bell tolls at dawn', source: 'auto', status: 'provisional' }),
+        ev({ kind: 'lore.reject', id: 'l1' }),
+        ev({ kind: 'lore.confirm', id: 'l1' }),
+      ],
+    ]);
+    expect(restored.lore[0]).toMatchObject({ source: 'user', status: 'confirmed' });
   });
 
   it('a real character knowledge entry is still normal knowledge', () => {
@@ -104,7 +142,7 @@ describe('migration v7 → v8', () => {
   it('advances version and leaves events intact; reduce yields empty scars/lore', () => {
     const log = migrate({ version: 7, chatId: 'c', events: [], createdAt: 1, updatedAt: 1 }) as any;
     expect(log.version).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(8); // scars/lore landed in v8
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(19); // lore provenance landed in v19
     const s = reduce([]);
     expect(s.scars).toEqual([]);
     expect(s.lore).toEqual([]);

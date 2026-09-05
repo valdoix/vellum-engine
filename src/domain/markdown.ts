@@ -58,7 +58,7 @@ export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
   // --- Codex / lore ---
   if ((state.lore ?? []).length) {
     out.push('## Codex', '');
-    for (const l of state.lore) out.push('- ' + (l.tag ? `*(${l.tag})* ` : '') + l.fact);
+    for (const l of state.lore) out.push('- ' + (l.status && l.status !== 'confirmed' ? `**[${l.status}]** ` : '') + (l.tag ? `*(${l.tag})* ` : '') + l.fact);
     out.push('');
   }
 

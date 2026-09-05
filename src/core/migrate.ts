@@ -180,6 +180,13 @@ export function migrate(raw: unknown): unknown {
     version = 18;
   }
 
+  // v18 → v19: Codex notes gained provenance/status plus lore.confirm. Existing
+  // notes remain confirmed-by-legacy behavior because both fields are optional.
+  if (version < 19) {
+    version = 19;
+  }
+
+  // v20 adds state.compiled audit events. Existing events retain their semantics.
   obj.version = SCHEMA_VERSION;
   return obj;
 }

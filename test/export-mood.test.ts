@@ -12,7 +12,7 @@ describe('toMarkdown', () => {
     const s = freshState();
     s.turns = 12; s.day = 3;
     s.cast.cersei = { id: 'cersei', name: 'Cersei', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 12, userEdited: false, role: 'Queen', traits: ['guarded', 'proud'] } as any;
-    s.lore.push({ id: 'l1', fact: 'The Salt Guild brands initiates.', turn: 2 });
+    s.lore.push({ id: 'l1', fact: 'The Salt Guild brands initiates.', source: 'auto', status: 'provisional', turn: 2 });
     const md = toMarkdown(s, 'Test');
     expect(md).toContain('# Test');
     expect(md).toContain('## Cast');
@@ -20,6 +20,7 @@ describe('toMarkdown', () => {
     expect(md).toContain('**Traits:** guarded, proud');
     expect(md).toContain('## Codex');
     expect(md).toContain('Salt Guild');
+    expect(md).toContain('[provisional]');
     expect(md).not.toContain('## Story So Far'); // no chapters/arcs
   });
 });

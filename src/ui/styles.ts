@@ -202,6 +202,9 @@ const shapeOverrides = (): string[] => {
 };
 
 export const STYLES = [
+`.vle-argent-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:12px;margin-bottom:12px;border:1px solid var(--vle-line);border-radius:10px;background:color-mix(in srgb,var(--vle-panel) 92%,var(--vle-accent) 8%)}
+.vle-argent-tools details{grid-column:1/-1}.vle-argent-tools pre{max-height:260px;overflow:auto;font:12px/1.45 var(--vmono,monospace);white-space:pre-wrap}.vle-argent-tools input,.vle-argent-tools select{width:100%}
+.vle-vg-title button{float:right;font:inherit;font-size:11px}.vle-vr small[data-dependency-note]{display:block;color:var(--vle-warn,#b77925);margin-top:4px}.vle-vr[hidden]{display:none!important}`,
   // --- theme tokens (overridden at runtime by theme.ts) ---------------------
   // --vg accent (hex) + --vg-rgb its r,g,b ; --vi primary ink, --vi2 muted ink ;
   // --vserif/--vmono fonts ; --vscale chrome size multiplier ; --vsurf-* panel bg.
@@ -2737,6 +2740,7 @@ export const STYLES = [
   ".vle-lore-row{display:flex;align-items:baseline;gap:0.55rem;padding:0.38rem 0.4rem 0.38rem 0.75rem;border-left:2px solid color-mix(in srgb,var(--vg) 30%,transparent);margin-bottom:0.28rem;border-radius:0 4px 4px 0;transition:border-left-color .15s,background .12s}",
   ".vle-lore-row:hover{border-left-color:var(--vg);background:color-mix(in srgb,var(--vg) 4%,transparent)}",
   ".vle-lore-fact{flex:1;font-size:0.83rem;color:var(--vink-dim);line-height:1.45}",
+  ".vle-lore-status{font-family:var(--mono);font-size:0.48rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--vle-gold-dim);border:1px solid color-mix(in srgb,var(--vg) 28%,transparent);border-radius:999px;padding:0.12rem 0.34rem;flex-shrink:0}",
   ".vle-lore-turn{font-family:var(--mono);font-size:0.52rem;color:var(--vink-faint);flex-shrink:0;letter-spacing:0.03em}",
 
   // ===== ONBOARDING GUIDE =====

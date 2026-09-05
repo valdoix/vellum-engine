@@ -15,6 +15,14 @@ describe('expandMacros', () => {
     expect(expandMacros('{{if::x}}enabled{{else}}disabled{{/if}}', {})).toBe('enabled');
   });
 
+  it('selects the false branch from a disabled prompt variable', () => {
+    expect(expandMacros('{{if::{{var::enabled}}}}on{{else}}off{{/if}}', { enabled: '0' })).toBe('off');
+  });
+
+  it('resolves a switch from the selected prompt variable', () => {
+    expect(expandMacros('{{switch::{{var::mode}}::lean::short::full::long}}', { mode: 'full' })).toBe('long');
+  });
+
   it('picks the if-branch of {{if}}...{{/if}} with no else', () => {
     expect(expandMacros('a{{if::x}}on{{/if}}b', {})).toBe('aonb');
   });
@@ -78,6 +86,35 @@ describe('calculatePresetBudget', () => {
       { a: { tags: ['sci-fi', 'mystery'] } },
     );
     expect(b.totalChars).toBe('sci-fi | mystery'.length);
+  });
+
+  it('applies a variable defined on one block to every other block', () => {
+    const b = calculatePresetBudget(
+      [
+        { id: 'controls', enabled: true, content: '', variables: [{ name: 'mode', defaultValue: 'lean' }] },
+        { id: 'contract', enabled: true, content: '{{var::mode}}' },
+      ],
+      { controls: { mode: 'full' } },
+    );
+    expect(b.totalChars).toBe('full'.length);
+  });
+
+  it('expands stored select IDs to their option values', () => {
+    const b = calculatePresetBudget(
+      [
+        {
+          id: 'controls', enabled: true, content: '', variables: [{
+            name: 'voice', defaultValue: 'plain', options: [
+              { id: 'plain', value: '' },
+              { id: 'lush', value: 'LUSH CONTRACT' },
+            ],
+          }],
+        },
+        { id: 'voice', enabled: true, content: '{{var::voice}}' },
+      ],
+      { controls: { voice: 'lush' } },
+    );
+    expect(b.totalChars).toBe('LUSH CONTRACT'.length);
   });
 
   it('returns at most 5 heaviest blocks, sorted descending', () => {

@@ -218,13 +218,16 @@ export interface Scar {
   turn: number;
 }
 
-/** A Codex/Lore note: a fact TRUE OF THE WORLD (canon), not a character's
- * belief. Lives apart from knowledge so canon never reads as opinion and never
- * mints a pseudo-character. */
+/** A Codex/Lore note: a candidate or confirmed fact about the world, not a
+ * character's belief. Model-minted notes remain provisional until the user
+ * confirms them; legacy and user-authored notes retain confirmed behavior. */
 export interface LoreNote {
   id: string;
   fact: string;
   tag?: string;
+  source?: 'auto' | 'user';
+  status?: 'provisional' | 'confirmed' | 'rejected';
+  revisions?: Array<{ fact: string; turn: number }>;
   turn: number;
 }
 
@@ -298,6 +301,8 @@ export interface Item {
 }
 
 export interface ChronicleState {
+  compilation?: { turn: number; inputSig: string; baseHash: string; block: string };
+  genesisTurn?: number;
   cast: Record<string, CastCard>;
   factions: Record<string, Faction>;
   memberships: Membership[];

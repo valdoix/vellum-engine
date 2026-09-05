@@ -105,6 +105,24 @@ describe('{{user}} is always present (presence != authoring)', () => {
   });
 });
 
+describe('scene clock canonicalization', () => {
+  it('derives both exact fields from scene.time when the model clock contradicts it', () => {
+    const out = coreFeature.extract!({ scene: { loc: 'Hall', time: '07:45', clock: 900 }, present: [] } as any, ctx());
+    const scene = out.find((event) => event.kind === 'scene.set') as any;
+    expect(scene.time).toBe('07:45');
+    expect(scene.clock).toBe(465);
+  });
+
+  it('canonicalizes a legacy label and can derive time from a numeric clock', () => {
+    const dusk = coreFeature.extract!({ scene: { time: 'dusk' }, present: [] } as any, ctx())
+      .find((event) => event.kind === 'scene.set') as any;
+    expect(dusk).toMatchObject({ time: '19:00', clock: 1140 });
+    const numeric = coreFeature.extract!({ scene: { clock: 63 }, present: [] } as any, ctx())
+      .find((event) => event.kind === 'scene.set') as any;
+    expect(numeric).toMatchObject({ time: '01:03', clock: 63 });
+  });
+});
+
 describe('migration v8 \u2192 v9', () => {
   it('advances version; reduce yields empty items', () => {
     const log = migrate({ version: 8, chatId: 'c', events: [], createdAt: 1, updatedAt: 1 }) as any;

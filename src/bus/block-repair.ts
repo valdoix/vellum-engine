@@ -32,27 +32,29 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'not just the scene line. A rich, accurate block is the goal; a bare skeleton loses continuity.\n'
   + 'DELTAS ONLY: include everything THIS turn establishes or changes, and omit what did not move. Shape:\n'
   + '{ "turn": int, "day": int, '
-  + '"scene": { "loc": str, "time": str, "clock": "dawn|morning|midday|afternoon|dusk|evening|night|late-night" OR 0-1439, "tension": 0-10, "weather": str }, '
+  + '"scene": { "loc": str, "time": "zero-padded HH:MM", "clock": 0-1439 integer matching HH*60+MM, "tension": 0-10, "weather": str }, '
   + '"present": [{ "id": "Name", "mood": str, "condition": str, "doing": str, "thought": str, "traits": [str] }], '
   + '"delta": { '
-  + '"bonds": [{ "a": "Name", "b": "Name", "aff": -100..100, "trust": -100..100, "cat": ["familial|romantic|alliance|rivalry|social"], "why": str }], '
+  + '"bonds": [{ "a": "Name", "b": "Name", "aff": -100..100, "trust": -100..100, "addCats": ["familial|romantic|alliance|rivalry|social"], "removeCats": ["familial|romantic|alliance|rivalry|social"], "why": str }], '
   + '"threads": [{ "op": "new|advance|stall|resolve", "name": str, "note": str }], '
+  + '"arcs": [{ "op": "new|advance|resolve", "name": str, "note": str }], '
   + '"parallel": [{ "who": "Name", "where": str, "activity": str, "note": str }], '
   + '"journal": [{ "who": "Name", "about": "Name", "memory": str, "kind": "interaction|promise|betrayal|gift|shared|wound|observation", "weight": "trivial|minor|significant|defining", "sentiment": "positive|negative|neutral|complex" }], '
   + '"knowledge": [{ "who": "Name", "fact": str, "about": "Name", "reliability": "knows|believes|suspects|wrong|unaware", "truth": "true|false|unknown", "source": str }], '
   + '"secrets": [{ "keeper": "Name", "secret": str, "from": "Name" }], '
-  + '"factions": [{ "name": str, "kind": str, "members": ["Name"], "standing": -40..40 }] }, '
+  + '"factions": [{ "name": str, "kind": str, "members": ["Name"], "standing": -40..40 }], '
+  + '"factionRelations": [{ "a": str, "b": str, "kind": "alliance|rivalry|war|vassal|trade", "standing": -40..40, "why": str }] }, '
   + '"ext": { '
   + '"scars": [{ "who": "Name", "was": "the belief proven wrong", "turn": int }], '
-  + '"codex": [{ "fact": "a world-fact just made canon (not a character\u2019s belief)" }], '
+  + '"codex": [{ "fact": "a candidate world-fact minted as provisional lore (not a character\u2019s belief)" }], '
   + '"inventory": [{ "who": "Name", "item": str, "op": "gain|lose|give|scene|note", "to": "Name", "note": str }], '
   + '"plant": [{ "what": "a detail seeded to pay off later" }], '
   + '"payoff": [{ "what": "a earlier plant that resolved this turn" }] } }\n'
   + 'RULES: use ONLY real character names that appear in the prose (and the player persona named in the '
   + 'CONTEXT); never placeholders or unnamed figures. Set `turn` and `day` to the values given in the '
-  + 'CONTEXT header. `scene.time` MUST reflect the moment this turn ends (advance it forward from the '
-  + 'prior time in the header to match the elapsed action; never reset it backward); `scene.clock` mirrors '
-  + 'that time as an ordered slot so the engine can sequence beats — supply it whenever the time is clear. '
+  + 'CONTEXT header. `scene.time` MUST be exact zero-padded 24-hour HH:MM for the moment this turn ends '
+  + '(advance it forward from the prior time only for elapsed action; never reset it backward); `scene.clock` '
+  + 'MUST be the matching integer minutes after midnight. Never use a narrative label for either field. '
   + 'Emit `scene.loc`/`weather`/`tension` only when they changed from the CONTEXT.\n'
   + 'present[] MUST list EVERY named character on-stage this beat. The player persona goes FIRST with '
   + 'mood/condition/doing/thought/traits LEFT EMPTY (never invent the player\u2019s inner state). For each '
@@ -60,12 +62,12 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + '(what they privately think this beat), unless they are a true cipher; `doing` and `mood` reflect the '
   + 'prose; `traits` = 2-4 STABLE personality tags emitted ONLY when a character is first established or a '
   + 'trait genuinely shifts (never a transient mood).\n'
-  + 'delta: aff/trust are SIGNED changes THIS turn; omit an axis that did not move, and `cat` only when the '
+  + 'delta: aff/trust are SIGNED changes THIS turn; omit an axis that did not move, and use addCats/removeCats only when the '
   + 'bond\u2019s nature changed. Record a `journal` entry for any moment a character would truly carry; use '
   + '`knowledge` to capture who learned/believes/suspects what (this is where dramatic irony lives, via '
   + 'reliability+truth); `secrets` for anything now hidden from someone; `parallel` for what moved '
-  + 'off-screen. ext: `scars` for a belief proven wrong that left a mark, `codex` for a world-fact just '
-  + 'made canon, `inventory` for named items changing hands (who:"world" = a scene object), `plant`/`payoff` '
+  + 'off-screen. ext: `scars` for a belief proven wrong that left a mark, `codex` for a candidate world-fact '
+  + 'that VELLUM will mark provisional until user-confirmed, `inventory` for named items changing hands (who:"world" = a scene object), `plant`/`payoff` '
   + 'for setups and their resolutions.\n'
   + 'Invent nothing the prose does not support, but capture everything it DOES. Omit any section with '
   + 'nothing new. A minimal { "turn": N, "day": D, "present": [...] } is valid when truly nothing else '
@@ -268,7 +270,7 @@ const REPAIR_SCHEMA = {
         day: { type: 'number' },
         scene: { type: 'object', properties: {
           loc: { type: 'string' }, time: { type: 'string' },
-          clock: {}, tension: { type: 'number' }, weather: { type: 'string' },
+          clock: { type: 'integer', minimum: 0, maximum: 1439 }, tension: { type: 'number' }, weather: { type: 'string' },
         } },
         present: { type: 'array', items: { type: 'object', properties: {
           id: { type: 'string' }, mood: { type: 'string' }, condition: { type: 'string' },
@@ -278,11 +280,13 @@ const REPAIR_SCHEMA = {
         delta: { type: 'object', properties: {
           bonds: { type: 'array', items: { type: 'object' } },
           threads: { type: 'array', items: { type: 'object' } },
+          arcs: { type: 'array', items: { type: 'object' } },
           parallel: { type: 'array', items: { type: 'object' } },
           journal: { type: 'array', items: { type: 'object' } },
           knowledge: { type: 'array', items: { type: 'object' } },
           secrets: { type: 'array', items: { type: 'object' } },
           factions: { type: 'array', items: { type: 'object' } },
+          factionRelations: { type: 'array', items: { type: 'object' } },
         } },
         ext: { type: 'object', properties: {
           scars: { type: 'array', items: { type: 'object' } },

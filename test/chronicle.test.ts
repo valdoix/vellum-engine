@@ -70,6 +70,34 @@ describe('regeneration reconcile — turnSigs + rollback/re-fold', () => {
   });
 });
 
+describe('atomic compiled-tail replacement', () => {
+  it('publishes the complete replacement tail in one revision and rejects stale commits', async () => {
+    const { append, replaceTailDeferred, flush, logRevision, loadState, turnSigs } = await import('../src/store/chronicle.js');
+    const chatId = 'atomic_tail_' + Math.random().toString(36).slice(2);
+    await append(chatId, [
+      ev(1, 1, { kind: 'turn.fold', sig: 'one' }) as any,
+      ev(1, 2, { kind: 'bond.delta', a: 'a', b: 'b', aff: 10 }) as any,
+      ev(2, 3, { kind: 'turn.fold', sig: 'old-two' }) as any,
+      ev(2, 4, { kind: 'bond.delta', a: 'a', b: 'b', aff: 20 }) as any,
+      ev(3, 5, { kind: 'turn.fold', sig: 'old-three' }) as any,
+      ev(3, 6, { kind: 'bond.delta', a: 'a', b: 'b', aff: 30 }) as any,
+    ]);
+    const version = logRevision(chatId);
+    const replacement = [
+      ev(2, 7, { kind: 'turn.fold', sig: 'new-two' }) as any,
+      ev(2, 8, { kind: 'bond.delta', a: 'a', b: 'b', aff: -5 }) as any,
+      ev(3, 9, { kind: 'turn.fold', sig: 'new-three' }) as any,
+      ev(3, 10, { kind: 'bond.delta', a: 'a', b: 'b', aff: 2 }) as any,
+    ];
+    await replaceTailDeferred(chatId, 1, replacement, version);
+    await flush(chatId);
+    expect((await loadState(chatId)).relations[0]!.affection).toBe(7);
+    expect(Object.fromEntries(await turnSigs(chatId))).toMatchObject({ 1: 'one', 2: 'new-two', 3: 'new-three' });
+    await expect(replaceTailDeferred(chatId, 1, replacement, version)).rejects.toThrow('chronicle_revision_conflict');
+    expect((await loadState(chatId)).relations[0]!.affection).toBe(7);
+  });
+});
+
 describe('buildState — unified construction path (fresh vs import)', () => {
   it('importLog produces the same derived state as a fresh append/load', async () => {
     const { append, loadState, exportLog, importLog } = await import('../src/store/chronicle.js');

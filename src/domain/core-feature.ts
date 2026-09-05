@@ -133,18 +133,22 @@ export const coreFeature: Feature = {
         return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(p.condition ? { condition: p.condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
       }).filter(Boolean);
       if (userInScene) (detail as Array<{ id: string }>).unshift({ id: uCanon }); // presence only, no inner fields
-      // a valid model-supplied 0..1439 minutes wins; else derive from the time text
+      // The human time string wins when parseable: it is the visible contract and
+      // therefore the only safe tie-breaker when a model emits contradictory
+      // `time`/`clock` values. A valid numeric clock is the fallback. Canonicalize
+      // both onto exact HH:MM so coarse legacy labels cannot keep drifting.
       const rawClock = parsed.scene?.clock;
-      const clockMinutes = (typeof rawClock === 'number' && rawClock >= 0 && rawClock <= 1439)
-        ? Math.floor(rawClock)
-        : parseClock(parsed.scene?.time);
+      const fromTime = parseClock(parsed.scene?.time);
+      const fromNumber = (typeof rawClock === 'number' && rawClock >= 0 && rawClock <= 1439)
+        ? Math.floor(rawClock) : undefined;
+      const clockMinutes = fromTime ?? fromNumber;
+      const exactTime = clockMinutes !== undefined
+        ? `${String(Math.floor(clockMinutes / 60)).padStart(2, '0')}:${String(clockMinutes % 60).padStart(2, '0')}`
+        : parsed.scene?.time;
       out.push({
         ...base(), kind: 'scene.set',
         ...(parsed.scene?.loc ? { location: parsed.scene.loc } : {}),
-        ...(parsed.scene?.time ? { time: parsed.scene.time } : {}),
-        // ordered clock: trust a valid model-supplied minutes value, else derive
-        // from the time string. Absent when neither is parseable (reduce keeps
-        // any established clock). Additive — old blocks simply omit it.
+        ...(exactTime ? { time: exactTime } : {}),
         ...(clockMinutes !== undefined ? { clock: clockMinutes } : {}),
         ...(typeof parsed.scene?.tension === 'number' ? { tension: parsed.scene.tension } : {}),
         ...(parsed.scene?.weather ? { weather: parsed.scene.weather } : {}),
@@ -273,7 +277,7 @@ export const coreFeature: Feature = {
       const fact = String(k.fact || '').trim();
       if (!fact) continue;
       if (isCanonSentinel(k.who)) {
-        out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_' + (li++), fact } as VellumEvent);
+        out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_' + (li++), fact, source: 'auto', status: 'provisional' } as VellumEvent);
         continue;
       }
       if (badName(k.who)) continue;
@@ -349,13 +353,14 @@ export const coreFeature: Feature = {
       const who = rid(String(sc!.who));
       out.push({ ...base(), kind: 'scar.form', id: 'scar_' + who + '_' + ctx.turn + '_' + (xi++), who, was, ...(sc?.about && !badName(sc.about) ? { about: rid(sc.about) } : {}) } as VellumEvent);
     }
-    // Codex — minted canon (true of the world, not a belief). Stored as lore.
+    // Codex — model-minted world facts are stored as provisional lore until the
+    // user confirms them. They remain separate from character belief either way.
     let ci = 0;
     for (const c of Array.isArray(ext.codex) ? ext.codex : []) {
       const fact = String((typeof c === 'string' ? c : c?.fact) || '').trim();
       if (!fact) continue;
       const tag = typeof c === 'string' ? undefined : (c?.tag ? String(c.tag) : undefined);
-      out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_x' + (ci++), fact, ...(tag ? { tag } : {}) } as VellumEvent);
+      out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_x' + (ci++), fact, ...(tag ? { tag } : {}), source: 'auto', status: 'provisional' } as VellumEvent);
     }
 
     // Possession tracker — named items the model reports gained/lost/given/scene.

@@ -126,6 +126,19 @@ describe('buildInjection — continuity guardrail', () => {
     expect(inj.recallIds).toContain('k2'); // relevant prose retrieved
   });
 
+  it('feeds Codex facts back with explicit confirmed versus provisional authority', () => {
+    const s = stateWith();
+    s.lore = [
+      { id: 'confirmed', fact: 'The Salt Guild controls the western quay.', source: 'user', status: 'confirmed', turn: 4 },
+      { id: 'draft', fact: 'Its bells may mark the debt tide.', source: 'auto', status: 'provisional', turn: 5 },
+    ];
+    const inj = buildInjection('chatCodexAuthority', s, 'salt guild bells');
+    expect(inj.text).toContain('[CODEX');
+    expect(inj.text).toContain('CONFIRMED: The Salt Guild controls the western quay.');
+    expect(inj.text).toContain('PROVISIONAL: Its bells may mark the debt tide.');
+    expect(inj.text).toContain('never let them override user, scenario, worldbook, or confirmed canon');
+  });
+
   it('reflects an off-screen subplot back onto its matching plot thread', () => {
     const s = stateWith();
     s.cast = { ned: { id: 'ned', name: 'Ned Stark', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 20, userEdited: false } };

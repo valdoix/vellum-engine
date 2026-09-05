@@ -79,6 +79,11 @@ function ensureFaction(s: ChronicleState, id: string, turn: number, name?: strin
 
 function apply(s: ChronicleState, e: VellumEvent): void {
   switch (e.kind) {
+    case 'state.compiled': {
+      s.compilation = { turn: e.turn, inputSig: e.inputSig, baseHash: e.baseHash, block: e.block };
+      if (e.genesis) s.genesisTurn = e.turn;
+      break;
+    }
     case 'turn.fold': {
       s.turns = Math.max(s.turns, e.turn);
       s.day = Math.max(s.day, e.day);
@@ -607,8 +612,28 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'lore.note': {
       // dedup: a near-duplicate canon fact is one note (keep the richer wording).
       const dup = s.lore.find((x) => x.id === e.id) ?? s.lore.find((x) => similarFact(x.fact, e.fact));
-      if (dup) { dup.fact = richer(dup.fact, e.fact); if (e.tag && !dup.tag) dup.tag = e.tag; }
-      else s.lore.push({ id: e.id, fact: e.fact, ...(e.tag ? { tag: e.tag } : {}), turn: e.turn });
+      if (dup) {
+        if (dup.source !== 'user') dup.fact = richer(dup.fact, e.fact);
+        if (e.tag && !dup.tag) dup.tag = e.tag;
+        // A later model restatement must never erase explicit user provenance.
+        if (e.source && dup.source !== 'user') dup.source = e.source;
+        if (dup.source !== 'user' && (e.status === 'confirmed' || !dup.status)) dup.status = e.status;
+      } else s.lore.push({ id: e.id, fact: e.fact, ...(e.tag ? { tag: e.tag } : {}), ...(e.source ? { source: e.source } : {}), ...(e.status ? { status: e.status } : {}), turn: e.turn });
+      break;
+    }
+    case 'lore.confirm': {
+      const note = s.lore.find((x) => x.id === e.id);
+      if (note) { note.status = 'confirmed'; note.source = 'user'; }
+      break;
+    }
+    case 'lore.correct': {
+      const note = s.lore.find(x => x.id === e.id);
+      if (note) { note.revisions = [...(note.revisions ?? []), { fact: note.fact, turn: e.turn }]; note.fact = e.fact; note.source = 'user'; note.status = 'confirmed'; }
+      break;
+    }
+    case 'lore.reject': {
+      const note = s.lore.find(x => x.id === e.id);
+      if (note) { note.status = 'rejected'; note.source = 'user'; }
       break;
     }
     case 'lore.drop': {

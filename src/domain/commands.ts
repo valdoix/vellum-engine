@@ -213,8 +213,14 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     case 'lore_add': {
       const fact = String(e.fact ?? '').trim();
       if (!fact) return [];
-      return [{ ...base(ctx), kind: 'lore.note', id: 'lore_' + nextSeq(), fact, ...(e.tag ? { tag: String(e.tag).trim() } : {}) } as VellumEvent];
+      return [{ ...base(ctx), kind: 'lore.note', id: 'lore_' + nextSeq(), fact, ...(e.tag ? { tag: String(e.tag).trim() } : {}), source: 'user', status: 'confirmed' } as VellumEvent];
     }
+    case 'lore_confirm':
+      return e.id ? [{ ...base(ctx), kind: 'lore.confirm', id: String(e.id) } as VellumEvent] : [];
+    case 'lore_correct':
+      return e.id && String(e.fact ?? '').trim() ? [{ ...base(ctx), kind: 'lore.correct', id: String(e.id), fact: String(e.fact).trim() }] : [];
+    case 'lore_reject':
+      return e.id ? [{ ...base(ctx), kind: 'lore.reject', id: String(e.id) }] : [];
     case 'lore_delete':
       return e.id ? [{ ...base(ctx), kind: 'lore.drop', id: String(e.id) } as VellumEvent] : [];
     case 'parallel_set':
@@ -264,5 +270,5 @@ export const CMD_TYPES = new Set([
   'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
   'memory_add', 'memory_delete', 'memory_edit', 'memory_delete_many',
   'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set',
-  'scar_add', 'scar_delete', 'lore_add', 'lore_delete', 'config_set', 'day_set',
+  'scar_add', 'scar_delete', 'lore_add', 'lore_confirm', 'lore_correct', 'lore_reject', 'lore_delete', 'config_set', 'day_set',
 ]);

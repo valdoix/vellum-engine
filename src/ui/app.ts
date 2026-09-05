@@ -26,6 +26,8 @@ import { wireBridge, wirePagers, wireFilters, refreshUI, send, cmd } from './bri
 import { closeOnboarding, maybeShowOnboarding, openOnboarding } from './onboarding.js';
 import { cleanupModals, confirmModal, formModal, setModalHost } from './modal.js';
 import { calculatePresetBudget } from '../domain/preset-budget.js';
+import { ARGENT_PROFILES, applyProfile, compileArgentPolicy, dependencyIssues, policyValues } from '../domain/argent-policy.js';
+import { installArtifacts } from './artifacts.js';
 import { resolveBudget, type ContextBudget } from '../domain/context-budget.js';
 import { VELLUM_VERSION } from '../version.js';
 import type { SpindleFrontendContext, SpindleInputBarActionHandle } from 'lumiverse-spindle-types';
@@ -1118,6 +1120,7 @@ export function setup(ctx: Ctx): () => void {
   // reload that wipes localStorage — same durability the theme already had.
   setPrefsPersist((json) => ctx.sendToBackend({ type: 'vellum_set_prefs', prefs: json }));
   const style = ctx.dom.addStyle(FONT_FACES + '\n' + STYLES);
+  const disposeArtifacts = installArtifacts(ctx);
   let state: ChronicleState = freshState();
   const getState = (): ChronicleState => state;
 
@@ -1229,6 +1232,7 @@ export function setup(ctx: Ctx): () => void {
       if (!_varValues[blockId]) _varValues[blockId] = {};
       _varValues[blockId][v.name] = val;
       _varDirty.add(blockId + '\u0000' + String(v.name));
+      refreshArgentSettings();
       saveVarValues(_varPresetId);
     };
     const num = (x: unknown, d: unknown): number | null => {
@@ -1359,24 +1363,69 @@ export function setup(ctx: Ctx): () => void {
       const rows = g.vars.map((v: any) => {
         const myIdx = idx++;
         tasks.push({ idx: myIdx, blockId: String(g.block?.id ?? ''), v });
-        return `<div class="vle-vr" data-vle-vr>
+        return `<div class="vle-vr" data-vle-vr data-variable="${esc(v.name)}">
           <label class="vle-vr-label">${esc(String(v?.label || v?.name || ''))}</label>
           ${v?.description ? `<div class="vle-vr-desc">${esc(String(v.description))}</div>` : ''}
-          <div class="vle-vr-slot" data-vle-var-slot="${myIdx}"></div>
+          <fieldset style="border:0;padding:0;margin:0" data-dependency><div class="vle-vr-slot" data-vle-var-slot="${myIdx}"></div></fieldset><small data-dependency-note></small>
         </div>`;
       }).join('');
       return `<div class="vle-vg" data-vle-vg>
-        <div class="vle-vg-title">${esc(title)}</div>
+        <div class="vle-vg-title">${esc(title)} <button type="button" data-reset-section="${esc(g.block.id)}">Restore section defaults</button></div>
         <div class="vle-vg-body">${rows}</div>
       </div>`;
     }).join('');
-    groupsHost.innerHTML = html;
+    const argent = scopedBlocks.some((b: any) => b.id === 'arg-output-contract');
+    groupsHost.innerHTML = (argent ? `<div class="vle-argent-tools"><label>Profile <select data-argent-profile><option value="">Choose a profile</option>${Object.keys(ARGENT_PROFILES).map(n => `<option>${esc(n)}</option>`).join('')}</select></label> <label>Find a setting <input type="search" data-argent-search></label><details><summary>Effective settings and prompt budget</summary><button type="button" data-argent-measure>Measure assembled prompt</button><label> Context limit <input type="number" data-argent-context min="1" placeholder="Provider context tokens"></label><pre data-argent-budget>No assembled measurement yet.</pre><pre data-argent-effective style="white-space:pre-wrap"></pre></details></div>` : '') + html;
 
     for (const t of tasks) {
       const slot = groupsHost.querySelector<HTMLElement>(`[data-vle-var-slot="${t.idx}"]`);
       if (slot) mountVarControl(slot, t.blockId, t.v);
     }
     _varPresetId = preset.id;
+    const update = (changes: Record<string, unknown>): void => {
+      _varValues = applyProfile(scopedBlocks, _varValues, changes);
+      for (const task of tasks) if (task.v.name in changes) _varDirty.add(task.blockId + '\u0000' + task.v.name);
+      destroyVarControls();
+      for (const task of tasks) { const slot = groupsHost.querySelector<HTMLElement>(`[data-vle-var-slot="${task.idx}"]`); if (slot) mountVarControl(slot, task.blockId, task.v); }
+      refreshArgentSettings(); flushVarSaveNow(preset.id);
+    };
+    groupsHost.querySelector<HTMLSelectElement>('[data-argent-profile]')?.addEventListener('change', event => {
+      const value = (event.target as HTMLSelectElement).value;
+      if (ARGENT_PROFILES[value]) update(ARGENT_PROFILES[value]!);
+    });
+    groupsHost.querySelector<HTMLInputElement>('[data-argent-search]')?.addEventListener('input', event => {
+      const query = (event.target as HTMLInputElement).value.toLowerCase();
+      groupsHost.querySelectorAll<HTMLElement>('[data-variable]').forEach(row => { row.hidden = !(row.textContent ?? '').toLowerCase().includes(query); });
+    });
+    groupsHost.querySelectorAll<HTMLElement>('[data-reset-section]').forEach(button => button.addEventListener('click', () => {
+      const block = scopedBlocks.find((b: any) => b.id === button.dataset.resetSection);
+      if (block) update(Object.fromEntries(block.variables.map((v: any) => [v.name, v.defaultValue])));
+    }));
+    groupsHost.querySelector('[data-argent-measure]')?.addEventListener('click', () => {
+      const chatId = ctx.getActiveChat?.().chatId;
+      const contextLimit = Number(groupsHost.querySelector<HTMLInputElement>('[data-argent-context]')?.value) || null;
+      ctx.sendToBackend({ type: 'vellum_argent_measure', presetId: preset.id, chatId, promptVariables: _varValues, contextLimit });
+    });
+    refreshArgentSettings();
+  }
+
+  function refreshArgentSettings(): void {
+    if (!presetEditorTab) return;
+    const root = presetEditorTab.root as HTMLElement;
+    let scoped: any = null;
+    try { scoped = (ctx.ui as any).presetEditor?.extension?.getState?.(); } catch { return; }
+    const blocks = scoped?.blocks ?? [];
+    if (!blocks.some((b: any) => b.id === 'arg-output-contract')) return;
+    const issues = dependencyIssues(policyValues(blocks, _varValues));
+    root.querySelectorAll<HTMLElement>('[data-variable]').forEach(row => {
+      const issue = issues[row.dataset.variable ?? ''];
+      const field = row.querySelector<HTMLFieldSetElement>('[data-dependency]');
+      if (field) field.disabled = !!issue && row.dataset.variable !== 'prose';
+      const note = row.querySelector<HTMLElement>('[data-dependency-note]');
+      if (note) note.textContent = issue ?? '';
+    });
+    const effective = root.querySelector<HTMLElement>('[data-argent-effective]');
+    if (effective) effective.textContent = compileArgentPolicy(blocks, _varValues);
   }
 
   /** Render the stat strip (4 cells: variable count, standing tokens,
@@ -2008,6 +2057,9 @@ export function setup(ctx: Ctx): () => void {
             }
           } catch { /* host may not support scoped helper */ }
         }
+      } else if (p?.type === 'vellum_assembled_budget') {
+        const el = (presetEditorTab?.root as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-argent-budget]');
+        if (el) el.textContent = p.error ? String(p.error) : JSON.stringify(p.report, null, 2);
       } else if (p?.type === 'vellum_preview_assembled') {
         if (typeof p.sampleText === 'string' || p.sampleText === null) {
           try { paintPreviewBody(p.sampleText, typeof p.error === 'string' ? p.error : undefined); } catch { /* tab may be absent */ }
@@ -2284,6 +2336,7 @@ export function setup(ctx: Ctx): () => void {
     try { presetEditorTab?.destroy(); } catch { /* ignore */ }
     try { presetToolbarItem?.destroy(); } catch { /* ignore */ }
     try { style(); } catch { /* ignore */ }
+    try { disposeArtifacts(); } catch { /* ignore */ }
     try { _spkStyle?.(); } catch { /* ignore */ }
     try { cleanupToasts(); } catch { /* ignore */ }
     try { cleanupModals(); } catch { /* ignore */ }

@@ -1,5 +1,6 @@
 import { ParsedState, type ParseResult } from './parsed.js';
 import { parseFallback } from './fallback-regex.js';
+import { artifactText } from '../domain/artifacts.js';
 
 /**
  * Parse the model's per-turn state. JSON-first: a fenced ‹vellum›…‹/vellum›
@@ -116,6 +117,8 @@ function vellumSuffixIndex(s: string): number {
  * prose (leak-not-eat guard).
  */
 export function stripScaffold(content: string): string {
+  // Declarative artifacts are presentation, never evidence for state changes.
+  content = content.replace(/<artifact\b[^>]*>([\s\S]*?)<\/artifact>/gi, (_whole, raw: string) => artifactText(raw));
   if (!content) return '';
   let s = content;
 

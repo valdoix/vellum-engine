@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 18 as const;
+export const SCHEMA_VERSION = 20 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -87,7 +87,10 @@ export const EvScarDrop = z.object({ ...base, kind: z.literal('scar.drop'), id: 
 // separate from per-character knowledge so canon never reads as someone's
 // opinion and never mints a "World" cast card. Carried in `ext.codex` (and the
 // legacy who:"world" knowledge path is rerouted here).
-export const EvLoreNote = z.object({ ...base, kind: z.literal('lore.note'), id: z.string(), fact: z.string(), tag: z.string().optional() });
+export const EvLoreNote = z.object({ ...base, kind: z.literal('lore.note'), id: z.string(), fact: z.string(), tag: z.string().optional(), source: z.enum(['auto', 'user']).optional(), status: z.enum(['provisional', 'confirmed']).optional() });
+export const EvLoreConfirm = z.object({ ...base, kind: z.literal('lore.confirm'), id: z.string() });
+export const EvLoreCorrect = z.object({ ...base, kind: z.literal('lore.correct'), id: z.string(), fact: z.string().min(1) });
+export const EvLoreReject = z.object({ ...base, kind: z.literal('lore.reject'), id: z.string() });
 export const EvLoreDrop = z.object({ ...base, kind: z.literal('lore.drop'), id: z.string() });
 
 // --- Possession tracker: a NARRATIVE record of who carries what (named, notable
@@ -211,7 +214,10 @@ export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), 
 export const EvOffscreenLink = z.object({ ...base, kind: z.literal('offscreen.link'), id: z.string(), thread: z.string() });
 export const EvOffscreenDrop = z.object({ ...base, kind: z.literal('offscreen.drop'), id: z.string() });
 
+export const EvStateCompiled = z.object({ ...base, kind: z.literal('state.compiled'), inputSig: z.string(), baseHash: z.string(), block: z.string(), genesis: z.boolean() });
+
 export const VellumEvent = z.discriminatedUnion('kind', [
+  EvStateCompiled,
   EvTurnFold, EvConfigSet, EvToneSet, EvSceneSet,
   EvCastSeen, EvCastEdit, EvCastDrop,
   EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding, EvFactionRel, EvFactionRelDrop,
@@ -220,7 +226,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvMemory, EvMemoryDrop, EvMemoryLink, EvMemoryEdit,
   EvThread, EvArc, EvThreadMerge, EvArcMerge, EvThreadSet, EvThreadDrop, EvArcDrop,
   EvJournal, EvJournalDrop, EvJournalEdit,
-  EvScarForm, EvScarDrop, EvLoreNote, EvLoreDrop,
+  EvScarForm, EvScarDrop, EvLoreNote, EvLoreConfirm, EvLoreCorrect, EvLoreReject, EvLoreDrop,
   EvItemChange, EvItemDrop,
   EvLocationSet, EvLocationDrop, EvContinuityFlag, EvDaySet,
   EvTraitDrift,

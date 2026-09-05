@@ -20,6 +20,7 @@ import { shapeOrnament } from '../ornament.js';
  */
 
 type CView = 'world' | 'timeline' | 'turns' | 'beats' | 'timesync' | 'memory' | 'knowledge' | 'secrets' | 'scars' | 'codex' | 'items';
+let loreSnapshot: ChronicleState['lore'] = [];
 const VIEWS: Array<{ id: CView; label: string }> = [
   { id: 'world', label: 'World' },
   { id: 'timeline', label: 'Timeline' },
@@ -80,6 +81,7 @@ function oneLine(text: string, max = 160): string {
 export const chronicleTab: Component<ChronicleState> = {
   version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
+    loreSnapshot = s.lore;
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const memCount = s.memories.filter((m) => m.tier !== 'beat').length; // Memory view excludes beats (own tab)
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, turns: _turnMax, beats: s.memories.filter((m) => m.tier === 'beat').length, timesync: 0, memory: memCount, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
@@ -252,6 +254,12 @@ export const chronicleTab: Component<ChronicleState> = {
       if (sr) { cmd('secret_reveal', { id: sr.getAttribute('data-id'), to: [] }); return; }
       const scd = t.closest('[data-scar-del]');
       if (scd) { confirmModal('Delete this scar?', () => cmd('scar_delete', { id: scd.getAttribute('data-id') })); return; }
+      const lc = t.closest('[data-lore-confirm]');
+      if (lc) { cmd('lore_confirm', { id: lc.getAttribute('data-id') }); return; }
+      const lr = t.closest('[data-lore-reject]');
+      if (lr) { cmd('lore_reject', { id: lr.getAttribute('data-id') }); return; }
+      const le = t.closest('[data-lore-edit]');
+      if (le) { const id = le.getAttribute('data-id'); const note = loreSnapshot.find(x => x.id === id); if (note) formModal('Correct Codex fact', [{ key: 'fact', label: 'Confirmed fact', type: 'textarea', value: note.fact }], o => { if (o.fact?.trim()) cmd('lore_correct', { id, fact: o.fact }); }); return; }
       const ld = t.closest('[data-lore-del]');
       if (ld) { confirmModal('Delete this codex note?', () => cmd('lore_delete', { id: ld.getAttribute('data-id') })); return; }
       if (t.closest('[data-item-add]')) { formModal('New Item', [
@@ -1092,7 +1100,12 @@ function codex(s: ChronicleState): string {
     const rows = entries.map((x) =>
       '<div class="vle-lore-row">'
       + '<span class="vle-lore-fact">' + esc(x.fact) + '</span>'
+      + (x.status && x.status !== 'confirmed' ? `<span class="vle-lore-status">${esc(x.status)}</span>` : '')
+      + (x.revisions?.length ? `<details><summary>Correction history</summary>${x.revisions.map(r => `<p>t${r.turn}: ${esc(r.fact)}</p>`).join('')}</details>` : '')
       + '<span class="vle-lore-turn">t' + x.turn + '</span>'
+      + (x.status === 'provisional' ? `<button class="vle-mini" data-lore-confirm data-id="${esc(x.id)}" title="Confirm as canon">\u2713</button>` : '')
+      + `<button class="vle-mini" data-lore-edit data-id="${esc(x.id)}" title="Correct fact">Edit</button>`
+      + (x.status !== 'rejected' ? `<button class="vle-mini" data-lore-reject data-id="${esc(x.id)}" title="Reject fact">Reject</button>` : `<button class="vle-mini" data-lore-confirm data-id="${esc(x.id)}" title="Restore as confirmed">Restore</button>`)
       + `<button class="vle-mini del" data-lore-del data-id="${esc(x.id)}" title="Delete">\u2715</button>`
       + '</div>'
     ).join('');

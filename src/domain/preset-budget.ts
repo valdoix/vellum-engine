@@ -30,6 +30,7 @@ interface VarDef {
   name: string;
   defaultValue?: unknown;
   separator?: string; // multiselect joins with this
+  options?: Array<{ id: string; value?: unknown }>;
 }
 
 interface Block {
@@ -45,22 +46,30 @@ interface Block {
 type PromptVariableValues = Record<string, Record<string, unknown>>;
 
 /** Coerce a stored variable value into the string the macro would expand to. */
-function valueToString(value: unknown, def?: VarDef): string {
-  if (value == null) return '';
-  if (Array.isArray(value)) return value.join(def?.separator ?? ', '); // multiselect
-  return String(value);
+function optionValue(value: unknown, def?: VarDef): unknown {
+  if (!def?.options?.length) return value;
+  const option = def.options.find((candidate) => candidate.id === String(value));
+  return option && Object.prototype.hasOwnProperty.call(option, 'value') ? option.value : value;
 }
 
-/** Build the {{var::name}} substitution map for one block from the current
- * promptVariables values, falling back to each def's defaultValue. */
-function varsForBlock(block: Block, promptVariables: PromptVariableValues): Record<string, string> {
+function valueToString(value: unknown, def?: VarDef): string {
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.map((item) => optionValue(item, def)).join(def?.separator ?? ', '); // multiselect
+  return String(optionValue(value, def) ?? '');
+}
+
+/** Build one preset-global {{var::name}} map. Loom variables are global even
+ * though their definitions and selected IDs are stored under an owner block. */
+function varsForPreset(blocks: Block[], promptVariables: PromptVariableValues): Record<string, string> {
   const vars: Record<string, string> = {};
-  const chosen = promptVariables[block.id] ?? {};
-  for (const def of block.variables ?? []) {
-    if (!def || !def.name) continue;
-    const has = Object.prototype.hasOwnProperty.call(chosen, def.name);
-    const raw = has ? chosen[def.name] : def.defaultValue;
-    vars[def.name] = valueToString(raw, def);
+  for (const block of blocks) {
+    const chosen = promptVariables[block.id] ?? {};
+    for (const def of block.variables ?? []) {
+      if (!def || !def.name) continue;
+      const has = Object.prototype.hasOwnProperty.call(chosen, def.name);
+      const raw = has ? chosen[def.name] : def.defaultValue;
+      vars[def.name] = valueToString(raw, def);
+    }
   }
   return vars;
 }
@@ -81,6 +90,7 @@ export function calculatePresetBudget(
   let totalChars = 0;
   let enabledCount = 0;
   let disabledCount = 0;
+  const vars = varsForPreset(blocks, promptVariables);
 
   for (const block of blocks) {
     if (!block.enabled) {
@@ -90,7 +100,6 @@ export function calculatePresetBudget(
     enabledCount++;
 
     // Expand macros using the CURRENT variable values, then count.
-    const vars = varsForBlock(block, promptVariables);
     const expanded = expandMacros(block.content ?? '', vars);
     const chars = expanded.length;
     const tokens = Math.ceil(chars / 4);

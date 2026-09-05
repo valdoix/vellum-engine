@@ -39,6 +39,8 @@ interface CacheEntry {
    * as of the last mergeDuplicates pass — lets loadState skip the O(n²) self-heal
    * merge on folds that didn't touch any of them. undefined ⇒ must merge. */
   mergeSig?: string;
+  /** Monotonic in-process mutation revision. Event count cannot detect same-size tail replacement. */
+  revision?: number;
 }
 const _cache = new Map<string, CacheEntry>();
 /** One cold-load promise per chat. Without this, two first-use callers can both
@@ -142,7 +144,7 @@ async function loadLogUncached(chatId: string): Promise<EventLog> {
     readonly = true;
     spindle.log?.warn?.('[vellum_engine] log read failed for ' + chatId + ' — READ-ONLY this session.');
   }
-  _cache.set(chatId, { log, state: buildState(log.events), reduced: log.events.length, readonly, dirty: false, ...(serialized !== undefined ? { serialized, persistedCount } : {}) });
+  _cache.set(chatId, { log, state: buildState(log.events), reduced: log.events.length, readonly, dirty: false, revision: 0, ...(serialized !== undefined ? { serialized, persistedCount } : {}) });
   return log;
 }
 
@@ -265,15 +267,18 @@ async function persist(chatId: string): Promise<void> {
  * the pass turns N full-log stringify+write cycles into 1. Callers that must be
  * durable immediately still use append() (which flushes).
  */
-export async function appendDeferred(chatId: string, events: VellumEvent[]): Promise<ChronicleState> {
+export async function appendDeferred(chatId: string, events: VellumEvent[], expectedRevision?: number): Promise<ChronicleState> {
   if (!events.length) return loadState(chatId);
   await loadLog(chatId);
   const c = _cache.get(chatId)!;
+  if (expectedRevision !== undefined && (c.revision ?? 0) !== expectedRevision) throw new Error('chronicle_revision_conflict');
+  if (expectedRevision !== undefined) events = events.map(e => VellumEventSchema.parse(e));
   if (c.readonly) {
     spindle.log?.warn?.('[vellum_engine] not appending to read-only ' + chatId);
     throw new Error('chronicle_read_only');
   }
   c.log.events.push(...events);
+  c.revision = (c.revision ?? 0) + 1;
   c.dirty = true;
   return loadState(chatId);
 }
@@ -308,7 +313,8 @@ export async function recoverFromBackup(chatId: string): Promise<ChronicleState 
   try { parsed = JSON.parse(bakRaw); } catch { return null; }
   const { log, usable } = lenientLog(parsed, chatId);
   if (!usable || log.events.length <= curLen) return null; // backup isn't fuller — nothing to recover
-  _cache.set(chatId, { log, state: buildState(log.events), reduced: log.events.length, readonly: false });
+  const revision = (_cache.get(chatId)?.revision ?? 0) + 1;
+  _cache.set(chatId, { log, state: buildState(log.events), reduced: log.events.length, readonly: false, revision });
   await persist(chatId);
   spindle.log?.warn?.('[vellum_engine] recovered ' + chatId + ' from backup (' + log.events.length + ' events).');
   return _cache.get(chatId)!.state;
@@ -324,6 +330,7 @@ export async function append(chatId: string, events: VellumEvent[]): Promise<Chr
     throw new Error('chronicle_read_only');
   }
   c.log.events.push(...events);
+  c.revision = (c.revision ?? 0) + 1;
   c.dirty = true;
   await persist(chatId);
   return loadState(chatId);
@@ -375,6 +382,24 @@ export async function turnDays(chatId: string): Promise<Map<number, number>> {
 /** Monotonic log version = event count. Bumps on every append/edit; used to
  * key the recall index so in-place content edits invalidate it (Fix 20). */
 export function logVersion(chatId: string): number { return _cache.get(chatId)?.log.events.length ?? 0; }
+export function logRevision(chatId: string): number { return _cache.get(chatId)?.revision ?? 0; }
+
+/** Read-only rollback projection. Regeneration cannot erase accepted state until replacement validates. */
+export async function previewStateAtTurn(chatId: string, turn: number): Promise<ChronicleState> {
+  const log = await loadLog(chatId);
+  return buildState(log.events.filter(e => e.turn <= turn));
+}
+
+export async function replaceTailDeferred(chatId: string, turn: number, events: VellumEvent[], expectedRevision: number): Promise<ChronicleState> {
+  await loadLog(chatId);
+  const c = _cache.get(chatId)!;
+  if (c.readonly) throw new Error('chronicle_read_only');
+  if ((c.revision ?? 0) !== expectedRevision) throw new Error('chronicle_revision_conflict');
+  const next = [...c.log.events.filter(e => e.turn <= turn), ...events.map(e => VellumEventSchema.parse(e))];
+  const state = buildState(next); // construct fully before publishing any part
+  c.log.events = next; c.state = state; c.reduced = next.length; c.dirty = true; c.mergeSig = undefined; c.revision = (c.revision ?? 0) + 1;
+  return state;
+}
 
 /** Does the chat's log already contain at least one event of this kind? Used by
  * the backend's one-time legacy migrations (e.g. seeding a tone.set from an old
@@ -397,6 +422,7 @@ export async function truncateAfterTurn(chatId: string, turn: number): Promise<C
   const kept = c.log.events.filter((e) => e.turn <= turn);
   if (kept.length === c.log.events.length) return loadState(chatId); // nothing to drop
   c.log.events = kept;
+  c.revision = (c.revision ?? 0) + 1;
   c.state = buildState(kept); // full re-reduce: truncation isn't a forward fold
   c.reduced = kept.length;
   c.mergeSig = undefined; // force a re-merge on the next fold (state changed shape)
@@ -408,7 +434,8 @@ export async function truncateAfterTurn(chatId: string, turn: number): Promise<C
 /** Wipe a chat's event log entirely (clear all data). Explicit user action, so
  * it clears the read-only guard and persists the empty log intentionally. */
 export async function clearLog(chatId: string): Promise<void> {
-  _cache.set(chatId, { log: freshLog(chatId), state: buildState([]), reduced: 0, readonly: false, dirty: true });
+  const revision = (_cache.get(chatId)?.revision ?? 0) + 1;
+  _cache.set(chatId, { log: freshLog(chatId), state: buildState([]), reduced: 0, readonly: false, dirty: true, revision });
   await persist(chatId);
 }
 
@@ -421,7 +448,8 @@ export async function exportLog(chatId: string): Promise<EventLog> {
  * Explicit user action → clears the read-only guard. */
 export async function importLog(chatId: string, log: EventLog): Promise<ChronicleState> {
   const { log: next } = lenientLog(log, chatId);
-  _cache.set(chatId, { log: next, state: buildState(next.events), reduced: next.events.length, readonly: false, dirty: true });
+  const revision = (_cache.get(chatId)?.revision ?? 0) + 1;
+  _cache.set(chatId, { log: next, state: buildState(next.events), reduced: next.events.length, readonly: false, dirty: true, revision });
   await persist(chatId);
   return _cache.get(chatId)!.state;
 }

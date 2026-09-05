@@ -1,38 +1,116 @@
 /**
- * Macro-lite resolver for preset prompt budget estimation.
- * 
- * Expands simple macros ({{var::x}}, {{if}}, {{pick}}) to get an honest token
- * estimate without running the host's full macro engine. This is estimation only
- * — we don't have runtime context, so we make reasonable defaults:
- * 
- * - {{var::name}} → look up the variable's current selected value
- * - {{if::X}}A{{else}}B{{/if}} → pick the if-branch (no runtime context)
- * - {{pick::a::b::c}} → pick the first option
- * 
- * Advanced host macros ({{and}}, {{ne}}, etc.) pass through unchanged — we can't
- * resolve them without full context, but they're rare and small.
+ * Deterministic macro subset for preset-budget estimation. It resolves the
+ * prompt-variable control flow ARGENT uses while leaving host/runtime macros
+ * visible. Unknown runtime predicates choose the enabled branch so estimates
+ * remain conservative.
  */
 
-/**
- * Expand simple macros in preset block content for token estimation.
- * 
- * @param content - Raw block content with macros
- * @param vars - Map of variable names to their current selected values
- * @returns Expanded text (macros replaced with their likely runtime values)
- */
-export function expandMacros(content: string, vars: Record<string, string>): string {
-  let out = content;
-  
-  // 1. {{var::name}} -> vars[name] ?? '{{var::name}}' (leave unexpanded if unknown)
-  out = out.replace(/\{\{var::(\w+)\}\}/g, (_, name) => vars[name] ?? `{{var::${name}}}`);
-  
-  // 2. {{if::X}}A{{else}}B{{/if}} -> A (default to if-branch for estimation)
-  //    Handle with-else first, then without-else
-  out = out.replace(/\{\{if::[^}]+\}\}(.*?)\{\{else\}\}.*?\{\{\/if\}\}/gs, '$1');
-  out = out.replace(/\{\{if::[^}]+\}\}(.*?)\{\{\/if\}\}/gs, '$1');
-  
-  // 3. {{pick::a::b::c}} -> a (first option)
-  out = out.replace(/\{\{pick::([^:}]+)(?:::[^}]*)?\}\}/g, '$1');
-  
+function truthy(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (normalized.includes('{{')) return true;
+  return !['', '0', 'false', 'off', 'none', 'null', 'undefined'].includes(normalized);
+}
+
+function splitArgs(value: string): string[] {
+  return value.split('::').map((part) => part.trim());
+}
+
+function resolveLeafExpressions(input: string): string {
+  let out = input;
+  const leaf = /\{\{(eq|ne|and|or|not|includes|lt|gt|lower)::([^{}]*)\}\}/g;
+  for (let pass = 0; pass < 20; pass++) {
+    let changed = false;
+    out = out.replace(leaf, (_whole, op: string, raw: string) => {
+      changed = true;
+      const args = splitArgs(raw);
+      if (op === 'eq') return args[0] === args[1] ? '1' : '';
+      if (op === 'ne') return args[0] !== args[1] ? '1' : '';
+      if (op === 'and') return args.every(truthy) ? '1' : '';
+      if (op === 'or') return args.some(truthy) ? '1' : '';
+      if (op === 'not') return truthy(args[0] ?? '') ? '' : '1';
+      if (op === 'includes') return (args[0] ?? '').includes(args[1] ?? '') ? '1' : '';
+      if (op === 'lt') return Number(args[0]) < Number(args[1]) ? '1' : '';
+      if (op === 'gt') return Number(args[0]) > Number(args[1]) ? '1' : '';
+      return (args[0] ?? '').toLowerCase();
+    });
+    if (!changed) break;
+  }
   return out;
+}
+
+function macroClose(input: string, start: number): number {
+  let depth = 0;
+  for (let i = start; i < input.length - 1; i++) {
+    if (input.startsWith('{{', i)) { depth++; i++; continue; }
+    if (input.startsWith('}}', i)) {
+      depth--;
+      if (depth === 0) return i + 2;
+      i++;
+    }
+  }
+  return -1;
+}
+
+function resolveIfBlocks(input: string): string {
+  let out = input;
+  for (let pass = 0; pass < 100; pass++) {
+    const start = out.lastIndexOf('{{if::');
+    if (start < 0) break;
+    const headerEnd = macroClose(out, start);
+    if (headerEnd < 0) break;
+    const end = out.indexOf('{{/if}}', headerEnd);
+    if (end < 0) break;
+    const condition = out.slice(start + '{{if::'.length, headerEnd - 2);
+    const body = out.slice(headerEnd, end);
+    const elseAt = body.indexOf('{{else}}');
+    const yes = elseAt < 0 ? body : body.slice(0, elseAt);
+    const no = elseAt < 0 ? '' : body.slice(elseAt + '{{else}}'.length);
+    out = out.slice(0, start) + (truthy(condition) ? yes : no) + out.slice(end + '{{/if}}'.length);
+  }
+  return out;
+}
+
+function splitTopLevel(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < value.length - 1; i++) {
+    if (value.startsWith('{{', i)) { depth++; i++; continue; }
+    if (value.startsWith('}}', i) && depth > 0) { depth--; i++; continue; }
+    if (depth === 0 && value.startsWith('::', i)) {
+      parts.push(value.slice(start, i));
+      start = i + 2;
+      i++;
+    }
+  }
+  parts.push(value.slice(start));
+  return parts;
+}
+
+function resolveSwitches(input: string): string {
+  let out = input;
+  for (let pass = 0; pass < 100; pass++) {
+    const start = out.lastIndexOf('{{switch::');
+    if (start < 0) break;
+    const end = macroClose(out, start);
+    if (end < 0) break;
+    const raw = out.slice(start + '{{switch::'.length, end - 2);
+    const parts = splitTopLevel(raw);
+    const selected = (parts.shift() ?? '').trim();
+    let replacement = '';
+    for (let i = 0; i + 1 < parts.length; i += 2) {
+      if (parts[i]!.trim() === selected) { replacement = parts[i + 1]!; break; }
+    }
+    out = out.slice(0, start) + replacement + out.slice(end);
+  }
+  return out;
+}
+
+export function expandMacros(content: string, vars: Record<string, string>): string {
+  let out = content.replace(/\{\{var::(\w+)\}\}/g, (_whole, name: string) => vars[name] ?? `{{var::${name}}}`);
+  out = resolveLeafExpressions(out);
+  out = resolveIfBlocks(out);
+  out = resolveSwitches(out);
+  out = resolveLeafExpressions(out);
+  return out.replace(/\{\{pick::([^:}]+)(?:::[^}]*)?\}\}/g, '$1');
 }
