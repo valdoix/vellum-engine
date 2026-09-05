@@ -10,7 +10,7 @@ import { coreFeature } from './domain/core-feature.js';
 import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
 import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
-import { summarizeWindow, summarizeAll, summarizeFromPlan, type SummaryProgress, type SummaryRunOptions } from './bus/summarize.js';
+import { summarizeWindow, summarizeAll, summarizeFromPlan, reportArchiveSaved, type SummaryProgress, type SummaryRunOptions } from './bus/summarize.js';
 import { planChapterFrom, planArc, planArcFrom, planBook, planBookFrom, archivedTurnNumbers } from './domain/memory.js';
 import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats } from './domain/beats.js';
 import { locationList } from './domain/locations.js';
@@ -40,7 +40,7 @@ import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
-import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault, ownedBooks, ownedEntries, extensionsFromEntry, type VaultSnapshot, type VaultRole } from './host/worldbooks.js';
+import { VAULT_SCHEMA_VERSION, vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, adoptBookForChat, hasVault, ownedBooks, ownedEntries, extensionsFromEntry, type VaultSnapshot, type VaultRole } from './host/worldbooks.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, isSyncSource, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
@@ -1276,6 +1276,23 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
   }
 }
 
+/** Finish non-canonical archive side effects without holding the summarizer
+ * window open. The Chronicle append is the durability boundary; UI refresh,
+ * Vault projection, and host message hiding are independently retryable
+ * projections. A slow world-books or chat-mutation API must never make a
+ * completed chapter/arc/book look stuck at its final phase. */
+function continueArchiveMaintenance(chatId: string, userId: string | null, broadcast = true): void {
+  if (broadcast) void broadcastState(chatId, userId).catch((e) => {
+    spindle.log?.warn?.('[vellum_engine] archive state broadcast: ' + ((e as Error)?.message ?? e));
+  });
+  void maybeChapterVault(chatId, userId).catch((e) => {
+    spindle.log?.warn?.('[vellum_engine] archive vault projection: ' + ((e as Error)?.message ?? e));
+  });
+  void syncArchiveHide(chatId).catch((e) => {
+    spindle.log?.warn?.('[vellum_engine] archive hide sync: ' + ((e as Error)?.message ?? e));
+  });
+}
+
 let _summarizing = new Set<string>();
 const _summaryAbort = new Map<string, AbortController>();
 
@@ -1364,18 +1381,14 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
     const result = await summarizeWindow(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg, stream.options);
     const evs = result.events;
     if (evs.length) {
-
-      await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, userId);
+      await append(chatId, evs);
+      reportArchiveSaved(evs, result.tokens, stream.options);
+      invalidateIndex(chatId);
       spindle.log?.info?.('[vellum_engine] auto-summarized a chapter');
-      void maybeChapterVault(chatId, userId); // project the new chapter's detail to the vault
-      // if the user enabled hide-summarized, fold the freshly-covered turns away
-      try {
-        const enabled = !!(await getChatVar(chatId, 'vellum_hide_summarized'));
-        if (enabled) { const ns = await loadState(chatId); await syncHideOnFile(chatId, true, archivedTurnNumbers(ns)); }
-      } catch { /* best effort */ }
     }
     stream.finish(true, { rounds: evs.length ? 1 : 0, tokens: result.tokens });
     streamFinished = true;
+    if (evs.length) continueArchiveMaintenance(chatId, userId);
   } catch (e) {
     spindle.log?.warn?.('[vellum_engine] auto-summary: ' + ((e as Error)?.message ?? e));
     stream.finish(false, { reason: 'error' });
@@ -2067,23 +2080,21 @@ const dispatch: Record<string, Handler> = {
     const stream = beginSummaryRun(chatId, uid, 'manual', total);
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'busy' }, uid); return; }
     try {
-      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), async (done, roundTotal, tokensSoFar) => {
+      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), (done, roundTotal, tokensSoFar) => {
         invalidateIndex(chatId);
-        await broadcastState(chatId, uid);
-        await maybeChapterVault(chatId, uid); // project each new chapter to the vault as it lands
+        void broadcastState(chatId, uid).catch((e) => spindle.log?.warn?.('[vellum_engine] summary round broadcast: ' + ((e as Error)?.message ?? e)));
         spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total: roundTotal, tokens: tokensSoFar }, uid);
       }, cfg, stream.options);
       invalidateIndex(chatId);
-      await broadcastState(chatId, uid);
-      const vault = await maybeChapterVault(chatId, uid);
-      await syncArchiveHide(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
-      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds, tokens, vault }, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds, tokens }, uid);
+      if (rounds) continueArchiveMaintenance(chatId, uid);
     } catch (e) {
-      stream.finish(false, { reason: 'error' });
-      spindle.log?.warn?.('[vellum_engine] summarize: ' + ((e as Error)?.message ?? e));
-      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'error' }, uid);
+      const reason = (e as Error)?.message ?? String(e);
+      stream.finish(false, { reason });
+      spindle.log?.warn?.('[vellum_engine] summarize: ' + reason);
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason }, uid);
     }
   },
   vellum_resummarize: async (p, uid) => {
@@ -2107,23 +2118,21 @@ const dispatch: Record<string, Handler> = {
       }
       const cfg = await summarizerCfg(chatId);
       const win = Math.max(cfg.minWindow, Math.min(4, cfg.autoWindow));
-      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), async (done, total, tokensSoFar) => {
+      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), (done, total, tokensSoFar) => {
         invalidateIndex(chatId);
-        await broadcastState(chatId, uid);
-        await maybeChapterVault(chatId, uid);
+        void broadcastState(chatId, uid).catch((e) => spindle.log?.warn?.('[vellum_engine] resummary round broadcast: ' + ((e as Error)?.message ?? e)));
         spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total, tokens: tokensSoFar }, uid);
       }, cfg, stream.options);
       invalidateIndex(chatId);
-      await broadcastState(chatId, uid);
-      const vault = await maybeChapterVault(chatId, uid);
-      await syncArchiveHide(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
-      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds, tokens, vault }, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds, tokens }, uid);
+      if (rounds) continueArchiveMaintenance(chatId, uid);
     } catch (e) {
-      stream?.finish(false, { reason: 'error' });
-      spindle.log?.warn?.('[vellum_engine] resummarize: ' + ((e as Error)?.message ?? e));
-      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'error' }, uid);
+      const reason = (e as Error)?.message ?? String(e);
+      stream?.finish(false, { reason });
+      spindle.log?.warn?.('[vellum_engine] resummarize: ' + reason);
+      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason }, uid);
     }
   },
   vellum_summarize_cancel: async (p, uid) => {
@@ -2160,18 +2169,17 @@ const dispatch: Record<string, Handler> = {
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'busy' }, uid); return; }
     try {
       const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'chapter', stream.options);
-      if (events.length) await append(chatId, events);
+      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, stream.options); }
       invalidateIndex(chatId);
-      await broadcastState(chatId, uid);
-      const vault = await maybeChapterVault(chatId, uid);
-      await syncArchiveHide(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
-      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, picked: plan.sourceIds.length, vault }, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, picked: plan.sourceIds.length }, uid);
+      if (events.length) continueArchiveMaintenance(chatId, uid);
     } catch (e) {
-      stream.finish(false, { reason: 'error' });
-      spindle.log?.warn?.('[vellum_engine] summarize pick: ' + ((e as Error)?.message ?? e));
-      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'error' }, uid);
+      const reason = (e as Error)?.message ?? String(e);
+      stream.finish(false, { reason });
+      spindle.log?.warn?.('[vellum_engine] summarize pick: ' + reason);
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason }, uid);
     }
   },
   vellum_arc: async (p, uid) => {
@@ -2192,18 +2200,17 @@ const dispatch: Record<string, Handler> = {
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'busy' }, uid); return; }
     try {
       const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'arc', stream.options);
-      if (events.length) await append(chatId, events);
+      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, stream.options); }
       invalidateIndex(chatId);
-      await broadcastState(chatId, uid);
-      const vault = await maybeChapterVault(chatId, uid);
-      await syncArchiveHide(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
-      spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length, vault }, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length }, uid);
+      if (events.length) continueArchiveMaintenance(chatId, uid);
     } catch (e) {
-      stream.finish(false, { reason: 'error' });
-      spindle.log?.warn?.('[vellum_engine] summarize arc: ' + ((e as Error)?.message ?? e));
-      spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'error' }, uid);
+      const reason = (e as Error)?.message ?? String(e);
+      stream.finish(false, { reason });
+      spindle.log?.warn?.('[vellum_engine] summarize arc: ' + reason);
+      spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason }, uid);
     }
   },
   vellum_book: async (p, uid) => {
@@ -2221,18 +2228,17 @@ const dispatch: Record<string, Handler> = {
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'busy' }, uid); return; }
     try {
       const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'book', stream.options);
-      if (events.length) await append(chatId, events);
+      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, stream.options); }
       invalidateIndex(chatId);
-      await broadcastState(chatId, uid);
-      const vault = await maybeChapterVault(chatId, uid);
-      await syncArchiveHide(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
-      spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length, vault }, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length }, uid);
+      if (events.length) continueArchiveMaintenance(chatId, uid);
     } catch (e) {
-      stream.finish(false, { reason: 'error' });
-      spindle.log?.warn?.('[vellum_engine] summarize book: ' + ((e as Error)?.message ?? e));
-      spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'error' }, uid);
+      const reason = (e as Error)?.message ?? String(e);
+      stream.finish(false, { reason });
+      spindle.log?.warn?.('[vellum_engine] summarize book: ' + reason);
+      spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason }, uid);
     }
   },
   vellum_item_add: async (p, uid) => {
@@ -2744,6 +2750,32 @@ const dispatch: Record<string, Handler> = {
       if (p.op === 'book_create') { const r = await createBook(String(p.name || 'New Lorebook'), String(p.description || ''), uid, chatId ?? '', 'manual'); if (r.ok && p.attach && chatId) await setBookAttached(chatId, r.value, true, uid); done(r.ok, r.ok ? { bookId: r.value } : { reason: r.error }); }
       else if (p.op === 'book_update') { const r = await updateBook(String(p.bookId), String(p.name || ''), p.description, uid); done(r.ok, r.ok ? {} : { reason: r.error }); }
       else if (p.op === 'book_attach') { if (!chatId) { done(false, { reason: 'no_active_chat' }); return; } const ok = await setBookAttached(chatId, String(p.bookId), !!p.attach, uid); done(ok); }
+      else if (p.op === 'book_claim') {
+        if (!chatId) { done(false, { reason: 'no_active_chat' }); return; }
+        const snap = await vaultSnapshot(chatId, uid);
+        if (!snap.complete) { done(false, { reason: 'incomplete_snapshot' }); return; }
+        const r = await adoptBookForChat(snap, String(p.bookId), chatId, uid);
+        const failed = r.ok ? r.value.entriesFailed : 0;
+        done(r.ok && failed === 0, r.ok ? { books: 1, entries: r.value.entriesClaimed, skipped: r.value.entriesSkipped, failed, ...(failed ? { reason: 'entry_claim_failed' } : {}) } : { reason: r.error });
+      }
+      else if (p.op === 'books_claim_attached') {
+        if (!chatId) { done(false, { reason: 'no_active_chat' }); return; }
+        const snap = await vaultSnapshot(chatId, uid);
+        if (!snap.complete) { done(false, { reason: 'incomplete_snapshot' }); return; }
+        const candidates = snap.books.filter((b) => {
+          const foreign = (!!b.ownerChatId && b.ownerChatId !== chatId) || b.entries.some((e) => !!e.ownerChatId && e.ownerChatId !== chatId);
+          const completeOwner = b.vellum && b.ownerChatId === chatId && b.entries.every((e) => e.vellum && e.ownerChatId === chatId && (e.schemaVersion ?? 0) >= VAULT_SCHEMA_VERSION);
+          return b.attachedToChat && !foreign && !completeOwner;
+        });
+        let books = 0; let entries = 0; let skipped = 0; let failed = 0; let reason = '';
+        for (const book of candidates) {
+          const r = await adoptBookForChat(snap, book.id, chatId, uid);
+          if (!r.ok) { failed++; reason ||= r.error; continue; }
+          books++; entries += r.value.entriesClaimed; skipped += r.value.entriesSkipped; failed += r.value.entriesFailed;
+          if (r.value.entriesFailed) reason ||= 'entry_claim_failed';
+        }
+        done(failed === 0, { books, entries, skipped, failed, protected: snap.books.filter((b) => b.attachedToChat && ((!!b.ownerChatId && b.ownerChatId !== chatId) || b.entries.some((e) => !!e.ownerChatId && e.ownerChatId !== chatId))).length, ...(reason ? { reason } : {}) });
+      }
       else if (p.op === 'entry_create') {
         const cat = resolveCategory(cats, p.category);
         const settings: EntrySettings = p.settings ?? cat.defaults;

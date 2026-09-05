@@ -1130,10 +1130,10 @@ function codex(s: ChronicleState): string {
       + '</div>'
       + (x.revisions?.length ? `<details class="vle-lore-history"><summary>Correction history</summary>${x.revisions.map(r => `<p>t${r.turn}: ${esc(r.fact)}</p>`).join('')}</details>` : '')
       + '</div><div class="vle-lore-actions"><span class="vle-lore-turn">t' + x.turn + '</span>'
-      + (x.status === 'provisional' ? `<button class="vle-mini" data-lore-confirm data-id="${esc(x.id)}" title="Confirm as canon">\u2713</button>` : '')
-      + `<button class="vle-mini" data-lore-edit data-id="${esc(x.id)}" title="Correct fact">Edit</button>`
-      + (x.status !== 'rejected' ? `<button class="vle-mini" data-lore-reject data-id="${esc(x.id)}" title="Reject fact">Reject</button>` : `<button class="vle-mini" data-lore-confirm data-id="${esc(x.id)}" title="Restore as confirmed">Restore</button>`)
-      + `<button class="vle-mini del" data-lore-del data-id="${esc(x.id)}" title="Delete">\u2715</button>`
+      + (x.status === 'provisional' ? `<button class="vle-mini vle-lore-icon" data-lore-confirm data-id="${esc(x.id)}" title="Confirm as canon">\u2713</button>` : '')
+      + `<button class="vle-mini vle-lore-btn" data-lore-edit data-id="${esc(x.id)}" title="Correct fact">Edit</button>`
+      + (x.status !== 'rejected' ? `<button class="vle-mini vle-lore-btn" data-lore-reject data-id="${esc(x.id)}" title="Reject fact">Reject</button>` : `<button class="vle-mini vle-lore-btn" data-lore-confirm data-id="${esc(x.id)}" title="Restore as confirmed">Restore</button>`)
+      + `<button class="vle-mini vle-lore-icon del" data-lore-del data-id="${esc(x.id)}" title="Delete">\u2715</button>`
       + '</div></div>'
     ).join('');
     return '<div class="vle-lore-group">'

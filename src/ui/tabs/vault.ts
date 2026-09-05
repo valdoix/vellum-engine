@@ -15,7 +15,7 @@ import { formModal, confirmModal } from '../modal.js';
  */
 
 interface VCat { id: string; label: string; glyph: string; color: string; hidden: boolean; sync: string; source?: string; defaults: any }
-interface VEntry { id: string; bookId: string; key: string[]; keysecondary?: string[]; content: string; comment: string; constant?: boolean; disabled: boolean; vellum: boolean; category: string; source: string; link: string; pending: boolean; ownerChatId?: string; bodyState?: 'clean' | 'override' | 'conflict' | 'legacy'; overrideFields?: string[]; recursionKeys?: string[]; createdAt?: number; updatedAt?: number }
+interface VEntry { id: string; bookId: string; key: string[]; keysecondary?: string[]; content: string; comment: string; constant?: boolean; disabled: boolean; vellum: boolean; category: string; source: string; link: string; pending: boolean; ownerChatId?: string; schemaVersion?: number; bodyState?: 'clean' | 'override' | 'conflict' | 'legacy'; overrideFields?: string[]; recursionKeys?: string[]; createdAt?: number; updatedAt?: number }
 interface VBook { id: string; name: string; attachedToChat: boolean; global: boolean; vellum: boolean; ownerChatId?: string; role?: string; entries: VEntry[] }
 interface VHealthIssue { code: string; severity: 'error' | 'warning' | 'info'; message: string; entryId?: string; bookId?: string; link?: string }
 interface VHealth { score: number; issues: VHealthIssue[]; stats: { books: number; entries: number; conflicts: number; orphaned: number; owned: number } }
@@ -283,17 +283,28 @@ function categoryCreate(): void {
 
 function bookManager(): void {
   const books = _snap?.books ?? [];
+  const chatId = _snap?.chatId ?? '';
+  const fullyOwned = (b: VBook): boolean => b.vellum && b.ownerChatId === chatId && b.entries.every((e) => e.vellum && e.ownerChatId === chatId && (e.schemaVersion ?? 0) >= 2);
+  const claimable = books.filter((b) => b.attachedToChat && (!b.ownerChatId || b.ownerChatId === chatId) && !b.entries.some((e) => !!e.ownerChatId && e.ownerChatId !== chatId) && !fullyOwned(b));
   // a lightweight books overlay: each book has rename + attach toggle + new
   const ov = document.createElement('div');
   ov.className = 'vlfm-overlay';
-  const rows = books.map((b) =>
-    `<div class="vlv-bk" data-bk="${esc(b.id)}"><span class="vlv-bk-n">${esc(b.name)}</span>`
+  const rows = books.map((b) => {
+    const owned = !!chatId && b.vellum && b.ownerChatId === chatId;
+    const foreign = (!!b.ownerChatId && b.ownerChatId !== chatId) || b.entries.some((e) => !!e.ownerChatId && e.ownerChatId !== chatId);
+    const canClaim = !!chatId && b.attachedToChat && !foreign && !fullyOwned(b);
+    return `<div class="vlv-bk" data-bk="${esc(b.id)}"><span class="vlv-bk-n">${esc(b.name)}</span>`
+    + `${owned ? '<span class="vlv-bk-tag vault">Vault</span>' : foreign ? '<span class="vlv-bk-tag protected" title="Owned by another chat">other chat</span>' : ''}`
     + `${b.global ? '<span class="vlv-bk-tag">global</span>' : ''}`
     + `<span class="vlv-bk-ctl"><button class="vle-mini" data-bk-rename data-id="${esc(b.id)}" data-name="${esc(b.name)}" title="Rename">\u270E</button>`
+    + (canClaim ? `<button class="vlv-bk-claim" data-bk-claim data-id="${esc(b.id)}" title="Add this lorebook and its existing entries to this chat's Vault">${owned ? 'Repair Vault' : '+ Vault'}</button>` : '')
     + `<button class="vlv-bk-att${b.attachedToChat ? ' on' : ''}" data-bk-attach data-id="${esc(b.id)}" data-attach="${b.attachedToChat ? '' : '1'}">${b.attachedToChat ? '\u2713 attached' : '+ attach'}</button></span></div>`
-  ).join('') || '<div class="vle-empty sm">No lorebooks yet.</div>';
+  }).join('') || '<div class="vle-empty sm">No lorebooks yet.</div>';
+  const claimAll = claimable.length
+    ? `<div class="vlv-adopt"><div><b>Add this chat's lorebooks to Vault</b><span>Claims ${claimable.length} attached lorebook${claimable.length === 1 ? '' : 's'} and preserves every entry and activation setting.</span></div><button class="vlfm-btn vlfm-save" data-bk-claim-all>Use attached</button></div>`
+    : '';
   ov.innerHTML = '<div class="vlfm"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>Lorebooks</div>'
-    + `<div class="vlfm-body"><div class="vlv-bklist">${rows}</div>`
+    + `<div class="vlfm-body">${claimAll}<div class="vlv-bklist">${rows}</div>`
     + '<label class="vlfm-l">New lorebook<input class="vlfm-in" data-bk-new placeholder="My World"></label></div>'
     + '<div class="vlfm-foot"><button class="vlfm-btn vlfm-cancel" data-close>Close</button><button class="vlfm-btn vlfm-save" data-bk-create>+ Create</button></div></div>';
   document.body.appendChild(ov);
@@ -303,6 +314,8 @@ function bookManager(): void {
     if (t === ov || t.closest('[data-close]')) { close(); return; }
     const rn = t.closest('[data-bk-rename]');
     if (rn) { close(); formModal('Rename Lorebook', [{ key: 'name', label: 'Name', type: 'text', value: rn.getAttribute('data-name') ?? '' }], (v) => { if (v.name?.trim()) send({ type: 'vellum_vault_op', op: 'book_update', bookId: rn.getAttribute('data-id'), name: v.name }); }); return; }
+    const claim = t.closest('[data-bk-claim]'); if (claim) { send({ type: 'vellum_vault_op', op: 'book_claim', bookId: claim.getAttribute('data-id') }); close(); return; }
+    if (t.closest('[data-bk-claim-all]')) { send({ type: 'vellum_vault_op', op: 'books_claim_attached' }); close(); return; }
     const at = t.closest('[data-bk-attach]'); if (at) { send({ type: 'vellum_vault_op', op: 'book_attach', bookId: at.getAttribute('data-id'), attach: !!at.getAttribute('data-attach') }); close(); return; }
     if (t.closest('[data-bk-create]')) { const inp = ov.querySelector('[data-bk-new]') as HTMLInputElement | null; const name = inp?.value?.trim(); if (name) send({ type: 'vellum_vault_op', op: 'book_create', name, attach: true }); close(); }
   });

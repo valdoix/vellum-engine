@@ -2095,7 +2095,13 @@ export function setup(ctx: Ctx): () => void {
         // categories changed — re-request the full snapshot to reflect counts
         ctx.sendToBackend({ type: 'vellum_get_vault' });
       } else if (p?.type === 'vellum_vault_done') {
-        if (!p.ok) notify(ctx, 'warning', 'Vault: ' + (p.reason ?? 'failed'));
+        if ((p.op === 'book_claim' || p.op === 'books_claim_attached') && p.ok) {
+          notify(ctx, 'success', `Vault: added ${p.books ?? 0} lorebook${p.books === 1 ? '' : 's'} and ${p.entries ?? 0} entr${p.entries === 1 ? 'y' : 'ies'} to this chat.`);
+        } else if ((p.op === 'book_claim' || p.op === 'books_claim_attached') && !p.ok && p.reason === 'incomplete_snapshot') {
+          notify(ctx, 'warning', 'Vault could not verify the complete lorebook library, so ownership was not changed. Refresh and try again.');
+        } else if ((p.op === 'book_claim' || p.op === 'books_claim_attached') && !p.ok) {
+          notify(ctx, 'warning', `Vault adoption stopped${p.failed ? ` with ${p.failed} failed write${p.failed === 1 ? '' : 's'}` : ''}: ${p.reason ?? 'unknown host error'}. You can safely retry.`);
+        } else if (!p.ok) notify(ctx, 'warning', 'Vault: ' + (p.reason ?? 'failed'));
       } else if (p?.type === 'vellum_export' && p.log) {
         setQolBusy('export', false);
         downloadJson(`vellum-${p.chatId ?? 'chronicle'}.json`, p.log);
@@ -2123,6 +2129,7 @@ export function setup(ctx: Ctx): () => void {
         else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Summarizing needs the generation permission.');
         else if (p.ok === false && p.reason === 'busy') notify(ctx, 'info', 'A summarizer run is already in progress.');
         else if (p.ok === false && p.reason === 'cancelled') notify(ctx, 'info', 'Summarizing stopped safely; source turns were left available.');
+        else if (p.ok === false) notify(ctx, 'warning', `Summarizing failed while saving the archive: ${p.reason ?? 'unknown error'}. Source memories remain available.`);
         else notify(ctx, 'success', p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}${tok}.` : 'Nothing old enough to summarize yet.');
         // surface WHY the vault didn't update (the silent-gate that hid this)
         const v = p.vault;
@@ -2138,6 +2145,7 @@ export function setup(ctx: Ctx): () => void {
         else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Folding to an arc needs the generation permission.');
         else if (p.ok === false && p.reason === 'busy') notify(ctx, 'info', 'A summarizer run is already in progress.');
         else if (p.ok === false && p.reason === 'cancelled') notify(ctx, 'info', 'Arc summarizing stopped safely.');
+        else if (p.ok === false) notify(ctx, 'warning', `Arc fold failed while saving the archive: ${p.reason ?? 'unknown error'}. The chapters remain available.`);
         else notify(ctx, 'success', p.rounds ? `Folded ${p.bound ?? 0} chapters into an arc${tok}.` : 'No chapters old enough to fold yet.');
       } else if (p?.type === 'vellum_book_done') {
         const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
@@ -2145,6 +2153,7 @@ export function setup(ctx: Ctx): () => void {
         else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Folding to a book needs the generation permission.');
         else if (p.ok === false && p.reason === 'busy') notify(ctx, 'info', 'A summarizer run is already in progress.');
         else if (p.ok === false && p.reason === 'cancelled') notify(ctx, 'info', 'Book summarizing stopped safely.');
+        else if (p.ok === false) notify(ctx, 'warning', `Book fold failed while saving the archive: ${p.reason ?? 'unknown error'}. The arcs remain available.`);
         else notify(ctx, 'success', p.rounds ? `Folded ${p.bound ?? 0} arcs into a book${tok}.` : 'No arcs old enough to fold yet.');
       } else if (p?.type === 'vellum_beat_suggestions') {
         setBeatSuggestions(p.items);
@@ -2155,7 +2164,7 @@ export function setup(ctx: Ctx): () => void {
         // state broadcast already refreshes the view; nothing else to do
       } else if (p?.type === 'vellum_resummarize_done') {
         setQolBusy('resummarize', false);
-        if (!p.ok) notify(ctx, p.reason === 'cancelled' || p.reason === 'busy' ? 'info' : 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : p.reason === 'cancelled' ? 'Re-summarize stopped safely.' : p.reason === 'busy' ? 'A summarizer run is already in progress.' : 'Re-summarize failed.');
+        if (!p.ok) notify(ctx, p.reason === 'cancelled' || p.reason === 'busy' ? 'info' : 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : p.reason === 'cancelled' ? 'Re-summarize stopped safely.' : p.reason === 'busy' ? 'A summarizer run is already in progress.' : `Re-summarize failed while saving the archive: ${p.reason ?? 'unknown error'}.`);
         else notify(ctx, 'success', p.rounds ? `Rebuilt ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'No chapters to rebuild.');
       } else if (p?.type === 'vellum_summarizer_state') {
         // backend handed us the current config + built-in default prompts → open the editor

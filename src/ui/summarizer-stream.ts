@@ -4,7 +4,7 @@
 export interface SummarizerStreamPayload {
   type: 'vellum_summarizer_stream';
   runId: string;
-  mode?: 'auto' | 'manual' | 'resummarize' | 'pick' | 'arc';
+  mode?: 'auto' | 'manual' | 'resummarize' | 'pick' | 'arc' | 'book';
   event: 'start' | 'progress' | 'chunk' | 'complete' | 'failed';
   phase?: 'prepare' | 'detail' | 'gist' | 'archive';
   status?: 'start' | 'chunk' | 'reasoning' | 'retry' | 'done' | 'failed';
@@ -51,7 +51,7 @@ const dismissed = new Set<string>();
 const phaseLabel = (phase: LiveSummary['phase']): string => phase === 'prepare'
   ? 'Preparing source window'
   : phase === 'detail' ? 'Writing durable detail'
-    : phase === 'gist' ? 'Condensing chronicle gist' : 'Filing verified archive';
+    : phase === 'gist' ? 'Condensing chronicle gist' : 'Saving verified archive';
 
 const modeLabel = (mode: string): string => mode === 'resummarize' ? 'Rebuild'
   : mode === 'pick' ? 'Selected turns' : mode === 'book' ? 'Book' : mode === 'arc' ? 'Arc' : mode === 'auto' ? 'Automatic' : 'Manual';

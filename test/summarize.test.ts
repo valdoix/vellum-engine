@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { summarizeOnce, parseSummary, cleanGist } from '../src/bus/summarize.js';
+import { summarizeOnce, parseSummary, cleanGist, reportArchiveSaved } from '../src/bus/summarize.js';
 import { invalidatePermissions } from '../src/host/capability.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 import { DEFAULT_CFG } from '../src/domain/summarizer-config.js';
@@ -32,6 +32,18 @@ describe('summarize safe failure (no host generation)', () => {
     const evs = await summarizeOnce(state, null, 8);
     expect(evs.some((e: any) => e.kind === 'memory.drop')).toBe(false);
     expect(state.memories).toHaveLength(8);
+  });
+});
+
+describe('archive progress durability', () => {
+  it('marks an archive filed only after the caller reports a successful Chronicle append', () => {
+    const updates: any[] = [];
+    reportArchiveSaved([
+      { seq: 1, turn: 8, day: 1, src: 'system', kind: 'memory.record', id: 'book_x', tier: 'book', text: 'Book gist.', detail: 'Book detail.', keys: [], covers: [1, 8], status: 'ready' } as any,
+      { seq: 2, turn: 8, day: 1, src: 'system', kind: 'memory.drop', id: 'arc_a', folded: true } as any,
+      { seq: 3, turn: 8, day: 1, src: 'system', kind: 'memory.drop', id: 'arc_b', folded: true } as any,
+    ], 123, { onProgress: (u) => updates.push(u) });
+    expect(updates).toEqual([expect.objectContaining({ phase: 'archive', status: 'done', kind: 'book', sourceCount: 2, covers: [1, 8], tokens: 123, message: 'Archive record saved to the Chronicle' })]);
   });
 });
 

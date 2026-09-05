@@ -194,14 +194,29 @@ export async function summarizeFromPlan(
 
   const build = kind === 'book' ? bookEvents : kind === 'arc' ? arcEvents : chapterEvents;
   progress(run, { phase: 'gist', status: 'done', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, text: finalGist || gist });
-  progress(run, { phase: 'archive', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, message: 'Writing the verified archive record' });
+  progress(run, { phase: 'archive', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, message: 'Validating the archive record' });
   const events = build(
     plan,
     { gist: capText(finalGist || gist, cfg.gistCap), detail: capText(detail, cfg.detailCap), keys },
     plan.covers[1], state.day || 0, nextSeq,
   );
-  progress(run, { phase: 'archive', status: 'done', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens });
+  progress(run, { phase: 'archive', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, message: 'Archive record verified; saving to the Chronicle' });
   return { events, tokens };
+}
+
+/** Report the real durability boundary after the caller has successfully
+ * appended the archive events. Keeping this outside summarizeFromPlan prevents
+ * the live window from claiming a record was filed while it still exists only
+ * in memory between generation and the Chronicle write. */
+export function reportArchiveSaved(events: readonly VellumEvent[], tokens: number, run?: SummaryRunOptions): void {
+  const record = events.find((e): e is Extract<VellumEvent, { kind: 'memory.record' }> => e.kind === 'memory.record');
+  if (!record || (record.tier !== 'chapter' && record.tier !== 'arc' && record.tier !== 'book')) return;
+  const sourceCount = events.filter((e) => e.kind === 'memory.drop' && e.folded).length;
+  const covers: [number, number] = record.covers ?? [record.turn, record.turn];
+  progress(run, {
+    phase: 'archive', status: 'done', kind: record.tier, sourceCount, covers, tokens,
+    message: 'Archive record saved to the Chronicle',
+  });
 }
 
 function terminalGenerationFailure(result: { ok: boolean; error?: string }): boolean {
@@ -448,6 +463,7 @@ export async function summarizeAll(
     const r = await summarizeWindow(cur, userId, windowSize, names, cfg, run);
     if (!r.events.length) break;
     cur = await append(r.events);
+    reportArchiveSaved(r.events, tokens + r.tokens, run);
     rounds++;
     tokens += r.tokens;
     if (onRound) await onRound(rounds, Math.max(rounds, total), tokens);

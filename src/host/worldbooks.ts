@@ -183,6 +183,71 @@ export async function updateBook(bookId: string, name: string, description: stri
   return tryCatchAsync(async () => { const updated = await a.update(bookId, { name: name.slice(0, 120), ...(description !== undefined ? { description: description.slice(0, 400) } : {}) }, uid); if (!updated || String(updated.id) !== bookId) throw new Error('book_update_unverified'); return true as const; });
 }
 
+export interface AdoptBookResult { bookId: string; entriesClaimed: number; entriesSkipped: number; entriesFailed: number }
+
+/**
+ * Adopt one lorebook already attached to this chat into VELLUM's ownership
+ * envelope. Native books and legacy unowned VELLUM books are claimable; a book
+ * or entry explicitly owned by another chat is never touched. Each existing
+ * entry keeps all host activation fields and content while gaining the minimum
+ * identity/hash metadata needed for safe Vault editing and reconciliation.
+ *
+ * Entry writes are deliberately idempotent. A partially failed host batch can
+ * be retried from the Books panel without duplicating or rewriting lore.
+ */
+export async function adoptBookForChat(snap: VaultSnapshot, bookId: string, chatId: string, uid: string | null): Promise<Result<AdoptBookResult, string>> {
+  const a = api(); if (!a) return Err('no_permission');
+  if (!chatId) return Err('no_active_chat');
+  const book = snap.books.find((b) => b.id === bookId);
+  if (!book) return Err('book_not_found');
+  if (!book.attachedToChat) return Err('book_not_attached');
+  if (book.ownerChatId && book.ownerChatId !== chatId) return Err('foreign_owner');
+  if (book.entries.some((e) => !!e.ownerChatId && e.ownerChatId !== chatId)) return Err('foreign_entry_owner');
+
+  return tryCatchAsync(async () => {
+    const current = await a.get(bookId, uid ?? undefined);
+    if (!current || String(current.id) !== bookId) throw new Error('book_not_found');
+    const metadata = { ...(current.metadata || {}) };
+    const liveOwner = String(metadata.vellumOwnerChatId || '');
+    if (liveOwner && liveOwner !== chatId) throw new Error('foreign_owner');
+    const updated = await a.update(bookId, {
+      metadata: {
+        ...metadata,
+        vellum: true,
+        vellumSchemaVersion: VAULT_SCHEMA_VERSION,
+        vellumOwnerChatId: chatId,
+        vellumRole: 'lore',
+      },
+    }, uid ?? undefined);
+    const updatedMeta = updated?.metadata || {};
+    if (!updated || String(updated.id) !== bookId || updatedMeta.vellumOwnerChatId !== chatId || !updatedMeta.vellum) {
+      throw new Error('book_adopt_unverified');
+    }
+
+    let entriesClaimed = 0; let entriesSkipped = 0; let entriesFailed = 0;
+    for (const entry of book.entries) {
+      const alreadyOwned = entry.vellum && entry.ownerChatId === chatId && (entry.schemaVersion ?? 0) >= VAULT_SCHEMA_VERSION;
+      if (alreadyOwned) { entriesSkipped++; continue; }
+      const extensions = extensionsFromEntry(entry, {
+        category: entry.category || 'concepts',
+        source: entry.source || 'manual',
+        content: entry.content,
+        key: entry.key,
+        ownerChatId: chatId,
+        vaultRole: 'lore',
+      });
+      try {
+        const claimed = await a.entries.update(entry.id, { extensions }, uid ?? undefined);
+        if (!claimed || String(claimed.id) !== entry.id) throw new Error('entry_adopt_unverified');
+        entriesClaimed++;
+      } catch {
+        entriesFailed++;
+      }
+    }
+    return { bookId, entriesClaimed, entriesSkipped, entriesFailed };
+  });
+}
+
 export interface EntryInput {
   bookId: string; key: string[]; keysecondary?: string[]; content: string; comment?: string; settings: EntrySettings;
   category: string; source?: string; link?: string; pending?: boolean; hash?: string; ownerChatId?: string;
