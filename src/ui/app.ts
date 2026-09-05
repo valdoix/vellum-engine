@@ -28,6 +28,7 @@ import { cleanupModals, confirmModal, formModal, setModalHost } from './modal.js
 import { calculatePresetBudget } from '../domain/preset-budget.js';
 import { ARGENT_PROFILES, applyProfile, compileArgentPolicy, dependencyIssues, policyValues } from '../domain/argent-policy.js';
 import { installArtifacts } from './artifacts.js';
+import { cleanupSummarizerStream, handleSummarizerStream, updateSummarizerRound } from './summarizer-stream.js';
 import { resolveBudget, type ContextBudget } from '../domain/context-budget.js';
 import { VELLUM_VERSION } from '../version.js';
 import type { SpindleFrontendContext, SpindleInputBarActionHandle } from 'lumiverse-spindle-types';
@@ -1010,9 +1011,13 @@ function openSummarizerModal(ctx: Ctx): void {
       { value: 'on', label: 'On (fold older turns as you play)' },
       { value: 'off', label: 'Off (only summarize manually)' },
     ] },
-    { key: 'genMaxTokens', label: 'Max summary tokens', type: 'number', min: 500, max: 32000, step: 100, value: numv('genMaxTokens', 4000), hint: 'Model output budget for the detail pass (500\u201332000).' },
-    { key: 'detailCap', label: 'Detail size cap', type: 'number', min: 1000, max: 20000, step: 250, value: numv('detailCap', 6000), hint: 'How rich a vault entry can get, in characters (1000\u201320000).' },
-    { key: 'gistCap', label: 'Gist size cap', type: 'number', min: 200, max: 4000, step: 50, value: numv('gistCap', 800), hint: 'The chronicle one-liner length, in characters (200\u20134000).' },
+    { key: 'complete', label: 'Completion policy', type: 'select', value: c.complete === false ? 'bounded' : 'complete', options: [
+      { value: 'complete', label: 'Keep going until complete (default)' },
+      { value: 'bounded', label: 'Stop after fallback retries' },
+    ], hint: 'Keep-going mode has no VELLUM timeout. Use Stop in the live window to cancel safely.' },
+    { key: 'genMaxTokens', label: 'Maximum tokens per pass', type: 'number', min: 500, max: 128000, step: 500, value: numv('genMaxTokens', 16000), hint: 'Upper output budget for each detail pass (500\u2013128000). The provider may enforce a lower model limit.' },
+    { key: 'detailCap', label: 'Detail size cap', type: 'number', min: 1000, max: 100000, step: 500, value: numv('detailCap', 24000), hint: 'How rich a vault entry can get, in characters (1000\u2013100000).' },
+    { key: 'gistCap', label: 'Gist size cap', type: 'number', min: 200, max: 4000, step: 50, value: numv('gistCap', 1200), hint: 'The chronicle one-liner length, in characters (200\u20134000).' },
     { key: 'autoWindow', label: 'Auto window', type: 'number', min: 2, max: 50, step: 1, value: numv('autoWindow', 8), hint: 'Turns folded into each chapter automatically (2\u201350).' },
     { key: 'minWindow', label: 'Min window', type: 'number', min: 2, max: 50, step: 1, value: numv('minWindow', 3), hint: 'Smallest manual/auto fold (2\u201350).' },
     { key: 'temperature', label: 'Temperature', type: 'number', min: 0, max: 1, step: 0.05, value: numv('temperature', 0.2), hint: '0 = deterministic, 1 = loose. 0 is allowed.' },
@@ -1027,9 +1032,10 @@ function openSummarizerModal(ctx: Ctx): void {
     const cfg: Record<string, unknown> = {
       ...(_summarizerCfg ?? {}), // preserve the (separately-edited) prompt strings
       auto: out.auto === 'on',
-      genMaxTokens: n(out.genMaxTokens, 4000),
-      detailCap: n(out.detailCap, 6000),
-      gistCap: n(out.gistCap, 800),
+      complete: out.complete === 'complete',
+      genMaxTokens: n(out.genMaxTokens, 16000),
+      detailCap: n(out.detailCap, 24000),
+      gistCap: n(out.gistCap, 1200),
       autoWindow: n(out.autoWindow, 8),
       minWindow: n(out.minWindow, 3),
       temperature: n(out.temperature, 0.2),
@@ -2095,6 +2101,8 @@ export function setup(ctx: Ctx): () => void {
         setQolBusy('exportmd', false);
         downloadText(`vellum-${p.chatId ?? 'chronicle'}.md`, p.markdown, 'text/markdown');
         notify(ctx, 'success', 'Story exported as Markdown.');
+      } else if (p?.type === 'vellum_summarizer_stream') {
+        handleSummarizerStream(p, () => ctx.sendToBackend({ type: 'vellum_summarize_cancel' }));
       } else if (p?.type === 'vellum_summarize_start') {
         // a summarize pass actually STARTED. The manual button already toasts on
         // click; this is the signal for the AUTOMATIC cadence (which runs off the
@@ -2103,12 +2111,15 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_summarize_progress') {
         // live count + running token usage as each window is summarized.
         const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
-        notify(ctx, 'info', `Summarizing\u2026 ${p.done}/${p.total}${tok}`);
+        updateSummarizerRound(Number(p.done) || 0, Number(p.total) || 1, Number(p.tokens) || 0);
+        stickyToast('summarizer', 'info', `Summarizing\u2026 ${p.done}/${p.total}${tok}`);
       } else if (p?.type === 'vellum_summarize_done') {
         setQolBusy('summarize', false);
         const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
         if (p.ok === false && p.reason === 'too_few') notify(ctx, 'warning', `Select at least ${p.need ?? 2} turns to fold into a chapter.`);
         else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Summarizing needs the generation permission.');
+        else if (p.ok === false && p.reason === 'busy') notify(ctx, 'info', 'A summarizer run is already in progress.');
+        else if (p.ok === false && p.reason === 'cancelled') notify(ctx, 'info', 'Summarizing stopped safely; source turns were left available.');
         else notify(ctx, 'success', p.rounds ? `Summarized ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}${tok}.` : 'Nothing old enough to summarize yet.');
         // surface WHY the vault didn't update (the silent-gate that hid this)
         const v = p.vault;
@@ -2122,6 +2133,8 @@ export function setup(ctx: Ctx): () => void {
         const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
         if (p.ok === false && p.reason === 'too_few') notify(ctx, 'warning', 'Need at least 2 chapters to fold into an arc.');
         else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Folding to an arc needs the generation permission.');
+        else if (p.ok === false && p.reason === 'busy') notify(ctx, 'info', 'A summarizer run is already in progress.');
+        else if (p.ok === false && p.reason === 'cancelled') notify(ctx, 'info', 'Arc summarizing stopped safely.');
         else notify(ctx, 'success', p.rounds ? `Folded ${p.bound ?? 0} chapters into an arc${tok}.` : 'No chapters old enough to fold yet.');
       } else if (p?.type === 'vellum_beat_suggestions') {
         setBeatSuggestions(p.items);
@@ -2132,7 +2145,7 @@ export function setup(ctx: Ctx): () => void {
         // state broadcast already refreshes the view; nothing else to do
       } else if (p?.type === 'vellum_resummarize_done') {
         setQolBusy('resummarize', false);
-        if (!p.ok) notify(ctx, 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : 'Re-summarize failed.');
+        if (!p.ok) notify(ctx, p.reason === 'cancelled' || p.reason === 'busy' ? 'info' : 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : p.reason === 'cancelled' ? 'Re-summarize stopped safely.' : p.reason === 'busy' ? 'A summarizer run is already in progress.' : 'Re-summarize failed.');
         else notify(ctx, 'success', p.rounds ? `Rebuilt ${p.rounds} chapter${p.rounds === 1 ? '' : 's'}.` : 'No chapters to rebuild.');
       } else if (p?.type === 'vellum_summarizer_state') {
         // backend handed us the current config + built-in default prompts → open the editor
@@ -2339,6 +2352,7 @@ export function setup(ctx: Ctx): () => void {
     try { disposeArtifacts(); } catch { /* ignore */ }
     try { _spkStyle?.(); } catch { /* ignore */ }
     try { cleanupToasts(); } catch { /* ignore */ }
+    try { cleanupSummarizerStream(); } catch { /* ignore */ }
     try { cleanupModals(); } catch { /* ignore */ }
     try { closeOnboarding(); } catch { /* ignore */ }
     try { document.querySelectorAll('.vlfm-overlay, .vle-ob').forEach((el) => el.remove()); } catch { /* ignore */ }

@@ -10,7 +10,7 @@ import { coreFeature } from './domain/core-feature.js';
 import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
 import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
-import { summarizeOnce, summarizeAll, summarizeFromPlan } from './bus/summarize.js';
+import { summarizeWindow, summarizeAll, summarizeFromPlan, type SummaryProgress, type SummaryRunOptions } from './bus/summarize.js';
 import { planChapterFrom, planArc, planArcFrom, archivedTurnNumbers } from './domain/memory.js';
 import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats } from './domain/beats.js';
 import { locationList } from './domain/locations.js';
@@ -1209,6 +1209,66 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
 }
 
 let _summarizing = new Set<string>();
+const _summaryAbort = new Map<string, AbortController>();
+
+type SummaryMode = 'auto' | 'manual' | 'resummarize' | 'pick' | 'arc';
+
+/** One real-time frontend stream per summarizer run. Text chunks are batched for
+ * ~50ms so token streaming stays smooth without flooding the extension bridge. */
+function beginSummaryRun(chatId: string, userId: string | null, mode: SummaryMode, total: number): {
+  runId: string;
+  options: SummaryRunOptions;
+  finish: (ok: boolean, extra?: Record<string, unknown>) => void;
+} | null {
+  if (_summarizing.has(chatId)) return null;
+  _summarizing.add(chatId);
+  const controller = new AbortController();
+  _summaryAbort.set(chatId, controller);
+  const runId = `sum_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const target = userId ?? currentUser() ?? undefined;
+  const sendStream = (payload: Record<string, unknown>): void => {
+    try { spindle.sendToFrontend?.({ type: 'vellum_summarizer_stream', runId, mode, ...payload }, target); } catch { /* best effort */ }
+  };
+  let pending = '';
+  let pendingMeta: Pick<SummaryProgress, 'phase' | 'kind' | 'sourceCount' | 'covers' | 'attempt'> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
+  const flushPending = (): void => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (!pending || !pendingMeta) return;
+    sendStream({ event: 'chunk', ...pendingMeta, delta: pending });
+    pending = '';
+    pendingMeta = null;
+  };
+  const report = (update: SummaryProgress): void => {
+    if (update.status === 'chunk' && update.delta) {
+      const same = pendingMeta?.phase === update.phase && pendingMeta?.attempt === update.attempt;
+      if (!same) flushPending();
+      pendingMeta = { phase: update.phase, kind: update.kind, sourceCount: update.sourceCount, covers: update.covers, attempt: update.attempt };
+      pending += update.delta;
+      if (pending.length >= 240) flushPending();
+      else if (!timer) timer = setTimeout(flushPending, 50);
+      return;
+    }
+    flushPending();
+    sendStream({ event: 'progress', ...update });
+  };
+  sendStream({ event: 'start', total: Math.max(1, total), auto: mode === 'auto' });
+  return {
+    runId,
+    options: { onProgress: report, signal: controller.signal },
+    finish(ok, extra = {}): void {
+      if (closed) return;
+      closed = true;
+      flushPending();
+      sendStream({ event: ok && !controller.signal.aborted ? 'complete' : 'failed', cancelled: controller.signal.aborted, ...extra });
+      if (_summaryAbort.get(chatId) === controller) {
+        _summaryAbort.delete(chatId);
+        _summarizing.delete(chatId);
+      }
+    },
+  };
+}
 
 /** Read the per-chat summarizer config (caps, window, automation, prompts).
  * Falls back to the generous defaults when unset or unparseable. */
@@ -1225,13 +1285,16 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
   const turnMems = state.memories.filter((m) => m.tier === 'turn').length;
   const threshold = (await budgetCaps(chatId)).autoSummaryAt || AUTO_SUMMARY_AT;
   if (turnMems < threshold) return; // threshold (user-tunable); keeps recent turns verbatim
-  _summarizing.add(chatId);
+  const stream = beginSummaryRun(chatId, userId, 'auto', 1);
+  if (!stream) return;
+  let streamFinished = false;
   try {
     // tell the UI a pass actually STARTED (auto runs off the response path, so the
     // user otherwise has no signal it's happening). The manual button already
     // toasts on click; this covers the automatic cadence.
     spindle.sendToFrontend?.({ type: 'vellum_summarize_start', chatId, auto: true }, userId ?? currentUser() ?? undefined);
-    const evs = await summarizeOnce(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg);
+    const result = await summarizeWindow(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg, stream.options);
+    const evs = result.events;
     if (evs.length) {
 
       await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, userId);
@@ -1243,8 +1306,15 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
         if (enabled) { const ns = await loadState(chatId); await syncHideOnFile(chatId, true, archivedTurnNumbers(ns)); }
       } catch { /* best effort */ }
     }
-  } catch (e) { spindle.log?.warn?.('[vellum_engine] auto-summary: ' + ((e as Error)?.message ?? e)); }
-  finally { _summarizing.delete(chatId); }
+    stream.finish(true, { rounds: evs.length ? 1 : 0, tokens: result.tokens });
+    streamFinished = true;
+  } catch (e) {
+    spindle.log?.warn?.('[vellum_engine] auto-summary: ' + ((e as Error)?.message ?? e));
+    stream.finish(false, { reason: 'error' });
+    streamFinished = true;
+  } finally {
+    if (!streamFinished) stream.finish(false, { reason: 'stopped' });
+  }
 }
 const AUTO_SUMMARY_AT = 16; // compress the oldest 8 once 16 turn-memories accrue
 
@@ -1608,6 +1678,8 @@ function pruneChatState(chatId: string): void {
   _simulating.delete(chatId);
   _vaultSyncing.delete(chatId);
   _chapterVaulting.delete(chatId);
+  try { _summaryAbort.get(chatId)?.abort(); } catch { /* ignore */ }
+  _summaryAbort.delete(chatId);
   _summarizing.delete(chatId);
   _blockWarnByChat.delete(chatId);
   for (const key of _presetByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _presetByUserChat.delete(key);
@@ -1922,17 +1994,28 @@ const dispatch: Record<string, Handler> = {
     const cfg = await summarizerCfg(chatId);
     const state = await loadState(chatId);
     const win = Math.max(cfg.minWindow, Math.min(4, cfg.autoWindow)); // manual uses a smaller window so short chats still fold
-    const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), async (done, total, tokensSoFar) => {
+    const total = Math.max(1, Math.floor(state.memories.filter((m) => m.tier === 'turn').length / win));
+    const stream = beginSummaryRun(chatId, uid, 'manual', total);
+    if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'busy' }, uid); return; }
+    try {
+      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), async (done, roundTotal, tokensSoFar) => {
+        invalidateIndex(chatId);
+        await broadcastState(chatId, uid);
+        await maybeChapterVault(chatId, uid); // project each new chapter to the vault as it lands
+        spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total: roundTotal, tokens: tokensSoFar }, uid);
+      }, cfg, stream.options);
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
-      await maybeChapterVault(chatId, uid); // project each new chapter to the vault as it lands
-      spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total, tokens: tokensSoFar }, uid);
-    }, cfg);
-    invalidateIndex(chatId);
-    await broadcastState(chatId, uid);
-    const vault = await maybeChapterVault(chatId, uid);
-    await syncArchiveHide(chatId);
-    spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds, tokens, vault }, uid);
+      const vault = await maybeChapterVault(chatId, uid);
+      await syncArchiveHide(chatId);
+      const cancelled = !!stream.options.signal?.aborted;
+      stream.finish(!cancelled, { rounds, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds, tokens, vault }, uid);
+    } catch (e) {
+      stream.finish(false, { reason: 'error' });
+      spindle.log?.warn?.('[vellum_engine] summarize: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'error' }, uid);
+    }
   },
   vellum_resummarize: async (p, uid) => {
     // Rebuild ALL chapter summaries with the current pipeline. Drop every chapter
@@ -1941,9 +2024,12 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'no_active_chat' }, uid); return; }
     if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'no_generation' }, uid); return; }
+    let stream: ReturnType<typeof beginSummaryRun> = null;
     try {
       let state = await loadState(chatId);
       const chapters = state.memories.filter((m) => m.tier === 'chapter');
+      stream = beginSummaryRun(chatId, uid, 'resummarize', Math.max(1, chapters.length));
+      if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'busy' }, uid); return; }
       if (chapters.length) {
         const drops = chapters.map((m) => ({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'memory.drop', id: m.id } as VellumEvent));
         state = await append(chatId, drops); // reducer restores the subsumed turns
@@ -1957,16 +2043,25 @@ const dispatch: Record<string, Handler> = {
         await broadcastState(chatId, uid);
         await maybeChapterVault(chatId, uid);
         spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total, tokens: tokensSoFar }, uid);
-      }, cfg);
+      }, cfg, stream.options);
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
       const vault = await maybeChapterVault(chatId, uid);
       await syncArchiveHide(chatId);
-      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: true, rounds, tokens, vault }, uid);
+      const cancelled = !!stream.options.signal?.aborted;
+      stream.finish(!cancelled, { rounds, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
+      spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds, tokens, vault }, uid);
     } catch (e) {
+      stream?.finish(false, { reason: 'error' });
       spindle.log?.warn?.('[vellum_engine] resummarize: ' + ((e as Error)?.message ?? e));
       spindle.sendToFrontend?.({ type: 'vellum_resummarize_done', ok: false, reason: 'error' }, uid);
     }
+  },
+  vellum_summarize_cancel: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    const controller = chatId ? _summaryAbort.get(chatId) : undefined;
+    if (controller) controller.abort();
+    spindle.sendToFrontend?.({ type: 'vellum_summarize_cancelled', ok: !!controller }, uid);
   },
   vellum_get_summarizer: async (p, uid) => {
     // hand the UI the current config + the built-in default prompts (so the
@@ -1992,13 +2087,23 @@ const dispatch: Record<string, Handler> = {
     const state = await loadState(chatId);
     const plan = planChapterFrom(state, ids, cfg.minWindow);
     if (!plan) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'too_few', need: cfg.minWindow }, uid); return; }
-    const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'chapter');
-    if (events.length) await append(chatId, events);
-    invalidateIndex(chatId);
-    await broadcastState(chatId, uid);
-    const vault = await maybeChapterVault(chatId, uid);
-    await syncArchiveHide(chatId);
-    spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: true, rounds: events.length ? 1 : 0, tokens, picked: plan.sourceIds.length, vault }, uid);
+    const stream = beginSummaryRun(chatId, uid, 'pick', 1);
+    if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'busy' }, uid); return; }
+    try {
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'chapter', stream.options);
+      if (events.length) await append(chatId, events);
+      invalidateIndex(chatId);
+      await broadcastState(chatId, uid);
+      const vault = await maybeChapterVault(chatId, uid);
+      await syncArchiveHide(chatId);
+      const cancelled = !!stream.options.signal?.aborted;
+      stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, picked: plan.sourceIds.length, vault }, uid);
+    } catch (e) {
+      stream.finish(false, { reason: 'error' });
+      spindle.log?.warn?.('[vellum_engine] summarize pick: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'error' }, uid);
+    }
   },
   vellum_arc: async (p, uid) => {
     // Fold CHAPTERS into an ARC. Manual pick (p.ids = chapter ids) or auto (the
@@ -2014,13 +2119,23 @@ const dispatch: Record<string, Handler> = {
       ? planArcFrom(state, ids, 2)
       : planArc(state, Math.max(2, cfg.minWindow), 4);
     if (!plan) { spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'too_few' }, uid); return; }
-    const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'arc');
-    if (events.length) await append(chatId, events);
-    invalidateIndex(chatId);
-    await broadcastState(chatId, uid);
-    const vault = await maybeChapterVault(chatId, uid);
-    await syncArchiveHide(chatId);
-    spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: true, rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length, vault }, uid);
+    const stream = beginSummaryRun(chatId, uid, 'arc', 1);
+    if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'busy' }, uid); return; }
+    try {
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'arc', stream.options);
+      if (events.length) await append(chatId, events);
+      invalidateIndex(chatId);
+      await broadcastState(chatId, uid);
+      const vault = await maybeChapterVault(chatId, uid);
+      await syncArchiveHide(chatId);
+      const cancelled = !!stream.options.signal?.aborted;
+      stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
+      spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length, vault }, uid);
+    } catch (e) {
+      stream.finish(false, { reason: 'error' });
+      spindle.log?.warn?.('[vellum_engine] summarize arc: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'error' }, uid);
+    }
   },
   vellum_item_add: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

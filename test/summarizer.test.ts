@@ -16,16 +16,21 @@ describe('sanitizeSummarizerCfg', () => {
   it('returns generous defaults for empty/junk input', () => {
     expect(sanitizeSummarizerCfg(undefined)).toEqual(DEFAULT_CFG);
     expect(sanitizeSummarizerCfg('nonsense')).toEqual(DEFAULT_CFG);
-    expect(DEFAULT_CFG.genMaxTokens).toBe(4000);
-    expect(DEFAULT_CFG.detailCap).toBe(6000);
+    expect(DEFAULT_CFG.genMaxTokens).toBe(16000);
+    expect(DEFAULT_CFG.detailCap).toBe(24000);
+    expect(DEFAULT_CFG.complete).toBe(true);
   });
 
   it('clamps out-of-range numbers to the allowed window', () => {
     const c = sanitizeSummarizerCfg({ genMaxTokens: 999999, detailCap: 10, gistCap: 100000, temperature: 5 });
-    expect(c.genMaxTokens).toBe(32000);
+    expect(c.genMaxTokens).toBe(128000);
     expect(c.detailCap).toBe(1000);
     expect(c.gistCap).toBe(4000);
     expect(c.temperature).toBe(1);
+  });
+
+  it('allows the completion retry policy to be disabled explicitly', () => {
+    expect(sanitizeSummarizerCfg({ complete: false }).complete).toBe(false);
   });
 
   it('keeps minWindow <= autoWindow', () => {

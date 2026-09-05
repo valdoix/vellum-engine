@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { summarizeOnce, parseSummary, cleanGist } from '../src/bus/summarize.js';
 import { invalidatePermissions } from '../src/host/capability.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
+import { DEFAULT_CFG } from '../src/domain/summarizer-config.js';
 
 // In tests there's no `spindle`, so internalGenerate returns an error. Safe
 // failure leaves the exact source turns intact for a later retry.
@@ -105,7 +106,7 @@ describe('summarize pass-1 retry (reasoning-model empty first call)', () => {
     expect(calls).toBeGreaterThanOrEqual(2); // proves the retry fired
   });
 
-  it('escalates the token budget and allows reasoning on the retry attempt', async () => {
+  it('keeps the configured token ceiling and allows reasoning on retry', async () => {
     const seen: Array<{ max: number; reasoningOff: boolean }> = [];
     (globalThis as any).spindle = {
       permissions: { has: async () => true },
@@ -122,14 +123,15 @@ describe('summarize pass-1 retry (reasoning-model empty first call)', () => {
       },
     };
     invalidatePermissions();
-    await summarizeOnce(stateWithTurnMemories(8), null, 8);
-    // attempt 1: reasoning off, base budget; attempt 2: reasoning ON, bigger budget
+    await summarizeOnce(stateWithTurnMemories(8), null, 8, undefined, { ...DEFAULT_CFG, complete: false });
+    // attempt 1: reasoning off; later attempts may reason, but all honor the
+    // user-configured per-pass maximum.
     expect(seen[0]!.reasoningOff).toBe(true);
     expect(seen[1]!.reasoningOff).toBe(false);
-    expect(seen[1]!.max).toBeGreaterThan(seen[0]!.max);
+    expect(seen[1]!.max).toBe(seen[0]!.max);
   });
 
-  it('falls back to the first-half window before the structural digest', async () => {
+  it('continues with the first-half window when the full window stays incomplete', async () => {
     let calls = 0;
     (globalThis as any).spindle = {
       permissions: { has: async () => true },
@@ -150,12 +152,63 @@ describe('summarize pass-1 retry (reasoning-model empty first call)', () => {
     const evs = await summarizeOnce(stateWithTurnMemories(8), null, 8);
     const chapter = evs.find((e: any) => e.kind === 'memory.record') as any;
     expect(chapter).toBeTruthy();
-    // a real LLM chapter, not the digest
+    // a real LLM chapter over the narrower source window
     expect(chapter.text.startsWith('Chapter (turns')).toBe(false);
     expect(chapter.text).toContain('Cersei');
     // narrowed to the first half: covers 1..4 and drops only those 4 turns
     expect(chapter.covers).toEqual([1, 4]);
     const drops = evs.filter((e: any) => e.kind === 'memory.drop');
     expect(drops.length).toBe(4);
+  });
+
+  it('keeps retrying a non-splittable window until a complete detail lands by default', async () => {
+    let calls = 0;
+    (globalThis as any).spindle = {
+      permissions: { has: async () => true },
+      has: async () => true,
+      log: { warn: () => {}, info: () => {} },
+      generate: {
+        raw: async () => {
+          calls++;
+          if (calls <= 2) return { content: '' };
+          if (calls === 3) return { content: 'DETAIL:\nCersei completed the crossing into Harrenhal.\nKEYS:\nHarrenhal, crossing' };
+          return { content: 'Cersei completed the crossing into Harrenhal.' };
+        },
+      },
+    };
+    invalidatePermissions();
+    const evs = await summarizeOnce(stateWithTurnMemories(3), null, 3);
+    expect(calls).toBe(4);
+    expect(evs.some((e: any) => e.kind === 'memory.record')).toBe(true);
+  });
+
+  it('reports real detail and gist chunks while keeping reasoning text hidden', async () => {
+    let calls = 0;
+    (globalThis as any).spindle = {
+      permissions: { has: async () => true },
+      has: async () => true,
+      log: { warn: () => {}, info: () => {} },
+      generate: {
+        rawStream: async function* () {
+          calls++;
+          if (calls === 1) {
+            yield { type: 'reasoning', token: 'private chain of thought' };
+            yield { type: 'token', token: 'DETAIL:\nCersei entered Harrenhal.\nKEYS:\nHarrenhal' };
+            yield { type: 'done', content: 'DETAIL:\nCersei entered Harrenhal.\nKEYS:\nHarrenhal', finish_reason: 'stop' };
+          } else {
+            yield { type: 'token', token: 'Cersei entered Harrenhal.' };
+            yield { type: 'done', content: 'Cersei entered Harrenhal.', finish_reason: 'stop' };
+          }
+        },
+      },
+    };
+    invalidatePermissions();
+    const updates: any[] = [];
+    const evs = await summarizeOnce(stateWithTurnMemories(8), null, 8, undefined, DEFAULT_CFG, { onProgress: (u) => updates.push(u) });
+    expect(evs.some((e: any) => e.kind === 'memory.record')).toBe(true);
+    expect(updates.some((u) => u.phase === 'detail' && u.status === 'chunk' && u.delta.includes('DETAIL:'))).toBe(true);
+    expect(updates.some((u) => u.phase === 'gist' && u.status === 'chunk' && u.delta.includes('Harrenhal'))).toBe(true);
+    expect(updates.some((u) => String(u.delta ?? '').includes('private chain'))).toBe(false);
+    expect(updates.some((u) => u.status === 'reasoning')).toBe(true);
   });
 });

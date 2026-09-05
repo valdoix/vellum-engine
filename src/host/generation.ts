@@ -30,6 +30,10 @@ export function extractGenContent(r: any): string {
  * Permission-gated on `generation`; returns a typed error instead of throwing.
  */
 export interface GenMsg { role: 'system' | 'user' | 'assistant'; content: string }
+export interface GenerationStreamUpdate {
+  type: 'content' | 'reasoning';
+  token: string;
+}
 
 /**
  * Bound a promise by wall-clock time INDEPENDENT of AbortSignal. Some hosts do
@@ -50,14 +54,39 @@ export function withTimeout<T>(p: Promise<T>, timeoutMs: number, label = 'genera
   });
 }
 
+function withAbort<T>(p: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return p;
+  if (signal.aborted) return Promise.reject(new Error('Generation aborted'));
+  return new Promise<T>((resolve, reject) => {
+    const abort = (): void => reject(new Error('Generation aborted'));
+    signal.addEventListener('abort', abort, { once: true });
+    p.then(
+      (value) => { signal.removeEventListener('abort', abort); resolve(value); },
+      (error) => { signal.removeEventListener('abort', abort); reject(error); },
+    );
+  });
+}
+
 export async function internalGenerate(
   messages: GenMsg[],
   params: Record<string, unknown>,
   userId: string | null,
-  opts?: { reasoningOff?: boolean; responseFormat?: Record<string, unknown>; connectionId?: string; timeoutMs?: number },
+  opts?: {
+    reasoningOff?: boolean;
+    responseFormat?: Record<string, unknown>;
+    connectionId?: string;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    /** Opt into the host's incremental generation API. Reasoning tokens are
+     * identified separately so callers can report activity without exposing
+     * hidden chain-of-thought. */
+    onStream?: (update: GenerationStreamUpdate) => void;
+  },
 ): Promise<Result<string, string>> {
   if (!(await has('generation'))) return Err('no_generation_permission');
-  if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
+  const canRegular = !!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet));
+  const canStream = !!(opts?.onStream && spindle.generate && ((spindle.generate as any).rawStream || (spindle.generate as any).quietStream));
+  if (!canRegular && !canStream) return Err('no_generate_api');
   // Disable extended thinking for internal tasks by default: on a reasoning model
   // the token budget is otherwise spent on hidden thinking and `content` comes
   // back empty, which silently drops us to the structural fallback. Callers that
@@ -80,15 +109,49 @@ export async function internalGenerate(
   // default (these are background jobs); on timeout the upstream request is torn
   // down and tryCatchAsync surfaces the abort as an Err so callers fall back.
   const timeoutMs = opts?.timeoutMs;
-  const signal = timeoutMs && typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
+  const timeoutSignal = timeoutMs && typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
+  const signal = opts?.signal && timeoutSignal && typeof AbortSignal?.any === 'function'
+    ? AbortSignal.any([opts.signal, timeoutSignal])
+    : opts?.signal ?? timeoutSignal;
   const req = { messages, parameters: params2, ...(userId ? { userId } : {}), ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}), ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
   return tryCatchAsync(async () => {
+    const emit = (update: GenerationStreamUpdate): void => {
+      if (signal?.aborted) return;
+      try { opts?.onStream?.(update); } catch { /* progress UI must never fail generation */ }
+    };
+    const quietStream = (spindle.generate as any).quietStream as typeof spindle.generate.quietStream | undefined;
+    const rawStream = (spindle.generate as any).rawStream as typeof spindle.generate.rawStream | undefined;
+    const stream = quietStream
+      ? quietStream.bind(spindle.generate)
+      : rawStream?.bind(spindle.generate);
+    if (opts?.onStream && stream) {
+      let content = '';
+      let reasoning = '';
+      const consume = async (): Promise<string> => {
+        for await (const chunk of stream({ type: quietStream ? 'quiet' : 'raw', ...req })) {
+          if (chunk.type === 'token') { content += chunk.token; emit({ type: 'content', token: chunk.token }); }
+          else if (chunk.type === 'reasoning') { reasoning += chunk.token; emit({ type: 'reasoning', token: chunk.token }); }
+          else if (chunk.type === 'done') {
+            content = chunk.content || content;
+            reasoning = chunk.reasoning || reasoning;
+          }
+        }
+        return content.trim() ? content : reasoning;
+      };
+      const consuming = withAbort(consume(), signal);
+      return timeoutMs ? await withTimeout(consuming, timeoutMs, 'internalGenerate') : await consuming;
+    }
     const call = spindle.generate.quiet
       ? spindle.generate.quiet({ type: 'quiet', ...req })
       : spindle.generate.raw({ type: 'raw', ...req });
     // Enforce the deadline ourselves — don't trust the host to honor `signal`.
-    const r = timeoutMs ? await withTimeout(call, timeoutMs, 'internalGenerate') : await call;
-    return extractGenContent(r);
+    const abortable = withAbort(call, signal);
+    const r = timeoutMs ? await withTimeout(abortable, timeoutMs, 'internalGenerate') : await abortable;
+    const text = extractGenContent(r);
+    // Older hosts may expose only the non-streaming API. Still populate the
+    // process window with the completed response in one update.
+    if (opts?.onStream && text) emit({ type: 'content', token: text });
+    return text;
   });
 }
 

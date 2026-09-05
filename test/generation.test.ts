@@ -37,6 +37,46 @@ describe('internalGenerate — response_format forwarding', () => {
   });
 });
 
+describe('internalGenerate — incremental streaming', () => {
+  it('uses the host stream, aggregates content, and labels reasoning separately', async () => {
+    const updates: Array<{ type: string; token: string }> = [];
+    (globalThis as any).spindle.generate.rawStream = async function* (req: any) {
+      lastReq = req;
+      yield { type: 'token', token: 'DETAIL:\nA door opened. ' };
+      yield { type: 'reasoning', token: 'private thought' };
+      yield { type: 'token', token: 'KEYS:\ndoor' };
+      yield { type: 'done', content: 'DETAIL:\nA door opened. KEYS:\ndoor', finish_reason: 'stop' };
+    };
+    const r = await internalGenerate(
+      [{ role: 'user', content: 'x' }],
+      { max_tokens: 16000 },
+      null,
+      { onStream: (update) => updates.push(update) },
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toContain('A door opened');
+    expect(updates.filter((u) => u.type === 'content').map((u) => u.token).join('')).toContain('KEYS:');
+    expect(updates.find((u) => u.type === 'reasoning')?.token).toBe('private thought');
+    expect(lastReq.type).toBe('raw');
+    expect(lastReq.parameters.max_tokens).toBe(16000);
+  });
+
+  it('lets the live window cancel even when the provider ignores its signal', async () => {
+    (globalThis as any).spindle.generate.rawStream = async function* () {
+      yield { type: 'token', token: 'partial' };
+      await new Promise(() => { /* provider never completes */ });
+    };
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 10);
+    const r = await internalGenerate(
+      [{ role: 'user', content: 'x' }], {}, null,
+      { signal: controller.signal, onStream: () => {} },
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/aborted/i);
+  });
+});
+
 describe('extractGenContent — recovers text from reasoning channels', () => {
   it('reads reasoning_details when content is empty', () => {
     const r = { content: '', reasoning_details: [{ text: '{"offscreen":[]}' }] };

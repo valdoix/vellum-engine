@@ -14,6 +14,28 @@ export function approxTokens(chars: number): number { return Math.max(0, Math.ce
 /** One compression result, with a token estimate for the progress toast. */
 export interface SummaryResult { events: VellumEvent[]; tokens: number; }
 
+export type SummaryPhase = 'prepare' | 'detail' | 'gist' | 'archive';
+export interface SummaryProgress {
+  phase: SummaryPhase;
+  status: 'start' | 'chunk' | 'reasoning' | 'retry' | 'done' | 'failed';
+  kind: 'chapter' | 'arc';
+  sourceCount: number;
+  covers: [number, number];
+  attempt?: number;
+  delta?: string;
+  text?: string;
+  tokens?: number;
+  message?: string;
+}
+export interface SummaryRunOptions {
+  onProgress?: (progress: SummaryProgress) => void;
+  signal?: AbortSignal;
+}
+
+function progress(run: SummaryRunOptions | undefined, update: SummaryProgress): void {
+  try { run?.onProgress?.(update); } catch { /* reporting must never affect archival */ }
+}
+
 /**
  * Auto + manual summarization. Compresses the oldest window of turn-tier
  * memories into ONE chapter memory that is detail-dense yet compact, then drops
@@ -49,15 +71,15 @@ function sourceText(state: ChronicleState, ids: string[], names?: { user: string
  * Run one AUTO compression pass if a full window exists. Returns just the events
  * (back-compat). Token-aware callers use summarizeWindow / summarizeFromPlan.
  */
-export async function summarizeOnce(state: ChronicleState, userId: string | null, windowSize = 8, names?: { user: string; char: string }, cfg: SummarizerCfg = DEFAULT_CFG): Promise<VellumEvent[]> {
-  return (await summarizeWindow(state, userId, windowSize, names, cfg)).events;
+export async function summarizeOnce(state: ChronicleState, userId: string | null, windowSize = 8, names?: { user: string; char: string }, cfg: SummarizerCfg = DEFAULT_CFG, run?: SummaryRunOptions): Promise<VellumEvent[]> {
+  return (await summarizeWindow(state, userId, windowSize, names, cfg, run)).events;
 }
 
 /** Auto pass with the token estimate (for the live usage toast). */
-export async function summarizeWindow(state: ChronicleState, userId: string | null, windowSize = 8, names?: { user: string; char: string }, cfg: SummarizerCfg = DEFAULT_CFG): Promise<SummaryResult> {
+export async function summarizeWindow(state: ChronicleState, userId: string | null, windowSize = 8, names?: { user: string; char: string }, cfg: SummarizerCfg = DEFAULT_CFG, run?: SummaryRunOptions): Promise<SummaryResult> {
   const plan = planChapter(state, windowSize);
   if (!plan) return { events: [], tokens: 0 };
-  return summarizeFromPlan(state, userId, plan, names, cfg, 'chapter');
+  return summarizeFromPlan(state, userId, plan, names, cfg, 'chapter', run);
 }
 
 /**
@@ -78,16 +100,19 @@ export async function summarizeFromPlan(
   names: { user: string; char: string } | undefined,
   cfg: SummarizerCfg = DEFAULT_CFG,
   kind: 'chapter' | 'arc' = 'chapter',
+  run?: SummaryRunOptions,
 ): Promise<SummaryResult> {
   const src = sourceText(state, plan.sourceIds, names);
   let detail = '';
   let keys: string[] = [];
   let gist = '';
   let tokens = 0;
+  progress(run, { phase: 'prepare', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, message: `Preparing ${plan.sourceIds.length} source records` });
 
   // --- pass 1: DETAIL + KEYS (the dense record) ---
   const detailSys = resolvePrompt(kind, cfg, names);
-  const gen1 = await generateDetail(detailSys, src, cfg, userId);
+  progress(run, { phase: 'detail', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, attempt: 1 });
+  const gen1 = await generateDetail(detailSys, src, cfg, userId, run, kind, plan, plan.sourceIds.length < 4);
   tokens += gen1.tokens;
   if (gen1.text) {
     const parsed = parseDetailKeys(gen1.text);
@@ -95,26 +120,25 @@ export async function summarizeFromPlan(
     keys = parsed.keys;
   }
 
-  // WINDOW-SPLIT FALLBACK: if the full window came back empty (a reasoning model
-  // that couldn't think + write the whole span within budget), retry on just the
-  // FIRST HALF of the sources before leaving the window unfolded. A
-  // real chapter over fewer turns beats a first-sentence concatenation. Only the
-  // first half is summarized here (the caller re-runs on the remainder next pass,
-  // since those turns stay un-covered); the covers/sources are narrowed to match.
-  if (!detail.trim() && plan.sourceIds.length >= 4) {
+  // WINDOW-SPLIT CONTINUATION: if a large window cannot complete, repeatedly
+  // halve it. Once the source group is smaller than four records the default
+  // completion policy keeps retrying that manageable unit until it lands. The
+  // caller then resumes on the remaining uncovered turns in its next round.
+  while (!detail.trim() && plan.sourceIds.length >= 4 && !run?.signal?.aborted) {
     const half = narrowPlan(plan, Math.ceil(plan.sourceIds.length / 2));
     if (half) {
       if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: full window empty; retrying on first ${half.sourceIds.length}/${plan.sourceIds.length} turns`);
       const halfSrc = sourceText(state, half.sourceIds, names);
-      const gen1b = await generateDetail(detailSys, halfSrc, cfg, userId);
+      progress(run, { phase: 'detail', status: 'retry', kind, sourceCount: half.sourceIds.length, covers: half.covers, attempt: 1, tokens, message: `Full window was incomplete; continuing with ${half.sourceIds.length} sources` });
+      plan = half;
+      const gen1b = await generateDetail(detailSys, halfSrc, cfg, userId, run, kind, plan, plan.sourceIds.length < 4);
       tokens += gen1b.tokens;
       if (gen1b.text) {
         const parsed = parseDetailKeys(gen1b.text);
         detail = parsed.detail;
         keys = parsed.keys;
-        plan = half; // the chapter now covers only the half we successfully summarized
       }
-    }
+    } else break;
   }
 
   // --- pass 2: GIST (condensed FROM the finished detail) ---
@@ -125,20 +149,38 @@ export async function summarizeFromPlan(
       + `RECORD TO CONDENSE:\n${detail}`;
     // a gist is a short paragraph — cap output tight to save tokens/latency.
     const gistBudget = Math.min(cfg.genMaxTokens, Math.max(256, Math.ceil(cfg.gistCap / 3)));
-    const gen2 = await internalGenerate(
-      [{ role: 'system', content: gistSys }, { role: 'user', content: gistUser }],
-      { temperature: cfg.temperature, max_tokens: gistBudget },
-      userId,
-      { reasoningOff: true },
-    );
-    tokens += approxTokens(gistSys.length + gistUser.length + (gen2.ok ? gen2.value.length : 0));
-    if (gen2.ok && gen2.value.trim()) gist = stripToProse(gen2.value);
+    progress(run, { phase: 'detail', status: 'done', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, text: detail + (keys.length ? `\n\nKEYS:\n${keys.join(', ')}` : '') });
+    progress(run, { phase: 'gist', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, attempt: 1, tokens });
+    let gistAttempt = 0;
+    while (!gist.trim() && !run?.signal?.aborted) {
+      gistAttempt++;
+      const gen2 = await internalGenerate(
+        [{ role: 'system', content: gistSys }, { role: 'user', content: gistUser }],
+        { temperature: cfg.temperature, max_tokens: gistBudget },
+        userId,
+        {
+          reasoningOff: true,
+          signal: run?.signal,
+          onStream: run?.onProgress ? (update) => progress(run, {
+            phase: 'gist', status: update.type === 'content' ? 'chunk' : 'reasoning', kind,
+            sourceCount: plan.sourceIds.length, covers: plan.covers, attempt: gistAttempt,
+            ...(update.type === 'content' ? { delta: update.token } : {}),
+          }) : undefined,
+        },
+      );
+      tokens += approxTokens(gistSys.length + gistUser.length + (gen2.ok ? gen2.value.length : 0));
+      if (gen2.ok && gen2.value.trim()) gist = stripToProse(gen2.value);
+      if (gist || !cfg.complete || terminalGenerationFailure(gen2) || run?.signal?.aborted) break;
+      progress(run, { phase: 'gist', status: 'retry', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, attempt: gistAttempt + 1, tokens, message: 'Gist was incomplete; retrying' });
+      await retryPause(gistAttempt, run?.signal);
+    }
   }
 
   // No dense record means no compression. The raw turn memories remain in
   // state, and hide-on-file receives no new coverage proof.
-  if (!detail.trim()) {
+  if (!detail.trim() || run?.signal?.aborted) {
     if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: no complete detail returned (${kind}, ${plan.sourceIds.length} sources, ~${tokens} tok spent); source turns left visible and unfolded`);
+    progress(run, { phase: 'detail', status: 'failed', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, message: run?.signal?.aborted ? 'Cancelled; source turns left intact' : 'No complete detail; source turns left intact' });
     return { events: [], tokens };
   }
   if (!gist && detail) gist = cleanGist(detail);
@@ -151,63 +193,85 @@ export async function summarizeFromPlan(
   }
 
   const build = kind === 'arc' ? arcEvents : chapterEvents;
+  progress(run, { phase: 'gist', status: 'done', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, text: finalGist || gist });
+  progress(run, { phase: 'archive', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, message: 'Writing the verified archive record' });
   const events = build(
     plan,
     { gist: capText(finalGist || gist, cfg.gistCap), detail: capText(detail, cfg.detailCap), keys },
     plan.covers[1], state.day || 0, nextSeq,
   );
+  progress(run, { phase: 'archive', status: 'done', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens });
   return { events, tokens };
 }
 
-// Even the largest detailCap (~20k chars) is only ~6k output tokens, and most
-// providers REJECT or tear down a request whose max_tokens exceeds the model's
-// output cap — surfacing to us as "Generation aborted", NOT as empty content. So
-// we never ask for a budget above this sane ceiling, however high genMaxTokens
-// is clamped in the config (its range tops out at 32000).
-const OUTPUT_CEIL = 8000;
+function terminalGenerationFailure(result: { ok: boolean; error?: string }): boolean {
+  return !result.ok && /no_generation_permission|no_generate_api/i.test(result.error ?? '');
+}
 
-/** True when a host-generation error is an abort/timeout (the request never
- * completed) rather than a completed-but-empty return. tryCatchAsync surfaces
- * AbortSignal.timeout as "Generation aborted" (see host/generation.ts). */
-function isAbort(err: string): boolean { return /abort|timeout|timed out/i.test(err); }
+/** Small retry pause so a transient provider failure cannot become a tight,
+ * expensive loop. The default completion policy keeps trying until a complete
+ * record is returned or the user cancels from the live window. */
+async function retryPause(attempt: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return;
+  const ms = Math.min(2000, 250 * Math.max(1, attempt));
+  await new Promise<void>((resolve) => {
+    const finish = (): void => { signal?.removeEventListener('abort', abort); resolve(); };
+    const timer = setTimeout(finish, ms);
+    const abort = (): void => { clearTimeout(timer); finish(); };
+    signal?.addEventListener('abort', abort, { once: true });
+  });
+}
 
 /**
- * Run the DETAIL+KEYS pass with a FAILURE-AWARE retry. Attempt 1 is cheap:
- * reasoning OFF at the (clamped) configured budget under a generous wall-clock.
- * The retry is NOT a blind escalation — it branches on HOW attempt 1 failed,
- * because the two failure modes need OPPOSITE fixes:
- *
- *   • ABORTED (timeout / provider tore the request down): the request never
- *     completed. Inflating the budget only makes it slower and more likely to be
- *     rejected again. So we LOWER max_tokens (a smaller output finishes sooner)
- *     AND RAISE the wall-clock (give a genuinely slow provider room to land).
- *
- *   • EMPTY (ok, but no content): the dominant cause is a provider that ignores
- *     `reasoning: off` and spends the whole budget on hidden thinking. Here we
- *     ALLOW reasoning so the answer surfaces via extractGenContent's
- *     reasoning-channel read, with a modest (still model-valid) budget and more
- *     time.
- *
- * Returns the cleaned text ('' when both attempts fail) + a token estimate.
+ * Run the DETAIL+KEYS pass. VELLUM imposes no wall-clock timeout here. With the
+ * default completion policy a narrowed/non-splittable window retries until it
+ * completes or the user cancels; a large full window gets two chances before
+ * being split so progress can continue over smaller source groups.
  */
-async function generateDetail(sys: string, src: string, cfg: SummarizerCfg, userId: string | null): Promise<{ text: string; tokens: number }> {
+async function generateDetail(
+  sys: string,
+  src: string,
+  cfg: SummarizerCfg,
+  userId: string | null,
+  run: SummaryRunOptions | undefined,
+  kind: 'chapter' | 'arc',
+  plan: CompressPlan,
+  keepTrying: boolean,
+): Promise<{ text: string; tokens: number }> {
   const msgs = [{ role: 'system' as const, content: sys }, { role: 'user' as const, content: src }];
   let tokens = 0;
-  // attempt 1 — cheap: reasoning off, budget clamped to a model-valid ceiling, 45s wall-clock.
-  const budget = Math.min(cfg.genMaxTokens, OUTPUT_CEIL);
-  const a1 = await internalGenerate(msgs, { temperature: cfg.temperature, max_tokens: budget }, userId, { reasoningOff: true, timeoutMs: 45000 });
-  tokens += approxTokens(sys.length + src.length + (a1.ok ? a1.value.length : 0));
-  if (a1.ok && a1.value.trim()) return { text: a1.value, tokens };
-  // decide the retry SHAPE from the failure type (see the doc comment above).
-  const aborted = !a1.ok && isAbort(a1.error);
-  const retryBudget = aborted ? Math.max(1500, Math.min(budget, 4000)) : Math.min(Math.max(budget, 6000), OUTPUT_CEIL);
-  const retryTimeoutMs = 90000;       // both paths RAISE the wall-clock over attempt 1's 45s
-  const retryReasoningOff = aborted;  // keep reasoning off on a timeout; allow it on an empty return
-  if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: attempt 1 ${aborted ? 'aborted' : 'empty'} (${a1.ok ? 'no content/reasoning' : a1.error}); retrying with max_tokens=${retryBudget}, timeout=${retryTimeoutMs}ms${retryReasoningOff ? '' : ', reasoning allowed'}`);
-  const a2 = await internalGenerate(msgs, { temperature: cfg.temperature, max_tokens: retryBudget }, userId, { reasoningOff: retryReasoningOff, timeoutMs: retryTimeoutMs });
-  tokens += approxTokens(a2.ok ? a2.value.length : 0);
-  if (a2.ok && a2.value.trim()) return { text: a2.value, tokens };
-  if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: attempt 2 also failed (${a2.ok ? 'no content/reasoning' : a2.error})`);
+  const maxAttempts = cfg.complete && keepTrying ? Number.POSITIVE_INFINITY : 2;
+  let budget = cfg.genMaxTokens;
+  for (let attempt = 1; attempt <= maxAttempts && !run?.signal?.aborted; attempt++) {
+    if (attempt > 1) {
+      progress(run, { phase: 'detail', status: 'retry', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, attempt, tokens, message: `Detail incomplete; continuing with up to ${budget} tokens` });
+      await retryPause(attempt - 1, run?.signal);
+      if (run?.signal?.aborted) break;
+    }
+    const result = await internalGenerate(
+      msgs,
+      { temperature: cfg.temperature, max_tokens: budget },
+      userId,
+      {
+        reasoningOff: attempt === 1,
+        signal: run?.signal,
+        onStream: run?.onProgress ? (update) => progress(run, {
+          phase: 'detail', status: update.type === 'content' ? 'chunk' : 'reasoning', kind,
+          sourceCount: plan.sourceIds.length, covers: plan.covers, attempt,
+          ...(update.type === 'content' ? { delta: update.token } : {}),
+        }) : undefined,
+      },
+    );
+    tokens += approxTokens(sys.length + src.length + (result.ok ? result.value.length : 0));
+    if (result.ok && result.value.trim()) return { text: result.value, tokens };
+    if (terminalGenerationFailure(result) || run?.signal?.aborted) break;
+    // If the provider rejects the configured ceiling, adapt downward while
+    // retaining the user's value as the maximum for future attempts.
+    if (!result.ok && /max.?tokens|context|limit|too large|maximum/i.test(result.error)) {
+      budget = Math.max(500, Math.floor(budget * 0.75));
+    }
+    if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: detail attempt ${attempt} incomplete (${result.ok ? 'empty response' : result.error}); ${attempt < maxAttempts ? 'continuing' : 'trying a smaller source window'}`);
+  }
   return { text: '', tokens };
 }
 
@@ -369,19 +433,25 @@ export async function summarizeAll(
   names?: { user: string; char: string },
   onRound?: (done: number, total: number, tokensSoFar: number) => Promise<void> | void,
   cfg: SummarizerCfg = DEFAULT_CFG,
+  run?: SummaryRunOptions,
 ): Promise<{ rounds: number; tokens: number }> {
   let rounds = 0;
   let tokens = 0;
   let cur = state;
   const turnCount = cur.memories.filter((m) => m.tier === 'turn').length;
   const total = Math.max(1, Math.floor(turnCount / windowSize));
-  for (let i = 0; i < 50; i++) {
-    const r = await summarizeWindow(cur, userId, windowSize, names, cfg);
+  while (!run?.signal?.aborted) {
+    const before = cur.memories.filter((m) => m.tier === 'turn').length;
+    const r = await summarizeWindow(cur, userId, windowSize, names, cfg, run);
     if (!r.events.length) break;
     cur = await append(r.events);
     rounds++;
     tokens += r.tokens;
     if (onRound) await onRound(rounds, Math.max(rounds, total), tokens);
+    // A storage adapter that returned an unchanged state must not create an
+    // unbounded paid loop. This is a persistence failure, not a token limit.
+    const after = cur.memories.filter((m) => m.tier === 'turn').length;
+    if (after >= before) break;
   }
   return { rounds, tokens };
 }

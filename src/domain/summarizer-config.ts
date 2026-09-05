@@ -22,6 +22,7 @@ export interface SummarizerCfg {
   autoWindow: number;     // turns folded per AUTO chapter
   minWindow: number;      // smallest manual/auto fold
   auto: boolean;          // auto-summarize on each turn when a window is ready
+  complete: boolean;      // retry incomplete generations until complete/cancelled
   temperature: number;    // summary determinism
   // --- prompts ---
   useCustom: boolean;     // false = built-in defaults; true = the custom prompts below
@@ -33,12 +34,13 @@ export interface SummarizerCfg {
 // Generous, sane-ceilinged defaults. (Previously hard-coded: gen 2000, detail
 // 2400, gist 600, window 8.)
 export const DEFAULT_CFG: SummarizerCfg = {
-  genMaxTokens: 4000,
-  detailCap: 6000,
-  gistCap: 800,
+  genMaxTokens: 16000,
+  detailCap: 24000,
+  gistCap: 1200,
   autoWindow: 8,
   minWindow: 3,
   auto: true,
+  complete: true,
   temperature: 0.2,
   useCustom: false,
   chapterPrompt: '',
@@ -47,8 +49,8 @@ export const DEFAULT_CFG: SummarizerCfg = {
 };
 
 const RANGES = {
-  genMaxTokens: [500, 32000],
-  detailCap: [1000, 20000],
+  genMaxTokens: [500, 128000],
+  detailCap: [1000, 100000],
   gistCap: [200, 4000],
   autoWindow: [2, 50],
   minWindow: [2, 50],
@@ -78,6 +80,7 @@ export function sanitizeSummarizerCfg(raw: unknown): SummarizerCfg {
     autoWindow,
     minWindow,
     auto: o.auto === undefined ? d.auto : !!o.auto,
+    complete: o.complete === undefined ? d.complete : !!o.complete,
     temperature: num(o.temperature, d.temperature, ...RANGES.temperature),
     useCustom: !!o.useCustom,
     chapterPrompt: str(o.chapterPrompt),
