@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 21 as const;
+export const SCHEMA_VERSION = 22 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -23,7 +23,7 @@ export type CastStatus = z.infer<typeof CastStatus>;
 // 'beat' = a user-curated Story Beat: an authorial landmark index card, not an
 // auto-compression. Beats are never folded/subsumed; they double as the recall
 // "spine" (a compact chronological through-line injected cheaply each turn).
-export const MemoryTier = z.enum(['turn', 'chapter', 'arc', 'beat']);
+export const MemoryTier = z.enum(['turn', 'chapter', 'arc', 'book', 'beat']);
 export type MemoryTier = z.infer<typeof MemoryTier>;
 
 // Knowledge epistemic frame (legacy-faithful): how sure the knower is, the
@@ -190,7 +190,7 @@ const SubsumedMem: z.ZodType<any> = z.lazy(() => z.object({
   subsumed: z.array(SubsumedMem).optional(), sourceHash: z.string().optional(), coverageHash: z.string().optional(), status: ArchiveStatus.optional(),
 }));
 export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), detail: z.string().optional(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional(), coverageHash: z.string().optional(), status: ArchiveStatus.optional(), beatDay: z.number().optional(), beatTime: z.string().optional(), spine: z.boolean().optional(), act: z.string().optional(), ord: z.number().optional() });
-// Links a chapter/arc memory to its detailed VAULT projection (world-book entry).
+// Links a chapter/arc/book memory to its detailed VAULT projection (world-book entry).
 // Append-only so the log stays the source of truth; reduce sets vaultEntryId.
 // `keys` carries back the (possibly user-edited) entry keywords for round-trip sync.
 export const EvMemoryLink = z.object({ ...base, kind: z.literal('memory.link'), id: z.string(), vaultEntryId: z.string(), keys: z.array(z.string()).optional() });

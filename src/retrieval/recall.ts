@@ -314,7 +314,7 @@ function assemble(
   query = '',
 ): InjectionResult {
   const structured = structuredBlock(state, budgets.structured ?? 1200, query);
-  // a selected chapter/arc node injects its DETAILED summary (the continuity
+  // A selected book/arc/chapter node injects its DETAILED summary (the continuity
   // payload), not the lean gist; everything else uses the indexed text.
   const detailById = detailIds && detailIds.size
     ? new Map(state.memories.filter((m) => detailIds.has(m.id)).map((m) => [m.id, m.detail || m.text]))
@@ -348,7 +348,7 @@ function assemble(
   return { text, recallIds, source, ...(trace ? { trace } : {}) };
 }
 
-/** Lexical-only ranking with a gentle recency lift + a chapter/arc boost so the
+/** Lexical-only ranking with a gentle recency lift + an archive-tier boost so the
  * compressed long-term summaries (the memory backbone) reliably surface and
  * aren't crowded out by raw turn-memories or facts at equal lexical score. */
 function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: string): string[] {
@@ -358,7 +358,7 @@ function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: strin
     .map((h) => {
       const it = index.byId.get(h.id)!;
       const recency = 1 + 0.4 * (it.turn / maxTurn);
-      const tierBoost = it.tier === 'beat' ? 1.6 : it.tier === 'arc' ? 1.5 : it.tier === 'chapter' ? 1.3 : 1;
+      const tierBoost = it.tier === 'beat' ? 1.6 : it.tier === 'book' ? 1.65 : it.tier === 'arc' ? 1.5 : it.tier === 'chapter' ? 1.3 : 1;
       const sceneEntity = it.entityIds?.some((id) => state.scene.present.includes(id)) ? 1.35 : 1;
       const continuityBoost = it.kind === 'secret' || it.kind === 'scar' || it.kind === 'item' || it.kind === 'timeline' ? 1.12 : 1;
       return { id: h.id, score: h.score * recency * tierBoost * sceneEntity * continuityBoost };
@@ -408,7 +408,7 @@ export async function buildInjectionHybrid(
   // authoritative block is never traversed (guardrail preserved).
   if (controller) {
     if (traversalMode === 'tree') {
-      // tiered drill (arc→chapter→leaf); selected chapter/arc nodes inject their
+      // Tiered drill (book→arc→chapter→leaf); selected summary nodes inject their
       // DETAILED summary, so give recall extra budget for those long payloads.
       const tt = await traverseTree(index, state, controller, { query, axis: traversalAxis });
       if (tt) {

@@ -168,9 +168,9 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
     case 'memory_delete':
       return e.id ? [{ ...base(ctx), kind: 'memory.drop', id: String(e.id) } as VellumEvent] : [];
     case 'memory_delete_many': {
-      // bulk delete of chapter/arc summaries (or any memory ids). Each is a USER
+      // Bulk delete of summary memories (or any memory ids). Each is a USER
       // drop (no `folded` flag) so the reducer RESTORES what each subsumed -
-      // deleting chapters brings their turns back, deleting an arc its chapters.
+      // deletion, so the reducer restores each archive's direct children.
       const ids = Array.isArray(e.ids) ? e.ids.map(String).filter(Boolean) : [];
       return ids.map((id: string) => ({ ...base(ctx), kind: 'memory.drop', id } as VellumEvent));
     }

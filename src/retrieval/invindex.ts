@@ -10,7 +10,7 @@ export interface RetrievableItem {
   text: string;
   turn: number;
   tokens: string[];
-  tier?: 'turn' | 'chapter' | 'arc' | 'beat';
+  tier?: 'turn' | 'chapter' | 'arc' | 'book' | 'beat';
   entityIds?: string[];
   knownBy?: string[];
   hiddenFrom?: string[];
@@ -19,7 +19,7 @@ export interface RetrievableItem {
 }
 
 /** Collect every durable record, including exact descendants retained inside a
- * chapter/arc. A Map prevents a current row and an archived snapshot of that row
+ * chapter/arc/book. A Map prevents a current row and an archived snapshot of that row
  * from becoming two competing retrieval identities. */
 export function collectItems(state: ChronicleState): RetrievableItem[] {
   const byId = new Map<string, RetrievableItem>();

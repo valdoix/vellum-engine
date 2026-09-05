@@ -5,11 +5,11 @@ import type { LiteEntry } from '../host/worldbooks.js';
 /**
  * Hybrid chapter memory — the VAULT projection (pure planning half).
  *
- * A chapter/arc memory's DETAILED summary is mirrored to a world-book entry so
+ * A chapter/arc/book memory's DETAILED summary is mirrored to a world-book entry so
  * the host's world-info system can inject it on keyword relevance, OUTSIDE
  * VELLUM's recall budget. The chronicle keeps only the lean gist (memory.text).
  * The event log stays the source of truth; the vault entry is a reconciled
- * projection keyed by `link = chapter:<id>` / `arc:<id>`.
+ * projection keyed by its tier and stable memory id.
  *
  * PURE: builds entry inputs + reconcile diffs; the host writes/deletes live in
  * the backend. No spindle, no I/O here.
@@ -18,22 +18,24 @@ import type { LiteEntry } from '../host/worldbooks.js';
 export type ChapterVaultMode = 'off' | 'keyed' | 'constant';
 export const DEFAULT_CHAPTER_VAULT: ChapterVaultMode = 'keyed';
 
-/** A projectable memory = a chapter or arc that carries detail worth shelving. */
+/** A projectable summary carries detail worth shelving. */
 export function projectable(state: ChronicleState): Memory[] {
-  return state.memories.filter((m) => (m.tier === 'chapter' || m.tier === 'arc') && !!(m.detail ?? m.text));
+  return state.memories.filter((m) => (m.tier === 'chapter' || m.tier === 'arc' || m.tier === 'book') && !!(m.detail ?? m.text));
 }
 
-export function linkFor(m: Memory): string { return (m.tier === 'arc' ? 'arc:' : 'chapter:') + m.id; }
+export function linkFor(m: Memory): string {
+  const tier = m.tier === 'book' ? 'book' : m.tier === 'arc' ? 'arc' : 'chapter';
+  return tier + ':' + m.id;
+}
 
-/** Entry settings for a chapter/arc projection. Keyed entries fire on a key
- * match (depth injection); constant entries are always present. Arcs sit broader
- * and lower-priority than chapters (older, more compressed). */
-export function entrySettings(mode: ChapterVaultMode, tier: 'chapter' | 'arc'): EntrySettings {
+/** Entry settings for a hierarchical summary projection. Keyed entries fire on
+ * a match; older, broader tiers sit deeper and at lower order. */
+export function entrySettings(mode: ChapterVaultMode, tier: 'chapter' | 'arc' | 'book'): EntrySettings {
   return {
     position: 'at_depth',
-    depth: tier === 'arc' ? 6 : 4,
+    depth: tier === 'book' ? 8 : tier === 'arc' ? 6 : 4,
     role: 'system',
-    order: tier === 'arc' ? 40 : 60, // chapters slightly ahead of arcs
+    order: tier === 'book' ? 20 : tier === 'arc' ? 40 : 60,
     constant: mode === 'constant',
   };
 }
@@ -47,11 +49,11 @@ export interface ChapterEntryInput {
   settings: EntrySettings;
 }
 
-/** Build the world-book entry input for a chapter/arc memory's detail. */
+/** Build the world-book entry input for a hierarchical summary's detail. */
 export function planChapterEntry(m: Memory, mode: ChapterVaultMode): ChapterEntryInput {
-  const tier = (m.tier === 'arc' ? 'arc' : 'chapter') as 'chapter' | 'arc';
+  const tier = (m.tier === 'book' ? 'book' : m.tier === 'arc' ? 'arc' : 'chapter') as 'chapter' | 'arc' | 'book';
   const range = m.covers ? `turns ${m.covers[0]}\u2013${m.covers[1]}` : `turn ${m.turn}`;
-  const label = (tier === 'arc' ? 'Arc' : 'Chapter') + ' \u00b7 ' + range;
+  const label = (tier === 'book' ? 'Book' : tier === 'arc' ? 'Arc' : 'Chapter') + ' \u00b7 ' + range;
   return {
     link: linkFor(m),
     key: dedupeKeys(m.keys ?? []),
@@ -77,14 +79,14 @@ export function dedupeKeys(keys: string[]): string[] {
 }
 
 /**
- * Reconcile the desired chapter/arc projections against the vault entries that
- * currently exist (VELLUM-tagged, link chapter: or arc:). Returns the actions to
+ * Reconcile desired chapter/arc/book projections against existing VELLUM entries.
+ * Returns the actions to
  * take. The event log (via `state`) is authoritative:
  *   - create:  a projectable memory with no live entry
  *   - update:  content/keys drifted from the memory (engine -> vault)
  *   - keySync: the USER edited the entry's keys -> pull them back to chronicle
  *   - remove:  an entry whose memory no longer exists (orphan)
- * Never touches non-VELLUM or non-chapter/arc entries.
+ * Never touches non-VELLUM or unrelated entries.
  */
 export interface ReconcilePlan {
   create: Array<{ memId: string; input: ChapterEntryInput }>;
@@ -101,7 +103,7 @@ export function reconcileChapterEntries(state: ChronicleState, entries: LiteEntr
   const byLink = new Map<string, LiteEntry>();
   for (const e of entries) {
     if (!e.vellum) continue;
-    if (!/^(chapter|arc):/.test(e.link)) continue;
+    if (!/^(chapter|arc|book):/.test(e.link)) continue;
     byLink.set(e.link, e);
   }
   const wantedLinks = new Set<string>();
@@ -133,7 +135,7 @@ export function reconcileChapterEntries(state: ChronicleState, entries: LiteEntr
     }
   }
 
-  // orphans: VELLUM chapter/arc entries whose memory is gone
+  // Orphans: VELLUM summary entries whose canonical memory is gone.
   for (const [link, e] of byLink) {
     if (!wantedLinks.has(link)) plan.remove.push(e.id);
   }

@@ -4,7 +4,7 @@ import { formatDate } from './date-format.js';
 
 /**
  * Story Beats (tier 'beat') — author-curated landmark index cards. Distinct from
- * auto chapters/arcs (compression of turns) and the Codex (canon facts): a beat
+ * auto chapters/arcs/books (compression of turns) and the Codex (canon facts): a beat
  * is the author's objective "this is what mattered" bookmark. Beats are never
  * folded or subsumed. PURE helpers; the backend owns I/O.
  *

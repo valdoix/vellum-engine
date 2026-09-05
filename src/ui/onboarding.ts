@@ -214,7 +214,7 @@ const SLIDES = [
           <li><strong>Customize</strong> — Open the theme editor (colors, fonts, layout, shapes)</li>
           <li><strong>Boundaries</strong> — Set hard content limits (what this story will never depict)</li>
           <li><strong>Hide filed</strong> — Toggle: hide summarized turns from the prompt to save tokens</li>
-          <li><strong>Traverse</strong> — Cycle through retrieval modes: off → flat one-shot → tree drill (arc→chapter→leaf)</li>
+          <li><strong>Traverse</strong> — Cycle through retrieval modes: off → flat one-shot → tree drill (book→arc→chapter→leaf)</li>
           <li><strong>Off-screen</strong> — Toggle: simulate off-screen life (characters act elsewhere every few turns)</li>
         </ul>
       </div>
@@ -370,7 +370,7 @@ const SLIDES = [
         <li>✓ Build a living chronicle that can't drift or forget</li>
         <li>✓ Feed the right context back to the AI so the world stays consistent</li>
         <li>✓ Show you dramatic irony, time-sync issues, and off-screen life</li>
-        <li>✓ Compress old turns into chapters and arcs so the story scales</li>
+        <li>✓ Compress old turns into chapters, arcs, and books so the story scales</li>
       </ul>
       <p><strong>You don't have to do anything.</strong> VELLUM works quietly in the background. Explore the tabs as your story grows, and use the tools when you need them.</p>
       <p class="vle-ob-cta">Click <strong>Actions → Help</strong> anytime to see this guide again.</p>

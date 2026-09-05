@@ -41,11 +41,11 @@ let _tlDay = 'all';
 // Manual pick: selection mode, the tier being picked ('turn'→chapter, 'chapter'
 // →arc), the chosen ids, and a shift-range anchor.
 let _pickMode = false;
-let _pickTier: 'turn' | 'chapter' = 'turn';
+let _pickTier: 'turn' | 'chapter' | 'arc' = 'turn';
 let _pickAction: 'fold' | 'delete' = 'fold'; // fold = combine; delete = remove (delete mode picks any tier)
 const _picked = new Set<string>();
 let _pickAnchor: string | null = null;
-let _summaryIds: string[] = []; // all chapter/arc memory ids (set each render), for select-all / delete-all
+let _summaryIds: string[] = []; // all chapter/arc/book ids (set each render), for select-all / delete-all
 // Story-beat suggestions, filled by the vellum_beat_suggestions broadcast.
 let _beatSuggest: Array<{ turn: number; day?: number; text: string }> = [];
 export function setBeatSuggestions(items: unknown): void { _beatSuggest = Array.isArray(items) ? items as typeof _beatSuggest : []; }
@@ -134,10 +134,11 @@ export const chronicleTab: Component<ChronicleState> = {
       if (tk) { _tlKind = tk.getAttribute('data-tl-kind')!; refreshUI(); return; }
       const td = t.closest('[data-tl-day]');
       if (td) { _tlDay = td.getAttribute('data-tl-day')!; refreshUI(); return; }
-      // --- manual pick: turns→chapter, chapters→arc ---
+      // --- manual pick: turns→chapter, chapters→arc, arcs→book ---
       const ptg = t.closest('[data-pick-toggle]');
       if (ptg) {
-        const tier = (ptg.getAttribute('data-pick-toggle') === 'chapter' ? 'chapter' : 'turn') as 'turn' | 'chapter';
+        const rawTier = ptg.getAttribute('data-pick-toggle');
+        const tier: 'turn' | 'chapter' | 'arc' = rawTier === 'arc' ? 'arc' : rawTier === 'chapter' ? 'chapter' : 'turn';
         if (_pickMode && _pickAction === 'fold' && _pickTier === tier) { _pickMode = false; } else { _pickMode = true; _pickAction = 'fold'; _pickTier = tier; }
         _picked.clear(); _pickAnchor = null; refreshUI(); return;
       }
@@ -161,7 +162,7 @@ export const chronicleTab: Component<ChronicleState> = {
       if (t.closest('[data-pick-fold]')) {
         if (_picked.size >= 2) {
           const ids = Array.from(_picked);
-          send(_pickTier === 'chapter' ? { type: 'vellum_arc', ids } : { type: 'vellum_summarize_pick', ids });
+          send(_pickTier === 'arc' ? { type: 'vellum_book', ids } : _pickTier === 'chapter' ? { type: 'vellum_arc', ids } : { type: 'vellum_summarize_pick', ids });
           _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI();
         }
         return;
@@ -169,12 +170,12 @@ export const chronicleTab: Component<ChronicleState> = {
       if (t.closest('[data-pick-selall]')) { for (const id of _summaryIds) _picked.add(id); refreshUI(); return; }
       if (t.closest('[data-pick-delete]')) {
         const ids = Array.from(_picked);
-        if (ids.length) confirmModal(`Delete ${ids.length} selected summar${ids.length === 1 ? 'y' : 'ies'}? The turns/chapters they folded are restored.`, () => { cmd('memory_delete_many', { ids }); _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI(); });
+        if (ids.length) confirmModal(`Delete ${ids.length} selected summar${ids.length === 1 ? 'y' : 'ies'}? Their archived children are restored.`, () => { cmd('memory_delete_many', { ids }); _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI(); });
         return;
       }
       if (t.closest('[data-pick-delall]')) {
         const ids = _summaryIds.slice();
-        if (ids.length) confirmModal(`Delete ALL ${ids.length} chapter/arc summaries? Everything they folded is restored to the chronicle. (Turn memories are kept.)`, () => { cmd('memory_delete_many', { ids }); _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI(); });
+        if (ids.length) confirmModal(`Delete ALL ${ids.length} chapter, arc, and book summaries? Everything they folded is restored to the chronicle. (Turn memories are kept.)`, () => { cmd('memory_delete_many', { ids }); _pickMode = false; _picked.clear(); _pickAnchor = null; refreshUI(); });
         return;
       }
       if (t.closest('[data-beat-add]')) { formModal('New Story Beat', [
@@ -681,12 +682,12 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
 /**
  * Timeline — a vertical rail keyed on the reliable TURN axis, with model-emitted
  * `day` labels overlaid where present (day is sparse, so it's a label, never the
- * spine). Arc/chapter summaries render as covers-spans; their turn ranges place
+ * spine). Book/arc/chapter summaries render as covers-spans; their turn ranges place
  * them on the rail. Pure view over existing state — no schema change.
  */
 function timeline(s: ChronicleState): string {
   const head = sectionHeader('\u2637 Timeline', { sub: true, count: s.memories.length });
-  // collect dated entries: arcs+chapters (by covers end), knowledge/secrets/journal (by turn)
+  // Collect summaries by their coverage end and individual records by turn.
   type Row = { turn: number; day?: number; min?: number; kind: string; group: string; text: string; span?: [number, number] };
   const rows: Row[] = [];
   for (const m of s.memories) {
@@ -699,7 +700,7 @@ function timeline(s: ChronicleState): string {
   for (const j of s.journal) rows.push({ turn: j.turn, day: j.day, kind: 'journal', group: 'journal', text: nameOf(s, j.who) + ': ' + j.memory });
   for (const x of s.scars ?? []) rows.push({ turn: x.turn, kind: 'scar', group: 'scar', text: nameOf(s, x.who) + ' (scar): ' + x.was });
   for (const x of s.lore ?? []) rows.push({ turn: x.turn, kind: 'lore', group: 'lore', text: 'Codex: ' + x.fact });
-  if (!rows.length) return head + emptyState('Nothing on the timeline yet.', 'Arcs, chapters, knowledge and secrets appear here as the story advances.');
+  if (!rows.length) return head + emptyState('Nothing on the timeline yet.', 'Books, arcs, chapters, knowledge and secrets appear here as the story advances.');
 
   // filter bars: kind (group) + day. Days are sparse, so only offer ones present.
   const KINDS: Array<[string, string]> = [['all', 'all'], ['beat', '\u2691 beats'], ['memory', '\u25C9 memory'], ['knew', '\u25C8 knowledge'], ['secret', '\u26C0 secrets'], ['journal', '\u270E journal'], ['scar', '\u2620 scars'], ['lore', '\u2756 codex']];
@@ -794,19 +795,22 @@ function beatsView(s: ChronicleState): string {
 function memories(s: ChronicleState): string {
   const turnCount = s.memories.filter((m) => m.tier === 'turn').length;
   const chapCount = s.memories.filter((m) => m.tier === 'chapter').length;
-  // pick controls: fold turns→chapter (2+ turns), fold chapters→arc (2+ chapters),
-  // and DELETE (select any summaries to remove). Delete restores what was folded.
-  const summaryCount = s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc').length;
-  _summaryIds = s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc').map((m) => m.id);
+  const arcCount = s.memories.filter((m) => m.tier === 'arc').length;
+  const bookCount = s.memories.filter((m) => m.tier === 'book').length;
+  // Pick controls expose every lossless fold. Delete restores the direct children,
+  // which retain their own ancestry and can be unfolded again level by level.
+  const summaryCount = s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc' || m.tier === 'book').length;
+  _summaryIds = s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc' || m.tier === 'book').map((m) => m.id);
   const inFold = _pickMode && _pickAction === 'fold';
   const inDel = _pickMode && _pickAction === 'delete';
   const pickTurns = turnCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="turn" title="Select turns to fold into a chapter">${inFold && _pickTier === 'turn' ? '\u2715 cancel' : '\u2748 fold turns'}</button>` : '';
   const pickChaps = chapCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="chapter" title="Select chapters to fold into an arc">${inFold && _pickTier === 'chapter' ? '\u2715 cancel' : '\u2748 fold chapters'}</button>` : '';
+  const pickArcs = arcCount >= 2 ? `<button class="vle-add sm" data-pick-toggle="arc" title="Select arcs to fold into a book">${inFold && _pickTier === 'arc' ? '\u2715 cancel' : '\u2748 fold arcs'}</button>` : '';
   const pickDel = summaryCount >= 1 ? `<button class="vle-add sm" data-pick-del title="Select summaries to delete (restores what they folded)">${inDel ? '\u2715 cancel' : '\u2717 delete'}</button>` : '';
   const nonBeat = s.memories.filter((m) => m.tier !== 'beat'); // Memory view excludes beats (own tab)
-  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: nonBeat.length, action: pickTurns + pickChaps + pickDel + '<button class="vle-add sm" data-mem-add>+</button>' });
+  const head = sectionHeader('\uD83D\uDCD6 Memory', { sub: true, count: nonBeat.length, action: pickTurns + pickChaps + pickArcs + pickDel + '<button class="vle-add sm" data-mem-add>+</button>' });
   if (!nonBeat.length) return head + emptyState('No memories yet.', 'Summaries of what happened accrue here as you play and summarize.');
-  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc'], counts: { turn: turnCount, chapter: chapCount, arc: s.memories.filter((m) => m.tier === 'arc').length } });
+  const bar = filterBar('memories', { cats: ['turn', 'chapter', 'arc', 'book'], counts: { turn: turnCount, chapter: chapCount, arc: arcCount, book: bookCount } });
   const filtered = applyFilter('memories', nonBeat, { cat: (m) => m.tier });
   
   // Pick mode uses flat paginated list (preserve existing behavior)
@@ -816,7 +820,7 @@ function memories(s: ChronicleState): string {
       const isTurn = m.tier === 'turn';
       const shown = isTurn ? oneLine(m.text) : m.text;
       const titleAttr = isTurn ? ` title="${esc(m.text).slice(0, 1000)}"` : '';
-      const pickable = inFold ? m.tier === _pickTier : inDel ? (m.tier === 'chapter' || m.tier === 'arc') : false;
+      const pickable = inFold ? m.tier === _pickTier : inDel ? (m.tier === 'chapter' || m.tier === 'arc' || m.tier === 'book') : false;
       const checked = _picked.has(m.id) ? ' checked' : '';
       const box = pickable ? `<input type="checkbox" class="vle-mem-pick" data-pick-id="${esc(m.id)}"${checked}>` : '';
       return '<div class="vle-mem' + (pickable ? ' pickable' : '') + '">' + box
@@ -825,8 +829,8 @@ function memories(s: ChronicleState): string {
         + `<span class="vle-mem-ctl"><button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit summary">\u270E</button>`
         + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete">\u2715</button></span></div>`;
     }).join('');
-    const foldLabel = _pickTier === 'chapter' ? 'Fold into arc' : 'Fold into chapter';
-    const unit = inDel ? 'summary' : (_pickTier === 'chapter' ? 'chapter' : 'turn');
+    const foldLabel = _pickTier === 'arc' ? 'Fold into book' : _pickTier === 'chapter' ? 'Fold into arc' : 'Fold into chapter';
+    const unit = inDel ? 'summary' : (_pickTier === 'arc' ? 'arc' : _pickTier === 'chapter' ? 'chapter' : 'turn');
     const unitPl = inDel ? 'summaries' : unit + 's';
     let footer = '';
     if (inFold) {
@@ -842,7 +846,8 @@ function memories(s: ChronicleState): string {
     return head + bar + footer + rows + pagerHtml('memories', page, pages);
   }
   
-  // Normal mode: layered arc/chapter/turn view
+  // Normal mode: layered book/arc/chapter/turn view
+  const books = filtered.filter((m) => m.tier === 'book');
   const arcs = filtered.filter((m) => m.tier === 'arc');
   const chapters = filtered.filter((m) => m.tier === 'chapter');
   const turns = filtered.filter((m) => m.tier === 'turn');
@@ -853,6 +858,27 @@ function memories(s: ChronicleState): string {
     if (chap.subsumed) for (const sub of chap.subsumed) subsumedTurnIds.add(sub.id);
   }
   const uncoveredTurns = turns.filter((t) => !subsumedTurnIds.has(t.id));
+
+  const bookHtml = books.map((m) => {
+    const childArcs = (m.subsumed ?? []).filter((sub) => sub.tier === 'arc');
+    const arcChips = childArcs.length
+      ? childArcs.map((sub) => '<div class="vle-m-book-arc"><span>'
+        + (sub.covers ? 'T' + sub.covers[0] + '\u2013' + sub.covers[1] : 't' + sub.turn)
+        + '</span>' + esc(oneLine(sub.text, 105)) + '</div>').join('')
+      : '<div class="vle-m-book-arc empty">No source arcs recorded</div>';
+    return '<div class="vle-m-book">'
+      + '<div class="vle-m-book-head">'
+      + '<div><span class="vle-m-book-tier">book</span>'
+      + '<span class="vle-m-book-span">' + (m.covers ? 'T' + m.covers[0] + '\u2013' + m.covers[1] : 't' + m.turn) + '</span></div>'
+      + '<span class="vle-mem-ctl">'
+      + `<button class="vle-mini" data-mem-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-detail="${esc(m.detail ?? '')}" title="Edit">\u270E</button>`
+      + `<button class="vle-mini del" data-mem-del data-id="${esc(m.id)}" title="Delete and restore its arcs">\u2715</button>`
+      + '</span></div>'
+      + '<div class="vle-m-book-text">' + esc(m.text) + '</div>'
+      + '<div class="vle-m-book-covers">covers ' + childArcs.length + ' arc' + (childArcs.length === 1 ? '' : 's') + '</div>'
+      + '<div class="vle-m-book-arcs">' + arcChips + '</div>'
+      + '</div>';
+  }).join('');
   
   const arcHtml = arcs.map((m) => {
     const isDone = m.covers && m.covers[1] < s.turns - 10;
@@ -923,7 +949,7 @@ function memories(s: ChronicleState): string {
     : '';
   
   if (!filtered.length) return head + bar + emptyState('No memories match this filter.');
-  return head + bar + arcHtml + (chapHtml ? '<div style="height:0.8rem"></div>' + chapHtml : '') + turnHtml;
+  return head + bar + bookHtml + (bookHtml && arcHtml ? '<div style="height:0.8rem"></div>' : '') + arcHtml + (chapHtml ? '<div style="height:0.8rem"></div>' + chapHtml : '') + turnHtml;
 }
 
 /** Small certainty chip before a fact. 'knows' is the neutral default and shows

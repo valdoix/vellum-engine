@@ -8,7 +8,7 @@ export interface SummarizerStreamPayload {
   event: 'start' | 'progress' | 'chunk' | 'complete' | 'failed';
   phase?: 'prepare' | 'detail' | 'gist' | 'archive';
   status?: 'start' | 'chunk' | 'reasoning' | 'retry' | 'done' | 'failed';
-  kind?: 'chapter' | 'arc';
+  kind?: 'chapter' | 'arc' | 'book';
   sourceCount?: number;
   covers?: [number, number];
   attempt?: number;
@@ -54,7 +54,7 @@ const phaseLabel = (phase: LiveSummary['phase']): string => phase === 'prepare'
     : phase === 'gist' ? 'Condensing chronicle gist' : 'Filing verified archive';
 
 const modeLabel = (mode: string): string => mode === 'resummarize' ? 'Rebuild'
-  : mode === 'pick' ? 'Selected turns' : mode === 'arc' ? 'Arc' : mode === 'auto' ? 'Automatic' : 'Manual';
+  : mode === 'pick' ? 'Selected turns' : mode === 'book' ? 'Book' : mode === 'arc' ? 'Arc' : mode === 'auto' ? 'Automatic' : 'Manual';
 
 function fmtTokens(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);

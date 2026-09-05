@@ -150,11 +150,11 @@ const QOL = [
   { id: 'calendar', label: '\u2637 Calendar', title: 'Name the current epoch/season so "Day 47" reads as an occasion', group: 'settings' },
   { id: 'budget', label: '\u2696 Context budget', title: 'How much VELLUM injects per turn: master dial + per-injector caps + off-screen/summary cadence', group: 'settings' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'settings' },
-  { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc prompts', group: 'settings' },
+  { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc/book prompts', group: 'settings' },
   { id: 'preset', label: '\u25A4 Preset editor', title: 'Companion preset diagnostics: link status, state-block health check, live injection preview, extraction status, and prompt/context budgets. Mirrors the desktop Preset Editor tab (which the mobile host does not provide).', group: 'settings' },
   // toggles = persistent on/off state
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
-  { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
+  { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree book\u2192arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
   { id: 'autoretry', label: '\u21BB Repair block', title: 'Auto-repair a missing state block: if a turn drops its <vellum> block, transcribe its prose into one and update the chronicle (needs generation permission; 1 extra generation per affected turn)', group: 'toggle' },
   { id: 'blockexample', label: '\u27E6\u27E7 Block example', title: 'Inject the previous turn\'s actual <vellum> block as a worked example at the end of the VELLUM injection — closest to the generation point. Helps models that forget the format. Costs ~400–700 extra tokens per turn.', group: 'toggle' },
@@ -709,7 +709,7 @@ let _yearPrefix = ''; // last-known era prefix on the year (mirrored from state)
 let _yearSuffix = ''; // last-known era suffix on the year (mirrored from state)
 let _budget: Record<string, unknown> | null = null; // last-known context-budget cfg
 let _summarizerCfg: Record<string, unknown> | null = null; // last-known summarizer config (filled by vellum_summarizer_state)
-let _summarizerDefaults: { chapter: string; arc: string; gist: string } = { chapter: '', arc: '', gist: '' };
+let _summarizerDefaults: { chapter: string; arc: string; book: string; gist: string } = { chapter: '', arc: '', book: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
 let _lastStateAt = 0; // epoch ms of the last vellum_state broadcast (for the post-turn safety poll)
 
@@ -1024,7 +1024,7 @@ function openSummarizerModal(ctx: Ctx): void {
     { key: 'useCustom', label: 'Summary prompts', type: 'select', value: c.useCustom ? 'custom' : 'default', options: [
       { value: 'default', label: 'Use built-in defaults' },
       { value: 'custom', label: 'Use my custom prompts' },
-    ], hint: 'Edit the three prompts with the buttons below. Empty = built-in default.' },
+    ], hint: 'Edit the four prompts with the buttons below. Empty = built-in default.' },
   ], (out) => {
     // numeric fields: empty/NaN -> fall back to default, EXCEPT temperature where 0
     // is a valid value (so we must not use the `|| default` idiom for it).
@@ -1048,19 +1048,22 @@ function openSummarizerModal(ctx: Ctx): void {
     { label: '\u270E Gist prompt', onClick: () => openPromptEditor(ctx, 'gist') },
     { label: '\u270E Chapter prompt', onClick: () => openPromptEditor(ctx, 'chapter') },
     { label: '\u270E Arc prompt', onClick: () => openPromptEditor(ctx, 'arc') },
+    { label: '\u270E Book prompt', onClick: () => openPromptEditor(ctx, 'book') },
   ] });
 }
 
-/** Edit ONE summary prompt (gist | chapter | arc) in its own big editor. The box
+/** Edit one summary prompt in its own large editor. The box
  * shows the user's custom text only; the built-in default is the placeholder
  * (greyed, never saved). Empty = use the live default forever. */
-function openPromptEditor(ctx: Ctx, kind: 'gist' | 'chapter' | 'arc'): void {
+function openPromptEditor(ctx: Ctx, kind: 'gist' | 'chapter' | 'arc' | 'book'): void {
   const c = _summarizerCfg ?? {};
-  const key = kind === 'gist' ? 'gistPrompt' : kind === 'arc' ? 'arcPrompt' : 'chapterPrompt';
+  const key = kind === 'gist' ? 'gistPrompt' : kind === 'book' ? 'bookPrompt' : kind === 'arc' ? 'arcPrompt' : 'chapterPrompt';
   const def = _summarizerDefaults[kind] || '';
-  const title = kind === 'gist' ? 'Gist Prompt (chronicle line)' : kind === 'arc' ? 'Arc Prompt (detail)' : 'Chapter Prompt (detail)';
+  const title = kind === 'gist' ? 'Gist Prompt (chronicle line)' : kind === 'book' ? 'Book Prompt (detail)' : kind === 'arc' ? 'Arc Prompt (detail)' : 'Chapter Prompt (detail)';
   const desc = kind === 'gist'
     ? 'Condenses a finished record into the short chronicle paragraph.'
+    : kind === 'book'
+      ? 'Writes the durable BOOK record (detail + keys) from several arcs.'
     : kind === 'arc'
       ? 'Writes the dense ARC record (detail + keys) from several chapters.'
       : 'Writes the dense CHAPTER record (detail + keys) from the turns.';
@@ -2136,6 +2139,13 @@ export function setup(ctx: Ctx): () => void {
         else if (p.ok === false && p.reason === 'busy') notify(ctx, 'info', 'A summarizer run is already in progress.');
         else if (p.ok === false && p.reason === 'cancelled') notify(ctx, 'info', 'Arc summarizing stopped safely.');
         else notify(ctx, 'success', p.rounds ? `Folded ${p.bound ?? 0} chapters into an arc${tok}.` : 'No chapters old enough to fold yet.');
+      } else if (p?.type === 'vellum_book_done') {
+        const tok = typeof p.tokens === 'number' && p.tokens > 0 ? ` \u00b7 ~${fmtTokens(p.tokens)} tokens` : '';
+        if (p.ok === false && p.reason === 'too_few') notify(ctx, 'warning', 'Need at least 2 arcs to fold into a book.');
+        else if (p.ok === false && p.reason === 'no_generation') notify(ctx, 'warning', 'Folding to a book needs the generation permission.');
+        else if (p.ok === false && p.reason === 'busy') notify(ctx, 'info', 'A summarizer run is already in progress.');
+        else if (p.ok === false && p.reason === 'cancelled') notify(ctx, 'info', 'Book summarizing stopped safely.');
+        else notify(ctx, 'success', p.rounds ? `Folded ${p.bound ?? 0} arcs into a book${tok}.` : 'No arcs old enough to fold yet.');
       } else if (p?.type === 'vellum_beat_suggestions') {
         setBeatSuggestions(p.items);
         try { refreshUI(); } catch { /* best effort */ }
@@ -2150,7 +2160,7 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_summarizer_state') {
         // backend handed us the current config + built-in default prompts → open the editor
         _summarizerCfg = (p.cfg && typeof p.cfg === 'object') ? p.cfg as Record<string, unknown> : {};
-        if (p.defaults && typeof p.defaults === 'object') _summarizerDefaults = { chapter: String((p.defaults as any).chapter || ''), arc: String((p.defaults as any).arc || ''), gist: String((p.defaults as any).gist || '') };
+        if (p.defaults && typeof p.defaults === 'object') _summarizerDefaults = { chapter: String((p.defaults as any).chapter || ''), arc: String((p.defaults as any).arc || ''), book: String((p.defaults as any).book || ''), gist: String((p.defaults as any).gist || '') };
         if (_ctxRef) openSummarizerModal(_ctxRef);
       } else if (p?.type === 'vellum_summarizer_done') {
         if (p.ok && p.cfg && typeof p.cfg === 'object') _summarizerCfg = p.cfg as Record<string, unknown>;

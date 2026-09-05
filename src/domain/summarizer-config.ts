@@ -6,12 +6,12 @@
  *
  * Prompts: VELLUM produces a hybrid chapter record in ONE pass — a dense DETAIL
  * (vault), a lean GIST (chronicle), and KEYS (retrieval). Users may keep the
- * tuned defaults or supply their own system prompt per kind (chapter & arc).
+ * tuned defaults or supply their own system prompt per kind.
  * The placeholders {{detailCap}} / {{gistCap}} / {{names}} are resolved at build
  * time so a custom prompt can reference the active caps and the real names.
  */
 
-export type PromptKind = 'chapter' | 'arc' | 'gist';
+export type PromptKind = 'chapter' | 'arc' | 'book' | 'gist';
 
 export interface SummarizerCfg {
   // --- token caps (generous defaults) ---
@@ -28,6 +28,7 @@ export interface SummarizerCfg {
   useCustom: boolean;     // false = built-in defaults; true = the custom prompts below
   chapterPrompt: string;  // custom CHAPTER detail prompt (used only when useCustom)
   arcPrompt: string;      // custom ARC detail prompt (used only when useCustom)
+  bookPrompt: string;     // custom BOOK detail prompt (used only when useCustom)
   gistPrompt: string;     // custom GIST prompt (condense a detail into a chronicle line)
 }
 
@@ -45,6 +46,7 @@ export const DEFAULT_CFG: SummarizerCfg = {
   useCustom: false,
   chapterPrompt: '',
   arcPrompt: '',
+  bookPrompt: '',
   gistPrompt: '',
 };
 
@@ -85,13 +87,14 @@ export function sanitizeSummarizerCfg(raw: unknown): SummarizerCfg {
     useCustom: !!o.useCustom,
     chapterPrompt: str(o.chapterPrompt),
     arcPrompt: str(o.arcPrompt),
+    bookPrompt: str(o.bookPrompt),
     gistPrompt: str(o.gistPrompt),
   };
 }
 
 // --- the built-in default prompts (centralized so the UI can show + reset to
 // them). The pipeline is TWO calls: first DETAIL+KEYS (the dense vault record),
-// then GIST (a chronicle line condensed FROM that detail). So the chapter/arc
+// then GIST (a chronicle line condensed FROM that detail). Summary-tier
 // prompts produce DETAIL+KEYS only; the gist prompt turns a finished detail into
 // the lean chronicle sentence. -------------------------------------------------
 
@@ -131,6 +134,34 @@ export const DEFAULT_ARC_PROMPT =
   + '<8-16 comma-separated concrete retrieval keywords; one concept each; no abstract themes, no bare names.>\n'
   + 'Use real character names throughout; never write {{user}}/{{char}}/"you".';
 
+export const DEFAULT_BOOK_PROMPT =
+  'You are the canon historian for a long-running roleplay. Consolidate the supplied ARC records into ONE BOOK: a '
+  + 'durable account of the completed story span that can replace the source arcs without breaking future continuity. '
+  + 'Treat the arcs as evidence, in their supplied order. Preserve established facts exactly; never invent scenes, '
+  + 'motives, dialogue, dates, outcomes, or connective events. When an earlier and later arc differ, preserve the '
+  + 'chronology: a later confirmed change supersedes the earlier state, while a mistaken belief remains attributed to '
+  + 'the person who held it instead of becoming objective truth. Do not merge distinct people, places, objects, promises, '
+  + 'or plotlines merely because they resemble one another.\n'
+  + 'Write for future roleplay continuity. Preserve the opening situation, the major movements in order, their causal '
+  + 'links, decisive choices and consequences, reversals and revelations, relationship and allegiance changes, shifts in '
+  + 'power or place, important injuries and possessions, promises/debts/obligations, what each relevant character learned '
+  + 'or still wrongly believes, which secrets became known to whom, unresolved threads, and the exact closing state from '
+  + 'which play must continue. Distinguish temporary emotion from lasting change. Retain quiet setup that later paid off '
+  + 'and any unresolved setup whose payoff is still pending. Compress repeated evidence, incidental travel, atmosphere, '
+  + 'and decorative beats unless they changed a decision, relationship, knowledge state, possession, location, or outcome.\n'
+  + 'Respond in EXACTLY this layout, nothing before or after:\n'
+  + 'DETAIL:\n'
+  + '<A cohesive, chronological, past-tense, third-person history using real names. Organize the prose around major '
+  + 'movements and cause->effect rather than listing arc summaries. Make the final paragraphs state the durable end-state '
+  + 'and live obligations clearly. Use concrete facts, complete sentences, and enough detail to continue the story after '
+  + 'the source arcs are hidden. Aim for up to ~{{detailWords}} words. No headings inside DETAIL, no bullets, no meta, no '
+  + 'literary critique, no vague themes, and no claims beyond the supplied records.>\n'
+  + 'KEYS:\n'
+  + '<12-16 comma-separated retrieval keys spanning the whole book: distinctive places, objects, titles, factions, '
+  + 'promises, revelations, conflicts, and outcome phrases likely to recur. Prefer specific multiword anchors. Exclude '
+  + 'abstract themes, generic verbs, and bare character names.>\n'
+  + 'Use real character names throughout; never write {{user}}/{{char}}/"you".';
+
 export const DEFAULT_GIST_PROMPT =
   'You are a story archivist writing the one-paragraph chronicle line for a record that has already been written. '
   + 'You are given that record (the DETAIL) and, if available, the STORY SO FAR for continuity. Condense the DETAIL into '
@@ -151,8 +182,8 @@ export const DEFAULT_GIST_PROMPT =
  *   {{names}}      -> a one-line "player X / focal Y" hint (or '')
  * Unknown placeholders are left untouched. */
 export function resolvePrompt(kind: PromptKind, cfg: SummarizerCfg, names?: { user: string; char: string }): string {
-  const custom = kind === 'arc' ? cfg.arcPrompt : kind === 'gist' ? cfg.gistPrompt : cfg.chapterPrompt;
-  const def = kind === 'arc' ? DEFAULT_ARC_PROMPT : kind === 'gist' ? DEFAULT_GIST_PROMPT : DEFAULT_CHAPTER_PROMPT;
+  const custom = kind === 'arc' ? cfg.arcPrompt : kind === 'book' ? cfg.bookPrompt : kind === 'gist' ? cfg.gistPrompt : cfg.chapterPrompt;
+  const def = kind === 'arc' ? DEFAULT_ARC_PROMPT : kind === 'book' ? DEFAULT_BOOK_PROMPT : kind === 'gist' ? DEFAULT_GIST_PROMPT : DEFAULT_CHAPTER_PROMPT;
   const base = (cfg.useCustom && custom.trim()) ? custom : def;
   const nameHint = (names && (names.user || names.char))
     ? `The player is "${names.user || '(unnamed)'}"; the focal character is "${names.char || '(unnamed)'}". Use these real names; never write {{user}}/{{char}}/"you".`

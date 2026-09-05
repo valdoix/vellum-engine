@@ -1,6 +1,6 @@
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
-import { planChapter, chapterEvents, arcEvents, archiveCoverageHash, type CompressPlan } from '../domain/memory.js';
+import { planChapter, chapterEvents, arcEvents, bookEvents, archiveCoverageHash, type CompressPlan } from '../domain/memory.js';
 import { internalGenerate } from '../host/generation.js';
 import { nextSeq } from '../core/ids.js';
 import { DEFAULT_CFG, resolvePrompt, type SummarizerCfg } from '../domain/summarizer-config.js';
@@ -18,7 +18,7 @@ export type SummaryPhase = 'prepare' | 'detail' | 'gist' | 'archive';
 export interface SummaryProgress {
   phase: SummaryPhase;
   status: 'start' | 'chunk' | 'reasoning' | 'retry' | 'done' | 'failed';
-  kind: 'chapter' | 'arc';
+  kind: 'chapter' | 'arc' | 'book';
   sourceCount: number;
   covers: [number, number];
   attempt?: number;
@@ -60,8 +60,8 @@ function sourceText(state: ChronicleState, ids: string[], names?: { user: string
     return s;
   };
   return ids.map((id) => byId.get(id)).filter(Boolean).map((m) => {
-    // for chapter/arc sources (an arc fold), feed the richer DETAIL; for turns, the text.
-    const body = (m!.tier === 'chapter' || m!.tier === 'arc') ? (m!.detail || m!.text) : m!.text;
+    // Summary sources feed their richer DETAIL; raw turns and beats use text.
+    const body = (m!.tier === 'chapter' || m!.tier === 'arc' || m!.tier === 'book') ? (m!.detail || m!.text) : m!.text;
     const label = m!.covers ? `turns ${m!.covers[0]}\u2013${m!.covers[1]}` : `turn ${m!.turn}`;
     return `- (${label}) ${fix(body)}`;
   }).join('\n');
@@ -83,7 +83,7 @@ export async function summarizeWindow(state: ChronicleState, userId: string | nu
 }
 
 /**
- * Compress an explicit plan (auto window OR a manual pick) into a chapter/arc.
+ * Compress an explicit plan into a chapter, arc, or book.
  *
  * TWO-PASS pipeline:
  *   1. DETAIL+KEYS — write the dense vault record from the source turns/chapters.
@@ -99,7 +99,7 @@ export async function summarizeFromPlan(
   plan: CompressPlan,
   names: { user: string; char: string } | undefined,
   cfg: SummarizerCfg = DEFAULT_CFG,
-  kind: 'chapter' | 'arc' = 'chapter',
+  kind: 'chapter' | 'arc' | 'book' = 'chapter',
   run?: SummaryRunOptions,
 ): Promise<SummaryResult> {
   const src = sourceText(state, plan.sourceIds, names);
@@ -192,7 +192,7 @@ export async function summarizeFromPlan(
     if (fromDetail.length >= 24 && /^[A-Z0-9"'\u201c]/.test(fromDetail)) finalGist = fromDetail;
   }
 
-  const build = kind === 'arc' ? arcEvents : chapterEvents;
+  const build = kind === 'book' ? bookEvents : kind === 'arc' ? arcEvents : chapterEvents;
   progress(run, { phase: 'gist', status: 'done', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, text: finalGist || gist });
   progress(run, { phase: 'archive', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, message: 'Writing the verified archive record' });
   const events = build(
@@ -234,7 +234,7 @@ async function generateDetail(
   cfg: SummarizerCfg,
   userId: string | null,
   run: SummaryRunOptions | undefined,
-  kind: 'chapter' | 'arc',
+  kind: 'chapter' | 'arc' | 'book',
   plan: CompressPlan,
   keepTrying: boolean,
 ): Promise<{ text: string; tokens: number }> {
@@ -280,22 +280,25 @@ async function generateDetail(
  * the window still records the correct span and drops only those turns. */
 function narrowPlan(plan: CompressPlan, n: number): CompressPlan | null {
   if (n <= 0 || n >= plan.source.length) return null;
-  const source = plan.source.slice().sort((a, b) => a.turn - b.turn).slice(0, n);
+  const source = plan.source.slice().sort((a, b) => (a.covers?.[0] ?? a.turn) - (b.covers?.[0] ?? b.turn)).slice(0, n);
   if (!source.length) return null;
   return {
     sourceIds: source.map((s) => s.id),
     source,
-    covers: [source[0]!.turn, source[source.length - 1]!.turn],
+    covers: [
+      Math.min(...source.map((s) => s.covers?.[0] ?? s.turn)),
+      Math.max(...source.map((s) => s.covers?.[1] ?? s.turn)),
+    ],
     coverageHash: archiveCoverageHash(source),
   };
 }
 
-/** The most recent chapter/arc gists BEFORE this window, oldest→newest, as the
+/** The most recent chapter/arc/book gists before this window, oldest→newest, as the
  * continuity preamble. Capped so it stays a lightweight thread, not the whole
  * history (the vault holds the deep record). */
 function storySoFar(state: ChronicleState, plan: CompressPlan): string {
   const priors = state.memories
-    .filter((m) => (m.tier === 'chapter' || m.tier === 'arc') && (m.covers ? m.covers[1] : m.turn) <= plan.covers[0])
+    .filter((m) => (m.tier === 'chapter' || m.tier === 'arc' || m.tier === 'book') && (m.covers ? m.covers[1] : m.turn) <= plan.covers[0])
     .sort((a, b) => (a.covers ? a.covers[1] : a.turn) - (b.covers ? b.covers[1] : b.turn));
   if (!priors.length) return '';
   const recent = priors.slice(-3); // last few chapters give enough thread

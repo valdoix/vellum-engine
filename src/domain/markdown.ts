@@ -5,7 +5,7 @@ import { formatDate } from './date-format.js';
 /**
  * Render the chronicle to a readable Markdown document — the shareable form of
  * the story (vs. the JSON export, which is a backup). PURE. Sections: Story So
- * Far (beats + chapter/arc gists), Cast (with drift arcs), Relationships, Codex,
+ * Far (beats + book/arc/chapter gists), Cast (with drift arcs), Relationships, Codex,
  * Timeline landmarks. Omits empty sections.
  */
 export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
@@ -15,12 +15,14 @@ export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
   const dayLabel = formatDate(state.day ?? 0, state.dateFormat || 'day', state);
   out.push(`*${dayLabel} · turn ${state.turns ?? 0} · ${Object.keys(state.cast).length} characters*`, '');
 
-  // --- Story So Far: arcs, then chapters, then the beat spine, in order ---
+  // --- Story So Far: books, then loose arcs/chapters, then the beat spine ---
+  const books = state.memories.filter((m) => m.tier === 'book').sort((a, b) => (a.covers?.[0] ?? a.turn) - (b.covers?.[0] ?? b.turn));
   const arcs = state.memories.filter((m) => m.tier === 'arc').sort((a, b) => (a.covers?.[0] ?? a.turn) - (b.covers?.[0] ?? b.turn));
   const chapters = state.memories.filter((m) => m.tier === 'chapter').sort((a, b) => (a.covers?.[0] ?? a.turn) - (b.covers?.[0] ?? b.turn));
   const beats = state.memories.filter((m) => m.tier === 'beat').sort((a, b) => ((a.beatDay ?? 0) * 1e5 + a.turn) - ((b.beatDay ?? 0) * 1e5 + b.turn));
-  if (arcs.length || chapters.length) {
+  if (books.length || arcs.length || chapters.length) {
     out.push('## Story So Far', '');
+    for (const b of books) out.push('### Book' + (b.covers ? ` (turns ${b.covers[0]}–${b.covers[1]})` : ''), '', b.text, '');
     for (const a of arcs) out.push('### Arc' + (a.covers ? ` (turns ${a.covers[0]}–${a.covers[1]})` : ''), '', a.text, '');
     for (const c of chapters) out.push('### Chapter' + (c.covers ? ` (turns ${c.covers[0]}–${c.covers[1]})` : ''), '', c.text, '');
   }

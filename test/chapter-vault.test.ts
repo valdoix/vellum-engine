@@ -56,6 +56,14 @@ describe('planChapterEntry', () => {
   it('constant mode sets constant:true', () => {
     expect(planChapterEntry(chapterState().memories[0]!, 'constant').settings.constant).toBe(true);
   });
+  it('projects a book as its own deeper, lower-order summary entry', () => {
+    const s = freshState();
+    s.memories = [{ id: 'book_a', tier: 'book', text: 'Book gist.', detail: 'Book detail.', keys: ['iron moon'], covers: [1, 80], turn: 80 }];
+    expect(projectable(s).map((m) => m.id)).toEqual(['book_a']);
+    const input = planChapterEntry(s.memories[0]!, 'keyed');
+    expect(input).toMatchObject({ link: 'book:book_a', comment: 'Book · turns 1–80' });
+    expect(input.settings).toMatchObject({ position: 'at_depth', depth: 8, order: 20, constant: false });
+  });
 });
 
 describe('reconcileChapterEntries', () => {

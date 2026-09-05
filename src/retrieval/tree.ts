@@ -2,19 +2,19 @@ import type { ChronicleState, MemorySnapshot } from '../domain/types.js';
 import { collectItems, type RetrievableItem } from './invindex.js';
 
 /**
- * Derived memory TREE for tiered traversal — arc → chapter → leaf.
+ * Derived memory TREE for tiered traversal — book → arc → chapter → leaf.
  *
- * VELLUM already produces the hierarchy: arc/chapter summaries carry `covers`
+ * VELLUM already produces the hierarchy: book/arc/chapter summaries carry `covers`
  * turn-ranges, and every leaf (knowledge/secret/journal/turn-memory) has a
  * `turn`. We nest by range containment — no LLM build, no authored tree. Pure +
- * deterministic. Loose chapters/leaves (under no arc) hang at ROOT.
+ * deterministic. Loose arcs/chapters/leaves hang at ROOT.
  *
  * A node's `gist` is the compact text shown to the controller while drilling;
- * selecting a chapter/arc node later yields its DETAILED summary (resolved by
+ * selecting a book/arc/chapter node later yields its DETAILED summary (resolved by
  * the caller from memory.detail / the vault), which is the continuity payload.
  */
 
-export type MemNodeKind = 'arc' | 'chapter' | 'leaf';
+export type MemNodeKind = 'book' | 'arc' | 'chapter' | 'leaf';
 
 export interface MemNode {
   id: string;
@@ -26,7 +26,7 @@ export interface MemNode {
 }
 
 export interface MemTree {
-  rootIds: string[]; // top-level nodes (arcs + loose chapters/leaves)
+  rootIds: string[]; // top-level nodes (books + loose arcs/chapters/leaves)
   nodes: Map<string, MemNode>;
 }
 
@@ -37,7 +37,7 @@ function within(inner: [number, number] | undefined, outer: [number, number] | u
   return !!inner && !!outer && inner[0] >= outer[0] && inner[1] <= outer[1];
 }
 
-/** Build the arc→chapter→leaf tree from derived state + the retrieval index. */
+/** Build the book→arc→chapter→leaf tree from derived state + the retrieval index. */
 export function buildMemoryTree(state: ChronicleState, items?: RetrievableItem[]): MemTree {
   const leaves = (items ?? collectItems(state));
   const nodes = new Map<string, MemNode>();
@@ -46,7 +46,7 @@ export function buildMemoryTree(state: ChronicleState, items?: RetrievableItem[]
   const claimed = new Set<string>();
   const exactSummaries = new Set<string>();
   const register = (m: MemorySnapshot): void => {
-    const kind = m.tier === 'arc' ? 'arc' : m.tier === 'chapter' ? 'chapter' : 'leaf';
+    const kind = m.tier === 'book' ? 'book' : m.tier === 'arc' ? 'arc' : m.tier === 'chapter' ? 'chapter' : 'leaf';
     if (kind === 'leaf') return;
     const children = (m.subsumed ?? []).map((child) => child.id);
     nodes.set(m.id, { id: m.id, kind, gist: clip(m.text, 200), childrenIds: children, covers: m.covers });
@@ -62,7 +62,7 @@ export function buildMemoryTree(state: ChronicleState, items?: RetrievableItem[]
   // only authority, which keeps noncontiguous manual picks exact.
   const chapters = state.memories.filter((m) => m.tier === 'chapter');
   const legacyChapters = chapters.filter((m) => !exactSummaries.has(m.id));
-  const summaries = new Set(state.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc').map((m) => m.id));
+  const summaries = new Set(state.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc' || m.tier === 'book').map((m) => m.id));
   for (const it of leaves) {
     if (summaries.has(it.id) || claimed.has(it.id)) continue;
     const ch = legacyChapters.slice().sort((a, b) => span(a.covers) - span(b.covers)).find((c) => inRange(it.turn, c.covers));
@@ -83,7 +83,7 @@ function clip(s: string, n: number): string { const t = (s || '').replace(/\s+/g
 
 /**
  * Character-scoped tree (PR2): cast → that character's facts/secrets/journal.
- * The other tree axis — instead of WHEN something happened (arc→chapter→leaf),
+ * The other tree axis — instead of WHEN something happened (book→arc→chapter→leaf),
  * organize by WHO it concerns. Top level is the cast (present/active first, then
  * mentioned); each character node's children are the knowledge they hold, the
  * secrets they keep, and the journal entries from their POV. Lets the controller
@@ -122,13 +122,13 @@ export function buildCharacterTree(state: ChronicleState, items?: RetrievableIte
 }
 
 /**
- * Hybrid tree (PR3): character → arc → chapter → leaf. The WHO of the character
+ * Hybrid tree (PR3): character → book → arc → chapter → leaf. The WHO of the character
  * axis with the WHEN structure of the temporal axis — "this is a Cersei scene →
  * walk Cersei's history in order." Built by computing the per-character leaf map
  * (like buildCharacterTree), then, for each character, keeping only the temporal
  * branches (from buildMemoryTree) that contain at least one of that character's
- * leaves. Scoped arc/chapter nodes are namespaced `h:<charId>:<memId>` so the
- * same arc can sit under several characters; `sourceId` carries the bare memory
+ * leaves. Scoped summary nodes are namespaced `h:<charId>:<memId>` so the same
+ * archive can sit under several characters; `sourceId` carries the bare memory
  * id so the caller still resolves DETAIL + assembles by it. Leaf ids stay bare
  * (selection dedups on bare id). Pure + deterministic.
  */

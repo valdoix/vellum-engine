@@ -883,6 +883,7 @@ export const STYLES = [
   ".vle-mem-tier.t-turn{color:#8c8478;border:1px solid rgba(140,132,120,.4)}",
   ".vle-mem-tier.t-chapter{color:var(--v-info);border:1px solid color-mix(in srgb,var(--v-info) 40%,transparent)}",
   ".vle-mem-tier.t-arc{color:var(--vle-gold);border:1px solid rgba(var(--vg-rgb),.4)}",
+  ".vle-mem-tier.t-book{color:var(--v-pos-i);border:1px solid color-mix(in srgb,var(--v-pos) 45%,transparent);background:color-mix(in srgb,var(--v-pos) 8%,transparent)}",
   // knowledge epistemic chips (reliability + truth)
   ".vle-krel{display:inline-block;font:600 9px/1 var(--vmono);text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:var(--vr1);margin-right:5px;vertical-align:middle;opacity:.9}",
   ".vle-krel-believes{color:#c8a24e;border:1px solid rgba(200,162,78,.4)}",
@@ -2654,6 +2655,17 @@ export const STYLES = [
 
   // ===== CHRONICLE REDESIGN — Memory / Knowledge / Secrets / Scars / Codex =====
   // MEMORY — Arc spine covers
+  ".vle-m-book{position:relative;margin-bottom:.55rem;padding:.78rem .9rem;border:1px solid color-mix(in srgb,var(--v-pos) 34%,var(--vle-keyline));border-radius:8px;background:linear-gradient(145deg,color-mix(in srgb,var(--v-pos) 10%,var(--vsurf-2)),color-mix(in srgb,var(--vg) 7%,var(--vsurf-1)));box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}",
+  ".vle-m-book::before{content:'';position:absolute;left:0;top:.55rem;bottom:.55rem;width:4px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--v-pos-i),var(--vg))}",
+  ".vle-m-book-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem;margin-bottom:.45rem}",
+  ".vle-m-book-tier{display:inline-block;font-family:var(--mono);font-size:.54rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--v-pos-i);border:1px solid color-mix(in srgb,var(--v-pos) 38%,transparent);border-radius:3px;padding:2px 7px;background:color-mix(in srgb,var(--v-pos) 9%,transparent)}",
+  ".vle-m-book-span{margin-left:.5rem;font-family:var(--mono);font-size:.56rem;color:var(--vink-faint);letter-spacing:.04em}",
+  ".vle-m-book-text{font-family:var(--vserif);font-size:.9rem;line-height:1.58;color:var(--vink);margin-bottom:.5rem}",
+  ".vle-m-book-covers{font-family:var(--mono);font-size:.54rem;text-transform:uppercase;letter-spacing:.08em;color:var(--v-pos-i);opacity:.72;margin-bottom:.4rem}",
+  ".vle-m-book-arcs{display:grid;gap:.25rem;padding:.45rem .55rem;border:1px solid var(--vle-keyline);border-radius:5px;background:color-mix(in srgb,var(--v-bg-deep,#181310) 36%,transparent)}",
+  ".vle-m-book-arc{display:grid;grid-template-columns:auto 1fr;gap:.55rem;font-size:.72rem;line-height:1.35;color:var(--vink-dim)}",
+  ".vle-m-book-arc span{font-family:var(--mono);font-size:.52rem;color:var(--vle-gold-dim);padding-top:.1rem}",
+  ".vle-m-book-arc.empty{display:block;color:var(--vink-faint);font-style:italic}",
   ".vle-m-arc{display:flex;gap:0;margin-bottom:0.5rem;border-radius:6px;overflow:hidden;border:1px solid var(--vle-keyline);background:linear-gradient(135deg,color-mix(in srgb,var(--vg) 8%,transparent),color-mix(in srgb,var(--vsurf-2) 55%,transparent));transition:border-color .18s,box-shadow .18s}",
   ".vle-m-arc:hover{border-color:var(--vle-keyline-strong);box-shadow:0 6px 22px rgba(0,0,0,0.35)}",
   ".vle-m-arc.done{opacity:0.52}",

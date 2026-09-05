@@ -479,14 +479,14 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'memory.drop': {
       // memory.drop is used two ways, and they must behave OPPOSITELY:
       //   - FOLD-drop (folded:true): the child was just consumed into a parent
-      //     (turns→chapter, chapters→arc). Remove it; do NOT restore — its content
+      //     (turns→chapter, chapters→arc, arcs→book). Remove it; do NOT restore — its content
       //     now lives in the parent. (The parent keeps `subsumed` for later undo.)
       //   - USER-drop (no flag): the user deleted/undid a compressed memory, so
-      //     RESTORE what it subsumed (a chapter brings back its turns; an arc its
-      //     chapters, with detail/covers). Subsumed entries carry their own tier.
+      //     RESTORE what it subsumed (a chapter brings back turns, an arc brings
+      //     back chapters, and a book brings back arcs). Children keep ancestry.
       const target = s.memories.find((m) => m.id === e.id);
       s.memories = s.memories.filter((m) => m.id !== e.id);
-      if (!e.folded && (target?.tier === 'chapter' || target?.tier === 'arc') && target.subsumed?.length) {
+      if (!e.folded && (target?.tier === 'chapter' || target?.tier === 'arc' || target?.tier === 'book') && target.subsumed?.length) {
         for (const sm of target.subsumed) {
           if (!s.memories.find((m) => m.id === sm.id)) {
             s.memories.push({ id: sm.id, tier: sm.tier ?? 'turn', text: sm.text, keys: sm.keys ?? [], turn: sm.turn, ...(sm.detail ? { detail: sm.detail } : {}), ...(sm.covers ? { covers: sm.covers } : {}), ...(sm.subsumed ? { subsumed: sm.subsumed } : {}), ...(sm.sourceHash ? { sourceHash: sm.sourceHash } : {}), ...(sm.coverageHash ? { coverageHash: sm.coverageHash } : {}), ...(sm.status ? { status: sm.status } : {}) });

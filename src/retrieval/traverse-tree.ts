@@ -6,12 +6,12 @@ import { buildMemoryTree, buildCharacterTree, buildHybridTree, type MemTree, typ
 
 /**
  * Tiered TREE traversal (variant B) — the controller drills the derived memory
- * tree arc → chapter → leaf, branch by branch, instead of one flat pick.
+ * tree book → arc → chapter → leaf, branch by branch, instead of one flat pick.
  *
  * Each step it sees the CURRENT SCENE + the current frontier (node gists) and
  * returns {expand:[ids], select:[ids]}. Expanded nodes push their children onto
  * the next frontier (bounded by depth); selected ids accumulate. Selecting a
- * chapter/arc node marks it for DETAILED injection (the continuity payload);
+ * book/arc/chapter node marks it for DETAILED injection (the continuity payload);
  * selecting a leaf marks the item. Hard-bounded by step + depth + select caps so
  * it can never run away on the synchronous interceptor path.
  *
@@ -26,14 +26,14 @@ export interface TreeTraversalTrace {
 }
 export interface TreeTraversalResult {
   ids: string[];
-  /** ids the controller chose that are chapter/arc nodes → inject their detail */
+  /** ids the controller chose that are book/arc/chapter nodes → inject their detail */
   summaryIds: string[];
   trace: TreeTraversalTrace;
 }
 
 export interface TreeTraverseOpts {
   stepLimit?: number; // max controller calls per turn
-  depthLimit?: number; // max tree depth to drill (arc=1, chapter=2, leaf=3)
+  depthLimit?: number; // max tree depth to drill (book=1, arc=2, chapter=3, leaf=4)
   selectLimit?: number; // max accumulated selections
   frontierMax?: number; // max nodes shown per step
   axis?: 'temporal' | 'character' | 'hybrid'; // which tree to walk
@@ -41,7 +41,7 @@ export interface TreeTraverseOpts {
 }
 
 const SYS =
-  'You are a retrieval controller navigating a STORY MEMORY TREE (arcs contain chapters; chapters contain '
+  'You are a retrieval controller navigating a STORY MEMORY TREE (books contain arcs; arcs contain chapters; chapters contain '
   + 'facts/journal/turn notes). Given the CURRENT SCENE and the current FRONTIER of numbered nodes, decide what to '
   + 'open and what to keep. EXPAND nodes whose contents likely matter to THIS scene; SELECT nodes (summaries or leaf '
   + 'facts) to inject now. Output STRICT JSON only: {"expand":["<id>",...],"select":["<id>",...]} using exact ids '
@@ -58,7 +58,7 @@ function parseStep(text: string): { expand: string[]; select: string[] } | null 
   return { expand: arr('expand'), select: arr('select') };
 }
 
-function depthOf(node: MemNode): number { return node.kind === 'arc' ? 1 : node.kind === 'chapter' ? 2 : 3; }
+function depthOf(node: MemNode): number { return node.kind === 'book' ? 1 : node.kind === 'arc' ? 2 : node.kind === 'chapter' ? 3 : 4; }
 
 export async function traverseTree(
   index: InvertedIndex,
@@ -67,8 +67,8 @@ export async function traverseTree(
   opts: TreeTraverseOpts = {},
 ): Promise<TreeTraversalResult | null> {
   const stepLimit = opts.stepLimit ?? 4;
-  // hybrid adds a character tier above arc→chapter→leaf, so it drills one level deeper
-  const depthLimit = opts.depthLimit ?? (opts.axis === 'hybrid' ? 4 : 3);
+  // Hybrid adds a character tier above book→arc→chapter→leaf.
+  const depthLimit = opts.depthLimit ?? (opts.axis === 'hybrid' ? 5 : 4);
   const selectLimit = opts.selectLimit ?? 10;
   const frontierMax = opts.frontierMax ?? 24;
 
@@ -116,13 +116,13 @@ export async function traverseTree(
   }
 
   if (!anyCall || !selected.length) return null;
-  // hybrid scopes arc/chapter nodes as `h:<char>:<memId>`; resolve to the bare
+  // Hybrid scopes book/arc/chapter nodes as `h:<char>:<memId>`; resolve to the bare
   // memory id so assemble() + detail-lookup still match (temporal/character have
   // no sourceId → identity, so their output is unchanged). char nodes aren't summaries.
   const idOf = (id: string): string => tree.nodes.get(id)?.sourceId ?? id;
   const ids = Array.from(new Set(selected.map(idOf)));
   const summaryIds = selected
-    .filter((id) => { const n = tree.nodes.get(id); return (n?.kind === 'arc' || n?.kind === 'chapter') && !id.startsWith('char:'); })
+    .filter((id) => { const n = tree.nodes.get(id); return (n?.kind === 'book' || n?.kind === 'arc' || n?.kind === 'chapter') && !id.startsWith('char:'); })
     .map(idOf);
   return { ids, summaryIds, trace: { scene, steps, selectedIds: selected } };
 }

@@ -67,7 +67,7 @@ function record(r: InjRecord): string {
 }
 
 /** Render the controller-traversal trace — flat (scene + candidates→selected) or
- * tree (the step-by-step arc→chapter→leaf drill, LoreRecall-style). */
+ * tree (the step-by-step book→arc→chapter→leaf drill, LoreRecall-style). */
 function traceHtml(t?: InjTrace | InjTreeTrace): string {
   if (!t) return '';
   if ('steps' in t && Array.isArray(t.steps)) return treeTraceHtml(t);

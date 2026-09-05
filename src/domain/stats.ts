@@ -37,7 +37,7 @@ export function storyStats(s: ChronicleState): StoryStats {
     days: s.day ?? 0,
     cast: visibleCast(s).length,
     bonds: s.relations.length,
-    chapters: s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc').length,
+    chapters: s.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc' || m.tier === 'book').length,
     topCharacters,
     biggestSwings,
   };

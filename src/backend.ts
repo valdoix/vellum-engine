@@ -11,7 +11,7 @@ import { buildInjectionHybrid, invalidateIndex } from './retrieval/recall.js';
 import { importLegacy } from './store/import-legacy.js';
 import { cmdEvents, CMD_TYPES } from './domain/commands.js';
 import { summarizeWindow, summarizeAll, summarizeFromPlan, type SummaryProgress, type SummaryRunOptions } from './bus/summarize.js';
-import { planChapterFrom, planArc, planArcFrom, archivedTurnNumbers } from './domain/memory.js';
+import { planChapterFrom, planArc, planArcFrom, planBook, planBookFrom, archivedTurnNumbers } from './domain/memory.js';
 import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats } from './domain/beats.js';
 import { locationList } from './domain/locations.js';
 import { driftInjection } from './domain/drift.js';
@@ -23,7 +23,7 @@ import { moodInjectionCached, invalidateMood } from './domain/mood.js';
 import { plantsInjection } from './domain/plants.js';
 import { agingInjection } from './domain/aging.js';
 import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
-import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
+import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_BOOK_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
 import { extractFromProse } from './bus/extract.js';
 import { repairStateBlock, buildRepairContext } from './bus/block-repair.js';
 import { stripScaffold, parseState, extractVellumBlock } from './parse/state-block.js';
@@ -1136,7 +1136,7 @@ async function readChapterVaultMode(chatId: string): Promise<ChapterVaultMode> {
 
 /**
  * Hybrid chapter memory — VAULT projection (the I/O half). Mirrors each chapter/
- * arc memory's DETAIL into a world-book entry so the host injects it on keyword
+ * arc/book memory's DETAIL into a world-book entry so the host injects it on keyword
  * relevance, outside VELLUM's recall budget. Reconciles create/update/delete and
  * round-trips user-edited keys back into the chronicle (memory.link). Pure diff
  * lives in domain/chapter-vault.ts. Best-effort, serialized per chat.
@@ -1162,15 +1162,15 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
     const entries = snap.books.flatMap((b) => b.entries);
     const plan = reconcileChapterEntries(state, entries, mode);
     if (mode === 'off') {
-      // tear down our chapter/arc entries when disabled
+      // tear down our chapter/arc/book entries when disabled
       let removed = 0;
-      for (const e of entries.filter((x) => x.vellum && /^(chapter|arc|faction):/.test(x.link))) { await deleteEntry(e.id, userId); removed++; }
+      for (const e of entries.filter((x) => x.vellum && /^(chapter|arc|book|faction):/.test(x.link))) { await deleteEntry(e.id, userId); removed++; }
       return { ok: true, reason: 'mode_off', created: 0, updated: 0, removed };
     }
     const names = await chatNames(chatId, userId);
     const card = (names.char || 'Chronicle').slice(0, 40);
-    // two named books: summaries (chapters/arcs) and lore (factions + promotions)
-    const summaryBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Summaries`, 'Auto-authored chapter & arc summaries.');
+    // two host lorebooks: hierarchical summaries and lore projections
+    const summaryBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Summaries`, 'Auto-authored chapter, arc, and book summaries.');
     const loreBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Lore`, 'Auto-authored factions, characters, and lore.');
     const bookId = summaryBook;
     if (!bookId) return { ok: false, reason: 'no_book', created: 0, updated: 0, removed: 0 };
@@ -1211,7 +1211,7 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
 let _summarizing = new Set<string>();
 const _summaryAbort = new Map<string, AbortController>();
 
-type SummaryMode = 'auto' | 'manual' | 'resummarize' | 'pick' | 'arc';
+type SummaryMode = 'auto' | 'manual' | 'resummarize' | 'pick' | 'arc' | 'book';
 
 /** One real-time frontend stream per summarizer run. Text chunks are batched for
  * ~50ms so token streaming stays smooth without flooding the extension bridge. */
@@ -1980,7 +1980,7 @@ const dispatch: Record<string, Handler> = {
     await append(chatId, evs);
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
-    // deleting OR editing a chapter/arc memory must reconcile its mirrored Vault
+    // Deleting or editing a chapter/arc/book memory must reconcile its mirrored Vault.
     // entry (drop orphans; re-project edited detail/keys).
     if (p.cmd === 'memory_delete' || p.cmd === 'memory_edit') {
       void maybeChapterVault(chatId, uid);
@@ -2068,7 +2068,7 @@ const dispatch: Record<string, Handler> = {
     // editor can show them and offer a one-click reset).
     const chatId = p?.chatId || (await activeChatId(uid));
     const cfg = chatId ? await summarizerCfg(chatId) : DEFAULT_CFG;
-    spindle.sendToFrontend?.({ type: 'vellum_summarizer_state', cfg, defaults: { chapter: DEFAULT_CHAPTER_PROMPT, arc: DEFAULT_ARC_PROMPT, gist: DEFAULT_GIST_PROMPT } }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_summarizer_state', cfg, defaults: { chapter: DEFAULT_CHAPTER_PROMPT, arc: DEFAULT_ARC_PROMPT, book: DEFAULT_BOOK_PROMPT, gist: DEFAULT_GIST_PROMPT } }, uid);
   },
   vellum_set_summarizer: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));
@@ -2135,6 +2135,35 @@ const dispatch: Record<string, Handler> = {
       stream.finish(false, { reason: 'error' });
       spindle.log?.warn?.('[vellum_engine] summarize arc: ' + ((e as Error)?.message ?? e));
       spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'error' }, uid);
+    }
+  },
+  vellum_book: async (p, uid) => {
+    // Fold ARC memories into a BOOK. The new record keeps the complete recursive
+    // ancestry, so deleting it restores arcs and every underlying chapter/turn.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    if (!(await has('generation'))) { spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'no_generation' }, uid); return; }
+    const cfg = await summarizerCfg(chatId);
+    const state = await loadState(chatId);
+    const ids: string[] = Array.isArray(p?.ids) ? p.ids.map(String) : [];
+    const plan = ids.length ? planBookFrom(state, ids, 2) : planBook(state, 2, 1);
+    if (!plan) { spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'too_few' }, uid); return; }
+    const stream = beginSummaryRun(chatId, uid, 'book', 1);
+    if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'busy' }, uid); return; }
+    try {
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'book', stream.options);
+      if (events.length) await append(chatId, events);
+      invalidateIndex(chatId);
+      await broadcastState(chatId, uid);
+      const vault = await maybeChapterVault(chatId, uid);
+      await syncArchiveHide(chatId);
+      const cancelled = !!stream.options.signal?.aborted;
+      stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
+      spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: !cancelled, ...(cancelled ? { reason: 'cancelled' } : {}), rounds: events.length ? 1 : 0, tokens, bound: plan.sourceIds.length, vault }, uid);
+    } catch (e) {
+      stream.finish(false, { reason: 'error' });
+      spindle.log?.warn?.('[vellum_engine] summarize book: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'error' }, uid);
     }
   },
   vellum_item_add: async (p, uid) => {
@@ -2802,7 +2831,7 @@ const dispatch: Record<string, Handler> = {
   },
   vellum_set_traversal: async (p, uid) => {
     // controller-guided retrieval mode: off | flat (one-shot) | tree (tiered
-    // arc→chapter→leaf drill). Persisted in chat vars; needs generation to engage.
+    // book→arc→chapter→leaf drill). Persisted in chat vars; needs generation to engage.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const mode = (p?.mode === 'flat' || p?.mode === 'tree') ? p.mode : (p?.enabled ? 'flat' : 'off');
@@ -2928,8 +2957,8 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_day_set_done', ok: true, day }, uid);
   },
   vellum_set_chaptervault: async (p, uid) => {
-    // chapter-vault mode: off | keyed (default) | constant. Detailed chapter
-    // summaries mirror to the vault; chronicle keeps the lean gist.
+    // Chapter-vault mode: off | keyed (default) | constant. Detailed hierarchical
+    // summaries mirror to the Vault; the Chronicle keeps their lean gists.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const mode: ChapterVaultMode = (p?.mode === 'off' || p?.mode === 'constant') ? p.mode : 'keyed';

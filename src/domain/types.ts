@@ -130,10 +130,10 @@ export interface Secret {
 export type ArchiveStatus = 'ready' | 'degraded' | 'stale';
 
 /** A complete, recursively restorable archive child. Chapters keep their exact
- * turn records; arcs keep chapters including those turn records. */
+ * turn records; arcs keep chapters; books keep arcs and the full ancestry. */
 export interface MemorySnapshot {
   id: string;
-  tier?: 'turn' | 'chapter' | 'arc' | 'beat';
+  tier?: 'turn' | 'chapter' | 'arc' | 'book' | 'beat';
   text: string; // LEAN gist — what chronicle recall/traversal inject + hide-on-file uses
   detail?: string; // DETAILED summary — mirrored to the vault entry; lives in the log, not chronicle recall
   keys: string[];
@@ -148,7 +148,7 @@ export interface MemorySnapshot {
 }
 
 export interface Memory extends MemorySnapshot {
-  tier: 'turn' | 'chapter' | 'arc' | 'beat';
+  tier: 'turn' | 'chapter' | 'arc' | 'book' | 'beat';
   vaultEntryId?: string; // world-book entry holding `detail` (the hybrid-memory projection)
   // --- Story Beat (tier 'beat') fields ---
   beatDay?: number;   // narrative day the landmark happened (for chronological sort/display)

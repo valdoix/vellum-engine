@@ -6,7 +6,7 @@ import { hashStr } from '../core/ids.js';
  * Hierarchical memory — the long-arc compression that keeps the deep past
  * recall-able instead of growing linearly forever. Unlike legacy's memTree
  * (which was built but never fed back into recall), these are `memory.record`
- * events of tier 'chapter'/'arc', so they flow through the SAME index + hybrid
+ * events of tier 'chapter'/'arc'/'book', so they flow through the SAME index + hybrid
  * fuser as everything else (see retrieval/invindex.ts collectItems).
  *
  * This runs as a maintenance pass (not per-turn), driven by the backend when a
@@ -16,10 +16,10 @@ import { hashStr } from '../core/ids.js';
  */
 
 export interface CompressPlan {
-  /** source memory ids to fold (turn-tier for a chapter, chapter-tier for an arc) */
+  /** source ids to fold (turns for chapters, chapters for arcs, arcs for books) */
   sourceIds: string[];
-  /** the full source memories, kept so deletion can restore them. tier/detail/
-   * covers are carried for chapter sources (so an arc can restore real chapters). */
+  /** The complete source memories, kept so deletion can restore the next tier
+   * with its detail, coverage, and recursive ancestry intact. */
   source: MemorySnapshot[];
   /** inclusive turn range covered */
   covers: [number, number];
@@ -41,8 +41,8 @@ export function archiveCoverageHash(source: readonly MemorySnapshot[]): string {
   return hashStr(source.map((m) => `${m.id}:${m.sourceHash ?? memorySnapshotHash(m)}`).join('|'));
 }
 
-/** Copy the complete archive ancestry. This is the crucial arc-undo contract:
- * an arc stores chapters and each chapter still stores its original turns. */
+/** Copy the complete archive ancestry. This is the crucial undo contract: each
+ * summary keeps its children, down through chapters to the original turns. */
 function snapshotMemory(m: Memory): MemorySnapshot {
   const snap: MemorySnapshot = {
     id: m.id, turn: m.turn, text: m.text, keys: [...(m.keys ?? [])], tier: m.tier,
@@ -165,7 +165,45 @@ export function arcEvents(
   return events;
 }
 
-/** Exact assistant-turn numbers safely represented by ready chapter/arc
+/** Decide which ARC memories to consolidate into a book, keeping the newest
+ * arcs loose by default so the current long-form movement remains inspectable. */
+export function planBook(state: ChronicleState, minArcs = 2, lagArcs = 1): CompressPlan | null {
+  const arcs = state.memories
+    .filter((m) => m.tier === 'arc')
+    .sort((a, b) => (a.covers ? a.covers[1] : a.turn) - (b.covers ? b.covers[1] : b.turn));
+  const eligible = Math.max(0, arcs.length - Math.max(0, lagArcs));
+  if (eligible < Math.max(2, minArcs)) return null;
+  return planFromMemories(arcs.slice(0, eligible));
+}
+
+/** Plan a book from an explicit ordered selection of at least two arcs. */
+export function planBookFrom(state: ChronicleState, ids: readonly string[], minArcs = 2): CompressPlan | null {
+  const want = new Set(ids.map(String));
+  const picked = state.memories
+    .filter((m) => m.tier === 'arc' && want.has(m.id))
+    .sort((a, b) => (a.covers ? a.covers[1] : a.turn) - (b.covers ? b.covers[1] : b.turn));
+  if (picked.length < Math.max(2, minArcs)) return null;
+  return planFromMemories(picked);
+}
+
+/** Build a BOOK archive. Deleting it restores the exact arcs, whose own
+ * ancestry still restores chapters and original turn memories. */
+export function bookEvents(
+  plan: CompressPlan,
+  summary: { gist: string; detail: string; keys: string[] },
+  turn: number,
+  day: number,
+  seq: () => number,
+): VellumEvent[] {
+  const id = 'book_' + hashStr(plan.sourceIds.join(',')).slice(0, 8);
+  const events: VellumEvent[] = [
+    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'book', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source, coverageHash: plan.coverageHash, status: 'ready' } as VellumEvent,
+  ];
+  for (const sid of plan.sourceIds) events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid, folded: true });
+  return events;
+}
+
+/** Exact assistant-turn numbers safely represented by ready chapter/arc/book
  * archives. A corrupt hash, degraded archive, or range-only record contributes
  * nothing. Legacy records with exact `subsumed` ancestry remain eligible. */
 export function archivedTurnNumbers(state: ChronicleState): Set<number> {
@@ -184,7 +222,7 @@ export function archivedTurnNumbers(state: ChronicleState): Set<number> {
     return true;
   };
   for (const m of state.memories) {
-    if (m.tier !== 'chapter' && m.tier !== 'arc') continue;
+    if (m.tier !== 'chapter' && m.tier !== 'arc' && m.tier !== 'book') continue;
     // Do not leave partial coverage behind if any descendant fails validation.
     const before = new Set(out);
     if (!visit(m)) { out.clear(); for (const n of before) out.add(n); }
