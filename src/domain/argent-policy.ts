@@ -2,8 +2,15 @@ import { expandMacros } from './preset-macro-lite.js';
 export interface PolicyVariable { name: string; label?: string; defaultValue: unknown; options?: { id: string; label?: string; value?: unknown }[] }
 export interface PolicyBlock { id: string; content?: string; variables?: PolicyVariable[] }
 export type VariableValues = Record<string, Record<string, unknown>>;
+function canonicalOptionId(variable: PolicyVariable, value: unknown): unknown {
+  if (!variable.options?.length) return value;
+  const option = variable.options.find((candidate) => candidate.id === value
+    || candidate.value === value
+    || (typeof value === 'string' && candidate.label === value));
+  return option?.id ?? value;
+}
 export function policyValues(blocks: PolicyBlock[], selected: VariableValues = {}): Record<string, unknown> {
-  return Object.fromEntries(blocks.flatMap(b => (b.variables ?? []).map(v => [v.name, selected[b.id]?.[v.name] ?? v.defaultValue])));
+  return Object.fromEntries(blocks.flatMap(b => (b.variables ?? []).map(v => [v.name, canonicalOptionId(v, selected[b.id]?.[v.name] ?? v.defaultValue)])));
 }
 const enabled = (v: unknown) => v === true || v === 1 || v === '1' || v === 'on';
 export const ARGENT_PROFILES: Record<string, Record<string, unknown>> = {
@@ -45,6 +52,16 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     const describe = (x: unknown) => { const o = d.options?.find(o => o.id === x); return String(o?.value !== o?.id && o?.value !== undefined ? o.value : o?.label ?? x); };
     return `${d.label ?? d.name}: ${Array.isArray(value) ? value.map(describe).join('; ') : describe(value)}.`;
   });
+  const visibleReverie = v.reasoning_route === 'verbose'
+    ? 'The visible response MUST begin with the literal <reverie> tag, contain the bounded 250–500 word eight-section audit, and close with the literal </reverie> tag before story prose. This is a visible fictional scene-plan preface, not provider-private reasoning; never omit it or move it to a hidden reasoning channel.'
+    : v.reasoning_route === 'compact'
+      ? 'The visible response MUST begin with the literal <reverie> tag, contain exactly six compact audit lines, and close with the literal </reverie> tag before story prose. This is a visible continuity-check preface, not provider-private reasoning; never omit it or move it to a hidden reasoning channel.'
+      : '';
+  const stateEnding = !enabled(v.state_on)
+    ? 'After the selected Reverie, if any, output story prose only. No state block.'
+    : v.state_compiler === 'engine'
+      ? 'After the required visible Reverie, if selected, output the completed story and stop. The engine compiles state separately. Do not emit JSON or a <vellum> block in the narrative completion.'
+      : 'After the selected Reverie, if any, output story prose and then one complete canonical <vellum> JSON block using the separately supplied state contract. Every named on-stage NPC has a private thought; player fields remain blank.';
   const rules = [
     '[ARGENT EFFECTIVE POLICY]',
     'Authority: explicit user boundaries and corrections > confirmed engine facts > scenario/card/worldbook > provisional lore > inferred detail. Never turn a provisional invention into confirmed canon. Follow character truth and depicted causality.',
@@ -58,7 +75,8 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     enabled(v.vtk_cards) ? 'Presentation: optional <artifact>{"type":"letter|codex|text|decree|portrait|map|item|title|verse|tarot|broadsheet|playbill","title":"plain text","body":"plain text","tone":"neutral|warning|warm"}</artifact>. No HTML, CSS, URLs or executable markup. Artifacts are presentation; establish durable facts in prose.' : 'No artifact markup.',
     v.reasoning_route === 'verbose' ? 'Planning route: one <reverie> with an extended 250–500 word fictional scene plan in eight sections A Authority, R Reality, G Gnosis, E Embodiment, N Narrative, T Truthful deltas, V Voice, X Final checks. Keep every named on-stage NPC in the embodiment check.' : v.reasoning_route === 'compact' ? 'Planning route: one compact six-line <reverie> scene plan (Authority, Reality, Gnosis, Embodiment, Narrative, Truthful deltas).' : 'Do not emit a visible Reverie.',
     '[OUTPUT CONTRACT — FINAL]',
-    !enabled(v.state_on) ? 'Output the selected Reverie, if any, followed by story prose only. No state block.' : v.state_compiler === 'engine' ? 'Output the selected Reverie, if any, then the completed story. The engine compiles state separately. Do not emit JSON or a <vellum> block in the narrative completion.' : 'After the story append one complete canonical <vellum> JSON block using the separately supplied state contract. Every named on-stage NPC has a private thought; player fields remain blank.',
+    visibleReverie,
+    stateEnding,
   ];
   if (enabled(v.state_on) && v.state_compiler !== 'engine') {
     const values = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, String(x)]));
@@ -66,12 +84,12 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
   }
   return rules.filter(Boolean).join('\n');
 }
-export function applyArgentPolicy<T extends { role?: unknown; content?: unknown; __isChatHistory?: unknown }>(messages: T[], capsule: string): T[] {
+export function applyArgentPolicy<T extends { role?: unknown; content?: unknown; __isChatHistory?: unknown }>(messages: T[], capsule: string, force = false): T[] {
   let found = false;
   const next = messages.flatMap(m => {
     if (m.__isChatHistory || typeof m.content !== 'string') return [m];
     const content = m.content.replace(/<!--ARGENT-SOURCE:[\w-]+-->[\s\S]*?<!--\/ARGENT-SOURCE-->/g, () => { found = true; return ''; }).trim();
     return content ? [{ ...m, content }] : [];
   });
-  return found ? [...next, { role: 'system', content: capsule } as T] : messages;
+  return found || force ? [...next, { role: 'system', content: capsule } as T] : messages;
 }

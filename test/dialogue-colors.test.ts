@@ -80,12 +80,22 @@ describe('speakerColorCss', () => {
 
   it('emits a case-insensitive rule per name and alias', () => {
     const css = speakerColorCss([{ name: 'Elara', aka: ['El'], color: '#e0736b' }]);
+    expect(css).toContain('.v-spk[data-spk="Elara"]{--vle-spk-color:#e0736b}');
+    expect(css).toContain('.v-spk[data-spk="El"]{--vle-spk-color:#e0736b}');
     expect(css).toContain('.v-spk[data-spk="Elara" i]{--vle-spk-color:#e0736b}');
     expect(css).toContain('.v-spk[data-spk="El" i]{--vle-spk-color:#e0736b}');
   });
 
+  it('keeps an exact lower-case alias rule when it differs only by case', () => {
+    const css = speakerColorCss([{ name: 'Firstname', aka: ['firstname'], color: '#e0736b' }]);
+    expect(css).toContain('.v-spk[data-spk="Firstname"]{--vle-spk-color:#e0736b}');
+    expect(css).toContain('.v-spk[data-spk="firstname"]{--vle-spk-color:#e0736b}');
+    expect(css.match(/data-spk="Firstname" i/g)).toHaveLength(1);
+  });
+
   it('colors unambiguous short forms of formal cast names', () => {
     const css = speakerColorCss([{ name: 'Lady Mara Vey', aka: [], color: '#c0ffee' }]);
+    expect(css).toContain('.v-spk[data-spk="Mara Vey"]{--vle-spk-color:#c0ffee}');
     expect(css).toContain('.v-spk[data-spk="Mara Vey" i]{--vle-spk-color:#c0ffee}');
     expect(css).toContain('.v-spk[data-spk="Mara" i]{--vle-spk-color:#c0ffee}');
     expect(css).toContain('.v-spk[data-spk="Vey" i]{--vle-spk-color:#c0ffee}');
@@ -105,15 +115,17 @@ describe('speakerColorCss', () => {
 
   it('escapes quotes and backslashes in names', () => {
     const css = speakerColorCss([{ name: 'He said "hi"', aka: [], color: '#fff' }]);
+    expect(css).toContain('.v-spk[data-spk="He said \\"hi\\""]{--vle-spk-color:#fff}');
     expect(css).toContain('.v-spk[data-spk="He said \\"hi\\"" i]{--vle-spk-color:#fff}');
   });
 
-  it('dedupes identical name+color rules', () => {
+  it('dedupes folded selectors while retaining distinct exact spellings', () => {
     const css = speakerColorCss([
-      { name: 'Elara', aka: ['elara'], color: '#e0736b' }, // "elara" dupes "Elara" case-insensitively at same color
+      { name: 'Elara', aka: ['elara'], color: '#e0736b' },
     ]);
     const matches = css.split('\n').filter((l) => l.includes('data-spk='));
-    expect(matches).toHaveLength(1);
+    expect(matches).toHaveLength(3); // exact Elara + exact elara + one case-insensitive fallback
+    expect(new Set(matches).size).toBe(matches.length);
   });
 });
 

@@ -99,8 +99,12 @@ function implicitNameForms(name: string): string[] {
   return [...new Set(out.map((v) => v.trim()).filter((v) => v.length >= 2))];
 }
 
-/** Emit the stylesheet. Matches on data-spk by name AND every alias, case-
- *  insensitively (the `i` flag), so "elara"/"Elara" and any aka all color.
+/** Emit the stylesheet. Matches on data-spk by name AND every alias. Each
+ *  spelling gets an exact selector, followed by one case-insensitive selector
+ *  for hosts that support the CSS attribute-selector `i` flag. The exact rule
+ *  is deliberately not replaced by the `i` rule: some host style bridges drop
+ *  selectors with flags, which previously left a lower-case `[spk="alias"]`
+ *  wrapped but uncoloured when it differed only by case from the cast name.
  *
  *  The inline color marker emitted by SPEAKER_SPAN_REPLACEMENT is the current
  *  Lumiverse renderer contract: its nested dialogue/emphasis spans inherit the
@@ -121,18 +125,24 @@ export function speakerColorCss(speakers: SpeakerColor[], fallback = 'inherit'):
       owners.set(normalized, set);
     }
   }
-  const seen = new Set<string>();
+  const seenExact = new Set<string>();
+  const seenFolded = new Set<string>();
   for (let i = 0; i < speakers.length; i++) {
     const s = speakers[i]!;
     for (const key of keysBySpeaker[i]!) {
       const k = key.trim();
       if (!k) continue;
       if ((owners.get(k.toLowerCase())?.size ?? 0) !== 1) continue;
-      const dedupe = k.toLowerCase() + '\u0000' + s.color;
-      if (seen.has(dedupe)) continue;
-      seen.add(dedupe);
-      const sel = `.v-spk[data-spk="${cssAttr(k)}" i]`;
-      rules.push(`${sel}{--vle-spk-color:${s.color}}`);
+      const exact = k + '\u0000' + s.color;
+      if (!seenExact.has(exact)) {
+        seenExact.add(exact);
+        rules.push(`.v-spk[data-spk="${cssAttr(k)}"]{--vle-spk-color:${s.color}}`);
+      }
+      const folded = k.toLowerCase() + '\u0000' + s.color;
+      if (!seenFolded.has(folded)) {
+        seenFolded.add(folded);
+        rules.push(`.v-spk[data-spk="${cssAttr(k)}" i]{--vle-spk-color:${s.color}}`);
+      }
     }
   }
   return rules.join('\n');

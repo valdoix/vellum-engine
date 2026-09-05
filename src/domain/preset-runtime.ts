@@ -35,9 +35,15 @@ function variableValue(preset: PresetLike, name: string): unknown {
     const def = block.variables?.find((candidate) => candidate.name === name);
     if (!def) continue;
     const byBlock = selected[block.id];
-    return byBlock && Object.prototype.hasOwnProperty.call(byBlock, name)
+    const value = byBlock && Object.prototype.hasOwnProperty.call(byBlock, name)
       ? byBlock[name]
       : def.defaultValue;
+    const options = 'options' in def && Array.isArray(def.options) ? def.options : [];
+    if (!options.length) return value;
+    const option = options.find((candidate) => candidate.id === value
+      || candidate.value === value
+      || (typeof value === 'string' && candidate.label === value));
+    return option?.id ?? value;
   }
   return undefined;
 }

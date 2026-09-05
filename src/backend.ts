@@ -61,7 +61,7 @@ import { resolveTurnContract, type TurnContract } from './domain/preset-runtime.
 import { compileState } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
-import { compileArgentPolicy, applyArgentPolicy, policyValues } from './domain/argent-policy.js';
+import { compileArgentPolicy, applyArgentPolicy } from './domain/argent-policy.js';
 import { reduce } from './core/reduce.js';
 
 /**
@@ -752,15 +752,52 @@ const TIDY_THRESHOLD = 8; // auto-tidy only once open-thread count exceeds this
  */
 const _presetStamped = new Map<string, number>(); // chatId -> lastStampedAt (epoch ms)
 const _presetByUserChat = new Map<string, string>();
+const _turnContractByUserChat = new Map<string, TurnContract>();
+const TURN_CONTRACT_CHAT_VAR = 'vellum_active_turn_contract_v1';
 const PRESET_STAMP_THROTTLE = 5 * 60 * 1000; // stamp at most once per 5 minutes per chat
 function userChatKey(userId: string, chatId: string): string { return userId + '\u0000' + chatId; }
+function storedTurnContract(raw: unknown, expectedPresetId?: string): TurnContract | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  try {
+    const snapshot = JSON.parse(raw) as { presetId?: unknown; contract?: Partial<TurnContract> };
+    if (expectedPresetId && snapshot.presetId !== expectedPresetId) return null;
+    const c = snapshot.contract;
+    if (!c || c.active !== true
+      || typeof c.argent !== 'boolean'
+      || typeof c.state !== 'boolean'
+      || typeof c.reverie !== 'boolean'
+      || typeof c.dialogueColor !== 'boolean'
+      || typeof c.reasoningRoute !== 'string'
+      || (c.stateCompiler !== 'engine' && c.stateCompiler !== 'inline')
+      || (c.stateVerbosity !== 'lean' && c.stateVerbosity !== 'full')
+      || typeof c.codex !== 'boolean'
+      || typeof c.inventory !== 'boolean'
+      || typeof c.worldgen !== 'boolean') return null;
+    return c as TurnContract;
+  } catch { return null; }
+}
 async function activeTurnContract(chatId: string, userId: string | null): Promise<TurnContract | null> {
   try {
     const u = requireUser(userId);
-    if (!u.ok || !(await has('presets')) || !spindle.presets?.get) return null;
-    const presetId = _presetByUserChat.get(userChatKey(u.value, chatId));
-    if (!presetId) return null;
-    return resolveTurnContract(await spindle.presets.get(presetId, u.value));
+    if (!u.ok) return null;
+    const key = userChatKey(u.value, chatId);
+    const cached = _turnContractByUserChat.get(key);
+    if (cached) return cached;
+    const presetId = _presetByUserChat.get(key);
+    if (presetId && (await has('presets')) && spindle.presets?.get) {
+      const resolved = resolveTurnContract(await spindle.presets.get(presetId, u.value));
+      if (resolved) {
+        _turnContractByUserChat.set(key, resolved);
+        return resolved;
+      }
+    }
+    // The generation-end event may run after another interceptor pass omitted
+    // presetId or after the worker was reloaded. Persist the exact resolved
+    // contract used to assemble the narrative so Engine Second Pass cannot fall
+    // back to inline merely because that transient lookup was lost.
+    const stored = storedTurnContract(await getChatVar(chatId, TURN_CONTRACT_CHAT_VAR), presetId);
+    if (stored) _turnContractByUserChat.set(key, stored);
+    return stored;
   } catch (e) {
     spindle.log?.warn?.('[vellum_engine] active preset contract: ' + ((e as Error)?.message ?? e));
     return null;
@@ -1374,23 +1411,41 @@ async function wireCapabilitiesInner(): Promise<void> {
           rememberUser(uid);
           const chatId = context.chatId;
           if (!chatId) return out;
-          if (context.presetId) _presetByUserChat.set(userChatKey(uid, chatId), context.presetId);
-          else _presetByUserChat.delete(userChatKey(uid, chatId));
-          const state = await loadState(chatId);
-          if (context.presetId && out.some(m => typeof m.content === 'string' && m.content.includes('<!--ARGENT-SOURCE:'))) {
-            const preset = await spindle.presets.get(context.presetId, uid);
-            if (preset && resolveTurnContract(preset)?.argent) {
-              const blocks = (preset.prompt_order ?? (preset as any).blocks ?? []) as any[];
-              const values = (preset.metadata?.promptVariables ?? {}) as any;
-              const v = policyValues(blocks, values);
-              let capsule = compileArgentPolicy(blocks, values);
-              const newest = [...rawOut].reverse().find(m => m.__isChatHistory && m.role === 'user');
-              const explicit = typeof newest?.content === 'string' && /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(newest.content);
-              if (resolveTurnContract(preset)?.worldgen && v.state_on && (!state.genesisTurn || explicit)) capsule = 'Genesis is eligible this turn: establish a bounded world frame in completed prose. Facts remain provisional until confirmed.\n' + capsule;
-              out = applyArgentPolicy(out, capsule);
-              // The compiler follows the actual main connection, not an unrelated default.
-              if (!context.isDryRun) await setChatVar(chatId, 'vellum_compiler_connection', context.mainDispatch?.descriptor?.connectionId ?? '');
+          const contractKey = userChatKey(uid, chatId);
+          let activePreset: any = null;
+          let turnContract: TurnContract | null = null;
+          if (context.presetId && (await has('presets')) && spindle.presets?.get) {
+            activePreset = await spindle.presets.get(context.presetId, uid);
+            turnContract = resolveTurnContract(activePreset);
+            // Dry-run previews must not replace the contract belonging to the
+            // real generation. A later interceptor without presetId also must
+            // not erase it before GENERATION_ENDED performs the state pass.
+            if (!context.isDryRun) {
+              _presetByUserChat.set(contractKey, context.presetId);
+              if (turnContract) {
+                _turnContractByUserChat.set(contractKey, turnContract);
+                await setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, JSON.stringify({ presetId: context.presetId, contract: turnContract }));
+              } else {
+                _turnContractByUserChat.delete(contractKey);
+                await setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, '');
+              }
             }
+          }
+          const state = await loadState(chatId);
+          if (activePreset && turnContract?.argent) {
+            const blocks = (activePreset.prompt_order ?? activePreset.blocks ?? []) as any[];
+            const values = (activePreset.metadata?.promptVariables ?? {}) as any;
+            let capsule = compileArgentPolicy(blocks, values);
+            const newest = [...rawOut].reverse().find(m => m.__isChatHistory && m.role === 'user');
+            const explicit = typeof newest?.content === 'string' && /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(newest.content);
+            if (turnContract.worldgen && turnContract.state && (!state.genesisTurn || explicit)) capsule = 'Genesis is eligible this turn: establish a bounded world frame in completed prose. Facts remain provisional until confirmed.\n' + capsule;
+            // Some host builds strip HTML comments before extension
+            // interception. The selected ARGENT preset is sufficient authority
+            // to append its final effective policy even when source markers are
+            // gone; marker-based removal still runs whenever they survive.
+            out = applyArgentPolicy(out, capsule, true);
+            // The compiler follows the actual main connection, not an unrelated default.
+            if (!context.isDryRun) await setChatVar(chatId, 'vellum_compiler_connection', context.mainDispatch?.descriptor?.connectionId ?? '');
           }
           if (!state.turns && !Object.keys(state.cast).length) {
             if (!refreshText) return out;
@@ -1592,6 +1647,7 @@ function pruneChatState(chatId: string): void {
   _precomputing.delete(chatId);
   _blockWarnByChat.delete(chatId);
   for (const key of _presetByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _presetByUserChat.delete(key);
+  for (const key of _turnContractByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _turnContractByUserChat.delete(key);
   // clear this chat's block-repair attempt keys (keyed by chatId\0messageId)
   const rp = chatId + '\u0000';
   for (const k of _blockRepairAttempts) if (k.startsWith(rp)) _blockRepairAttempts.delete(k);
