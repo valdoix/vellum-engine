@@ -14,16 +14,19 @@ import { formModal, confirmModal } from '../modal.js';
  * on vellum_vault) rather than reading ChronicleState.
  */
 
-interface VCat { id: string; label: string; glyph: string; color: string; hidden: boolean; sync: string; defaults: any }
-interface VEntry { id: string; bookId: string; key: string[]; content: string; comment: string; disabled: boolean; vellum: boolean; category: string; source: string; link: string; pending: boolean }
-interface VBook { id: string; name: string; attachedToChat: boolean; global: boolean; vellum: boolean; entries: VEntry[] }
-interface VSnap { ok: boolean; reason?: string; listFailed?: boolean; categories: VCat[]; books: VBook[]; activated: Array<{ id: string }>; suggestions?: Array<{ kind: string; id: string; label: string; reason: string }> }
+interface VCat { id: string; label: string; glyph: string; color: string; hidden: boolean; sync: string; source?: string; defaults: any }
+interface VEntry { id: string; bookId: string; key: string[]; keysecondary?: string[]; content: string; comment: string; constant?: boolean; disabled: boolean; vellum: boolean; category: string; source: string; link: string; pending: boolean; ownerChatId?: string; bodyState?: 'clean' | 'override' | 'conflict' | 'legacy'; overrideFields?: string[]; recursionKeys?: string[]; createdAt?: number; updatedAt?: number }
+interface VBook { id: string; name: string; attachedToChat: boolean; global: boolean; vellum: boolean; ownerChatId?: string; role?: string; entries: VEntry[] }
+interface VHealthIssue { code: string; severity: 'error' | 'warning' | 'info'; message: string; entryId?: string; bookId?: string; link?: string }
+interface VHealth { score: number; issues: VHealthIssue[]; stats: { books: number; entries: number; conflicts: number; orphaned: number; owned: number } }
+interface VSnap { ok: boolean; chatId?: string; reason?: string; listFailed?: boolean; complete?: boolean; errors?: string[]; categories: VCat[]; books: VBook[]; activated: Array<{ id: string }>; suggestions?: Array<{ kind: string; id: string; label: string; reason: string }>; health?: VHealth }
 
 let _snap: VSnap | null = null;
 let _filter = 'all';
 let _scope: 'vault' | 'all' = 'vault';
 let _sort: 'az' | 'za' | 'new' | 'old' = 'az';
 let _book = 'all'; // lorebook filter ('all' or a book id)
+let _query = '';
 export function setVaultSnap(s: VSnap): void { _snap = s; }
 function bookName(id: string): string { return _snap?.books.find((b) => b.id === id)?.name ?? id; }
 
@@ -33,13 +36,20 @@ const POS_OPTS = [
   { value: 'before_examples', label: 'before examples' }, { value: 'after_examples', label: 'after examples' },
 ];
 const ROLE_OPTS = [{ value: 'system', label: 'system' }, { value: 'user', label: 'user' }, { value: 'assistant', label: 'assistant' }];
+const SOURCE_OPTS = [
+  { value: '', label: 'none (manual only)' }, { value: 'cast', label: 'cast' }, { value: 'relations', label: 'relationships' },
+  { value: 'factions', label: 'factions' }, { value: 'locations', label: 'locations' }, { value: 'items', label: 'items' },
+  { value: 'lore', label: 'Codex lore' }, { value: 'memories', label: 'summary memories' }, { value: 'timeline', label: 'timeline beats' },
+  { value: 'threads', label: 'threads and arcs' }, { value: 'knowledge', label: 'private knowledge (recall only)' },
+  { value: 'secrets', label: 'secrets (public only)' }, { value: 'journal', label: 'character memory (recall only)' }, { value: 'scars', label: 'scars (recall only)' },
+];
 
 export const vaultTab: Component<ChronicleState> = {
   // version must reflect entry CONTENT, not just counts — otherwise editing an
   // entry (or a reconcile updating a summary's body/keys) leaves the count
   // unchanged and the drawer's version-diff skips the repaint, so edits never
   // show. Hash each entry's mutable fields cheaply.
-  version: () => (_snap ? `${vaultContentSig()}:${_snap.categories.length}:${_snap.activated.length}:${_filter}:${_scope}:${_sort}:${_book}` : 'none'),
+  version: () => (_snap ? `${vaultContentSig()}:${_snap.categories.length}:${_snap.activated.length}:${_filter}:${_scope}:${_sort}:${_book}:${_query}:${_snap.health?.score ?? ''}` : 'none'),
   render() {
     if (!_snap) { send({ type: 'vellum_get_vault' }); return '<div class="vle-empty sm">Loading vault\u2026</div>'; }
     if (!_snap.ok && _snap.reason === 'no_permission') return '<div class="vlm-comp-error">The Vault needs the <b>world_books</b> permission. Grant it in the extension settings to author lorebooks here.<br><span>Activation stays native; the Vault just organizes + auto-configures.</span></div>';
@@ -48,9 +58,10 @@ export const vaultTab: Component<ChronicleState> = {
     if (_snap.listFailed && !_snap.books.length) return '<div class="vlm-comp-error">Couldn\u2019t load your lorebooks just now.<br><span>This is usually a temporary host or permission hiccup \u2014 try Refresh, or re-check the <b>world_books</b> permission.</span></div>';
     const cats = _snap.categories.filter((c) => !c.hidden);
     const all = allEntries();
+    const vaultOwned = all.filter((e) => e.vellum && (!_snap!.chatId || e.ownerChatId === _snap!.chatId));
     // scope: 'vault' shows only VELLUM-managed entries (default, clean); 'all'
     // shows every native lorebook entry too (for adopting existing lore).
-    const scoped = _scope === 'vault' ? all.filter((e) => e.vellum) : all;
+    const scoped = _scope === 'vault' ? vaultOwned : all;
     // lorebook filter: only the books that actually contribute scoped entries.
     const bookIds = Array.from(new Set(scoped.map((e) => e.bookId)));
     const bookCounts: Record<string, number> = {};
@@ -60,7 +71,7 @@ export const vaultTab: Component<ChronicleState> = {
     const counts: Record<string, number> = {};
     for (const e of entries) counts[e.category || 'uncat'] = (counts[e.category || 'uncat'] ?? 0) + 1;
     const scopeBar = '<div class="vlv-scopebar">'
-      + `<button class="vlv-scope${_scope === 'vault' ? ' on' : ''}" data-vscope="vault">\u2756 Vault <span class="vlv-cn">${all.filter((e) => e.vellum).length}</span></button>`
+      + `<button class="vlv-scope${_scope === 'vault' ? ' on' : ''}" data-vscope="vault">\u2756 Vault <span class="vlv-cn">${vaultOwned.length}</span></button>`
       + `<button class="vlv-scope${_scope === 'all' ? ' on' : ''}" data-vscope="all">All lorebooks <span class="vlv-cn">${all.length}</span></button>`
       + '</div>';
     const bar = '<div class="vlv-catbar">'
@@ -77,12 +88,14 @@ export const vaultTab: Component<ChronicleState> = {
     const curBody = names.length ? names.join('<span class="vlv-current-sep"> \u00b7 </span>') : '\u2014 none (one will be created)';
     const cur = `<div class="vlv-current"><span class="vlv-current-l">${curLabel}</span><span class="vlv-current-n" data-vbook>${curBody}</span></div>`;
     const top = '<div class="vle-sec-top"><button class="vle-add" data-ventry-add>+ Entry</button><button class="vle-qol" data-vbook>\u2913 Books</button></div>' + cur;
-    const shown = sortEntries((_filter === 'all' ? entries : entries.filter((e) => e.category === _filter)).filter((e) => !e.pending));
+    const needle = _query.trim().toLocaleLowerCase();
+    const matches = (e: VEntry): boolean => !needle || [e.comment, e.content, e.category, e.link, ...e.key, ...(e.keysecondary ?? []), bookName(e.bookId)].join(' ').toLocaleLowerCase().includes(needle);
+    const shown = sortEntries((_filter === 'all' ? entries : entries.filter((e) => e.category === _filter)).filter((e) => !e.pending && matches(e)));
     const active = new Set(_snap.activated.map((a) => a.id));
-    const pending = all.filter((e) => e.pending);
-    const sortBar = '<div class="vle-fbar">'
+    const pending = scoped.filter((e) => e.pending);
+    const sortBar = '<div class="vlv-tools"><label class="vlv-search"><span>Search</span><input data-vault-search value="' + esc(_query) + '" placeholder="names, facts, keys, links"></label><div class="vle-fbar">'
       + (['az', 'za', 'new', 'old'] as const).map((k) => `<button class="vle-fb-btn${_sort === k ? ' on' : ''}" data-vsort="${k}">${SORT_LABEL[k]}</button>`).join('')
-      + '</div>';
+      + '</div></div>';
     // lorebook filter — only worth showing when 2+ books contribute scoped entries
     const bookBar = bookIds.length > 1
       ? '<div class="vle-fbar vlv-bookbar"><button class="vle-fb-btn' + (_book === 'all' ? ' on' : '') + '" data-vbookfilter="all">all books <span class="vle-n">' + scoped.length + '</span></button>'
@@ -96,7 +109,7 @@ export const vaultTab: Component<ChronicleState> = {
     } else {
       grid = sortBar + bookBar + '<div class="vle-empty sm">' + (_scope === 'vault' ? 'No Vault entries yet. <b>+ Entry</b> to author lore, or switch to <b>All lorebooks</b> to adopt existing entries.' : 'No entries here yet.') + '</div>';
     }
-    return top + pendingTray(pending) + suggestStrip() + scopeBar + bar + grid;
+    return top + healthPanel() + pendingTray(pending) + suggestStrip() + scopeBar + bar + grid;
   },
   mount(host) {
     // guard: the shell mounts once, but rerender() must NOT re-bind — stacked
@@ -104,6 +117,13 @@ export const vaultTab: Component<ChronicleState> = {
     // work"). Bind exactly one delegated handler per host element.
     if ((host as any)._vaultBound) return;
     (host as any)._vaultBound = true;
+    host.addEventListener('input', (e) => {
+      const input = (e.target as HTMLElement).closest('[data-vault-search]') as HTMLInputElement | null;
+      if (!input) return;
+      _query = input.value; setPage('vault', 0); rerender(host);
+      const next = host.querySelector('[data-vault-search]') as HTMLInputElement | null;
+      if (next) { next.focus(); next.setSelectionRange(next.value.length, next.value.length); }
+    });
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       const sc = t.closest('[data-vscope]');
@@ -139,7 +159,7 @@ function vaultContentSig(): string {
   let h = 5381;
   const acc = (str: string): void => { for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; };
   for (const e of allEntries()) {
-    acc(e.id); acc('\u0001'); acc(e.key.join(',')); acc('\u0001'); acc(e.comment || ''); acc('\u0001');
+    acc(e.id); acc('\u0001'); acc(e.key.join(',')); acc('\u0001'); acc((e.keysecondary ?? []).join(',')); acc('\u0001'); acc(e.comment || ''); acc('\u0001');
     acc(String(e.content.length)); acc(e.content.slice(0, 64)); acc('\u0001');
     acc(e.category || ''); acc(e.disabled ? '1' : '0'); acc(e.pending ? 'p' : ''); acc(e.source || '');
     acc('\u0002');
@@ -186,17 +206,26 @@ function findEntry(id: string): VEntry | null { return allEntries().find((e) => 
 // host (mount() is idempotent), so listeners never stack and clicks keep working.
 function rerender(host: HTMLElement): void { host.innerHTML = vaultTab.render(null as any); }
 
+function healthPanel(): string {
+  const h = _snap?.health; if (!h) return '';
+  const severity = h.issues.some((x) => x.severity === 'error') ? 'error' : h.issues.some((x) => x.severity === 'warning') ? 'warning' : 'ok';
+  const details = h.issues.slice(0, 8).map((x) => `<li class="${esc(x.severity)}"><span>${esc(x.code.replace(/_/g, ' '))}</span>${esc(x.message)}</li>`).join('');
+  return `<details class="vlv-health ${severity}"${h.issues.length ? '' : ' open'}><summary><span class="vlv-health-score">${h.score}</span><b>Vault health</b><span>${h.stats.entries} owned entries \u00b7 ${h.stats.conflicts} conflicts \u00b7 ${h.stats.orphaned} orphaned</span><em>${h.issues.length ? `${h.issues.length} issue${h.issues.length === 1 ? '' : 's'}` : 'healthy'}</em></summary>${details ? `<ul>${details}</ul>` : '<p>Ownership, canonical links, hashes, activation keys, and privacy boundaries are healthy.</p>'}</details>`;
+}
+
 function entryCard(e: VEntry, firing: boolean): string {
   const cat = _snap?.categories.find((c) => c.id === e.category);
   const clr = safeColor(cat?.color);
   const keys = e.key.join(', ');
-  return `<div class="vlv-entry${e.disabled ? ' off' : ''}" style="--c:${clr}">`
+  const integrity = e.bodyState === 'conflict' ? '<span class="vlv-integrity conflict">conflict</span>' : e.bodyState === 'override' ? '<span class="vlv-integrity override">user override</span>' : '';
+  return `<div class="vlv-entry${e.disabled ? ' off' : ''}${e.bodyState === 'conflict' ? ' conflict' : ''}" style="--c:${clr}">`
     + `<div class="vlv-entry-top"><span class="vlv-entry-cat">${esc(cat?.glyph ?? '\u2727')} ${esc(cat?.label ?? 'Uncategorized')}</span>`
     + (e.bookId ? `<span class="vlv-entry-book" title="Lorebook">\uD83D\uDCD5 ${esc(bookName(e.bookId))}</span>` : '')
     + (firing ? '<span class="vlv-firing">\u25C9 firing</span>' : '')
+    + integrity
     + `<span class="vlv-entry-ctl"><button class="vle-mini" data-ventry-edit data-id="${esc(e.id)}">\u270E</button><button class="vle-mini del" data-ventry-del data-id="${esc(e.id)}">\u2715</button></span></div>`
     + (e.comment ? `<div class="vlv-title">${esc(e.comment)}</div>` : '')
-    + `<div class="vlv-keys">${keys ? esc(keys) : '<em>always on</em>'}</div>`
+    + `<div class="vlv-keys">${keys ? esc(keys) : e.constant ? '<em>always on</em>' : '<em>no activation keywords</em>'}</div>`
     + `<div class="vlv-content">${esc(e.content).slice(0, 280)}${e.content.length > 280 ? '\u2026' : ''}</div>`
     + (e.source && e.source !== 'manual' ? `<div class="vlv-badge">\u21BB auto \u00b7 ${esc(e.source)}<button class="vlv-unlink" data-ventry-unlink data-id="${esc(e.id)}" data-cat="${esc(e.category)}" title="Stop auto-updating (convert to hand-owned)">unlink</button></div>` : '')
     + '</div>';
@@ -225,14 +254,19 @@ function categorySettings(id: string): void {
   const d = c.defaults ?? {};
   formModal(`${c.label} — auto-settings`, [
     { key: 'position', label: 'Position', type: 'select', value: d.position ?? 'at_depth', options: POS_OPTS },
-    { key: 'depth', label: 'Depth (if at-depth)', type: 'text', value: String(d.depth ?? 4) },
+    { key: 'depth', label: 'Depth (if at-depth)', type: 'number', value: String(d.depth ?? 4), min: 0, max: 100 },
     { key: 'role', label: 'Role', type: 'select', value: d.role ?? 'system', options: ROLE_OPTS },
-    { key: 'order', label: 'Order', type: 'text', value: String(d.order ?? 100) },
-    { key: 'sticky', label: 'Sticky (turns)', type: 'text', value: String(d.sticky ?? 0) },
+    { key: 'order', label: 'Order', type: 'number', value: String(d.order ?? 100) },
+    { key: 'constant', label: 'Activation', type: 'select', value: d.constant ? 'constant' : 'keyed', options: [{ value: 'keyed', label: 'keyword activated' }, { value: 'constant', label: 'always active' }] },
+    { key: 'priority', label: 'Priority', type: 'number', value: String(d.priority ?? 0), min: 0, adv: true },
+    { key: 'sticky', label: 'Sticky (turns)', type: 'number', value: String(d.sticky ?? 0), min: 0, adv: true },
+    { key: 'cooldown', label: 'Cooldown (turns)', type: 'number', value: String(d.cooldown ?? 0), min: 0, adv: true },
+    { key: 'delay', label: 'Delay (turns)', type: 'number', value: String(d.delay ?? 0), min: 0, adv: true },
+    { key: 'source', label: 'Canonical source', type: 'select', value: c.source ?? '', options: SOURCE_OPTS },
     { key: 'sync', label: 'Auto-update', type: 'select', value: c.sync ?? 'off', options: [{ value: 'off', label: 'off' }, { value: 'promote', label: 'promote (manual)' }, { value: 'sync', label: 'sync (auto-update)' }, { value: 'auto', label: 'auto-author (drafts)' }] },
   ], (v) => {
-    const defaults = { position: v.position, depth: Number(v.depth) || 4, role: v.role, order: Number(v.order) || 100, sticky: Number(v.sticky) || 0 };
-    send({ type: 'vellum_vault_category', cat: { ...c, defaults, sync: v.sync } });
+    const defaults = { position: v.position, depth: Number(v.depth) || 4, role: v.role, order: Number(v.order) || 100, constant: v.constant === 'constant', priority: Math.max(0, Number(v.priority) || 0), sticky: Math.max(0, Number(v.sticky) || 0), cooldown: Math.max(0, Number(v.cooldown) || 0), delay: Math.max(0, Number(v.delay) || 0) };
+    send({ type: 'vellum_vault_category', cat: { ...c, defaults, sync: v.sync, source: v.source || undefined } });
   });
 }
 
@@ -241,9 +275,10 @@ function categoryCreate(): void {
     { key: 'label', label: 'Name', type: 'text', placeholder: 'Vehicles' },
     { key: 'glyph', label: 'Glyph', type: 'text', value: '\u2727' },
     { key: 'color', label: 'Color (hex)', type: 'text', value: '#cdbfa0' },
+    { key: 'source', label: 'Canonical source', type: 'select', value: '', options: SOURCE_OPTS },
     { key: 'position', label: 'Default position', type: 'select', value: 'at_depth', options: POS_OPTS },
     { key: 'order', label: 'Default order', type: 'text', value: '100' },
-  ], (v) => { if (v.label?.trim()) send({ type: 'vellum_vault_category', cat: { label: v.label, glyph: v.glyph || '\u2727', color: safeColor(v.color, '#cdbfa0'), defaults: { position: v.position, depth: 4, role: 'system', order: Number(v.order) || 100 } } }); });
+  ], (v) => { if (v.label?.trim()) send({ type: 'vellum_vault_category', cat: { label: v.label, glyph: v.glyph || '\u2727', color: safeColor(v.color, '#cdbfa0'), source: v.source || undefined, defaults: { position: v.position, depth: 4, role: 'system', order: Number(v.order) || 100 } } }); });
 }
 
 function bookManager(): void {

@@ -1,5 +1,5 @@
 import type { ChronicleState } from '../domain/types.js';
-import { collectItems, buildIndex, type InvertedIndex } from './invindex.js';
+import { collectItems, buildIndex, type InvertedIndex, type RetrievableItem } from './invindex.js';
 import { lexicalSearch } from './lexical.js';
 import { allocate, fitLines } from './budget.js';
 import { rrf } from './fuse.js';
@@ -89,9 +89,9 @@ function indexFor(chatId: string, state: ChronicleState, version?: number): Inve
  * same length — so it's exactly as safe as the previous "rebuild on every
  * version bump" behavior (never a stale index), while still letting us skip the
  * postings rebuild when nothing retrievable actually changed. */
-function itemsSig(items: Array<{ id: string; text: string }>): string {
+function itemsSig(items: RetrievableItem[]): string {
   let acc = '';
-  for (const i of items) acc += i.id + '\u0000' + i.text + '\u0001';
+  for (const i of items) acc += [i.id, i.text, i.status ?? '', i.audience ?? '', i.authority ?? '', (i.entityIds ?? []).join(','), (i.knownBy ?? []).join(','), (i.hiddenFrom ?? []).join(',')].join('\u0000') + '\u0001';
   return hashStr(acc);
 }
 
@@ -321,10 +321,11 @@ function assemble(
     : null;
   const candidates: Array<{ id: string; line: string }> = [];
   for (const id of rankedIds) {
+    const item = index.byId.get(id);
+    if (item?.status === 'stale' || item?.status === 'degraded') continue;
     const detail = detailById?.get(id);
     if (detail) { candidates.push({ id, line: '- ' + detail }); continue; }
-    const it = index.byId.get(id);
-    if (it) candidates.push({ id, line: '- ' + it.text });
+    if (item) candidates.push({ id, line: '- ' + item.text });
   }
   // tree selections can pull long detailed summaries → give recall more room
   const recallCap = recallBudgetOverride ?? budgets.recall ?? 1200;
@@ -351,20 +352,75 @@ function assemble(
 /** Lexical-only ranking with a gentle recency lift + an archive-tier boost so the
  * compressed long-term summaries (the memory backbone) reliably surface and
  * aren't crowded out by raw turn-memories or facts at equal lexical score. */
+function labelsFor(state: ChronicleState, id: string): string[] {
+  const cast = state.cast[id]; if (cast) return [cast.name, ...(cast.aka ?? [])];
+  const faction = state.factions[id]; if (faction) return [faction.name, ...(faction.aka ?? [])];
+  const location = state.locations.find((x) => x.id === id); if (location) return [location.name];
+  const item = state.items.find((x) => x.id === id); if (item) return [item.item];
+  return [id];
+}
+
+/** Add deterministic scene and alias vocabulary to the user's latest prose.
+ * This closes the common recall gap where a record was filed under a canonical
+ * name while the scene uses an alias, containing location, faction, or item. */
+export function buildRecallQuery(state: ChronicleState, query: string): string {
+  const parts: string[] = []; const seen = new Set<string>();
+  const add = (value?: string): void => { const v = String(value ?? '').trim(); const k = v.normalize('NFKC').toLocaleLowerCase(); if (v && !seen.has(k)) { seen.add(k); parts.push(v); } };
+  add(query);
+  const low = query.normalize('NFKC').toLocaleLowerCase();
+  for (const id of state.scene.present) for (const label of labelsFor(state, id)) add(label);
+  add(state.scene.location);
+  let loc = state.locations.find((x) => x.id === state.scene.location || x.name.toLocaleLowerCase() === state.scene.location.toLocaleLowerCase());
+  for (let depth = 0; loc && depth < 6; depth++) { add(loc.name); loc = loc.parent ? state.locations.find((x) => x.id === loc!.parent) : undefined; }
+  const entities: Array<{ id: string; labels: string[] }> = [
+    ...Object.values(state.cast).map((x) => ({ id: x.id, labels: [x.name, ...(x.aka ?? [])] })),
+    ...Object.values(state.factions).map((x) => ({ id: x.id, labels: [x.name, ...(x.aka ?? [])] })),
+    ...state.locations.map((x) => ({ id: x.id, labels: [x.name] })),
+    ...state.items.map((x) => ({ id: x.id, labels: [x.item] })),
+  ];
+  for (const entity of entities) if (entity.labels.some((x) => x.length >= 3 && low.includes(x.toLocaleLowerCase()))) {
+    add(entity.id); for (const label of entity.labels) add(label);
+  }
+  for (const track of [...state.threads, ...state.arcs]) if (low.includes(track.name.toLocaleLowerCase())) {
+    add(track.name); add(track.id); add(track.beats[track.beats.length - 1]);
+  }
+  return parts.join(' ').slice(0, 2400);
+}
+
 function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: string): string[] {
-  const hits = lexicalSearch(index, query, 24);
+  const expanded = buildRecallQuery(state, query);
+  const hits = lexicalSearch(index, expanded, 64);
   const maxTurn = state.turns || 1;
-  return hits
+  const rawLow = query.normalize('NFKC').toLocaleLowerCase();
+  const ranked = hits
     .map((h) => {
       const it = index.byId.get(h.id)!;
+      if (it.status === 'stale' || it.status === 'degraded') return { id: h.id, score: 0 };
       const recency = 1 + 0.4 * (it.turn / maxTurn);
       const tierBoost = it.tier === 'beat' ? 1.6 : it.tier === 'book' ? 1.65 : it.tier === 'arc' ? 1.5 : it.tier === 'chapter' ? 1.3 : 1;
       const sceneEntity = it.entityIds?.some((id) => state.scene.present.includes(id)) ? 1.35 : 1;
       const continuityBoost = it.kind === 'secret' || it.kind === 'scar' || it.kind === 'item' || it.kind === 'timeline' ? 1.12 : 1;
-      return { id: h.id, score: h.score * recency * tierBoost * sceneEntity * continuityBoost };
+      const exactEntity = it.entityIds?.some((id) => labelsFor(state, id).some((label) => label.length >= 3 && rawLow.includes(label.toLocaleLowerCase()))) ? 1.45 : 1;
+      const authority = it.authority === 'provisional' ? 0.75 : it.authority === 'confirmed' || it.authority === 'canonical' ? 1.08 : 1;
+      return { id: h.id, score: h.score * recency * tierBoost * sceneEntity * continuityBoost * exactEntity * authority };
     })
-    .sort((a, b) => b.score - a.score)
-    .map((r) => r.id);
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+
+  // A hit and its archived ancestor carry overlapping prose. Keep the stronger
+  // one, then spread the remaining budget across record families so items,
+  // scars, secrets, Codex facts, and timeline beats cannot all be crowded out by
+  // a pile of near-identical turn memories.
+  const selected: string[] = []; const selectedItems: RetrievableItem[] = []; const counts = new Map<string, number>();
+  for (const hit of ranked) {
+    const item = index.byId.get(hit.id)!;
+    if ((counts.get(item.kind) ?? 0) >= 8) continue;
+    const overlaps = selectedItems.some((other) => (item.parentIds ?? []).includes(other.id) || (other.parentIds ?? []).includes(item.id));
+    if (overlaps) continue;
+    selected.push(item.id); selectedItems.push(item); counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
+    if (selected.length >= 36) break;
+  }
+  return selected;
 }
 
 /** Synchronous, lexical-only injection. Used in tests and as the always-on base. */
@@ -448,7 +504,7 @@ export async function buildInjectionHybrid(
     if (!scored.length || scored[0]!.score <= 0 || (scored[1] && scored[1]!.score === scored[0]!.score)) return null;
     return scored[0]!.id;
   };
-  const vec = await vectorSearch(chatId, query, userId, contentToId, 20);
+  const vec = await vectorSearch(chatId, buildRecallQuery(state, query), userId, contentToId, 20);
   if (!vec || !vec.length) {
     return assemble(state, index, lexIds, budgets, 'lexical', undefined, undefined, undefined, query);
   }

@@ -1,4 +1,4 @@
-import { type VaultCategory, DEFAULT_CATEGORIES } from '../domain/vault.js';
+import { type VaultCategory, DEFAULT_CATEGORIES, isSyncSource } from '../domain/vault.js';
 import { tryCatchAsync } from '../core/result.js';
 
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
@@ -58,8 +58,14 @@ export async function loadCategories(userId?: string | null): Promise<VaultCateg
 
 /** Ensure built-in categories always exist (so a new default appears for users). */
 function mergeDefaults(stored: VaultCategory[]): VaultCategory[] {
-  const out = stored.slice();
-  for (const d of DEFAULT_CATEGORIES) if (!out.some((c) => c.id === d.id)) out.push({ ...d });
+  const out = stored.map<VaultCategory>((c) => {
+    const d = DEFAULT_CATEGORIES.find((x) => x.id === c.id);
+    // Add newly introduced schema fields without replacing personal colors,
+    // activation defaults, visibility, or sync choices.
+    const source = isSyncSource(c.source) ? c.source : d?.source;
+    return d ? { ...d, ...c, defaults: { ...d.defaults, ...c.defaults }, source } : { ...c, source };
+  });
+  for (const d of DEFAULT_CATEGORIES) if (!out.some((c) => c.id === d.id)) out.push({ ...d, defaults: { ...d.defaults } });
   return out;
 }
 

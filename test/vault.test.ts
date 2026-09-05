@@ -26,8 +26,14 @@ describe('vault categories + settings mapping', () => {
     const f = settingsToEntryFields({ position: 'at_depth', depth: 2, role: 'system', order: 120, sticky: 4 });
     expect(f.position).toBe(POSITION_CODE.at_depth);
     expect(f.depth).toBe(2);
+    expect(f.role).toBe('system');
     expect(f.order_value).toBe(120);
     expect(f.sticky).toBe(4);
+  });
+
+  it('writes explicit zero/false values so stale host activation settings clear', () => {
+    const f = settingsToEntryFields({ position: 'at_depth', depth: 4, role: 'system', order: 100, constant: false, sticky: 0, cooldown: 0, delay: 0 });
+    expect(f).toMatchObject({ constant: false, sticky: 0, cooldown: 0, delay: 0 });
   });
 
   it('omits depth when position is not at_depth', () => {

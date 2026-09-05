@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildIndex, collectItems } from '../src/retrieval/invindex.js';
 import { lexicalSearch } from '../src/retrieval/lexical.js';
 import { allocate, fitLines } from '../src/retrieval/budget.js';
-import { buildInjection } from '../src/retrieval/recall.js';
+import { buildInjection, buildRecallQuery } from '../src/retrieval/recall.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
 function stateWith(): ChronicleState {
@@ -50,6 +50,30 @@ describe('inverted index + lexical (BM25)', () => {
     const idx = buildIndex(collectItems(stateWith()));
     expect(idx.postings.get('incest')).toBeDefined();
     expect(idx.postings.get('lannister')!.size).toBeGreaterThan(0);
+  });
+});
+
+describe('typed long-term recall', () => {
+  it('expands aliases, the current location, and its containing place', () => {
+    const s = freshState();
+    s.cast.alice = { id: 'alice', name: 'Alice Winters', aka: ['the Courier'], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 8, userEdited: false };
+    s.scene.present = ['alice']; s.scene.location = 'Nana\'s';
+    s.locations = [
+      { id: 'sunnydale', name: 'Sunnydale', source: 'auto', pinned: false, firstTurn: 1, lastTurn: 8 },
+      { id: 'nanas', name: 'Nana\'s', parent: 'sunnydale', source: 'auto', pinned: false, firstTurn: 2, lastTurn: 8 },
+    ];
+    const q = buildRecallQuery(s, 'The Courier checks the counter.');
+    expect(q).toContain('Alice Winters');
+    expect(q).toContain("Nana's");
+    expect(q).toContain('Sunnydale');
+  });
+
+  it('never injects an archive marked stale even when it matches exactly', () => {
+    const s = freshState(); s.turns = 20;
+    s.memories = [{ id: 'stale', tier: 'chapter', text: 'The obsidian astrolabe is beneath Nana\'s counter.', keys: ['obsidian astrolabe'], turn: 10, status: 'stale' }];
+    const inj = buildInjection('stale-archive', s, 'obsidian astrolabe');
+    expect(inj.recallIds).not.toContain('stale');
+    expect(inj.text).not.toContain('obsidian astrolabe is beneath');
   });
 });
 

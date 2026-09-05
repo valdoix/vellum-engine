@@ -94,6 +94,12 @@ describe('reconcileChapterEntries', () => {
     const plan = reconcileChapterEntries(chapterState(), [entry], 'keyed');
     expect(plan.update).toHaveLength(0);
   });
+  it('preserves a user-overridden orphan for audit instead of deleting it', () => {
+    const entry = lite({ id: 'kept', link: 'chapter:gone', bodyState: 'override', overrideFields: ['content'] });
+    const plan = reconcileChapterEntries(freshState(), [entry], 'keyed');
+    expect(plan.remove).toEqual([]);
+    expect(plan.conflicts).toContainEqual({ entryId: 'kept', memId: 'gone', reason: 'user_override' });
+  });
 });
 
 describe('reduce — memory.link', () => {

@@ -40,12 +40,12 @@ import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
-import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault } from './host/worldbooks.js';
+import { vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, hasVault, ownedBooks, ownedEntries, extensionsFromEntry, type VaultSnapshot, type VaultRole } from './host/worldbooks.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
-import { resolveCategory, settingsToEntryFields, customCategory, type EntrySettings, type VaultCategory } from './domain/vault.js';
+import { resolveCategory, settingsToEntryFields, customCategory, isSyncSource, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
-import { reconcileFactionEntries } from './domain/faction-vault.js';
-import { buildPromotion, reconcileCategory, type PromoteKind } from './domain/promote.js';
+import { buildPromotion, reconcileCategory, promotionsForSource, type PromoteKind } from './domain/promote.js';
+import { auditVault } from './domain/vault-health.js';
 import { parseTone, isDefaultTone, DEFAULT_TONE, type Tone } from './domain/tone.js';
 import { sanitizeLocks, lockKey, lockInjection, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
@@ -54,7 +54,7 @@ import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenIn
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOffscreenCatchupPrompt, parseCatchupReply, validateCatchupBeats, catchupTargets, offscreenCatchupTargets, threadsAwaitingCatchup, offscreensAwaitingCatchup } from './domain/thread-catchup.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
-import { sceneSuggestions, recursionSeeds, evaluateSchedules, autoAuthorDrafts, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
+import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
 import { resolveTurnContract, type TurnContract } from './domain/preset-runtime.js';
 import { compileState } from './bus/state-compiler.js';
@@ -104,14 +104,16 @@ async function vaultBroadcast(chatId: string, uid: string | null): Promise<void>
   const categories = await loadCategories(uid);
   const snap = await vaultSnapshot(chatId, uid);
   let suggestions: unknown[] = [];
+  let health: ReturnType<typeof auditVault> | undefined;
   try {
     if (chatId && snap.ok) {
       const state = await loadState(chatId);
-      const lites: VaultEntryLite[] = snap.books.flatMap((b) => b.entries).map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled, ...(e.reveal ? { reveal: e.reveal } : {}) }));
+      const lites: VaultEntryLite[] = ownedEntries(snap, chatId).map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled, ...(e.reveal ? { reveal: e.reveal } : {}) }));
       suggestions = sceneSuggestions(state, lites, dismissedFor(chatId));
+      health = auditVault(snap, chatId, state);
     }
   } catch { /* suggestions best-effort */ }
-  spindle.sendToFrontend?.({ type: 'vellum_vault', categories, ...snap, suggestions }, uid ?? currentUser() ?? undefined);
+  spindle.sendToFrontend?.({ type: 'vellum_vault', chatId, categories, ...snap, suggestions, health }, uid ?? currentUser() ?? undefined);
 }
 
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
@@ -1068,63 +1070,126 @@ async function maybeSimulate(chatId: string, userId: string | null): Promise<boo
   return false;
 }
 
-const _vaultSyncing = new Set<string>();
-/** Tier-B sync: for each category set to 'sync', refresh linked entries whose source changed. */
+interface VaultSyncJob { running: boolean; rerun: boolean; promise: Promise<void> | null }
+const _vaultSyncJobs = new Map<string, VaultSyncJob>();
+
+/** One complete, chat-scoped reconcile pass. A partial host snapshot is useful
+ * for display but never safe for deletes, disables, or overwrites. */
+async function vaultSyncPass(chatId: string, userId: string | null): Promise<void> {
+  await setChatVar(chatId, 'vellum_vault_dirty', '1');
+  const cats = await loadCategories(userId);
+  const state = await loadState(chatId);
+  const snap = await vaultSnapshot(chatId, userId);
+  if (!snap.complete) {
+    spindle.log?.warn?.(`[vellum_engine] vault sync paused: incomplete snapshot (${snap.errors.join(', ') || 'unknown'})`);
+    await vaultBroadcast(chatId, userId);
+    return;
+  }
+  const owned = ownedEntries(snap, chatId).filter((e) => e.link);
+  const byId = new Map(owned.map((e) => [e.id, e] as const));
+  let changed = 0; let failed = 0; let conflicts = 0;
+  // Enforce audience boundaries independently of category settings. Host world
+  // books cannot target one character's private context, so restricted records
+  // are disabled even if they were created by an older VELLUM build.
+  const privateKind = (link: string): PromoteKind | null => link.startsWith('secret:') ? 'secret'
+    : link.startsWith('knowledge:') ? 'knowledge' : link.startsWith('journal:') ? 'journal'
+      : link.startsWith('scar:') ? 'scar' : link.startsWith('rel:') ? 'relation' : null;
+  for (const entry of owned) {
+    const kind = privateKind(entry.link); if (!kind || entry.disabled) continue;
+    const canonicalId = entry.link.slice(entry.link.indexOf(':') + 1);
+    const promo = buildPromotion(state, kind, canonicalId);
+    if (!promo || promo.audience === 'restricted') {
+      const r = await updateEntry(entry.id, { disabled: true, extensions: extensionsFromEntry(entry) }, userId);
+      if (r.ok) { entry.disabled = true; changed++; } else failed++;
+    }
+  }
+  const syncCats = cats.filter((c) => (c.sync === 'sync' || c.sync === 'auto') && isSyncSource(c.source));
+  for (const cat of syncCats) {
+    const managed = owned.filter((e) => e.category === cat.id).map((e) => ({
+      id: e.id, link: e.link, hash: e.hash, content: e.content, disabled: e.disabled,
+      bodyState: e.bodyState, overrideFields: e.overrideFields,
+    }));
+    const plan = reconcileCategory(state, cat.source!, managed);
+    conflicts += plan.conflicts.length;
+    for (const u of plan.update) {
+      const entry = byId.get(u.entryId); if (!entry) continue;
+      const r = await syncEntry(entry, u.promotion.content, u.promotion.key, u.promotion.hash, u.promotion.link, cat.id, userId, u.enable, u.promotion.comment, u.promotion.keysecondary);
+      r.ok ? changed++ : failed++;
+    }
+    for (const entryId of plan.disable) {
+      const entry = byId.get(entryId); if (!entry) continue;
+      const r = await updateEntry(entryId, { disabled: true, extensions: extensionsFromEntry(entry) }, userId);
+      r.ok ? changed++ : failed++;
+    }
+  }
+
+  // Scheduled entries and relationship recursion are evaluated only inside this
+  // chat's ownership boundary.
+  const lites = owned.filter((e) => e.reveal).map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled, reveal: e.reveal! }));
+  for (const ch of evaluateSchedules(state, lites)) {
+    const entry = byId.get(ch.entryId); if (!entry) continue;
+    const r = await updateEntry(ch.entryId, { disabled: !ch.enable, extensions: extensionsFromEntry(entry) }, userId);
+    r.ok ? changed++ : failed++;
+  }
+  const castEntries = owned.filter((e) => e.link.startsWith('cast:'));
+  const castLites: VaultEntryLite[] = castEntries.map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled }));
+  const desiredSeeds = recursionSeeds(state, castLites);
+  for (const entry of castEntries) {
+    const previous = new Set((entry.recursionKeys ?? []).map((x) => x.toLocaleLowerCase()));
+    const desired = desiredSeeds.get(entry.id) ?? [];
+    const merged = entry.keysecondary.filter((x) => !previous.has(x.toLocaleLowerCase()));
+    for (const n of desired) if (!merged.some((x) => x.toLocaleLowerCase() === n.toLocaleLowerCase())) merged.push(n);
+    const sameKeys = merged.length === entry.keysecondary.length && merged.every((x, i) => x === entry.keysecondary[i]);
+    const oldDesired = entry.recursionKeys ?? [];
+    const sameDesired = oldDesired.length === desired.length && oldDesired.every((x, i) => x.toLocaleLowerCase() === desired[i]?.toLocaleLowerCase());
+    if (!sameKeys || !sameDesired) {
+      const r = await updateEntry(entry.id, { keysecondary: merged, extensions: extensionsFromEntry(entry, { recursionKeys: desired }) }, userId);
+      r.ok ? changed++ : failed++;
+    }
+  }
+
+  // Auto categories create reviewable drafts for every public typed adapter.
+  // Private knowledge, secrets, journals, and scars never enter host lorebooks.
+  const autoCats = cats.filter((c) => c.sync === 'auto' && isSyncSource(c.source));
+  if (autoCats.length) {
+    let manualBook = ownedBooks(snap, chatId).find((b) => b.role === 'manual');
+    if (!manualBook) {
+      const names = await chatNames(chatId, userId); const card = (names.char || 'Chronicle').slice(0, 40);
+      const id = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card})`, 'Reviewable lore projected from this chat.', 'manual');
+      manualBook = ownedBooks(snap, chatId).find((b) => b.id === id);
+    }
+    const allEntries = owned;
+    const covered = new Set(owned.filter((e) => e.link).map((e) => e.link));
+    if (manualBook) for (const cat of autoCats) for (const promo of promotionsForSource(state, cat.source!)) {
+      if (covered.has(promo.link) || findDupe(promo.content, allEntries)) continue;
+      const r = await createEntry({ bookId: manualBook.id, key: promo.key, keysecondary: promo.keysecondary, content: promo.content, comment: promo.comment, settings: cat.defaults, category: cat.id, source: cat.source, link: promo.link, pending: true, hash: promo.hash, ownerChatId: chatId, vaultRole: 'manual' }, userId);
+      if (r.ok) { covered.add(promo.link); changed++; } else failed++;
+    }
+  }
+  await setChatVar(chatId, 'vellum_vault_dirty', failed ? '1' : '0');
+  if (changed || conflicts || failed) await vaultBroadcast(chatId, userId);
+  if (changed || conflicts || failed) spindle.log?.info?.(`[vellum_engine] vault sync: ${changed} change(s), ${conflicts} conflict(s), ${failed} failure(s)`);
+}
+
+/** Coalesce folds that arrive during a running sync into one guaranteed rerun. */
 async function maybeVaultSync(chatId: string, userId: string | null): Promise<void> {
-  if (_vaultSyncing.has(chatId)) return;
   if (!(await hasVault())) return;
-  const cats = (await loadCategories(userId)).filter((c) => c.sync === 'sync' && c.source);
-  _vaultSyncing.add(chatId);
-  try {
-    const state = await loadState(chatId);
-    const snap = await vaultSnapshot(chatId, userId);
-    const owned = snap.books.flatMap((b) => b.entries).filter((e) => e.vellum && e.link);
-    let changed = 0;
-    for (const cat of cats) {
-      const managed = owned.filter((e) => e.category === cat.id).map((e) => ({ id: e.id, link: e.link, hash: e.hash }));
-      if (!managed.length) continue;
-      const plan = reconcileCategory(state, cat.source!, managed);
-      for (const u of plan.update) { await syncEntry(u.entryId, u.promotion.content, u.promotion.key, u.promotion.hash, u.promotion.link, cat.id, userId); changed++; }
-    }
-    // scheduled Events: enable/disable entries whose reveal condition flipped
-    const lites = snap.books.flatMap((b) => b.entries).filter((e) => e.vellum && e.reveal).map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled, reveal: e.reveal! }));
-    if (lites.length) { for (const ch of evaluateSchedules(state, lites)) { await updateEntry(ch.entryId, { disabled: !ch.enable }, userId); changed++; } }
-    // recursion seeds: weave each bonded partner's name into the other's keysecondary
-    // so the host recursion can pull bonded characters in. Dedupe vs existing.
-    const castEntries = owned.filter((e) => e.link.startsWith('cast:'));
-    if (castEntries.length) {
-      const ksById = new Map(castEntries.map((e) => [e.id, e.keysecondary ?? []] as const));
-      const castLites: VaultEntryLite[] = castEntries.map((e) => ({ id: e.id, key: e.key, content: e.content, link: e.link, category: e.category, disabled: e.disabled }));
-      for (const [entryId, names] of recursionSeeds(state, castLites)) {
-        const existing = ksById.get(entryId) ?? [];
-        const merged = existing.slice();
-        for (const n of names) if (!merged.some((x) => x.toLowerCase() === n.toLowerCase())) merged.push(n);
-        if (merged.length > existing.length) { await updateEntry(entryId, { keysecondary: merged }, userId); changed++; }
-      }
-    }
-    // Tier-C auto-author: draft pending entries for salient uncovered cast when
-    // a category is set to 'auto'. Dedupe against existing entries first.
-    const autoOn = (await loadCategories(userId)).some((c) => c.sync === 'auto');
-    if (autoOn) {
-      const allEntries = snap.books.flatMap((b) => b.entries);
-      const covered = new Set(allEntries.filter((e) => e.vellum && e.link).map((e) => e.link));
-      const bookId = snap.books.find((b) => b.vellum)?.id;
-      if (bookId) {
-        const cats = await loadCategories(userId);
-        const charCat = cats.find((c) => c.id === 'characters');
-        for (const d of autoAuthorDrafts(state, covered)) {
-          if (findDupe(d.content, allEntries)) continue; // skip near-duplicates
-          await createEntry({ bookId, key: d.key, content: d.content, comment: d.name, settings: charCat?.defaults ?? cats[0]!.defaults, category: d.category, source: 'auto', link: 'cast:' + d.id, pending: true }, userId);
-          changed++;
-        }
-      }
-    }
-    if (changed) { await vaultBroadcast(chatId, userId); spindle.log?.info?.('[vellum_engine] vault sync: ' + changed + ' change(s)'); }
-  } catch (e) { spindle.log?.warn?.('[vellum_engine] vault sync: ' + ((e as Error)?.message ?? e)); }
-  finally { _vaultSyncing.delete(chatId); }
+  const active = _vaultSyncJobs.get(chatId);
+  if (active?.running) { active.rerun = true; return active.promise ?? Promise.resolve(); }
+  const job: VaultSyncJob = { running: true, rerun: false, promise: null };
+  _vaultSyncJobs.set(chatId, job);
+  job.promise = (async () => {
+    do {
+      job.rerun = false;
+      try { await vaultSyncPass(chatId, userId); }
+      catch (e) { spindle.log?.warn?.('[vellum_engine] vault sync: ' + ((e as Error)?.message ?? e)); }
+    } while (job.rerun);
+  })().finally(() => { job.running = false; _vaultSyncJobs.delete(chatId); });
+  return job.promise;
 }
 
 const _chapterVaulting = new Set<string>();
+const _chapterVaultAgain = new Set<string>();
 
 /** Read the per-chat chapter-vault mode (off | keyed | constant). Default keyed
  * when world_books is granted; off otherwise. */
@@ -1141,71 +1206,74 @@ async function readChapterVaultMode(chatId: string): Promise<ChapterVaultMode> {
  * round-trips user-edited keys back into the chronicle (memory.link). Pure diff
  * lives in domain/chapter-vault.ts. Best-effort, serialized per chat.
  */
-async function resolveVellumBook(snap: { books: Array<{ id: string; name: string; vellum: boolean }> }, chatId: string, userId: string | null, name: string, desc: string): Promise<string> {
-  const byName = snap.books.find((b) => b.name === name);
-  if (byName) return byName.id;
-  const r = await createBook(name, desc, userId);
+async function resolveVellumBook(snap: VaultSnapshot, chatId: string, userId: string | null, name: string, desc: string, role: VaultRole): Promise<string> {
+  const owned = snap.books.find((b) => b.vellum && b.ownerChatId === chatId && b.role === role);
+  if (owned) return owned.id;
+  const r = await createBook(name, desc, userId, chatId, role);
   if (!r.ok) return '';
-  if (chatId) { try { await setBookAttached(chatId, r.value, true, userId); } catch { /* best effort */ } }
-  snap.books.push({ id: r.value, name, vellum: true } as any); // reuse within this pass
+  if (chatId && !(await setBookAttached(chatId, r.value, true, userId))) return '';
+  snap.books.push({ id: r.value, name, description: desc, vellum: true, ownerChatId: chatId, role, attachedToChat: true, global: false, entries: [] });
   return r.value;
 }
 
-async function maybeChapterVault(chatId: string, userId: string | null): Promise<{ ok: boolean; reason?: string; created: number; updated: number; removed: number }> {
-  if (_chapterVaulting.has(chatId)) return { ok: false, reason: 'busy', created: 0, updated: 0, removed: 0 };
+async function maybeChapterVault(chatId: string, userId: string | null): Promise<{ ok: boolean; reason?: string; created: number; updated: number; removed: number; conflicts?: number }> {
+  if (_chapterVaulting.has(chatId)) { _chapterVaultAgain.add(chatId); return { ok: false, reason: 'queued', created: 0, updated: 0, removed: 0 }; }
   if (!(await hasVault())) return { ok: false, reason: 'no_world_books', created: 0, updated: 0, removed: 0 };
   const mode = await readChapterVaultMode(chatId);
   _chapterVaulting.add(chatId);
   try {
     const state = await loadState(chatId);
     const snap = await vaultSnapshot(chatId, userId);
-    const entries = snap.books.flatMap((b) => b.entries);
+    if (!snap.complete) {
+      spindle.log?.warn?.(`[vellum_engine] chapter-vault paused: incomplete snapshot (${snap.errors.join(', ') || 'unknown'})`);
+      return { ok: false, reason: 'incomplete_snapshot', created: 0, updated: 0, removed: 0 };
+    }
+    const entries = ownedEntries(snap, chatId);
     const plan = reconcileChapterEntries(state, entries, mode);
     if (mode === 'off') {
       // tear down our chapter/arc/book entries when disabled
       let removed = 0;
-      for (const e of entries.filter((x) => x.vellum && /^(chapter|arc|book|faction):/.test(x.link))) { await deleteEntry(e.id, userId); removed++; }
+      for (const e of entries.filter((x) => /^(chapter|arc|book):/.test(x.link) && x.bodyState === 'clean' && !(x.overrideFields ?? []).length)) { const r = await deleteEntry(e.id, userId); if (r.ok) removed++; }
       return { ok: true, reason: 'mode_off', created: 0, updated: 0, removed };
     }
     const names = await chatNames(chatId, userId);
     const card = (names.char || 'Chronicle').slice(0, 40);
-    // two host lorebooks: hierarchical summaries and lore projections
-    const summaryBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Summaries`, 'Auto-authored chapter, arc, and book summaries.');
-    const loreBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Lore`, 'Auto-authored factions, characters, and lore.');
+    const summaryBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Summaries`, 'Auto-authored chapter, arc, and book summaries.', 'summary');
     const bookId = summaryBook;
     if (!bookId) return { ok: false, reason: 'no_book', created: 0, updated: 0, removed: 0 };
     const linkEvents: VellumEvent[] = [];
+    const entryById = new Map(entries.map((e) => [e.id, e] as const));
+    let created = 0; let updated = 0; let removed = 0;
     for (const c of plan.create) {
-      const r = await createEntry({ bookId, key: c.input.key, content: c.input.content, comment: c.input.comment, settings: c.input.settings, category: c.input.category, source: 'chapter', link: c.input.link }, userId);
-      if (r.ok && r.value) linkEvents.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: 'memory.link', id: c.memId, vaultEntryId: r.value, keys: c.input.key } as VellumEvent);
+      const r = await createEntry({ bookId, key: c.input.key, content: c.input.content, comment: c.input.comment, settings: c.input.settings, category: c.input.category, source: 'memories', link: c.input.link, hash: c.input.hash, ownerChatId: chatId, vaultRole: 'summary' }, userId);
+      if (r.ok && r.value) { created++; linkEvents.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: 'memory.link', id: c.memId, vaultEntryId: r.value, keys: c.input.key } as VellumEvent); }
     }
     for (const u of plan.update) {
-      // content/constant only — keys are owned by the entry post-creation and
-      // round-trip via keySync, so we never clobber a user's edited keywords.
-      await updateEntry(u.entryId, { content: u.input.content, constant: u.input.settings.constant ?? false, extensions: { vellum: true, vellumCategory: u.input.category, vellumSource: 'chapter', vellumLink: u.input.link } }, userId);
+      const entry = entryById.get(u.entryId); if (!entry) continue;
+      const r = await updateEntry(u.entryId, {
+        content: u.input.content, key: u.input.key, comment: u.input.comment, ...settingsToEntryFields(u.input.settings),
+        extensions: extensionsFromEntry(entry, { content: u.input.content, key: u.input.key, hash: u.input.hash, category: u.input.category, source: 'memories', link: u.input.link, ownerChatId: chatId, vaultRole: 'summary' }),
+      }, userId);
+      if (r.ok) updated++;
     }
     for (const k of plan.keySync) {
       // user edited the entry's keys → pull them back to the chronicle memory
       linkEvents.push({ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: 'memory.link', id: k.memId, vaultEntryId: k.entryId, keys: k.keys } as VellumEvent);
     }
-    for (const entryId of plan.remove) await deleteEntry(entryId, userId);
+    for (const entryId of plan.remove) { const r = await deleteEntry(entryId, userId); if (r.ok) removed++; }
     if (linkEvents.length) { await append(chatId, linkEvents.filter((e) => (e as any).vaultEntryId)); invalidateIndex(chatId); }
-    // factions: project group lore-sheets to the vault (keyed entries, same mode)
-    const fplan = reconcileFactionEntries(state, entries, mode);
-    if (loreBook) {
-      for (const c of fplan.create) await createEntry({ bookId: loreBook, key: c.input.key, content: c.input.content, comment: c.input.comment, settings: c.input.settings, category: c.input.category, source: 'faction', link: c.input.link }, userId);
-      for (const u of fplan.update) await updateEntry(u.entryId, { content: u.input.content, constant: u.input.settings.constant ?? false, extensions: { vellum: true, vellumCategory: 'factions', vellumSource: 'faction', vellumLink: u.input.link } }, userId);
-      for (const entryId of fplan.remove) await deleteEntry(entryId, userId);
-    }
-    const changed = plan.create.length || plan.update.length || plan.remove.length || fplan.create.length || fplan.update.length || fplan.remove.length;
-    if (changed) spindle.log?.info?.(`[vellum_engine] chapter-vault: +${plan.create.length} ~${plan.update.length} -${plan.remove.length} (mode ${mode})`);
+    const changed = created || updated || removed;
+    if (changed || plan.conflicts.length) spindle.log?.info?.(`[vellum_engine] chapter-vault: +${created} ~${updated} -${removed}, ${plan.conflicts.length} conflict(s) (mode ${mode})`);
     // push a fresh vault snapshot so an open Vault tab reflects the reconciled
     // summary/faction entries immediately (summarize/arc/re-summarize edit these
     // behind the user's back; without this the tab shows stale content).
     if (changed) { try { await vaultBroadcast(chatId, userId); } catch { /* best effort */ } }
-    return { ok: true, created: plan.create.length, updated: plan.update.length, removed: plan.remove.length };
+    return { ok: true, created, updated, removed, conflicts: plan.conflicts.length };
   } catch (e) { spindle.log?.warn?.('[vellum_engine] chapter-vault: ' + ((e as Error)?.message ?? e)); return { ok: false, reason: 'error', created: 0, updated: 0, removed: 0 }; }
-  finally { _chapterVaulting.delete(chatId); }
+  finally {
+    _chapterVaulting.delete(chatId);
+    if (_chapterVaultAgain.delete(chatId)) void maybeChapterVault(chatId, userId);
+  }
 }
 
 let _summarizing = new Set<string>();
@@ -1676,8 +1744,9 @@ function pruneChatState(chatId: string): void {
   _tidying.delete(chatId);
   _tidyingFacts.delete(chatId);
   _simulating.delete(chatId);
-  _vaultSyncing.delete(chatId);
+  _vaultSyncJobs.delete(chatId);
   _chapterVaulting.delete(chatId);
+  _chapterVaultAgain.delete(chatId);
   try { _summaryAbort.get(chatId)?.abort(); } catch { /* ignore */ }
   _summaryAbort.delete(chatId);
   _summarizing.delete(chatId);
@@ -2649,6 +2718,7 @@ const dispatch: Record<string, Handler> = {
     const categories = await loadCategories(uid);
     if (!(await hasVault())) { spindle.sendToFrontend?.({ type: 'vellum_vault', ok: false, reason: 'no_permission', categories, books: [], attached: [], activated: [], suggestions: [] }, uid); return; }
     await vaultBroadcast(chatId ?? '', uid);
+    if (chatId && (await getChatVar(chatId, 'vellum_vault_dirty')) === '1') void maybeVaultSync(chatId, uid);
   },
   vellum_vault_category: async (p, uid) => {
     // upsert/delete a category. payload.op = 'upsert'|'delete'
@@ -2661,6 +2731,8 @@ const dispatch: Record<string, Handler> = {
     }
     const categories = await loadCategories(uid);
     spindle.sendToFrontend?.({ type: 'vellum_vault_categories', categories }, uid);
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (chatId) void maybeVaultSync(chatId, uid);
   },
   vellum_vault_op: async (p, uid) => {
     // book + entry CRUD. payload.op decides.
@@ -2669,7 +2741,7 @@ const dispatch: Record<string, Handler> = {
     if (!(await hasVault())) { done(false, { reason: 'no_permission' }); return; }
     try {
       const cats = await loadCategories(uid);
-      if (p.op === 'book_create') { const r = await createBook(String(p.name || 'New Lorebook'), String(p.description || ''), uid); if (r.ok && p.attach && chatId) await setBookAttached(chatId, r.value, true, uid); done(r.ok, r.ok ? { bookId: r.value } : { reason: r.error }); }
+      if (p.op === 'book_create') { const r = await createBook(String(p.name || 'New Lorebook'), String(p.description || ''), uid, chatId ?? '', 'manual'); if (r.ok && p.attach && chatId) await setBookAttached(chatId, r.value, true, uid); done(r.ok, r.ok ? { bookId: r.value } : { reason: r.error }); }
       else if (p.op === 'book_update') { const r = await updateBook(String(p.bookId), String(p.name || ''), p.description, uid); done(r.ok, r.ok ? {} : { reason: r.error }); }
       else if (p.op === 'book_attach') { if (!chatId) { done(false, { reason: 'no_active_chat' }); return; } const ok = await setBookAttached(chatId, String(p.bookId), !!p.attach, uid); done(ok); }
       else if (p.op === 'entry_create') {
@@ -2679,26 +2751,38 @@ const dispatch: Record<string, Handler> = {
         let bookId = String(p.bookId || '');
         if (!bookId) {
           const snap = await vaultSnapshot(chatId ?? '', uid);
-          bookId = snap.books.find((b) => b.vellum)?.id || snap.books[0]?.id || '';
-          if (!bookId) { const cr = await createBook('VELLUM Vault', 'Lore authored in the Vault', uid); if (!cr.ok) { done(false, { reason: cr.error }); return; } bookId = cr.value; if (chatId) await setBookAttached(chatId, bookId, true, uid); }
+          bookId = chatId ? ownedBooks(snap, chatId).find((b) => b.role === 'manual')?.id ?? '' : '';
+          if (!bookId) { const cr = await createBook('VELLUM Vault', 'Lore authored in the Vault', uid, chatId ?? '', 'manual'); if (!cr.ok) { done(false, { reason: cr.error }); return; } bookId = cr.value; if (chatId && !(await setBookAttached(chatId, bookId, true, uid))) { done(false, { reason: 'attach_failed' }); return; } }
         }
-        const r = await createEntry({ bookId, key: splitList(p.key), keysecondary: splitList(p.keysecondary), content: String(p.content || ''), comment: String(p.comment || ''), settings, category: cat.id, source: 'manual' }, uid);
+        const r = await createEntry({ bookId, key: splitList(p.key), keysecondary: splitList(p.keysecondary), content: String(p.content || ''), comment: String(p.comment || ''), settings, category: cat.id, source: 'manual', ownerChatId: chatId ?? '', vaultRole: 'manual' }, uid);
         done(r.ok, r.ok ? { entryId: r.value } : { reason: r.error });
       } else if (p.op === 'entry_update') {
+        const snap = await vaultSnapshot(chatId ?? '', uid);
+        const existing = snap.books.flatMap((b) => b.entries).find((e) => e.id === String(p.entryId));
+        if (!existing) { done(false, { reason: 'entry_not_found' }); return; }
+        if (existing.ownerChatId && existing.ownerChatId !== chatId) { done(false, { reason: 'foreign_owner' }); return; }
         const patch: Record<string, unknown> = {};
-        if (p.key !== undefined) patch.key = splitList(p.key);
+        const nextKey = p.key !== undefined ? splitList(p.key) : existing.key;
+        const nextContent = p.content !== undefined ? String(p.content) : existing.content;
+        const overrides = new Set(existing.overrideFields ?? []);
+        if (p.key !== undefined && nextKey.join('\u0000') !== existing.key.join('\u0000')) overrides.add('key');
+        if (p.content !== undefined && nextContent.trim() !== existing.content.trim()) overrides.add('content');
+        if (p.key !== undefined) patch.key = nextKey;
         if (p.keysecondary !== undefined) patch.keysecondary = splitList(p.keysecondary);
-        if (p.content !== undefined) patch.content = String(p.content);
+        if (p.content !== undefined) patch.content = nextContent;
         if (p.comment !== undefined) patch.comment = String(p.comment);
         if (p.settings) Object.assign(patch, settingsToEntryFields(p.settings));
-        if (p.category) patch.extensions = { vellum: true, vellumCategory: String(p.category) };
         if (typeof p.disabled === 'boolean') patch.disabled = p.disabled;
+        patch.extensions = extensionsFromEntry(existing, { category: String(p.category || existing.category || 'concepts'), source: existing.vellum ? (existing.source || 'manual') : 'manual', content: nextContent, key: nextKey, ownerChatId: chatId ?? existing.ownerChatId ?? '', vaultRole: existing.vaultRole ?? 'manual', overrideFields: [...overrides] });
         const r = await updateEntry(String(p.entryId), patch, uid); done(r.ok, r.ok ? {} : { reason: r.error });
       } else if (p.op === 'entry_delete') { const r = await deleteEntry(String(p.entryId), uid); done(r.ok, r.ok ? {} : { reason: r.error }); }
       else if (p.op === 'entry_unlink') {
         // convert an auto-managed entry to hand-owned: keep vellum tag + category,
         // drop the source link so Tier-B sync never touches it again
-        const r = await updateEntry(String(p.entryId), { extensions: { vellum: true, vellumCategory: String(p.category || ''), vellumSource: 'manual' } }, uid);
+        const snap = await vaultSnapshot(chatId ?? '', uid);
+        const existing = snap.books.flatMap((b) => b.entries).find((e) => e.id === String(p.entryId));
+        if (!existing || (existing.ownerChatId && existing.ownerChatId !== chatId)) { done(false, { reason: existing ? 'foreign_owner' : 'entry_not_found' }); return; }
+        const r = await updateEntry(String(p.entryId), { extensions: extensionsFromEntry(existing, { category: String(p.category || existing.category), source: 'manual', link: '', canonicalType: '', canonicalId: '', ownerChatId: chatId ?? '', vaultRole: 'manual', overrideFields: ['content', 'key'] }) }, uid);
         done(r.ok, r.ok ? {} : { reason: r.error });
       }
       else done(false, { reason: 'unknown_op' });
@@ -2715,15 +2799,16 @@ const dispatch: Record<string, Handler> = {
       const state = await loadState(chatId);
       const promo = buildPromotion(state, p.kind as PromoteKind, String(p.id));
       if (!promo) { done(false, { reason: 'not_found' }); return; }
+      if (promo.audience !== 'public') { done(false, { reason: 'private_record' }); return; }
       const cats = await loadCategories(uid);
       const cat = resolveCategory(cats, promo.category);
       const snap = await vaultSnapshot(chatId, uid);
       // target a VELLUM-owned book (create one if none), reuse if entry already linked
-      let bookId = p.bookId || snap.books.find((b) => b.vellum)?.id;
-      if (!bookId) { const r = await createBook('VELLUM Vault', 'Lore promoted from the chronicle', uid); if (!r.ok) { done(false, { reason: r.error }); return; } bookId = r.value; await setBookAttached(chatId, bookId, true, uid); }
-      const existing = snap.books.flatMap((b) => b.entries).find((e) => e.vellum && e.link === promo.link);
-      if (existing) { await syncEntry(existing.id, promo.content, promo.key, promo.hash, promo.link, cat.id, uid); done(true, { updated: true }); }
-      else { const r = await createEntry({ bookId, key: promo.key, keysecondary: promo.keysecondary, content: promo.content, comment: promo.comment, settings: cat.defaults, category: cat.id, source: 'promote', link: promo.link, hash: promo.hash }, uid); done(r.ok, r.ok ? { entryId: r.value } : { reason: r.error }); }
+      let bookId = p.bookId || ownedBooks(snap, chatId).find((b) => b.role === 'manual')?.id;
+      if (!bookId) { const r = await createBook('VELLUM Vault', 'Lore promoted from the chronicle', uid, chatId, 'manual'); if (!r.ok) { done(false, { reason: r.error }); return; } bookId = r.value; if (!(await setBookAttached(chatId, bookId, true, uid))) { done(false, { reason: 'attach_failed' }); return; } }
+      const existing = ownedEntries(snap, chatId).find((e) => e.link === promo.link);
+      if (existing) { const r = await syncEntry(existing, promo.content, promo.key, promo.hash, promo.link, cat.id, uid, true, promo.comment, promo.keysecondary); done(r.ok, r.ok ? { updated: true } : { reason: r.error }); }
+      else { const r = await createEntry({ bookId, key: promo.key, keysecondary: promo.keysecondary, content: promo.content, comment: promo.comment, settings: cat.defaults, category: cat.id, source: promo.source, link: promo.link, hash: promo.hash, ownerChatId: chatId, vaultRole: 'manual' }, uid); done(r.ok, r.ok ? { entryId: r.value } : { reason: r.error }); }
     } catch (e) { done(false, { reason: (e as Error)?.message ?? 'error' }); }
     await vaultBroadcast(chatId, uid);
   },
@@ -2739,7 +2824,10 @@ const dispatch: Record<string, Handler> = {
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!(await hasVault())) return;
     try {
-      if (p?.action === 'accept') await updateEntry(String(p.entryId), { extensions: { vellum: true, vellumCategory: String(p.category || 'characters'), vellumSource: 'auto', vellumLink: String(p.link || ''), vellumPending: false } }, uid);
+      if (p?.action === 'accept') {
+        const snap = await vaultSnapshot(chatId ?? '', uid); const existing = snap.books.flatMap((b) => b.entries).find((e) => e.id === String(p.entryId));
+        if (existing && (!existing.ownerChatId || existing.ownerChatId === chatId)) await updateEntry(existing.id, { extensions: extensionsFromEntry(existing, { pending: false, ownerChatId: chatId ?? existing.ownerChatId ?? '' }) }, uid);
+      }
       else if (p?.action === 'reject') await deleteEntry(String(p.entryId), uid);
     } catch (e) { spindle.log?.warn?.('[vellum_engine] pending resolve: ' + ((e as Error)?.message ?? e)); }
     await vaultBroadcast(chatId ?? '', uid);
