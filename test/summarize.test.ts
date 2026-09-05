@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { summarizeOnce, parseSummary, cleanGist, reportArchiveSaved } from '../src/bus/summarize.js';
+import { summarizeOnce, summarizeFromPlan, parseSummary, cleanGist, reportArchiveSaved } from '../src/bus/summarize.js';
 import { invalidatePermissions } from '../src/host/capability.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 import { DEFAULT_CFG } from '../src/domain/summarizer-config.js';
+import { planArcFrom } from '../src/domain/memory.js';
 
 // In tests there's no `spindle`, so internalGenerate returns an error. Safe
 // failure leaves the exact source turns intact for a later retry.
@@ -116,6 +117,66 @@ describe('summarize pass-1 retry (reasoning-model empty first call)', () => {
     expect(chapter.text.startsWith('Chapter (turns')).toBe(false);
     expect(chapter.text).toContain('Cersei');
     expect(calls).toBeGreaterThanOrEqual(2); // proves the retry fired
+  });
+
+  it('rejects a conversational reasoning reply when folding chapters into an arc', async () => {
+    const state = freshState();
+    state.turns = 8;
+    state.memories = [
+      { id: 'chap_1', tier: 'chapter', text: 'Eleanor met Gabriel.', detail: 'Eleanor met Gabriel at Nana\'s diner and recognized his family resemblance.', keys: ['Nana\'s diner'], turn: 4, covers: [1, 4] } as any,
+      { id: 'chap_2', tier: 'chapter', text: 'Gabriel disclosed the letter.', detail: 'Gabriel showed Eleanor the sealed letter, and she promised to protect it.', keys: ['sealed letter'], turn: 8, covers: [5, 8] } as any,
+    ];
+    const plan = planArcFrom(state, ['chap_1', 'chap_2'], 2)!;
+    const seenUsers: string[] = [];
+    let calls = 0;
+    (globalThis as any).spindle = {
+      permissions: { has: async () => true }, has: async () => true,
+      log: { warn: () => {}, info: () => {} },
+      generate: { raw: async (req: any) => {
+        calls++;
+        seenUsers.push(req.messages[1].content);
+        if (calls === 1) return { content: '', reasoning: "I've read through the full recap, but you haven't actually asked me anything. What would you like me to do with this?" };
+        if (calls === 2) return { content: 'DETAIL:\nEleanor recognized Gabriel at Nana\'s diner before he entrusted her with a sealed letter, which she promised to protect.\nKEYS:\nNana\'s diner, sealed letter, Eleanor\'s promise' };
+        return { content: 'Eleanor recognized Gabriel at Nana\'s diner, then promised to protect the sealed letter he entrusted to her.' };
+      } },
+    };
+    invalidatePermissions();
+    const result = await summarizeFromPlan(state, null, plan, undefined, DEFAULT_CFG, 'arc');
+    const arc = result.events.find((e: any) => e.kind === 'memory.record') as any;
+    expect(calls).toBe(3);
+    expect(arc?.tier).toBe('arc');
+    expect(arc?.detail).toContain('sealed letter');
+    expect(arc?.detail).not.toContain('what would you like');
+    expect(seenUsers[0]).toContain('[ARCHIVE TASK: WRITE ONE ARC RECORD NOW]');
+    expect(seenUsers[0]).toContain('not a message that needs to ask a question');
+    expect(seenUsers[1]).toContain('A prior attempt was rejected');
+  });
+
+  it('rejects the same conversational reply from the arc gist pass', async () => {
+    const state = freshState();
+    state.turns = 8;
+    state.memories = [
+      { id: 'chap_1', tier: 'chapter', text: 'Eleanor met Gabriel.', detail: 'Eleanor met Gabriel at Nana\'s diner.', keys: [], turn: 4, covers: [1, 4] } as any,
+      { id: 'chap_2', tier: 'chapter', text: 'Gabriel disclosed the letter.', detail: 'Gabriel entrusted Eleanor with the sealed letter.', keys: [], turn: 8, covers: [5, 8] } as any,
+    ];
+    const plan = planArcFrom(state, ['chap_1', 'chap_2'], 2)!;
+    let calls = 0;
+    (globalThis as any).spindle = {
+      permissions: { has: async () => true }, has: async () => true,
+      log: { warn: () => {}, info: () => {} },
+      generate: { raw: async () => {
+        calls++;
+        if (calls === 1) return { content: 'DETAIL:\nEleanor met Gabriel at Nana\'s diner before he entrusted her with the sealed letter.\nKEYS:\nNana\'s diner, sealed letter' };
+        if (calls === 2) return { content: '', reasoning: "There's no question or instruction in your message. What would you like me to do with this?" };
+        return { content: 'Eleanor met Gabriel at Nana\'s diner and accepted custody of his sealed letter.' };
+      } },
+    };
+    invalidatePermissions();
+    const result = await summarizeFromPlan(state, null, plan, undefined, DEFAULT_CFG, 'arc');
+    const arc = result.events.find((e: any) => e.kind === 'memory.record') as any;
+    expect(calls).toBe(3);
+    expect(arc?.text).toContain('sealed letter');
+    expect(arc?.text).not.toContain('What would you like');
   });
 
   it('keeps the configured token ceiling and allows reasoning on retry', async () => {

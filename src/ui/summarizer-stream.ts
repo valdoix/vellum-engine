@@ -184,6 +184,13 @@ export function handleSummarizerStream(payload: SummarizerStreamPayload, cancel:
     live.detail = '';
     live.gist = '';
   }
+  // Each streamed attempt is provisional until the backend validates it. If a
+  // provider emitted assistant chatter/reasoning as content, remove that rejected
+  // attempt before displaying the retry so it cannot linger beside valid output.
+  if (payload.status === 'retry') {
+    if (payload.phase === 'gist') live.gist = '';
+    else if (payload.phase === 'detail') live.detail = '';
+  }
   if (payload.status === 'done' && typeof payload.text === 'string') {
     if (payload.phase === 'gist') live.gist = payload.text;
     else if (payload.phase === 'detail') live.detail = payload.text;
