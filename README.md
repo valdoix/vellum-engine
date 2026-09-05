@@ -31,7 +31,7 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **Extension 2.1.0-beta.7** — updated for Lumiverse 1.1.6 and Spindle SDK 0.6.27, with safer Chronicle persistence, authenticated multi-user routing, mutation reconciliation, permission-aware lifecycle cleanup, and the hardened state-block repair flow.
+> **Extension 2.1.0-beta.8 (testing)** — adds streamed summarization progress, safe cancellation, configurable summary token limits, completion-driven retries, verified archival coverage, refreshed knowledge/secret propagation, and stronger long-session retrieval.
 
 > **Preset 2.3.0** — a bounded Reverie controller, stronger character fidelity and causality, adaptive interiority, earned relationship progression, and rigorous T0→T1 time continuity.
 
