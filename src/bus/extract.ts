@@ -6,6 +6,7 @@ import { adjustBond, DEFAULT_TONE, seedFactionStanding, type Tone } from '../dom
 import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate } from '../host/generation.js';
 import { has } from '../host/capability.js';
+import { similarFact } from '../domain/fact-match.js';
 
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
@@ -28,6 +29,7 @@ const EXTRACT_SYS =
   + '{"present":[{"who":"Name","mood":"one-word emotion or short phrase","doing":"what they are physically doing right now","condition":"physical state e.g. wounded|exhausted, or omit","thought":"their genuine first-person INNER VOICE this beat, under what THEY know, or omit"}],'
   + '"knowledge":[{"who":"Name","fact":"one clause","reliability":"knows|believes|suspects|wrong|unaware","truth":"true|false|unknown","source":"how they learned it, brief or omit","about":"Name or omit"}],'
   + '"secrets":[{"secret":"one clause","keeper":"Name","from":["Name"],"danger":"minor|major|explosive"}],'
+  + '"secretReveals":[{"id":"exact tracked secret id","to":["Name"]}],'
   + '"journal":[{"who":"Name","about":"Name or omit","memory":"one vivid sentence from WHO\'S point of view","kind":"interaction|promise|betrayal|gift|shared|wound|observation","weight":"trivial|minor|significant|defining","sentiment":"positive|negative|neutral|complex"}],'
   + '"bonds":[{"a":"Name","b":"Name","aff":<int -40..40>,"trust":<int -40..40>,"cat":["familial|romantic|alliance|rivalry|social"],"why":"one clause"}],"factions":[{"name":"Group name","kind":"household|house|guild|order","members":["Name"],"standing":<int -40..40 toward the player, optional>}]}. '
   + 'RULES: every character-valued slot (who, about, keeper, from, a, b, and faction members) may contain ONLY one exact label copied from the KNOWN CHARACTERS roster. Do not expand, shorten, combine, infer, translate, title, or normalize a roster label. A capitalized object, place, time, event, title, role, group, descriptor, or narrative phrase is NOT a character. If the exact character label is absent from the roster, OMIT that field or entry; the canonical state pass, not this supplemental prose pass, creates new cast identities. '
@@ -37,7 +39,7 @@ const EXTRACT_SYS =
   + 'KNOWLEDGE is the engine of dramatic irony — track the INFORMATION STATE. Extract when ANY character (including the player) learns, realizes, infers, overhears, confesses, or comes to wrongly believe something — e.g. "Cersei revealed her father beat her" => {who:"<listener>",fact:"<speaker>\'s father beat <speaker>"} AND a secret if it was hidden. '
   + 'reliability = the knower\'s stance (wrong = they believe something untrue); truth = the ACTUAL state regardless of belief (a mistaken belief is reliability:"wrong",truth:"false"); source = how they came to it. '
   + 'PREFER facts that create tension, irony, or asymmetric knowledge (someone believes a falsehood, someone hides something, one party knows what another does not). OMIT routine perceptions everyone present already shares ("the door was open", "it was cold") — those are not knowledge. '
-  + 'SECRETS: extract when someone conceals something OR a hidden thing is revealed this excerpt (a confessed abuse, a hidden parentage, a lie). '
+  + 'SECRETS: use secrets[] only when a newly tracked hidden fact is formed. When an already tracked hidden fact is disclosed, use secretReveals[] with its exact id from KNOWN SECRETS and the people who learned it; use to:[] only when it became public. Also emit knowledge[] for every recipient. '
   + 'JOURNAL: extract genuine TURNING POINTS a character would personally carry — a confession, promise, betrayal, gift, wound, first kiss, a moment of being truly seen — written from that character\'s POV; the PLAYER can and should hold journal entries too. '
   + 'BONDS: aff/trust are the CHANGE this excerpt caused to how A feels toward B; omit pairs that did not move; cat only when the bond\'s nature changed. '
   + 'FACTIONS: name a GROUP (household staff, a house, a guild) when it acts, is referenced as a bloc, or a character belongs to one; list known members and the group\'s standing toward the player if it shifted. Capture every real reveal/turning-point that carries dramatic weight, invent nothing the prose does not support. Empty arrays are fine. '
@@ -273,6 +275,12 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     out.push({ ...base(), kind: 'scene.set', present: presIds, detail: presDetail, mergeDetail: true } as VellumEvent);
   }
 
+  const revealed = new Map<string, Set<string>>();
+  const queueReveal = (id: string, targets: string[]): void => {
+    const set = revealed.get(id) ?? new Set<string>();
+    for (const target of targets) if (target) set.add(target);
+    revealed.set(id, set);
+  };
   for (const k of Array.isArray(obj.knowledge) ? obj.knowledge : []) {
     const who = realName(k?.who, names); const fact = String(k?.fact || '').trim();
     const whoId = subjectId(who);
@@ -283,7 +291,28 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     const truth = TRU.has(String(k?.truth)) ? k.truth : undefined;
     const source = String(k?.source || '').trim().slice(0, 120) || undefined;
     out.push({ ...base(), kind: 'knowledge.learn', who: whoId, fact, ...(aboutId ? { about: aboutId } : {}), ...(reliability ? { reliability } : {}), ...(truth ? { truth } : {}), ...(source ? { source } : {}) } as VellumEvent);
+    for (const secret of state?.secrets ?? []) {
+      if (secret.revealed || secret.revealedTo.includes(whoId) || !secret.from.includes(whoId)) continue;
+      if (similarFact(secret.text, fact)) queueReveal(secret.id, [whoId]);
+    }
   }
+  for (const row of Array.isArray(obj.secretReveals) ? obj.secretReveals : []) {
+    const id = String(row?.id ?? '').trim();
+    const secret = state?.secrets.find((s) => s.id === id);
+    if (!secret) continue;
+    const rawTargets: unknown[] = Array.isArray(row?.to) ? row.to : [];
+    const targets = rawTargets.map((x) => subjectId(realName(String(x ?? ''), names))).filter((x): x is string => !!x);
+    if (!rawTargets.length) revealed.set(id, new Set());
+    else if (targets.length) queueReveal(id, targets);
+    else continue;
+    for (const who of targets) {
+      const alreadyRecorded = (Array.isArray(obj.knowledge) ? obj.knowledge : []).some((k: any) => subjectId(realName(k?.who, names)) === who && similarFact(String(k?.fact ?? ''), secret.text));
+      if (alreadyRecorded) continue;
+      const keeper = state?.cast[secret.keeper]?.name ?? secret.keeper;
+      out.push({ ...base(), kind: 'knowledge.learn', who, fact: secret.text, about: secret.keeper, reliability: 'knows', truth: 'unknown', source: `secret disclosed by ${keeper}` } as VellumEvent);
+    }
+  }
+  for (const [id, targets] of revealed) out.push({ ...base(), kind: 'secret.reveal', id, to: [...targets] } as VellumEvent);
   let si = 0;
   for (const s of Array.isArray(obj.secrets) ? obj.secrets : []) {
     const keeper = realName(s?.keeper, names); const text = String(s?.secret || s?.text || '').trim();
@@ -349,14 +378,16 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   if (!prose || !prose.trim() || !(await has('generation'))) return [];
   const roster = rosterLabels(buildCharacterRoster(state, names)).slice(0, 250);
   const factions = Object.values(state?.factions ?? {}).map((f) => f.name).filter(Boolean).slice(0, 100);
+  const secrets = (state?.secrets ?? []).filter((s) => !s.revealed).slice(0, 100);
   const context = '[KNOWN CHARACTERS]\n' + (roster.length ? roster.join('\n') : '(none)')
     + '\n\n[KNOWN FACTIONS]\n' + (factions.length ? factions.join('\n') : '(none)')
+    + '\n\n[KNOWN SECRETS — copy id exactly when disclosed]\n' + (secrets.length ? secrets.map((s) => `${s.id}: ${s.text}`).join('\n') : '(none)')
     + '\n\n[RECENT NARRATIVE PROSE]\n' + prose.slice(0, 8000);
   const gen = await internalGenerate(
     [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: context }],
     { temperature: 0.2, max_tokens: 900 },
     userId,
-    { reasoningOff: true, responseFormat: extractSchema(roster), timeoutMs: 45000 },
+    { reasoningOff: true, responseFormat: extractSchema(roster, secrets.map((s) => s.id)), timeoutMs: 45000 },
   );
   if (!gen.ok) return [];
   const obj = parseJson(gen.value);
@@ -367,7 +398,7 @@ export async function extractFromProse(prose: string, turn: number, day: number,
 // when generation_parameters is granted (else it's stripped and we still parse
 // defensively). Guarantees the prose fallback yields parseable JSON so a turn
 // that omitted its <vellum> block still mines knowledge/secrets/bonds/journal.
-function extractSchema(roster: string[]) {
+function extractSchema(roster: string[], secretIds: string[]) {
   // Constrain character slots at generation time as well as at deterministic
   // mapping time. Providers that honor response_format cannot emit arbitrary
   // prose phrases into cast fields; providers that ignore it still hit the
@@ -394,6 +425,10 @@ function extractSchema(roster: string[]) {
           secrets: { type: 'array', items: { type: 'object', properties: {
             keeper: character(), secret: { type: 'string' }, from: { type: 'array', items: character() }, danger: { type: 'string' },
           }, required: ['keeper', 'secret'] } },
+          secretReveals: { type: 'array', items: { type: 'object', properties: {
+            id: { type: 'string', enum: secretIds.length ? secretIds : ['__NO_TRACKED_SECRET__'] },
+            to: { type: 'array', items: character() },
+          }, required: ['id', 'to'] } },
           journal: { type: 'array', items: { type: 'object', properties: {
             who: character(), about: character(), memory: { type: 'string' },
             kind: { type: 'string' }, weight: { type: 'string' }, sentiment: { type: 'string' },

@@ -1,6 +1,6 @@
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
-import { planChapter, chapterEvents, arcEvents, type CompressPlan } from '../domain/memory.js';
+import { planChapter, chapterEvents, arcEvents, archiveCoverageHash, type CompressPlan } from '../domain/memory.js';
 import { internalGenerate } from '../host/generation.js';
 import { nextSeq } from '../core/ids.js';
 import { DEFAULT_CFG, resolvePrompt, type SummarizerCfg } from '../domain/summarizer-config.js';
@@ -18,8 +18,8 @@ export interface SummaryResult { events: VellumEvent[]; tokens: number; }
  * Auto + manual summarization. Compresses the oldest window of turn-tier
  * memories into ONE chapter memory that is detail-dense yet compact, then drops
  * the sources (still recall-able via the chapter, through the same hybrid
- * fuser). LLM-written when generation is available; falls back to a structural
- * concatenation so it never silently no-ops.
+ * fuser). A failed generation leaves the source turns visible and unfolded;
+ * VELLUM never hides prose behind a structural digest that may omit details.
  */
 
 // The hybrid prompt (DETAIL for the vault, GIST for the chronicle, KEYS for
@@ -68,8 +68,8 @@ export async function summarizeWindow(state: ChronicleState, userId: string | nu
  *   2. GIST — condense the finished DETAIL into the lean chronicle line.
  * The gist is a summary of the clean detail (not the raw turns), so the two
  * layers can never disagree, and each call gets full attention + budget for one
- * job. Falls back to deriving the gist from the detail if the 2nd call fails,
- * and to a structural digest if generation is unavailable.
+ * job. Falls back to deriving the gist from the detail if the 2nd call fails.
+ * If DETAIL never lands, the operation safely returns no archive events.
  */
 export async function summarizeFromPlan(
   state: ChronicleState,
@@ -97,7 +97,7 @@ export async function summarizeFromPlan(
 
   // WINDOW-SPLIT FALLBACK: if the full window came back empty (a reasoning model
   // that couldn't think + write the whole span within budget), retry on just the
-  // FIRST HALF of the sources before surrendering to the structural digest. A
+  // FIRST HALF of the sources before leaving the window unfolded. A
   // real chapter over fewer turns beats a first-sentence concatenation. Only the
   // first half is summarized here (the caller re-runs on the remainder next pass,
   // since those turns stay un-covered); the covers/sources are narrowed to match.
@@ -135,17 +135,13 @@ export async function summarizeFromPlan(
     if (gen2.ok && gen2.value.trim()) gist = stripToProse(gen2.value);
   }
 
-  // fallbacks: no detail at all (generation down) → structural digest as gist;
-  // detail but the gist call failed → derive the gist from the detail.
-  if (!gist && !detail) {
-    // every generation attempt (full window + escalation + half-window) came back
-    // empty — surface the first-sentence structural digest. Log the shape of the
-    // failure so this is diagnosable, not a mystery "bad summary".
-    if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: all generation attempts returned no detail (${kind}, ${plan.sourceIds.length} sources, ~${tokens} tok spent); using structural digest`);
-    gist = fallbackDigest(state, plan, cfg.gistCap);
+  // No dense record means no compression. The raw turn memories remain in
+  // state, and hide-on-file receives no new coverage proof.
+  if (!detail.trim()) {
+    if (typeof spindle !== 'undefined') spindle.log?.warn?.(`[vellum_engine] summarize: no complete detail returned (${kind}, ${plan.sourceIds.length} sources, ~${tokens} tok spent); source turns left visible and unfolded`);
+    return { events: [], tokens };
   }
   if (!gist && detail) gist = cleanGist(detail);
-  if (!detail) detail = gist; // chronicle-only chapter (no vault body)
 
   // final guard: never surface a headless fragment as the gist.
   let finalGist = cleanGist(gist);
@@ -226,6 +222,7 @@ function narrowPlan(plan: CompressPlan, n: number): CompressPlan | null {
     sourceIds: source.map((s) => s.id),
     source,
     covers: [source[0]!.turn, source[source.length - 1]!.turn],
+    coverageHash: archiveCoverageHash(source),
   };
 }
 
@@ -357,31 +354,6 @@ function capText(t: string, max: number): string {
   if (lastStop > max * 0.5) return cut.slice(0, lastStop + 1).trim(); // whole sentence(s)
   // no usable sentence boundary → trim at a word and mark the elision
   return cut.replace(/\s+\S*$/, '').trim().replace(/[\s,;:.\u2014-]+$/, '') + '\u2026';
-}
-
-/** Sentence-bounded structural digest used when host generation is unavailable.
- * One lead sentence per source turn, trimmed — readable, never mid-word, and
- * kept within the chapter budget so the downstream slice can't cut it. */
-function fallbackDigest(state: ChronicleState, plan: CompressPlan, gistCap = 600): string {
-  const firstSentence = (t: string): string => {
-    const s = t.replace(/\s+/g, ' ').trim();
-    const m = s.match(/^.*?[.!?](?=\s|$)/);
-    let out = (m ? m[0] : s);
-    if (out.length > 180) out = out.slice(0, 177).replace(/\s+\S*$/, '') + '\u2026'; // word-boundary trim
-    return out.trim();
-  };
-  const prefix = `Chapter (turns ${plan.covers[0]}\u2013${plan.covers[1]}): `;
-  const BUDGET = Math.max(1180, gistCap * 2); // headroom; scales with the configured gist cap
-  const out: string[] = [];
-  let len = prefix.length;
-  for (const id of plan.sourceIds) {
-    const t = state.memories.find((m) => m.id === id)?.text;
-    if (!t || !t.trim()) continue;
-    const sentence = firstSentence(t);
-    if (len + sentence.length + 1 > BUDGET) break; // stop on a whole sentence, never mid-word
-    out.push(sentence); len += sentence.length + 1;
-  }
-  return prefix + out.join(' ');
 }
 
 /** Compress as many windows as exist (manual "summarize all"). A manual run uses

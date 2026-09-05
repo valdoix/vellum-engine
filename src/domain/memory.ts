@@ -1,4 +1,4 @@
-import type { ChronicleState } from './types.js';
+import type { ChronicleState, Memory, MemorySnapshot } from './types.js';
 import type { VellumEvent } from '../core/events.js';
 import { hashStr } from '../core/ids.js';
 
@@ -20,9 +20,47 @@ export interface CompressPlan {
   sourceIds: string[];
   /** the full source memories, kept so deletion can restore them. tier/detail/
    * covers are carried for chapter sources (so an arc can restore real chapters). */
-  source: Array<{ id: string; turn: number; text: string; keys: string[]; tier?: 'turn' | 'chapter' | 'arc'; detail?: string; covers?: [number, number] }>;
+  source: MemorySnapshot[];
   /** inclusive turn range covered */
   covers: [number, number];
+  /** Integrity proof over the exact ordered source snapshots. */
+  coverageHash: string;
+}
+
+/** Stable hash of a restorable memory snapshot. `sourceHash` is deliberately
+ * excluded so validation never hashes the hash itself. */
+export function memorySnapshotHash(m: MemorySnapshot): string {
+  return hashStr(JSON.stringify({
+    id: m.id, turn: m.turn, text: m.text, keys: m.keys ?? [], tier: m.tier,
+    detail: m.detail, covers: m.covers, subsumed: m.subsumed,
+    coverageHash: m.coverageHash, status: m.status,
+  }));
+}
+
+export function archiveCoverageHash(source: readonly MemorySnapshot[]): string {
+  return hashStr(source.map((m) => `${m.id}:${m.sourceHash ?? memorySnapshotHash(m)}`).join('|'));
+}
+
+/** Copy the complete archive ancestry. This is the crucial arc-undo contract:
+ * an arc stores chapters and each chapter still stores its original turns. */
+function snapshotMemory(m: Memory): MemorySnapshot {
+  const snap: MemorySnapshot = {
+    id: m.id, turn: m.turn, text: m.text, keys: [...(m.keys ?? [])], tier: m.tier,
+    ...(m.detail ? { detail: m.detail } : {}),
+    ...(m.covers ? { covers: [...m.covers] as [number, number] } : {}),
+    ...(m.subsumed?.length ? { subsumed: structuredClone(m.subsumed) } : {}),
+    ...(m.coverageHash ? { coverageHash: m.coverageHash } : {}),
+    ...(m.status ? { status: m.status } : {}),
+  };
+  snap.sourceHash = memorySnapshotHash(snap);
+  return snap;
+}
+
+function planFromMemories(memories: Memory[]): CompressPlan {
+  const source = memories.map(snapshotMemory);
+  const lo = Math.min(...memories.map((m) => m.covers ? m.covers[0] : m.turn));
+  const hi = Math.max(...memories.map((m) => m.covers ? m.covers[1] : m.turn));
+  return { sourceIds: source.map((m) => m.id), source, covers: [lo, hi], coverageHash: archiveCoverageHash(source) };
 }
 
 /**
@@ -34,8 +72,7 @@ export function planChapter(state: ChronicleState, windowSize = 8): CompressPlan
   const turnMems = state.memories.filter((m) => m.tier === 'turn').sort((a, b) => a.turn - b.turn);
   if (turnMems.length < windowSize) return null;
   const window = turnMems.slice(0, windowSize);
-  const covers: [number, number] = [window[0]!.turn, window[window.length - 1]!.turn];
-  return { sourceIds: window.map((m) => m.id), source: window.map((m) => ({ id: m.id, turn: m.turn, text: m.text, keys: m.keys ?? [] })), covers };
+  return planFromMemories(window);
 }
 
 /**
@@ -52,12 +89,7 @@ export function planChapterFrom(state: ChronicleState, ids: readonly string[], m
     .filter((m) => m.tier === 'turn' && want.has(m.id))
     .sort((a, b) => a.turn - b.turn);
   if (picked.length < Math.max(2, minWindow)) return null;
-  const covers: [number, number] = [picked[0]!.turn, picked[picked.length - 1]!.turn];
-  return {
-    sourceIds: picked.map((m) => m.id),
-    source: picked.map((m) => ({ id: m.id, turn: m.turn, text: m.text, keys: m.keys ?? [] })),
-    covers,
-  };
+  return planFromMemories(picked);
 }
 
 /**
@@ -75,17 +107,12 @@ export function chapterEvents(
 ): VellumEvent[] {
   const id = 'chap_' + hashStr(plan.sourceIds.join(',')).slice(0, 8);
   const events: VellumEvent[] = [
-    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
+    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'chapter', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source, coverageHash: plan.coverageHash, status: 'ready' } as VellumEvent,
   ];
   for (const sid of plan.sourceIds) {
     events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid, folded: true });
   }
   return events;
-}
-
-/** Snapshot a chapter memory as a restorable arc-source entry. */
-function chapterSource(m: { id: string; turn: number; text: string; keys?: string[]; detail?: string; covers?: [number, number] }): CompressPlan['source'][number] {
-  return { id: m.id, turn: m.covers ? m.covers[1] : m.turn, text: m.text, keys: m.keys ?? [], tier: 'chapter', ...(m.detail ? { detail: m.detail } : {}), ...(m.covers ? { covers: m.covers } : {}) };
 }
 
 /**
@@ -112,10 +139,8 @@ export function planArcFrom(state: ChronicleState, ids: readonly string[], minCh
   return arcPlanFrom(picked);
 }
 
-function arcPlanFrom(chapters: Array<{ id: string; turn: number; text: string; keys?: string[]; detail?: string; covers?: [number, number] }>): CompressPlan {
-  const lo = Math.min(...chapters.map((m) => m.covers ? m.covers[0] : m.turn));
-  const hi = Math.max(...chapters.map((m) => m.covers ? m.covers[1] : m.turn));
-  return { sourceIds: chapters.map((m) => m.id), source: chapters.map(chapterSource), covers: [lo, hi] };
+function arcPlanFrom(chapters: Memory[]): CompressPlan {
+  return planFromMemories(chapters);
 }
 
 /**
@@ -132,10 +157,37 @@ export function arcEvents(
 ): VellumEvent[] {
   const id = 'arc_' + hashStr(plan.sourceIds.join(',')).slice(0, 8);
   const events: VellumEvent[] = [
-    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'arc', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source } as VellumEvent,
+    { seq: seq(), turn, day, src: 'system', kind: 'memory.record', id, tier: 'arc', text: summary.gist, detail: summary.detail, keys: summary.keys, covers: plan.covers, subsumed: plan.source, coverageHash: plan.coverageHash, status: 'ready' } as VellumEvent,
   ];
   for (const sid of plan.sourceIds) {
     events.push({ seq: seq(), turn, day, src: 'system', kind: 'memory.drop', id: sid, folded: true });
   }
   return events;
+}
+
+/** Exact assistant-turn numbers safely represented by ready chapter/arc
+ * archives. A corrupt hash, degraded archive, or range-only record contributes
+ * nothing. Legacy records with exact `subsumed` ancestry remain eligible. */
+export function archivedTurnNumbers(state: ChronicleState): Set<number> {
+  const out = new Set<number>();
+  const visit = (m: MemorySnapshot): boolean => {
+    if (m.status === 'degraded' || m.status === 'stale') return false;
+    if (m.sourceHash && m.sourceHash !== memorySnapshotHash(m)) return false;
+    if (m.subsumed?.length) {
+      if (m.coverageHash && m.coverageHash !== archiveCoverageHash(m.subsumed)) return false;
+      let ok = true;
+      for (const child of m.subsumed) if (!visit(child)) ok = false;
+      return ok;
+    }
+    if ((m.tier ?? 'turn') !== 'turn' || !Number.isInteger(m.turn) || m.turn <= 0) return false;
+    out.add(m.turn);
+    return true;
+  };
+  for (const m of state.memories) {
+    if (m.tier !== 'chapter' && m.tier !== 'arc') continue;
+    // Do not leave partial coverage behind if any descendant fails validation.
+    const before = new Set(out);
+    if (!visit(m)) { out.clear(); for (const n of before) out.add(n); }
+  }
+  return out;
 }

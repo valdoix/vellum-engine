@@ -7,6 +7,7 @@ import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
 import { findLock, applyLockToBond } from './relation-lock.js';
 import { inferLocationParent } from './locations.js';
 import { parseClock } from './clock.js';
+import { similarFact } from './fact-match.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -105,6 +106,12 @@ export const coreFeature: Feature = {
     // a name is unusable as a CHARACTER if it's junk (pronoun/group/abstraction)
     // OR a mash of two already-known people — drop it before it mints a junk card.
     const badName = (n: string): boolean => notAName(n) || isNameMash(n, knownPeople);
+    const queuedReveals = new Map<string, Set<string>>();
+    const queueReveal = (id: string, to: string[]): void => {
+      const targets = queuedReveals.get(id) ?? new Set<string>();
+      for (const target of to) if (target) targets.add(target);
+      queuedReveals.set(id, targets);
+    };
 
     // scene + presence — a pronoun/generic in `present` ("she") must not seed a card
     const presentName = (p: { id?: string; name?: string }): string => p.id ?? p.name ?? '';
@@ -289,6 +296,33 @@ export const coreFeature: Feature = {
         ...(k.truth ? { truth: k.truth } : {}),
         ...(k.source ? { source: String(k.source).slice(0, 120) } : {}),
       } as VellumEvent);
+      // A prose-backed knowledge update about an existing hidden fact also
+      // updates that secret's audience. This deterministic correlation is the
+      // safety net when a model records the learning but omits secretReveals.
+      for (const secret of ctx.state.secrets) {
+        if (secret.revealed || secret.revealedTo.includes(who) || !secret.from.includes(who)) continue;
+        if (similarFact(secret.text, fact)) queueReveal(secret.id, [who]);
+      }
+    }
+    // Explicit audience updates use stable prior secret ids. Empty `to` means
+    // the secret became public; targeted updates also seed knowledge when the
+    // compiler did not already emit an equivalent row for that recipient.
+    for (const reveal of parsed.delta?.secretReveals ?? []) {
+      const secret = ctx.state.secrets.find((s) => s.id === reveal.id);
+      if (!secret) continue;
+      const targets = (reveal.to ?? []).filter((n) => n && !badName(n)).map(rid);
+      if (!(reveal.to?.length)) queuedReveals.set(secret.id, new Set());
+      else if (targets.length) queueReveal(secret.id, targets);
+      else continue;
+      for (const who of targets) {
+        const alreadyRecorded = (parsed.delta?.knowledge ?? []).some((k) => !badName(k.who) && rid(k.who) === who && similarFact(k.fact, secret.text));
+        if (alreadyRecorded) continue;
+        const keeper = ctx.state.cast[secret.keeper]?.name ?? secret.keeper;
+        out.push({ ...base(), kind: 'knowledge.learn', who, fact: secret.text, about: secret.keeper, reliability: 'knows', truth: 'unknown', source: `secret disclosed by ${keeper}` } as VellumEvent);
+      }
+    }
+    for (const [id, targets] of queuedReveals) {
+      out.push({ ...base(), kind: 'secret.reveal', id, to: [...targets] } as VellumEvent);
     }
     // secrets written inline in the block
     let si = 0;
@@ -342,7 +376,7 @@ export const coreFeature: Feature = {
     }
 
     // ext: engine-reserved blocks the preset emits outside `delta`.
-    const ext = (parsed.ext ?? {}) as { scars?: Array<{ who?: string; was?: string; about?: string }>; codex?: Array<{ fact?: string; tag?: string } | string>; inventory?: Array<{ who?: string; item?: string; op?: string; to?: string; note?: string }>; plant?: Array<{ what?: string } | string>; payoff?: Array<{ what?: string } | string> };
+    const ext = (parsed.ext ?? {}) as { scars?: Array<{ who?: string; was?: string; about?: string }>; codex?: Array<{ id?: string; op?: string; fact?: string; tag?: string } | string>; inventory?: Array<{ who?: string; item?: string; op?: string; to?: string; note?: string }>; timeline?: Array<{ event?: string; day?: number; time?: string; location?: string; participants?: string[]; importance?: string }>; plant?: Array<{ what?: string } | string>; payoff?: Array<{ what?: string } | string> };
     // Palimpsest scars — a belief proven wrong, held by a real character. Same
     // rid()/notAName gate as everything else, so scar attribution inherits the
     // same-surname misattribution protection.
@@ -360,7 +394,29 @@ export const coreFeature: Feature = {
       const fact = String((typeof c === 'string' ? c : c?.fact) || '').trim();
       if (!fact) continue;
       const tag = typeof c === 'string' ? undefined : (c?.tag ? String(c.tag) : undefined);
-      out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_x' + (ci++), fact, ...(tag ? { tag } : {}), source: 'auto', status: 'provisional' } as VellumEvent);
+      const id = typeof c === 'string' ? '' : String(c?.id ?? '').trim();
+      if (id && ctx.state.lore.some((row) => row.id === id)) {
+        out.push({ ...base(), kind: 'lore.refresh', id, fact, ...(tag ? { tag } : {}) } as VellumEvent);
+      } else {
+        out.push({ ...base(), kind: 'lore.note', id: 'lore_' + ctx.turn + '_x' + (ci++), fact, ...(tag ? { tag } : {}), source: 'auto', status: 'provisional' } as VellumEvent);
+      }
+    }
+
+    // Durable chronology entries are ordinary beat memories, so timeline
+    // recall, archival ancestry and user editing all share the same event log.
+    let ti = 0;
+    for (const row of Array.isArray(ext.timeline) ? ext.timeline : []) {
+      const event = String(row?.event ?? '').trim();
+      if (!event) continue;
+      const participantIds = (row?.participants ?? []).filter((n) => n && !badName(n)).map(rid);
+      const location = String(row?.location ?? '').trim();
+      const keys = [...new Set([...participantIds, ...(location ? [location] : [])])];
+      out.push({
+        ...base(), kind: 'memory.record', id: `beat_${ctx.turn}_${ti++}`, tier: 'beat', text: event, keys,
+        beatDay: Number.isInteger(row?.day) ? Number(row.day) : ctx.day,
+        ...(row?.time ? { beatTime: String(row.time) } : {}),
+        ...((row?.importance === 'major' || row?.importance === 'critical') ? { spine: true } : {}),
+      } as VellumEvent);
     }
 
     // Possession tracker — named items the model reports gained/lost/given/scene.

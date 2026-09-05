@@ -37,6 +37,7 @@ export interface TreeTraverseOpts {
   selectLimit?: number; // max accumulated selections
   frontierMax?: number; // max nodes shown per step
   axis?: 'temporal' | 'character' | 'hybrid'; // which tree to walk
+  query?: string;
 }
 
 const SYS =
@@ -75,7 +76,7 @@ export async function traverseTree(
     : opts.axis === 'hybrid' ? buildHybridTree(state)
     : buildMemoryTree(state);
   if (!tree.rootIds.length) return null;
-  const scene = buildScene(state);
+  const scene = buildScene(state, opts.query);
 
   let frontier: string[] = tree.rootIds.slice(0, frontierMax);
   const expandedSeen = new Set<string>();

@@ -614,7 +614,7 @@ function hoistDeltaFields(obj: Record<string, unknown>): void {
   while (obj.delta && typeof obj.delta === 'object' && (obj.delta as Record<string, unknown>).delta && typeof (obj.delta as Record<string, unknown>).delta === 'object' && guard++ < 4) {
     obj.delta = (obj.delta as Record<string, unknown>).delta;
   }
-  const keys = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'factions', 'parallel'];
+  const keys = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'parallel'];
   const delta = (obj.delta && typeof obj.delta === 'object') ? obj.delta as Record<string, unknown> : {};
   let moved = false;
   for (const k of keys) {

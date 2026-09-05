@@ -41,7 +41,7 @@ const SYS =
   + 'shown. Choose few, not many. Empty list is allowed.';
 
 /** Compact, deterministic scene summary the controller reasons over. */
-export function buildScene(state: ChronicleState): string {
+export function buildScene(state: ChronicleState, query = ''): string {
   const nameOf = (id: string): string => state.cast[id]?.name ?? id;
   const present = (state.scene.present ?? []).map(nameOf);
   const loc = state.scene.location ? `Location: ${state.scene.location}.` : '';
@@ -52,7 +52,8 @@ export function buildScene(state: ChronicleState): string {
     .slice(-4)
     .map((t) => t.name);
   const open = threads.length ? ` Open threads: ${threads.join('; ')}.` : '';
-  return `Turn ${state.turns || 0}. ${cast} ${loc}${tension}${open}`.trim();
+  const current = query.trim() ? ` Current prompt: ${query.trim().slice(-1200)}` : '';
+  return `Turn ${state.turns || 0}. ${cast} ${loc}${tension}${open}${current}`.trim();
 }
 
 /** Build the bounded candidate frontier from the lexical ranking (already scene-relevant). */
@@ -98,7 +99,7 @@ export function validateSelection(candidates: Array<{ id: string }>, chosen: str
   return out.length ? out : null;
 }
 
-export interface TraverseOpts { maxCandidates?: number }
+export interface TraverseOpts { maxCandidates?: number; query?: string }
 
 /**
  * Run one controller selection over the lexical frontier. Returns null on any
@@ -115,7 +116,7 @@ export async function traverseRanked(
   const max = opts.maxCandidates ?? 16;
   const candidates = pickCandidates(index, lexIds, max);
   if (!candidates.length) return null;
-  const scene = buildScene(state);
+  const scene = buildScene(state, opts.query);
   const list = candidates.map((c) => `${c.id}: ${c.text}`).join('\n');
   const res = await callModel({ system: SYS, user: `CURRENT SCENE:\n${scene}\n\nCANDIDATES:\n${list}` });
   if (!res.ok) return null;

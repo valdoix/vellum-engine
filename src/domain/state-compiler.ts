@@ -23,8 +23,9 @@ export const CompilerState = z.object({
   delta: Delta.omit({ parallel: true }),
   ext: z.object({
     scars: item({ who: name, was: text, about: name.optional() }).optional(),
-    codex: item({ fact: text, tag: name.optional() }).optional(),
+    codex: item({ id: name.optional(), op: z.enum(['add', 'refresh']).optional(), fact: text, tag: name.optional() }).optional(),
     inventory: item({ who: name, item: text, op: z.enum(['gain', 'lose', 'give', 'scene', 'note']), to: name.optional(), note: text.optional() }).optional(),
+    timeline: item({ event: text, day: z.number().int().nonnegative().optional(), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(), location: name.optional(), participants: z.array(name).max(20).optional(), importance: z.enum(['minor', 'major', 'critical']).optional() }).optional(),
     plant: item({ what: text }).optional(), payoff: item({ what: text }).optional(),
   }).strict(),
 }).strict();
@@ -104,6 +105,11 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       if (section === 'bonds' && (!known(row.a) || !known(row.b) || canonId(row.a) === canonId(row.b))) errors.push('invalid bond identities');
       if (section === 'knowledge' && (!row.source?.trim() || !evidence.has(`delta.knowledge.${index}`))) errors.push('knowledge requires a transmission source and evidence');
       if (section === 'knowledge' && !input.prior.scene.present.map(canonId).includes(canonId(row.who)) && !/(told|heard|read|saw|witness|inferred|report|letter|message|broadcast)/i.test(row.source ?? '')) errors.push(`off-stage knowledge lacks an explicit transmission path: ${row.who}`);
+      if (section === 'secretReveals') {
+        const secret = input.prior.secrets.find(x => x.id === row.id);
+        if (!secret) errors.push(`unknown secret id: ${row.id}`);
+        for (const target of row.to ?? []) if (!known(target)) errors.push(`unknown secret recipient: ${target}`);
+      }
     });
   }
   for (const [section, rows] of Object.entries(s.ext)) {
@@ -112,6 +118,12 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       if (!evidence.has(`ext.${section}.${i}`)) errors.push(`missing evidence: ext.${section}.${i}`);
       if (row.who && row.who !== 'world' && !known(row.who)) errors.push(`unknown owner: ${row.who}`);
       if (row.op === 'give' && (!row.to || !known(row.to))) errors.push('give requires a known recipient');
+      if (section === 'codex' && row.op === 'refresh' && (!row.id || !input.prior.lore.some(x => x.id === row.id))) errors.push(`codex refresh requires an existing id: ${row.id ?? '(missing)'}`);
+      if (section === 'codex' && row.id && !input.prior.lore.some(x => x.id === row.id)) errors.push(`unknown codex id: ${row.id}`);
+      if (section === 'timeline') {
+        if (row.location && !literalName(row.location) && row.location !== input.prior.scene.location && !(input.prior.locations ?? []).some(x => x.name === row.location)) errors.push(`unknown timeline location: ${row.location}`);
+        for (const participant of row.participants ?? []) if (!known(participant)) errors.push(`unknown timeline participant: ${participant}`);
+      }
     });
   }
   const rows = new Map(input.prior.parallel.filter(p => p.who).map(p => [canonId(p.who!), { who: input.prior.cast[p.who!]?.name ?? p.who!, where: p.where ?? '', activity: p.activity, note: p.note }]));

@@ -1,4 +1,4 @@
-import type { ChronicleState } from '../domain/types.js';
+import type { ChronicleState, MemorySnapshot } from '../domain/types.js';
 import { collectItems, type RetrievableItem } from './invindex.js';
 
 /**
@@ -40,48 +40,41 @@ function within(inner: [number, number] | undefined, outer: [number, number] | u
 /** Build the arc→chapter→leaf tree from derived state + the retrieval index. */
 export function buildMemoryTree(state: ChronicleState, items?: RetrievableItem[]): MemTree {
   const leaves = (items ?? collectItems(state));
-  const arcs = state.memories.filter((m) => m.tier === 'arc');
-  const chapters = state.memories.filter((m) => m.tier === 'chapter');
   const nodes = new Map<string, MemNode>();
+  for (const it of leaves) nodes.set(it.id, { id: it.id, kind: 'leaf', gist: clip(it.text, 200), childrenIds: [] });
 
-  const leafNode = (it: RetrievableItem): MemNode => ({
-    id: it.id, kind: 'leaf', gist: clip(it.text, 200), childrenIds: [],
-  });
-  for (const it of leaves) nodes.set(it.id, leafNode(it));
+  const claimed = new Set<string>();
+  const exactSummaries = new Set<string>();
+  const register = (m: MemorySnapshot): void => {
+    const kind = m.tier === 'arc' ? 'arc' : m.tier === 'chapter' ? 'chapter' : 'leaf';
+    if (kind === 'leaf') return;
+    const children = (m.subsumed ?? []).map((child) => child.id);
+    nodes.set(m.id, { id: m.id, kind, gist: clip(m.text, 200), childrenIds: children, covers: m.covers });
+    if (children.length) {
+      exactSummaries.add(m.id);
+      for (const child of m.subsumed ?? []) { claimed.add(child.id); register(child); }
+    }
+  };
+  for (const m of state.memories) register(m);
 
-  // assign each leaf to the most specific chapter whose covers contains its turn
-  const chapterLeaves = new Map<string, string[]>();
-  const claimedLeaves = new Set<string>();
-  // narrowest chapter first so a leaf lands in the tightest range
-  const chaptersByRange = chapters.slice().sort((a, b) => span(a.covers) - span(b.covers));
+  // Backward compatibility for pre-v21 summaries that lack exact ancestry.
+  // New archives never use range containment: their explicit child ids are the
+  // only authority, which keeps noncontiguous manual picks exact.
+  const chapters = state.memories.filter((m) => m.tier === 'chapter');
+  const legacyChapters = chapters.filter((m) => !exactSummaries.has(m.id));
+  const summaries = new Set(state.memories.filter((m) => m.tier === 'chapter' || m.tier === 'arc').map((m) => m.id));
   for (const it of leaves) {
-    if (nodes.get(it.id)!.kind !== 'leaf') continue;
-    const ch = chaptersByRange.find((c) => inRange(it.turn, c.covers));
-    if (ch) { (chapterLeaves.get(ch.id) ?? chapterLeaves.set(ch.id, []).get(ch.id)!).push(it.id); claimedLeaves.add(it.id); }
+    if (summaries.has(it.id) || claimed.has(it.id)) continue;
+    const ch = legacyChapters.slice().sort((a, b) => span(a.covers) - span(b.covers)).find((c) => inRange(it.turn, c.covers));
+    if (ch) { nodes.get(ch.id)!.childrenIds.push(it.id); claimed.add(it.id); }
   }
-
+  const legacyArcs = state.memories.filter((m) => m.tier === 'arc' && !exactSummaries.has(m.id));
   for (const ch of chapters) {
-    nodes.set(ch.id, { id: ch.id, kind: 'chapter', gist: clip(ch.text, 200), childrenIds: chapterLeaves.get(ch.id) ?? [], covers: ch.covers });
+    if (claimed.has(ch.id)) continue;
+    const arc = legacyArcs.slice().sort((a, b) => span(a.covers) - span(b.covers)).find((a) => within(ch.covers, a.covers));
+    if (arc) { nodes.get(arc.id)!.childrenIds.push(ch.id); claimed.add(ch.id); }
   }
-
-  // nest chapters under arcs by range containment
-  const arcChapters = new Map<string, string[]>();
-  const claimedChapters = new Set<string>();
-  const arcsByRange = arcs.slice().sort((a, b) => span(a.covers) - span(b.covers));
-  for (const ch of chapters) {
-    const arc = arcsByRange.find((a) => within(ch.covers, a.covers));
-    if (arc) { (arcChapters.get(arc.id) ?? arcChapters.set(arc.id, []).get(arc.id)!).push(ch.id); claimedChapters.add(ch.id); }
-  }
-  for (const arc of arcs) {
-    nodes.set(arc.id, { id: arc.id, kind: 'arc', gist: clip(arc.text, 200), childrenIds: arcChapters.get(arc.id) ?? [], covers: arc.covers });
-  }
-
-  // ROOT = arcs + chapters not under an arc + leaves under no chapter
-  const rootIds: string[] = [
-    ...arcs.map((a) => a.id),
-    ...chapters.filter((c) => !claimedChapters.has(c.id)).map((c) => c.id),
-    ...leaves.filter((l) => !claimedLeaves.has(l.id)).map((l) => l.id),
-  ];
+  const rootIds = [...nodes.keys()].filter((id) => !claimed.has(id));
   return { rootIds, nodes };
 }
 
@@ -104,13 +97,11 @@ export function buildCharacterTree(state: ChronicleState, items?: RetrievableIte
   const nodes = new Map<string, MemNode>();
   for (const it of leaves) nodes.set(it.id, { id: it.id, kind: 'leaf', gist: clip(it.text, 200), childrenIds: [] });
 
-  // map each character → leaf ids that concern them (knowledge they hold,
-  // secrets they keep, journal entries from their POV — all retrievable leaves).
+  // Every indexed family carries canonical entity ids, so scars, items,
+  // timeline beats and archived descendants participate alongside facts.
   const byChar = new Map<string, string[]>();
   const push = (cid: string, id: string): void => { if (!cid || !nodes.has(id)) return; (byChar.get(cid) ?? byChar.set(cid, []).get(cid)!).push(id); };
-  for (const k of state.knowledge) { push(k.who, k.id); if (k.about) push(k.about, k.id); }
-  for (const s of state.secrets) { push(s.keeper, s.id); }
-  for (const j of state.journal) { push(j.who, j.id); if (j.about) push(j.about, j.id); }
+  for (const it of leaves) for (const cid of it.entityIds ?? []) push(cid, it.id);
 
   const rank = (c: { status: string }): number => (c.status === 'present' ? 0 : c.status === 'active' ? 1 : c.status === 'mentioned' ? 2 : 3);
   const cast = Object.values(state.cast).slice().sort((a, b) => rank(a) - rank(b) || (b.lastTurn || 0) - (a.lastTurn || 0));
@@ -147,12 +138,10 @@ export function buildHybridTree(state: ChronicleState, items?: RetrievableItem[]
   const nodes = new Map<string, MemNode>();
   for (const it of leaves) nodes.set(it.id, { id: it.id, kind: 'leaf', gist: clip(it.text, 200), childrenIds: [] });
 
-  // per-character leaf map (same sources as buildCharacterTree)
+  // per-character leaf map (all indexed families)
   const byChar = new Map<string, Set<string>>();
   const push = (cid: string, id: string): void => { if (!cid || !nodes.has(id)) return; (byChar.get(cid) ?? byChar.set(cid, new Set()).get(cid)!).add(id); };
-  for (const k of state.knowledge) { push(k.who, k.id); if (k.about) push(k.about, k.id); }
-  for (const sec of state.secrets) push(sec.keeper, sec.id);
-  for (const j of state.journal) { push(j.who, j.id); if (j.about) push(j.about, j.id); }
+  for (const it of leaves) for (const cid of it.entityIds ?? []) push(cid, it.id);
 
   const rank = (c: { status: string }): number => (c.status === 'present' ? 0 : c.status === 'active' ? 1 : c.status === 'mentioned' ? 2 : 3);
   const cast = Object.values(state.cast).slice().sort((a, b) => rank(a) - rank(b) || (b.lastTurn || 0) - (a.lastTurn || 0));

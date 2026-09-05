@@ -20,8 +20,9 @@ export function tokenize(text: string): string[] {
   const hit = _memo.get(key);
   if (hit) { _memoHitBump(key); return hit; }
   const toks = key
+    .normalize('NFKC')
     .toLowerCase()
-    .replace(/[^a-z0-9'\s]/g, ' ')
+    .replace(/[^\p{L}\p{N}'\s]/gu, ' ')
     .split(/\s+/)
     .filter((t) => t.length >= 3 && !STOP.has(t));
   _memoSet(key, toks);

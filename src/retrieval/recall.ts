@@ -10,6 +10,7 @@ import { traverseTree, type TreeTraversalTrace } from './traverse-tree.js';
 import { linkedOffscreen, linkedThreads } from '../domain/offscreen.js';
 import { spanLabel, formatDate } from '../domain/date-format.js';
 import { clockLabel } from '../domain/clock.js';
+import { tokenize } from './tokenize.js';
 
 /**
  * Recall assembler. Produces the text VELLUM injects into the prompt, in two
@@ -110,7 +111,7 @@ export function sharedIndex(chatId: string, state: ChronicleState, version?: num
 }
 
 /** Authoritative structured block: present/active cast + their bonds, verbatim. */
-function structuredBlock(state: ChronicleState, budget: number): string {
+function structuredBlock(state: ChronicleState, budget: number, query = ''): string {
   const present = new Set(state.scene.present);
   const cast = Object.values(state.cast)
     .filter((c) => present.has(c.id) || c.status === 'present' || c.status === 'active')
@@ -215,15 +216,42 @@ function structuredBlock(state: ChronicleState, budget: number): string {
     .slice(0, 8)
     .map((l) => '- ' + (l.status === 'provisional' ? 'PROVISIONAL: ' : 'CONFIRMED: ') + (l.tag ? `(${l.tag}) ` : '') + l.fact);
 
+  // The information state is authoritative, not a similarity guess. Surface
+  // recent facts and secret audiences involving the present/query cast so the
+  // narrator cannot accidentally give a character knowledge they never gained.
+  const focus = new Set(state.scene.present ?? []);
+  const q = query.toLocaleLowerCase();
+  for (const c of Object.values(state.cast)) {
+    if (q.includes(c.name.toLocaleLowerCase()) || (c.aka ?? []).some((a) => q.includes(a.toLocaleLowerCase()))) focus.add(c.id);
+  }
+  const epistemicSecrets = state.secrets
+    .filter((s) => focus.has(s.keeper) || s.from.some((id) => focus.has(id)) || s.revealedTo.some((id) => focus.has(id)))
+    .sort((a, b) => (b.lastTurn ?? b.formedTurn) - (a.lastTurn ?? a.formedTurn))
+    .slice(0, 8)
+    .map((s) => {
+      const known = [...new Set([s.keeper, ...s.revealedTo])].map(nameOf);
+      const hidden = s.from.filter((id) => !s.revealedTo.includes(id)).map(nameOf);
+      return `- SECRET ${s.id}: ${s.text} | known by ${known.join(', ') || 'none'} | hidden from ${hidden.join(', ') || (s.revealed ? 'no one (public)' : 'unspecified')}`;
+    });
+  const epistemicKnowledge = state.knowledge
+    .filter((k) => focus.has(k.who) || (!!k.about && focus.has(k.about)))
+    .sort((a, b) => b.turn - a.turn)
+    .slice(0, 10)
+    .map((k) => `- ${nameOf(k.who)} ${k.reliability}: ${k.fact} | actual truth ${k.truth}${k.source ? ` | source ${k.source}` : ''}`);
+  const epistemicLines = [...epistemicSecrets, ...epistemicKnowledge];
+
   // share ONE budget: reserve up to 40% for open threads/arcs, give the rest to
   // cast/bonds/factions — so the structured block never overshoots its allocation.
   const trackBudget = (openThreads.length || openArcs.length) ? Math.floor(budget * 0.4) : 0;
   const trackLines = fitLines([...openThreads, ...openArcs], trackBudget);
   const usedByTracks = trackLines.reduce((n, l) => n + l.length + 1, 0);
-  const loreBudget = loreLines.length ? Math.floor(budget * 0.2) : 0;
+  const loreBudget = loreLines.length ? Math.floor(budget * 0.15) : 0;
   const fittedLore = fitLines(loreLines, loreBudget);
   const usedByLore = fittedLore.reduce((n, l) => n + l.length + 1, 0);
-  const castRel = fitLines([...castLines, ...relLines], Math.max(0, budget - usedByTracks - usedByLore));
+  const epistemicBudget = epistemicLines.length ? Math.floor(budget * 0.3) : 0;
+  const fittedEpistemic = fitLines(epistemicLines, epistemicBudget);
+  const usedByEpistemic = fittedEpistemic.reduce((n, l) => n + l.length + 1, 0);
+  const castRel = fitLines([...castLines, ...relLines], Math.max(0, budget - usedByTracks - usedByLore - usedByEpistemic));
   const blocks: string[] = [];
   if (castRel.length) blocks.push('[CAST & BONDS \u2014 established, authoritative. Keep consistent; do not contradict.]\n' + castRel.join('\n'));
   if (trackLines.length) blocks.push('[OPEN THREADS & ARCS \u2014 advance or resolve these; reuse the EXACT title, do not restate as a new thread.]\n' + trackLines.join('\n'));
@@ -231,6 +259,7 @@ function structuredBlock(state: ChronicleState, budget: number): string {
   // (and treats them as factions, not characters) instead of coining synonyms.
   if (facLines.length) blocks.push('[FACTIONS \u2014 established GROUPS (not characters). Reuse the EXACT name; don\u2019t restate a group as a new one or as a character.]\n' + facLines.join('\n'));
   if (fittedLore.length) blocks.push('[CODEX \u2014 CONFIRMED facts are authoritative. PROVISIONAL facts are model-minted working lore: preserve them when consistent, but never let them override user, scenario, worldbook, or confirmed canon.]\n' + fittedLore.join('\n'));
+  if (fittedEpistemic.length) blocks.push('[INFORMATION STATE \u2014 authoritative per-character knowledge. Never let a character act on a secret or fact unless listed as known by them.]\n' + fittedEpistemic.join('\n'));
   // off-screen subplots — living "meanwhile" threads the sim advances, fed back so
   // the on-screen model can acknowledge/react to them. Open ones, latest beat.
   const meanwhile = (state.offscreen ?? []).filter((o) => o.status === 'active').slice(0, 5)
@@ -282,24 +311,33 @@ function assemble(
   trace?: TraversalTrace,
   detailIds?: Set<string>,
   recallBudgetOverride?: number,
+  query = '',
 ): InjectionResult {
-  const structured = structuredBlock(state, budgets.structured ?? 1200);
+  const structured = structuredBlock(state, budgets.structured ?? 1200, query);
   // a selected chapter/arc node injects its DETAILED summary (the continuity
   // payload), not the lean gist; everything else uses the indexed text.
   const detailById = detailIds && detailIds.size
     ? new Map(state.memories.filter((m) => detailIds.has(m.id)).map((m) => [m.id, m.detail || m.text]))
     : null;
-  const lines: string[] = [];
+  const candidates: Array<{ id: string; line: string }> = [];
   for (const id of rankedIds) {
     const detail = detailById?.get(id);
-    if (detail) { lines.push('- ' + detail); continue; }
+    if (detail) { candidates.push({ id, line: '- ' + detail }); continue; }
     const it = index.byId.get(id);
-    if (it) lines.push('- ' + it.text);
+    if (it) candidates.push({ id, line: '- ' + it.text });
   }
   // tree selections can pull long detailed summaries → give recall more room
   const recallCap = recallBudgetOverride ?? budgets.recall ?? 1200;
-  const recallLines = fitLines(lines, recallCap);
-  const recallIds = rankedIds.slice(0, recallLines.length);
+  const recallLines: string[] = [];
+  const recallIds: string[] = [];
+  let used = 0;
+  for (const candidate of candidates) {
+    const remaining = recallCap - used - 1;
+    if (remaining < 40) break;
+    const line = clipRecallLine(candidate.line, remaining);
+    if (!line) continue;
+    recallLines.push(line); recallIds.push(candidate.id); used += line.length + 1;
+  }
   const recall = recallLines.length
     ? '[CHRONICLE RECALL \u2014 relevant established history. Honor it; do not recite.]\n' + recallLines.join('\n')
     : '';
@@ -321,7 +359,9 @@ function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: strin
       const it = index.byId.get(h.id)!;
       const recency = 1 + 0.4 * (it.turn / maxTurn);
       const tierBoost = it.tier === 'beat' ? 1.6 : it.tier === 'arc' ? 1.5 : it.tier === 'chapter' ? 1.3 : 1;
-      return { id: h.id, score: h.score * recency * tierBoost };
+      const sceneEntity = it.entityIds?.some((id) => state.scene.present.includes(id)) ? 1.35 : 1;
+      const continuityBoost = it.kind === 'secret' || it.kind === 'scar' || it.kind === 'item' || it.kind === 'timeline' ? 1.12 : 1;
+      return { id: h.id, score: h.score * recency * tierBoost * sceneEntity * continuityBoost };
     })
     .sort((a, b) => b.score - a.score)
     .map((r) => r.id);
@@ -331,7 +371,7 @@ function lexicalRanked(index: InvertedIndex, state: ChronicleState, query: strin
 export function buildInjection(chatId: string, state: ChronicleState, query: string, phaseMult = 1, version?: number): InjectionResult {
   const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
   const index = indexFor(chatId, state, version);
-  return assemble(state, index, lexicalRanked(index, state, query), budgets, 'lexical');
+  return assemble(state, index, lexicalRanked(index, state, query), budgets, 'lexical', undefined, undefined, undefined, query);
 }
 
 /**
@@ -349,6 +389,7 @@ export async function buildInjectionHybrid(
   controller?: CallModel,
   traversalMode: 'flat' | 'tree' = 'flat',
   precomputed?: { ids: string[]; summaryIds: string[]; trace: TreeTraversalTrace } | null,
+  traversalAxis: 'temporal' | 'character' | 'hybrid' = 'temporal',
 ): Promise<InjectionResult> {
   const budgets = allocate({ total: TOTAL, caps: CAPS, phaseMult });
   const index = indexFor(chatId, state, version);
@@ -358,7 +399,7 @@ export async function buildInjectionHybrid(
   // logVersion) skips the live drill entirely — zero prompt-path latency.
   if (precomputed && precomputed.ids.length) {
     const detailIds = new Set(precomputed.summaryIds);
-    const r = assemble(state, index, precomputed.ids, budgets, 'traversal-tree', undefined, detailIds, Math.floor((budgets.recall ?? 1200) * 1.8));
+    const r = assemble(state, index, precomputed.ids, budgets, 'traversal-tree', undefined, detailIds, Math.floor((budgets.recall ?? 1200) * 1.8), query);
     return { ...r, treeTrace: precomputed.trace };
   }
 
@@ -369,15 +410,15 @@ export async function buildInjectionHybrid(
     if (traversalMode === 'tree') {
       // tiered drill (arc→chapter→leaf); selected chapter/arc nodes inject their
       // DETAILED summary, so give recall extra budget for those long payloads.
-      const tt = await traverseTree(index, state, controller);
+      const tt = await traverseTree(index, state, controller, { query, axis: traversalAxis });
       if (tt) {
         const detailIds = new Set(tt.summaryIds);
-        const r = assemble(state, index, tt.ids, budgets, 'traversal-tree', undefined, detailIds, Math.floor((budgets.recall ?? 1200) * 1.8));
+        const r = assemble(state, index, tt.ids, budgets, 'traversal-tree', undefined, detailIds, Math.floor((budgets.recall ?? 1200) * 1.8), query);
         return { ...r, treeTrace: tt.trace };
       }
     } else {
-      const t = await traverseRanked(index, state, lexIds, controller);
-      if (t) return assemble(state, index, t.ids, budgets, 'traversal', t.trace);
+      const t = await traverseRanked(index, state, lexIds, controller, { query });
+      if (t) return assemble(state, index, t.ids, budgets, 'traversal', t.trace, undefined, undefined, query);
     }
   }
 
@@ -388,27 +429,43 @@ export async function buildInjectionHybrid(
   // re-lowercasing every item for each of the ~20 vector hits (the old
   // O(hits × items × strlen) cost). Lazy so the common embeddings-OFF path — where
   // vectorSearch never calls this — pays nothing.
-  let normItems: Array<{ id: string; eq: string; low: string }> | null = null;
+  let normItems: Array<{ id: string; eq: string; low: string; tokens: Set<string> }> | null = null;
   const contentToId = (text: string): string | null => {
     if (!normItems) {
       normItems = [];
-      for (const it of index.byId.values()) { const low = it.text.toLowerCase(); normItems.push({ id: it.id, eq: low.trim(), low }); }
+      for (const it of index.byId.values()) { const low = it.text.normalize('NFKC').toLocaleLowerCase(); normItems.push({ id: it.id, eq: low.trim(), low, tokens: new Set(it.tokens) }); }
     }
-    const t = text.trim().toLowerCase();
+    const t = text.normalize('NFKC').trim().toLocaleLowerCase();
+    const exact = normItems.filter((it) => it.eq === t);
+    if (exact.length === 1) return exact[0]!.id;
+    if (exact.length > 1) return null;
     const prefix = t.slice(0, 40);
-    for (const it of normItems) {
-      if (it.eq === t || it.low.includes(prefix)) return it.id;
-    }
-    return null;
+    const qTokens = new Set(tokenize(t));
+    const scored = normItems
+      .filter((it) => prefix.length >= 16 && (it.low.includes(prefix) || t.includes(it.eq.slice(0, 40))))
+      .map((it) => ({ id: it.id, score: [...qTokens].filter((tok) => it.tokens.has(tok)).length / Math.max(1, new Set([...qTokens, ...it.tokens]).size) }))
+      .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+    if (!scored.length || scored[0]!.score <= 0 || (scored[1] && scored[1]!.score === scored[0]!.score)) return null;
+    return scored[0]!.id;
   };
   const vec = await vectorSearch(chatId, query, userId, contentToId, 20);
   if (!vec || !vec.length) {
-    return assemble(state, index, lexIds, budgets, 'lexical');
+    return assemble(state, index, lexIds, budgets, 'lexical', undefined, undefined, undefined, query);
   }
   // fuse: lexical weighted slightly higher to keep exact-name precision dominant
   const fused = rrf([
     { ids: lexIds, weight: 1.1 },
     { ids: vec.map((v) => v.id), weight: 1.0 },
   ]).map((r) => r.id);
-  return assemble(state, index, fused, budgets, 'hybrid');
+  return assemble(state, index, fused, budgets, 'hybrid', undefined, undefined, undefined, query);
+}
+
+/** Keep at least one relevant record even when a generated archive detail is
+ * longer than the recall slice. Prefer a full sentence, then a whole word. */
+function clipRecallLine(line: string, max: number): string {
+  if (line.length <= max) return line;
+  const cut = line.slice(0, Math.max(0, max - 1));
+  const sentence = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  if (sentence > Math.min(80, max * 0.45)) return cut.slice(0, sentence + 1).trim();
+  return cut.replace(/\s+\S*$/, '').replace(/[\s,;:.\u2014-]+$/, '').trim() + '\u2026';
 }

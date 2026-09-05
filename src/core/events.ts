@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 20 as const;
+export const SCHEMA_VERSION = 21 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -90,6 +90,9 @@ export const EvScarDrop = z.object({ ...base, kind: z.literal('scar.drop'), id: 
 export const EvLoreNote = z.object({ ...base, kind: z.literal('lore.note'), id: z.string(), fact: z.string(), tag: z.string().optional(), source: z.enum(['auto', 'user']).optional(), status: z.enum(['provisional', 'confirmed']).optional() });
 export const EvLoreConfirm = z.object({ ...base, kind: z.literal('lore.confirm'), id: z.string() });
 export const EvLoreCorrect = z.object({ ...base, kind: z.literal('lore.correct'), id: z.string(), fact: z.string().min(1) });
+/** Evidence-backed story refresh of an existing Codex row. Unlike a user
+ * correction it preserves the row's provenance/confirmation state. */
+export const EvLoreRefresh = z.object({ ...base, kind: z.literal('lore.refresh'), id: z.string(), fact: z.string().min(1), tag: z.string().optional() });
 export const EvLoreReject = z.object({ ...base, kind: z.literal('lore.reject'), id: z.string() });
 export const EvLoreDrop = z.object({ ...base, kind: z.literal('lore.drop'), id: z.string() });
 
@@ -180,8 +183,13 @@ export const EvSecretDrop = z.object({ ...base, kind: z.literal('secret.drop'), 
 // lists, keep the richer text on `into`; the `from` ids are removed.
 export const EvSecretMerge = z.object({ ...base, kind: z.literal('secret.merge'), into: z.string(), from: z.array(z.string()) });
 
-const SubsumedMem = z.object({ id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]), tier: MemoryTier.optional(), detail: z.string().optional(), covers: z.tuple([z.number(), z.number()]).optional() });
-export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), detail: z.string().optional(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional(), beatDay: z.number().optional(), beatTime: z.string().optional(), spine: z.boolean().optional(), act: z.string().optional(), ord: z.number().optional() });
+export const ArchiveStatus = z.enum(['ready', 'degraded', 'stale']);
+const SubsumedMem: z.ZodType<any> = z.lazy(() => z.object({
+  id: z.string(), turn: z.number(), text: z.string(), keys: z.array(z.string()).default([]),
+  tier: MemoryTier.optional(), detail: z.string().optional(), covers: z.tuple([z.number(), z.number()]).optional(),
+  subsumed: z.array(SubsumedMem).optional(), sourceHash: z.string().optional(), coverageHash: z.string().optional(), status: ArchiveStatus.optional(),
+}));
+export const EvMemory = z.object({ ...base, kind: z.literal('memory.record'), id: z.string(), tier: MemoryTier, text: z.string(), detail: z.string().optional(), keys: z.array(z.string()).default([]), covers: z.tuple([z.number(), z.number()]).optional(), subsumed: z.array(SubsumedMem).optional(), coverageHash: z.string().optional(), status: ArchiveStatus.optional(), beatDay: z.number().optional(), beatTime: z.string().optional(), spine: z.boolean().optional(), act: z.string().optional(), ord: z.number().optional() });
 // Links a chapter/arc memory to its detailed VAULT projection (world-book entry).
 // Append-only so the log stays the source of truth; reduce sets vaultEntryId.
 // `keys` carries back the (possibly user-edited) entry keywords for round-trip sync.
@@ -226,7 +234,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvMemory, EvMemoryDrop, EvMemoryLink, EvMemoryEdit,
   EvThread, EvArc, EvThreadMerge, EvArcMerge, EvThreadSet, EvThreadDrop, EvArcDrop,
   EvJournal, EvJournalDrop, EvJournalEdit,
-  EvScarForm, EvScarDrop, EvLoreNote, EvLoreConfirm, EvLoreCorrect, EvLoreReject, EvLoreDrop,
+  EvScarForm, EvScarDrop, EvLoreNote, EvLoreConfirm, EvLoreCorrect, EvLoreRefresh, EvLoreReject, EvLoreDrop,
   EvItemChange, EvItemDrop,
   EvLocationSet, EvLocationDrop, EvContinuityFlag, EvDaySet,
   EvTraitDrift,

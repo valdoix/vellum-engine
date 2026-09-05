@@ -42,12 +42,14 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + '"journal": [{ "who": "Name", "about": "Name", "memory": str, "kind": "interaction|promise|betrayal|gift|shared|wound|observation", "weight": "trivial|minor|significant|defining", "sentiment": "positive|negative|neutral|complex" }], '
   + '"knowledge": [{ "who": "Name", "fact": str, "about": "Name", "reliability": "knows|believes|suspects|wrong|unaware", "truth": "true|false|unknown", "source": str }], '
   + '"secrets": [{ "keeper": "Name", "secret": str, "from": "Name" }], '
+  + '"secretReveals": [{ "id": "exact tracked secret id", "to": ["Name"] }], '
   + '"factions": [{ "name": str, "kind": str, "members": ["Name"], "standing": -40..40 }], '
   + '"factionRelations": [{ "a": str, "b": str, "kind": "alliance|rivalry|war|vassal|trade", "standing": -40..40, "why": str }] }, '
   + '"ext": { '
   + '"scars": [{ "who": "Name", "was": "the belief proven wrong", "turn": int }], '
-  + '"codex": [{ "fact": "a candidate world-fact minted as provisional lore (not a character\u2019s belief)" }], '
+  + '"codex": [{ "id": "existing id when refreshing", "op": "add|refresh", "fact": "world fact", "tag": str }], '
   + '"inventory": [{ "who": "Name", "item": str, "op": "gain|lose|give|scene|note", "to": "Name", "note": str }], '
+  + '"timeline": [{ "event": "durable milestone", "day": int, "time": "HH:MM", "location": str, "participants": ["Name"], "importance": "minor|major|critical" }], '
   + '"plant": [{ "what": "a detail seeded to pay off later" }], '
   + '"payoff": [{ "what": "a earlier plant that resolved this turn" }] } }\n'
   + 'RULES: use ONLY real character names that appear in the prose (and the player persona named in the '
@@ -65,9 +67,9 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'delta: aff/trust are SIGNED changes THIS turn; omit an axis that did not move, and use addCats/removeCats only when the '
   + 'bond\u2019s nature changed. Record a `journal` entry for any moment a character would truly carry; use '
   + '`knowledge` to capture who learned/believes/suspects what (this is where dramatic irony lives, via '
-  + 'reliability+truth); `secrets` for anything now hidden from someone; `parallel` for what moved '
+  + 'reliability+truth); `secrets` only for newly formed hidden facts; use `secretReveals` with an exact CONTEXT id when a tracked secret is disclosed and emit recipient knowledge too; `parallel` for what moved '
   + 'off-screen. ext: `scars` for a belief proven wrong that left a mark, `codex` for a candidate world-fact '
-  + 'that VELLUM will mark provisional until user-confirmed, `inventory` for named items changing hands (who:"world" = a scene object), `plant`/`payoff` '
+  + 'that VELLUM will mark provisional until user-confirmed (refresh a changed row by exact id), `inventory` for named items changing hands (who:"world" = a scene object), `timeline` for durable milestones, `plant`/`payoff` '
   + 'for setups and their resolutions.\n'
   + 'Invent nothing the prose does not support, but capture everything it DOES. Omit any section with '
   + 'nothing new. A minimal { "turn": N, "day": D, "present": [...] } is valid when truly nothing else '
@@ -105,6 +107,8 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number): strin
     .map((t) => (t as { name?: string }).name)
     .filter(Boolean)
     .slice(0, 8);
+  const hiddenSecrets = (prior.secrets ?? []).filter((s) => !s.revealed).slice(0, 30).map((s) => `${s.id}: ${s.text}`);
+  const codex = (prior.lore ?? []).filter((l) => l.status !== 'rejected').slice(-30).map((l) => `${l.id}: ${l.fact}`);
   const lines = [
     `turn: ${turnNo}`,
     `day: ${day}`,
@@ -114,6 +118,8 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number): strin
     ...(weather ? [`prior weather: ${weather}`] : []),
     ...(present.length ? [`characters present last turn: ${present.join('; ')}`] : []),
     ...(openThreads.length ? [`open plot threads (advance/resolve by exact name): ${openThreads.join('; ')}`] : []),
+    ...(hiddenSecrets.length ? [`tracked secrets (reveal by exact id): ${hiddenSecrets.join('; ')}`] : []),
+    ...(codex.length ? [`codex facts (refresh changed fact by exact id): ${codex.join('; ')}`] : []),
   ];
   return '[CONTEXT]\n' + lines.join('\n');
 }
@@ -285,6 +291,7 @@ const REPAIR_SCHEMA = {
           journal: { type: 'array', items: { type: 'object' } },
           knowledge: { type: 'array', items: { type: 'object' } },
           secrets: { type: 'array', items: { type: 'object' } },
+          secretReveals: { type: 'array', items: { type: 'object' } },
           factions: { type: 'array', items: { type: 'object' } },
           factionRelations: { type: 'array', items: { type: 'object' } },
         } },
@@ -292,6 +299,7 @@ const REPAIR_SCHEMA = {
           scars: { type: 'array', items: { type: 'object' } },
           codex: { type: 'array', items: { type: 'object' } },
           inventory: { type: 'array', items: { type: 'object' } },
+          timeline: { type: 'array', items: { type: 'object' } },
           plant: { type: 'array', items: { type: 'object' } },
           payoff: { type: 'array', items: { type: 'object' } },
         } },

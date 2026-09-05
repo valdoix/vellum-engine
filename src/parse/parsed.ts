@@ -81,6 +81,13 @@ export const ParsedSecret = z.object({
   from: z.union([z.string(), z.array(z.string())]).optional().catch(undefined),
 });
 
+/** An update to an existing secret's audience. The id must be copied from the
+ * prior state; an empty `to` list means the prose made it public. */
+export const ParsedSecretReveal = z.object({
+  id: z.string(),
+  to: z.array(z.string()).optional().catch(undefined),
+});
+
 export const ParsedFaction = z.object({
   name: z.string(),
   kind: z.string().optional().catch(undefined),
@@ -121,6 +128,7 @@ export const ParsedState = z.object({
     journal: z.array(ParsedJournal).optional().catch(undefined),
     knowledge: z.array(ParsedKnowledge).optional().catch(undefined),
     secrets: z.array(ParsedSecret).optional().catch(undefined),
+    secretReveals: z.array(ParsedSecretReveal).optional().catch(undefined),
     factions: z.array(ParsedFaction).optional().catch(undefined),
     factionRelations: z.array(ParsedFactionRel).optional().catch(undefined),
     parallel: z.array(ParsedParallel).optional().catch(undefined),

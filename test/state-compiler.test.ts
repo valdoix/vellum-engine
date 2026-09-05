@@ -68,6 +68,24 @@ describe('strict pre-commit state compiler', () => {
     c.genesis = true;
     expect(validateCompilation(c, i).ok).toBe(true);
   });
+  it('accepts only evidence-backed updates to existing secret and Codex ids', () => {
+    const i = input();
+    i.prior.secrets = [{ id: 'sec_gate', keeper: 'ada', from: ['mara'], text: 'the gate code is seven', revealed: false, revealedTo: [], formedTurn: 1 }];
+    i.prior.lore = [{ id: 'lore_bell', fact: 'The bell rings at dawn', source: 'user', status: 'confirmed', turn: 1 }];
+    i.prose += ' Ada tells Mara the gate code is seven. The bell now rings at dusk.';
+    const c = candidate();
+    c.state.delta.secretReveals = [{ id: 'sec_gate', to: ['Mara'] }];
+    c.state.delta.knowledge = [{ who: 'Mara', fact: 'the gate code is seven', reliability: 'knows', truth: 'unknown', source: 'Ada tells Mara' }];
+    c.state.ext.codex = [{ id: 'lore_bell', op: 'refresh', fact: 'The bell now rings at dusk' }];
+    c.evidence.push(
+      { path: 'delta.secretReveals.0', quote: 'Ada tells Mara the gate code is seven' },
+      { path: 'delta.knowledge.0', quote: 'Ada tells Mara the gate code is seven' },
+      { path: 'ext.codex.0', quote: 'The bell now rings at dusk' },
+    );
+    expect(validateCompilation(c, i).ok).toBe(true);
+    c.state.delta.secretReveals[0]!.id = 'invented_secret';
+    expect(validateCompilation(c, i).ok).toBe(false);
+  });
   it('bounds compiler context while retaining current actors and parallel rows', () => {
     const i = input();
     for (let n = 0; n < 400; n++) i.prior.knowledge.push({ id: `k${n}`, who: 'mara', fact: 'fact '.repeat(40) + n, reliability: 'knows', truth: 'unknown', turn: n });

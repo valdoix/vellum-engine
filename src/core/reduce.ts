@@ -1,6 +1,7 @@
 import type { VellumEvent } from '../core/events.js';
 import { canonId } from '../core/ids.js';
 import { type ChronicleState, type Relation, type Track, freshState } from '../domain/types.js';
+import { similarFact } from '../domain/fact-match.js';
 import { freshRelation, applyScore, addCategories, removeCategories, sentimentToScores, deriveSentiment } from '../domain/relations.js';
 import { normalizeCategorySet, primaryCategory, isCategory } from '../domain/category.js';
 import { parseClock } from '../domain/clock.js';
@@ -373,6 +374,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         if (e.reliability) dup.reliability = e.reliability;
         if (e.truth) dup.truth = e.truth;
         if (e.source) dup.source = e.source;
+        if (e.about) dup.about = e.about;
+        dup.turn = Math.max(dup.turn, e.turn);
       } else {
         s.knowledge.push({
           id: `k_${s.knowledge.length}_${e.seq}`, who: e.who, fact: e.fact,
@@ -402,19 +405,36 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         // dedup: the same keeper concealing the SAME secret (near-duplicate text)
         // is one secret — merge the `from` lists (who it's kept from accumulates)
         // and keep the richer wording, rather than spawning parallel rows.
-        const dup = s.secrets.find((x) => x.keeper === e.keeper && !x.revealed && similarFact(x.text, e.text));
+        const dup = s.secrets.find((x) => x.keeper === e.keeper && similarFact(x.text, e.text));
         if (dup) {
           dup.text = richer(dup.text, e.text);
-          dup.from = Array.from(new Set([...dup.from, ...e.from]));
+          // Someone already recorded as having learned the secret must not be
+          // put back into the hidden audience by a later restatement.
+          dup.from = Array.from(new Set([...dup.from, ...e.from])).filter((id) => !dup.revealedTo.includes(id));
+          dup.lastTurn = Math.max(dup.lastTurn ?? dup.formedTurn, e.turn);
         } else {
-          s.secrets.push({ id: e.id, keeper: e.keeper, from: e.from, text: e.text, revealed: false, revealedTo: [], formedTurn: e.turn });
+          s.secrets.push({ id: e.id, keeper: e.keeper, from: e.from, text: e.text, revealed: false, revealedTo: [], formedTurn: e.turn, lastTurn: e.turn });
         }
       }
       break;
     }
     case 'secret.reveal': {
       const sec = s.secrets.find((x) => x.id === e.id);
-      if (sec) { sec.revealed = true; sec.revealedTo = Array.from(new Set([...sec.revealedTo, ...e.to])); }
+      if (sec) {
+        if (e.to.length) {
+          sec.revealedTo = Array.from(new Set([...sec.revealedTo, ...e.to]));
+          sec.from = sec.from.filter((id) => !sec.revealedTo.includes(id));
+          // `revealed` means the seal has been broken at least once (the UI and
+          // legacy contract use it this way). `from` remains the exact audience
+          // still in the dark, while `revealedTo` records who learned it.
+          sec.revealed = true;
+        } else {
+          // Empty target list is the existing explicit "public/global reveal".
+          sec.revealed = true;
+          sec.from = [];
+        }
+        sec.lastTurn = Math.max(sec.lastTurn ?? sec.formedTurn, e.turn);
+      }
       break;
     }
     case 'secret.drop': {
@@ -429,6 +449,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
           into.text = richer(into.text, x.text);
           into.from = Array.from(new Set([...into.from, ...x.from]));
           into.revealedTo = Array.from(new Set([...into.revealedTo, ...x.revealedTo]));
+          into.from = into.from.filter((id) => !into.revealedTo.includes(id));
+          into.lastTurn = Math.max(into.lastTurn ?? into.formedTurn, x.lastTurn ?? x.formedTurn);
           if (x.revealed) into.revealed = true;
         }
         s.secrets = s.secrets.filter((x) => !drop.has(x.id));
@@ -437,7 +459,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'memory.record': {
       if (!s.memories.find((m) => m.id === e.id)) {
-        s.memories.push({ id: e.id, tier: e.tier, text: e.text, ...(e.detail ? { detail: e.detail } : {}), keys: e.keys, ...(e.covers ? { covers: e.covers } : {}), ...(e.subsumed ? { subsumed: e.subsumed } : {}), ...(e.beatDay !== undefined ? { beatDay: e.beatDay } : {}), ...(e.beatTime ? { beatTime: e.beatTime } : {}), ...(e.spine ? { spine: e.spine } : {}), ...(e.act ? { act: e.act } : {}), ...(e.ord !== undefined ? { ord: e.ord } : {}), turn: e.turn });
+        s.memories.push({ id: e.id, tier: e.tier, text: e.text, ...(e.detail ? { detail: e.detail } : {}), keys: e.keys, ...(e.covers ? { covers: e.covers } : {}), ...(e.subsumed ? { subsumed: e.subsumed } : {}), ...(e.coverageHash ? { coverageHash: e.coverageHash } : {}), ...(e.status ? { status: e.status } : {}), ...(e.beatDay !== undefined ? { beatDay: e.beatDay } : {}), ...(e.beatTime ? { beatTime: e.beatTime } : {}), ...(e.spine ? { spine: e.spine } : {}), ...(e.act ? { act: e.act } : {}), ...(e.ord !== undefined ? { ord: e.ord } : {}), turn: e.turn });
       }
       break;
     }
@@ -467,7 +489,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (!e.folded && (target?.tier === 'chapter' || target?.tier === 'arc') && target.subsumed?.length) {
         for (const sm of target.subsumed) {
           if (!s.memories.find((m) => m.id === sm.id)) {
-            s.memories.push({ id: sm.id, tier: sm.tier ?? 'turn', text: sm.text, keys: sm.keys ?? [], turn: sm.turn, ...(sm.detail ? { detail: sm.detail } : {}), ...(sm.covers ? { covers: sm.covers } : {}) });
+            s.memories.push({ id: sm.id, tier: sm.tier ?? 'turn', text: sm.text, keys: sm.keys ?? [], turn: sm.turn, ...(sm.detail ? { detail: sm.detail } : {}), ...(sm.covers ? { covers: sm.covers } : {}), ...(sm.subsumed ? { subsumed: sm.subsumed } : {}), ...(sm.sourceHash ? { sourceHash: sm.sourceHash } : {}), ...(sm.coverageHash ? { coverageHash: sm.coverageHash } : {}), ...(sm.status ? { status: sm.status } : {}) });
           }
         }
       }
@@ -631,6 +653,18 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (note) { note.revisions = [...(note.revisions ?? []), { fact: note.fact, turn: e.turn }]; note.fact = e.fact; note.source = 'user'; note.status = 'confirmed'; }
       break;
     }
+    case 'lore.refresh': {
+      const note = s.lore.find((x) => x.id === e.id);
+      if (note && note.fact.trim() !== e.fact.trim()) {
+        note.revisions = [...(note.revisions ?? []), { fact: note.fact, turn: e.turn }];
+        note.fact = e.fact.trim();
+        note.turn = e.turn;
+        if (e.tag) note.tag = e.tag;
+        // Preserve explicit user confirmation/provenance. The event records who
+        // supplied the evidence; the row still records who owns its authority.
+      }
+      break;
+    }
     case 'lore.reject': {
       const note = s.lore.find(x => x.id === e.id);
       if (note) { note.status = 'rejected'; note.source = 'user'; }
@@ -641,6 +675,11 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'item.change': {
+      (s.itemHistory ??= []).push({
+        id: `ih_${e.seq}`, itemId: e.id, item: e.item, op: e.op,
+        ...(e.who ? { from: e.who } : {}), ...(e.to ? { to: e.to } : {}),
+        ...(e.note ? { note: e.note } : {}), turn: e.turn, day: e.day,
+      });
       const norm = (x: string): string => x.trim().toLowerCase();
       const findItem = (who: string, item: string) => s.items.find((x) => x.who === who && norm(x.item) === norm(item));
       if (e.op === 'gain' || e.op === 'scene') {
@@ -797,39 +836,6 @@ function sameTrack(existing: string, incoming: string): boolean {
   return false;
 }
 
-// Content-fact stopwords (broader than track titles — facts are full clauses).
-const FACT_STOP = new Set([
-  ...TRACK_STOP, 'has', 'have', 'had', 'not', 'yet', 'said', 'words', 'her', 'his',
-  'their', 'them', 'they', 'she', 'he', 'it', 'that', 'this', 'who', 'whom', 'been',
-  'will', 'would', 'about', 'into', 'from', 'but', 'or', 'so', 'than', 'then', 'now',
-]);
-function factTokens(text: string): Set<string> {
-  return new Set(
-    String(text || '').toLowerCase()
-      .replace(/['\u2019]s\b/g, '')
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .split(/\s+/)
-      .filter((w) => w.length > 1 && !FACT_STOP.has(w))
-      .map((w) => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w)), // light stem: loves→love
-  );
-}
-/**
- * Near-duplicate match for KNOWLEDGE facts / SECRET texts (full clauses, not
- * titles). True when, after stripping stopwords, one significant-token set is a
- * subset of the other (e.g. "in love with Daeron" ⊂ "in love with Daeron and has
- * not said the words yet") OR they overlap strongly (Jaccard ≥ .6). Both sides
- * must carry ≥2 significant tokens, so trivially-short facts never blind-merge.
- */
-function similarFact(a: string, b: string): boolean {
-  if (a.toLowerCase().trim() === b.toLowerCase().trim()) return true;
-  const ta = factTokens(a), tb = factTokens(b);
-  if (ta.size < 2 || tb.size < 2) return false;
-  const [small, big] = ta.size <= tb.size ? [ta, tb] : [tb, ta];
-  if (subset(small, big)) return true; // one clause contains the other's content
-  let shared = 0; for (const x of ta) if (tb.has(x)) shared++;
-  const union = ta.size + tb.size - shared;
-  return union > 0 && shared / union >= 0.6;
-}
 /** Pick the richer (more informative) of two near-duplicate texts — the longer
  * one carries more detail ("…and has not said the words yet"). */
 function richer(a: string, b: string): string { return b.length > a.length ? b : a; }

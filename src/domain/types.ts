@@ -124,18 +124,32 @@ export interface Secret {
   revealed: boolean;
   revealedTo: string[];
   formedTurn: number;
+  lastTurn?: number;
 }
 
-export interface Memory {
+export type ArchiveStatus = 'ready' | 'degraded' | 'stale';
+
+/** A complete, recursively restorable archive child. Chapters keep their exact
+ * turn records; arcs keep chapters including those turn records. */
+export interface MemorySnapshot {
   id: string;
-  tier: 'turn' | 'chapter' | 'arc' | 'beat';
+  tier?: 'turn' | 'chapter' | 'arc' | 'beat';
   text: string; // LEAN gist — what chronicle recall/traversal inject + hide-on-file uses
   detail?: string; // DETAILED summary — mirrored to the vault entry; lives in the log, not chronicle recall
   keys: string[];
-  vaultEntryId?: string; // world-book entry holding `detail` (the hybrid-memory projection)
   covers?: [number, number];
-  subsumed?: Array<{ id: string; turn: number; text: string; keys: string[]; tier?: 'turn' | 'chapter' | 'arc' | 'beat'; detail?: string; covers?: [number, number] }>;
+  subsumed?: MemorySnapshot[];
+  /** Hash of this exact child snapshot, excluding this field. */
+  sourceHash?: string;
+  /** Hash of the ordered child ids and hashes. */
+  coverageHash?: string;
+  status?: ArchiveStatus;
   turn: number;
+}
+
+export interface Memory extends MemorySnapshot {
+  tier: 'turn' | 'chapter' | 'arc' | 'beat';
+  vaultEntryId?: string; // world-book entry holding `detail` (the hybrid-memory projection)
   // --- Story Beat (tier 'beat') fields ---
   beatDay?: number;   // narrative day the landmark happened (for chronological sort/display)
   beatTime?: string;  // time-of-day label ("dusk", "9:47 PM")
@@ -300,6 +314,20 @@ export interface Item {
   turn: number;
 }
 
+/** Append-only possession history derived from item.change events. Current
+ * ownership remains in `items`; this ledger preserves every transfer/loss. */
+export interface ItemHistoryStep {
+  id: string;
+  itemId: string;
+  item: string;
+  op: 'gain' | 'lose' | 'give' | 'scene' | 'note';
+  from?: string;
+  to?: string;
+  note?: string;
+  turn: number;
+  day: number;
+}
+
 export interface ChronicleState {
   compilation?: { turn: number; inputSig: string; baseHash: string; block: string };
   genesisTurn?: number;
@@ -315,6 +343,7 @@ export interface ChronicleState {
   scars: Scar[];
   lore: LoreNote[];
   items: Item[];
+  itemHistory: ItemHistoryStep[];
   locations: Location[];
   continuityFlags: ContinuityFlag[];
   traitHistory: TraitEvent[];
@@ -379,6 +408,7 @@ export function freshState(): ChronicleState {
     scars: [],
     lore: [],
     items: [],
+    itemHistory: [],
     locations: [],
     continuityFlags: [],
     traitHistory: [],

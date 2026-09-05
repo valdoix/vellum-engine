@@ -399,6 +399,11 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
   const scars = s.scars.map((x) => ({ ...x, who: map(x.who), ...(x.about ? { about: map(x.about) } : {}) }));
   // items reference a cast id on `who` (or 'world' for scene items — map leaves it)
   const items = s.items.map((x) => ({ ...x, who: x.who === 'world' ? x.who : map(x.who) }));
+  const itemHistory = (s.itemHistory ?? []).map((x) => ({
+    ...x,
+    ...(x.from ? { from: x.from === 'world' ? x.from : map(x.from) } : {}),
+    ...(x.to ? { to: x.to === 'world' ? x.to : map(x.to) } : {}),
+  }));
   const traitHistory = s.traitHistory.map((x) => ({ ...x, who: map(x.who) }));
   const parallel = s.parallel.map((p) => ({ ...p, ...(p.who ? { who: map(p.who) } : {}) }));
   const present = Array.from(new Set(s.scene.present.map(map)));
@@ -415,6 +420,7 @@ export function mergeCastDuplicates(s: ChronicleState): ChronicleState {
     journal,
     scars,
     items,
+    itemHistory,
     traitHistory,
     parallel,
     memberships,

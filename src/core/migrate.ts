@@ -187,6 +187,8 @@ export function migrate(raw: unknown): unknown {
   }
 
   // v20 adds state.compiled audit events. Existing events retain their semantics.
+  // v21 adds recursive archive coverage proofs, prose-driven Codex refreshes,
+  // and a derived item-transfer history. All additions are backward compatible.
   obj.version = SCHEMA_VERSION;
   return obj;
 }
