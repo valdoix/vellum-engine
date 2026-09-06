@@ -163,7 +163,9 @@ const SHAPE_GEOM: Record<string, string> = {
   'atomic-blueprint': 'border-radius:2px;padding:14px 15px',
   // NOCTURNE — backstage ephemera: arch, score, mirror, cue, bill and bell jar.
   'nocturne-stage': `border-radius:calc(${R} * 7) calc(${R} * 7) 3px 3px;padding:24px 16px 14px`,
-  'nocturne-score': `border-radius:3px 3px calc(${R} * 3) 3px;padding:16px 15px`,
+  // The staff occupies y=9..31. Keep the card's first content row below it so
+  // names, direction reads, and CRUD controls never look struck through.
+  'nocturne-score': `border-radius:3px 3px calc(${R} * 3) 3px;padding:38px 15px 16px`,
   'nocturne-mirror': `border-radius:calc(${R} * 4) calc(${R} * 4) 7px 7px;padding:22px 17px 14px`,
   'nocturne-cue': 'border-radius:2px;padding:18px 15px 13px 30px',
   'nocturne-bill': 'border-radius:2px;padding:17px 16px',
@@ -275,12 +277,14 @@ export const STYLES = [
   ".vle-navpanel{position:relative;border:1px solid var(--vle-gold-soft);border-radius:calc(var(--vradius) + 2px);padding:calc(11px * var(--vscale)) calc(13px * var(--vscale)) calc(8px * var(--vscale));margin-bottom:calc(11px * var(--vscale));background:radial-gradient(120% 140% at 0% 0%,rgba(var(--vg-rgb),.06),transparent 60%)}",
   ".vle-navpanel .vle-head{border-bottom:1px solid var(--vle-gold-soft)}",
   "@media (max-width:440px){.vle-navpanel{padding:calc(8px * var(--vscale)) calc(9px * var(--vscale)) calc(6px * var(--vscale))}}",
-  ".vle-head{display:flex;align-items:center;gap:9px;font-size:calc(22px * var(--vscale));letter-spacing:1.5px;padding-bottom:calc(11px * var(--vscale));border-bottom:1px solid var(--vle-gold-soft)}",
+  ".vle-head{display:flex;align-items:center;flex-wrap:wrap;gap:9px;font-size:calc(22px * var(--vscale));letter-spacing:1.5px;padding-bottom:calc(11px * var(--vscale));border-bottom:1px solid var(--vle-gold-soft)}",
+  ".vle-brand{display:inline-flex;align-items:baseline;gap:9px;flex:0 0 auto;min-width:max-content;white-space:nowrap}",
+  ".vle-mark{display:inline-flex;align-items:baseline;flex:none;white-space:nowrap}",
   ".vle-mark{color:var(--vle-gold);text-shadow:0 0 8px rgba(var(--vg-rgb),.4)}",
   ".vle-ver{font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:1px;text-transform:uppercase;opacity:.6;color:var(--vle-gold)}",
   // header stat pills: discrete labeled chips (icon + value) replacing the old
   // `·`-joined run-on string. Each pill wears its meta ink; the icon is quieter.
-  ".vle-stats{margin-left:auto;display:flex;align-items:center;flex-wrap:wrap;gap:calc(5px * var(--vscale))}",
+  ".vle-stats{margin-left:auto;min-width:0;display:flex;align-items:center;justify-content:flex-end;flex:1 1 260px;flex-wrap:wrap;gap:calc(5px * var(--vscale))}",
   ".vle-stat{display:inline-flex;align-items:center;gap:4px;font:600 calc(10px * var(--vscale))/1 var(--vmono);letter-spacing:.5px;color:var(--vle-meta);opacity:.85}",
   ".vle-stat .vi{opacity:.6}",
   ".vle-stat b{color:var(--vle-ink);font-weight:600;opacity:.9}",
@@ -942,15 +946,15 @@ export const STYLES = [
   // still applies. --spine carries the dominant-category warmth color.
   ".vle-bc{position:relative;padding-left:calc(10px + 4px)}",
   ".vle-bc-spine{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:var(--vr1) 0 0 var(--vr1);background:var(--spine,var(--vle-gold-soft));opacity:.85}",
-  ".vle-bc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
-  ".vle-bc-pair{font-family:var(--vserif);font-size:calc(15px * var(--vscale));font-weight:600;letter-spacing:.2px}",
-  ".vle-bc-reads{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}",
+  ".vle-bc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}",
+  ".vle-bc-pair{min-width:0;font-family:var(--vserif);font-size:calc(15px * var(--vscale));font-weight:600;letter-spacing:.2px;overflow-wrap:anywhere}",
+  ".vle-bc-reads{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}",
   ".vle-bc-read{font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--vi2);padding:2px 7px;border-radius:var(--vr1);border:1px solid rgba(var(--vg-rgb),.22)}",
   ".vle-bc-read b{color:var(--vi);font-weight:700;margin-right:3px}",
   ".vle-bc-read--a{border-left:3px solid var(--v-pos)}.vle-bc-read--b{border-left:3px solid var(--v-info)}",
   ".vle-bc-asym{font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.4px;text-transform:uppercase;color:var(--v-warn);opacity:.85}",
   ".vle-bc-verdict{margin-left:auto;font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;color:var(--vg);opacity:.8}",
-  ".vle-bc .vle-rel-ctl{margin-left:auto}",
+  ".vle-bc .vle-rel-ctl{margin-left:auto;flex-wrap:wrap;justify-content:flex-end}",
   // meters: one shared center-zero track per axis, a dot per direction, a
   // connector whose length reads as the asymmetry between the two directions.
   ".vle-bc-meters{display:flex;flex-direction:column;gap:calc(9px * var(--vscale));margin-top:8px}",
@@ -969,6 +973,8 @@ export const STYLES = [
   // inline value chip (full density) floats just above its dot
   ".vle-bc-val{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font:600 8.5px/1 var(--vmono);white-space:nowrap;color:var(--vi2);opacity:.8}",
   ".vle-bc-dot--b .vle-bc-val{top:14px;bottom:auto}", // second value drops below to avoid collision
+  ".vle-bc-dot--edge-l .vle-bc-val{left:6px;right:auto;transform:none}",
+  ".vle-bc-dot--edge-r .vle-bc-val{left:auto;right:6px;transform:none}",
   ".vle-bc-labels{margin-top:8px;font-family:var(--vserif);font-style:italic;font-size:calc(12.5px * var(--vscale));color:var(--vi2);opacity:.8;line-height:1.4}",
   // strip form: a single dense row (pair + two-axis dots + verdict)
   ".vle-bc--strip{display:flex;align-items:center;gap:8px;padding:5px 10px 5px 14px}",
@@ -1121,7 +1127,7 @@ export const STYLES = [
   ".vle-pg:hover{background:rgba(var(--vg-rgb),.24)}.vle-pg[disabled]{opacity:.3;cursor:default}",
   ".vle-pg-n{font:600 9px/1 var(--vmono);opacity:.6;min-width:42px;text-align:center}",
   // ---- modal ----
-  ".vlfm-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(8,7,5,.6);backdrop-filter:blur(3px)}",
+  ".vlfm-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:12px;box-sizing:border-box;background:rgba(8,7,5,.6);backdrop-filter:blur(3px)}",
   // self-owned toasts (the Lumiverse ctx has no toast API) — above overlays
   ".vle-toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10002;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}",
   ".vle-toast{pointer-events:auto;max-width:min(460px,90vw);padding:10px 16px;border-radius:10px;font:600 12px/1.4 var(--vmono);letter-spacing:.2px;color:var(--vle-ink);background:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1));border:1px solid rgba(var(--vg-rgb),.45);box-shadow:0 12px 40px rgba(0,0,0,.6);opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s}",
@@ -1151,7 +1157,7 @@ export const STYLES = [
   "body:has(>.vle-sumwin) .vle-root:not(.vlfm){padding-bottom:72px}",
   "body:has(>.vle-sumwin:not(.is-min)) .vle-root:not(.vlfm){padding-bottom:min(78vh,760px)}",
   "@media(max-width:640px){.vle-sumwin{right:8px;bottom:8px;width:calc(100vw - 16px);max-height:70vh}.vle-sumwin-output{max-height:180px}}",
-  ".vlfm{width:min(440px,92vw);max-height:86vh;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;color:var(--vle-ink);background:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1));border:1px solid rgba(var(--vg-rgb),.5);box-shadow:0 28px 80px rgba(0,0,0,.7)}",
+  ".vlfm{width:min(440px,100%);max-height:min(86vh,calc(100dvh - 24px));min-height:0;display:flex;flex-direction:column;container-type:inline-size;border-radius:14px;overflow:hidden;color:var(--vle-ink);background:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1));border:1px solid rgba(var(--vg-rgb),.5);box-shadow:0 28px 80px rgba(0,0,0,.7)}",
   // Search / Customize / Actions carry .vle-root (to scope theme vars); the chrome
   // `.vle-root{background-image:...}` rules would otherwise beat .vlfm's opaque fill
   // and let the chat show through. Pin an opaque surface for these panels on every chrome.
@@ -1159,9 +1165,9 @@ export const STYLES = [
   // user custom background color: paints the drawer fill (float reads --vglass via .vlf-tex).
   // Excludes .vlfm modals (they pin their own opaque surface) and clears chrome gradients so the color reads true.
   "html[data-vle-bg] .vle-root:not(.vlfm){background-color:var(--vle-bg-custom);background-image:none}",
-  ".vlfm-head{display:flex;align-items:center;gap:8px;padding:13px 16px;font-family:var(--vserif);font-size:18px;letter-spacing:1.5px;text-transform:uppercase;color:var(--vi);border-bottom:1px solid rgba(var(--vg-rgb),.22)}",
+  ".vlfm-head{display:flex;flex:0 0 auto;align-items:center;gap:8px;padding:13px 16px;font-family:var(--vserif);font-size:18px;letter-spacing:1.5px;text-transform:uppercase;color:var(--vi);border-bottom:1px solid rgba(var(--vg-rgb),.22)}",
   ".vlfm-mark{color:var(--vle-gold)}",
-  ".vlfm-body{padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:11px}",
+  ".vlfm-body{min-height:0;padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:11px}",
   ".vlfm-l{display:flex;flex-direction:column;gap:5px;font:600 9px/1.3 var(--vmono);letter-spacing:.5px;text-transform:uppercase;opacity:.78}",
   ".vlfm-section{margin:12px 0 2px;font:600 9px/1 var(--vmono);letter-spacing:1.5px;text-transform:uppercase;color:var(--vg);opacity:.7;padding-bottom:4px;border-bottom:1px solid rgba(var(--vg-rgb),.16)}",
   ".vlfm-adv{margin-top:10px;border-top:1px solid rgba(var(--vg-rgb),.16);padding-top:4px}",
@@ -1186,8 +1192,10 @@ export const STYLES = [
   ".vle-autoc-b{font:inherit;color:var(--vi2);background:rgba(var(--vg-rgb),.08);border:1px solid var(--vle-gold-soft);border-radius:6px;padding:4px 7px;cursor:pointer}",
   ".vle-autoc-b:hover{color:var(--vle-gold)}",
   ".vle-autoc-b.on{background:rgba(var(--vg-rgb),.22);color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.45)}",
-  ".vlfm-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:11px 16px;border-top:1px solid rgba(var(--vg-rgb),.18)}",
-  ".vlfm-foot-sp{flex:1 1 auto}",
+  ".vlfm-foot{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;gap:8px;padding:11px 16px;border-top:1px solid rgba(var(--vg-rgb),.18)}",
+  ".vlfm-foot-actions{display:flex;flex:1 1 auto;min-width:0;gap:8px;flex-wrap:wrap}",
+  ".vlfm-foot-primary{display:flex;flex:0 0 auto;gap:8px;margin-left:auto}",
+  "@container (max-width:520px){.vlfm-foot{align-items:stretch;flex-wrap:wrap}.vlfm-foot-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));flex-basis:100%}.vlfm-foot-actions .vlfm-btn{width:100%;min-width:0;padding-inline:9px;white-space:normal;line-height:1.15}.vlfm-foot-actions .vlfm-btn:only-child{grid-column:1/-1}.vlfm-foot-primary{width:100%;justify-content:flex-end}}",
   ".vlob-body{display:block;line-height:1.6;font-size:12.5px}",
   ".vlob-dots{display:flex;justify-content:center;gap:6px;padding:2px 0 4px}",
   ".vlob-dot{width:6px;height:6px;border-radius:50%;background:rgba(var(--vg-rgb),.25)}.vlob-dot.on{background:var(--vle-gold)}",
@@ -2454,6 +2462,7 @@ export const STYLES = [
   "html[data-vle-chrome='atomic'] .vlf-bar{background:var(--v-info);border-bottom:3px solid var(--vg2);color:#fff4d6;font-family:var(--vmono);letter-spacing:.08em;text-transform:uppercase}",
   // surface-specific housings. Shape ornaments supply the object details below.
   "html[data-vle-chrome='atomic'][data-shape-present='atomic-console'] .vld-pc{background:linear-gradient(145deg,color-mix(in srgb,var(--v-info) 74%,#102b29),color-mix(in srgb,var(--v-info) 48%,#0d2423));color:#fff1c9;border-color:var(--vg2);box-shadow:none}",
+  "html[data-vle-chrome='atomic'][data-shape-present='atomic-console'] .vld-pc-item{position:relative;z-index:2;color:#fff1c9;background:#174a45;border-color:color-mix(in srgb,var(--vg2) 72%,#174a45);text-shadow:none}",
   "html[data-vle-chrome='atomic'][data-shape-cast='atomic-credential'] .vle-card:not(.vle-fac){background:linear-gradient(160deg,color-mix(in srgb,var(--vg2) 11%,var(--vsurf-1)),var(--vsurf-1))}",
   "html[data-vle-chrome='atomic'][data-shape-bonds='atomic-permit'] .vle-rel-card{background:linear-gradient(90deg,var(--vg) 0 22px,var(--vsurf-1) 22px);border-color:var(--v-info)}",
   "html[data-vle-chrome='atomic'][data-shape-beats='atomic-signal'] .vle-mem--beat{border-top:8px solid var(--vg);background:linear-gradient(150deg,color-mix(in srgb,var(--v-info) 35%,var(--vsurf-2)),var(--vsurf-2))}",

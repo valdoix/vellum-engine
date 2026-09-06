@@ -88,10 +88,12 @@ export function formModal(title: string, fields: Field[], onSave: (values: Recor
   const advFields = fields.filter((f) => f.adv);
   const fieldHtml = mainFields.map(renderField).join('')
     + (advFields.length ? `<details class="vlfm-adv"><summary>Advanced</summary>${advFields.map(renderField).join('')}</details>` : '');
-  const actionBtns = (opts?.actions ?? []).map((a, i) => `<button class="vlfm-btn vlfm-act" data-act="${i}">${esc(a.label)}</button>`).join('');
+  const actionBtns = (opts?.actions ?? []).length
+    ? '<div class="vlfm-foot-actions">' + (opts?.actions ?? []).map((a, i) => `<button class="vlfm-btn vlfm-act" data-act="${i}">${esc(a.label)}</button>`).join('') + '</div>'
+    : '';
   overlay.innerHTML = `<div class="vlfm${opts?.large ? ' vlfm-large' : ''}"><div class="vlfm-head"><span class="vlfm-mark">\u2756</span>${esc(title)}</div>`
     + `<div class="vlfm-body">${fieldHtml}</div>`
-    + `<div class="vlfm-foot">${actionBtns}<span class="vlfm-foot-sp"></span><button class="vlfm-btn vlfm-cancel" data-cancel>Cancel</button><button class="vlfm-btn vlfm-save" data-save>${esc(opts?.saveLabel ?? 'Save')}</button></div></div>`;
+    + `<div class="vlfm-foot">${actionBtns}<div class="vlfm-foot-primary"><button class="vlfm-btn vlfm-cancel" data-cancel>Cancel</button><button class="vlfm-btn vlfm-save" data-save>${esc(opts?.saveLabel ?? 'Save')}</button></div></div></div>`;
   document.body.appendChild(overlay);
 
   // Remember what had focus so we can restore it when the modal closes (a11y).

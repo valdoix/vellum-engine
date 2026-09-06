@@ -663,7 +663,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
   // wrapper only -- .vle-head/.vle-tabbar selectors keep matching; toolbar/body
   // stay outside so the search/actions row and scroll body are unaffected.
   root.innerHTML = '<div class="vle-navpanel">'
-    + '<div class="vle-head"><span class="vle-mark">\u2756</span> VELLUM <span class="vle-ver">II</span>'
+    + '<div class="vle-head"><span class="vle-brand"><span class="vle-mark">\u2756</span><span>VELLUM</span><span class="vle-ver">II</span></span>'
     + '<span class="vle-stats" data-stats></span></div>'
     + '<div class="vle-tabbar" data-tabbar role="tablist">'
       + primary.map((t, i) => tabBtn(t, i === 0)).join('')

@@ -295,7 +295,8 @@ function bondDumbbell(dA: BondDir | undefined, dB: BondDir | undefined, axis: 'a
     positions.push(pct);
     const lbl = (v > 0 ? '+' : '') + Math.round(v);
     const title = abbr(nameFor(d.a)) + '\u2192' + abbr(nameFor(d.b)) + ' \u00b7 ' + axis + ' ' + lbl;
-    return `<span class="vle-bc-dot vle-bc-dot--${cls} vle-bc-dot--${which}" style="left:${pct.toFixed(1)}%" title="${esc(title)}">`
+    const edge = pct <= 5 ? ' vle-bc-dot--edge-l' : pct >= 95 ? ' vle-bc-dot--edge-r' : '';
+    return `<span class="vle-bc-dot vle-bc-dot--${cls} vle-bc-dot--${which}${edge}" style="left:${pct.toFixed(1)}%" title="${esc(title)}">`
       + (density === 'full' ? `<span class="vle-bc-val">${esc(lbl)}</span>` : '') + '</span>';
   };
   const dots = dot(dA, 'a') + dot(dB, 'b');
