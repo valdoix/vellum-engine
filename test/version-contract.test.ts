@@ -14,11 +14,11 @@ describe('release compatibility contract', () => {
     expect(manifest.version).toBe(VELLUM_VERSION);
   });
 
-  it('pins the SDK used by Lumiverse 1.1.6', () => {
+  it('pins the staging SDK capabilities used by Lumiverse 1.1.6', () => {
     const pkg = readJson('../package.json');
     const manifest = readJson('../spindle.json');
 
-    expect(pkg.devDependencies['lumiverse-spindle-types']).toBe('0.6.27');
+    expect(pkg.devDependencies['lumiverse-spindle-types']).toBe('0.6.29');
     expect(manifest.minimum_lumiverse_version).toBe('1.1.6');
   });
 });

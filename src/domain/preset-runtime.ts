@@ -53,6 +53,39 @@ function on(value: unknown, fallback: boolean): boolean {
   return value === true || value === 1 || value === '1' || value === 'true' || value === 'on';
 }
 
+type MessageLike = { role?: unknown; content?: unknown; __isChatHistory?: unknown };
+
+interface EffectiveMarker {
+  state?: unknown;
+  compiler?: unknown;
+  verbosity?: unknown;
+  reasoning?: unknown;
+  dialogueColor?: unknown;
+  codex?: unknown;
+  inventory?: unknown;
+  worldgen?: unknown;
+}
+
+function effectiveMarker(messages: readonly MessageLike[]): EffectiveMarker | null {
+  for (const message of messages) {
+    if (message.__isChatHistory || typeof message.content !== 'string') continue;
+    const match = message.content.match(/<!--VELLUM-EFFECTIVE\s+({[^\r\n]*})\s*-->/);
+    if (!match) continue;
+    try {
+      const parsed = JSON.parse(match[1]!) as EffectiveMarker;
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch { /* fall through to expanded-prompt inference */ }
+  }
+  return null;
+}
+
+function assembledPrompt(messages: readonly MessageLike[]): string {
+  return messages
+    .filter((message) => !message.__isChatHistory && typeof message.content === 'string')
+    .map((message) => String(message.content))
+    .join('\n');
+}
+
 /** Resolve the output contract from the exact preset selected for this chat. */
 export function resolveTurnContract(preset: PresetLike | null | undefined): TurnContract | null {
   if (!preset) return null;
@@ -79,4 +112,61 @@ export function resolveTurnContract(preset: PresetLike | null | undefined): Turn
     inventory: argent && on(variableValue(preset, 'inventory'), true),
     worldgen: argent && on(variableValue(preset, 'worldgen'), false),
   };
+}
+
+/**
+ * Refine a preset's base contract from the host-assembled prompt. The assembled
+ * text has already received profile overrides, so output-critical VELLUM
+ * behavior follows the exact values used for this generation. Official ARGENT
+ * presets expose a machine-readable marker; structural prompt signatures keep
+ * older presets safe when the marker is absent.
+ */
+export function resolveTurnContractFromMessages(
+  preset: PresetLike | null | undefined,
+  messages: readonly MessageLike[],
+): TurnContract | null {
+  const base = resolveTurnContract(preset);
+  if (!base) return null;
+  const marker = effectiveMarker(messages);
+  const prompt = assembledPrompt(messages);
+  const next = { ...base };
+
+  if (marker) {
+    next.state = on(marker.state, base.state);
+    next.dialogueColor = base.argent && on(marker.dialogueColor, base.dialogueColor);
+    next.reasoningRoute = typeof marker.reasoning === 'string' ? marker.reasoning : base.reasoningRoute;
+    next.reverie = next.reasoningRoute === 'compact' || next.reasoningRoute === 'verbose';
+    next.stateCompiler = marker.compiler === 'engine' ? 'engine' : marker.compiler === 'inline' ? 'inline' : base.stateCompiler;
+    next.stateVerbosity = marker.verbosity === 'full' ? 'full' : marker.verbosity === 'lean' ? 'lean' : base.stateVerbosity;
+    next.codex = base.argent && on(marker.codex, base.codex);
+    next.inventory = base.argent && on(marker.inventory, base.inventory);
+    next.worldgen = base.argent && on(marker.worldgen, base.worldgen);
+    return next;
+  }
+
+  if (base.argent) {
+    if (/\[ARGENT — VERBOSE REVERIE\]/i.test(prompt)) next.reasoningRoute = 'verbose';
+    else if (/\[ARGENT — COMPACT REVERIE\]/i.test(prompt)) next.reasoningRoute = 'compact';
+    else if (/\[ARGENT — PRIVATE\]/i.test(prompt)) next.reasoningRoute = 'native';
+    else if (/\[ARGENT — SILENT ONE-PASS\]/i.test(prompt)) next.reasoningRoute = 'silent';
+    next.reverie = next.reasoningRoute === 'compact' || next.reasoningRoute === 'verbose';
+
+    const outputContractPresent = /\[OUTPUT — FOLLOW EXACTLY\]/i.test(prompt);
+    if (outputContractPresent) {
+      next.state = /\[VELLUM STATE[^\n]*CONTRACT\]|\[STATE SERIALIZATION[^\n]*FINAL GATE\]|one complete <vellum>|ends with <\/vellum>/i.test(prompt);
+      next.dialogueColor = /\[COLORED DIALOGUE[^\n]*(?:CONTRACT|MARKUP)\]/i.test(prompt);
+      if (next.state) {
+        const inlineSchema = /\[VELLUM STATE — (?:LEAN|FULL) CONTRACT\]|\[STATE COMPILER — FINAL\]/i.test(prompt);
+        next.stateCompiler = inlineSchema ? 'inline' : 'engine';
+        if (/\[VELLUM STATE — FULL CONTRACT\]/i.test(prompt)) next.stateVerbosity = 'full';
+        else if (/\[VELLUM STATE — LEAN CONTRACT\]/i.test(prompt)) next.stateVerbosity = 'lean';
+      }
+      next.codex = /\[THE CODEX\]|ext\.codex/i.test(prompt);
+      next.inventory = /\[POSSESSIONS\]|ext\.inventory/i.test(prompt);
+      next.worldgen = /\[CARTOGRAPHER — OPENING OR EXPLICIT RUN\]/i.test(prompt);
+    }
+  } else if (/\[OUTPUT FORMAT|\[STATE BLOCK — MANDATORY|\[VELLUM STATE\]/i.test(prompt)) {
+    next.state = /<vellum>|\[STATE BLOCK — MANDATORY|\[VELLUM STATE\]/i.test(prompt);
+  }
+  return next;
 }

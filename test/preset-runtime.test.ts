@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyArgentPolicy, compileArgentPolicy } from '../src/domain/argent-policy.js';
-import { resolveTurnContract } from '../src/domain/preset-runtime.js';
+import { resolveTurnContract, resolveTurnContractFromMessages } from '../src/domain/preset-runtime.js';
 
 function argent(values: Record<string, unknown> = {}) {
   return {
@@ -83,5 +83,27 @@ describe('active preset turn contract', () => {
 
   it('does not activate for an unrelated preset', () => {
     expect(resolveTurnContract({ id: 'other', name: 'Other', prompt_order: [], metadata: {} } as any)).toBeNull();
+  });
+
+  it('uses the effective profile marker from the assembled host prompt', () => {
+    const contract = resolveTurnContractFromMessages(argent({ state_on: 1, reasoning_route: 'compact' }), [{
+      role: 'system',
+      content: '<!--VELLUM-EFFECTIVE {"state":0,"compiler":"inline","verbosity":"full","reasoning":"silent","dialogueColor":0,"codex":0,"inventory":0,"worldgen":1}-->',
+    }]);
+    expect(contract).toMatchObject({
+      state: false, stateCompiler: 'inline', stateVerbosity: 'full', reasoningRoute: 'silent', reverie: false,
+      dialogueColor: false, codex: false, inventory: false, worldgen: true,
+    });
+  });
+
+  it('infers effective expanded controls for older ARGENT presets without a marker', () => {
+    const contract = resolveTurnContractFromMessages(argent({ reasoning_route: 'compact', state_compiler: 'engine' }), [{
+      role: 'system',
+      content: '[ARGENT — PRIVATE]\n[OUTPUT — FOLLOW EXACTLY]\n[VELLUM STATE — FULL CONTRACT]\n[COLORED DIALOGUE — CONTRACT]\n[THE CODEX]\next.codex\n[POSSESSIONS]\next.inventory',
+    }]);
+    expect(contract).toMatchObject({
+      reasoningRoute: 'native', reverie: false, state: true, stateCompiler: 'inline', stateVerbosity: 'full',
+      dialogueColor: true, codex: true, inventory: true,
+    });
   });
 });

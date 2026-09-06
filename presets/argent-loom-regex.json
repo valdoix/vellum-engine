@@ -1,0 +1,609 @@
+{
+  "version": 1,
+  "type": "lumiverse_regex_scripts",
+  "scripts": [
+    {
+      "script_id": "argent-state-display",
+      "name": "ARGENT · Chronicle Delta · Display",
+      "folder": "ARGENT LOOM",
+      "description": "Display-only renderer for every VELLUM fence accepted by the engine. The stored assistant message remains raw and parseable.",
+      "find_regex": "(?:<vellum>|‹vellum›|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:<\\/vellum>|‹\\/vellum›|```|\\[\\/VELLUM\\])",
+      "replace_string": "<style>.arg-ledger{max-width:780px;margin:14px auto;font-family:var(--vmono,'JetBrains Mono',ui-monospace,monospace)}.arg-ledger>summary{cursor:pointer;list-style:none;padding:10px 15px;border:1px solid color-mix(in srgb,var(--vg,#cda84e) 32%,transparent);border-left:3px solid var(--vg,#cda84e);border-radius:10px;background:linear-gradient(145deg,rgba(30,26,20,.94),rgba(16,14,11,.97));color:var(--vi,#eadfca);font:600 11px/1.4 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:2px;text-transform:uppercase}.arg-ledger>summary::-webkit-details-marker{display:none}.arg-ledger>summary::before{content:'ARGENT  /  ';color:var(--vg,#cda84e)}.arg-ledger>pre{margin:0;padding:13px 16px;max-height:420px;overflow:auto;border:1px solid color-mix(in srgb,var(--vg,#cda84e) 20%,transparent);border-top:0;border-radius:0 0 10px 10px;background:rgba(12,11,9,.96);color:var(--vi2,#c9bea7);font:11px/1.55 var(--vmono,'JetBrains Mono',ui-monospace,monospace);white-space:pre-wrap;overflow-wrap:anywhere}</style><details class=\"arg-ledger\"><summary>Chronicle delta</summary><pre>$1</pre></details>",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "display"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 10,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "display",
+        "preserves_canonical_raw": true
+      }
+    },
+    {
+      "script_id": "argent-state-prompt-prune",
+      "name": "ARGENT · Chronicle Delta · Prompt Prune",
+      "folder": "ARGENT LOOM",
+      "description": "Removes older state ledgers from model context while retaining the newest ledger as a worked formatting example. Never changes stored output.",
+      "find_regex": "[ \\t]*(?:<vellum>|‹vellum›|```vellum|\\[VELLUM\\])[\\s\\S]*?(?:<\\/vellum>|‹\\/vellum›|```|\\[\\/VELLUM\\])[ \\t]*(?:\\r?\\n)?",
+      "replace_string": "",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "prompt"
+      ],
+      "min_depth": 1,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 11,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "prompt",
+        "keeps_latest": true
+      }
+    },
+    {
+      "script_id": "argent-state-memory-prune",
+      "name": "ARGENT · Chronicle Delta · Memory Prune",
+      "folder": "ARGENT LOOM",
+      "description": "Uses Lumiverse memory placement to remove machine state before long-term-memory storage and embedding; the VELLUM event log remains authoritative.",
+      "find_regex": "[ \\t]*(?:<vellum>|‹vellum›|```vellum|\\[VELLUM\\])[\\s\\S]*?(?:<\\/vellum>|‹\\/vellum›|```|\\[\\/VELLUM\\])[ \\t]*(?:\\r?\\n)?",
+      "replace_string": "",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "memory"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "prompt"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 12,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "memory",
+        "literal_only": true
+      }
+    },
+    {
+      "script_id": "argent-reverie-display",
+      "name": "ARGENT · Reverie · Display",
+      "folder": "ARGENT LOOM",
+      "description": "Collapses either the six-line Compact audit or the extended Verbose audit into an unobtrusive display-only notebook. Raw prose and state remain untouched.",
+      "find_regex": "<reverie\\b[^>]*>([\\s\\S]*?)<\\/\\s*reverie\\s*>",
+      "replace_string": "<style>.arg-reverie{max-width:760px;margin:12px auto;border-left:2px solid color-mix(in srgb,var(--vg,#cda84e) 70%,transparent);font-family:var(--vserif,'Cormorant Garamond',Georgia,serif)}.arg-reverie>summary{cursor:pointer;list-style:none;padding:8px 13px;color:var(--vi2,#bdb29d);font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.78}.arg-reverie>summary::-webkit-details-marker{display:none}.arg-reverie>summary::before{content:'◇ ';color:var(--vg,#cda84e)}.arg-reverie>div{padding:4px 14px 11px;color:var(--vi2,#bdb29d);font:italic 13px/1.6 var(--vserif,'Cormorant Garamond',Georgia,serif);white-space:pre-wrap;opacity:.82}</style><details class=\"arg-reverie\"><summary>Reverie</summary><div>$1</div></details>",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "display"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 20,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "display"
+      }
+    },
+    {
+      "script_id": "argent-reverie-private-pipeline",
+      "name": "ARGENT · Reverie · Prompt + Memory Prune",
+      "folder": "ARGENT LOOM",
+      "description": "Prevents visible planning from being recycled into later model prompts or embedded into long-term memory.",
+      "find_regex": "[ \\t]*<reverie\\b[^>]*>[\\s\\S]*?<\\/\\s*reverie\\s*>[ \\t]*(?:\\r?\\n)?",
+      "replace_string": "",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output",
+        "memory"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "prompt"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 21,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "prompt_memory",
+        "literal_only": true
+      }
+    },
+    {
+      "script_id": "argent-artifact-display",
+      "name": "ARGENT · Artifact · Display",
+      "folder": "ARGENT LOOM",
+      "description": "Disabled legacy renderer for pre-1.2 bracket artifacts. New output uses the typed host artifact renderer.",
+      "find_regex": "^\\[(CODEX|LETTER|TEXT|HALO|DECREE|PORTRAIT|MAP|ITEM|TITLE|TAROT|VERSE)\\|([^|\\]\\r\\n]{1,120})\\|([\\s\\S]*?)\\][ \\t]*$",
+      "replace_string": "<style>.arg-art{--arg-accent:var(--vg,#cda84e);max-width:600px;margin:16px auto;overflow:hidden;border:1px solid color-mix(in srgb,var(--arg-accent) 34%,transparent);border-radius:12px;background:linear-gradient(145deg,rgba(33,29,22,.97),rgba(17,15,12,.98));box-shadow:0 10px 30px rgba(0,0,0,.24);color:var(--vi,#eadfca);font-family:var(--vserif,'Cormorant Garamond',Georgia,serif)}.arg-art[data-kind=\"TEXT\"]{--arg-accent:#75aee8;max-width:430px}.arg-art[data-kind=\"HALO\"]{--arg-accent:#72d9ec;font-family:var(--vmono,'JetBrains Mono',ui-monospace,monospace)}.arg-art[data-kind=\"DECREE\"]{border-style:double;border-width:3px}.arg-art[data-kind=\"TAROT\"]{--arg-accent:#b794e8;max-width:420px;text-align:center}.arg-art[data-kind=\"VERSE\"]{max-width:480px;text-align:center}.arg-art[data-kind=\"TITLE\"]{border-left:0;border-right:0;border-radius:0;text-align:center}.arg-art-head{padding:12px 17px 8px;border-bottom:1px solid color-mix(in srgb,var(--arg-accent) 22%,transparent)}.arg-art-kind{font:700 9px/1.2 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:2.4px;color:var(--arg-accent)}.arg-art-title{margin-top:3px;font-size:21px;line-height:1.2;color:var(--arg-accent)}.arg-art-body{padding:12px 18px 17px;font-size:15px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}</style><article class=\"arg-art\" data-kind=\"$1\"><header class=\"arg-art-head\"><div class=\"arg-art-kind\">$1</div><div class=\"arg-art-title\">$2</div></header><div class=\"arg-art-body\">$3</div></article>",
+      "actions": [],
+      "flags": "gim",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "display"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": true,
+      "sort_order": 30,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "display",
+        "anchored": true
+      }
+    },
+    {
+      "script_id": "argent-spectacle-display",
+      "name": "ARGENT · Spectacle · Display",
+      "folder": "ARGENT LOOM",
+      "description": "Disabled legacy renderer for pre-1.2 bracket spectacle cards.",
+      "find_regex": "^\\[(BROADSHEET|DRAMATIS)\\|([\\s\\S]*?)\\][ \\t]*$",
+      "replace_string": "<style>.arg-spectacle{max-width:620px;margin:16px auto;padding:17px 20px;border:1px solid color-mix(in srgb,var(--vg,#cda84e) 36%,transparent);border-radius:8px;background:linear-gradient(160deg,rgba(36,31,23,.97),rgba(18,16,12,.98));box-shadow:0 10px 30px rgba(0,0,0,.24);color:var(--vi,#eadfca);font-family:var(--vserif,'Cormorant Garamond',Georgia,serif)}.arg-spectacle[data-kind=\"BROADSHEET\"]{border-radius:2px}.arg-spectacle-title{text-align:center;color:var(--vg,#cda84e);font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase}.arg-spectacle-body{margin-top:10px;font-size:15px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}</style><article class=\"arg-spectacle\" data-kind=\"$1\"><div class=\"arg-spectacle-title\">$1</div><div class=\"arg-spectacle-body\">$2</div></article>",
+      "actions": [],
+      "flags": "gim",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "display"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": true,
+      "sort_order": 31,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "display",
+        "anchored": true
+      }
+    },
+    {
+      "script_id": "argent-artifact-semantic-pipeline",
+      "name": "ARGENT · Artifact · Prompt + Memory Normalize",
+      "folder": "ARGENT LOOM",
+      "description": "Keeps artifact meaning while removing presentation syntax from later prompts and memory embeddings.",
+      "find_regex": "^\\[(CODEX|LETTER|TEXT|HALO|DECREE|PORTRAIT|MAP|ITEM|TITLE|TAROT|VERSE)\\|([^|\\]\\r\\n]{1,120})\\|([\\s\\S]*?)\\][ \\t]*$",
+      "replace_string": "ARGENT ARTIFACT — $1 / $2\n$3",
+      "actions": [],
+      "flags": "gim",
+      "placement": [
+        "ai_output",
+        "memory"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "prompt"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 32,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "prompt_memory",
+        "semantic_preservation": true
+      }
+    },
+    {
+      "script_id": "argent-spectacle-semantic-pipeline",
+      "name": "ARGENT · Spectacle · Prompt + Memory Normalize",
+      "folder": "ARGENT LOOM",
+      "description": "Converts spectacle markup to plain semantic text for context and long-term memory instead of discarding its content.",
+      "find_regex": "^\\[(BROADSHEET|DRAMATIS)\\|([\\s\\S]*?)\\][ \\t]*$",
+      "replace_string": "ARGENT ARTIFACT — $1\n$2",
+      "actions": [],
+      "flags": "gim",
+      "placement": [
+        "ai_output",
+        "memory"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "prompt"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 33,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "prompt_memory",
+        "semantic_preservation": true
+      }
+    },
+    {
+      "script_id": "argent-visual-html-display-tidy",
+      "name": "ARGENT · Raw Visual HTML · Display Tidy",
+      "folder": "ARGENT LOOM",
+      "description": "Disabled legacy raw-HTML renderer retained only so old imports keep stable script IDs.",
+      "find_regex": "<!--\\s*VIS_(?:START|END)\\s*-->",
+      "replace_string": "",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "display"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": true,
+      "sort_order": 34,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "display",
+        "preserves_visual_html": true
+      }
+    },
+    {
+      "script_id": "argent-visual-html-private-pipeline",
+      "name": "ARGENT · Raw Visual HTML · Prompt + Memory Prune",
+      "folder": "ARGENT LOOM",
+      "description": "Removes self-contained presentation HTML from future model context and long-term-memory embeddings. Durable facts belong in prose and VELLUM state.",
+      "find_regex": "[ \\t]*<!--\\s*VIS_START\\s*-->[\\s\\S]*?<!--\\s*VIS_END\\s*-->[ \\t]*(?:\\r?\\n)?",
+      "replace_string": "",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output",
+        "memory"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "prompt"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 35,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "prompt_memory",
+        "noncanonical": true
+      }
+    },
+    {
+      "script_id": "argent-speaker-recover-leading-attribution",
+      "name": "ARGENT · Speaker Tags · Recover Name Before Quote",
+      "folder": "ARGENT LOOM",
+      "description": "Response-stage safety net: wraps otherwise bare single-line dialogue when an explicit proper-name attribution precedes it. Never guesses a speaker.",
+      "find_regex": "{{if::{{and::{{var::dialogue_color}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}}^([ \\t]*)((?!(?:She|He|They|It|We|I|You|The|A|An|This|That|These|Those)\\b)[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*(?:[ \\t]+(?:(?:de|del|van|von|da|di|la|le|al|bin)[ \\t]+)?[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*){0,3})([ \\t]+(?:said|asked|replied|answered|whispered|murmured|called|shouted|yelled|cried|added|warned|insisted|admitted|promised|ordered|demanded|observed|remarked|continued)(?:[ \\t]+[a-z]+ly)?[ \\t]*[,—:-][ \\t]*)(?!\\[\\s*spk\\b)([\"“][^\"“”\\r\\n]{1,1200}[\"”]){{else}}(?!){{/if}}",
+      "replace_string": "$1$2$3[spk=$2]$4[/spk]",
+      "actions": [],
+      "flags": "gm",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "response"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "find",
+      "disabled": false,
+      "sort_order": 37,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "response",
+        "conservative_attribution_recovery": true,
+        "active_preset_sentinel": "reasoning_route",
+        "gated_by_active_preset_control": "dialogue_color"
+      }
+    },
+    {
+      "script_id": "argent-speaker-recover-trailing-attribution",
+      "name": "ARGENT · Speaker Tags · Recover Name After Quote",
+      "folder": "ARGENT LOOM",
+      "description": "Response-stage safety net: wraps otherwise bare single-line dialogue when an explicit proper-name attribution follows it. Never guesses a speaker.",
+      "find_regex": "{{if::{{and::{{var::dialogue_color}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}}^([ \\t]*)([\"“][^\"“”\\r\\n]{1,1200}[\"”])([ \\t]*(?:,|—|-)?[ \\t]*)((?!(?:She|He|They|It|We|I|You|The|A|An|This|That|These|Those)\\b)[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*(?:[ \\t]+(?:(?:de|del|van|von|da|di|la|le|al|bin)[ \\t]+)?[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*){0,3})([ \\t]+(?:said|asked|replied|answered|whispered|murmured|called|shouted|yelled|cried|added|warned|insisted|admitted|promised|ordered|demanded|observed|remarked|continued)\\b){{else}}(?!){{/if}}",
+      "replace_string": "$1[spk=$4]$2[/spk]$3$4$5",
+      "actions": [],
+      "flags": "gm",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "response"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "find",
+      "disabled": false,
+      "sort_order": 38,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "response",
+        "conservative_attribution_recovery": true,
+        "active_preset_sentinel": "reasoning_route",
+        "gated_by_active_preset_control": "dialogue_color"
+      }
+    },
+    {
+      "script_id": "argent-speaker-recover-colon-attribution",
+      "name": "ARGENT · Speaker Tags · Recover Name Colon Quote",
+      "folder": "ARGENT LOOM",
+      "description": "Response-stage safety net for screenplay/chat-style Name: \"dialogue\" lines. Never guesses a speaker.",
+      "find_regex": "{{if::{{and::{{var::dialogue_color}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}}^([ \\t]*)((?!(?:She|He|They|It|We|I|You|The|A|An|This|That|These|Those)\\b)[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*(?:[ \\t]+(?:(?:de|del|van|von|da|di|la|le|al|bin)[ \\t]+)?[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*){0,3})([ \\t]*:[ \\t]*)(?!\\[\\s*spk\\b)([\"“][^\"“”\\r\\n]{1,1200}[\"”]){{else}}(?!){{/if}}",
+      "replace_string": "$1$2$3[spk=$2]$4[/spk]",
+      "actions": [],
+      "flags": "gm",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "response"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "find",
+      "disabled": false,
+      "sort_order": 39,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "response",
+        "conservative_attribution_recovery": true,
+        "active_preset_sentinel": "reasoning_route",
+        "gated_by_active_preset_control": "dialogue_color"
+      }
+    },
+    {
+      "script_id": "argent-speaker-display",
+      "name": "ARGENT · Speaker Color Bridge · Display",
+      "folder": "ARGENT LOOM",
+      "description": "Turns exact [spk=Name] wrappers into current-Lumiverse authored-color spans resolved by VELLUM cast colors, while preserving the spoken line.",
+      "find_regex": "\\[\\s*spk\\s*=\\s*[\"']?\\s*([^\"'\\]\\r\\n]{1,80}?)\\s*[\"']?\\s*\\]([\\s\\S]*?)(?:\\[\\s*\\/\\s*spk\\s*\\]|(?=\\[\\s*spk\\b|<\\s*(?:vellum|reverie)\\b|‹vellum›|```vellum|\\[VELLUM\\])|$)",
+      "replace_string": "<span class=\"v-spk\" data-spk=\"$1\" style=\"color:var(--vle-spk-color,inherit)\">$2</span>",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "display"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 40,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "display",
+        "vellum_color_bridge": true
+      }
+    },
+    {
+      "script_id": "argent-speaker-semantic-pipeline",
+      "name": "ARGENT · Speaker Tags · Prompt + Memory Clean",
+      "folder": "ARGENT LOOM",
+      "description": "Removes presentation wrappers from model context and memory while keeping dialogue verbatim.",
+      "find_regex": "\\[\\s*\\/?\\s*spk\\b(?:\\s*=\\s*[\"']?\\s*[^\"'\\]\\r\\n]{0,80}?[\"']?\\s*)?\\]",
+      "replace_string": "",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output",
+        "memory"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "prompt"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 41,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "prompt_memory"
+      }
+    },
+    {
+      "script_id": "argent-slop-display",
+      "name": "ARGENT · Proofreader Mark · Display",
+      "folder": "ARGENT LOOM",
+      "description": "Display-only highlight for phrases the model explicitly marked with <slop>; active only when such tags are emitted.",
+      "find_regex": "<slop\\b[^>]*>([\\s\\S]*?)<\\/\\s*slop\\s*>",
+      "replace_string": "<mark class=\"arg-slop\" title=\"ARGENT proofreader: revise this phrase\" style=\"background:color-mix(in srgb,#b88a47 22%,transparent);color:inherit;border-bottom:1px dotted #b88a47\">$1</mark>",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "display"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 50,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "display"
+      }
+    },
+    {
+      "script_id": "argent-slop-semantic-pipeline",
+      "name": "ARGENT · Proofreader Tags · Prompt + Memory Clean",
+      "folder": "ARGENT LOOM",
+      "description": "Strips proofreader markup from future context and memory without deleting the marked prose.",
+      "find_regex": "<\\/?\\s*slop\\b[^>]*>",
+      "replace_string": "",
+      "actions": [],
+      "flags": "gi",
+      "placement": [
+        "ai_output",
+        "memory"
+      ],
+      "scope": "global",
+      "scope_id": null,
+      "target": [
+        "prompt"
+      ],
+      "min_depth": null,
+      "max_depth": null,
+      "trim_strings": [],
+      "run_on_edit": true,
+      "substitute_macros": "none",
+      "disabled": false,
+      "sort_order": 51,
+      "owner_extension_identifier": null,
+      "metadata": {
+        "suite": "ARGENT LOOM",
+        "schema": "lumiverse-regex-v1",
+        "built_from_scratch": true,
+        "layer": "prompt_memory"
+      }
+    }
+  ],
+  "exported_at": 1788566400000
+}

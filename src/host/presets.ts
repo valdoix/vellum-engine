@@ -1,5 +1,6 @@
 import { type Result, Ok, Err, tryCatchAsync } from '../core/result.js';
 import { has } from './capability.js';
+import type { PromptBlockDTO, PromptVariableValuesDTO } from 'lumiverse-spindle-types';
 
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
@@ -111,5 +112,34 @@ export async function updatePresetMetadataKey(
       if (!conflict) throw e;
       await write(conflict.actualCacheRevision);
     }
+  });
+}
+
+/**
+ * Persist a compact/mobile Loom graph from one explicit editor snapshot.
+ * Unlike metadata-only retries, a graph conflict is never retried with stale
+ * blocks: the caller must reload the newer preset before applying again.
+ */
+export async function updatePresetGraph(
+  presetId: string,
+  blocks: PromptBlockDTO[],
+  promptVariables: PromptVariableValuesDTO,
+  expectedRevision: number,
+  userId: string | null,
+): Promise<Result<{ cacheRevision: number }, string>> {
+  if (!(await has('presets'))) return Err('no_presets_permission');
+  if (!spindle.presets?.get || !spindle.presets?.update) return Err('no_presets_api');
+  return tryCatchAsync(async () => {
+    const preset = await spindle.presets.get(presetId, userId ?? undefined);
+    if (!preset) throw new Error('preset_not_found');
+    if (!Number.isInteger(expectedRevision) || preset.cache_revision !== expectedRevision) {
+      throw new Error('preset_revision_conflict');
+    }
+    const saved = await spindle.presets.update(presetId, {
+      prompt_order: blocks,
+      metadata: { ...(preset.metadata ?? {}), promptVariables },
+      expected_cache_revision: expectedRevision,
+    }, userId ?? undefined);
+    return { cacheRevision: saved.cache_revision };
   });
 }

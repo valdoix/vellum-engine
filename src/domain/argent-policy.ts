@@ -93,3 +93,36 @@ export function applyArgentPolicy<T extends { role?: unknown; content?: unknown;
   });
   return found || force ? [...next, { role: 'system', content: capsule } as T] : messages;
 }
+
+/**
+ * Collapse the already macro-expanded ARGENT source regions into one final
+ * system message. Because the host expands these regions with the effective
+ * chat/persona/character/connection profile, this preserves the values that
+ * will actually drive the turn instead of recompiling from base preset
+ * metadata. Hosts that strip source comments before interception are left
+ * untouched; their expanded instructions remain authoritative in place.
+ */
+export function collapseAssembledArgentPolicy<T extends { role?: unknown; content?: unknown; __isChatHistory?: unknown }>(
+  messages: T[],
+  prefix = '',
+): T[] {
+  const collected: string[] = [];
+  const next = messages.flatMap((message) => {
+    if (message.__isChatHistory || typeof message.content !== 'string') return [message];
+    const content = message.content.replace(
+      /<!--ARGENT-SOURCE:[\w-]+-->([\s\S]*?)<!--\/ARGENT-SOURCE-->/g,
+      (_whole, body: string) => {
+        const text = String(body ?? '').replace(/<!--VELLUM-EFFECTIVE\s+{[^\r\n]*}\s*-->/g, '').trim();
+        if (text) collected.push(text);
+        return '';
+      },
+    ).trim();
+    return content ? [{ ...message, content }] : [];
+  });
+  const lead = prefix.trim();
+  if (!collected.length) {
+    return lead ? [...next, { role: 'system', content: lead } as T] : messages;
+  }
+  const content = ['[ARGENT EFFECTIVE POLICY]', lead, ...collected].filter(Boolean).join('\n\n');
+  return [...next, { role: 'system', content } as T];
+}
