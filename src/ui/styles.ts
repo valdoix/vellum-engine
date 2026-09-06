@@ -153,10 +153,25 @@ const SHAPE_GEOM: Record<string, string> = {
   lancet: `border-radius:calc(${R} * 2) calc(${R} * 2) 4px 4px;padding:15px 14px 11px`,
   // came-bar: a thick leaded-came rule down the left edge (pseudo); left pad.
   'came-bar': `border-radius:0 ${R} ${R} 0;border-left-width:3px;padding-left:20px`,
+  // ATOMIC — six pieces of optimistic 1960s story hardware. Every silhouette
+  // reserves its decorative controls in padding, keeping wide dynamic rows safe.
+  'atomic-console': 'clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%,0 14px);padding:19px 15px 12px',
+  'atomic-permit': 'clip-path:polygon(0 0,100% 0,100% calc(50% - 7px),calc(100% - 7px) 50%,100% calc(50% + 7px),100% 100%,0 100%,0 calc(50% + 7px),7px 50%,0 calc(50% - 7px));padding:12px 18px 12px 30px',
+  'atomic-credential': `border-radius:5px 5px calc(${R} * 2) 5px;padding:18px 14px 14px`,
+  'atomic-signal': `border-radius:3px;padding:21px 14px 12px`,
+  'atomic-dossier': 'clip-path:polygon(0 12px,31% 12px,36% 0,64% 0,69% 12px,100% 12px,100% 100%,0 100%);padding:22px 15px 12px',
+  'atomic-blueprint': 'border-radius:2px;padding:14px 15px',
+  // NOCTURNE — backstage ephemera: arch, score, mirror, cue, bill and bell jar.
+  'nocturne-stage': `border-radius:calc(${R} * 7) calc(${R} * 7) 3px 3px;padding:24px 16px 14px`,
+  'nocturne-score': `border-radius:3px 3px calc(${R} * 3) 3px;padding:16px 15px`,
+  'nocturne-mirror': `border-radius:calc(${R} * 4) calc(${R} * 4) 7px 7px;padding:22px 17px 14px`,
+  'nocturne-cue': 'border-radius:2px;padding:18px 15px 13px 30px',
+  'nocturne-bill': 'border-radius:2px;padding:17px 16px',
+  'nocturne-reliquary': 'border-radius:45% 45% 7px 7px/24% 24% 7px 7px;padding:18px 16px 20px',
 };
 // shapes whose clip-path needs a rounded-slab fallback on old UAs. notched shaves
 // small fixed corners that live in padding.
-const CLIP_SHAPES = ['notched', 'chamfer-bar', 'pixel-step', 'ransom-cut', 'glacier'];
+const CLIP_SHAPES = ['notched', 'chamfer-bar', 'pixel-step', 'ransom-cut', 'glacier', 'atomic-console', 'atomic-permit', 'atomic-dossier'];
 // surface -> the single stable root selector for that surface's card. cast
 // excludes .vle-fac so a Cast shape doesn't also reshape faction cards.
 const SHAPE_SURFACE_ROOT: Record<string, string> = {
@@ -1582,6 +1597,8 @@ export const STYLES = [
   ".vle-mode-sk.sk-greenhouse{flex-direction:column;gap:4px;background:linear-gradient(rgba(63,143,87,.14) 1px,transparent 1px) 0 0/11px 11px,linear-gradient(90deg,rgba(63,143,87,.14) 1px,transparent 1px) 0 0/11px 11px,linear-gradient(160deg,#eef5e4,#dfeacd)}.vle-mode-sk.sk-greenhouse i{height:6px;border-radius:2px 2px 6px 6px;background:linear-gradient(90deg,#3f8f57,#c69a3e)}.vle-mode-sk.sk-greenhouse i:first-child{height:8px}.vle-mode-sk.sk-greenhouse i:last-child{width:58%}",
   ".vle-mode-sk.sk-aurora{flex-direction:column;gap:4px;background:radial-gradient(90% 60% at 50% -10%,rgba(79,240,192,.22),transparent 60%),radial-gradient(70% 50% at 80% -5%,rgba(154,108,255,.18),transparent 62%),linear-gradient(180deg,#0c1830,#060c1c)}.vle-mode-sk.sk-aurora i{height:6px;border-radius:5px;background:linear-gradient(90deg,#4ff0c0,#9a6cff);box-shadow:0 0 5px rgba(79,240,192,.5)}.vle-mode-sk.sk-aurora i:first-child{height:8px}.vle-mode-sk.sk-aurora i:last-child{width:55%}",
   ".vle-mode-sk.sk-rosace{flex-direction:column;gap:4px;background:repeating-linear-gradient(60deg,rgba(0,0,0,.4) 0 2px,transparent 2px 10px),repeating-linear-gradient(-60deg,rgba(0,0,0,.4) 0 2px,transparent 2px 10px),linear-gradient(160deg,#14122a,#08060f)}.vle-mode-sk.sk-rosace i{height:6px;border-radius:4px 4px 2px 2px;background:linear-gradient(90deg,#1f6fe0,#9a4ce0,#e0243f);box-shadow:0 0 5px rgba(31,111,224,.5)}.vle-mode-sk.sk-rosace i:first-child{height:8px}.vle-mode-sk.sk-rosace i:last-child{width:58%}",
+  ".vle-mode-sk.sk-atomic{flex-direction:column;gap:4px;background:radial-gradient(#e3b54e 1px,transparent 1.5px) 5px 4px/13px 13px,linear-gradient(150deg,#2d7167,#163e3a)}.vle-mode-sk.sk-atomic i{height:6px;border-radius:2px;background:#fff1c9;border-left:5px solid #b24432;box-shadow:inset 0 0 0 1px rgba(227,181,78,.7)}.vle-mode-sk.sk-atomic i:first-child{height:9px;clip-path:polygon(4px 0,100% 0,100% 100%,0 100%,0 4px)}.vle-mode-sk.sk-atomic i:last-child{width:66%}",
+  ".vle-mode-sk.sk-nocturne{flex-direction:column;gap:4px;background:radial-gradient(ellipse at 50% 0,#551c31,#160f16 70%)}.vle-mode-sk.sk-nocturne i{height:6px;border-radius:12px 12px 2px 2px;background:linear-gradient(90deg,#7a2b42,#d1a268,#7a2b42);border:1px solid rgba(209,162,104,.45)}.vle-mode-sk.sk-nocturne i:first-child{height:10px;border-radius:24px 24px 2px 2px}.vle-mode-sk.sk-nocturne i:last-child{width:58%;margin-inline:auto}",
 
   ".vle-mode-n{font:600 13px/1 var(--vserif);letter-spacing:.5px;color:var(--vi);align-self:end}",
   ".vle-mode-b{font-size:10.5px;line-height:1.4;opacity:.6;align-self:start}",
@@ -2417,6 +2434,75 @@ export const STYLES = [
   "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='rosace'] .vle-card,html[data-vle-chrome='rosace'] .vle-rel-card,html[data-vle-chrome='rosace'] .vld-sec,html[data-vle-chrome='rosace'] .vlf-body::before,html[data-vle-chrome='rosace'] .vle-body::before{animation:none}}",
 
   // ============================================================================
+  // ATOMIC CHROME — the 1962 story machine. This is not Futuristic's digital HUD:
+  // it is tactile enamel hardware. Every surface reads as a different object.
+  // ============================================================================
+  "html[data-vle-chrome='atomic'] .vle-root{font-family:var(--vserif);letter-spacing:.01em}",
+  "html[data-vle-chrome='atomic'] .vle-navpanel{border:2px solid var(--v-info);border-radius:6px 22px 6px 6px;background:linear-gradient(135deg,color-mix(in srgb,var(--v-info) 12%,var(--vsurf-1)),var(--vsurf-2));box-shadow:4px 5px 0 color-mix(in srgb,var(--v-info) 55%,transparent)}",
+  "html[data-vle-chrome='atomic'] .vle-head,html[data-vle-chrome='atomic'] .vlf-title{font-family:var(--vserif);font-weight:900;letter-spacing:-.03em;text-transform:uppercase;color:var(--vi)}",
+  "html[data-vle-chrome='atomic'] .vle-mark::after{content:' A\\2014 62';margin-left:7px;color:var(--vg2);font:800 .58em/1 var(--vmono);letter-spacing:.12em}",
+  "html[data-vle-chrome='atomic'] .vle-card,html[data-vle-chrome='atomic'] .vle-rel-card,html[data-vle-chrome='atomic'] .vld-sec,html[data-vle-chrome='atomic'] .vld-pc,html[data-vle-chrome='atomic'] .vle-item-row{position:relative;border:2px solid var(--v-info);background:linear-gradient(150deg,var(--vsurf-1),var(--vsurf-2));box-shadow:4px 5px 0 color-mix(in srgb,var(--v-info) 60%,transparent)}",
+  "html[data-vle-chrome='atomic'] .vld-h,html[data-vle-chrome='atomic'] .vle-sec-h,html[data-vle-chrome='atomic'] .vle-card-name,html[data-vle-chrome='atomic'] .vle-rel-n{font-family:var(--vserif);font-weight:850;letter-spacing:-.015em;color:var(--vi)}",
+  "html[data-vle-chrome='atomic'] .vld-h::before,html[data-vle-chrome='atomic'] .vle-sec-h::before{content:'●';color:var(--vg2);font-size:.65em;margin-right:.55em;text-shadow:0 0 8px color-mix(in srgb,var(--vg2) 65%,transparent)}",
+  "html[data-vle-chrome='atomic'] .vle-tabbtn{border-radius:3px;font:800 calc(11px * var(--vscale))/1 var(--vmono);letter-spacing:.08em;text-transform:uppercase;border-width:2px}",
+  "html[data-vle-chrome='atomic'] .vle-tabbtn.on{color:#fff4d6;border-color:var(--vg);background:var(--vg);box-shadow:3px 3px 0 color-mix(in srgb,var(--v-info) 72%,transparent)}",
+  "html[data-vle-chrome='atomic'] .vle-av,html[data-vle-chrome='atomic'] .vld-pc-av{border-radius:50%;background:radial-gradient(circle at 50% 28%,color-mix(in srgb,var(--vg2) 85%,#fff) 0 12%,transparent 13%),linear-gradient(145deg,var(--vg),var(--vg2) 58%,var(--v-info));border:2px solid var(--v-info);color:var(--vi);box-shadow:4px 0 0 var(--vg)}",
+  "html[data-vle-chrome='atomic'] .v-chip{border-radius:2px;border-width:2px;font-weight:800;letter-spacing:.08em}",
+  "html[data-vle-chrome='atomic'] .vld-tension{height:8px;border:2px solid var(--v-info);border-radius:1px;background:repeating-linear-gradient(90deg,transparent 0 12px,color-mix(in srgb,var(--v-info) 28%,transparent) 12px 14px)}",
+  "html[data-vle-chrome='atomic'] .vld-tension-f{background:repeating-linear-gradient(90deg,var(--vg) 0 11px,color-mix(in srgb,var(--vg) 72%,#111) 11px 13px)!important}",
+  "html[data-vle-chrome='atomic'] .vlf-frame{border-radius:7px 28px 7px 7px;border:2px solid var(--v-info);box-shadow:7px 9px 0 color-mix(in srgb,var(--v-info) 42%,transparent),0 24px 60px rgba(0,0,0,.5)}",
+  "html[data-vle-chrome='atomic'] .vlf-bar{background:var(--v-info);border-bottom:3px solid var(--vg2);color:#fff4d6;font-family:var(--vmono);letter-spacing:.08em;text-transform:uppercase}",
+  // surface-specific housings. Shape ornaments supply the object details below.
+  "html[data-vle-chrome='atomic'][data-shape-present='atomic-console'] .vld-pc{background:linear-gradient(145deg,color-mix(in srgb,var(--v-info) 74%,#102b29),color-mix(in srgb,var(--v-info) 48%,#0d2423));color:#fff1c9;border-color:var(--vg2);box-shadow:none}",
+  "html[data-vle-chrome='atomic'][data-shape-cast='atomic-credential'] .vle-card:not(.vle-fac){background:linear-gradient(160deg,color-mix(in srgb,var(--vg2) 11%,var(--vsurf-1)),var(--vsurf-1))}",
+  "html[data-vle-chrome='atomic'][data-shape-bonds='atomic-permit'] .vle-rel-card{background:linear-gradient(90deg,var(--vg) 0 22px,var(--vsurf-1) 22px);border-color:var(--v-info)}",
+  "html[data-vle-chrome='atomic'][data-shape-beats='atomic-signal'] .vle-mem--beat{border-top:8px solid var(--vg);background:linear-gradient(150deg,color-mix(in srgb,var(--v-info) 35%,var(--vsurf-2)),var(--vsurf-2))}",
+  "html[data-vle-chrome='atomic'][data-shape-factions='atomic-dossier'] .vle-fac{background:linear-gradient(150deg,color-mix(in srgb,var(--vg2) 14%,var(--vsurf-1)),var(--vsurf-1))}",
+  "html[data-vle-chrome='atomic'][data-shape-items='atomic-blueprint'] .vle-item-row{background-color:var(--vsurf-1);background-image:linear-gradient(color-mix(in srgb,var(--v-info) 18%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--v-info) 18%,transparent) 1px,transparent 1px);background-size:16px 16px}",
+  // Atomic secret = a tabbed classified folder with an EYES ONLY stamp and redactions.
+  "html[data-vle-chrome='atomic'] .vle-mem--secret{position:relative;clip-path:polygon(0 13px,30% 13px,35% 0,63% 0,68% 13px,100% 13px,100% 100%,0 100%);padding:30px 14px 13px;border:2px dashed var(--v-info);background:linear-gradient(150deg,color-mix(in srgb,var(--vg2) 20%,var(--vsurf-1)),var(--vsurf-1));box-shadow:none}",
+  "html[data-vle-chrome='atomic'] .vle-mem--secret::before{content:'EYES ONLY';left:auto;right:9px;top:7px;transform:rotate(-3deg);width:auto;height:auto;padding:3px 6px;border:2px solid var(--vg);border-radius:1px;background:transparent;color:var(--vg);box-shadow:none;font:800 8px/1 var(--vmono);letter-spacing:.08em}",
+  "html[data-vle-chrome='atomic'] .vle-mem--secret::after{content:'';position:absolute;right:18px;bottom:12px;width:62px;height:16px;pointer-events:none;background:linear-gradient(var(--v-info),var(--v-info)) 0 0/100% 4px no-repeat,linear-gradient(var(--v-info),var(--v-info)) 12px 7px/50px 4px no-repeat,linear-gradient(var(--v-info),var(--v-info)) 0 14px/44px 3px no-repeat;opacity:.45}",
+  "@keyframes vle-atomic-signal{0%,100%{opacity:.45;filter:brightness(.9)}50%{opacity:.95;filter:brightness(1.25)}}",
+  "html[data-vle-chrome='atomic'][data-shape-beats='atomic-signal'] .vle-mem--beat::before{animation:vle-atomic-signal 2.4s steps(4,end) infinite}",
+  "html[data-vle-chrome='atomic'][data-vle-motion='off'][data-shape-beats='atomic-signal'] .vle-mem--beat::before{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='atomic'][data-shape-beats='atomic-signal'] .vle-mem--beat::before{animation:none}}",
+
+  // ============================================================================
+  // NOCTURNE CHROME — the velvet stage. Shapes are theatrical objects rather than
+  // interchangeable panels: proscenium, dressing mirror, score, cue and reliquary.
+  // ============================================================================
+  "html[data-vle-chrome='nocturne'] .vle-root{font-family:var(--vserif);background-image:radial-gradient(ellipse at 42% 0,color-mix(in srgb,var(--vg2) 18%,transparent),transparent 58%)}",
+  "html[data-vle-chrome='nocturne'] .vle-navpanel{border:1px solid color-mix(in srgb,var(--vg) 55%,transparent);border-radius:80px 80px 5px 5px;padding-top:20px;background:radial-gradient(ellipse at 50% 0,color-mix(in srgb,var(--vg2) 30%,transparent),transparent 66%);box-shadow:inset 0 0 0 5px color-mix(in srgb,var(--vg) 8%,transparent),0 14px 28px rgba(0,0,0,.28)}",
+  "html[data-vle-chrome='nocturne'] .vle-head,html[data-vle-chrome='nocturne'] .vlf-title{font-family:var(--vserif);font-style:italic;font-weight:500;letter-spacing:.04em;color:var(--vg)}",
+  "html[data-vle-chrome='nocturne'] .vle-mark::after{content:' \\2726  ACT II';margin-left:7px;color:var(--vg);font:600 .52em/1 var(--vmono);letter-spacing:.13em;font-style:normal}",
+  "html[data-vle-chrome='nocturne'] .vle-card,html[data-vle-chrome='nocturne'] .vle-rel-card,html[data-vle-chrome='nocturne'] .vld-sec,html[data-vle-chrome='nocturne'] .vld-pc,html[data-vle-chrome='nocturne'] .vle-item-row{position:relative;border:1px solid color-mix(in srgb,var(--vg) 48%,transparent);background:linear-gradient(135deg,var(--vsurf-1),var(--vsurf-2));box-shadow:inset 0 0 0 5px color-mix(in srgb,var(--vg) 5%,transparent),0 12px 22px rgba(0,0,0,.3)}",
+  "html[data-vle-chrome='nocturne'] .vld-h,html[data-vle-chrome='nocturne'] .vle-sec-h,html[data-vle-chrome='nocturne'] .vle-card-name,html[data-vle-chrome='nocturne'] .vle-rel-n{font-family:var(--vserif);font-style:italic;font-weight:600;letter-spacing:.02em;color:var(--vg)}",
+  "html[data-vle-chrome='nocturne'] .vld-h::before,html[data-vle-chrome='nocturne'] .vle-sec-h::before{content:'\\2726';color:var(--vg);margin-right:.5em;font-style:normal}",
+  "html[data-vle-chrome='nocturne'] .vle-tabbtn{border-radius:30px 30px 3px 3px;font-family:var(--vserif);font-style:italic;letter-spacing:.03em;text-transform:none}",
+  "html[data-vle-chrome='nocturne'] .vle-tabbtn.on{color:var(--vg);border-color:color-mix(in srgb,var(--vg) 62%,transparent);background:radial-gradient(ellipse at 50% 110%,color-mix(in srgb,var(--vg) 24%,transparent),transparent 72%);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--vg) 7%,transparent)}",
+  "html[data-vle-chrome='nocturne'] .vle-av,html[data-vle-chrome='nocturne'] .vld-pc-av{border-radius:50% 50% 8px 8px;background:radial-gradient(ellipse at 50% 18%,color-mix(in srgb,var(--vg2) 68%,var(--vsurf-1)),var(--vsurf-2) 72%);border:1px solid var(--vg);outline:1px solid color-mix(in srgb,var(--vg) 28%,transparent);outline-offset:3px;color:var(--vg);font-family:var(--vserif);font-style:italic}",
+  "html[data-vle-chrome='nocturne'] .v-chip{border-radius:12px 12px 3px 3px;font-family:var(--vserif);font-style:italic;text-transform:none;letter-spacing:.04em}",
+  "html[data-vle-chrome='nocturne'] .vld-tension{height:4px;border-radius:0;background:color-mix(in srgb,var(--vg) 20%,transparent)}",
+  "html[data-vle-chrome='nocturne'] .vld-tension-f{background:linear-gradient(90deg,var(--vg2),var(--vg))!important;box-shadow:0 0 9px color-mix(in srgb,var(--vg) 32%,transparent)}",
+  "html[data-vle-chrome='nocturne'] .vlf-frame{border-radius:90px 90px 8px 8px;border:1px solid color-mix(in srgb,var(--vg) 52%,transparent);box-shadow:inset 0 0 0 6px color-mix(in srgb,var(--vg) 5%,transparent),0 24px 60px rgba(0,0,0,.66)}",
+  "html[data-vle-chrome='nocturne'] .vlf-bar{background:linear-gradient(90deg,var(--vsurf-2),color-mix(in srgb,var(--vg2) 40%,var(--vsurf-2)),var(--vsurf-2));border-bottom:3px double var(--vg);color:var(--vg);font-family:var(--vserif);font-style:italic}",
+  "html[data-vle-chrome='nocturne'][data-shape-present='nocturne-stage'] .vld-pc{background:radial-gradient(ellipse at 50% 18%,color-mix(in srgb,var(--vg2) 45%,var(--vsurf-1)) 0 8%,transparent 42%),linear-gradient(115deg,var(--vsurf-2),var(--vsurf-1),var(--vsurf-2));text-align:center}",
+  "html[data-vle-chrome='nocturne'][data-shape-cast='nocturne-mirror'] .vle-card:not(.vle-fac){background:radial-gradient(ellipse at 50% 20%,color-mix(in srgb,var(--vg2) 26%,var(--vsurf-1)),var(--vsurf-2) 74%)}",
+  "html[data-vle-chrome='nocturne'][data-shape-bonds='nocturne-score'] .vle-rel-card{background:linear-gradient(90deg,color-mix(in srgb,var(--vg2) 18%,var(--vsurf-1)) 0 49.5%,var(--vsurf-2) 49.7% 50.3%,color-mix(in srgb,var(--vg) 6%,var(--vsurf-1)) 50.5%)}",
+  "html[data-vle-chrome='nocturne'][data-shape-beats='nocturne-cue'] .vle-mem--beat{border-left:4px solid var(--vg2);background:linear-gradient(145deg,color-mix(in srgb,var(--vg) 8%,var(--vsurf-1)),var(--vsurf-1));transform:rotate(-.25deg);box-shadow:7px 8px 0 color-mix(in srgb,var(--vsurf-2) 75%,#000)}",
+  "html[data-vle-chrome='nocturne'][data-shape-factions='nocturne-bill'] .vle-fac{background:linear-gradient(145deg,color-mix(in srgb,var(--vg) 10%,var(--vsurf-1)),var(--vsurf-1))}",
+  "html[data-vle-chrome='nocturne'][data-shape-items='nocturne-reliquary'] .vle-item-row{background:radial-gradient(ellipse at 50% 90%,color-mix(in srgb,var(--vg2) 35%,transparent),transparent 46%),var(--vsurf-2);text-align:center;border-bottom:4px double var(--vg)}",
+  // Nocturne secret = folded correspondence with a large monogrammed wax seal.
+  "html[data-vle-chrome='nocturne'] .vle-mem--secret{position:relative;padding:22px 16px 16px 54px;border:1px solid color-mix(in srgb,var(--vg) 48%,transparent);background:linear-gradient(32deg,transparent 49.5%,color-mix(in srgb,var(--vg) 12%,transparent) 50%,transparent 50.5%),linear-gradient(-32deg,transparent 49.5%,color-mix(in srgb,var(--vg) 12%,transparent) 50%,transparent 50.5%),var(--vsurf-1);box-shadow:inset 0 0 0 6px color-mix(in srgb,var(--vg2) 8%,transparent),0 12px 22px rgba(0,0,0,.3)}",
+  "html[data-vle-chrome='nocturne'] .vle-mem--secret::before{content:'V';left:12px;top:50%;transform:translateY(-50%) rotate(-5deg);width:30px;height:30px;border:3px double color-mix(in srgb,var(--vg) 80%,#fff);border-radius:50%;background:radial-gradient(circle at 38% 30%,color-mix(in srgb,var(--vg2) 65%,#fff),var(--vg2));color:#f2ddc9;box-shadow:0 3px 8px rgba(0,0,0,.45);font:italic 18px/1 var(--vserif)}",
+  "html[data-vle-chrome='nocturne'] .vle-mem--secret::after{content:'PRIVATE ARCHIVE';position:absolute;right:12px;top:7px;color:var(--vg);font:600 8px/1 var(--vmono);letter-spacing:.13em;opacity:.7}",
+  "@keyframes vle-nocturne-footlight{0%,100%{opacity:.45;filter:drop-shadow(0 0 1px transparent)}50%{opacity:.95;filter:drop-shadow(0 0 5px var(--vg))}}",
+  "html[data-vle-chrome='nocturne'][data-shape-present='nocturne-stage'] .vld-pc::after{animation:vle-nocturne-footlight 3s ease-in-out infinite}",
+  "html[data-vle-chrome='nocturne'][data-vle-motion='off'][data-shape-present='nocturne-stage'] .vld-pc::after{animation:none}",
+  "@media (prefers-reduced-motion:reduce){html[data-vle-chrome='nocturne'][data-shape-present='nocturne-stage'] .vld-pc::after{animation:none}}",
+
+  // ============================================================================
   // CARD SHAPE PRIMITIVES + per-surface overrides (mockup 24 / 30-35).
   // Both are generated from the single SHAPE_GEOM map above (geometry only, never
   // color/type). Primitives (.v-shape--<id>) are used directly by renderers;
@@ -2553,6 +2639,44 @@ export const STYLES = [
   ...shapeDetail('rose-window', "content:'\\273B';position:absolute;top:1px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:1;color:var(--vg);font-size:15px;line-height:1;text-shadow:0 0 10px rgba(var(--vg-rgb),.7);opacity:.8", '::before'),
   // ROSACE: came-bar -- a thick leaded-came rule with a glint down the left rail.
   ...shapeDetail('came-bar', "content:'';position:absolute;left:6px;top:7px;bottom:7px;width:8px;pointer-events:none;z-index:1;background:linear-gradient(var(--vg),var(--vg)) 0 0/3px 100% no-repeat,linear-gradient(180deg,transparent,color-mix(in srgb,var(--vg2) 60%,transparent),transparent) 4px 0/2px 100% no-repeat;opacity:.7", '::before'),
+  // ATOMIC object cards ------------------------------------------------------
+  // console: scope grid, a stepped trace and two warm indicator lamps.
+  ...shapeDetail('atomic-console', "content:'';position:absolute;top:5px;left:13px;right:13px;height:10px;pointer-events:none;z-index:1;background:linear-gradient(color-mix(in srgb,var(--vg2) 24%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--vg2) 24%,transparent) 1px,transparent 1px),linear-gradient(135deg,transparent 0 20%,var(--vg2) 21% 24%,transparent 25% 43%,var(--vg2) 44% 48%,transparent 49% 68%,var(--vg2) 69% 72%,transparent 73%);background-size:7px 5px,7px 5px,100% 100%;opacity:.72", '::before'),
+  ...shapeDetail('atomic-console', "content:'';position:absolute;top:7px;right:15px;width:5px;height:5px;border-radius:50%;pointer-events:none;z-index:2;background:var(--vg);box-shadow:-10px 0 0 var(--vg2),0 0 7px color-mix(in srgb,var(--vg) 70%,transparent)", '::after'),
+  // permit: red-stub punch holes and an inset perforated keyline.
+  ...shapeDetail('atomic-permit', "content:'';position:absolute;left:8px;top:7px;bottom:7px;width:11px;pointer-events:none;z-index:1;background:radial-gradient(circle 2.6px at 50% 3px,var(--vsurf-1) 92%,transparent);background-size:9px 15px;background-repeat:repeat-y;border-right:1px dashed color-mix(in srgb,var(--v-info) 65%,transparent)", '::before'),
+  ...shapeDetail('atomic-permit', "content:'';position:absolute;inset:6px 7px 6px 26px;pointer-events:none;z-index:1;border:1px dashed color-mix(in srgb,var(--v-info) 45%,transparent)", '::after'),
+  // credential: twin lanyard holes plus a machine-readable barcode footer.
+  ...shapeDetail('atomic-credential', "content:'';position:absolute;top:5px;left:calc(50% - 25px);width:50px;height:9px;pointer-events:none;z-index:1;background:radial-gradient(circle 4px at 5px 50%,var(--vsurf-2) 90%,transparent),radial-gradient(circle 4px at 45px 50%,var(--vsurf-2) 90%,transparent),linear-gradient(var(--vg),var(--vg)) 13px 2px/24px 5px no-repeat;opacity:.8", '::before'),
+  ...shapeDetail('atomic-credential', "content:'';position:absolute;right:13px;bottom:7px;width:46px;height:8px;pointer-events:none;z-index:1;background:repeating-linear-gradient(90deg,var(--v-info) 0 1px,transparent 1px 3px,var(--v-info) 3px 5px,transparent 5px 7px);opacity:.65", '::after'),
+  // signal: a radio trace in the header band and a frequency readout.
+  ...shapeDetail('atomic-signal', "content:'';position:absolute;top:7px;left:12px;right:70px;height:8px;pointer-events:none;z-index:1;background:linear-gradient(90deg,var(--vg2),var(--vg2)) 0 50%/100% 1px no-repeat,linear-gradient(135deg,transparent 0 16%,var(--vg2) 17% 20%,transparent 21% 36%,var(--vg2) 37% 43%,transparent 44% 62%,var(--vg2) 63% 66%,transparent 67%);opacity:.7", '::before'),
+  ...shapeDetail('atomic-signal', "content:'114.7';position:absolute;top:5px;right:11px;pointer-events:none;z-index:1;color:var(--vg2);font:800 9px/1 var(--vmono);letter-spacing:.08em", '::after'),
+  // dossier: tab title and three redaction bars in the reserved margins.
+  ...shapeDetail('atomic-dossier', "content:'FILE / 7-B';position:absolute;top:4px;left:39%;transform:translateX(-50%);pointer-events:none;z-index:1;color:var(--vg);font:800 8px/1 var(--vmono);letter-spacing:.1em", '::before'),
+  ...shapeDetail('atomic-dossier', "content:'';position:absolute;right:12px;bottom:8px;width:54px;height:12px;pointer-events:none;z-index:1;background:linear-gradient(var(--v-info),var(--v-info)) 0 0/100% 3px no-repeat,linear-gradient(var(--v-info),var(--v-info)) 12px 5px/42px 3px no-repeat,linear-gradient(var(--v-info),var(--v-info)) 0 10px/36px 2px no-repeat;opacity:.36", '::after'),
+  // blueprint: graph paper, registration crosshair and figure number.
+  ...shapeDetail('atomic-blueprint', "content:'';position:absolute;inset:5px;pointer-events:none;z-index:1;background:linear-gradient(color-mix(in srgb,var(--v-info) 20%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--v-info) 20%,transparent) 1px,transparent 1px),linear-gradient(var(--v-info),var(--v-info)) 9px 50%/16px 1px no-repeat,linear-gradient(90deg,var(--v-info),var(--v-info)) 17px calc(50% - 8px)/1px 16px no-repeat;background-size:14px 14px,14px 14px,auto,auto;opacity:.38", '::before'),
+  ...shapeDetail('atomic-blueprint', "content:'FIG. 01';position:absolute;right:8px;bottom:5px;pointer-events:none;z-index:1;color:var(--v-info);font:700 7px/1 var(--vmono);letter-spacing:.1em;opacity:.75", '::after'),
+  // NOCTURNE object cards ----------------------------------------------------
+  // stage: inner proscenium and opposing velvet curtain falls.
+  ...shapeDetail('nocturne-stage', "content:'';position:absolute;inset:7px 8px 8px;pointer-events:none;z-index:1;border:3px double color-mix(in srgb,var(--vg) 52%,transparent);border-radius:inherit;background:linear-gradient(105deg,color-mix(in srgb,var(--vg2) 24%,transparent),transparent 20% 80%,color-mix(in srgb,var(--vg2) 24%,transparent));opacity:.78", '::before'),
+  ...shapeDetail('nocturne-stage', "content:'';position:absolute;left:18px;right:18px;bottom:6px;height:6px;pointer-events:none;z-index:1;background:radial-gradient(circle 2.4px at 3px 50%,var(--vg) 92%,transparent);background-size:18px 6px;background-repeat:repeat-x;opacity:.65", '::after'),
+  // score: five staff lines split by a duet medallion.
+  ...shapeDetail('nocturne-score', "content:'';position:absolute;left:9px;right:9px;top:9px;height:22px;pointer-events:none;z-index:1;background:repeating-linear-gradient(0deg,transparent 0 3px,color-mix(in srgb,var(--vg) 42%,transparent) 3px 4px),linear-gradient(90deg,transparent 49.7%,var(--vg) 49.8% 50.2%,transparent 50.3%);opacity:.62", '::before'),
+  ...shapeDetail('nocturne-score', "content:'\\221E';position:absolute;top:8px;left:50%;transform:translateX(-50%);width:21px;height:21px;display:grid;place-items:center;pointer-events:none;z-index:2;border:1px solid var(--vg);border-radius:50%;background:var(--vsurf-1);color:var(--vg);font:italic 14px/1 var(--vserif)", '::after'),
+  // mirror: dressing-room bulbs around an arched plate and a small crown flourish.
+  ...shapeDetail('nocturne-mirror', "content:'';position:absolute;inset:6px;pointer-events:none;z-index:1;border:1px solid color-mix(in srgb,var(--vg) 42%,transparent);border-radius:inherit;background:radial-gradient(circle 2px at 9px 9px,var(--vg) 92%,transparent),radial-gradient(circle 2px at calc(100% - 9px) 9px,var(--vg) 92%,transparent),radial-gradient(circle 2px at 9px calc(100% - 9px),var(--vg) 92%,transparent),radial-gradient(circle 2px at calc(100% - 9px) calc(100% - 9px),var(--vg) 92%,transparent);opacity:.68", '::before'),
+  ...shapeDetail('nocturne-mirror', "content:'\\2726';position:absolute;top:3px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:2;color:var(--vg);font-size:11px;line-height:1", '::after'),
+  // cue: wine-red stage-manager tab plus a strip of translucent rehearsal tape.
+  ...shapeDetail('nocturne-cue', "content:'CUE';position:absolute;left:-12px;top:15px;width:34px;padding:7px 1px;pointer-events:none;z-index:2;background:var(--vg2);color:#f2ddc9;text-align:center;font:800 8px/1 var(--vmono);letter-spacing:.08em;box-shadow:0 3px 0 color-mix(in srgb,var(--vsurf-2) 80%,#000)", '::before'),
+  ...shapeDetail('nocturne-cue', "content:'';position:absolute;top:-6px;left:35%;width:70px;height:16px;pointer-events:none;z-index:1;background:color-mix(in srgb,var(--vg) 30%,transparent);border:1px solid color-mix(in srgb,var(--vg) 22%,transparent);transform:rotate(2deg)", '::after'),
+  // company bill: double rule with a centered theatrical star.
+  ...shapeDetail('nocturne-bill', "content:'';position:absolute;inset:5px;pointer-events:none;z-index:1;border:3px double color-mix(in srgb,var(--vg) 46%,transparent)", '::before'),
+  ...shapeDetail('nocturne-bill', "content:'\\2726';position:absolute;top:1px;left:50%;transform:translateX(-50%);padding:0 5px;pointer-events:none;z-index:2;background:var(--vsurf-1);color:var(--vg);font-size:10px;line-height:1", '::after'),
+  // reliquary: a glass bell-jar keyline and heavy brass plinth.
+  ...shapeDetail('nocturne-reliquary', "content:'';position:absolute;inset:5px 8px 10px;pointer-events:none;z-index:1;border:1px solid color-mix(in srgb,var(--vg) 48%,transparent);border-radius:48% 48% 5px 5px/25% 25% 5px 5px;background:linear-gradient(110deg,transparent 15%,color-mix(in srgb,var(--vg) 10%,transparent) 32%,transparent 46%)", '::before'),
+  ...shapeDetail('nocturne-reliquary', "content:'';position:absolute;left:12px;right:12px;bottom:5px;height:5px;pointer-events:none;z-index:2;border-top:3px double var(--vg);border-bottom:1px solid color-mix(in srgb,var(--vg) 50%,transparent)", '::after'),
   // --- F2 modern shape-suppression (mockup 32): non-hero surfaces are flat slabs
   // differentiated by a LEFT ACCENT BAR + faint fill tint, not a silhouette. The
   // hero (present) stays frosted glass. Scoped to the modern chrome only.

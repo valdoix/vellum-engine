@@ -69,7 +69,7 @@ const F_NOUVEAU = "'Yeseva One','Cormorant Garamond',Georgia,serif"; // Greenhou
 const F_POLAR = "'Josefin Sans',system-ui,sans-serif"; // Aurora display — airy geometric sans, loads from Google Fonts
 const F_LEADED = "'Marcellus','Cormorant Garamond',Georgia,serif"; // Rosace display — inscriptional roman, loads from Google Fonts
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'bloom' | 'ember' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary' | 'terracotta' | 'greenhouse' | 'aurora' | 'rosace';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'atomic' | 'bloom' | 'ember' | 'nocturne' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary' | 'terracotta' | 'greenhouse' | 'aurora' | 'rosace';
 
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
@@ -105,12 +105,15 @@ export type ShapeId =
   | 'azulejo' | 'amphora' | 'glaze-drip'
   | 'pane' | 'whiplash-vine' | 'nouveau-arch'
   | 'ribbon-edge' | 'glacier' | 'icicle'
-  | 'rose-window' | 'lancet' | 'came-bar';
+  | 'rose-window' | 'lancet' | 'came-bar'
+  // object-card systems: Atomic instruments and Nocturne backstage ephemera
+  | 'atomic-console' | 'atomic-permit' | 'atomic-credential' | 'atomic-signal' | 'atomic-dossier' | 'atomic-blueprint'
+  | 'nocturne-stage' | 'nocturne-score' | 'nocturne-mirror' | 'nocturne-cue' | 'nocturne-bill' | 'nocturne-reliquary';
 // NOTE: `secrets` is intentionally NOT a customizable surface — the secret card
 // owns a fixed left-spine + wax-seal signature across every chrome (rendered via
 // its own ::before/::after), so it isn't offered in the card-shape customizer.
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule', 'azulejo', 'amphora', 'glaze-drip', 'pane', 'whiplash-vine', 'nouveau-arch', 'ribbon-edge', 'glacier', 'icicle', 'rose-window', 'lancet', 'came-bar'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule', 'azulejo', 'amphora', 'glaze-drip', 'pane', 'whiplash-vine', 'nouveau-arch', 'ribbon-edge', 'glacier', 'icicle', 'rose-window', 'lancet', 'came-bar', 'atomic-console', 'atomic-permit', 'atomic-credential', 'atomic-signal', 'atomic-dossier', 'atomic-blueprint', 'nocturne-stage', 'nocturne-score', 'nocturne-mirror', 'nocturne-cue', 'nocturne-bill', 'nocturne-reliquary'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -129,10 +132,15 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   modern: { present: 'slab', bonds: 'split', cast: 'slab', beats: 'slab', factions: 'slab', items: 'slab' },
   // HUD: reticle notches, viewfinder brackets, registration studs, end brackets
   futuristic: { present: 'notched', bonds: 'aperture', cast: 'notched', beats: 'bracket', factions: 'studs', items: 'bracket' },
+  // optimistic retro-future: every surface is a different physical instrument.
+  atomic: { present: 'atomic-console', bonds: 'atomic-permit', cast: 'atomic-credential', beats: 'atomic-signal', factions: 'atomic-dossier', items: 'atomic-blueprint' },
   // cozy garden: stitched borders, a framed portrait cast, a scalloped faction card
   bloom: { present: 'stitch', bonds: 'stitch', cast: 'tarot', beats: 'inset', factions: 'scalloped', items: 'stitch' },
   // dreamy night: soft portrait, a torn deckle beat
   ember: { present: 'tarot', bonds: 'gilt-edge', cast: 'slab', beats: 'deckle', factions: 'tarot', items: 'deckle' },
+  // velvet theatre: proscenium, duet score, dressing mirror, cue sheet, company
+  // playbill and glass reliquary. Secrets use a fixed sealed-letter treatment.
+  nocturne: { present: 'nocturne-stage', bonds: 'nocturne-score', cast: 'nocturne-mirror', beats: 'nocturne-cue', factions: 'nocturne-bill', items: 'nocturne-reliquary' },
   // twilight storybook glade: a toadstool-dome present, a bramble-wreath bond, a
   // tarot cast plate, a climbing-vine trellis beat, a scalloped faction, a hanging
   // fairy-lantern item.
@@ -220,7 +228,7 @@ export function sanitizeCardShapes(raw: unknown): Partial<Record<Surface, ShapeI
  * palette. After picking, every knob is still individually overridable.
  */
 export interface Mode { id: Chrome; name: string; blurb: string; patch: Partial<Theme>; form: string; skin?: string; skinDark: string; skinLight: string }
-// Seven chromes, each with a paired dark + light skin. `skin` is the mode's
+// Every chrome has a paired dark + light skin. `skin` is the mode's
 // recommended (dark) palette for back-compat; setMode picks dark/light by the
 // active color mode. Philosophy: STORY (the scene leads) · BEAUTY (each chrome
 // is a distinct world, ornament that encodes state) · MEMORY (the margin holds).
@@ -229,6 +237,9 @@ export const MODES: Mode[] = [
   { id: 'illuminated', name: 'Fantasy', blurb: 'An open codex \u2014 warm parchment, brown ink, rubric headers, a wax seal.', patch: { chrome: 'illuminated', radius: 18, border: 1, texture: 'parchment', serif: F_SERIF }, form: 'codex', skin: 'vellum-dark', skinDark: 'vellum-dark', skinLight: 'parchment' },
   { id: 'modern', name: 'Modern', blurb: 'A calm card app \u2014 flat, sans, one smooth scroll of rounded cards.', patch: { chrome: 'modern', radius: 16, border: 1, texture: '', serif: F_SANS }, form: 'dashboard', skin: 'moonlit', skinDark: 'moonlit', skinLight: 'daylit' },
   { id: 'futuristic', name: 'Futuristic', blurb: 'An Oracle HUD \u2014 cyan telemetry, reticle avatars, a live bond radar.', patch: { chrome: 'futuristic', radius: 2, border: 1, texture: 'grid', serif: F_HUD, accent: '#28e0d8', accent2: '#7a5cff' }, form: 'hud', skin: 'noir', skinDark: 'noir', skinLight: 'chrome-light' },
+  // ATOMIC — an optimistic 1962 control room: enamel hardware, petrol-green
+  // instruments, vermilion stamps and butter-yellow indicator lamps.
+  { id: 'atomic', name: 'Atomic', blurb: 'Tomorrow\u2019s story machine \u2014 enamel consoles, crew credentials, punched permits &amp; radio signals.', patch: { chrome: 'atomic', radius: 5, border: 2, texture: 'atomic-dots', serif: F_SANS, accent: '#b24432', accent2: '#e3b54e', opacity: 1, blur: 2 }, form: 'dashboard', skin: 'atomic-reactor', skinDark: 'atomic-reactor', skinLight: 'atomic-enamel' },
   { id: 'bloom', name: 'Bloom', blurb: 'A pressed-flower garden \u2014 blush pink &amp; sage, petals, lace, a cozy romance.', patch: { chrome: 'bloom', radius: 20, border: 1, texture: 'petals', serif: F_SERIF, accent: '#d98cab', accent2: '#8fbf7f' }, form: 'dashboard', skin: 'blush-noir', skinDark: 'blush-noir', skinLight: 'blush' },
   // EMBER — "the night sky dreaming": a deep indigo void, drifting fireflies &
   // slow-rising bubbles, scattered pastel starlight, glowing soft-edged cards.
@@ -236,6 +247,9 @@ export const MODES: Mode[] = [
   // dark, soft, ethereal, and animated — pastels that glow on a midnight field.
   // Its light twin is a pale dawn sky (starfall-dawn).
   { id: 'ember', name: 'Ember', blurb: 'A starlit night dreaming \u2014 indigo void, fireflies, rising bubbles, pastel starlight.', patch: { chrome: 'ember', radius: 22, border: 1, texture: 'starfall', serif: F_ETHEREAL, accent: '#b8a9ff', accent2: '#8fd6c8', opacity: 0.92, blur: 12 }, form: 'dashboard', skin: 'starfall', skinDark: 'starfall', skinLight: 'starfall-dawn' },
+  // NOCTURNE — the extension as a velvet theatre: every information surface is
+  // a prop from backstage, lit in oxblood, plum, old gold and warm footlight.
+  { id: 'nocturne', name: 'Nocturne', blurb: 'The velvet stage \u2014 arched playbills, dressing mirrors, duet scores, cue sheets &amp; sealed letters.', patch: { chrome: 'nocturne', radius: 6, border: 1, texture: 'nocturne-velvet', serif: F_SERIF, accent: '#d1a268', accent2: '#7a2b42', opacity: 0.96, blur: 8 }, form: 'dashboard', skin: 'nocturne-velvet', skinDark: 'nocturne-velvet', skinLight: 'nocturne-matinee' },
   // FAEWILD — "the twilight storybook glade": a fairy-tale wood at dusk. Climbing
   // vines frame the window, fairy-light garlands catch in the dark (presence &
   // tension), toadstool tabs, pastel sage & lilac on a deep glade. Nature objects
@@ -303,6 +317,12 @@ export const SKINS: Skin[] = [
   { id: 'crimson', name: 'Crimson Court', blurb: 'Oxblood and brass — opulent, dangerous, GoT-coded.', theme: { accent: '#c97a6a', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(34,18,18,.58)', surf2: 'rgba(20,10,11,.52)', ink: '#eccfc4', ink2: '#cda79c', glass: 'linear-gradient(168deg,rgba(32,16,16,.97),rgba(18,9,10,.985))', ...SEM, neg: '#d65a5a', negInk: '#f2a0a0' } },
   { id: 'verdant', name: 'Verdant Grove', blurb: 'Mossy sage and bark — pastoral, warm, alive.', theme: { accent: '#8fa67e', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(22,28,20,.55)', surf2: 'rgba(13,17,12,.5)', ink: '#dde6d2', ink2: '#aebfa0', glass: 'linear-gradient(168deg,rgba(20,26,18,.97),rgba(11,15,10,.985))', ...SEM, pos: '#a8c089', posInk: '#c2db9f' } },
   { id: 'noir', name: 'Onyx Terminal', blurb: 'High-contrast mono, amber phosphor — hardboiled/sci-fi.', theme: { accent: '#e0a44e', serif: F_MONO, mono: F_MONO, surf1: 'rgba(18,18,18,.6)', surf2: 'rgba(9,9,9,.55)', ink: '#e6dcc8', ink2: '#b8ad96', glass: 'linear-gradient(168deg,rgba(16,16,16,.98),rgba(7,7,7,.99))', ...SEM } },
+  // Atomic twins — a night-shift reactor room and the ivory enamel daytime set.
+  { id: 'atomic-reactor', name: 'Atomic Reactor', blurb: 'Night-shift control room — petrol green, warm lamps, vermilion warnings.', theme: { accent: '#d95b45', serif: F_SANS, mono: F_MONO, surf1: 'rgba(31,75,69,.94)', surf2: 'rgba(20,49,47,.96)', ink: '#fff1c9', ink2: '#bed0bd', glass: 'linear-gradient(150deg,#214f49,#142f2e)', ...SEM, pos: '#a7c66f', posInk: '#c4dd91', neg: '#d95b45', negInk: '#f28a75', info: '#78c8bd', warn: '#e2b956', press: '#e2b956', pressInk: '#f4d77c' } },
+  { id: 'atomic-enamel', name: 'Atomic Enamel', blurb: 'Illustrated futures — warm ivory enamel, petrol ink, signal red and brass.', theme: { accent: '#b24432', serif: F_SANS, mono: F_MONO, surf1: 'rgba(255,244,214,.96)', surf2: 'rgba(234,223,193,.96)', ink: '#253f38', ink2: '#5f6450', glass: 'linear-gradient(150deg,#e9e3cf,#d8d1ba)', ...SEM, pos: '#4f7b4e', posInk: '#3c633b', neg: '#b24432', negInk: '#8f2f25', info: '#28685e', warn: '#8b5d72', press: '#b78324', pressInk: '#8e6417' } },
+  // Nocturne twins — house lights down and a cream matinee playbill.
+  { id: 'nocturne-velvet', name: 'Nocturne Velvet', blurb: 'House lights down — oxblood velvet, plum shadow and old-gold type.', theme: { accent: '#d1a268', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(48,24,36,.94)', surf2: 'rgba(30,17,25,.96)', ink: '#f2ddc9', ink2: '#c0a5a5', glass: 'radial-gradient(ellipse at 40% 0,#551c31,#160f16 64%)', ...SEM, pos: '#93af7b', posInk: '#b3ca99', neg: '#bd5a68', negInk: '#df8190', info: '#8eafd0', warn: '#c994bd', press: '#b98255', pressInk: '#d9aa77' } },
+  { id: 'nocturne-matinee', name: 'Nocturne Matinee', blurb: 'A matinee playbill — cream stock, wine ink and burnished-gold rules.', theme: { accent: '#9b6738', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(247,235,213,.96)', surf2: 'rgba(232,216,190,.96)', ink: '#35252b', ink2: '#795e61', glass: 'linear-gradient(150deg,#f1e2c8,#ddc7a8)', ...SEM, pos: '#587a48', posInk: '#426138', neg: '#9e3f50', negInk: '#7e3040', info: '#4f6f91', warn: '#7d5578', press: '#9b6738', pressInk: '#78502d' } },
   { id: 'orchid', name: 'Orchid Dusk', blurb: 'Violet and rose-gold — dreamlike, romantic, soft.', theme: { accent: '#b48ed0', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(28,22,34,.55)', surf2: 'rgba(17,13,22,.5)', ink: '#e6d6ee', ink2: '#c2afce', glass: 'linear-gradient(168deg,rgba(26,20,32,.97),rgba(15,11,20,.985))', ...SEM, warn: '#c79ae0' } },
   // Light pastel garden — blush paper, rosewood ink, sage & pink semantics. The
   // recommended palette for the Bloom chrome (works standalone on any chrome too).
@@ -434,6 +454,10 @@ const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   // woven artist's canvas — warm ochre warp/weft threads, a faint linen tooth
   { id: 'canvas', label: 'Canvas', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Cg stroke='%23b08840' stroke-opacity='0.09'%3E%3Cpath d='M0 4h16M0 12h16' stroke-width='2'/%3E%3Cpath d='M4 0v16M12 0v16' stroke-width='2'/%3E%3C/g%3E%3Cg stroke='%23000' stroke-opacity='0.05'%3E%3Cpath d='M0 8h16M8 0v16'/%3E%3C/g%3E%3C/svg%3E\")" },
   { id: 'firefly-grove', label: 'Firefly Grove', css: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='180'%3E%3Cg fill='%23f3c66b'%3E%3Ccircle cx='26' cy='31' r='1.5' fill-opacity='.35'/%3E%3Ccircle cx='176' cy='42' r='1' fill-opacity='.28'/%3E%3Ccircle cx='104' cy='139' r='1.4' fill-opacity='.3'/%3E%3Cpath d='M62 70l2 6 6 2-6 2-2 6-2-6-6-2 6-2z' fill-opacity='.18'/%3E%3C/g%3E%3Cg fill='none' stroke='%2393b39a' stroke-opacity='.12'%3E%3Cpath d='M0 168Q45 112 88 166T176 156T220 134'/%3E%3Cpath d='M22 148q18-28 36 0M164 150q16-26 32 0'/%3E%3C/g%3E%3Cg fill='%23668f88' fill-opacity='.14'%3E%3Cpath d='M43 132c15-15 27-5 18 11-11 5-19 1-18-11zm133-18c-14-13-25-4-17 11 11 4 18 0 17-11z'/%3E%3C/g%3E%3C/svg%3E\")" },
+  // Extension-native surfaces for the Atomic and Nocturne object-card systems.
+  // These are pure CSS textures, so both work offline and recolor with the skin.
+  { id: 'atomic-dots', label: 'Atomic Drafting Dots', css: 'radial-gradient(color-mix(in srgb,var(--vg) 22%,transparent) .7px,transparent .8px),linear-gradient(color-mix(in srgb,var(--vg2) 7%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--vg2) 7%,transparent) 1px,transparent 1px)' },
+  { id: 'nocturne-velvet', label: 'Nocturne Velvet', css: 'radial-gradient(ellipse at 20% 0,color-mix(in srgb,var(--vg2) 18%,transparent),transparent 48%),radial-gradient(ellipse at 80% 0,color-mix(in srgb,var(--vg2) 12%,transparent),transparent 52%)' },
   // pressed flowers & inky flourishes — soft dusk-lilac line blooms with faint
   // sage leaves and a scattered ink dot, all hairline-thin (the light-academia
   // 'marginalia' texture: gentle, hand-drawn, no hard edges). Recommended for the
@@ -459,7 +483,7 @@ const DEFAULT: Theme = {
 // Chromes cut in the six-chrome redesign remap to their nearest survivor so a
 // saved theme never lands on an invalid chrome after update.
 const CHROME_REMAP: Record<string, Chrome> = {
-  nocturne: 'futuristic', atelier: 'illuminated', glimmerwood: 'bloom', marginalia: 'bloom',
+  atelier: 'illuminated', glimmerwood: 'bloom', marginalia: 'bloom',
   // art/craft chromes cut: remap to their nearest surviving chrome.
   aquarelle: 'bloom', werkbund: 'modern', terrazzo: 'bloom',
 };
@@ -501,7 +525,7 @@ export function hydrateTheme(json: string | null): void {
   try { const t = JSON.parse(json); if (t && t.accent) { _theme = sanitize({ ...DEFAULT, ...t }); } } catch { /* ignore */ }
 }
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
-const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'bloom', 'ember', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary', 'terracotta', 'greenhouse', 'aurora', 'rosace'] as const;
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'atomic', 'bloom', 'ember', 'nocturne', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary', 'terracotta', 'greenhouse', 'aurora', 'rosace'] as const;
 function sanitize(t: Theme): Theme {
   // migrate a cut chrome/skin to its nearest survivor before validating
   const rawChrome = t.chrome as string;
@@ -628,7 +652,7 @@ export function applyTheme(scope: HTMLElement | null): void {
   document.documentElement.setAttribute('data-vle-mode', t.mode);
   document.documentElement.toggleAttribute('data-vle-bg', !!t.bg);
   document.documentElement.setAttribute('data-vle-motion', t.motion ? 'on' : 'off');
-  // Load Google Fonts for Gatsby and Sumi chromes on demand
+  // Load any chrome-specific Google Fonts on demand.
   loadGoogleFontsForChrome(t.chrome);
   // Re-inject any user-pasted Google Fonts URL so it survives reload (bundled
   // fonts live in fonts.ts; a user URL font is not bundled and must be re-added).
@@ -749,8 +773,10 @@ export function customizePanel(tab: CzTab = 'look'): string {
     illuminated: '<span class="vle-mode-sk sk-codex"><i></i><i></i></span>',
     modern: '<span class="vle-mode-sk sk-phone"><i></i><i></i><i></i></span>',
     futuristic: '<span class="vle-mode-sk sk-hud"><i></i><i></i></span>',
+    atomic: '<span class="vle-mode-sk sk-atomic"><i></i><i></i><i></i></span>',
     bloom: '<span class="vle-mode-sk sk-bloom"><i></i><i></i><i></i></span>',
     ember: '<span class="vle-mode-sk sk-ember"><i></i><i></i><i></i></span>',
+    nocturne: '<span class="vle-mode-sk sk-nocturne"><i></i><i></i><i></i></span>',
     faewild: '<span class="vle-mode-sk sk-faewild"><i></i><i></i><i></i></span>',
     gatsby: '<span class="vle-mode-sk sk-gatsby"><i></i><i></i><i></i></span>',
     sumi: '<span class="vle-mode-sk sk-sumi"><i></i><i></i><i></i></span>',

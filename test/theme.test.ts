@@ -23,8 +23,8 @@ describe('theme system', () => {
     }
   });
 
-  it('MODES are exactly the eighteen chromes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['arcade', 'aurora', 'bestiary', 'bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'greenhouse', 'grimoire', 'illuminated', 'modern', 'riot', 'rosace', 'sumi', 'terracotta']);
+  it('MODES are exactly the twenty chromes', () => {
+    expect(MODES.map((m) => m.id).sort()).toEqual(['arcade', 'atomic', 'aurora', 'bestiary', 'bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'greenhouse', 'grimoire', 'illuminated', 'modern', 'nocturne', 'riot', 'rosace', 'sumi', 'terracotta']);
   });
 
   it("each mode's dark + light skins exist", () => {
@@ -47,6 +47,27 @@ describe('theme system', () => {
     expect(SKINS.some((s) => s.id === 'graphite-light')).toBe(true);
     for (const id of ['rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar'] as const) {
       expect(SHAPE_IDS.includes(id), id).toBe(true);
+    }
+  });
+
+  it('Atomic and Nocturne resolve their paired skins and six distinct object cards', () => {
+    const cases = [
+      { id: 'atomic', skin: 'atomic-reactor', light: 'atomic-enamel', accent: '#b24432',
+        shapes: { present: 'atomic-console', bonds: 'atomic-permit', cast: 'atomic-credential', beats: 'atomic-signal', factions: 'atomic-dossier', items: 'atomic-blueprint' } },
+      { id: 'nocturne', skin: 'nocturne-velvet', light: 'nocturne-matinee', accent: '#d1a268',
+        shapes: { present: 'nocturne-stage', bonds: 'nocturne-score', cast: 'nocturne-mirror', beats: 'nocturne-cue', factions: 'nocturne-bill', items: 'nocturne-reliquary' } },
+    ] as const;
+    for (const c of cases) {
+      setMode(c.id);
+      const t = getTheme();
+      expect(t.chrome, c.id).toBe(c.id);
+      expect(t.skin, c.id).toBe(c.skin);
+      expect(t.accent.toLowerCase(), c.id).toBe(c.accent);
+      expect(SKINS.some((s) => s.id === c.skin), `${c.id} dark`).toBe(true);
+      expect(SKINS.some((s) => s.id === c.light), `${c.id} light`).toBe(true);
+      expect(CHROME_SHAPES[c.id], c.id).toEqual(c.shapes);
+      expect(new Set(Object.values(c.shapes)).size, `${c.id} unique silhouettes`).toBe(SURFACES.length);
+      for (const id of Object.values(c.shapes)) expect(SHAPE_IDS.includes(id), `${c.id}:${id}`).toBe(true);
     }
   });
 
