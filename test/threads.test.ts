@@ -4,6 +4,7 @@ import { buildInjection } from '../src/retrieval/recall.js';
 import { parseMergeReply, validateMerges, openTracks } from '../src/domain/thread-merge.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 import type { VellumEvent } from '../src/core/events.js';
+import { coreFeature } from '../src/domain/core-feature.js';
 
 let seq = 0;
 const ev = (e: Partial<VellumEvent> & { kind: string }): VellumEvent => ({ seq: ++seq, turn: 1, day: 1, src: 'model', ...(e as any) });
@@ -62,11 +63,63 @@ describe('Layer 1 — open threads injected to the model', () => {
     return s;
   }
   it('injects open threads/arcs and excludes resolved ones', () => {
-    const inj = buildInjection('cT', withThreads(), 'what happens at Harrenhal');
+    const state = withThreads();
+    state.day = 5;
+    state.threads[0]!.lastDay = 1;
+    const inj = buildInjection('cT', state, 'what happens at Harrenhal');
     expect(inj.text).toContain('OPEN THREADS');
     expect(inj.text).toContain('Jaime\u2019s Arrival');
     expect(inj.text).toContain('The Reckoning');
     expect(inj.text).not.toContain('The Letters'); // resolved → omitted
+    expect(inj.text).toContain('may remain unchanged indefinitely');
+    expect(inj.text).toContain('elapsed time is not progress');
+    expect(inj.text).not.toContain('advance or resolve these');
+    expect(inj.text).not.toContain('catch it up to now');
+  });
+});
+
+describe('Inline Compatibility plot gate', () => {
+  function extractPlot(state: ChronicleState, prose: string, delta: Record<string, unknown>): VellumEvent[] {
+    let localSeq = 0;
+    return coreFeature.extract!({ delta } as any, { turn: 6, day: 2, state, prose, seq: () => ++localSeq });
+  }
+
+  it('keeps a direct exact-title development and drops unrelated or repeated advancement', () => {
+    const s = freshState();
+    s.threads = [trk({ name: 'The Forged Letter', status: 'hidden', beats: ['Mara hid the forged letter beneath the ledger'], firstTurn: 1, lastTurn: 5 })];
+    const related = extractPlot(s, 'Ada finds the forged letter beneath the ledger.', {
+      threads: [{ op: 'advance', name: 'The Forged Letter', note: 'Ada finds the forged letter beneath the ledger' }],
+    });
+    expect(related).toEqual([expect.objectContaining({ kind: 'thread.op', name: 'The Forged Letter' })]);
+
+    const unrelated = extractPlot(s, 'Gabriel watches the sunrise brighten the kitchen.', {
+      threads: [{ op: 'advance', name: 'The Forged Letter', note: 'Gabriel watches the sunrise brighten the kitchen' }],
+    });
+    expect(unrelated).toEqual([]);
+
+    const repeated = extractPlot(s, 'Mara hid the forged letter beneath the ledger.', {
+      threads: [{ op: 'advance', name: 'The Forged Letter', note: 'Mara hid the forged letter beneath the ledger' }],
+    });
+    expect(repeated).toEqual([]);
+  });
+
+  it('requires exact existing titles, concrete notes, and never converts an arc stall into progress', () => {
+    const s = freshState();
+    s.threads = [trk({ name: 'The Forged Letter', status: 'hidden', beats: ['The forged letter remains hidden'], firstTurn: 1, lastTurn: 5 })];
+    s.arcs = [trk({ name: 'The City Conspiracy', status: 'active', beats: ['The conspiracy seeks the royal seal'], firstTurn: 1, lastTurn: 5 })];
+    expect(extractPlot(s, 'Ada finds the forged letter.', { threads: [{ op: 'advance', name: 'Forged Letter Plot', note: 'Ada finds the forged letter' }] })).toEqual([]);
+    expect(extractPlot(s, 'Ada finds the forged letter.', { threads: [{ op: 'advance', name: 'The Forged Letter' }] })).toEqual([]);
+    expect(extractPlot(s, 'The conspiracy fails to obtain the royal seal.', { arcs: [{ op: 'stall', name: 'The City Conspiracy', note: 'The conspiracy fails to obtain the royal seal' }] })).toEqual([]);
+  });
+
+  it('requires a new title to match the unresolved situation established by its note', () => {
+    const s = freshState();
+    expect(extractPlot(s, 'A courier delivers a blackmail letter demanding the royal seal.', {
+      threads: [{ op: 'new', name: 'The Blackmail Letter', note: 'A blackmail letter demands the royal seal' }],
+    })).toEqual([expect.objectContaining({ kind: 'thread.op', name: 'The Blackmail Letter' })]);
+    expect(extractPlot(s, 'A courier delivers a blackmail letter demanding the royal seal.', {
+      threads: [{ op: 'new', name: 'The Missing Heir', note: 'A blackmail letter demands the royal seal' }],
+    })).toEqual([]);
   });
 });
 

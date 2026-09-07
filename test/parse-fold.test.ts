@@ -9,7 +9,7 @@ import { freshState } from '../src/domain/types.js';
 registerFeature(coreFeature);
 
 const JSON_TURN = [
-  'She watched the door, saying nothing.',
+  'She watched the door. The letter was sent at last.',
   '\u2039vellum\u203a',
   JSON.stringify({
     v: 2, turn: 41, day: 3,
@@ -17,7 +17,7 @@ const JSON_TURN = [
     present: [{ id: 'cersei', mood: 'wary', doing: 'watching' }, { name: 'Jaime Lannister' }],
     delta: {
       bonds: [{ a: 'cersei', b: 'Jaime Lannister', aff: 8, trust: -2, addCats: ['romantic'], why: 'the look' }],
-      threads: [{ op: 'advance', name: 'the letter', note: 'sent' }],
+      threads: [{ op: 'new', name: 'the letter', note: 'letter sent' }],
     },
   }),
   '\u2039/vellum\u203a',

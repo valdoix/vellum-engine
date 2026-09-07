@@ -1,4 +1,4 @@
-import { parseState } from '../parse/state-block.js';
+import { parseState, stripScaffold } from '../parse/state-block.js';
 import { runExtractors, type ExtractCtx } from './registry.js';
 import { nextSeq } from '../core/ids.js';
 import { hashStr } from '../core/ids.js';
@@ -73,7 +73,7 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   if (opts?.dayCap !== undefined && !proseCue && day > opts.dayCap) {
     day = Math.max(prior.day ?? 0, opts.dayCap);
   }
-  const ctx: ExtractCtx = { turn, day, state: prior, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}) };
+  const ctx: ExtractCtx = { turn, day, state: prior, prose: stripScaffold(content), seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}) };
 
   const events: VellumEvent[] = [
     { seq: nextSeq(), turn, day, src: 'system', kind: 'turn.fold', sig },

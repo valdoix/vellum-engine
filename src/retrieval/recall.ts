@@ -175,15 +175,14 @@ function structuredBlock(state: ChronicleState, budget: number, query = ''): str
     if (!clauses.length) return '';
     return ' \u2014 threads ' + linked.length + (linked.length > clauses.length ? ', ' + (linked.length - clauses.length) + ' quiet' : '') + ': ' + clauses.join('; ');
   };
-  // SKIP-LAG note: a thread last touched on a narrative day well before the
-  // current day was left behind by a time-skip — the on-screen scene jumped ahead
-  // while this thread's state is still pre-skip. Flag the elapsed span so the
-  // narrator advances it to "now" instead of resuming it as if no time passed.
+  // SKIP-LAG note: report age without ordering the narrator to manufacture a
+  // beat. Elapsed time is not plot progress; the explicit Time Sync action can
+  // author a missing interval, while ordinary turns leave unrelated rows quiet.
   const nowDay = state.day || 0;
   const skipLag = (t: { lastDay?: number }): string => {
     if (t.lastDay === undefined || nowDay <= 0) return '';
     const span = spanLabel(nowDay - t.lastDay);
-    return span ? ' \u2014 last advanced ~' + span + ' ago; catch it up to now' : '';
+    return span ? ' \u2014 state last changed ~' + span + ' ago; elapsed time alone is not progress' : '';
   };
   const trackLine = (t: { id?: string; name: string; status: string; lastDay?: number }, withOff: boolean, withArc = false): string =>
     '- ' + t.name + (t.status && !/^(advance|new)$/i.test(t.status) ? ': ' + t.status : '') + (withOff ? offBeat(t) : '') + (withArc ? arcBeat(t) : '') + skipLag(t);
@@ -254,7 +253,7 @@ function structuredBlock(state: ChronicleState, budget: number, query = ''): str
   const castRel = fitLines([...castLines, ...relLines], Math.max(0, budget - usedByTracks - usedByLore - usedByEpistemic));
   const blocks: string[] = [];
   if (castRel.length) blocks.push('[CAST & BONDS \u2014 established, authoritative. Keep consistent; do not contradict.]\n' + castRel.join('\n'));
-  if (trackLines.length) blocks.push('[OPEN THREADS & ARCS \u2014 advance or resolve these; reuse the EXACT title, do not restate as a new thread.]\n' + trackLines.join('\n'));
+  if (trackLines.length) blocks.push('[OPEN THREADS & ARCS \u2014 reference ledger. These may remain unchanged indefinitely. Update one only when this response directly changes that exact tracked situation; a mention, shared character, mood, theme, location, or elapsed time is not progress. Reuse the EXACT title and omit unrelated rows from delta.]\n' + trackLines.join('\n'));
   // factions feed-back: list established GROUPS so the model reuses them by name
   // (and treats them as factions, not characters) instead of coining synonyms.
   if (facLines.length) blocks.push('[FACTIONS \u2014 established GROUPS (not characters). Reuse the EXACT name; don\u2019t restate a group as a new one or as a character.]\n' + facLines.join('\n'));

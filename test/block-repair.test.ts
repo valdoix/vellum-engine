@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assembleBlock, buildRepairContext } from '../src/bus/block-repair.js';
+import { assembleBlock, buildRepairContext, VELLUM_BLOCK_REPAIR_SYS } from '../src/bus/block-repair.js';
 import { parseState } from '../src/parse/state-block.js';
 import { freshState } from '../src/domain/types.js';
 import type { ChronicleState } from '../src/domain/types.js';
@@ -30,6 +30,17 @@ describe('block-repair — buildRepairContext', () => {
     expect(ctx).toContain('day: 0');
     expect(ctx).not.toContain('prior scene location');
     expect(ctx).not.toContain('characters present');
+  });
+
+  it('supplies exact plot ids, prior conditions, linked children, and a no-change default', () => {
+    const s = stateWith();
+    s.arcs = [{ id: 'thr_conspiracy', name: 'The Conspiracy', status: 'active', beats: ['The seal remains missing'], firstTurn: 1, lastTurn: 3 }];
+    s.threads = [{ id: 'thr_seal', name: 'The Stolen Seal', status: 'active', beats: ['Lira searches the archive'], arc: 'thr_conspiracy', firstTurn: 2, lastTurn: 3 }];
+    const ctx = buildRepairContext(s, 5);
+    expect(ctx).toContain('thr_seal | The Stolen Seal | before: Lira searches the archive');
+    expect(ctx).toContain('thr_conspiracy | The Conspiracy | before: The seal remains missing | child threads: thr_seal');
+    expect(VELLUM_BLOCK_REPAIR_SYS).toContain('threads and arcs default to NO CHANGE');
+    expect(VELLUM_BLOCK_REPAIR_SYS).toContain('A mention, shared character, mood, theme, location, elapsed time');
   });
 });
 

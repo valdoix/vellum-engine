@@ -172,7 +172,7 @@ describe('ARGENT dialogue-color bridge', () => {
 
 describe('ARGENT state and player-agency final gates', () => {
   it('ships the atomic state compiler and repeats its completion gate last', () => {
-    expect(preset.presetVersion).toBe('1.2.2');
+    expect(preset.presetVersion).toBe('1.2.3');
     expect(preset.samplerOverrides.maxTokens).toBe(20000);
 
     const compiler = block('arg-state-final');

@@ -39,7 +39,7 @@ describe('VELLUM II preset 2.3 contract', () => {
   });
 
   it('ships the bounded controller and its supporting doctrine blocks', () => {
-    expect(preset.presetVersion).toBe('2.3.1');
+    expect(preset.presetVersion).toBe('2.3.2');
     for (const id of [
       'v2-knowledge',
       'v2-cast',
@@ -61,6 +61,16 @@ describe('VELLUM II preset 2.3 contract', () => {
     expect(reverie).not.toContain('messageCount');
     expect(reverie).not.toContain('ECLIPSED');
     expect(reverie).not.toContain('this beat SPENDS');
+  });
+
+  it('does not treat open plot rows as a per-turn advancement quota', () => {
+    const causality = block('v2-causality').content;
+    const reverie = block('v2-reverie').content;
+    expect(causality).toContain('Begin with zero thread/arc updates');
+    expect(causality).toContain('may remain unchanged indefinitely');
+    expect(causality).toContain('latest injected condition');
+    expect(causality).toContain('One event cannot advance unrelated rows');
+    expect(reverie).toContain('exact prior condition → direct event in this prose → different after-condition');
   });
 
   it('specifies forward endpoint time, concurrency, rollovers, and flashback isolation', () => {

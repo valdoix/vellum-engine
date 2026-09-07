@@ -12,7 +12,7 @@ function input(): CompilerInput {
   return { prior, turn: 2, prose: 'Mara waits five minutes. Ada moves to the gate. Player stays quiet.', userName: 'Player', genesisAllowed: false };
 }
 function candidate(): StateCandidate {
-  return { state: { turn: 2, day: 2, scene: { loc: 'Archive', time: '00:03', clock: 3 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {}, ext: {} }, parallelReviewed: ['Ada'], parallelOps: [], evidence: [{ path: 'scene.time', quote: 'five minutes' }], genesis: false };
+  return { state: { turn: 2, day: 2, scene: { loc: 'Archive', time: '00:03', clock: 3 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {}, ext: {} }, parallelReviewed: ['Ada'], parallelOps: [], evidence: [{ path: 'scene.time', quote: 'five minutes' }], trackEvidence: [], genesis: false };
 }
 describe('strict pre-commit state compiler', () => {
   it('preserves unmodified off-stage actors and emits the canonical contract across midnight', () => {
@@ -95,6 +95,75 @@ describe('strict pre-commit state compiler', () => {
     );
     expect(validateCompilation(c, i).ok).toBe(true);
     c.state.delta.secretReveals[0]!.id = 'invented_secret';
+    expect(validateCompilation(c, i).ok).toBe(false);
+  });
+  it('accepts a direct thread development with an exact before-evidence-after proof', () => {
+    const i = input();
+    i.prior.threads = [{ id: 'thr_forged_letter', name: 'The Forged Letter', status: 'Mara hid the forged letter', beats: ['Mara hid the forged letter beneath the ledger'], firstTurn: 1, lastTurn: 1 }];
+    i.prose += ' Ada finds the forged letter beneath the ledger.';
+    const c = candidate();
+    c.state.delta.threads = [{ op: 'advance', name: 'The Forged Letter', note: 'Ada finds the forged letter beneath the ledger' }];
+    c.evidence.push({ path: 'delta.threads.0', quote: 'Ada finds the forged letter beneath the ledger' });
+    c.trackEvidence.push({ path: 'delta.threads.0', targetId: 'thr_forged_letter', before: 'Mara hid the forged letter beneath the ledger', after: 'Ada finds the forged letter beneath the ledger', quote: 'Ada finds the forged letter beneath the ledger', basis: 'direct_development' });
+    expect(validateCompilation(c, i).ok).toBe(true);
+  });
+  it('requires a new plot title to describe the unresolved situation established in prose', () => {
+    const i = input();
+    i.prose += ' A courier delivers a blackmail letter demanding the royal seal.';
+    const c = candidate();
+    c.state.delta.threads = [{ op: 'new', name: 'The Blackmail Letter', note: 'A blackmail letter demands the royal seal' }];
+    c.evidence.push({ path: 'delta.threads.0', quote: 'A courier delivers a blackmail letter demanding the royal seal' });
+    c.trackEvidence.push({ path: 'delta.threads.0', targetId: 'new', before: 'absent', after: 'A blackmail letter demands the royal seal', quote: 'A courier delivers a blackmail letter demanding the royal seal', basis: 'new_open_question' });
+    expect(validateCompilation(c, i).ok).toBe(true);
+    c.state.delta.threads[0]!.name = 'The Missing Heir';
+    expect(validateCompilation(c, i).ok).toBe(false);
+  });
+  it('rejects unrelated, stale, mis-targeted, and unproven thread movement', () => {
+    const i = input();
+    i.prior.threads = [{ id: 'thr_forged_letter', name: 'The Forged Letter', status: 'Mara hid the forged letter', beats: ['Mara hid the forged letter beneath the ledger'], firstTurn: 1, lastTurn: 1 }];
+    i.prose += ' Gabriel watches the sunrise brighten the kitchen.';
+    const c = candidate();
+    c.state.delta.threads = [{ op: 'advance', name: 'The Forged Letter', note: 'Gabriel watches the sunrise brighten the kitchen' }];
+    c.evidence.push({ path: 'delta.threads.0', quote: 'Gabriel watches the sunrise brighten the kitchen' });
+    c.trackEvidence.push({ path: 'delta.threads.0', targetId: 'thr_forged_letter', before: 'Mara hid the forged letter beneath the ledger', after: 'Gabriel watches the sunrise brighten the kitchen', quote: 'Gabriel watches the sunrise brighten the kitchen', basis: 'direct_development' });
+    const unrelated = validateCompilation(c, i);
+    expect(unrelated.ok).toBe(false);
+    if (!unrelated.ok) expect(unrelated.errors).toContain('plot proof is not grounded in the tracked situation: delta.threads.0');
+
+    c.state.delta.threads[0]!.note = 'Mara hid the forged letter beneath the ledger';
+    c.trackEvidence[0]!.after = 'Mara hid the forged letter beneath the ledger';
+    c.trackEvidence[0]!.quote = 'Mara hid the forged letter beneath the ledger';
+    c.evidence[c.evidence.length - 1]!.quote = 'Mara hid the forged letter beneath the ledger';
+    i.prose += ' Mara hid the forged letter beneath the ledger.';
+    expect(validateCompilation(c, i).ok).toBe(false);
+
+    c.state.delta.threads[0]!.note = 'Ada finds the forged letter beneath the ledger';
+    c.trackEvidence[0] = { ...c.trackEvidence[0]!, targetId: 'thr_wrong', after: 'Ada finds the forged letter beneath the ledger', quote: 'Ada finds the forged letter beneath the ledger' };
+    c.evidence[c.evidence.length - 1]!.quote = 'Ada finds the forged letter beneath the ledger';
+    i.prose += ' Ada finds the forged letter beneath the ledger.';
+    expect(validateCompilation(c, i).ok).toBe(false);
+
+    c.trackEvidence = [];
+    expect(validateCompilation(c, i).ok).toBe(false);
+  });
+  it('advances an arc from a changed linked thread and rejects character-only arc drift', () => {
+    const i = input();
+    i.prior.arcs = [{ id: 'thr_city_conspiracy', name: 'The City Conspiracy', status: 'The conspirators seek the seal', beats: ['The conspirators seek the royal seal'], firstTurn: 1, lastTurn: 1 }];
+    i.prior.threads = [{ id: 'thr_stolen_seal', name: 'The Stolen Seal', status: 'Ada searches the archive', beats: ['Ada searches the archive for the royal seal'], arc: 'thr_city_conspiracy', firstTurn: 1, lastTurn: 1 }];
+    i.prose += ' Ada finds the royal seal hidden in the archive wall.';
+    const c = candidate();
+    c.state.delta.threads = [{ op: 'advance', name: 'The Stolen Seal', note: 'Ada finds the royal seal hidden in the archive wall' }];
+    c.state.delta.arcs = [{ op: 'advance', name: 'The City Conspiracy', note: 'Finding the royal seal changes the conspirators\' leverage' }];
+    c.evidence.push(
+      { path: 'delta.threads.0', quote: 'Ada finds the royal seal hidden in the archive wall' },
+      { path: 'delta.arcs.0', quote: 'Ada finds the royal seal hidden in the archive wall' },
+    );
+    c.trackEvidence.push(
+      { path: 'delta.threads.0', targetId: 'thr_stolen_seal', before: 'Ada searches the archive for the royal seal', after: 'Ada finds the royal seal hidden in the archive wall', quote: 'Ada finds the royal seal hidden in the archive wall', basis: 'direct_development' },
+      { path: 'delta.arcs.0', targetId: 'thr_city_conspiracy', before: 'The conspirators seek the royal seal', after: 'Finding the royal seal changes the conspirators\' leverage', quote: 'Ada finds the royal seal hidden in the archive wall', basis: 'child_milestone', childThreadIds: ['thr_stolen_seal'] },
+    );
+    expect(validateCompilation(c, i).ok).toBe(true);
+    c.trackEvidence[1]!.childThreadIds = [];
     expect(validateCompilation(c, i).ok).toBe(false);
   });
   it('bounds compiler context while retaining current actors and parallel rows', () => {

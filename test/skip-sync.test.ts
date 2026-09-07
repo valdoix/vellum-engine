@@ -104,7 +104,7 @@ describe('Item 4 — spanLabel + on-screen skip-lag note', () => {
       { id: 'thr_fresh', name: 'The Fresh Hunt', status: 'advance', beats: [], firstTurn: 1, lastTurn: 19, firstDay: 38, lastDay: 40 },
     ];
     const inj = buildInjection('cT', s, 'what happens at Harrenhal');
-    expect(inj.text).toContain('catch it up to now');
+    expect(inj.text).toContain('state last changed ~1 month(s) ago; elapsed time alone is not progress');
     // fresh-day thread leads the lagging one in the OPEN THREADS block
     expect(inj.text.indexOf('The Fresh Hunt')).toBeLessThan(inj.text.indexOf('The Stale Vigil'));
   });
@@ -117,7 +117,7 @@ describe('Item 4 — spanLabel + on-screen skip-lag note', () => {
     s.scene = { location: 'Harrenhal', time: '', tension: 0, weather: '', present: ['ned'], detail: [] } as any;
     s.threads = [{ id: 'thr_fresh', name: 'The Fresh Hunt', status: 'advance', beats: [], firstTurn: 1, lastTurn: 19, firstDay: 38, lastDay: 40 }];
     const inj = buildInjection('cT', s, 'what happens at Harrenhal');
-    expect(inj.text).not.toContain('catch it up to now');
+    expect(inj.text).not.toContain('state last changed');
   });
 });
 

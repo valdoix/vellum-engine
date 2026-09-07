@@ -50,7 +50,7 @@ function expandedBlock(id: string, overrides: Record<string, unknown> = {}): str
 
 describe('ARGENT strengthened invariants', () => {
   it('ships the 1.2 control surface without Guided Choices', () => {
-    expect(preset.presetVersion).toBe('1.2.2');
+    expect(preset.presetVersion).toBe('1.2.3');
     expect(() => variable('guided_choices')).toThrow();
     expect(preset.blocks.some((entry) => entry.content.includes('<argent-choices>'))).toBe(false);
   });
@@ -178,6 +178,16 @@ describe('ARGENT strengthened invariants', () => {
     expect(schema).toContain('Use [] to clear stale items');
     expect(compiler).toContain('PARALLEL RECONCILIATION');
     expect(output).toContain('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]');
+  });
+
+  it('keeps plot threads and arcs quiet unless the same tracked situation directly changes', () => {
+    const significance = block('arg-significance');
+    const output = block('arg-output-contract');
+    expect(significance).toContain('Default to unchanged');
+    expect(significance).toContain('prior condition -> direct prose event -> different note');
+    expect(significance).toContain('Never stall an arc or spend one event across unrelated rows');
+    expect(output).toContain('[PLOT LEDGER — DIRECT CHANGE FINAL GATE]');
+    expect(output).toContain('Uncertain means omit and preserve prior state');
   });
 
   it('keeps off-scene conversations partitioned by witness and transmission path', () => {

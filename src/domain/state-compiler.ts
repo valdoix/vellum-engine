@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ParsedState } from '../parse/parsed.js';
 import { canonId, hashStr } from '../core/ids.js';
 import { parseClock } from './clock.js';
+import { factTokens, similarFact } from './fact-match.js';
 import type { ChronicleState } from './types.js';
 
 /** Compilation rejects malformed data. The legacy parser remains a separate salvage lane. */
@@ -36,12 +37,88 @@ export const CompilerCandidate = z.object({
   // Every prior row must be accounted for. A forgotten actor cannot silently disappear.
   parallelReviewed: z.array(name).max(200),
   evidence: item({ path: text, quote: text }),
+  // Plot mutations get a stricter, track-specific proof record. Generic prose
+  // evidence is insufficient: the compiler must identify the exact prior row,
+  // state its previous and resulting conditions, and classify the causal step.
+  trackEvidence: item({
+    path: z.string().regex(/^delta\.(threads|arcs)\.\d+$/),
+    targetId: name,
+    before: text,
+    after: text,
+    quote: text,
+    basis: z.enum(['new_open_question', 'direct_development', 'blocked_attempt', 'closed_question', 'child_milestone', 'structural_milestone']),
+    childThreadIds: z.array(name).max(20).optional(),
+  }),
   genesis: z.boolean(),
 }).strict();
 export type StateCandidate = z.infer<typeof CompilerCandidate>;
 export type CompilerInput = { prior: ChronicleState; turn: number; prose: string; userName: string; genesisAllowed: boolean; verbosity?: 'lean' | 'full'; codexAllowed?: boolean; inventoryAllowed?: boolean };
 export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string } | { ok: false; errors: string[] };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
+
+/** Track titles are model-facing labels, while ids remain engine-owned. Match a
+ * returned title conservatively: case/spacing/curly apostrophes may differ, but
+ * paraphrases may not silently target a different plotline. */
+function trackTitleKey(value: string): string {
+  return String(value || '').normalize('NFKC').replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+}
+
+function trackBefore(track: { name: string; status: string; beats: string[] }): string {
+  return track.beats[track.beats.length - 1]?.trim() || track.status?.trim() || track.name.trim();
+}
+
+function sameTransitionText(a: string, b: string): boolean {
+  const ak = trackTitleKey(a), bk = trackTitleKey(b);
+  return !!ak && (ak === bk || similarFact(a, b));
+}
+
+const PLOT_GENERIC = new Set([
+  'plot', 'thread', 'arc', 'story', 'situation', 'question', 'goal', 'issue',
+  'relationship', 'romance', 'mystery', 'conflict', 'journey', 'future', 'effect',
+  'development', 'progress', 'advance', 'advanced', 'resolve', 'resolved', 'stall',
+]);
+
+function castVocabulary(state: ChronicleState): Set<string> {
+  const out = new Set<string>();
+  for (const actor of Object.values(state.cast)) {
+    for (const label of [actor.name, ...(actor.aka ?? [])]) for (const token of factTokens(label)) out.add(token);
+  }
+  return out;
+}
+
+function substantiveTokens(value: string, cast: Set<string>): Set<string> {
+  return new Set([...factTokens(value)].filter(token => !cast.has(token) && !PLOT_GENERIC.has(token)));
+}
+
+function overlapCount(a: Set<string>, b: Set<string>): number {
+  let count = 0;
+  for (const token of a) if (b.has(token)) count++;
+  return count;
+}
+
+/** Conservative lexical backstop for the semantic compiler. The proof's note
+ * must both (a) restate concrete material from its exact quote and (b) connect
+ * to the prior track's own topic/history. Ambiguous paraphrases are omitted on
+ * retry rather than allowing an unrelated beat to corrupt long-term state. */
+function plotProofGrounded(
+  track: { name: string; status: string; beats: string[] } | undefined,
+  title: string,
+  proof: StateCandidate['trackEvidence'][number],
+  state: ChronicleState,
+): boolean {
+  const cast = castVocabulary(state);
+  const quote = substantiveTokens(proof.quote, cast);
+  const after = substantiveTokens(proof.after, cast);
+  const grounded = overlapCount(quote, after);
+  if (!quote.size || !after.size || grounded < (Math.min(quote.size, after.size) <= 2 ? 1 : 2)) return false;
+  if (!track) {
+    const titleTokens = substantiveTokens(title, cast);
+    return titleTokens.size > 0 && overlapCount(titleTokens, after) > 0;
+  }
+  if (proof.basis === 'child_milestone') return true;
+  const anchors = substantiveTokens([track.name, ...track.beats.slice(-3), track.status].join(' '), cast);
+  return anchors.size > 0 && overlapCount(anchors, after) > 0;
+}
 
 /** A provider-neutral JSON schema generated from the same strict validator. */
 export function jsonSchema(s: z.ZodTypeAny): Record<string, unknown> {
@@ -97,7 +174,11 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   for (const id of priorPresent) needsEvidence(`present.remove.${id}`, !present.has(id));
   for (const id of present) if (id !== player) needsEvidence(`present.add.${id}`, !priorPresent.has(id));
   const known = (n: string) => allowed.has(canonId(n)) || literalName(n);
-  const evidence = new Map(c.evidence.map(e => [e.path, e.quote]));
+  const evidence = new Map<string, string>();
+  for (const e of c.evidence) {
+    if (evidence.has(e.path)) errors.push(`duplicate evidence path: ${e.path}`);
+    else evidence.set(e.path, e.quote);
+  }
   for (const e of c.evidence) if (!input.prose.includes(e.quote)) errors.push(`evidence is not a prose quote: ${e.path}`);
   for (const [section, rows] of Object.entries(s.delta)) {
     if (!Array.isArray(rows)) continue;
@@ -113,6 +194,88 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
         for (const target of row.to ?? []) if (!known(target)) errors.push(`unknown secret recipient: ${target}`);
       }
     });
+  }
+
+  // PLOT CAUSALITY GATE. An exact quote alone can be unrelated to the named
+  // track. Require a one-to-one proof record that pins an existing engine id,
+  // repeats its actual prior condition, states the new condition verbatim as
+  // the note, and uses an operation-appropriate causal basis. This turns a plot
+  // update into an auditable before -> evidence -> after transition.
+  const proofs = new Map<string, StateCandidate['trackEvidence'][number]>();
+  for (const proof of c.trackEvidence) {
+    if (proofs.has(proof.path)) errors.push(`duplicate plot proof: ${proof.path}`);
+    else proofs.set(proof.path, proof);
+  }
+  const plotRows = [
+    ...((s.delta.threads ?? []).map((row: Record<string, any>, index: number) => ({ section: 'threads' as const, row, index }))),
+    ...((s.delta.arcs ?? []).map((row: Record<string, any>, index: number) => ({ section: 'arcs' as const, row, index }))),
+  ];
+  const changedThreadIds = new Set<string>();
+  for (const { section, row, index } of plotRows) {
+    if (section !== 'threads') continue;
+    const target = input.prior.threads.find(t => trackTitleKey(t.name) === trackTitleKey(row.name));
+    if (target && row.op !== 'new') changedThreadIds.add(target.id);
+  }
+  const allowedBasis = (section: 'threads' | 'arcs', op: string): Set<string> => {
+    if (op === 'new') return new Set(['new_open_question']);
+    if (op === 'resolve') return new Set(['closed_question']);
+    if (section === 'threads' && op === 'advance') return new Set(['direct_development']);
+    if (section === 'threads' && op === 'stall') return new Set(['blocked_attempt']);
+    if (section === 'arcs' && op === 'advance') return new Set(['child_milestone', 'structural_milestone']);
+    return new Set();
+  };
+  for (const { section, row, index } of plotRows) {
+    const path = `delta.${section}.${index}`;
+    const proof = proofs.get(path);
+    if (!proof) { errors.push(`missing plot proof: ${path}`); continue; }
+    const quote = evidence.get(path);
+    if (!quote || proof.quote !== quote || !input.prose.includes(proof.quote)) errors.push(`plot proof must reuse exact prose evidence: ${path}`);
+    const note = String(row.note ?? '').trim();
+    if (!note) errors.push(`plot change requires a concrete resulting condition: ${path}`);
+    else if (trackTitleKey(proof.after) !== trackTitleKey(note)) errors.push(`plot proof after must equal the plot note: ${path}`);
+    if (!allowedBasis(section, String(row.op)).has(proof.basis)) errors.push(`plot proof basis does not match ${section}.${row.op}: ${path}`);
+
+    const priorList = section === 'threads' ? input.prior.threads : input.prior.arcs;
+    const target = priorList.find(t => trackTitleKey(t.name) === trackTitleKey(row.name));
+    if (row.op === 'new') {
+      if (target) errors.push(`new plot row already exists: ${path}`);
+      if (proof.targetId !== 'new' || trackTitleKey(proof.before) !== 'absent') errors.push(`new plot proof must target new from absent: ${path}`);
+    } else {
+      if (!target || /resolv/i.test(target.status || '')) errors.push(`plot mutation must target an open exact prior title: ${path}`);
+      else {
+        if (proof.targetId !== target.id) errors.push(`plot proof target id mismatch: ${path}`);
+        const before = trackBefore(target);
+        if (trackTitleKey(proof.before) !== trackTitleKey(before)) errors.push(`plot proof before does not match prior state: ${path}`);
+        if (note && row.op !== 'resolve' && sameTransitionText(before, note)) errors.push(`plot change does not alter the prior condition: ${path}`);
+      }
+    }
+
+    if (!plotProofGrounded(target, String(row.name), proof, input.prior)) errors.push(`plot proof is not grounded in the tracked situation: ${path}`);
+
+    if (section === 'arcs' && proof.basis === 'child_milestone') {
+      const arc = target;
+      const children = new Set(input.prior.threads.filter(t => t.arc === arc?.id).map(t => t.id));
+      const cited = proof.childThreadIds ?? [];
+      if (!cited.length || !cited.some((id: string) => children.has(id) && changedThreadIds.has(id))) {
+        errors.push(`arc child milestone requires a changed linked thread: ${path}`);
+      }
+    }
+    if (section === 'threads' && proof.childThreadIds?.length) errors.push(`thread proof cannot cite child threads: ${path}`);
+  }
+  for (const path of proofs.keys()) if (!plotRows.some(x => `delta.${x.section}.${x.index}` === path)) errors.push(`orphan plot proof: ${path}`);
+  const pathsByQuote = new Map<string, string[]>();
+  for (const proof of c.trackEvidence) pathsByQuote.set(proof.quote, [...(pathsByQuote.get(proof.quote) ?? []), proof.path]);
+  for (const paths of pathsByQuote.values()) {
+    if (paths.length < 2) continue;
+    const rows = paths.map(path => ({ path, proof: proofs.get(path), plot: plotRows.find(x => `delta.${x.section}.${x.index}` === path) }));
+    const thread = rows.find(x => x.plot?.section === 'threads');
+    const arc = rows.find(x => x.plot?.section === 'arcs');
+    const threadTarget = thread?.plot ? input.prior.threads.find(t => trackTitleKey(t.name) === trackTitleKey(thread.plot!.row.name)) : undefined;
+    const arcTarget = arc?.plot ? input.prior.arcs.find(t => trackTitleKey(t.name) === trackTitleKey(arc.plot!.row.name)) : undefined;
+    const validParentPair = paths.length === 2 && !!threadTarget && !!arcTarget
+      && threadTarget.arc === arcTarget.id && arc?.proof?.basis === 'child_milestone'
+      && !!arc.proof.childThreadIds?.includes(threadTarget.id);
+    if (!validParentPair) errors.push(`one prose quote cannot advance unrelated plot rows: ${paths.join(', ')}`);
   }
   for (const [section, rows] of Object.entries(s.ext)) {
     if (!Array.isArray(rows)) continue;

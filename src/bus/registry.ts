@@ -21,6 +21,9 @@ export interface ExtractCtx {
   day: number;
   /** prior derived state, for diffing/dedup decisions */
   state: ChronicleState;
+  /** completed narrative prose with planning/state scaffolds removed. Optional
+   * for direct feature callers; live folds always supply it. */
+  prose?: string;
   /** monotonic seq allocator so emitted events order correctly */
   seq: () => number;
   /** tone dials (romance pace + world disposition); optional, defaults neutral */

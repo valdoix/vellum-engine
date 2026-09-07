@@ -9,8 +9,10 @@ const block = (value: Record<string, unknown>) => ({
 describe('preset state-contract health', () => {
   it('accepts the exact canonical compatibility contract', () => {
     const health = assessVellumStateContract([block({ name: 'VELLUM — State Block', content: VELLUM_STATE_BLOCK_CONTENT })]);
-    expect(health).toMatchObject({ status: 'healthy', kind: 'compatibility' });
+    expect(health).toMatchObject({ status: 'healthy', kind: 'compatibility', version: '2.2' });
     expect(health.issues).toEqual([]);
+    expect(VELLUM_STATE_BLOCK_CONTENT).toContain('Threads and arcs default to no change');
+    expect(VELLUM_STATE_BLOCK_CONTENT).toContain('elapsed time are not progress');
   });
 
   it('does not treat an incidental vellum mention as a state block', () => {

@@ -71,6 +71,14 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'off-screen. ext: `scars` for a belief proven wrong that left a mark, `codex` for a candidate world-fact '
   + 'that VELLUM will mark provisional until user-confirmed (refresh a changed row by exact id), `inventory` for named items changing hands (who:"world" = a scene object), `timeline` for durable milestones, `plant`/`payoff` '
   + 'for setups and their resolutions.\n'
+  + 'PLOT LEDGER: threads and arcs default to NO CHANGE and may stay untouched indefinitely. A mention, shared '
+  + 'character, mood, theme, location, elapsed time, or unrelated scene activity is not progress. For an existing '
+  + 'thread/arc, copy its exact CONTEXT title and compare its `before` condition with the prose. `advance` requires a '
+  + 'depicted event that changes that exact situation; thread `stall` requires a concrete failed/blocked attempt; '
+  + '`resolve` requires closure of its central open question. Every plot row requires a note stating the new condition. '
+  + 'An arc advances only from a changed linked thread or a structural milestone/reversal/commitment in the arc itself, '
+  + 'never merely because one of its characters appeared. New threads require a newly established actionable unresolved '
+  + 'question, promise, threat, task, or obstacle. When the connection is uncertain, omit the row.\n'
   + 'Invent nothing the prose does not support, but capture everything it DOES. Omit any section with '
   + 'nothing new. A minimal { "turn": N, "day": D, "present": [...] } is valid when truly nothing else '
   + 'changed.\n'
@@ -104,9 +112,23 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number): strin
   // thread name rather than spawning a duplicate "new" one.
   const openThreads = (prior.threads ?? [])
     .filter((t) => t && (t as { status?: string }).status !== 'resolved')
-    .map((t) => (t as { name?: string }).name)
+    .map((t) => {
+      const row = t as { id?: string; name?: string; status?: string; beats?: string[] };
+      const before = row.beats?.[row.beats.length - 1] || row.status || '';
+      return `${row.id ?? 'unknown'} | ${row.name ?? ''}${before ? ` | before: ${before}` : ''}`;
+    })
     .filter(Boolean)
     .slice(0, 8);
+  const openArcs = (prior.arcs ?? [])
+    .filter((t) => t && (t as { status?: string }).status !== 'resolved')
+    .map((t) => {
+      const row = t as { id?: string; name?: string; status?: string; beats?: string[] };
+      const before = row.beats?.[row.beats.length - 1] || row.status || '';
+      const children = (prior.threads ?? []).filter((thread) => thread.arc === row.id).map((thread) => thread.id).slice(0, 8);
+      return `${row.id ?? 'unknown'} | ${row.name ?? ''}${before ? ` | before: ${before}` : ''}${children.length ? ` | child threads: ${children.join(', ')}` : ''}`;
+    })
+    .filter(Boolean)
+    .slice(0, 6);
   const hiddenSecrets = (prior.secrets ?? []).filter((s) => !s.revealed).slice(0, 30).map((s) => `${s.id}: ${s.text}`);
   const codex = (prior.lore ?? []).filter((l) => l.status !== 'rejected').slice(-30).map((l) => `${l.id}: ${l.fact}`);
   const lines = [
@@ -117,7 +139,8 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number): strin
     ...(typeof tension === 'number' && tension > 0 ? [`prior tension: ${tension}/10`] : []),
     ...(weather ? [`prior weather: ${weather}`] : []),
     ...(present.length ? [`characters present last turn: ${present.join('; ')}`] : []),
-    ...(openThreads.length ? [`open plot threads (advance/resolve by exact name): ${openThreads.join('; ')}`] : []),
+    ...(openThreads.length ? [`open plot threads (reference only; update by exact name after a direct change): ${openThreads.join('; ')}`] : []),
+    ...(openArcs.length ? [`open plot arcs (reference only; structural milestones only): ${openArcs.join('; ')}`] : []),
     ...(hiddenSecrets.length ? [`tracked secrets (reveal by exact id): ${hiddenSecrets.join('; ')}`] : []),
     ...(codex.length ? [`codex facts (refresh changed fact by exact id): ${codex.join('; ')}`] : []),
   ];

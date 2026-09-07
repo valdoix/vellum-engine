@@ -7,7 +7,7 @@ import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
 import { findLock, applyLockToBond } from './relation-lock.js';
 import { inferLocationParent } from './locations.js';
 import { parseClock } from './clock.js';
-import { similarFact } from './fact-match.js';
+import { factTokens, similarFact } from './fact-match.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -21,6 +21,52 @@ import { similarFact } from './fact-match.js';
 const CANON_SENTINEL = new Set(['world', 'lore', 'codex', 'canon', 'setting']);
 function isCanonSentinel(raw?: string): boolean {
   return CANON_SENTINEL.has(canonId(raw ?? ''));
+}
+
+function plotTitleKey(value: string): string {
+  return String(value || '').normalize('NFKC').replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+}
+
+const INLINE_PLOT_GENERIC = new Set(['plot', 'thread', 'arc', 'story', 'situation', 'question', 'goal', 'issue', 'relationship', 'romance', 'mystery', 'conflict', 'journey', 'future', 'effect', 'development', 'progress', 'advance', 'advanced', 'resolve', 'resolved', 'stall']);
+
+function inlinePlotTokens(value: string, state: ExtractCtx['state']): Set<string> {
+  const cast = new Set<string>();
+  for (const actor of Object.values(state.cast)) for (const label of [actor.name, ...(actor.aka ?? [])]) for (const token of factTokens(label)) cast.add(token);
+  return new Set([...factTokens(value)].filter(token => !cast.has(token) && !INLINE_PLOT_GENERIC.has(token)));
+}
+
+/** Inline-compatibility backstop. The engine compiler has richer proof records,
+ * but legacy model-written blocks still pass here. Refuse title drift, bare
+ * status echoes, repeated beats, and notes with no concrete support in prose. */
+function inlinePlotChange(
+  row: { op: string; name: string; note?: string },
+  prior: Array<{ name: string; status: string; beats: string[] }>,
+  state: ExtractCtx['state'],
+  prose?: string,
+): boolean {
+  const note = String(row.note ?? '').trim();
+  if (!note) return false;
+  const target = prior.find(track => plotTitleKey(track.name) === plotTitleKey(row.name));
+  if (row.op === 'new') {
+    if (target) return false;
+    const title = inlinePlotTokens(row.name, state);
+    const after = inlinePlotTokens(note, state);
+    if (!title.size || ![...title].some(token => after.has(token))) return false;
+  } else {
+    if (!target || /resolv/i.test(target.status || '')) return false;
+    const before = target.beats[target.beats.length - 1]?.trim() || target.status?.trim() || target.name;
+    if (plotTitleKey(before) === plotTitleKey(note) || similarFact(before, note)) return false;
+    const anchors = inlinePlotTokens([target.name, ...target.beats.slice(-3), target.status].join(' '), state);
+    const after = inlinePlotTokens(note, state);
+    if (!anchors.size || ![...anchors].some(token => after.has(token))) return false;
+  }
+  if (prose === undefined) return true;
+  const noteTokens = factTokens(note);
+  const proseTokens = factTokens(prose);
+  if (!noteTokens.size || !proseTokens.size) return false;
+  let shared = 0;
+  for (const token of noteTokens) if (proseTokens.has(token)) shared++;
+  return shared >= Math.min(2, noteTokens.size);
 }
 
 /** Derive personality-drift events by diffing a character's NEW trait set against
@@ -254,11 +300,12 @@ export const coreFeature: Feature = {
 
     // threads + arcs
     for (const t of parsed.delta?.threads ?? []) {
+      if (!inlinePlotChange(t, ctx.state.threads, ctx.state, ctx.prose)) continue;
       out.push({ ...base(), kind: 'thread.op', op: t.op, name: t.name, ...(t.note ? { note: t.note } : {}) } as VellumEvent);
     }
     for (const a of parsed.delta?.arcs ?? []) {
-      const op = a.op === 'stall' ? 'advance' : a.op; // arcs have no stall
-      out.push({ ...base(), kind: 'arc.op', op, name: a.name, ...(a.note ? { note: a.note } : {}) } as VellumEvent);
+      if (a.op === 'stall' || !inlinePlotChange(a, ctx.state.arcs, ctx.state, ctx.prose)) continue; // arcs have no stall
+      out.push({ ...base(), kind: 'arc.op', op: a.op, name: a.name, ...(a.note ? { note: a.note } : {}) } as VellumEvent);
     }
 
     // per-character memory journal entries

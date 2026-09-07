@@ -1,6 +1,6 @@
 import type { PromptBlockSnapshotDTO } from 'lumiverse-spindle-types';
 
-export const VELLUM_STATE_CONTRACT_VERSION = '2.1';
+export const VELLUM_STATE_CONTRACT_VERSION = '2.2';
 
 /** Canonical compatibility contract inserted into ordinary Loom presets. */
 export const VELLUM_STATE_BLOCK_CONTENT =
@@ -16,6 +16,7 @@ export const VELLUM_STATE_BLOCK_CONTENT =
   + 'When a scene is active, scene.time and scene.clock MUST describe the same exact instant. present[] MUST include {{user}} whenever on-screen; leave mood/condition/doing/thought empty and traits [] for {{user}}. '
   + 'Include every named on-stage NPC with a concise first-person private thought limited to that NPC\'s knowledge. '
   + 'Use secretReveals with the existing id when prose discloses a tracked secret, and add recipient knowledge with its source; never recreate that secret as new. Refresh changed Codex facts by existing id. '
+  + 'Threads and arcs default to no change. Reuse an exact existing title and require a concrete note only when this prose directly changes that tracked situation; mentions, shared characters, mood/theme/location, and elapsed time are not progress. Thread stall requires a blocked attempt and resolve requires actual closure. An arc advances only from a changed child thread or a structural milestone in the arc itself. '
   + 'Always close the </vellum> tag.';
 
 export type StateContractKind = 'argent' | 'vellum' | 'compatibility' | 'unknown';

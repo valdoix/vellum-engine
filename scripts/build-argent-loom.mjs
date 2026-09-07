@@ -551,8 +551,8 @@ Do not infodump. The prose opens as a scene. Genesis creates existence, not char
 Write durable state only when a future turn should behave differently because this turn happened.
 
 - PRESENT is a current snapshot, not a delta: list every named on-stage character. Put {{user}} first when present and leave their inner fields blank. Give each named NPC a concise genuine private thought under limited knowledge.
-- THREADS track actionable unresolved situations. Reuse exact injected names. Advance only after a concrete development; resolve only when the situation is actually closed.
-- ARCS are larger trajectories above threads. Use new/advance/resolve sparingly; never stall an arc.
+- THREADS are actionable unresolved situations, not topics or characters. Default to unchanged. Reuse the exact title; require prior condition -> direct prose event -> different note. New opens a question/task/threat/promise; advance changes its conditions; stall follows a blocked attempt; resolve closes it. Mentions, shared characters/themes/places, time passage, repeated beats, and unrelated events fail.
+- ARCS are trajectories above threads, not turn counters. Advance only from a changed linked thread or a structural milestone/reversal/commitment. Never stall an arc or spend one event across unrelated rows. Uncertainty means omission.
 - JOURNAL records what a specific person would carry into later choices. Ordinary dialogue does not qualify.
 - KNOWLEDGE records a new or corrected epistemic state with a source. It is not a plot summary.
 - SECRETS record the keeper, exact secret, and excluded person or people.
@@ -774,6 +774,8 @@ Audit every fact expressed or presupposed by each named character's speech, thou
 When two or more present NPCs have intersecting motives in this beat, let them address and respond to one another directly instead of routing all speech through {{user}}. Keep it causal rather than compulsory: no filler, round-robin quota, shared omniscience, absent speaker, or invented player response. Preserve distinct voices and exact [spk=...] identities when Colored Dialogue is on.{{/if}}
 {{if::{{and::{{var::state_on}}::{{var::time_continuity}}}}}}[EXACT CLOCK — REQUIRED FINAL GATE]
 The final scene snapshot must contain scene.time as zero-padded 24-hour HH:MM, never a narrative label, and scene.clock as the mathematically matching minutes after midnight. Compute A0 = injected day × 1440 + injected clock and A1 = final day × 1440 + final clock. A1 < A0 is forbidden: discard that candidate and keep T0 or recompute from established elapsed time. An earlier wall clock requires a narrated midnight crossing plus a higher day; never manufacture a day advance to conceal a rollback. Preserve T0 when no narrated duration elapsed; never advance the clock merely because this response exists.{{/if}}
+{{if::{{var::state_on}}}}[PLOT LEDGER — DIRECT CHANGE FINAL GATE]
+Start with zero plot rows. Admit one only for the exact tracked title when latest condition -> direct event in this prose -> different note. Mentions, shared character/theme/place, time passage, repeated or unrelated beats fail. Stall needs a blocked attempt; resolve needs closure; arc advance needs a changed linked thread or structural milestone. One event cannot advance unrelated rows. Uncertain means omit and preserve prior state.{{/if}}
 {{if::{{and::{{var::state_on}}::{{or::{{eq::{{var::living_world}}::active}}::{{eq::{{var::living_world}}::sandbox}}}}}}}}[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]
 After the prose is complete, derive final present and one final location/activity per absent actor. delta.parallel replaces its predecessor: emit the complete reconciled array, including [] when no valid item remains. A name in present is forbidden in parallel. If an actor traveled, entered, or left a place during this turn, serialize only their final T1 destination and current activity—not the injected T0 location, the journey just completed, or an earlier beat. Every character item requires exact who and where, shares scene's final day/clock, and may appear only once. Delete uncertain or conflicting items instead of preserving or guessing them.{{/if}}
 {{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]
@@ -1073,7 +1075,7 @@ const preset = {
   id: 'vellum-ii-argent-loom',
   name: 'VELLUM II — ARGENT LOOM',
   description: 'A VELLUM-native causal chronicle preset for high-fidelity literary roleplay. ARGENT protects player agency, physical and epistemic continuity, character-specific behavior, earned directional relationships, living off-screen worlds, factions, items, plants, and exact event deltas. With VELLUM 2.1 it compiles completed prose through a separate validated state pass and commits atomically; Inline Compatibility retains model-written <vellum> output. Includes a compact effective-policy compiler, grouped controls, native Lumiverse routing, optional Reverie, typed artifacts, and a scoped prompt/display/memory pipeline.',
-  presetVersion: '1.2.2',
+  presetVersion: '1.2.3',
   schemaVersion: 2,
   samplerOverrides: {
     enabled: true,
@@ -1185,6 +1187,7 @@ const dialogueBlock = blocks.find((entry) => entry.id === 'arg-colored-dialogue-
 const npcDialogueBlock = blocks.find((entry) => entry.id === 'arg-interiority-groups')?.content ?? '';
 const knowledgeBlock = blocks.find((entry) => entry.id === 'arg-knowledge')?.content ?? '';
 const worldBlock = blocks.find((entry) => entry.id === 'arg-world-factions')?.content ?? '';
+const significanceBlock = blocks.find((entry) => entry.id === 'arg-significance')?.content ?? '';
 const stateFinalBlock = blocks.find((entry) => entry.id === 'arg-state-final')?.content ?? '';
 assert(agencyBlock.includes('An attempted action authorizes only the stated attempt') && agencyBlock.includes('Second-person grammar is not permission'), 'Protected-agency contract weakened');
 assert(finalAnchorBlock.includes('PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE'), 'Final protected-agency gate missing');
@@ -1202,6 +1205,8 @@ assert(outputContractBlock.includes('[OFF-SCENE KNOWLEDGE — NON-NEGOTIABLE FIN
 assert(worldBlock.includes('[PARALLEL T1 RECONCILIATION]') && worldBlock.includes('MUST NOT appear in parallel'), 'Parallel T1 reconciliation contract missing');
 assert(stateFinalBlock.includes('PARALLEL RECONCILIATION') && stateFinalBlock.includes('emit [] rather than stale or guessed content'), 'Final state compiler lacks parallel reconciliation');
 assert(outputContractBlock.includes('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]'), 'Last-instruction parallel snapshot gate missing');
+assert(significanceBlock.includes('Default to unchanged') && significanceBlock.includes('prior condition -> direct prose event -> different note'), 'Plot significance gate missing');
+assert(outputContractBlock.includes('[PLOT LEDGER — DIRECT CHANGE FINAL GATE]') && outputContractBlock.includes('One event cannot advance unrelated rows'), 'Last-instruction plot gate missing');
 assert(variables.find((entry) => entry.name === 'dialogue_color')?.defaultValue === 1, 'Colored dialogue must default on');
 assert(!definedVariableNames.has('guided_choices'), 'Guided Choices must not exist in ARGENT');
 assert((blocks.find((entry) => entry.id === 'arg-world-texture')?.content ?? '').includes('AMBIENT WORLD PRESSURE'), 'World Texture control lacks an active prompt block');
@@ -1211,7 +1216,7 @@ const enabledChars = blocks.filter((entry) => entry.enabled).reduce((total, entr
 // Raw storage contains both mutually-exclusive Lean and Full contracts. The
 // assembled default includes only Lean, so cap the serialized graph separately
 // from the runtime budget reported by VELLUM's macro-aware estimator.
-assert(Math.ceil(enabledChars / 4) <= 15500, `Serialized prompt graph too large: ${Math.ceil(enabledChars / 4)} estimated tokens`);
+assert(Math.ceil(enabledChars / 4) <= 15750, `Serialized prompt graph too large: ${Math.ceil(enabledChars / 4)} estimated tokens`);
 
 assert(new Set(regexScripts.map((entry) => entry.script_id)).size === regexScripts.length, 'Duplicate regex script id');
 assert(regexScripts.every((entry) => !entry.script_id.startsWith('vellum2-')), 'Inherited VELLUM II regex leaked into ARGENT');
