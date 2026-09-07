@@ -12,6 +12,7 @@ export interface TurnContract {
   codex: boolean;
   inventory: boolean;
   worldgen: boolean;
+  livingWorld: 'off' | 'minimal' | 'active' | 'sandbox';
 }
 
 type PresetLike = Partial<UserPresetDTO> & {
@@ -64,6 +65,11 @@ interface EffectiveMarker {
   codex?: unknown;
   inventory?: unknown;
   worldgen?: unknown;
+  livingWorld?: unknown;
+}
+
+function livingWorldMode(value: unknown, fallback: TurnContract['livingWorld']): TurnContract['livingWorld'] {
+  return value === 'off' || value === 'minimal' || value === 'active' || value === 'sandbox' ? value : fallback;
 }
 
 function effectiveMarker(messages: readonly MessageLike[]): EffectiveMarker | null {
@@ -111,6 +117,7 @@ export function resolveTurnContract(preset: PresetLike | null | undefined): Turn
     codex: argent && on(variableValue(preset, 'codex'), true),
     inventory: argent && on(variableValue(preset, 'inventory'), true),
     worldgen: argent && on(variableValue(preset, 'worldgen'), false),
+    livingWorld: argent ? livingWorldMode(variableValue(preset, 'living_world'), 'active') : 'off',
   };
 }
 
@@ -141,6 +148,7 @@ export function resolveTurnContractFromMessages(
     next.codex = base.argent && on(marker.codex, base.codex);
     next.inventory = base.argent && on(marker.inventory, base.inventory);
     next.worldgen = base.argent && on(marker.worldgen, base.worldgen);
+    next.livingWorld = base.argent ? livingWorldMode(marker.livingWorld, base.livingWorld) : 'off';
     return next;
   }
 
@@ -164,6 +172,12 @@ export function resolveTurnContractFromMessages(
       next.codex = /\[THE CODEX\]|ext\.codex/i.test(prompt);
       next.inventory = /\[POSSESSIONS\]|ext\.inventory/i.test(prompt);
       next.worldgen = /\[CARTOGRAPHER — OPENING OR EXPLICIT RUN\]/i.test(prompt);
+      if (/\[LIVING WORLD\]/i.test(prompt)) {
+        if (/This is an autonomous world;[^\n]*one actor among many/i.test(prompt)) next.livingWorld = 'sandbox';
+        else if (/The world does not pause when[^\n]*looks away/i.test(prompt)) next.livingWorld = 'active';
+        else if (/On a time skip or re-entry, allow one small concrete sign/i.test(prompt)) next.livingWorld = 'minimal';
+        else if (/does not run an independent off-screen activity engine\. Render only what reaches the visible scene/i.test(prompt)) next.livingWorld = 'off';
+      }
     }
   } else if (/\[OUTPUT FORMAT|\[STATE BLOCK — MANDATORY|\[VELLUM STATE\]/i.test(prompt)) {
     next.state = /<vellum>|\[STATE BLOCK — MANDATORY|\[VELLUM STATE\]/i.test(prompt);

@@ -2006,7 +2006,7 @@
       "depth": 0,
       "group": "arg-cat-engine",
       "marker": null,
-      "content": "<!--ARGENT-SOURCE:arg-control-engine-->\n<!--VELLUM-EFFECTIVE {\"state\":{{var::state_on}},\"compiler\":\"{{var::state_compiler}}\",\"verbosity\":\"{{var::state_verbosity}}\",\"reasoning\":\"{{var::reasoning_route}}\",\"dialogueColor\":{{var::dialogue_color}},\"codex\":{{var::codex}},\"inventory\":{{var::inventory}},\"worldgen\":{{var::worldgen}}}-->\n<!--/ARGENT-SOURCE-->",
+      "content": "<!--ARGENT-SOURCE:arg-control-engine-->\n<!--VELLUM-EFFECTIVE {\"state\":{{var::state_on}},\"compiler\":\"{{var::state_compiler}}\",\"verbosity\":\"{{var::state_verbosity}}\",\"reasoning\":\"{{var::reasoning_route}}\",\"dialogueColor\":{{var::dialogue_color}},\"codex\":{{var::codex}},\"inventory\":{{var::inventory}},\"worldgen\":{{var::worldgen}},\"livingWorld\":\"{{var::living_world}}\"}-->\n<!--/ARGENT-SOURCE-->",
       "enabled": true,
       "isLocked": false,
       "position": "pre_history",
@@ -3445,7 +3445,7 @@
     "vellum_engine": {
       "identifier": "vellum_engine",
       "policyCompiler": 1,
-      "sourceHash": "72bc9cf2959fd2229d2bbc2ffe205f6e5c8b27522386f5c573cad0ebc3151707",
+      "sourceHash": "5cd8d8bd14d32fb5a4f6c084702c744036c16c39c7ad25df062f99cb65bbd55c",
       "baseHash": "c1cc6ae477d65ba181d27960e570074b4e8d5dc5228efd2cf3c01d57f276aa84"
     }
   }

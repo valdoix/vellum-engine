@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { CompilerCandidate, jsonSchema, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
 import { compileState, compilerContext } from '../src/bus/state-compiler.js';
+import { foldTurn } from '../src/bus/lifecycle.js';
+import { registerFeature } from '../src/bus/registry.js';
+import { reduce } from '../src/core/reduce.js';
+import { coreFeature } from '../src/domain/core-feature.js';
+
+registerFeature(coreFeature);
 
 function input(): CompilerInput {
   const prior = freshState(); prior.day = 1;
@@ -12,7 +18,7 @@ function input(): CompilerInput {
   return { prior, turn: 2, prose: 'Mara waits five minutes. Ada moves to the gate. Player stays quiet.', userName: 'Player', genesisAllowed: false };
 }
 function candidate(): StateCandidate {
-  return { state: { turn: 2, day: 2, scene: { loc: 'Archive', time: '00:03', clock: 3 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {}, ext: {} }, parallelReviewed: ['Ada'], parallelOps: [], evidence: [{ path: 'scene.time', quote: 'five minutes' }], trackEvidence: [], genesis: false };
+  return { state: { turn: 2, day: 2, scene: { loc: 'Archive', time: '00:03', clock: 3 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {}, ext: {} }, parallelReviewed: ['Ada'], parallelOps: [], parallelWorldOps: [], evidence: [{ path: 'scene.time', quote: 'five minutes' }], trackEvidence: [], genesis: false };
 }
 describe('strict pre-commit state compiler', () => {
   it('preserves unmodified off-stage actors and emits the canonical contract across midnight', () => {
@@ -22,6 +28,66 @@ describe('strict pre-commit state compiler', () => {
     const state = JSON.parse(r.block.slice(9, -9));
     expect(state.delta.parallel).toEqual([{ who: 'Ada', where: 'Courtyard', activity: 'Waiting' }]);
     expect(state.scene).toMatchObject({ time: '00:03', clock: 3 });
+  });
+  it('preserves anonymous world parallel events during Engine Second Pass', () => {
+    const i = input();
+    i.prior.parallel.unshift({ where: 'Harbor', activity: 'The storm front is closing the channel', note: 'Ferries remain docked', day: 1, turn: 1 });
+    const r = validateCompilation(candidate(), i);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(JSON.parse(r.block.slice(9, -9)).delta.parallel).toEqual([
+      { where: 'Harbor', activity: 'The storm front is closing the channel', note: 'Ferries remain docked' },
+      { who: 'Ada', where: 'Courtyard', activity: 'Waiting' },
+    ]);
+  });
+  it('starts, updates, and resolves anonymous world parallel events with exact prose evidence', () => {
+    const i = input();
+    i.prior.parallel = [{ where: 'Harbor', activity: 'Ferries remain docked', day: 1, turn: 1 }];
+    i.prose += ' The harbor master reopens the ferry channel. Bells begin ringing across the city.';
+    const advance = candidate();
+    advance.parallelReviewed = [];
+    advance.parallelWorldOps = [{ op: 'advance', priorActivity: 'Ferries remain docked', priorWhere: 'Harbor', where: 'Harbor', activity: 'Ferries are departing again', evidence: 'The harbor master reopens the ferry channel.' }];
+    let r = validateCompilation(advance, i);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(JSON.parse(r.block.slice(9, -9)).delta.parallel).toEqual([{ where: 'Harbor', activity: 'Ferries are departing again' }]);
+
+    const start = candidate();
+    start.parallelReviewed = [];
+    start.parallelWorldOps = [{ op: 'start', activity: 'Bells are ringing across the city', evidence: 'Bells begin ringing across the city.' }];
+    r = validateCompilation(start, { ...i, prior: { ...i.prior, parallel: [] } });
+    expect(r.ok).toBe(true);
+
+    const resolve = candidate();
+    resolve.parallelReviewed = [];
+    resolve.parallelWorldOps = [{ op: 'resolve', priorActivity: 'Ferries remain docked', priorWhere: 'Harbor', evidence: 'The harbor master reopens the ferry channel.' }];
+    r = validateCompilation(resolve, i);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(JSON.parse(r.block.slice(9, -9)).delta.parallel).toEqual([]);
+  });
+  it('starts a grounded parallel row from active Living World state without requiring it in visible prose', () => {
+    const i = input();
+    i.prior.parallel = [];
+    i.livingWorld = 'active';
+    i.prior.threads = [{ id: 'thr_courier', name: 'The Late Courier', status: 'Ada waits at the East Gate for the courier', beats: ['Ada waits at the East Gate for the courier'], firstTurn: 1, lastTurn: 1 }];
+    const c = candidate();
+    c.parallelReviewed = [];
+    c.parallelOps = [{ op: 'start', who: 'Ada', where: 'East Gate', activity: 'waiting for the courier', evidence: 'Ada waits at the East Gate for the courier' }];
+    const r = validateCompilation(c, i);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(JSON.parse(r.block.slice(9, -9)).delta.parallel).toEqual([{ who: 'Ada', where: 'East Gate', activity: 'waiting for the courier' }]);
+      const folded = foldTurn(r.block, structuredClone(i.prior), i.turn);
+      expect(folded.source).toBe('json');
+      expect(reduce(folded.events).parallel).toEqual([
+        expect.objectContaining({ who: 'ada', where: 'East Gate', activity: 'waiting for the courier' }),
+      ]);
+    }
+
+    i.livingWorld = 'minimal';
+    expect(validateCompilation(c, i).ok).toBe(false);
+    i.livingWorld = 'sandbox';
+    c.parallelOps[0]!.activity = 'stealing the crown';
+    expect(validateCompilation(c, i).ok).toBe(false);
   });
   it('rejects rollback against a legacy prior time even when prior clock is absent', () => {
     const i = input();
@@ -172,6 +238,20 @@ describe('strict pre-commit state compiler', () => {
     const context = compilerContext(i);
     expect(context.length).toBeLessThan(75000);
     expect(context).toContain('Courtyard'); expect(context).toContain('Mara');
+  });
+  it('passes Living World policy and grounded starts to the second-pass model', async () => {
+    const i = input();
+    i.prior.parallel = [];
+    i.livingWorld = 'sandbox';
+    i.prior.threads = [{ id: 'thr_courier', name: 'The Late Courier', status: 'Ada waits at the East Gate for the courier', beats: ['Ada waits at the East Gate for the courier'], firstTurn: 1, lastTurn: 1 }];
+    const c = candidate();
+    c.parallelReviewed = [];
+    c.parallelOps = [{ op: 'start', who: 'Ada', where: 'East Gate', activity: 'waiting for the courier', evidence: 'Ada waits at the East Gate for the courier' }];
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(c) });
+    const r = await compileState(i, null, undefined, generate);
+    expect(r.ok).toBe(true);
+    expect(generate.mock.calls[0]![0][1].content).toContain('"livingWorld":"sandbox"');
+    expect(generate.mock.calls[0]![0][1].content).toContain('Ada waits at the East Gate for the courier');
   });
   it('does not salvage a truncated provider response; bounded retry can recover', async () => {
     const generate = vi.fn().mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()).slice(0, -12) }).mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()) });

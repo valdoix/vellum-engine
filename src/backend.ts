@@ -461,7 +461,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
       const latestUser = [...raw].reverse().find((m: any) => m.role === 'user');
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(latestUser ? activeContent(latestUser) : '');
       const compilerConnection = await getChatVar(chatId, 'vellum_compiler_connection');
-      compiled = await compileState({ prior: baseline, turn: turnNo, prose, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory }, userId, compilerConnection ? String(compilerConnection) : undefined);
+      compiled = await compileState({ prior: baseline, turn: turnNo, prose, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off' }, userId, compilerConnection ? String(compilerConnection) : undefined);
       const current = await allTurnContents(chatId);
       const unchanged = current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
       if (!compiled.ok || !unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
@@ -772,7 +772,10 @@ function storedTurnContract(raw: unknown, expectedPresetId?: string): TurnContra
       || typeof c.codex !== 'boolean'
       || typeof c.inventory !== 'boolean'
       || typeof c.worldgen !== 'boolean') return null;
-    return c as TurnContract;
+    const livingWorld = c.livingWorld === 'off' || c.livingWorld === 'minimal' || c.livingWorld === 'active' || c.livingWorld === 'sandbox'
+      ? c.livingWorld
+      : c.argent ? 'active' : 'off';
+    return { ...c, livingWorld } as TurnContract;
   } catch { return null; }
 }
 async function activeTurnContract(chatId: string, userId: string | null): Promise<TurnContract | null> {

@@ -28,6 +28,12 @@ function argent(values: Record<string, unknown> = {}) {
           ] },
           { name: 'codex', type: 'switch', defaultValue: 1 },
           { name: 'inventory', type: 'switch', defaultValue: 1 },
+          { name: 'living_world', type: 'select', defaultValue: 'active', options: [
+            { id: 'off', label: 'Off', value: 'off' },
+            { id: 'minimal', label: 'Minimal', value: 'minimal' },
+            { id: 'active', label: 'Active', value: 'active' },
+            { id: 'sandbox', label: 'Sandbox', value: 'sandbox' },
+          ] },
         ],
       },
       { id: 'arg-output-contract' },
@@ -40,6 +46,7 @@ describe('active preset turn contract', () => {
     expect(resolveTurnContract(argent())).toMatchObject({
       active: true, argent: true, state: true, reverie: true, dialogueColor: true,
       reasoningRoute: 'compact', stateCompiler: 'engine', stateVerbosity: 'lean', codex: true, inventory: true,
+      livingWorld: 'active',
     });
   });
 
@@ -88,12 +95,20 @@ describe('active preset turn contract', () => {
   it('uses the effective profile marker from the assembled host prompt', () => {
     const contract = resolveTurnContractFromMessages(argent({ state_on: 1, reasoning_route: 'compact' }), [{
       role: 'system',
-      content: '<!--VELLUM-EFFECTIVE {"state":0,"compiler":"inline","verbosity":"full","reasoning":"silent","dialogueColor":0,"codex":0,"inventory":0,"worldgen":1}-->',
+      content: '<!--VELLUM-EFFECTIVE {"state":0,"compiler":"inline","verbosity":"full","reasoning":"silent","dialogueColor":0,"codex":0,"inventory":0,"worldgen":1,"livingWorld":"sandbox"}-->',
     }]);
     expect(contract).toMatchObject({
       state: false, stateCompiler: 'inline', stateVerbosity: 'full', reasoningRoute: 'silent', reverie: false,
-      dialogueColor: false, codex: false, inventory: false, worldgen: true,
+      dialogueColor: false, codex: false, inventory: false, worldgen: true, livingWorld: 'sandbox',
     });
+  });
+
+  it('infers Living World mode from an expanded legacy prompt when no marker exists', () => {
+    const contract = resolveTurnContractFromMessages(argent({ living_world: 'off' }), [{
+      role: 'system',
+      content: '[LIVING WORLD]\nThe world does not pause when Player looks away. Absent characters pursue established goals.\n[OUTPUT — FOLLOW EXACTLY]',
+    }]);
+    expect(contract?.livingWorld).toBe('active');
   });
 
   it('infers effective expanded controls for older ARGENT presets without a marker', () => {

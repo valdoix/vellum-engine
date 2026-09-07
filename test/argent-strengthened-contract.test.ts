@@ -161,6 +161,7 @@ describe('ARGENT strengthened invariants', () => {
   });
 
   it('reaches Living World parallel gates using expanded option values', () => {
+    expect(block('arg-control-engine')).toContain('"livingWorld":"{{var::living_world}}"');
     expect(expandedBlock('arg-output-contract', { state_on: 1, living_world: 'active' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, living_world: 'sandbox' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, living_world: 'off' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');

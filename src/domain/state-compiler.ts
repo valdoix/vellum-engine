@@ -34,6 +34,15 @@ export const CompilerState = z.object({
 export const CompilerCandidate = z.object({
   state: CompilerState,
   parallelOps: item({ op: z.enum(['start', 'advance', 'move', 'resolve']), who: name, where: text.optional(), activity: text.optional(), evidence: text }),
+  parallelWorldOps: item({
+    op: z.enum(['start', 'advance', 'move', 'resolve']),
+    priorActivity: text.optional(),
+    priorWhere: text.optional(),
+    where: text.optional(),
+    activity: text.optional(),
+    note: text.optional(),
+    evidence: text,
+  }).optional(),
   // Every prior row must be accounted for. A forgotten actor cannot silently disappear.
   parallelReviewed: z.array(name).max(200),
   evidence: item({ path: text, quote: text }),
@@ -52,9 +61,75 @@ export const CompilerCandidate = z.object({
   genesis: z.boolean(),
 }).strict();
 export type StateCandidate = z.infer<typeof CompilerCandidate>;
-export type CompilerInput = { prior: ChronicleState; turn: number; prose: string; userName: string; genesisAllowed: boolean; verbosity?: 'lean' | 'full'; codexAllowed?: boolean; inventoryAllowed?: boolean };
+export type CompilerInput = {
+  prior: ChronicleState;
+  turn: number;
+  prose: string;
+  userName: string;
+  genesisAllowed: boolean;
+  verbosity?: 'lean' | 'full';
+  codexAllowed?: boolean;
+  inventoryAllowed?: boolean;
+  livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox';
+};
 export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string } | { ok: false; errors: string[] };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
+
+export interface ParallelGrounding {
+  source: 'offscreen' | 'thread';
+  id: string;
+  evidence: string;
+}
+
+/**
+ * Canonical prior-state lines that may ground a new current parallel row when
+ * the selected Living World mode is autonomous. These are deliberately narrow:
+ * only active off-screen subplots and unresolved plot conditions are exposed.
+ * Static cast biography and generic lore cannot be promoted into a claim that
+ * somebody is doing something right now.
+ */
+export function parallelGrounding(input: CompilerInput): ParallelGrounding[] {
+  if (input.livingWorld !== 'active' && input.livingWorld !== 'sandbox') return [];
+  const rows: ParallelGrounding[] = [];
+  for (const subplot of input.prior.offscreen.filter(row => row.status === 'active').slice(0, 30)) {
+    const actor = subplot.who ? input.prior.cast[canonId(subplot.who)] : undefined;
+    const who = actor?.name ?? subplot.who;
+    if (who && subplot.where && subplot.gist) {
+      rows.push({ source: 'offscreen', id: subplot.id, evidence: `${who} at ${subplot.where}: ${subplot.gist}` });
+    }
+  }
+  for (const thread of input.prior.threads.filter(row => !/resolv/i.test(row.status || '')).slice(0, 40)) {
+    const lines = [...thread.beats.slice(-3), thread.status].map(value => value?.trim()).filter(Boolean) as string[];
+    for (const evidence of [...new Set(lines)]) rows.push({ source: 'thread', id: thread.id, evidence });
+  }
+  return rows.slice(0, 120);
+}
+
+function normalizedIncludes(haystack: string, needle: string): boolean {
+  return haystack.normalize('NFKC').toLocaleLowerCase().includes(needle.normalize('NFKC').toLocaleLowerCase().trim());
+}
+
+function tokenRelated(a: string, b: string): boolean {
+  if (a === b) return true;
+  const min = Math.min(a.length, b.length);
+  return min >= 5 && a.slice(0, 5) === b.slice(0, 5);
+}
+
+/** A prior-state parallel start must prove actor, place, and current action in
+ * one support line. This prevents Living World from turning a static character
+ * mention into an invented off-screen event. */
+function groundedParallelStart(op: StateCandidate['parallelOps'][number], input: CompilerInput, support: string): boolean {
+  if (!op.who || !op.where || !op.activity) return false;
+  const actor = input.prior.cast[canonId(op.who)];
+  const labels = [op.who, actor?.name, ...(actor?.aka ?? [])].filter(Boolean) as string[];
+  if (!labels.some(label => normalizedIncludes(support, label))) return false;
+  if (!normalizedIncludes(support, op.where)) return false;
+  const ignored = new Set<string>();
+  for (const label of [...labels, op.where]) for (const token of factTokens(label)) ignored.add(token);
+  const activity = [...factTokens(op.activity)].filter(token => !ignored.has(token));
+  const evidence = [...factTokens(support)].filter(token => !ignored.has(token));
+  return activity.length > 0 && activity.some(token => evidence.some(candidate => tokenRelated(token, candidate)));
+}
 
 /** Track titles are model-facing labels, while ids remain engine-owned. Match a
  * returned title conservatively: case/spacing/curly apostrophes may differ, but
@@ -291,15 +366,30 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       }
     });
   }
-  const rows = new Map(input.prior.parallel.filter(p => p.who).map(p => [canonId(p.who!), { who: input.prior.cast[p.who!]?.name ?? p.who!, where: p.where ?? '', activity: p.activity, note: p.note }]));
+  // Actor rows are operation-addressable. Anonymous world rows have no stable
+  // identity, so preserve them verbatim; the previous implementation filtered
+  // them out here and Engine Second Pass silently erased them every turn.
+  const anonymousRows = input.prior.parallel
+    .filter(p => !p.who)
+    .map(p => ({ ...(p.where ? { where: p.where } : {}), activity: p.activity, ...(p.note ? { note: p.note } : {}) }));
+  const rows = new Map(input.prior.parallel.filter(p => p.who).map(p => {
+    const id = canonId(p.who!);
+    return [id, { who: input.prior.cast[id]?.name ?? p.who!, where: p.where ?? '', activity: p.activity, note: p.note }];
+  }));
   const reviewed = new Set(c.parallelReviewed.map(canonId));
   for (const id of rows.keys()) if (!reviewed.has(id)) errors.push(`parallel actor not reviewed: ${id}`);
   const operated = new Set<string>();
+  const autonomousSupport = parallelGrounding(input);
   for (const op of c.parallelOps) {
     const id = canonId(op.who);
     if (operated.has(id)) errors.push(`duplicate parallel operation: ${id}`);
     operated.add(id);
-    if (!input.prose.includes(op.evidence)) errors.push(`parallel operation lacks prose evidence: ${id}`);
+    const proseBacked = input.prose.includes(op.evidence);
+    const priorBacked = !proseBacked && op.op === 'start'
+      && autonomousSupport.some(row => row.evidence.includes(op.evidence) && groundedParallelStart(op, input, row.evidence));
+    if (!proseBacked && !priorBacked) {
+      errors.push(`parallel operation lacks current prose or grounded Living World evidence: ${id}`);
+    }
     if (!known(op.who)) errors.push(`unknown parallel actor: ${id}`);
     if (op.op === 'start' && rows.has(id)) errors.push(`parallel start already exists: ${id}`);
     if (op.op !== 'start' && !rows.has(id)) errors.push(`parallel operation has no prior row: ${id}`);
@@ -309,9 +399,31 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       rows.set(id, { who: op.who, where: op.where ?? '', activity: op.activity ?? '', note: undefined });
     }
   }
+  const operatedWorld = new Set<string>();
+  for (const op of c.parallelWorldOps ?? []) {
+    if (!input.prose.includes(op.evidence)) errors.push('parallel world operation lacks prose evidence');
+    if (op.op === 'start') {
+      if (op.priorActivity || op.priorWhere) errors.push('parallel world start cannot target a prior row');
+      if (!op.activity?.trim()) errors.push('parallel world start requires activity');
+      else anonymousRows.push({ ...(op.where ? { where: op.where } : {}), activity: op.activity, ...(op.note ? { note: op.note } : {}) });
+      continue;
+    }
+    if (!op.priorActivity?.trim()) { errors.push(`parallel world ${op.op} requires priorActivity`); continue; }
+    const matches = anonymousRows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row.activity === op.priorActivity && (!op.priorWhere || row.where === op.priorWhere));
+    if (matches.length !== 1) { errors.push(`parallel world ${op.op} must target one exact prior row`); continue; }
+    const target = matches[0]!;
+    const key = `${target.row.where ?? ''}\u0000${target.row.activity}`;
+    if (operatedWorld.has(key)) errors.push('duplicate parallel world operation');
+    operatedWorld.add(key);
+    if (op.op === 'resolve') anonymousRows.splice(target.index, 1);
+    else if (!op.activity?.trim()) errors.push(`parallel world ${op.op} requires activity`);
+    else anonymousRows[target.index] = { ...(op.where ? { where: op.where } : {}), activity: op.activity, ...(op.note ? { note: op.note } : {}) };
+  }
   // Arrivals are removed by the engine; unchanged off-stage actors survive omissions.
   for (const id of present) rows.delete(id);
   if (errors.length) return { ok: false, errors };
-  const state = { ...s, delta: { ...s.delta, parallel: [...rows.values()] } };
+  const state = { ...s, delta: { ...s.delta, parallel: [...anonymousRows, ...rows.values()] } };
   return { ok: true, candidate: c, baseHash: stateRevision(input.prior), block: `<vellum>\n${JSON.stringify(state)}\n</vellum>` };
 }

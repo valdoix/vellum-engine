@@ -565,7 +565,7 @@ Omit unchanged fields. Never create a second tracker in prose, HTML, comments, o
 
   category(CAT_ENGINE, 'ARGENT LOOM — VELLUM Contract', '#d46f73'),
 
-  block('arg-control-engine', 'Planning & State Controls', String.raw`<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"{{var::state_verbosity}}","reasoning":"{{var::reasoning_route}}","dialogueColor":{{var::dialogue_color}},"codex":{{var::codex}},"inventory":{{var::inventory}},"worldgen":{{var::worldgen}}}-->`, { group: CAT_ENGINE, variables: engineControls }),
+  block('arg-control-engine', 'Planning & State Controls', String.raw`<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"{{var::state_verbosity}}","reasoning":"{{var::reasoning_route}}","dialogueColor":{{var::dialogue_color}},"codex":{{var::codex}},"inventory":{{var::inventory}},"worldgen":{{var::worldgen}},"livingWorld":"{{var::living_world}}"}-->`, { group: CAT_ENGINE, variables: engineControls }),
 
   block('arg-state-schema', 'VELLUM State Schema', String.raw`{{if::{{and::{{var::state_on}}::{{eq::{{var::state_verbosity}}::lean}}}}}}[VELLUM STATE — LEAN CONTRACT]
 After prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing after it. No Markdown fence, comments, trailing commas, null placeholders, ellipses, or unsupported keys.
@@ -1189,6 +1189,7 @@ const knowledgeBlock = blocks.find((entry) => entry.id === 'arg-knowledge')?.con
 const worldBlock = blocks.find((entry) => entry.id === 'arg-world-factions')?.content ?? '';
 const significanceBlock = blocks.find((entry) => entry.id === 'arg-significance')?.content ?? '';
 const stateFinalBlock = blocks.find((entry) => entry.id === 'arg-state-final')?.content ?? '';
+const engineControlBlock = blocks.find((entry) => entry.id === 'arg-control-engine')?.content ?? '';
 assert(agencyBlock.includes('An attempted action authorizes only the stated attempt') && agencyBlock.includes('Second-person grammar is not permission'), 'Protected-agency contract weakened');
 assert(finalAnchorBlock.includes('PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE'), 'Final protected-agency gate missing');
 assert(outputContractBlock.includes('PLAYER AUTHORSHIP — NON-NEGOTIABLE FINAL GATE'), 'Last-instruction agency gate missing');
@@ -1205,6 +1206,7 @@ assert(outputContractBlock.includes('[OFF-SCENE KNOWLEDGE — NON-NEGOTIABLE FIN
 assert(worldBlock.includes('[PARALLEL T1 RECONCILIATION]') && worldBlock.includes('MUST NOT appear in parallel'), 'Parallel T1 reconciliation contract missing');
 assert(stateFinalBlock.includes('PARALLEL RECONCILIATION') && stateFinalBlock.includes('emit [] rather than stale or guessed content'), 'Final state compiler lacks parallel reconciliation');
 assert(outputContractBlock.includes('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]'), 'Last-instruction parallel snapshot gate missing');
+assert(engineControlBlock.includes('"livingWorld":"{{var::living_world}}"'), 'Effective engine marker must expose Living World mode');
 assert(significanceBlock.includes('Default to unchanged') && significanceBlock.includes('prior condition -> direct prose event -> different note'), 'Plot significance gate missing');
 assert(outputContractBlock.includes('[PLOT LEDGER — DIRECT CHANGE FINAL GATE]') && outputContractBlock.includes('One event cannot advance unrelated rows'), 'Last-instruction plot gate missing');
 assert(variables.find((entry) => entry.name === 'dialogue_color')?.defaultValue === 1, 'Colored dialogue must default on');
