@@ -32,7 +32,6 @@ import { installArtifacts } from './artifacts.js';
 import { cleanupSummarizerStream, handleSummarizerStream, updateSummarizerRound } from './summarizer-stream.js';
 import { resolveBudget, type ContextBudget } from '../domain/context-budget.js';
 import { VELLUM_VERSION } from '../version.js';
-import { openLoomPresetTools } from './preset-navigation.js';
 import type {
   PromptBlockDTO,
   PromptVariableValuesDTO,
@@ -178,7 +177,6 @@ const QOL = [
   { id: 'budget', label: '\u2696 Context budget', title: 'How much VELLUM injects per turn: master dial + per-injector caps + off-screen/summary cadence', group: 'settings' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'settings' },
   { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc/book prompts', group: 'settings' },
-  { id: 'preset', label: '\u25A4 VELLUM preset tools', title: 'Open VELLUM inside Loom for native blocks and Prompt Variables editing, exact dry-run inspection, state-contract health, retrieval diagnostics, and prompt budgets. Uses a revision-safe compact editor when Loom is unavailable.', group: 'settings' },
   // toggles = persistent on/off state
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree book\u2192arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
@@ -768,7 +766,6 @@ let _summarizerCfg: Record<string, unknown> | null = null; // last-known summari
 let _summarizerDefaults: { chapter: string; arc: string; book: string; gist: string } = { chapter: '', arc: '', book: '', gist: '' };
 let _retheme: () => void = () => { /* set in setup */ };
 let _lastStateAt = 0; // epoch ms of the last vellum_state broadcast (for the post-turn safety poll)
-let _openPresetEditorTools: (() => Promise<boolean>) | null = null;
 
 // ── Preset panel modal state (mobile fallback) ────────────────────────────
 // These mirror the per-app state held by the desktop preset tab, kept at module
@@ -1121,10 +1118,6 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'tidyfacts') { setQolBusy('tidyfacts', true); ctx.sendToBackend({ type: 'vellum_tidy_facts_now' }); notify(ctx, 'info', 'Folding duplicate knowledge & secrets\u2026'); }
   else if (id === 'resummarize') { setQolBusy('resummarize', true); ctx.sendToBackend({ type: 'vellum_resummarize' }); notify(ctx, 'info', 'Rebuilding all chapter summaries\u2026'); }
   else if (id === 'summarizer') { ctx.sendToBackend({ type: 'vellum_get_summarizer' }); /* modal opens when state arrives */ }
-  else if (id === 'preset') {
-    if (!_openPresetEditorTools) { openPresetPanel(ctx); return; }
-    void _openPresetEditorTools().then((opened) => { if (!opened) openPresetPanel(ctx); });
-  }
   else if (id === 'export') { setQolBusy('export', true); ctx.sendToBackend({ type: 'vellum_export' }); }
   else if (id === 'exportmd') { setQolBusy('exportmd', true); ctx.sendToBackend({ type: 'vellum_export_markdown' }); }
   else if (id === 'import') { triggerImport(ctx); }
@@ -1721,22 +1714,6 @@ export function setup(ctx: Ctx): () => void {
     // Host without registerPresetEditorTab or permission not granted — silently skip
     try { console.info('[vellum] preset editor tab not available:', e); } catch { /* ignore */ }
   }
-
-  // Actions -> VELLUM preset tools opens the real Loom drawer on current hosts.
-  // Loom mounts its editor asynchronously, so wait for the host-owned editor
-  // state before activating VELLUM's tab. The compact editor remains the
-  // mobile/older-host fallback rather than a second desktop source of truth.
-  _openPresetEditorTools = async (): Promise<boolean> => {
-    const editor = (ctx.ui as any)?.presetEditor;
-    return openLoomPresetTools({
-      editor,
-      surfaces: ctx.host.surfaces,
-      activate: () => {
-        if (presetEditorTab) presetEditorTab.activate();
-        else editor.extension.activateBuiltinTab('blocks');
-      },
-    });
-  };
 
   // PRESET EDITOR TOOLBAR: a compact Link/Unlink control above the editor's
   // list/edit area — more discoverable than the control inside the VELLUM tab.
@@ -2456,7 +2433,6 @@ export function setup(ctx: Ctx): () => void {
     _presetMutationRequests.clear();
     try { disposePresetEditorChange?.(); } catch { /* ignore */ }
     try { disposePresetEditorActivate?.(); } catch { /* ignore */ }
-    _openPresetEditorTools = null;
     _varPresetId = '';
     try { presetEditorTab?.destroy(); } catch { /* ignore */ }
     try { presetToolbarItem?.destroy(); } catch { /* ignore */ }

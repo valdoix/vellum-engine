@@ -152,12 +152,6 @@ There's now an **Auto-Repair** option (off by default, enable via the Actions me
 
 The repair also became smarter in general — it now recovers more kinds of state (clock/day tracking, NPC thoughts, character traits, and more) than it did before.
 
-### Preset linking from the Actions menu (works on mobile too)
-
-Previously you could only link or unlink a preset from the desktop **Preset Editor tab** — a tab that simply doesn't exist on mobile Lumiverse. Now the same controls live in the **Actions menu** (the ≡ toolbar button), so linking works everywhere.
-
-A bug was also fixed where the Actions menu would show a preset as "Not linked" even after you'd just linked it from the desktop tab. Both views now always agree.
-
 ### New and redesigned visual cards (VTK)
 
 If you use the **Visual Toolkit** (the feature that lets the AI render scenes as small illustrated cards — a letter, a codex entry, a portrait), this release adds six new card types and overhauls how all cards look:
