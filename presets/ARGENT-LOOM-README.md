@@ -2,7 +2,7 @@
 
 ARGENT LOOM is a VELLUM-native roleplay preset for long-running, causally coherent fiction. It combines strict player agency, limited character knowledge, physical and temporal continuity, durable relationships, living-world simulation, configurable prose craft, and an engine-owned state compiler that folds completed prose into the Chronicle only after validation.
 
-This guide covers all 62 user-facing controls in ARGENT LOOM 1.2.2, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
+This guide covers all 62 user-facing controls in ARGENT LOOM 1.3.0, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
 
 ## Included files
 
@@ -14,6 +14,8 @@ This guide covers all 62 user-facing controls in ARGENT LOOM 1.2.2, the 18-scrip
 - `scripts/eval-argent.ts` — behavioral provider evaluation harness (`bun run eval:argent`).
 
 ARGENT LOOM is designed for the VELLUM II extension. With the default **Engine Second Pass**, the narrative model writes the story and VELLUM separately compiles and validates state. **Inline Compatibility** retains the older model-written `<vellum>` route for hosts without the updated extension.
+
+Version 1.3 resolves the full output and agency contract from the assembled prompt on every generation. Engine mode never sends inline-state instructions to the narrative model. Changing Player Agency between **Forbidden (Strict)**, **Minor Continuity**, and **Director** applies to that turn only; the next turn resolves its own selected mode and the second-pass compiler receives the same exact contract and latest user input.
 
 ## Installation
 
@@ -32,7 +34,7 @@ If variables are changed through VELLUM's preset tab, Lumiverse's native variabl
 
 For most capable models, begin with the shipped defaults:
 
-- `agency`: **Protected**
+- `agency`: **Forbidden (Strict)**
 - `length`: **Standard**
 - `prose`: **Lucid Literary**
 - `stakes`: **Grounded**
@@ -64,7 +66,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 - **Colored Dialogue** needs the ARGENT speaker regex. VELLUM supplies stable cast colors when available. Its three Response-stage recovery transforms resolve only while ARGENT is the active preset and this control is on.
 - **Lumiverse Native Memory** only contributes when Lumiverse Memory or Cortex is enabled. VELLUM remains the authoritative continuity source.
 - **Loom Style Only** is useful only when a Loom style is actually active. Without one, select another Voice Lens.
-- ARGENT 1.2 uses declarative `<artifact>` JSON rendered by a host-managed sandbox. Titles and bodies are escaped, the schema is closed, and executable markup and resource URLs are unavailable.
+- ARGENT 1.3 uses declarative `<artifact>` JSON rendered by a host-managed sandbox. Titles and bodies are escaped, the schema is closed, and executable markup and resource URLs are unavailable.
 
 ## All binary switches at a glance
 
@@ -85,7 +87,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 | `dialogue_color` | On | Required exact-name speaker markup and VELLUM cast colors | Plain text or unsupported renderers |
 | `native_memory` | Off | Lumiverse Memory/Cortex as a secondary recall lane | VELLUM alone should control recall |
 | `craft_anchor` | On | A final compact prose-quality reminder | A strong model becomes overly constrained or repetitive |
-| `agency_reminder` | On | A final player-authorship boundary | Only consider disabling outside Protected agency |
+| `agency_reminder` | On | A final player-authorship boundary | Only consider disabling outside Forbidden agency |
 
 ## Narrative and scene controls
 
@@ -100,7 +102,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 | `genre2` — Secondary Genre | **Off** | Uses the same genre list as `genre`, but only as a lighter inflection. Example: Mystery primary + Romance secondary. Avoid selecting the same genre twice. |
 | `dialogue` — Dialogue Frequency | **Balanced** | **Sparse:** speech is rare and weighted. **Balanced:** dialogue and action share the scene. **Talkative:** conversation carries more beats. **Banter-heavy:** quick exchanges and verbal play. Established character voice always wins. |
 | `npc_dialogue` — NPC-to-NPC Dialogue | **On** | Lets present NPCs initiate, answer, question, interrupt, coordinate, bargain, joke, comfort, accuse, conceal, refuse, and redirect one another when their motives intersect. Exchanges must move the scene rather than fill a turn quota; every speaker retains distinct voice, limited knowledge, physical access, and exact colored-dialogue identity. Off suppresses extended NPC-only exchanges but still permits a brief line required by immediate causality. |
-| `agency` — Player Agency | **Protected** | **Protected:** treats every unsupplied player predicate as forbidden—including automatic reactions, passive consequences, perception, sensation, injury, consent, resistance, and “obvious” follow-through. An attempted action licenses only the stated attempt. **Minor Continuity:** may finish only a trivial action the player unmistakably began. **Director:** may author the player only to realize an explicit directorial instruction; it still cannot invent consent or an unsupported irreversible choice. |
+| `agency` — Player Agency | **Forbidden (Strict)** | **Forbidden (Strict):** treats every unsupplied player predicate as forbidden—including automatic reactions, passive consequences, perception, sensation, injury, consent, resistance, and “obvious” follow-through. An attempted action licenses only the stated attempt. **Minor Continuity:** may finish only the mechanically inevitable tail of a trivial action the player unmistakably began. **Director:** may author the player only to realize explicit directorial instruction; it still cannot invent consent or an unsupported irreversible choice. The selected mode is stamped and consumed per turn, so changing it never retroactively alters another turn. |
 | `distance` — Narrative Distance | **Intimate** | **Intimate:** inside the focal body's immediate experience. **Standard:** natural close narration with occasional step-back. **Cinematic:** external camera; behavior implies interiority. **Panoramic:** place, weather, and history frame the beat. **Adaptive:** distance changes with the scene. |
 | `pacing` — Pacing | **Measured** | **Lingering:** dwell on one charged beat. **Measured:** natural tempo. **Propulsive:** cut transitions and maintain momentum. **Adaptive:** slow charged moments, accelerate connective action. This controls rhythm, not output size. |
 | `ooc` — OOC Channel | **On** | On treats `((double parentheses))` and `OOC:` as author direction rather than scene dialogue. A direct OOC question receives a brief OOC answer; otherwise the instruction is applied silently. |
@@ -169,7 +171,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 
 ### Off-scene conversation privacy
 
-ARGENT 1.2.2 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
+ARGENT 1.3.0 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
 
 A can learn afterward only through a concrete bridge established in the fiction: B or C tells A, A plausibly overhears, a delivered message or readable record reaches A, a public announcement occurs, or observable evidence supports a limited inference. Evidence does not reveal more than it contains; suspicious aftermath may justify `suspects`, but not knowledge of the hidden transcript. The same audit applies to prose, dialogue, thoughts, reactions, interruptions, `present.thought`, and `delta.knowledge`.
 
@@ -188,7 +190,7 @@ Model-generated `ext.codex` facts and the legacy `who: "world"` knowledge route 
 | `native_memory` — Lumiverse Memory | **Off** | Adds Lumiverse Memory/Cortex retrieval as a secondary, non-authoritative lane. Use when those systems contain useful prose summaries or entities. Conflicts resolve in favor of VELLUM's current structured state. |
 | `model_adapter` — Model Adapter | **Auto** | Selects the family-specific narrative guidance encoded in the effective policy. The runtime compiler resolves adapter, planning route, state mode, and presentation into one final output plan, avoiding contradictory endings. Engine state extraction always uses deterministic settings on the active main connection. |
 | `craft_anchor` — Final Craft Anchor | **On** | Repeats a compact POV, tense, pacing, physical-continuity, and prose-quality reminder immediately before generation. Disable if a very obedient model begins sounding constrained or formulaic. |
-| `agency_reminder` — Final Agency Anchor | **On** | Reasserts the selected agency mode at the final instruction position. Under Protected agency, Claude receives an additional predicate-by-predicate audit that forbids completing a natural causal sequence through the player. Keep this on when a model tends to puppet the player. |
+| `agency_reminder` — Final Agency Anchor | **On** | Reasserts this turn's selected agency mode at the final instruction position. Under Forbidden agency, all model families receive a predicate-by-predicate audit that forbids completing a natural causal sequence through the player. Keep this on when a model tends to puppet the player. |
 | `adherence_target` — Anchor Placement | **Balanced** | **Balanced:** final system instruction after history; use first. **Frontier/Weak Adherence:** puts the anchor in a recent user-role history slot for models that ignore distant system text. **Quiet/Over-Literal:** places it slightly deeper in system history to reduce repetition and over-compliance. |
 
 ### Reasoning-route recommendations
@@ -240,7 +242,7 @@ The mature controls are ceilings, not quotas. A high level allows detail when th
 
 ### Strict player-authorship mode
 
-- `agency`: Protected
+- `agency`: Forbidden (Strict)
 - `agency_reminder`: On
 - `adherence_target`: Frontier if the model still puppets the player
 - `pov`: Third Limited or Second
@@ -351,7 +353,7 @@ The embedded and standalone regex packs were both imported. Keep one copy of eac
 
 ### Parallel events show an earlier location
 
-ARGENT 1.2.2 compiles off-screen changes as operations against the prior T1 state. Every prior actor must be reviewed; unchanged rows survive, `move` changes the destination, `resolve` removes a row, and an actor entering `scene.present` is removed automatically. The resulting `delta.parallel` snapshot is computed by VELLUM at the final day and clock.
+ARGENT 1.3.0 compiles off-screen changes as operations against the prior T1 state. Every prior actor must be reviewed; unchanged rows survive, `move` changes the destination, `resolve` removes a row, and an actor entering `scene.present` is removed automatically. The resulting `delta.parallel` snapshot is computed by VELLUM at the final day and clock.
 
 If a contradiction remains, inspect the raw final `<vellum>` block. Every character parallel item should contain an exact `who`, final `where`, and current `activity`; nobody listed in `present` may also appear in `parallel`. Re-import the complete preset for the prompt contract and rebuild/reload the VELLUM extension for the reducer guard.
 
@@ -375,7 +377,7 @@ Inline Compatibility follows the older state-block behavior: the narrative model
 
 ### The model authors the player
 
-- Use Protected agency.
+- Use Forbidden (Strict) agency.
 - Keep Final Agency Anchor on.
 - Move Adherence Placement to Frontier.
 - Leave Model Adapter on Auto for a model whose runtime name contains `claude`, or choose Claude explicitly if the provider hides/renames the model.

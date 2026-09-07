@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyArgentPolicy, compileArgentPolicy } from '../src/domain/argent-policy.js';
-import { resolveTurnContract, resolveTurnContractFromMessages } from '../src/domain/preset-runtime.js';
+import { agencyAtTurn, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger } from '../src/domain/preset-runtime.js';
 
 function argent(values: Record<string, unknown> = {}) {
   return {
@@ -34,6 +34,11 @@ function argent(values: Record<string, unknown> = {}) {
             { id: 'active', label: 'Active', value: 'active' },
             { id: 'sandbox', label: 'Sandbox', value: 'sandbox' },
           ] },
+          { name: 'agency', type: 'select', defaultValue: 'protected', options: [
+            { id: 'protected', label: 'Forbidden', value: 'protected' },
+            { id: 'continuity', label: 'Minor Continuity', value: 'continuity' },
+            { id: 'director', label: 'Director', value: 'director' },
+          ] },
         ],
       },
       { id: 'arg-output-contract' },
@@ -46,7 +51,7 @@ describe('active preset turn contract', () => {
     expect(resolveTurnContract(argent())).toMatchObject({
       active: true, argent: true, state: true, reverie: true, dialogueColor: true,
       reasoningRoute: 'compact', stateCompiler: 'engine', stateVerbosity: 'lean', codex: true, inventory: true,
-      livingWorld: 'active',
+      livingWorld: 'active', agency: 'protected',
     });
   });
 
@@ -78,7 +83,8 @@ describe('active preset turn contract', () => {
     const policy = compileArgentPolicy(preset.prompt_order, preset.metadata.promptVariables);
     expect(policy).toContain('visible response MUST begin with the literal <reverie> tag');
     expect(policy).toContain('engine compiles state separately');
-    expect(policy).toContain('Do not emit JSON or a <vellum> block');
+    expect(policy).toContain('Do not emit any state tag, JSON, ledger or state commentary');
+    expect(policy).not.toContain('<vellum>');
   });
 
   it('can append the resolved policy when a host strips ARGENT source comments', () => {
@@ -95,12 +101,42 @@ describe('active preset turn contract', () => {
   it('uses the effective profile marker from the assembled host prompt', () => {
     const contract = resolveTurnContractFromMessages(argent({ state_on: 1, reasoning_route: 'compact' }), [{
       role: 'system',
-      content: '<!--VELLUM-EFFECTIVE {"state":0,"compiler":"inline","verbosity":"full","reasoning":"silent","dialogueColor":0,"codex":0,"inventory":0,"worldgen":1,"livingWorld":"sandbox"}-->',
+      content: '<!--VELLUM-EFFECTIVE {"state":0,"compiler":"inline","verbosity":"full","reasoning":"silent","agency":"director","dialogueColor":0,"codex":0,"inventory":0,"worldgen":1,"livingWorld":"sandbox"}-->',
     }]);
     expect(contract).toMatchObject({
       state: false, stateCompiler: 'inline', stateVerbosity: 'full', reasoningRoute: 'silent', reverie: false,
-      dialogueColor: false, codex: false, inventory: false, worldgen: true, livingWorld: 'sandbox',
+      dialogueColor: false, codex: false, inventory: false, worldgen: true, livingWorld: 'sandbox', agency: 'director',
     });
+  });
+
+  it('resolves agency from each turn marker without carrying the prior turn forward', () => {
+    const preset = argent({ agency: 'protected' });
+    const forbidden = resolveTurnContractFromMessages(preset, [{ role: 'system', content: '<!--VELLUM-EFFECTIVE {"agency":"protected"}-->' }]);
+    const continuity = resolveTurnContractFromMessages(preset, [{ role: 'system', content: '<!--VELLUM-EFFECTIVE {"agency":"continuity"}-->' }]);
+    const director = resolveTurnContractFromMessages(preset, [{ role: 'system', content: '<!--VELLUM-EFFECTIVE {"agency":"director"}-->' }]);
+    expect(forbidden?.agency).toBe('protected');
+    expect(continuity?.agency).toBe('continuity');
+    expect(director?.agency).toBe('director');
+  });
+
+  it('records compact per-turn agency runs and preserves later turns during a refold', () => {
+    let ledger = parseTurnAgencyLedger('');
+    ledger = recordTurnAgency(ledger, 1, 'protected');
+    ledger = recordTurnAgency(ledger, 2, 'director');
+    ledger = recordTurnAgency(ledger, 3, 'director');
+    expect(ledger).toEqual({ through: 3, runs: [[2, 'director']] });
+    ledger = recordTurnAgency(ledger, 1, 'continuity');
+    expect(agencyAtTurn(ledger, 1)).toBe('continuity');
+    expect(agencyAtTurn(ledger, 2)).toBe('director');
+    expect(parseTurnAgencyLedger(serializeTurnAgencyLedger(ledger))).toEqual(ledger);
+  });
+
+  it('targets the next assistant turn from chat history only', () => {
+    expect(prospectiveAssistantTurn([
+      { role: 'assistant', content: 'instructional example', __isChatHistory: false },
+      { role: 'assistant', content: 'turn one', __isChatHistory: true },
+      { role: 'user', content: 'next', __isChatHistory: true },
+    ])).toBe(2);
   });
 
   it('infers Living World mode from an expanded legacy prompt when no marker exists', () => {
@@ -120,5 +156,13 @@ describe('active preset turn contract', () => {
       reasoningRoute: 'native', reverie: false, state: true, stateCompiler: 'inline', stateVerbosity: 'full',
       dialogueColor: true, codex: true, inventory: true,
     });
+  });
+
+  it('keeps Engine Second Pass active when an older host strips the effective marker', () => {
+    const contract = resolveTurnContractFromMessages(argent({ state_on: 1, state_compiler: 'inline' }), [{
+      role: 'system',
+      content: '[OUTPUT — FOLLOW EXACTLY]\n[ENGINE SECOND PASS] Finish story prose. The engine compiles and validates state separately.\n[FINAL AGENCY ANCHOR — director]',
+    }]);
+    expect(contract).toMatchObject({ state: true, stateCompiler: 'engine', agency: 'director' });
   });
 });

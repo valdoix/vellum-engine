@@ -63,12 +63,12 @@ describe('ARGENT dialogue-color bridge', () => {
     expect(output?.position).toBe('post_history');
     expect(preset.blocks.at(-1)?.id).toBe('arg-output-contract');
     expect(output?.content).toContain('[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]');
-    expect(output?.content).toContain('wrap EVERY directly spoken quoted passage');
-    expect(output?.content).toContain('This markup is mandatory, not optional decoration');
+    expect(output?.content).toContain('Every named live speaker uses');
+    expect(output?.content).toContain('Never leave eligible direct speech bare');
     expect(output?.content).toContain('do not postpone tagging until a later proofreading pass');
     expect(output?.content).toContain('scan every opening dialogue quote');
     expect(output?.content).toContain('[GLM FINAL COMPLIANCE GATE]');
-    expect(output?.content).toContain('no bare live direct-speech quotation for a named speaker');
+    expect(output?.content).toContain('No bare named-speaker quote');
   });
 
   it('uses the exact VELLUM display contract and remains enabled', () => {
@@ -172,7 +172,7 @@ describe('ARGENT dialogue-color bridge', () => {
 
 describe('ARGENT state and player-agency final gates', () => {
   it('ships the atomic state compiler and repeats its completion gate last', () => {
-    expect(preset.presetVersion).toBe('1.2.3');
+    expect(preset.presetVersion).toBe('1.3.0');
     expect(preset.samplerOverrides.maxTokens).toBe(20000);
 
     const compiler = block('arg-state-final');
@@ -195,26 +195,26 @@ describe('ARGENT state and player-agency final gates', () => {
 
   it('reinforces protected agency for every model near generation', () => {
     const adapter = block('arg-model-adapter');
-    expect(adapter.content).toContain('[CLAUDE RELIABILITY ADAPTER]');
+    expect(adapter.content).toContain('[CLAUDE]');
     expect(adapter.content).toContain('{{matches::{{model}}::claude::i}}');
-    expect(adapter.content).toContain("does not override the selected agency boundary");
+    expect(adapter.content).toContain('Do not complete a natural causal chain through an unsupplied player predicate');
 
     const anchor = block('arg-final-anchor');
     expect(anchor.position).toBe('post_history');
     expect(anchor.content).toContain('[FINAL AGENCY ANCHOR — {{var::agency}}]');
     expect(anchor.content).toContain('[PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE]');
     expect(anchor.content).toContain('{{eq::{{var::agency}}::protected}}');
-    expect(anchor.content).toContain('scan every sentence whose subject is {{user}} or "you"');
-    expect(anchor.content).toContain('<vellum> block{{/if}} to smuggle in player behavior or interiority');
+    expect(anchor.content).toContain('Scan every sentence whose subject is {{user}} or “you”');
+    expect(anchor.content).toContain('or state{{/if}} to smuggle a player result');
   });
 
   it('auto-detects GLM and gives it an explicit prose and state budget', () => {
     const adapter = block('arg-model-adapter');
-    expect(adapter.content).toContain('[GLM RELIABILITY ADAPTER — output ceiling {{maxResponse}} tokens]');
+    expect(adapter.content).toContain('[GLM — ceiling {{maxResponse}}]');
     expect(adapter.content).toContain('{{matches::{{model}}::glm::i}}');
-    expect(adapter.content).toContain('at least ~1,200 tokens remain');
-    expect(adapter.content).toContain('end prose by roughly two-thirds');
-    expect(adapter.content).toContain('Do not draft bare dialogue and promise to retrofit it later');
-    expect(adapter.content).toContain('Never trade the closing tag for more prose');
+    expect(adapter.content).toContain('Reserve at least ~1,200 tokens for state');
+    expect(adapter.content).toContain('end prose by two-thirds');
+    expect(adapter.content).toContain('Open each [spk=Exact Name] before its quotation');
+    expect(adapter.content).toContain('never trade </vellum> for more prose');
   });
 });

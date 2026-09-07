@@ -50,6 +50,16 @@ describe('effective policy compilation and profiles', () => {
     const capsule = compileArgentPolicy(blocks);
     expect(capsule.length).toBeLessThan(blocks.reduce((n: number, b: any) => n + b.content.length, 0) / 2);
   });
+  it.each([
+    ['protected', 'FORBIDDEN FINAL GATE'],
+    ['continuity', 'MINOR CONTINUITY FINAL GATE'],
+    ['director', 'DIRECTOR FINAL GATE'],
+  ])('ends the compact %s policy with its own per-turn agency gate', (agency, gate) => {
+    const selected = applyProfile(blocks, {}, { agency });
+    const capsule = compileArgentPolicy(blocks, selected);
+    expect(capsule).toContain(gate);
+    expect(capsule).toContain(`Player agency this turn:`);
+  });
   it('never promotes legacy raw-HTML VTK instructions into the runtime policy', () => {
     const selected = applyProfile(blocks, {}, { vtk: 'rare', vtk_cards: 1 });
     const capsule = compileArgentPolicy(blocks, selected);

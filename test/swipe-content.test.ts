@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { activeContent } from '../src/host/chats.js';
+import { activeContent, messagePartsAtTurn } from '../src/host/chats.js';
 
 /**
  * Swipe handling: a swipe replaces the visible reply in place (same message
@@ -48,5 +48,19 @@ describe('activeContent — swipe-aware current content', () => {
     expect(activeContent(null)).toBe('');
     expect(activeContent({})).toBe('');
     expect(activeContent({ swipes: [] })).toBe('');
+  });
+});
+
+describe('messagePartsAtTurn', () => {
+  it('pairs each assistant with only its immediately preceding player input', () => {
+    const messages = [
+      { role: 'system', content: 'rules' },
+      { role: 'user', content: 'I try the latch.' },
+      { role: 'assistant', content: 'The latch resists.' },
+      { role: 'user', content: 'OOC: Direct Mara to leave.' },
+      { role: 'assistant', content: 'Mara leaves.' },
+    ];
+    expect(messagePartsAtTurn(messages, 1)).toEqual({ userInput: 'I try the latch.', assistant: 'The latch resists.' });
+    expect(messagePartsAtTurn(messages, 2)).toEqual({ userInput: 'OOC: Direct Mara to leave.', assistant: 'Mara leaves.' });
   });
 });

@@ -253,6 +253,14 @@ describe('strict pre-commit state compiler', () => {
     expect(generate.mock.calls[0]![0][1].content).toContain('"livingWorld":"sandbox"');
     expect(generate.mock.calls[0]![0][1].content).toContain('Ada waits at the East Gate for the courier');
   });
+  it.each(['protected', 'continuity', 'director'] as const)('passes the %s agency contract for this turn only', (agency) => {
+    const i = input();
+    i.agency = agency;
+    i.userInput = agency === 'director' ? 'OOC: Direct Mara to leave with me.' : 'I reach for the latch.';
+    const context = JSON.parse(compilerContext(i));
+    expect(context.controls.agency).toBe(agency);
+    expect(context.latestUser).toBe(i.userInput);
+  });
   it('does not salvage a truncated provider response; bounded retry can recover', async () => {
     const generate = vi.fn().mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()).slice(0, -12) }).mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()) });
     const r = await compileState(input(), null, undefined, generate);

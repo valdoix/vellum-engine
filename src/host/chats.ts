@@ -48,6 +48,26 @@ export function activeContent(m: any): string {
   return typeof m.content === 'string' ? m.content : '';
 }
 
+/** Return the exact player input and assistant reply paired to an assistant turn. */
+export function messagePartsAtTurn(messages: readonly any[], turn: number): { userInput: string; assistant: string } | null {
+  if (!Number.isSafeInteger(turn) || turn < 1) return null;
+  let current = 0;
+  let pendingUser: string[] = [];
+  for (const message of messages) {
+    if (!message) continue;
+    if (message.role === 'user') {
+      const content = activeContent(message).trim();
+      if (content) pendingUser.push(content);
+      continue;
+    }
+    if (message.role !== 'assistant') continue;
+    current += 1;
+    if (current === turn) return { userInput: pendingUser.join('\n\n'), assistant: activeContent(message) };
+    pendingUser = [];
+  }
+  return null;
+}
+
 /**
  * Chat + message host access. The regex-proof read path: stored message content
  * keeps the ‹vellum› block even when display regex hides it from the reader.

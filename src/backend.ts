@@ -2,7 +2,7 @@ import { VELLUM_VERSION } from './version.js';
 import type { ChatForkedPayloadDTO, ChatSwitchedPayloadDTO, GenerationEndedPayloadDTO, InterceptorContextDTO, LlmMessageDTO, PromptBlockDTO, PromptVariableValuesDTO } from 'lumiverse-spindle-types';
 import { restoreUser, rememberUser, currentUser, requireUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, looksLikeTimestamp, getChatVar, setChatVar, invalidateChatVars, getRawMessages, activeContent } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, looksLikeTimestamp, getChatVar, setChatVar, invalidateChatVars, getRawMessages, activeContent, messagePartsAtTurn } from './host/chats.js';
 import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logRevision, logHasKind, truncateAfterTurn, turnSigs, turnDays, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -56,7 +56,7 @@ import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOff
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
-import { resolveTurnContract, resolveTurnContractFromMessages, type TurnContract } from './domain/preset-runtime.js';
+import { agencyAtTurn, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
@@ -390,6 +390,7 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
   // turns state/reverie validation into a real contract instead of guessing from
   // whichever tags happened to survive in the response.
   const turnContract = await activeTurnContract(chatId, userId);
+  const turnAgencyLedger = await activeTurnAgencyLedger(chatId, userId);
   const structuredStateEnabled = turnContract?.state !== false;
   const engineCompiler = structuredStateEnabled && turnContract?.stateCompiler === 'engine';
   let prior = await loadState(chatId);
@@ -456,12 +457,16 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
       if (pendingRollback !== null && stagedExpectedRevision === undefined) stagedExpectedRevision = expectedRevision;
       const baseline = structuredClone(prior);
       const liveRevision = stateRevision(await loadState(chatId));
-      const prose = stripScaffold(content);
       const raw = await getRawMessages(chatId);
-      const latestUser = [...raw].reverse().find((m: any) => m.role === 'user');
-      const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(latestUser ? activeContent(latestUser) : '');
+      const parts = messagePartsAtTurn(raw, turnNo);
+      const prose = stripScaffold(parts?.assistant ?? content);
+      const userInput = parts?.userInput ?? '';
+      const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
       const compilerConnection = await getChatVar(chatId, 'vellum_compiler_connection');
-      compiled = await compileState({ prior: baseline, turn: turnNo, prose, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off' }, userId, compilerConnection ? String(compilerConnection) : undefined);
+      const agency = turnNo <= turnAgencyLedger.through
+        ? agencyAtTurn(turnAgencyLedger, turnNo)
+        : turnContract?.agency ?? 'protected';
+      compiled = await compileState({ prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency }, userId, compilerConnection ? String(compilerConnection) : undefined);
       const current = await allTurnContents(chatId);
       const unchanged = current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
       if (!compiled.ok || !unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
@@ -752,7 +757,9 @@ const TIDY_THRESHOLD = 8; // auto-tidy only once open-thread count exceeds this
 const _presetStamped = new Map<string, number>(); // chatId -> lastStampedAt (epoch ms)
 const _presetByUserChat = new Map<string, string>();
 const _turnContractByUserChat = new Map<string, TurnContract>();
+const _turnAgencyByUserChat = new Map<string, TurnAgencyLedger>();
 const TURN_CONTRACT_CHAT_VAR = 'vellum_active_turn_contract_v1';
+const TURN_AGENCY_CHAT_VAR = 'vellum_turn_agency_v1';
 const PRESET_STAMP_THROTTLE = 5 * 60 * 1000; // stamp at most once per 5 minutes per chat
 function userChatKey(userId: string | null | undefined, chatId: string): string { return (userId ?? '') + '\u0000' + chatId; }
 function storedTurnContract(raw: unknown, expectedPresetId?: string): TurnContract | null {
@@ -775,7 +782,10 @@ function storedTurnContract(raw: unknown, expectedPresetId?: string): TurnContra
     const livingWorld = c.livingWorld === 'off' || c.livingWorld === 'minimal' || c.livingWorld === 'active' || c.livingWorld === 'sandbox'
       ? c.livingWorld
       : c.argent ? 'active' : 'off';
-    return { ...c, livingWorld } as TurnContract;
+    const agency = c.agency === 'continuity' || c.agency === 'director' || c.agency === 'protected'
+      ? c.agency
+      : 'protected';
+    return { ...c, livingWorld, agency } as TurnContract;
   } catch { return null; }
 }
 async function activeTurnContract(chatId: string, userId: string | null): Promise<TurnContract | null> {
@@ -804,6 +814,20 @@ async function activeTurnContract(chatId: string, userId: string | null): Promis
     spindle.log?.warn?.('[vellum_engine] active preset contract: ' + ((e as Error)?.message ?? e));
     return null;
   }
+}
+async function activeTurnAgencyLedger(chatId: string, userId: string | null): Promise<TurnAgencyLedger> {
+  const key = userChatKey(userId, chatId);
+  const cached = _turnAgencyByUserChat.get(key);
+  if (cached) return cached;
+  const parsed = parseTurnAgencyLedger(await getChatVar(chatId, TURN_AGENCY_CHAT_VAR));
+  _turnAgencyByUserChat.set(key, parsed);
+  return parsed;
+}
+async function rememberTurnAgency(chatId: string, userId: string | null, turn: number, agency: TurnContract['agency']): Promise<void> {
+  const key = userChatKey(userId, chatId);
+  const next = recordTurnAgency(await activeTurnAgencyLedger(chatId, userId), turn, agency);
+  _turnAgencyByUserChat.set(key, next);
+  await setChatVar(chatId, TURN_AGENCY_CHAT_VAR, serializeTurnAgencyLedger(next));
 }
 async function stampCompanionPreset(chatId: string, userId: string | null): Promise<void> {
   try {
@@ -1546,7 +1570,10 @@ async function wireCapabilitiesInner(): Promise<void> {
               _presetByUserChat.set(contractKey, context.presetId);
               if (turnContract) {
                 _turnContractByUserChat.set(contractKey, turnContract);
-                await setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, JSON.stringify({ presetId: context.presetId, contract: turnContract }));
+                await Promise.all([
+                  setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, JSON.stringify({ presetId: context.presetId, contract: turnContract })),
+                  rememberTurnAgency(chatId, uid, prospectiveAssistantTurn(rawOut), turnContract.agency),
+                ]);
               } else {
                 _turnContractByUserChat.delete(contractKey);
                 await setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, '');
@@ -1770,6 +1797,7 @@ function pruneChatState(chatId: string): void {
   _blockWarnByChat.delete(chatId);
   for (const key of _presetByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _presetByUserChat.delete(key);
   for (const key of _turnContractByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _turnContractByUserChat.delete(key);
+  for (const key of _turnAgencyByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _turnAgencyByUserChat.delete(key);
   // clear this chat's block-repair attempt keys (keyed by chatId\0messageId)
   const rp = chatId + '\u0000';
   for (const k of _blockRepairAttempts) if (k.startsWith(rp)) _blockRepairAttempts.delete(k);

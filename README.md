@@ -31,7 +31,7 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **ARGENT LOOM 1.2.2** — the optional ARGENT preset now defaults to a separate engine-owned state pass with strict local validation and atomic Chronicle commits. It also adds genuinely distinct Lean/Full contracts, Verbose Reverie, compact effective-policy assembly, profiles and dependency-aware controls, real assembled-token measurement, operation-based off-screen reconciliation, reviewable lore corrections, typed sandboxed artifacts, deterministic build drift checks, a monotonic absolute-time gate, and a live-provider behavioral evaluation harness. See `presets/ARGENT-LOOM-README.md`.
+> **ARGENT LOOM 1.3.0** — the narrative prompt is smaller and stronger, Engine Second Pass is now strictly prose-only, and Forbidden/Minor Continuity/Director agency is resolved independently for every turn and passed into state compilation with the exact latest user input. The final governor retains strict knowledge, monotonic time, plot-evidence, speaker-markup, and inline-state gates without repeating the full doctrine. See `presets/ARGENT-LOOM-README.md`.
 
 > **Extension 2.1.0-beta.9 (testing)** — adds streamed summarization progress, safe cancellation, configurable summary token limits, completion-driven retries, verified archival coverage, refreshed knowledge/secret propagation, and stronger long-session retrieval.
 

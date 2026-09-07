@@ -43,7 +43,8 @@ export async function evaluateArgent(blocks: PolicyBlock[], generate: typeof int
     let compilerErrors: string[] | undefined;
     if (narrative.ok && scenario.controls?.state_on !== 0) {
       const livingWorld = resolved.living_world === 'off' || resolved.living_world === 'minimal' || resolved.living_world === 'sandbox' ? resolved.living_world : 'active';
-      const compiled = await compileState({ prior: scenario.prior, turn: (scenario.prior.turns || 0) + 1, prose, userName: 'Player', genesisAllowed: !!scenario.genesis, verbosity: resolved.state_verbosity === 'full' ? 'full' : 'lean', codexAllowed: resolved.codex !== 0, inventoryAllowed: resolved.inventory !== 0, livingWorld }, null, undefined, generate);
+      const agency = resolved.agency === 'director' ? 'director' : resolved.agency === 'continuity' ? 'continuity' : 'protected';
+      const compiled = await compileState({ prior: scenario.prior, turn: (scenario.prior.turns || 0) + 1, prose, userInput: scenario.prompt, userName: 'Player', genesisAllowed: !!scenario.genesis, verbosity: resolved.state_verbosity === 'full' ? 'full' : 'lean', codexAllowed: resolved.codex !== 0, inventoryAllowed: resolved.inventory !== 0, livingWorld, agency }, null, undefined, generate);
       if (!compiled.ok) { compilerErrors = compiled.errors; violations.push('State compilation rejected'); }
       else {
         const s = compiled.candidate.state;

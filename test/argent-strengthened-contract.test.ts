@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { expandMacros } from '../src/domain/preset-macro-lite.js';
+import { calculatePresetBudget } from '../src/domain/preset-budget.js';
 
 interface PromptVariable {
   name: string;
@@ -49,8 +50,8 @@ function expandedBlock(id: string, overrides: Record<string, unknown> = {}): str
 }
 
 describe('ARGENT strengthened invariants', () => {
-  it('ships the 1.2 control surface without Guided Choices', () => {
-    expect(preset.presetVersion).toBe('1.2.3');
+  it('ships the 1.3 control surface without Guided Choices', () => {
+    expect(preset.presetVersion).toBe('1.3.0');
     expect(() => variable('guided_choices')).toThrow();
     expect(preset.blocks.some((entry) => entry.content.includes('<argent-choices>'))).toBe(false);
   });
@@ -59,7 +60,7 @@ describe('ARGENT strengthened invariants', () => {
     expect(block('arg-channel-agency')).toContain('An attempted action authorizes only the stated attempt');
     expect(block('arg-channel-agency')).toContain('Second-person grammar is not permission');
     expect(block('arg-final-anchor')).toContain('PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE');
-    expect(block('arg-output-contract')).toContain('PLAYER AUTHORSHIP — NON-NEGOTIABLE FINAL GATE');
+    expect(block('arg-output-contract')).toContain('PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE');
     expect(block('arg-state-final')).toContain('state must not invent player behavior');
   });
 
@@ -102,10 +103,11 @@ describe('ARGENT strengthened invariants', () => {
     expect(compiler).toContain('[FINAL STATE COMPILER — FULL, ATOMIC AND MANDATORY]');
     expect(schema).toContain('List every named on-stage NPC and give each a concise first-person private thought');
     expect(compiler).toContain('Include every named on-stage NPC with a concise private first-person thought');
-    expect(expandedBlock('arg-state-schema', { state_verbosity: 'lean' })).toContain('VELLUM STATE — LEAN CONTRACT');
-    expect(expandedBlock('arg-state-schema', { state_verbosity: 'lean' })).not.toContain('VELLUM STATE — FULL CONTRACT');
-    expect(expandedBlock('arg-state-schema', { state_verbosity: 'full' })).toContain('VELLUM STATE — FULL CONTRACT');
-    expect(expandedBlock('arg-state-schema', { state_verbosity: 'full' })).not.toContain('VELLUM STATE — LEAN CONTRACT');
+    expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'lean' })).toContain('VELLUM STATE — LEAN CONTRACT');
+    expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'lean' })).not.toContain('VELLUM STATE — FULL CONTRACT');
+    expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'full' })).toContain('VELLUM STATE — FULL CONTRACT');
+    expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'full' })).not.toContain('VELLUM STATE — LEAN CONTRACT');
+    expect(expandedBlock('arg-state-schema', { state_compiler: 'engine', state_verbosity: 'full' })).toBe('');
   });
 
   it('offers a bounded eight-section Verbose Reverie route', () => {
@@ -116,16 +118,19 @@ describe('ARGENT strengthened invariants', () => {
     expect(controller).toContain('[ARGENT — VERBOSE REVERIE]');
     expect(controller).toContain('roughly 250–500 words');
     expect(controller).toContain('X — Final checks');
-    expect(output).toContain('eight detailed Verbose audit sections');
+    expect(output).toContain('eight bounded Verbose sections');
   });
 
-  it('assembles every planning route correctly with state on and off', () => {
+  it('assembles every planning route correctly across engine, inline, and state-off modes', () => {
     for (const stateOn of [0, 1]) {
-      for (const route of ['compact', 'verbose', 'native', 'silent']) {
-        const output = expandedBlock('arg-output-contract', { state_on: stateOn, reasoning_route: route });
-        const visibleReverie = route === 'compact' || route === 'verbose';
-        expect(output.includes('<reverie>'), `${route}, state=${stateOn}`).toBe(visibleReverie);
-        expect(output.includes('<vellum>'), `${route}, state=${stateOn}`).toBe(stateOn === 1);
+      for (const compiler of ['engine', 'inline']) {
+        for (const route of ['compact', 'verbose', 'native', 'silent']) {
+          const output = expandedBlock('arg-output-contract', { state_on: stateOn, state_compiler: compiler, reasoning_route: route });
+          const visibleReverie = route === 'compact' || route === 'verbose';
+          expect(output.includes('<reverie>'), `${route}, ${compiler}, state=${stateOn}`).toBe(visibleReverie);
+          expect(output.includes('<vellum>'), `${route}, ${compiler}, state=${stateOn}`).toBe(stateOn === 1 && compiler === 'inline');
+          expect(output.includes('[ENGINE SECOND PASS]'), `${route}, ${compiler}, state=${stateOn}`).toBe(stateOn === 1 && compiler === 'engine');
+        }
       }
     }
     const verbose = expandedBlock('arg-controller', { reasoning_route: 'verbose', state_on: 1 });
@@ -139,7 +144,7 @@ describe('ARGENT strengthened invariants', () => {
     const output = block('arg-output-contract');
     expect(variable('dialogue_color').defaultValue).toBe(1);
     expect(dialogue).toContain('[spk=Canonical Cast Name]');
-    expect(dialogue).toContain('Never nest wrappers or place two speakers in one wrapper');
+    expect(dialogue).toContain('never nest wrappers or place two speakers in one wrapper');
     expect(dialogue).toContain('FINAL COLOR AUDIT');
     expect(output).toContain('Never leave eligible direct speech bare');
     expect(expandedBlock('arg-colored-dialogue-contract', { dialogue_color: 0 })).toBe('');
@@ -162,9 +167,24 @@ describe('ARGENT strengthened invariants', () => {
 
   it('reaches Living World parallel gates using expanded option values', () => {
     expect(block('arg-control-engine')).toContain('"livingWorld":"{{var::living_world}}"');
-    expect(expandedBlock('arg-output-contract', { state_on: 1, living_world: 'active' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
-    expect(expandedBlock('arg-output-contract', { state_on: 1, living_world: 'sandbox' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
-    expect(expandedBlock('arg-output-contract', { state_on: 1, living_world: 'off' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'active' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'sandbox' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'engine', living_world: 'active' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+  });
+
+  it('exports the selected agency mode into the exact per-turn engine contract', () => {
+    expect(block('arg-control-engine')).toContain('"agency":"{{var::agency}}"');
+    expect(variable('agency').options?.map((option) => option.id)).toEqual(['protected', 'continuity', 'director']);
+    const forbidden = expandedBlock('arg-output-contract', { agency: 'protected' });
+    const continuity = expandedBlock('arg-output-contract', { agency: 'continuity' });
+    const director = expandedBlock('arg-output-contract', { agency: 'director' });
+    expect(forbidden).toContain('PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE');
+    expect(forbidden).not.toContain('PLAYER AUTHORSHIP — DIRECTOR FINAL GATE');
+    expect(continuity).toContain('PLAYER AUTHORSHIP — MINOR CONTINUITY FINAL GATE');
+    expect(continuity).not.toContain('PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE');
+    expect(director).toContain('PLAYER AUTHORSHIP — DIRECTOR FINAL GATE');
+    expect(director).not.toContain('PLAYER AUTHORSHIP — MINOR CONTINUITY FINAL GATE');
   });
 
   it('reconciles parallel events as a final T1 snapshot instead of stale history', () => {
@@ -205,7 +225,19 @@ describe('ARGENT strengthened invariants', () => {
     expect(compiler).toContain('remains unaware until an explicit bridge reaches them');
     expect(output).toContain('[OFF-SCENE KNOWLEDGE — NON-NEGOTIABLE FINAL GATE]');
     expect(output).toContain('Later entry never grants retroactive hearing');
-    expect(output).toContain('if no access path can be named, keep A unaware');
+    expect(output).toContain('If none exists, keep them unaware');
+  });
+
+  it('keeps the default engine prompt compact and free of inline-state instructions', () => {
+    const expanded = preset.blocks.map((entry) => expandMacros(entry.content, promptValues())).join('\n');
+    expect(expanded).toContain('[ENGINE SECOND PASS]');
+    expect(expanded).not.toContain('[VELLUM STATE — LEAN CONTRACT]');
+    expect(expanded).not.toContain('[FINAL STATE COMPILER');
+    expect(expanded).not.toContain('[STATE SERIALIZATION — FINAL GATE]');
+    expect(expanded).not.toContain('<vellum>');
+    expect(expanded).not.toContain('through ext.codex');
+    expect(expanded).not.toContain('through delta.factions');
+    expect(calculatePresetBudget(preset.blocks as any).totalTokens).toBeLessThanOrEqual(7500);
   });
 
   it('enables causal NPC-to-NPC dialogue without weakening agency or knowledge', () => {

@@ -34,7 +34,7 @@ export function applyProfile(blocks: PolicyBlock[], selected: VariableValues, ch
 }
 export function dependencyIssues(v: Record<string, unknown>): Record<string, string> {
   const issues: Record<string, string> = {};
-  issues.vtk = 'Deprecated in ARGENT 1.2; use Card Library for typed artifacts.';
+  issues.vtk = 'Deprecated in ARGENT 1.3; use Card Library for typed artifacts.';
   if (!enabled(v.vtk_cards)) { issues.vtk_spectacle = 'Requires Card Library.'; issues.world_broadsheet = 'Requires Card Library.'; }
   if (!enabled(v.antislop)) issues.slop_proofreader = 'Requires Anti-Slop.';
   if (!enabled(v.state_on)) { issues.state_verbosity = 'State output is disabled.'; issues.state_compiler = 'State output is disabled.'; issues.worldgen = 'Genesis requires state output.'; }
@@ -47,10 +47,22 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
   const v = policyValues(blocks, selected);
   const issues = dependencyIssues(v);
   const defs = blocks.flatMap(b => b.variables ?? []);
-  const settings = defs.filter(d => !issues[d.name] && !['hard_limits', 'state_compiler', 'reasoning_route', 'state_on', 'state_verbosity', 'agency', 'agency_reminder', 'craft_anchor', 'adherence_target', 'vtk'].includes(d.name)).map(d => {
-    const value = v[d.name];
-    const describe = (x: unknown) => { const o = d.options?.find(o => o.id === x); return String(o?.value !== o?.id && o?.value !== undefined ? o.value : o?.label ?? x); };
-    return `${d.label ?? d.name}: ${Array.isArray(value) ? value.map(describe).join('; ') : describe(value)}.`;
+  const byName = new Map(defs.map(d => [d.name, d]));
+  const describe = (name: string): string => {
+    const def = byName.get(name);
+    const value = v[name];
+    const one = (x: unknown) => def?.options?.find(o => o.id === x)?.label ?? String(x ?? '');
+    return Array.isArray(value) ? value.map(one).filter(Boolean).join(', ') : one(value);
+  };
+  const compactGroups: Array<[string, string[]]> = [
+    ['Voice', ['pov', 'tense', 'distance', 'length', 'pacing', 'dialogue', 'prose', 'stakes', 'genre', 'genre2']],
+    ['Craft', ['doctrine_strictness', 'metaphor', 'diction', 'sensory', 'filter_words', 'paragraph_shape', 'profanity', 'era', 'era_strictness', 'cast', 'interiority']],
+    ['World', ['epistemic', 'living_world', 'world_scale', 'world_texture', 'romance', 'disposition', 'social', 'politics', 'failure_shape', 'reveal_cadence', 'world_law', 'antagonist_pressure', 'variance']],
+    ['Output', ['npc_dialogue', 'time_continuity', 'codex', 'inventory', 'nsfw_level', 'nsfl', 'vtk_cards', 'vtk_spectacle', 'dialogue_color']],
+  ];
+  const settings = compactGroups.map(([label, names]) => {
+    const active = names.filter(name => byName.has(name) && !issues[name]).map(name => `${name}=${describe(name)}`);
+    return active.length ? `${label}: ${active.join('; ')}.` : '';
   });
   const visibleReverie = v.reasoning_route === 'verbose'
     ? 'The visible response MUST begin with the literal <reverie> tag, contain the bounded 250–500 word eight-section audit, and close with the literal </reverie> tag before story prose. This is a visible fictional scene-plan preface, not provider-private reasoning; never omit it or move it to a hidden reasoning channel.'
@@ -60,15 +72,23 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
   const stateEnding = !enabled(v.state_on)
     ? 'After the selected Reverie, if any, output story prose only. No state block.'
     : v.state_compiler === 'engine'
-      ? 'After the required visible Reverie, if selected, output the completed story and stop. The engine compiles state separately. Do not emit JSON or a <vellum> block in the narrative completion.'
+      ? 'After the required visible Reverie, if selected, output the completed story and stop. The engine compiles state separately. Do not emit any state tag, JSON, ledger or state commentary.'
       : 'After the selected Reverie, if any, output story prose and then one complete canonical <vellum> JSON block using the separately supplied state contract. Every named on-stage NPC has a private thought; player fields remain blank.';
+  const agencyEnding = v.agency === 'director'
+    ? 'DIRECTOR FINAL GATE: author the player only inside the latest explicit directorial instruction. Do not expand its goal, invent consent, add an unrelated choice or continue player autonomy after the directed beat.'
+    : v.agency === 'continuity'
+      ? 'MINOR CONTINUITY FINAL GATE: complete only the mechanically inevitable endpoint of a trivial player action explicitly begun in the latest input. Add no speech, interiority, consent, strategy, reaction, injury, second action or new choice.'
+      : 'FORBIDDEN FINAL GATE: keep a player predicate only when the latest input supplied it exactly. An attempt grants no success, consequence, reaction or follow-up. Recast every violation on the NPC or world side.';
+  const agencyLabel = v.agency === 'director' ? 'Director' : v.agency === 'continuity' ? 'Minor Continuity' : 'Forbidden (Strict)';
   const rules = [
     '[ARGENT EFFECTIVE POLICY]',
     'Authority: explicit user boundaries and corrections > confirmed engine facts > scenario/card/worldbook > provisional lore > inferred detail. Never turn a provisional invention into confirmed canon. Follow character truth and depicted causality.',
-    `Player agency: ${v.agency}. Protected forbids every unsupplied player action, utterance, perception, sensation, reaction, consequence, consent and inner state. An attempt licenses only the stated attempt. Minor continuity completes only trivial player-started actions. Director requires explicit direction; never invent consent. Apply only the selected mode.`,
-    'Knowledge: audit each character and fact against actual presence, hearing, language and a demonstrated transmission path. Later entry grants no retroactive hearing. Suspicion cannot supply a hidden transcript. Keep private thoughts bounded by that character’s knowledge.',
-    'Reality: start from the current physical scene; account for movement, occupied hands, objects and elapsed time. A continuous exact clock crosses midnight by advancing day. Off-stage actors act only through plausible access and motives; establish consequential developments in narrative before they enter state.',
-    'Craft: sustain distinct character voices and motives. Prefer concrete action, subtext and specific sensory detail. Avoid repeated openings, imagery and paragraph patterns unless repetition is a deliberate motif, speech habit or ritual. Preserve a character’s stable voice fingerprint; do not rotate traits to meet a quota. End at a natural opening for player action.',
+    `Player agency this turn: ${agencyLabel}. Forbidden rejects every unsupplied player action, utterance, perception, sensation, reaction, consequence, consent and inner state. An attempt licenses only the stated attempt. Minor Continuity completes only a trivial mechanically inevitable endpoint already begun. Director stays inside explicit direction and never invents consent. Apply only this turn's selected mode.`,
+    'Knowledge: audit every character/fact pair against actual presence, hearing, language and a timed transmission path. Later entry grants no retroactive hearing. Evidence supports only bounded inference; private thought cannot exceed its owner’s knowledge.',
+    'Reality: bind the current scene as T0; account for routes, occupied hands, object custody and elapsed time. Compute day x 1440 + clock and forbid rollback. Off-stage actors require motive, access, means and time.',
+    'Causality: advance one smallest meaningful change. Before discovery, interruption, rescue, betrayal or escalation, verify actor, motive, knowledge, access, means, route and time. A missing link means trace, delay or deletion.',
+    'Durability: threads and arcs change only when the exact tracked condition changes through a direct prose event. Mentions, shared people or places, elapsed time and thematic similarity do not advance them. Relationships remain directional; intensity is not trust, consent or commitment.',
+    'Craft: sustain stable, distinct voice fingerprints and active motives. Prefer concrete action, subtext and sourced sensory detail. Avoid recycled openings, imagery and cadence unless repetition creates a new consequence. End on live pressure without authoring the player’s response.',
     ...settings,
     v.hard_limits ? `Absolute content boundaries: ${String(v.hard_limits)}` : '',
     enabled(v.dialogue_color) ? 'Wrap each named direct speaker inline as [spk=Exact Cast Name]"speech"[/spk]. One speaker per wrapper; no guessed identities.' : 'Do not add speaker markup.',
@@ -77,6 +97,7 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     '[OUTPUT CONTRACT — FINAL]',
     visibleReverie,
     stateEnding,
+    agencyEnding,
   ];
   if (enabled(v.state_on) && v.state_compiler !== 'engine') {
     const values = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, String(x)]));

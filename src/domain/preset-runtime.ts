@@ -13,6 +13,13 @@ export interface TurnContract {
   inventory: boolean;
   worldgen: boolean;
   livingWorld: 'off' | 'minimal' | 'active' | 'sandbox';
+  agency: 'protected' | 'continuity' | 'director';
+}
+
+export type AgencyMode = TurnContract['agency'];
+export interface TurnAgencyLedger {
+  through: number;
+  runs: Array<[turn: number, agency: AgencyMode]>;
 }
 
 type PresetLike = Partial<UserPresetDTO> & {
@@ -66,10 +73,75 @@ interface EffectiveMarker {
   inventory?: unknown;
   worldgen?: unknown;
   livingWorld?: unknown;
+  agency?: unknown;
 }
 
 function livingWorldMode(value: unknown, fallback: TurnContract['livingWorld']): TurnContract['livingWorld'] {
   return value === 'off' || value === 'minimal' || value === 'active' || value === 'sandbox' ? value : fallback;
+}
+
+function agencyMode(value: unknown, fallback: TurnContract['agency']): TurnContract['agency'] {
+  if (value === 'forbidden') return 'protected';
+  return value === 'protected' || value === 'continuity' || value === 'director' ? value : fallback;
+}
+
+/** The assistant ordinal this assembled request will create or replace. */
+export function prospectiveAssistantTurn(messages: readonly MessageLike[]): number {
+  const flagged = messages.some((message) => Object.prototype.hasOwnProperty.call(message, '__isChatHistory'));
+  const history = flagged ? messages.filter((message) => message.__isChatHistory === true) : messages;
+  return history.reduce((count, message) => count + (message.role === 'assistant' ? 1 : 0), 0) + 1;
+}
+
+export function parseTurnAgencyLedger(raw: unknown): TurnAgencyLedger {
+  if (typeof raw !== 'string' || !raw) return { through: 0, runs: [] };
+  try {
+    const value = JSON.parse(raw) as { t?: unknown; r?: unknown };
+    const through = Number.isSafeInteger(value.t) && Number(value.t) > 0 ? Number(value.t) : 0;
+    if (!Array.isArray(value.r)) return { through, runs: [] };
+    const byTurn = new Map<number, AgencyMode>();
+    for (const row of value.r) {
+      if (!Array.isArray(row) || !Number.isSafeInteger(row[0]) || row[0] < 1 || row[0] > through) continue;
+      const agency = row[1] === 'p' ? 'protected' : row[1] === 'c' ? 'continuity' : row[1] === 'd' ? 'director' : null;
+      if (agency) byTurn.set(row[0], agency);
+    }
+    const runs = [...byTurn.entries()].sort((a, b) => a[0] - b[0]);
+    return { through, runs };
+  } catch {
+    return { through: 0, runs: [] };
+  }
+}
+
+export function agencyAtTurn(ledger: TurnAgencyLedger, turn: number, fallback: AgencyMode = 'protected'): AgencyMode {
+  let agency = fallback;
+  for (const [from, value] of ledger.runs) {
+    if (from > turn) break;
+    agency = value;
+  }
+  return agency;
+}
+
+/** Record one turn while retaining the agency previously assigned to later turns. */
+export function recordTurnAgency(ledger: TurnAgencyLedger, turn: number, agency: AgencyMode): TurnAgencyLedger {
+  if (!Number.isSafeInteger(turn) || turn < 1) return ledger;
+  const previousThrough = ledger.through;
+  const restore = turn < previousThrough ? agencyAtTurn(ledger, turn + 1) : null;
+  const points = new Map(ledger.runs);
+  points.set(turn, agency);
+  if (restore) points.set(turn + 1, restore);
+  const through = Math.max(previousThrough, turn);
+  const runs: TurnAgencyLedger['runs'] = [];
+  let prior: AgencyMode = 'protected';
+  for (const [from, value] of [...points.entries()].filter(([from]) => from <= through).sort((a, b) => a[0] - b[0])) {
+    if (value === prior) continue;
+    runs.push([from, value]);
+    prior = value;
+  }
+  return { through, runs };
+}
+
+export function serializeTurnAgencyLedger(ledger: TurnAgencyLedger): string {
+  const code = (agency: AgencyMode): 'p' | 'c' | 'd' => agency === 'protected' ? 'p' : agency === 'continuity' ? 'c' : 'd';
+  return JSON.stringify({ t: ledger.through, r: ledger.runs.map(([turn, agency]) => [turn, code(agency)]) });
 }
 
 function effectiveMarker(messages: readonly MessageLike[]): EffectiveMarker | null {
@@ -118,6 +190,7 @@ export function resolveTurnContract(preset: PresetLike | null | undefined): Turn
     inventory: argent && on(variableValue(preset, 'inventory'), true),
     worldgen: argent && on(variableValue(preset, 'worldgen'), false),
     livingWorld: argent ? livingWorldMode(variableValue(preset, 'living_world'), 'active') : 'off',
+    agency: argent ? agencyMode(variableValue(preset, 'agency'), 'protected') : 'protected',
   };
 }
 
@@ -149,6 +222,7 @@ export function resolveTurnContractFromMessages(
     next.inventory = base.argent && on(marker.inventory, base.inventory);
     next.worldgen = base.argent && on(marker.worldgen, base.worldgen);
     next.livingWorld = base.argent ? livingWorldMode(marker.livingWorld, base.livingWorld) : 'off';
+    next.agency = base.argent ? agencyMode(marker.agency, base.agency) : 'protected';
     return next;
   }
 
@@ -158,14 +232,18 @@ export function resolveTurnContractFromMessages(
     else if (/\[ARGENT — PRIVATE\]/i.test(prompt)) next.reasoningRoute = 'native';
     else if (/\[ARGENT — SILENT ONE-PASS\]/i.test(prompt)) next.reasoningRoute = 'silent';
     next.reverie = next.reasoningRoute === 'compact' || next.reasoningRoute === 'verbose';
+    if (/\[FINAL AGENCY ANCHOR — director\]|MODE director:/i.test(prompt)) next.agency = 'director';
+    else if (/\[FINAL AGENCY ANCHOR — continuity\]|MODE continuity:/i.test(prompt)) next.agency = 'continuity';
+    else if (/\[FINAL AGENCY ANCHOR — protected\]|MODE protected:/i.test(prompt)) next.agency = 'protected';
 
     const outputContractPresent = /\[OUTPUT — FOLLOW EXACTLY\]/i.test(prompt);
     if (outputContractPresent) {
-      next.state = /\[VELLUM STATE[^\n]*CONTRACT\]|\[STATE SERIALIZATION[^\n]*FINAL GATE\]|one complete <vellum>|ends with <\/vellum>/i.test(prompt);
+      const engineSecondPass = /\[ENGINE SECOND PASS\][^\n]*engine compiles and validates state separately/i.test(prompt);
+      next.state = engineSecondPass || /\[VELLUM STATE[^\n]*CONTRACT\]|\[STATE SERIALIZATION[^\n]*FINAL GATE\]|one complete <vellum>|ends with <\/vellum>/i.test(prompt);
       next.dialogueColor = /\[COLORED DIALOGUE[^\n]*(?:CONTRACT|MARKUP)\]/i.test(prompt);
       if (next.state) {
         const inlineSchema = /\[VELLUM STATE — (?:LEAN|FULL) CONTRACT\]|\[STATE COMPILER — FINAL\]/i.test(prompt);
-        next.stateCompiler = inlineSchema ? 'inline' : 'engine';
+        next.stateCompiler = engineSecondPass || !inlineSchema ? 'engine' : 'inline';
         if (/\[VELLUM STATE — FULL CONTRACT\]/i.test(prompt)) next.stateVerbosity = 'full';
         else if (/\[VELLUM STATE — LEAN CONTRACT\]/i.test(prompt)) next.stateVerbosity = 'lean';
       }

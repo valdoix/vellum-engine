@@ -65,12 +65,14 @@ export type CompilerInput = {
   prior: ChronicleState;
   turn: number;
   prose: string;
+  userInput?: string;
   userName: string;
   genesisAllowed: boolean;
   verbosity?: 'lean' | 'full';
   codexAllowed?: boolean;
   inventoryAllowed?: boolean;
   livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox';
+  agency?: 'protected' | 'continuity' | 'director';
 };
 export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string } | { ok: false; errors: string[] };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
