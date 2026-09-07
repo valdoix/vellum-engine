@@ -165,4 +165,24 @@ describe('active preset turn contract', () => {
     }]);
     expect(contract).toMatchObject({ state: true, stateCompiler: 'engine', agency: 'director' });
   });
+
+  it('recovers the exact Engine Second Pass contract when an older host omits presetId', () => {
+    const contract = resolveTurnContractFromMessages(null, [{
+      role: 'system',
+      content: '<!--VELLUM-EFFECTIVE {"state":1,"compiler":"engine","verbosity":"full","reasoning":"silent","agency":"continuity","dialogueColor":0,"codex":1,"inventory":0,"worldgen":1,"livingWorld":"sandbox"}-->',
+    }]);
+    expect(contract).toMatchObject({
+      active: true, argent: true, state: true, stateCompiler: 'engine', stateVerbosity: 'full',
+      reasoningRoute: 'silent', reverie: false, agency: 'continuity', dialogueColor: false,
+      codex: true, inventory: false, worldgen: true, livingWorld: 'sandbox',
+    });
+  });
+
+  it('recovers legacy Engine Second Pass without presetId but ignores ordinary prompts', () => {
+    expect(resolveTurnContractFromMessages(null, [{
+      role: 'system',
+      content: '[OUTPUT — FOLLOW EXACTLY]\n[ENGINE SECOND PASS] Finish story prose. The engine compiles and validates state separately.\n[FINAL AGENCY ANCHOR — director]',
+    }])).toMatchObject({ active: true, argent: true, state: true, stateCompiler: 'engine', agency: 'director' });
+    expect(resolveTurnContractFromMessages(null, [{ role: 'system', content: 'Please use a second pass when editing.' }])).toBeNull();
+  });
 });

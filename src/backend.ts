@@ -1555,33 +1555,35 @@ async function wireCapabilitiesInner(): Promise<void> {
           if (!chatId) return out;
           const contractKey = userChatKey(uid, chatId);
           let activePreset: any = null;
-          let turnContract: TurnContract | null = null;
           if (context.presetId && (await has('presets')) && spindle.presets?.get) {
             activePreset = await spindle.presets.get(context.presetId, uid);
-            // The incoming messages have already been assembled with the host's
-            // effective chat/persona/character/connection prompt-variable
-            // profile. Refine the base preset contract from that exact prompt so
-            // VELLUM never runs a different state/compiler policy than Loom.
-            turnContract = resolveTurnContractFromMessages(activePreset, rawOut);
-            // Dry-run previews must not replace the contract belonging to the
-            // real generation. A later interceptor without presetId also must
-            // not erase it before GENERATION_ENDED performs the state pass.
-            if (!context.isDryRun) {
-              _presetByUserChat.set(contractKey, context.presetId);
-              if (turnContract) {
-                _turnContractByUserChat.set(contractKey, turnContract);
-                await Promise.all([
-                  setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, JSON.stringify({ presetId: context.presetId, contract: turnContract })),
-                  rememberTurnAgency(chatId, uid, prospectiveAssistantTurn(rawOut), turnContract.agency),
-                ]);
-              } else {
-                _turnContractByUserChat.delete(contractKey);
-                await setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, '');
-              }
+          }
+          // The incoming messages have already been assembled with the host's
+          // effective chat/persona/character/connection prompt-variable
+          // profile. Resolve from that exact prompt even when an older host
+          // omits presetId: ARGENT carries a machine-readable VELLUM-EFFECTIVE
+          // marker, with a narrowly matched structural fallback for old exports.
+          const turnContract = resolveTurnContractFromMessages(activePreset, rawOut);
+          // Dry-run previews must not replace the contract belonging to the real
+          // generation. A later interceptor with neither presetId nor ARGENT
+          // evidence also must not erase it before GENERATION_ENDED runs pass 2.
+          if (!context.isDryRun) {
+            if (context.presetId) _presetByUserChat.set(contractKey, context.presetId);
+            if (turnContract) {
+              _turnContractByUserChat.set(contractKey, turnContract);
+              await Promise.all([
+                setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, JSON.stringify({ presetId: context.presetId ?? null, contract: turnContract })),
+                rememberTurnAgency(chatId, uid, prospectiveAssistantTurn(rawOut), turnContract.agency),
+              ]);
+            } else if (context.presetId) {
+              // A positively identified non-VELLUM preset replaces any stale
+              // contract from a previous preset selection on this chat.
+              _turnContractByUserChat.delete(contractKey);
+              await setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, '');
             }
           }
           const state = await loadState(chatId);
-          if (activePreset && turnContract?.argent) {
+          if (turnContract?.argent) {
             let lead = '';
             const newest = [...rawOut].reverse().find(m => m.__isChatHistory && m.role === 'user');
             const explicit = typeof newest?.content === 'string' && /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(newest.content);

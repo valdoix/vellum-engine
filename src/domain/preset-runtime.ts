@@ -164,6 +164,34 @@ function assembledPrompt(messages: readonly MessageLike[]): string {
     .join('\n');
 }
 
+/**
+ * Recover ARGENT's contract from the assembled prompt when an older host does
+ * not include presetId in InterceptorContext. The machine marker is definitive;
+ * the legacy path requires both ARGENT's final output heading and a distinctive
+ * ARGENT/state-compiler anchor so ordinary prompts cannot opt into VELLUM by
+ * mentioning one phrase in chat history.
+ */
+function embeddedArgentContract(marker: EffectiveMarker | null, prompt: string): TurnContract | null {
+  const legacyArgent = /\[OUTPUT — FOLLOW EXACTLY\]/i.test(prompt)
+    && /\[(?:ARGENT (?:CORE|— (?:VERBOSE REVERIE|COMPACT REVERIE|PRIVATE|SILENT ONE-PASS))|ENGINE SECOND PASS|FINAL AGENCY ANCHOR — (?:protected|continuity|director))\]/i.test(prompt);
+  if (!marker && !legacyArgent) return null;
+  return {
+    active: true,
+    argent: true,
+    state: true,
+    reverie: true,
+    dialogueColor: true,
+    reasoningRoute: 'compact',
+    stateCompiler: 'engine',
+    stateVerbosity: 'lean',
+    codex: true,
+    inventory: true,
+    worldgen: false,
+    livingWorld: 'active',
+    agency: 'protected',
+  };
+}
+
 /** Resolve the output contract from the exact preset selected for this chat. */
 export function resolveTurnContract(preset: PresetLike | null | undefined): TurnContract | null {
   if (!preset) return null;
@@ -205,10 +233,10 @@ export function resolveTurnContractFromMessages(
   preset: PresetLike | null | undefined,
   messages: readonly MessageLike[],
 ): TurnContract | null {
-  const base = resolveTurnContract(preset);
-  if (!base) return null;
   const marker = effectiveMarker(messages);
   const prompt = assembledPrompt(messages);
+  const base = resolveTurnContract(preset) ?? embeddedArgentContract(marker, prompt);
+  if (!base) return null;
   const next = { ...base };
 
   if (marker) {
