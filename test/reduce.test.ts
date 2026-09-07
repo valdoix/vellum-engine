@@ -94,6 +94,32 @@ describe('reduce — relations', () => {
   });
 });
 
+describe('reduce — monotonic scene clock', () => {
+  it('clamps every same-day regression to the prior canonical time', () => {
+    const s = reduce([
+      ev({ kind: 'turn.fold', turn: 1, day: 5, sig: 'a' } as any),
+      ev({ kind: 'scene.set', turn: 1, day: 5, time: '21:10', clock: 1270, present: [] } as any),
+      ev({ kind: 'turn.fold', turn: 2, day: 5, sig: 'b' } as any),
+      ev({ kind: 'scene.set', turn: 2, day: 5, time: '21:09', clock: 1269, present: [] } as any),
+    ]);
+    expect(s.day).toBe(5);
+    expect(s.scene.time).toBe('21:10');
+    expect(s.scene.clock).toBe(1270);
+  });
+
+  it('allows the wall clock to wrap only on a later narrative day', () => {
+    const s = reduce([
+      ev({ kind: 'turn.fold', turn: 1, day: 5, sig: 'a' } as any),
+      ev({ kind: 'scene.set', turn: 1, day: 5, time: '23:58', clock: 1438, present: [] } as any),
+      ev({ kind: 'turn.fold', turn: 2, day: 6, sig: 'b' } as any),
+      ev({ kind: 'scene.set', turn: 2, day: 6, time: '00:03', clock: 3, present: [] } as any),
+    ]);
+    expect(s.day).toBe(6);
+    expect(s.scene.time).toBe('00:03');
+    expect(s.scene.clock).toBe(3);
+  });
+});
+
 describe('reduce — cast, knowledge, secrets, memory', () => {
   it('demotes cast who left the scene from present \u2192 active', () => {
     const s = reduce([

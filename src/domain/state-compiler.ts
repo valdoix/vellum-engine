@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ParsedState } from '../parse/parsed.js';
 import { canonId, hashStr } from '../core/ids.js';
+import { parseClock } from './clock.js';
 import type { ChronicleState } from './types.js';
 
 /** Compilation rejects malformed data. The legacy parser remains a separate salvage lane. */
@@ -70,7 +71,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   if (s.turn !== input.turn) errors.push('turn must equal the engine turn');
   const [h, m] = s.scene.time.split(':').map(Number);
   if (h! * 60 + m! !== s.scene.clock) errors.push('time and clock disagree');
-  if (s.day * 1440 + s.scene.clock < input.prior.day * 1440 + (input.prior.scene.clock ?? 0)) errors.push('clock moves backward');
+  const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
+  if (s.day * 1440 + s.scene.clock < input.prior.day * 1440 + priorClock) errors.push('clock moves backward');
   const needsEvidence = (path: string, changed: boolean) => { if (changed && !c.evidence.some(e => e.path === path && input.prose.includes(e.quote))) errors.push(`missing evidence: ${path}`); };
   needsEvidence('scene.loc', s.scene.loc !== input.prior.scene.location);
   needsEvidence('scene.time', s.day !== input.prior.day || s.scene.clock !== input.prior.scene.clock);

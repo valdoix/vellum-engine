@@ -23,6 +23,17 @@ describe('strict pre-commit state compiler', () => {
     expect(state.delta.parallel).toEqual([{ who: 'Ada', where: 'Courtyard', activity: 'Waiting' }]);
     expect(state.scene).toMatchObject({ time: '00:03', clock: 3 });
   });
+  it('rejects rollback against a legacy prior time even when prior clock is absent', () => {
+    const i = input();
+    delete i.prior.scene.clock;
+    const c = candidate();
+    c.state.day = 1;
+    c.state.scene.time = '23:57';
+    c.state.scene.clock = 1437;
+    const r = validateCompilation(c, i);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors).toContain('clock moves backward');
+  });
   it('moves, resolves and removes arrived actors with explicit evidence', () => {
     const c = candidate(); c.parallelOps = [{ op: 'move', who: 'Ada', where: 'Gate', activity: 'Waiting', evidence: 'Ada moves to the gate.' }];
     const r = validateCompilation(c, input()); expect(r.ok).toBe(true);

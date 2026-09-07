@@ -86,9 +86,10 @@ export function clockLabel(minutes: number | undefined): string {
   return best[0];
 }
 
-/** Tolerance (minutes) for narration jitter before a same-day clock is judged
- * to have run backward. ~30m absorbs "a little later"/"moments before" drift. */
-export const CLOCK_TOLERANCE = 30;
+/** A canonical clock may never regress on the same narrative day. Keeping this
+ * at zero makes even a one-minute rollback visible to the continuity guard; the
+ * reducer separately clamps it so invalid model output cannot become NOW. */
+export const CLOCK_TOLERANCE = 0;
 
 /**
  * True when the new scene reads as an EARLIER time on the SAME narrative day than
@@ -111,7 +112,7 @@ export function detectBackwardClock(priorDay: number, priorMin: number | undefin
  */
 export function hasDayAdvanceCue(text: string | undefined): boolean {
   if (!text) return false;
-  return /\b(next|following)\s+(morning|day|dawn|week|month|year)\b|\b(days?|weeks?|months?|years?)\s+(later|after|pass|passed|hence)\b|\bthe\s+next\s+day\b|\bfollowing\s+(morning|day)\b|\blater\s+that\s+(week|month|year)\b/i.test(text);
+  return /\b(next|following)\s+(morning|day|dawn|week|month|year)\b|\b(days?|weeks?|months?|years?)\s+(later|after|pass|passed|hence)\b|\bthe\s+next\s+day\b|\bfollowing\s+(morning|day)\b|\blater\s+that\s+(week|month|year)\b|\b(after|past)\s+midnight\b|\bovernight\b/i.test(text);
 }
 
 /**

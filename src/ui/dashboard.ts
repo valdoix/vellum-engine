@@ -134,7 +134,7 @@ function statusBar(s: ChronicleState): string {
  * Text stays above via z-index (see styles.ts .vld-sec--hero>*).
  */
 function sceneBand(s: ChronicleState): string {
-  const v = sceneVisual(s.scene.weather, s.scene.time);
+  const v = sceneVisual(s.scene.weather, s.scene.time, s.scene.clock);
   // particle layer content differs per weather; the light 'orb' is placed by tod.
   return `<div class="vld-band" data-weather="${v.weather}" data-tod="${v.tod}" aria-hidden="true">`
     + '<span class="vld-band-sky"></span>'

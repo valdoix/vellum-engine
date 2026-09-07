@@ -1,6 +1,6 @@
 # ARGENT control reference (generated)
 
-Version 1.2.1; 62 controls; 18 regex scripts.
+Version 1.2.2; 62 controls; 18 regex scripts.
 
 | Section | Control | Default | Options | Description |
 |---|---|---|---|---|

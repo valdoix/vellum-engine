@@ -32,6 +32,7 @@ import { installArtifacts } from './artifacts.js';
 import { cleanupSummarizerStream, handleSummarizerStream, updateSummarizerRound } from './summarizer-stream.js';
 import { resolveBudget, type ContextBudget } from '../domain/context-budget.js';
 import { VELLUM_VERSION } from '../version.js';
+import { openLoomPresetTools } from './preset-navigation.js';
 import type {
   PromptBlockDTO,
   PromptVariableValuesDTO,
@@ -149,7 +150,7 @@ const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000
 const nowTab: Component<ChronicleState> = {
   // rel term includes the affection/trust sum so the compact bond cards repaint
   // when scores shift on a turn even if the relation COUNT is unchanged.
-  version: (s) => `${s.turns}:${s.day}:${s.scene.location ?? ''}:${s.scene.tension ?? 0}:${s.scene.present.join(',')}:${s.relations.length}:${s.relations.reduce((a, r) => a + r.affection + r.trust, 0)}:${s.scene.weather ?? ''}:${s.scene.time ?? ''}:${(s.scene.detail ?? []).map((d) => d.id + (d.mood ?? '') + (d.condition ?? '') + (d.doing ?? '') + (d.thought ?? '')).join(',')}`,
+  version: (s) => `${s.turns}:${s.day}:${s.scene.location ?? ''}:${s.scene.tension ?? 0}:${s.scene.present.join(',')}:${s.relations.length}:${s.relations.reduce((a, r) => a + r.affection + r.trust, 0)}:${s.scene.weather ?? ''}:${s.scene.time ?? ''}:${s.scene.clock ?? ''}:${(s.scene.detail ?? []).map((d) => d.id + (d.mood ?? '') + (d.condition ?? '') + (d.doing ?? '') + (d.thought ?? '')).join(',')}`,
   render: (s) => `<div class="vld">${dashboardHtml(s)}</div>`,
   mount: (host) => host.addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-phone-sec]'); if (d) { setPhoneSection(d.getAttribute('data-phone-sec')!); refreshUI(); } }),
 };
@@ -1026,10 +1027,14 @@ function openActions(ctx: Ctx): void {
     const item = t.closest('[data-qol]');
     if (item) {
       const id = item.getAttribute('data-qol')!;
+      // Loom is a host drawer, so remove this full-screen overlay before asking
+      // the host to navigate. Otherwise the editor opens underneath Actions and
+      // looks as though the click did nothing.
+      if (id === 'preset') close();
       onQol(ctx, id);
       // keep the menu open; refresh toggle state. Actions that open their own
       // modal (import/clear) render over this; it's still here when they finish.
-      host.innerHTML = bodyHtml();
+      if (id !== 'preset') host.innerHTML = bodyHtml();
     }
   });
 }
@@ -1717,29 +1722,20 @@ export function setup(ctx: Ctx): () => void {
     try { console.info('[vellum] preset editor tab not available:', e); } catch { /* ignore */ }
   }
 
-  // Actions -> VELLUM preset tools opens the real Loom editor when the host
-  // exposes a route/command surface. The compact editor remains a mobile/older
-  // host fallback rather than a second desktop source of truth.
+  // Actions -> VELLUM preset tools opens the real Loom drawer on current hosts.
+  // Loom mounts its editor asynchronously, so wait for the host-owned editor
+  // state before activating VELLUM's tab. The compact editor remains the
+  // mobile/older-host fallback rather than a second desktop source of truth.
   _openPresetEditorTools = async (): Promise<boolean> => {
-    try {
-      if (ctx.ui.presetEditor.getState().open) {
+    const editor = (ctx.ui as any)?.presetEditor;
+    return openLoomPresetTools({
+      editor,
+      surfaces: ctx.host.surfaces,
+      activate: () => {
         if (presetEditorTab) presetEditorTab.activate();
-        else ctx.ui.presetEditor.extension.activateBuiltinTab('blocks');
-        return true;
-      }
-      const surfaces = ctx.host.surfaces?.list(['route', 'command']) ?? [];
-      const target = surfaces.find((surface) => surface.invocable !== false
-        && /(?:loom|preset)/i.test(`${surface.id} ${surface.label} ${surface.description ?? ''}`));
-      if (!target || !ctx.host.surfaces) return false;
-      await ctx.host.surfaces.invoke({ kind: target.kind, id: target.id });
-      await new Promise<void>((resolve) => setTimeout(resolve, 180));
-      if (!ctx.ui.presetEditor.getState().open) return false;
-      if (presetEditorTab) presetEditorTab.activate();
-      else ctx.ui.presetEditor.extension.activateBuiltinTab('blocks');
-      return true;
-    } catch {
-      return false;
-    }
+        else editor.extension.activateBuiltinTab('blocks');
+      },
+    });
   };
 
   // PRESET EDITOR TOOLBAR: a compact Link/Unlink control above the editor's

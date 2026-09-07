@@ -236,4 +236,21 @@ describe('foldTurn → events → reduce', () => {
     const fold = events.find((e) => e.kind === 'turn.fold');
     expect(fold?.day).toBe(60); // prose skip cue overrides the cap
   });
+
+  it('repairs an omitted day rollover when prose and the wall clock cross midnight', () => {
+    const prior = freshState();
+    prior.day = 5;
+    prior.sceneDay = 5;
+    prior.scene.time = '23:58';
+    // Legacy chronicles may have a parseable time string without scene.clock.
+    const block = [
+      'Five minutes later, after midnight, the archive finally fell quiet.',
+      '\u2039vellum\u203a',
+      JSON.stringify({ v: 2, day: 5, scene: { loc: 'archive', time: '00:03', clock: 3 } }),
+      '\u2039/vellum\u203a',
+    ].join('\n');
+    const { events } = foldTurn(block, prior, 10);
+    expect(events.find((e) => e.kind === 'turn.fold')?.day).toBe(6);
+    expect(events.find((e) => e.kind === 'scene.set')?.day).toBe(6);
+  });
 });

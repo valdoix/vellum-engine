@@ -39,7 +39,7 @@ describe('VELLUM II preset 2.3 contract', () => {
   });
 
   it('ships the bounded controller and its supporting doctrine blocks', () => {
-    expect(preset.presetVersion).toBe('2.3.0');
+    expect(preset.presetVersion).toBe('2.3.1');
     for (const id of [
       'v2-knowledge',
       'v2-cast',
@@ -68,6 +68,11 @@ describe('VELLUM II preset 2.3 contract', () => {
     expect(time).toContain('T0 + elapsed = T1');
     expect(time).toContain('SERIAL VS CONCURRENT');
     expect(time).toContain('scene.time describes when THIS response ends');
+    expect(time).toContain('ABSOLUTE MONOTONIC GATE');
+    expect(time).toContain('A1 must be greater than or equal to A0');
+    expect(time).toContain('invalid even by one minute');
+    expect(time).toContain('Never add a day merely to conceal a rollback');
+    expect(time).toContain('scene.time as exact zero-padded 24-hour HH:MM');
     expect(time).toContain('Roll day forward at midnight');
     expect(time).toContain('does NOT overwrite the present-day clock');
     expect(time).toContain('OFF-SCREEN SYNCHRONIZATION');
@@ -83,7 +88,7 @@ describe('VELLUM II preset 2.3 contract', () => {
       present: Array<Record<string, unknown>>;
     };
 
-    expect(parsed.scene.time).toBe('10:07 pm');
+    expect(parsed.scene.time).toBe('22:07');
     expect(parsed.scene.clock).toBe(1327);
     expect(parsed.present[0]).toMatchObject({
       id: '{{user}}',

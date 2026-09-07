@@ -2,7 +2,7 @@
 
 ARGENT LOOM is a VELLUM-native roleplay preset for long-running, causally coherent fiction. It combines strict player agency, limited character knowledge, physical and temporal continuity, durable relationships, living-world simulation, configurable prose craft, and an engine-owned state compiler that folds completed prose into the Chronicle only after validation.
 
-This guide covers all 62 user-facing controls in ARGENT LOOM 1.2.1, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
+This guide covers all 62 user-facing controls in ARGENT LOOM 1.2.2, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
 
 ## Included files
 
@@ -150,7 +150,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 |---|---|---|
 | `epistemic` — Dramatic Irony | **Alongside** | **Behind:** reader knows less than characters. **Alongside:** reader discovers with the focal character. **Ahead:** reader knows more and the gap creates tension. **Dark:** neither character, narrator, nor reader is granted the answer yet. This never gives a character knowledge they lack. |
 | `living_world` — Living World | **Active** | **Off:** render only on-page life. **Minimal:** off-screen time leaves small evidence but no independent subplot engine. **Active:** absent characters and threads pursue goals and later intersect the scene. **Sandbox:** the world advances autonomously and opportunities can expire. Under Engine Second Pass, the extractor emits `start`, `advance`, `move`, and `resolve` operations. VELLUM reviews every prior row, preserves unchanged actors, removes arrivals, and computes the final T1 snapshot. |
-| `time_continuity` — Time Continuity | **On** | Requires every active-scene state snapshot to use zero-padded 24-hour `scene.time` such as `07:45` plus the matching minutes-after-midnight `scene.clock` (`465`). Narrative labels such as `morning` are forbidden in canonical state, although prose may use them naturally. It also enforces forward-only time, plausible elapsed duration, governed skips, and matching off-screen advancement. |
+| `time_continuity` — Time Continuity | **On** | Requires every active-scene state snapshot to use zero-padded 24-hour `scene.time` such as `07:45` plus the matching minutes-after-midnight `scene.clock` (`465`). The preset compares `day × 1440 + clock` before and after every turn; even a one-minute regression is invalid. An earlier wall clock requires a narrated midnight crossing and a higher day. VELLUM also clamps invalid inline state, while the engine second pass rejects it. |
 | `worldgen` — Cartographer | **On** | Runs during the opening and creates a bounded world frame: a few provisional facts, powers, currents, and adjacent places. Type `((worldgen))` later to request another pass. Genesis is marked consumed only in the same atomic event commit as a validated state candidate; failure, rejection, and regeneration cannot consume it. Existing scenario and lore always outrank it. |
 | `world_premise` — Premise | **Blank** | Optional text seed such as “a drowned merchant city ruled by feuding houses.” Leave blank to infer the frame from the character card and scenario. It constrains genesis; it is not repeated as exposition. |
 | `world_scale` — Scale | **Locale** | **Chamber:** one building/site. **Locale:** town, quarter, or holdfast. **Realm:** region, province, or city-state. **World:** civilization, kingdom, or planet. **Cosmos:** multiple worlds, realms, or eras. Larger scale establishes reach, not instant encyclopedic detail. |
@@ -169,7 +169,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 
 ### Off-scene conversation privacy
 
-ARGENT 1.2.1 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
+ARGENT 1.2.2 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
 
 A can learn afterward only through a concrete bridge established in the fiction: B or C tells A, A plausibly overhears, a delivered message or readable record reaches A, a public announcement occurs, or observable evidence supports a limited inference. Evidence does not reveal more than it contains; suspicious aftermath may justify `suspects`, but not knowledge of the hidden transcript. The same audit applies to prose, dialogue, thoughts, reactions, interruptions, `present.thought`, and `delta.knowledge`.
 
@@ -351,7 +351,7 @@ The embedded and standalone regex packs were both imported. Keep one copy of eac
 
 ### Parallel events show an earlier location
 
-ARGENT 1.2.1 compiles off-screen changes as operations against the prior T1 state. Every prior actor must be reviewed; unchanged rows survive, `move` changes the destination, `resolve` removes a row, and an actor entering `scene.present` is removed automatically. The resulting `delta.parallel` snapshot is computed by VELLUM at the final day and clock.
+ARGENT 1.2.2 compiles off-screen changes as operations against the prior T1 state. Every prior actor must be reviewed; unchanged rows survive, `move` changes the destination, `resolve` removes a row, and an actor entering `scene.present` is removed automatically. The resulting `delta.parallel` snapshot is computed by VELLUM at the final day and clock.
 
 If a contradiction remains, inspect the raw final `<vellum>` block. Every character parallel item should contain an exact `who`, final `where`, and current `activity`; nobody listed in `present` may also appear in `parallel`. Re-import the complete preset for the prompt contract and rebuild/reload the VELLUM extension for the reducer guard.
 

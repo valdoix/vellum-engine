@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { weatherClass, timeOfDay, sceneVisual } from '../src/ui/scene-visual.js';
+import { dashboardHtml } from '../src/ui/dashboard.js';
+import { freshState } from '../src/domain/types.js';
 
 describe('scene-visual classifier', () => {
   it('weather buckets: most dramatic / specific wins', () => {
@@ -34,6 +36,20 @@ describe('scene-visual classifier', () => {
     expect(timeOfDay('midnight')).toBe('night');
   });
 
+  it('classifies exact 24-hour and 12-hour clocks instead of defaulting to day', () => {
+    expect(timeOfDay('05:45')).toBe('dawn');
+    expect(timeOfDay('12:10')).toBe('day');
+    expect(timeOfDay('18:20')).toBe('dusk');
+    expect(timeOfDay('22:07')).toBe('night');
+    expect(timeOfDay('1:30 AM')).toBe('night');
+    expect(timeOfDay('6:15 PM')).toBe('dusk');
+  });
+
+  it('uses the canonical numeric clock when a stale display label disagrees', () => {
+    expect(timeOfDay('morning', 22 * 60)).toBe('night');
+    expect(sceneVisual('storm', 'morning', 18 * 60)).toEqual({ weather: 'storm', tod: 'dusk' });
+  });
+
   it('time defaults to day on empty/unknown', () => {
     expect(timeOfDay('')).toBe('day');
     expect(timeOfDay(null)).toBe('day');
@@ -43,5 +59,15 @@ describe('scene-visual classifier', () => {
   it('sceneVisual pairs both', () => {
     expect(sceneVisual('rain', 'dusk')).toEqual({ weather: 'rain', tod: 'dusk' });
     expect(sceneVisual('', '')).toEqual({ weather: 'clear', tod: 'day' });
+  });
+
+  it('renders the shared Now/float scene band from weather and canonical clock', () => {
+    const state = freshState();
+    state.scene.weather = 'driving rain';
+    state.scene.time = 'morning'; // stale legacy label must not pin the artwork
+    state.scene.clock = 22 * 60;
+    const html = dashboardHtml(state);
+    expect(html).toContain('data-weather="rain"');
+    expect(html).toContain('data-tod="night"');
   });
 });

@@ -2,7 +2,7 @@ import { parseState } from '../parse/state-block.js';
 import { runExtractors, type ExtractCtx } from './registry.js';
 import { nextSeq } from '../core/ids.js';
 import { hashStr } from '../core/ids.js';
-import { reconcileDay, hasDayAdvanceCue, parseClock } from '../domain/clock.js';
+import { reconcileDay, hasDayAdvanceCue, parseClock, rollover } from '../domain/clock.js';
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
 import type { Tone } from '../domain/tone.js';
@@ -49,15 +49,21 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   const proseCue = hasDayAdvanceCue(content);
   // clock evidence for the day-creep guard: the prior scene's ordered clock vs
   // the one this turn's scene reports (explicit or derived from its time string).
-  const priorClock = prior.scene?.clock;
-  const newClock = (typeof parsed.scene?.clock === 'number' && parsed.scene.clock >= 0 && parsed.scene.clock <= 1439)
+  const priorClock = prior.scene?.clock ?? parseClock(prior.scene?.time);
+  const clockFromTime = parseClock(parsed.scene?.time);
+  const newClock = clockFromTime ?? ((typeof parsed.scene?.clock === 'number' && parsed.scene.clock >= 0 && parsed.scene.clock <= 1439)
     ? Math.floor(parsed.scene.clock)
-    : parseClock(parsed.scene?.time);
+    : undefined);
   const rec = reconcileDay(parsed.day, prior.day ?? 0, proseCue, {
     ...(priorClock !== undefined ? { priorClock } : {}),
     ...(newClock !== undefined ? { newClock } : {}),
   });
   let day = rec.day;
+  // If the prose explicitly crosses into a new day but the model forgot to bump
+  // its day field, repair the rollover before extraction. This is the only case
+  // where an earlier wall clock can still be forward-moving absolute time.
+  const inferredRollover = rollover(prior.day ?? 0, priorClock, newClock, proseCue);
+  if (inferredRollover !== undefined && day <= (prior.day ?? 0)) day = inferredRollover;
   // REGENERATE DAY-STABILITY: when re-folding a turn that already existed (edit/
   // regenerate), the NOW line injected the pre-rollback day as authoritative, so
   // the model tends to step PAST it — ratcheting the calendar forward on every

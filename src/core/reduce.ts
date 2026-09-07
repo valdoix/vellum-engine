@@ -149,10 +149,22 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       }
       // ordered clock: prefer the event's explicit clock, else derive from the
       // (new or carried) time string. Undefined when nothing is parseable.
-      const nextTime = e.time ?? s.scene.time;
+      const priorClock = s.scene.clock ?? parseClock(s.scene.time);
+      const incomingClock = e.clock ?? (e.time ? parseClock(e.time) : undefined);
+      const priorSceneDay = s.sceneDay ?? e.day;
+      // Derived state owns the canonical NOW clock. An inline/model-authored
+      // scene.set may be wrong, so enforce monotonic absolute time here as the
+      // final chokepoint too: same-day and older-day clock regressions retain T0.
+      // A later narrative day is allowed to wrap through midnight.
+      const clockRegressed = priorClock !== undefined && incomingClock !== undefined
+        && e.day <= priorSceneDay && incomingClock < priorClock;
+      const priorExactTime = priorClock !== undefined
+        ? `${String(Math.floor(priorClock / 60)).padStart(2, '0')}:${String(priorClock % 60).padStart(2, '0')}`
+        : s.scene.time;
+      const nextTime = clockRegressed ? (s.scene.time || priorExactTime) : (e.time ?? s.scene.time);
       // explicit clock wins; else derive from a NEW time string; else keep the
       // established clock (an unparseable/absent time never erases the order).
-      const clock = e.clock ?? (e.time ? parseClock(e.time) : undefined) ?? s.scene.clock;
+      const clock = clockRegressed ? priorClock : (incomingClock ?? s.scene.clock);
       s.scene = {
         location: e.location ?? s.scene.location,
         time: nextTime,

@@ -31,11 +31,11 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **ARGENT LOOM 1.2.1** — the optional ARGENT preset now defaults to a separate engine-owned state pass with strict local validation and atomic Chronicle commits. It also adds genuinely distinct Lean/Full contracts, Verbose Reverie, compact effective-policy assembly, profiles and dependency-aware controls, real assembled-token measurement, operation-based off-screen reconciliation, reviewable lore corrections, typed sandboxed artifacts, deterministic build drift checks, and a live-provider behavioral evaluation harness. See `presets/ARGENT-LOOM-README.md`.
+> **ARGENT LOOM 1.2.2** — the optional ARGENT preset now defaults to a separate engine-owned state pass with strict local validation and atomic Chronicle commits. It also adds genuinely distinct Lean/Full contracts, Verbose Reverie, compact effective-policy assembly, profiles and dependency-aware controls, real assembled-token measurement, operation-based off-screen reconciliation, reviewable lore corrections, typed sandboxed artifacts, deterministic build drift checks, a monotonic absolute-time gate, and a live-provider behavioral evaluation harness. See `presets/ARGENT-LOOM-README.md`.
 
 > **Extension 2.1.0-beta.9 (testing)** — adds streamed summarization progress, safe cancellation, configurable summary token limits, completion-driven retries, verified archival coverage, refreshed knowledge/secret propagation, and stronger long-session retrieval.
 
-> **Preset 2.3.0** — a bounded Reverie controller, stronger character fidelity and causality, adaptive interiority, earned relationship progression, and rigorous T0→T1 time continuity.
+> **Preset 2.3.1** — a bounded Reverie controller, stronger character fidelity and causality, adaptive interiority, earned relationship progression, and a monotonic T0→T1 time gate.
 
 ### One-pass Reverie
 

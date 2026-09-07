@@ -50,7 +50,7 @@ function expandedBlock(id: string, overrides: Record<string, unknown> = {}): str
 
 describe('ARGENT strengthened invariants', () => {
   it('ships the 1.2 control surface without Guided Choices', () => {
-    expect(preset.presetVersion).toBe('1.2.1');
+    expect(preset.presetVersion).toBe('1.2.2');
     expect(() => variable('guided_choices')).toThrow();
     expect(preset.blocks.some((entry) => entry.content.includes('<argent-choices>'))).toBe(false);
   });
@@ -70,8 +70,12 @@ describe('ARGENT strengthened invariants', () => {
     expect(reality).toContain('one exact zero-padded 24-hour live clock');
     expect(reality).toContain('scene.clock is the same instant as integer minutes after midnight');
     expect(reality).toContain('Never store a narrative period in scene.time');
+    expect(reality).toContain('A1 MUST be greater than or equal to A0');
+    expect(reality).toContain('even by one minute');
     expect(schema).toContain('"time":"07:45","clock":465');
     expect(output).toContain('EXACT CLOCK — REQUIRED FINAL GATE');
+    expect(output).toContain('A1 < A0 is forbidden');
+    expect(output).toContain('never manufacture a day advance to conceal a rollback');
     expect(variable('time_continuity').description).toContain('07:45');
     expect(reality.indexOf('{{/if}}\n\n[WORLD LAW]')).toBeGreaterThan(0);
   });

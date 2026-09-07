@@ -44,8 +44,8 @@ describe('detectBackwardClock', () => {
   it('does not flag a new day (clock legitimately resets)', () => {
     expect(detectBackwardClock(5, 1140, 6, 300)).toBe(false);
   });
-  it('does not flag small jitter within tolerance', () => {
-    expect(detectBackwardClock(5, 600, 5, 585)).toBe(false);
+  it('flags even a one-minute same-day regression', () => {
+    expect(detectBackwardClock(5, 600, 5, 599)).toBe(true);
   });
   it('does not flag when a clock is unknown', () => {
     expect(detectBackwardClock(5, undefined, 5, 300)).toBe(false);
@@ -56,6 +56,8 @@ describe('hasDayAdvanceCue / rollover', () => {
   it('detects day-advance prose cues', () => {
     expect(hasDayAdvanceCue('The next morning she woke.')).toBe(true);
     expect(hasDayAdvanceCue('Three weeks later the raven came.')).toBe(true);
+    expect(hasDayAdvanceCue('Five minutes later, after midnight, the lights failed.')).toBe(true);
+    expect(hasDayAdvanceCue('They worked overnight.')).toBe(true);
     expect(hasDayAdvanceCue('He drew his sword.')).toBe(false);
   });
   it('suggests a rollover only when the clock wrapped with a prose cue', () => {

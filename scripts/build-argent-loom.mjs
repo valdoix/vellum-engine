@@ -462,6 +462,8 @@ Recover the authoritative starting state: day/date, location, exact live clock, 
 CANONICAL CLOCK INVARIANT:
 - Maintain one exact zero-padded 24-hour live clock such as 07:45, 19:03, or 00:00. Narrative prose may naturally say "morning" or "at dusk", but continuity calculations use the exact clock.
 {{if::{{var::state_on}}}}- In every final state block, scene.time is that HH:MM string and scene.clock is the same instant as integer minutes after midnight: HH × 60 + MM. Thus "07:45" requires 465; "19:03" requires 1143. Never store a narrative period in scene.time or let the fields disagree.{{/if}}
+- Compare absolute ordinals: A0 = T0 day × 1440 + T0 clock; A1 = T1 day × 1440 + T1 clock. A1 MUST be greater than or equal to A0; lower is invalid even by one minute.
+- An earlier wall clock requires a narrated midnight crossing and a higher day. Never add a day merely to conceal a rollback.
 - If injected T0 already has an exact clock, preserve it exactly unless narrated action consumes time. If T0 has only a coarse legacy label, canonicalize it once using VELLUM's stable slots: predawn 04:00; dawn 05:00; sunrise 05:30; morning 09:00; midday/noon 12:00; afternoon 15:00; dusk/sunset 19:00; twilight 19:30; evening 20:30; night 22:00; late-night 01:30; midnight 00:00. This conversion adds precision but does not itself advance the scene.
 - If a new scene has no time evidence at all, choose one plausible exact clock once from the opening circumstances and bind it; do not keep changing it to improve atmosphere.
 
@@ -474,7 +476,7 @@ ELAPSED-TIME ACCOUNTING:
 - Apply real elapsed time to light, weather fronts, crowds, opening hours, hunger, medication, intoxication, wounds, healing, deadlines, communication, and everyone off-screen.
 - Space costs time. No arrival without a route; no hearing through an ordinary wall; no object appears in a hand without transfer.
 
-Before prose, establish T0 as Day N + HH:MM + location.{{if::{{var::state_on}}}} Before state, recompute T1 and verify scene.clock arithmetically from scene.time.{{/if}}{{/if}}
+Before prose, establish T0 as Day N + HH:MM + location.{{if::{{var::state_on}}}} Before state, verify scene.clock from scene.time and A1 against A0. If A1 < A0, keep T0 unless prose establishes forward duration or midnight rollover.{{/if}}{{/if}}
 
 [WORLD LAW]
 {{switch::{{var::world_law}}::grounded::Ordinary physics and material logistics govern unless canon explicitly establishes otherwise.::coherent::Speculative or magical rules are real, consistent, bounded, and costly.::mythic::Symbolic forces may act, but they obey established taboos, bargains, names, and consequences.::surreal::Dreamlike causality may bend sequence and identity, but recurring motifs and local rules remain internally legible.}}`, { group: CAT_SIM }),
@@ -740,13 +742,13 @@ Use private reasoning to audit Authority, Reality, Gnosis, Embodiment, Narrative
 Silently check agency, current reality, knowledge access, character motive, causal movement, and final deltas. Do not emit <reverie>.{{/if}}{{/if}}{{/if}}`, { group: CAT_FINAL, position: 'post_history' }),
 
   block('arg-state-final', 'State Compiler — Final', String.raw`{{if::{{and::{{var::state_on}}::{{eq::{{var::state_verbosity}}::lean}}}}}}[FINAL STATE COMPILER — LEAN, ATOMIC AND MANDATORY]
-Reserve ~700 output tokens and shorten prose before risking state. Compile only what the prose established. Emit scene/present plus changed supported fields; omit empty sections except a required parallel:[]. Put {{user}} first with blank inner/action fields. Include every named on-stage NPC with a concise private first-person thought bounded by that NPC's knowledge. Reconcile parallel at final T1: no present actor, no stale origin, exact final where/activity, one row per actor. When Time Continuity is on, require exact HH:MM scene.time and matching 0–1439 scene.clock. Decide the whole compact object before opening <vellum>; once opened, finish valid JSON, literal </vellum>, and nothing after it.
+Reserve ~700 output tokens and shorten prose before risking state. Compile only what the prose established. Emit scene/present plus changed supported fields; omit empty sections except a required parallel:[]. Put {{user}} first with blank inner/action fields. Include every named on-stage NPC with a concise private first-person thought bounded by that NPC's knowledge. Reconcile parallel at final T1: no present actor, no stale origin, exact final where/activity, one row per actor. When Time Continuity is on, require exact HH:MM scene.time and matching 0–1439 scene.clock, and reject any day × 1440 + clock lower than injected T0. Decide the whole compact object before opening <vellum>; once opened, finish valid JSON, literal </vellum>, and nothing after it.
 {{/if}}
 {{if::{{and::{{var::state_on}}::{{eq::{{var::state_verbosity}}::full}}}}}}[FINAL STATE COMPILER — FULL, ATOMIC AND MANDATORY]
 Before drafting prose, reserve the final ~900 output tokens for one complete state block. If the response budget becomes tight, shorten the prose; never abbreviate, omit, or truncate <vellum>. A Reverie T line, prose summary, planned JSON, empty object, or opening tag without the literal closing </vellum> does not satisfy this contract. The turn is incomplete until </vellum> has been emitted, with nothing after it.
 
 Compile only events the prose actually established—not events merely considered in planning—in this order:
-1. CORE SNAPSHOT: write current scene and present from the injected record and this turn. On an active scene, do not omit them to save tokens. When Time Continuity is on, scene.time must be exact zero-padded 24-hour HH:MM and scene.clock must equal HH × 60 + MM; both are mandatory, and a word such as morning/evening is invalid. Put {{user}} first when present and keep every player inner/action field blank; state must not invent player behavior.
+1. CORE SNAPSHOT: write current scene and present from the injected record and this turn. On an active scene, do not omit them to save tokens. When Time Continuity is on, scene.time must be exact zero-padded 24-hour HH:MM and scene.clock must equal HH × 60 + MM; both are mandatory, and a word such as morning/evening is invalid. Compute injected A0 and proposed A1 as day × 1440 + scene.clock; if A1 < A0, the candidate is invalid and must retain T0 or be recomputed from established elapsed time. Put {{user}} first when present and keep every player inner/action field blank; state must not invent player behavior.
 2. DELTA AUDIT: include every durable supported change established by the prose. If none occurred, omit delta unless Living World requires the current parallel snapshot; a quiet turn still requires the complete current scene/present snapshot.
 3. KNOWLEDGE PARTITION: audit every NPC thought and delta.knowledge entry per character and fact. Require a witnessed or later-transmitted source. A character absent from a B/C conversation remains unaware until an explicit bridge reaches them; visible aftermath supports only the bounded inference it actually reveals, not the hidden exchange.
 4. PARALLEL RECONCILIATION: freeze final T1 after the prose. Remove every parallel item whose actor is in present, replace every moved actor's T0 place/activity with their final T1 situation, require who+where for character items, allow only one item per actor, and emit [] rather than stale or guessed content.
@@ -771,7 +773,7 @@ Audit every fact expressed or presupposed by each named character's speech, thou
 {{if::{{var::npc_dialogue}}}}[NPC-TO-NPC DIALOGUE — ACTIVE FINAL GATE]
 When two or more present NPCs have intersecting motives in this beat, let them address and respond to one another directly instead of routing all speech through {{user}}. Keep it causal rather than compulsory: no filler, round-robin quota, shared omniscience, absent speaker, or invented player response. Preserve distinct voices and exact [spk=...] identities when Colored Dialogue is on.{{/if}}
 {{if::{{and::{{var::state_on}}::{{var::time_continuity}}}}}}[EXACT CLOCK — REQUIRED FINAL GATE]
-The final scene snapshot must contain scene.time as zero-padded 24-hour HH:MM, never a narrative label, and scene.clock as the mathematically matching minutes after midnight. Preserve T0 when no narrated duration elapsed; never advance the clock merely because this response exists.{{/if}}
+The final scene snapshot must contain scene.time as zero-padded 24-hour HH:MM, never a narrative label, and scene.clock as the mathematically matching minutes after midnight. Compute A0 = injected day × 1440 + injected clock and A1 = final day × 1440 + final clock. A1 < A0 is forbidden: discard that candidate and keep T0 or recompute from established elapsed time. An earlier wall clock requires a narrated midnight crossing plus a higher day; never manufacture a day advance to conceal a rollback. Preserve T0 when no narrated duration elapsed; never advance the clock merely because this response exists.{{/if}}
 {{if::{{and::{{var::state_on}}::{{or::{{eq::{{var::living_world}}::active}}::{{eq::{{var::living_world}}::sandbox}}}}}}}}[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]
 After the prose is complete, derive final present and one final location/activity per absent actor. delta.parallel replaces its predecessor: emit the complete reconciled array, including [] when no valid item remains. A name in present is forbidden in parallel. If an actor traveled, entered, or left a place during this turn, serialize only their final T1 destination and current activity—not the injected T0 location, the journey just completed, or an earlier beat. Every character item requires exact who and where, shares scene's final day/clock, and may appear only once. Delete uncertain or conflicting items instead of preserving or guessing them.{{/if}}
 {{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]
@@ -1071,7 +1073,7 @@ const preset = {
   id: 'vellum-ii-argent-loom',
   name: 'VELLUM II — ARGENT LOOM',
   description: 'A VELLUM-native causal chronicle preset for high-fidelity literary roleplay. ARGENT protects player agency, physical and epistemic continuity, character-specific behavior, earned directional relationships, living off-screen worlds, factions, items, plants, and exact event deltas. With VELLUM 2.1 it compiles completed prose through a separate validated state pass and commits atomically; Inline Compatibility retains model-written <vellum> output. Includes a compact effective-policy compiler, grouped controls, native Lumiverse routing, optional Reverie, typed artifacts, and a scoped prompt/display/memory pipeline.',
-  presetVersion: '1.2.1',
+  presetVersion: '1.2.2',
   schemaVersion: 2,
   samplerOverrides: {
     enabled: true,
@@ -1187,8 +1189,8 @@ const stateFinalBlock = blocks.find((entry) => entry.id === 'arg-state-final')?.
 assert(agencyBlock.includes('An attempted action authorizes only the stated attempt') && agencyBlock.includes('Second-person grammar is not permission'), 'Protected-agency contract weakened');
 assert(finalAnchorBlock.includes('PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE'), 'Final protected-agency gate missing');
 assert(outputContractBlock.includes('PLAYER AUTHORSHIP — NON-NEGOTIABLE FINAL GATE'), 'Last-instruction agency gate missing');
-assert(timeBlock.includes('one exact zero-padded 24-hour live clock') && timeBlock.includes('scene.clock is the same instant as integer minutes after midnight'), 'Exact-clock reality contract missing');
-assert(outputContractBlock.includes('EXACT CLOCK — REQUIRED FINAL GATE'), 'Last-instruction clock gate missing');
+assert(timeBlock.includes('one exact zero-padded 24-hour live clock') && timeBlock.includes('A1 MUST be greater than or equal to A0'), 'Exact-clock monotonic reality contract missing');
+assert(outputContractBlock.includes('EXACT CLOCK — REQUIRED FINAL GATE') && outputContractBlock.includes('A1 < A0 is forbidden'), 'Last-instruction monotonic clock gate missing');
 assert(dialogueBlock.includes('FINAL COLOR AUDIT') && dialogueBlock.includes('[spk=Canonical Cast Name]'), 'Colored-dialogue construction contract missing');
 assert(outputContractBlock.includes('COLORED DIALOGUE — REQUIRED OUTPUT MARKUP'), 'Last-instruction colored-dialogue gate missing');
 assert(variables.find((entry) => entry.name === 'npc_dialogue')?.defaultValue === 1, 'NPC-to-NPC dialogue must default on');
