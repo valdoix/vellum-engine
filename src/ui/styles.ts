@@ -1312,33 +1312,61 @@ export const STYLES = [
   // particles + a horizon line. Pure CSS; all motion honours --vmotion & reduced-motion.
   ".vld-band{position:absolute;inset:0;pointer-events:none;border-radius:inherit;opacity:.9}",
   ".vld-band>span{position:absolute;inset:0;display:block}",
-  // --- SKY by time of day (default; chromes may tint via their own --sky vars) ---
-  ".vld-band-sky{background:linear-gradient(180deg,var(--sky-top,#243244),var(--sky-mid,#1a2230) 55%,var(--sky-base,#12151c))}",
+  // --- SKY by exact story-clock phase. The coarse data-tod rules remain as a
+  // legacy fallback; data-phase makes morning, noon, and afternoon visibly
+  // distinct instead of holding one picture from 07:30 until 17:29. ---
+  ".vld-band-sky{background:linear-gradient(180deg,var(--sky-top,#243244),var(--sky-mid,#1a2230) 55%,var(--sky-base,#12151c));transition:background .45s ease,filter .45s ease}",
   ".vld-band[data-tod='dawn']{--sky-top:#3a3350;--sky-mid:#6b4a5a;--sky-base:#c98a6a}",
   ".vld-band[data-tod='day']{--sky-top:#3f6fa8;--sky-mid:#5a86bd;--sky-base:#9fb8d4}",
   ".vld-band[data-tod='dusk']{--sky-top:#2b2450;--sky-mid:#5a3f6a;--sky-base:#c07a5a}",
   ".vld-band[data-tod='night']{--sky-top:#141428;--sky-mid:#171a30;--sky-base:#0c0c18}",
+  ".vld-band[data-phase='pre-dawn']{--sky-top:#0d142c;--sky-mid:#292c4d;--sky-base:#70516b}",
+  ".vld-band[data-phase='dawn']{--sky-top:#34395c;--sky-mid:#9a5f70;--sky-base:#efad78}",
+  ".vld-band[data-phase='morning']{--sky-top:#4c83bb;--sky-mid:#7fb4d4;--sky-base:#ead1a5}",
+  ".vld-band[data-phase='midday']{--sky-top:#176bb7;--sky-mid:#49a0d9;--sky-base:#bde4ec}",
+  ".vld-band[data-phase='afternoon']{--sky-top:#3f78a9;--sky-mid:#77a0bd;--sky-base:#d9b985}",
+  ".vld-band[data-phase='golden-hour']{--sky-top:#394e79;--sky-mid:#b96756;--sky-base:#f1aa55}",
+  ".vld-band[data-phase='dusk']{--sky-top:#28204c;--sky-mid:#6d3f62;--sky-base:#c66c55}",
+  ".vld-band[data-phase='night']{--sky-top:#080d20;--sky-mid:#111a37;--sky-base:#080912}",
   // --- LIGHT ORB (sun/moon) positioned by tod; a soft radial glow ---
-  ".vld-band-orb{background:radial-gradient(circle at var(--orb-x,80%) var(--orb-y,28%),var(--orb-c,rgba(255,240,200,.5)) 0,transparent var(--orb-r,26%))}",
+  ".vld-band-orb{background:radial-gradient(circle at var(--orb-x,80%) var(--orb-y,28%),var(--orb-c,rgba(255,240,200,.5)) 0,transparent var(--orb-r,26%));transition:background .45s ease}",
   ".vld-band[data-tod='dawn']{--orb-x:78%;--orb-y:62%;--orb-c:rgba(255,200,150,.55);--orb-r:30%}",
   ".vld-band[data-tod='day']{--orb-x:82%;--orb-y:24%;--orb-c:rgba(255,246,214,.6);--orb-r:24%}",
   ".vld-band[data-tod='dusk']{--orb-x:22%;--orb-y:64%;--orb-c:rgba(255,168,120,.5);--orb-r:32%}",
   ".vld-band[data-tod='night']{--orb-x:76%;--orb-y:26%;--orb-c:rgba(210,224,255,.4);--orb-r:18%}",
+  ".vld-band[data-phase='pre-dawn']{--orb-x:76%;--orb-y:34%;--orb-c:rgba(205,220,255,.3);--orb-r:17%}",
+  ".vld-band[data-phase='dawn']{--orb-x:82%;--orb-y:69%;--orb-c:rgba(255,205,145,.68);--orb-r:30%}",
+  ".vld-band[data-phase='morning']{--orb-x:82%;--orb-y:43%;--orb-c:rgba(255,239,190,.64);--orb-r:25%}",
+  ".vld-band[data-phase='midday']{--orb-x:62%;--orb-y:9%;--orb-c:rgba(255,252,226,.72);--orb-r:22%}",
+  ".vld-band[data-phase='afternoon']{--orb-x:28%;--orb-y:34%;--orb-c:rgba(255,222,160,.57);--orb-r:27%}",
+  ".vld-band[data-phase='golden-hour']{--orb-x:18%;--orb-y:72%;--orb-c:rgba(255,177,91,.72);--orb-r:34%}",
+  ".vld-band[data-phase='dusk']{--orb-x:16%;--orb-y:79%;--orb-c:rgba(255,135,105,.55);--orb-r:31%}",
+  ".vld-band[data-phase='night']{--orb-x:78%;--orb-y:24%;--orb-c:rgba(204,220,255,.42);--orb-r:17%}",
   // --- HORIZON: a faint ground/water line low in the band ---
   ".vld-band-horizon{top:auto;height:34%;background:linear-gradient(180deg,transparent,rgba(0,0,0,.28));box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}",
   // scrim so hero text always reads over the busiest sky
   ".vld-band::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,rgba(0,0,0,.42),rgba(0,0,0,.12) 60%,transparent);z-index:1}",
   ".vld-band>span{z-index:0}",
 
-  // --- WEATHER PARTICLES on .vld-band-fx (repeating gradients; animated) ---
-  // clear: a few faint stars/sparkles (mostly for night/dusk)
-  ".vld-band[data-weather='clear'] .vld-band-fx{background-image:radial-gradient(1px 1px at 18% 30%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 62% 22%,rgba(255,255,255,.35),transparent),radial-gradient(1.5px 1.5px at 82% 44%,rgba(255,255,255,.4),transparent);opacity:.5}",
-  // cloud: soft drifting light bands
-  ".vld-band[data-weather='cloud'] .vld-band-fx{background:linear-gradient(100deg,transparent 0 40%,rgba(255,255,255,.06) 46%,transparent 54%),linear-gradient(100deg,transparent 0 60%,rgba(255,255,255,.05) 66%,transparent 74%);animation:vld-clouds 40s linear infinite}",
+  // --- WEATHER changes the sky cast as well as its particles. The prior effects
+  // were nearly transparent, so rain/cloud/fog could look identical to clear. ---
+  ".vld-band-sky::after{content:'';position:absolute;inset:0;background:var(--weather-sky,transparent);transition:background .45s ease}",
+  ".vld-band[data-weather='cloud']{--weather-sky:linear-gradient(180deg,rgba(65,72,82,.38),rgba(105,110,116,.2))}",
+  ".vld-band[data-weather='wind']{--weather-sky:linear-gradient(112deg,transparent 15%,rgba(225,238,245,.13) 42%,transparent 67%)}",
+  ".vld-band[data-weather='rain']{--weather-sky:linear-gradient(180deg,rgba(28,43,58,.48),rgba(42,58,70,.32))}",
+  ".vld-band[data-weather='storm']{--weather-sky:linear-gradient(180deg,rgba(12,16,30,.7),rgba(34,39,52,.52))}",
+  ".vld-band[data-weather='snow']{--weather-sky:linear-gradient(180deg,rgba(196,210,224,.3),rgba(226,232,236,.2))}",
+  ".vld-band[data-weather='fog']{--weather-sky:linear-gradient(180deg,rgba(205,211,218,.48),rgba(179,188,198,.38))}",
+  // clear: stars appear only after sunset; a clear afternoon is visually clean
+  ".vld-band[data-weather='clear'] .vld-band-fx{opacity:0}",
+  ".vld-band[data-weather='clear'][data-tod='night'] .vld-band-fx,.vld-band[data-weather='clear'][data-phase='dusk'] .vld-band-fx{background-image:radial-gradient(1px 1px at 18% 30%,rgba(255,255,255,.72),transparent),radial-gradient(1px 1px at 62% 22%,rgba(255,255,255,.58),transparent),radial-gradient(1.5px 1.5px at 82% 44%,rgba(255,255,255,.64),transparent);opacity:.72}",
+  // cloud/wind: broad moving forms that remain visible beneath the text scrim
+  ".vld-band[data-weather='cloud'] .vld-band-fx{background:linear-gradient(100deg,transparent 0 30%,rgba(255,255,255,.16) 43%,transparent 58%),linear-gradient(100deg,transparent 0 55%,rgba(230,235,240,.13) 68%,transparent 82%);animation:vld-clouds 40s linear infinite}",
+  ".vld-band[data-weather='wind'] .vld-band-fx{background:repeating-linear-gradient(168deg,transparent 0 17px,rgba(225,240,248,.18) 18px 19px,transparent 20px 36px);animation:vld-wind 6s linear infinite}",
   // rain: diagonal streaks
-  ".vld-band[data-weather='rain'] .vld-band-fx{background-image:repeating-linear-gradient(102deg,rgba(155,200,232,.28) 0 1px,transparent 1px 7px);background-size:auto 22px;animation:vld-rain .5s linear infinite}",
+  ".vld-band[data-weather='rain'] .vld-band-fx{background-image:repeating-linear-gradient(102deg,rgba(155,200,232,.44) 0 1px,transparent 1px 7px);background-size:auto 22px;animation:vld-rain .5s linear infinite}",
   // storm: denser rain + an occasional flash on the sky
-  ".vld-band[data-weather='storm'] .vld-band-fx{background-image:repeating-linear-gradient(100deg,rgba(180,210,240,.36) 0 1.5px,transparent 1.5px 6px);background-size:auto 24px;animation:vld-rain .38s linear infinite}",
+  ".vld-band[data-weather='storm'] .vld-band-fx{background-image:repeating-linear-gradient(100deg,rgba(180,210,240,.52) 0 1.5px,transparent 1.5px 6px);background-size:auto 24px;animation:vld-rain .38s linear infinite}",
   ".vld-band[data-weather='storm'] .vld-band-sky{animation:vld-flash 7s steps(1) infinite}",
   // snow: slow drifting dots
   ".vld-band[data-weather='snow'] .vld-band-fx{background-image:radial-gradient(2px 2px at 20% 20%,rgba(255,255,255,.8),transparent),radial-gradient(1.5px 1.5px at 66% 40%,rgba(255,255,255,.7),transparent),radial-gradient(2px 2px at 44% 70%,rgba(255,255,255,.75),transparent),radial-gradient(1.5px 1.5px at 84% 84%,rgba(255,255,255,.65),transparent);background-size:120px 120px;animation:vld-snow 9s linear infinite}",
@@ -1348,6 +1376,7 @@ export const STYLES = [
   "@keyframes vld-rain{0%{background-position:0 0}100%{background-position:0 22px}}",
   "@keyframes vld-snow{0%{background-position:0 0}100%{background-position:20px 120px}}",
   "@keyframes vld-clouds{0%{background-position:0 0,0 0}100%{background-position:300px 0,-260px 0}}",
+  "@keyframes vld-wind{0%{background-position:0 0}100%{background-position:220px 0}}",
   "@keyframes vld-fog{0%{opacity:.5;transform:translateX(-4%)}100%{opacity:.85;transform:translateX(4%)}}",
   "@keyframes vld-flash{0%,96%,100%{filter:none}97%,98%{filter:brightness(1.9)}}",
   // motion kill-switch: freeze every band animation
