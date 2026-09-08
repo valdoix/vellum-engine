@@ -64,6 +64,27 @@ import { collapseAssembledArgentPolicy } from './domain/argent-policy.js';
 import { assessVellumStateContract, VELLUM_STATE_BLOCK_CONTENT } from './domain/preset-health.js';
 import { formatDryRunMessages, visiblePreviewContent } from './domain/preset-preview.js';
 import { reduce } from './core/reduce.js';
+import { dialogueMarkupGuidance, repairDialogueSpeakerTags, type DialogueIdentity } from './domain/dialogue-colors.js';
+
+function dialogueIdentities(state: ChronicleState, names: { user: string; char: string }): DialogueIdentity[] {
+  const ordered: DialogueIdentity[] = [];
+  const seen = new Set<string>();
+  const add = (speaker: DialogueIdentity | undefined): void => {
+    const name = String(speaker?.name ?? '').trim();
+    const key = name.normalize('NFKC').toLocaleLowerCase();
+    if (!name || seen.has(key)) return;
+    seen.add(key);
+    ordered.push({ name, ...(speaker?.aka?.length ? { aka: speaker.aka } : {}) });
+  };
+  for (const id of state.scene.present ?? []) {
+    const cast = state.cast[id];
+    add(cast ? { name: cast.name, aka: cast.aka } : { name: id });
+  }
+  add(names.user ? { name: names.user } : undefined);
+  add(names.char ? { name: names.char } : undefined);
+  for (const cast of Object.values(state.cast)) add({ name: cast.name, aka: cast.aka });
+  return ordered.slice(0, 60);
+}
 
 /** Reconcile host visibility against exact, integrity-checked archive ancestry. */
 async function syncArchiveHide(chatId: string, state?: ChronicleState): Promise<{ hid: number; shown: number }> {
@@ -1698,10 +1719,11 @@ async function wireCapabilitiesInner(): Promise<void> {
           }
           const state = await loadState(chatId);
           const personaStateOn = await readPersonaStateEnabled(chatId);
-          const personaNames = personaStateOn
+          const personaNames = personaStateOn || turnContract?.dialogueColor
             ? await chatNames(chatId, uid, context.personaId)
             : { user: '', char: '' };
           const personaStateText = personaStateGuidance(personaStateOn, turnContract, personaNames.user);
+          const dialogueText = dialogueMarkupGuidance(!!turnContract?.dialogueColor, dialogueIdentities(state, personaNames));
           // ARGENT's output contract must stay the literal last assembled prompt
           // block. Its static schema explicitly recognizes this runtime option,
           // so place the override in VELLUM's leading context there. Older
@@ -1740,18 +1762,18 @@ async function wireCapabilitiesInner(): Promise<void> {
             }
           }
           if (!state.turns && !Object.keys(state.cast).length) {
-            const initialText = [personaStateText, refreshText].filter(Boolean).join('\n\n');
+            const initialText = [personaStateText, dialogueText, refreshText].filter(Boolean).join('\n\n');
             if (!initialText) return out;
             const rec = recordInjection(chatId, 0, initialText, [], { source: refreshText ? 'prose-refresh' : 'persona-state' });
             try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
             const initialMessages = [
-              ...((refreshText || personaStateHead) ? [{ role: 'system', content: [refreshText, personaStateHead].filter(Boolean).join('\n\n') }] : []),
+              ...((refreshText || personaStateHead || dialogueText) ? [{ role: 'system', content: [refreshText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
               ...out,
               ...(personaStateTail ? [{ role: 'system', content: personaStateTail }] : []),
             ];
             const initialBreakdown = [
-              ...((refreshText || personaStateHead) ? [{ messageIndex: 0, name: refreshText ? 'VELLUM Prose Refresh' : 'VELLUM Persona State' }] : []),
-              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((refreshText || personaStateHead) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+              ...((refreshText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
+              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((refreshText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
               ...(personaStateTail ? [{ messageIndex: initialMessages.length - 1, name: 'VELLUM Persona State' }] : []),
             ];
             return { messages: initialMessages, breakdown: initialBreakdown };
@@ -1856,7 +1878,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           // Refresh goes last inside VELLUM's system injection so it is the
           // freshest style instruction while every continuity/output contract
           // above it remains binding.
-          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, personaStateHead].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
           if (!injText && !personaStateText) return out;
           const loggedText = [injText, personaStateTail, personaStateEmbeddedAt >= 0 ? personaStateText : ''].filter(Boolean).join('\n\n');
           const rec = recordInjection(chatId, state.turns || 0, loggedText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
@@ -1929,8 +1951,37 @@ async function wireCapabilitiesInner(): Promise<void> {
         rememberUser(userId);
         const chatId = p.chatId || (await activeChatId(userId));
         if (!chatId) return;
-        const snapshot = typeof p.content === 'string' && p.content.trim()
-          ? { messageId: p.messageId, content: p.content, generationId: p.generationId }
+        let responseContent = typeof p.content === 'string' ? p.content : '';
+        const turnContract = await activeTurnContract(chatId, userId);
+        if (responseContent.trim() && turnContract?.dialogueColor) {
+          const boundPersonaId = _personaIdByUserChat.get(userChatKey(userId, chatId));
+          const [state, names] = await Promise.all([
+            loadState(chatId),
+            chatNames(chatId, userId, boundPersonaId),
+          ]);
+          const repaired = repairDialogueSpeakerTags(responseContent, dialogueIdentities(state, names));
+          if (repaired !== responseContent && await has('chat_mutation') && spindle.chat?.updateMessage) {
+            let persisted = false;
+            // Temporary chats can expose GENERATION_ENDED just before their new
+            // row is queryable. Retry the narrow message patch briefly so clear
+            // attributions still become durable tags instead of display-only
+            // transformations that vanish on refresh.
+            for (let attempt = 0; attempt < 4 && !persisted; attempt++) {
+              try {
+                await spindle.chat.updateMessage(chatId, p.messageId, { content: repaired });
+                persisted = true;
+              } catch {
+                if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1)));
+              }
+            }
+            if (persisted) {
+              responseContent = repaired;
+              spindle.log?.info?.('[vellum_engine] restored missing speaker wrappers from explicit name attribution');
+            } else spindle.log?.warn?.('[vellum_engine] could not persist explicit speaker-wrapper repair');
+          }
+        }
+        const snapshot = responseContent.trim()
+          ? { messageId: p.messageId, content: responseContent, generationId: p.generationId }
           : undefined;
         void foldChat(chatId, userId, snapshot).catch((e) => {
           spindle.log?.warn?.('[vellum_engine] generation fold failed: ' + ((e as Error)?.message ?? e));

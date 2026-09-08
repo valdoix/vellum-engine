@@ -24,6 +24,8 @@ export const SPEAKER_SPAN_REPLACEMENT = '<span class="v-spk" data-spk="$1" style
 
 export interface SpeakerColor { name: string; aka: string[]; color: string; }
 
+export interface DialogueIdentity { name: string; aka?: readonly string[]; }
+
 interface CastLike {
   id: string;
   name: string;
@@ -66,6 +68,77 @@ export function buildSpeakerColors(cast: Record<string, CastLike> | undefined): 
     out.push({ name: c.name, aka: (c.aka ?? []).filter(Boolean), color: resolveDialogueColor(c) });
   }
   return out;
+}
+
+/**
+ * A short, concrete turn-local reminder for prose models. The static ARGENT
+ * contract can explain the grammar, but models comply more reliably when the
+ * exact names they may put in `[spk=...]` are adjacent to the live scene.
+ */
+export function dialogueMarkupGuidance(enabled: boolean, speakers: readonly DialogueIdentity[]): string {
+  if (!enabled) return '';
+  const labels = [...new Set(speakers
+    .map((speaker) => String(speaker?.name ?? '').replace(/[\r\n\[\]]+/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean))]
+    .slice(0, 60);
+  const roster = labels.length ? labels.join('; ') : '(use each established character\'s exact name)';
+  return `[DIALOGUE OUTPUT MARKUP — ACTIVE THIS TURN]
+Speaker labels: ${roster}.
+For every live spoken quotation whose speaker is named or otherwise certain, write the opening wrapper before the first quote character and the matching close immediately after the passage: [spk=Canonical Name]"speech"[/spk]. These wrappers are mandatory parts of story prose, including Engine Second Pass mode. Never output an eligible named-speaker quotation bare. Keep narration, thought, documents, remembered speech, and uncertain speakers outside wrappers.`;
+}
+
+const EXPLICIT_NAME = String.raw`(?!(?:She|He|They|It|We|I|You|The|A|An|This|That|These|Those)\b)[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*(?:[ \t]+(?:(?:de|del|van|von|da|di|la|le|al|bin)[ \t]+)?[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*){0,3}`;
+const SPEECH_VERB = String.raw`(?:said|says|asked|asks|replied|replies|answered|answers|whispered|whispers|murmured|murmurs|called|calls|shouted|shouts|yelled|yells|cried|cries|added|adds|warned|warns|insisted|insists|admitted|admits|promised|promises|ordered|orders|demanded|demands|observed|observes|remarked|remarks|continued|continues)`;
+const DIRECT_QUOTE = String.raw`["“][^"“”\r\n]{1,4000}["”]`;
+const LEADING_ATTRIBUTION_RE = new RegExp(String.raw`(^[ \t]*)(${EXPLICIT_NAME})([ \t]+${SPEECH_VERB}(?:[ \t]+[a-z]+ly)?[ \t]*[,—:-][ \t]*)(${DIRECT_QUOTE})`, 'gm');
+const TRAILING_ATTRIBUTION_RE = new RegExp(String.raw`(^[ \t]*)(${DIRECT_QUOTE})([ \t]*(?:,|—|-)?[ \t]*)(${EXPLICIT_NAME})([ \t]+${SPEECH_VERB}\b)`, 'gm');
+const INVERTED_ATTRIBUTION_RE = new RegExp(String.raw`(^[ \t]*)(${DIRECT_QUOTE})([ \t]*(?:,|—|-)?[ \t]*${SPEECH_VERB}(?:[ \t]+[a-z]+ly)?[ \t]+)(${EXPLICIT_NAME})(?=[.!?,;:\s]|$)`, 'gm');
+const COLON_ATTRIBUTION_RE = new RegExp(String.raw`(^[ \t]*)(${EXPLICIT_NAME})([ \t]*:[ \t]*)(${DIRECT_QUOTE})`, 'gm');
+const PROTECTED_DIALOGUE_REGION_RE = /<\s*reverie\b[\s\S]*?<\s*\/\s*reverie\s*>|<\s*vellum\s*>[\s\S]*?(?:<\s*\/\s*vellum\s*>|$)|‹\s*vellum\s*›[\s\S]*?(?:‹\s*\/\s*vellum\s*›|$)|```\s*vellum[\s\S]*?(?:```|$)|\[\s*VELLUM\s*\][\s\S]*?(?:\[\s*\/\s*VELLUM\s*\]|$)|<artifact\b[\s\S]*?<\s*\/\s*artifact\s*>|\[\s*spk\s*=\s*["']?[^\]\r\n]+["']?\s*\][\s\S]*?(?:\[\s*\/\s*spk\s*\]|(?=\[\s*spk\b|<\s*(?:vellum|reverie)\b|‹\s*vellum\s*›|$))/gi;
+
+function speakerCanonicalizer(speakers: readonly DialogueIdentity[]): (value: string) => string {
+  const owners = new Map<string, Set<string>>();
+  for (const speaker of speakers) {
+    const canonical = String(speaker?.name ?? '').trim();
+    if (!canonical) continue;
+    for (const label of [canonical, ...(speaker.aka ?? [])]) {
+      const key = String(label).normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+      if (!key) continue;
+      const set = owners.get(key) ?? new Set<string>();
+      set.add(canonical);
+      owners.set(key, set);
+    }
+  }
+  return (value: string): string => {
+    // Attribution patterns may capture sentence punctuation immediately after
+    // a final name (for example: `said Mara.`). Keep that punctuation in the
+    // prose replacement, but never let it become part of the speaker key.
+    const raw = value.replace(/\s+/g, ' ').trim().replace(/[.!?,;:]+$/u, '');
+    const candidates = owners.get(raw.normalize('NFKC').toLocaleLowerCase());
+    return candidates?.size === 1 ? [...candidates][0]! : raw;
+  };
+}
+
+/**
+ * Repair only dialogue whose speaker is explicit in the prose. This is the
+ * runtime backstop for models that miss ARGENT's markup instruction. It never
+ * assigns pronoun-only or unattributed quotes, and it masks existing wrappers,
+ * Reverie, artifacts, and VELLUM JSON before scanning so canonical content is
+ * never double-wrapped or corrupted.
+ */
+export function repairDialogueSpeakerTags(content: string, speakers: readonly DialogueIdentity[] = []): string {
+  if (!content || /\[\s*spk\s*=/i.test(content) && !/["“][^"“”\r\n]{1,4000}["”]/.test(content.replace(PROTECTED_DIALOGUE_REGION_RE, ''))) return content;
+  const protectedRegions: string[] = [];
+  let prose = content.replace(PROTECTED_DIALOGUE_REGION_RE, (match) => {
+    const index = protectedRegions.push(match) - 1;
+    return `\uE000VELLUM${index}\uE001`;
+  });
+  const canonical = speakerCanonicalizer(speakers);
+  prose = prose.replace(LEADING_ATTRIBUTION_RE, (_whole, lead, name, attribution, quote) => `${lead}${name}${attribution}[spk=${canonical(name)}]${quote}[/spk]`);
+  prose = prose.replace(TRAILING_ATTRIBUTION_RE, (_whole, lead, quote, join, name, attribution) => `${lead}[spk=${canonical(name)}]${quote}[/spk]${join}${name}${attribution}`);
+  prose = prose.replace(INVERTED_ATTRIBUTION_RE, (_whole, lead, quote, attribution, name) => `${lead}[spk=${canonical(name)}]${quote}[/spk]${attribution}${name}`);
+  prose = prose.replace(COLON_ATTRIBUTION_RE, (_whole, lead, name, join, quote) => `${lead}${name}${join}[spk=${canonical(name)}]${quote}[/spk]`);
+  return prose.replace(/\uE000VELLUM(\d+)\uE001/g, (_whole, rawIndex) => protectedRegions[Number(rawIndex)] ?? '');
 }
 
 /** Escape a name for safe use inside a CSS attribute-selector string. */

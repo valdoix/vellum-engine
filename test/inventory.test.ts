@@ -122,6 +122,28 @@ describe('{{user}} is always present (presence != authoring)', () => {
     expect(out.find((e) => e.kind === 'cast.edit' && (e as any).id === 'anne')).toMatchObject({ patch: { traits: ['stubborn'] } });
   });
 
+  it('retains a Director-authorized inline persona row without redundant evidence', () => {
+    const inlineCtx = ctx(freshState(), 'anne', true);
+    inlineCtx.agency = 'director';
+    const out = coreFeature.extract!({ scene: { loc: 'x' }, present: [{
+      id: 'Anne',
+      mood: 'resolved',
+      condition: 'tired',
+      thought: 'I can trust her.',
+      doing: 'watching the door',
+      traits: ['loyal'],
+    }] } as any, inlineCtx);
+    const scene = out.find((e) => e.kind === 'scene.set') as any;
+    expect(scene.detail.find((d: any) => d.id === 'anne')).toMatchObject({
+      mood: 'resolved',
+      condition: 'tired',
+      thought: 'I can trust her.',
+      doing: 'watching the door',
+    });
+    expect(out.find((e) => e.kind === 'cast.edit' && (e as any).id === 'anne'))
+      .toMatchObject({ patch: { traits: ['loyal'] } });
+  });
+
   it('keeps an opted-in physical condition until the story replaces it', () => {
     const state = freshState();
     state.scene.detail = [{ id: 'anne', condition: 'wounded' }];

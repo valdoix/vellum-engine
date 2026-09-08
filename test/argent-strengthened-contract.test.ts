@@ -146,10 +146,11 @@ describe('ARGENT strengthened invariants', () => {
     const dialogue = block('arg-colored-dialogue-contract');
     const output = block('arg-output-contract');
     expect(variable('dialogue_color').defaultValue).toBe(1);
-    expect(dialogue).toContain('[spk=Canonical Cast Name]');
-    expect(dialogue).toContain('never nest wrappers or place two speakers in one wrapper');
-    expect(dialogue).toContain('FINAL COLOR AUDIT');
-    expect(output).toContain('Never leave eligible direct speech bare');
+    expect(dialogue).toContain('[spk=Exact Cast Name]');
+    expect(dialogue).toContain('Use one speaker per wrapper');
+    expect(dialogue).toContain('scan for bare eligible quotes');
+    expect(output).toContain('every named or certain live speaker uses');
+    expect(output).toContain('scan every opening dialogue quote');
     expect(expandedBlock('arg-colored-dialogue-contract', { dialogue_color: 0 })).toBe('');
     expect(expandedBlock('arg-output-contract', { dialogue_color: 0 })).not.toContain('COLORED DIALOGUE');
   });

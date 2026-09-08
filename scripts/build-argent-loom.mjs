@@ -378,11 +378,9 @@ STAKES: {{var::stakes}}
 Hold one coherent voice for the entire response. Length changes how deeply the same movement is inhabited; it does not authorize a second event, an extra revelation, or a time skip.`, { group: CAT_CRAFT }),
 
   block('arg-colored-dialogue-contract', 'Colored Dialogue — Exact Speaker Contract', String.raw`{{if::{{var::dialogue_color}}}}[SPEAKER MARKUP — EXACT]
-Wrap every live directly spoken quotation by a named speaker as [spk=Canonical Cast Name]"complete passage"[/spk]. Identify the speaker before opening the quote; copy the canonical CAST name or recorded alias exactly. A newly named speaker must use the same proper name everywhere.
+For each live quote with a named or certain speaker, open [spk=Exact Cast Name] before the quote and close [/spk] after it. This markup stays mandatory in story prose and Engine Second Pass. Use one speaker per wrapper; keep narration outside. Example: Mara said, [spk=Mara]"Wait."[/spk]
 
-Keep quotation marks inside, narration/tags outside. Close before another speaker; never nest wrappers or place two speakers in one wrapper. Example: Mara said, [spk=Mara]"Wait."[/spk]
-
-Do not tag narration, thought, remembered wording, documents, signs, messages, epigraphs, titles, roles, pronouns, or uncertain speakers. Markup never authorizes {{user}}'s speech. FINAL COLOR AUDIT: every eligible named-speaker quotation has exactly one complete wrapper and no wrapper contains non-speech. Repair bare or mismatched units before output.{{/if}}`, { group: CAT_CRAFT }),
+Never tag thought, documents, remembered speech, signs, roles, pronouns, uncertain speakers, or private/state sections. Markup never authorizes {{user}}'s speech. Before sending, scan for bare eligible quotes and repair them.{{/if}}`, { group: CAT_CRAFT }),
 
   block('arg-prose-doctrine', 'Prose Doctrine', String.raw`[CRAFT FLOOR — {{var::doctrine_strictness}}]
 - Enter on the live action; never recap or paraphrase {{user}}.
@@ -753,7 +751,7 @@ Start with zero plot rows. Admit the exact title only when prior condition -> di
 delta.parallel is the complete replace-all final T1 snapshot. Exclude present actors; keep one final where/activity per absent actor; discard stale origins, completed travel, duplicates, conflicts, and guesses. Emit [] when none remains.{{/if}}{{/if}}
 
 {{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]
-Every named live speaker uses [spk=Exact Cast Name]"complete passage"[/spk], one speaker per wrapper, with narration outside. Never leave eligible direct speech bare. Do not tag thought, documents, memory, signs, roles, pronouns, or uncertain speakers. Create tags while drafting; do not postpone tagging until a later proofreading pass. Before sending, scan every opening dialogue quote and repair missing or mismatched wrappers.{{/if}}
+In both Inline Compatibility and Engine Second Pass, every named or certain live speaker uses [spk=Exact Cast Name]"complete passage"[/spk]. Open it before the quote; keep narration outside; use one speaker per wrapper. Do not tag thought, documents, memory, signs, roles, pronouns, or uncertain speech. Before sending, scan every opening dialogue quote and repair bare eligible speech.{{/if}}
 
 {{if::${inlineState}}}[STATE SERIALIZATION — FINAL GATE]
 Reserve room, precompose the full object, then emit balanced raw JSON and literal </vellum>. Shorten prose before risking state. A reply ending anywhere else is incomplete.{{/if}}
@@ -833,7 +831,7 @@ const speakerSpanReplacement = '<span class="v-spk" data-spk="$1" style="color:v
 // name next to one single-line quotation. These patterns never infer pronouns
 // or unattributed dialogue; an uncertain attribution remains plain text.
 const recoverableSpeakerName = String.raw`(?!(?:She|He|They|It|We|I|You|The|A|An|This|That|These|Those)\b)[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*(?:[ \t]+(?:(?:de|del|van|von|da|di|la|le|al|bin)[ \t]+)?[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*){0,3}`;
-const recoverableSpeechVerb = String.raw`(?:said|asked|replied|answered|whispered|murmured|called|shouted|yelled|cried|added|warned|insisted|admitted|promised|ordered|demanded|observed|remarked|continued)`;
+const recoverableSpeechVerb = String.raw`(?:said|says|asked|asks|replied|replies|answered|answers|whispered|whispers|murmured|murmurs|called|calls|shouted|shouts|yelled|yells|cried|cries|added|adds|warned|warns|insisted|insists|admitted|admits|promised|promises|ordered|orders|demanded|demands|observed|observes|remarked|remarks|continued|continues)`;
 const recoverableQuote = String.raw`["“][^"“”\r\n]{1,1200}["”]`;
 const leadingAttributionPattern = String.raw`^([ \t]*)(${recoverableSpeakerName})([ \t]+${recoverableSpeechVerb}(?:[ \t]+[a-z]+ly)?[ \t]*[,—:-][ \t]*)(?!\[\s*spk\b)(${recoverableQuote})`;
 const trailingAttributionPattern = String.raw`^([ \t]*)(${recoverableQuote})([ \t]*(?:,|—|-)?[ \t]*)(${recoverableSpeakerName})([ \t]+${recoverableSpeechVerb}\b)`;
@@ -1169,7 +1167,7 @@ assert(finalAnchorBlock.includes('PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE'), '
 assert(outputContractBlock.includes('PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE') && outputContractBlock.includes('PLAYER AUTHORSHIP — MINOR CONTINUITY FINAL GATE') && outputContractBlock.includes('PLAYER AUTHORSHIP — DIRECTOR FINAL GATE'), 'Per-mode last-instruction agency gates missing');
 assert(timeBlock.includes('one exact zero-padded 24-hour live clock') && timeBlock.includes('A1 MUST be greater than or equal to A0') && timeBlock.includes('Keep the day/date exactly unchanged') && timeBlock.includes('advances at least one minute'), 'Exact-clock monotonic reality contract missing');
 assert(outputContractBlock.includes('EXACT CLOCK — REQUIRED FINAL GATE') && outputContractBlock.includes('A1 < A0 is forbidden') && outputContractBlock.includes('An earlier wall clock alone is not proof of midnight') && outputContractBlock.includes('never freeze active beats'), 'Last-instruction monotonic clock gate missing');
-assert(dialogueBlock.includes('FINAL COLOR AUDIT') && dialogueBlock.includes('[spk=Canonical Cast Name]'), 'Colored-dialogue construction contract missing');
+assert(dialogueBlock.includes('scan for bare eligible quotes') && dialogueBlock.includes('[spk=Exact Cast Name]'), 'Colored-dialogue construction contract missing');
 assert(outputContractBlock.includes('COLORED DIALOGUE — REQUIRED OUTPUT MARKUP'), 'Last-instruction colored-dialogue gate missing');
 assert(variables.find((entry) => entry.name === 'npc_dialogue')?.defaultValue === 1, 'NPC-to-NPC dialogue must default on');
 assert(npcDialogueBlock.includes('[NPC-TO-NPC DIALOGUE — ACTIVE]') && npcDialogueBlock.includes('without waiting for {{user}} to prompt each exchange'), 'NPC-to-NPC dialogue contract missing');
@@ -1300,7 +1298,7 @@ assert(blocks.at(-1)?.id === 'arg-output-contract', 'Output contract must be the
 assert(finalOutputContract.content.includes('[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]'), 'Final output contract lacks the mandatory dialogue rule');
 assert(finalOutputContract.content.includes('scan every opening dialogue quote'), 'Final output contract lacks the dialogue compliance audit');
 assert(finalOutputContract.content.includes('[GLM FINAL COMPLIANCE GATE]'), 'Final output contract lacks the GLM compliance gate');
-assert(finalOutputContract.content.includes('do not postpone tagging until a later proofreading pass'), 'Final output contract does not require inline dialogue tagging');
+assert(finalOutputContract.content.includes('Open it before the quote'), 'Final output contract does not require inline dialogue tagging');
 assert(finalOutputContract.content.includes('[STATE SERIALIZATION — FINAL GATE]'), 'Final output contract lacks the state serialization gate');
 assert(finalOutputContract.content.includes('A reply ending anywhere else is incomplete'), 'Final output contract does not reject incomplete state endings');
 const finalStateCompiler = blocks.find((entry) => entry.id === 'arg-state-final');

@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { SPEAKER_SPAN_REPLACEMENT, speakerColorCss } from '../src/domain/dialogue-colors.js';
+import {
+  SPEAKER_SPAN_REPLACEMENT,
+  dialogueMarkupGuidance,
+  repairDialogueSpeakerTags,
+  speakerColorCss,
+} from '../src/domain/dialogue-colors.js';
 import { expandMacros } from '../src/domain/preset-macro-lite.js';
 
 interface RegexScriptFixture {
@@ -63,10 +68,10 @@ describe('ARGENT dialogue-color bridge', () => {
     expect(output?.position).toBe('post_history');
     expect(preset.blocks.at(-1)?.id).toBe('arg-output-contract');
     expect(output?.content).toContain('[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]');
-    expect(output?.content).toContain('Every named live speaker uses');
-    expect(output?.content).toContain('Never leave eligible direct speech bare');
-    expect(output?.content).toContain('do not postpone tagging until a later proofreading pass');
+    expect(output?.content).toContain('every named or certain live speaker uses');
+    expect(output?.content).toContain('both Inline Compatibility and Engine Second Pass');
     expect(output?.content).toContain('scan every opening dialogue quote');
+    expect(output?.content).toContain('repair bare eligible speech');
     expect(output?.content).toContain('[GLM FINAL COMPLIANCE GATE]');
     expect(output?.content).toContain('No bare named-speaker quote');
   });
@@ -167,6 +172,40 @@ describe('ARGENT dialogue-color bridge', () => {
     expect(entry.placement).toEqual(['ai_output', 'memory']);
     expect(entry.target).toEqual(['prompt']);
     expect(apply(entry.script_id, '[spk = "Mara" ]"Keep me."[/spk]')).toBe('"Keep me."');
+  });
+});
+
+describe('VELLUM runtime dialogue-markup backstop', () => {
+  it('places the exact live cast roster beside the per-turn markup rule', () => {
+    const guidance = dialogueMarkupGuidance(true, [
+      { name: 'Mara Vey', aka: ['Mara'] },
+      { name: 'Elara' },
+    ]);
+    expect(guidance).toContain('Speaker labels: Mara Vey; Elara.');
+    expect(guidance).toContain('[spk=Canonical Name]"speech"[/spk]');
+    expect(guidance).toContain('including Engine Second Pass mode');
+    expect(dialogueMarkupGuidance(false, [{ name: 'Mara' }])).toBe('');
+  });
+
+  it.each([
+    ['Mara said, "Wait."', 'Mara said, [spk=Mara Vey]"Wait."[/spk]'],
+    ['"Wait," Mara said.', '[spk=Mara Vey]"Wait,"[/spk] Mara said.'],
+    ['"Wait," said Mara.', '[spk=Mara Vey]"Wait,"[/spk] said Mara.'],
+    ['Mara: "Wait."', 'Mara: [spk=Mara Vey]"Wait."[/spk]'],
+  ])('repairs explicit attribution and canonicalizes a unique alias: %s', (input, expected) => {
+    expect(repairDialogueSpeakerTags(input, [{ name: 'Mara Vey', aka: ['Mara'] }])).toBe(expected);
+  });
+
+  it('leaves ambiguous dialogue and private state untouched', () => {
+    const input = '"Wait," she said.\n<reverie>Mara said, "Think."</reverie>\n<vellum>\n{"thought":"Mara said, \\"Hide.\\""}\n</vellum>';
+    expect(repairDialogueSpeakerTags(input, [{ name: 'Mara' }])).toBe(input);
+  });
+
+  it('preserves existing wrappers while repairing a later explicit line', () => {
+    const input = '[spk=Mara]"First."[/spk]\nElara asked, "Second?"';
+    expect(repairDialogueSpeakerTags(input, [{ name: 'Mara' }, { name: 'Elara' }])).toBe(
+      '[spk=Mara]"First."[/spk]\nElara asked, [spk=Elara]"Second?"[/spk]',
+    );
   });
 });
 

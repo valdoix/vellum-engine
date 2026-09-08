@@ -183,8 +183,15 @@ export const coreFeature: Feature = {
     const personaGrounded = (p: NonNullable<ParsedState['present']>[number]): boolean => {
       if (!ctx.personaState) return false;
       if (ctx.personaValidated) return true;
+      // Director is explicit per-turn permission for the prose model to
+      // co-author the persona's plausible state and interiority. In Inline
+      // Compatibility the same model writes the canonical block, so requiring
+      // a second verbatim evidence string merely discards valid fields that are
+      // already authorized by the selected mode. Protected and Minor
+      // Continuity still require an exact allowed-source quote below.
+      if (ctx.agency === 'director') return true;
       const proof = p.evidence?.trim() ?? '';
-      const source = ctx.agency === 'protected' ? (ctx.userInput ?? '') : `${ctx.userInput ?? ''}\n${ctx.prose ?? ''}`;
+      const source = ctx.userInput ?? '';
       return !!proof && source.includes(proof);
     };
     const priorPersonaCondition = uCanon
