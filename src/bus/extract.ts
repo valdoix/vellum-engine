@@ -7,6 +7,7 @@ import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate } from '../host/generation.js';
 import { has } from '../host/capability.js';
 import { similarFact } from '../domain/fact-match.js';
+import type { AgencyMode } from '../domain/preset-runtime.js';
 
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
@@ -26,7 +27,7 @@ declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 const EXTRACT_SYS =
   'You are the LIVING-STATE EXTRACTOR for a roleplay. Read the RECENT NARRATIVE PROSE and surface what it newly '
   + 'establishes. Output STRICT JSON only, no prose outside it: '
-  + '{"present":[{"who":"Name","mood":"one-word emotion or short phrase","doing":"what they are physically doing right now","condition":"physical state e.g. wounded|exhausted, or omit","thought":"their genuine first-person INNER VOICE this beat, under what THEY know, or omit"}],'
+  + '{"present":[{"who":"Name","mood":"one-word emotion or short phrase","doing":"what they are physically doing right now","condition":"physical state e.g. wounded|exhausted, or omit","thought":"their genuine first-person INNER VOICE this beat, under what THEY know, or omit","traits":["stable trait"],"evidence":"exact source quote required for persona only"}],'
   + '"knowledge":[{"who":"Name","fact":"one clause","reliability":"knows|believes|suspects|wrong|unaware","truth":"true|false|unknown","source":"how they learned it, brief or omit","about":"Name or omit"}],'
   + '"secrets":[{"secret":"one clause","keeper":"Name","from":["Name"],"danger":"minor|major|explosive"}],'
   + '"secretReveals":[{"id":"exact tracked secret id","to":["Name"]}],'
@@ -43,7 +44,7 @@ const EXTRACT_SYS =
   + 'JOURNAL: extract genuine TURNING POINTS a character would personally carry — a confession, promise, betrayal, gift, wound, first kiss, a moment of being truly seen — written from that character\'s POV; the PLAYER can and should hold journal entries too. '
   + 'BONDS: aff/trust are the CHANGE this excerpt caused to how A feels toward B; omit pairs that did not move; cat only when the bond\'s nature changed. '
   + 'FACTIONS: name a GROUP (household staff, a house, a guild) when it acts, is referenced as a bloc, or a character belongs to one; list known members and the group\'s standing toward the player if it shifted. Capture every real reveal/turning-point that carries dramatic weight, invent nothing the prose does not support. Empty arrays are fine. '
-  + 'PRESENT + INNER THOUGHT: for EACH rostered, individually-named character on-stage in this excerpt, emit a present[] entry with their current mood and what they are doing, and — this is the point — their `thought`: the genuine, unspoken first-person inner voice they carry through this beat, framed by ONLY what THAT character knows (never omniscient, never the narrator\'s summary). If the prose already renders a character\'s interiority (a line of free-indirect thought, a private fear, what they don\'t say aloud), capture it as `thought` in their own voice. Do NOT invent interiority the prose gives no basis for; omit `thought` when the character is a cipher this beat. NEVER emit a present entry for the player/persona ({{user}}) — their inner state is authored only by the player; and never for a group. '
+  + 'PRESENT + INNER THOUGHT: for EACH rostered, individually-named character on-stage in this excerpt, emit a present[] entry with their current mood and what they are doing, and — this is the point — their `thought`: the genuine, unspoken first-person inner voice they carry through this beat, framed by ONLY what THAT character knows (never omniscient, never the narrator\'s summary). If the prose already renders a character\'s interiority (a line of free-indirect thought, a private fear, what they don\'t say aloud), capture it as `thought` in their own voice. Do NOT invent interiority the prose gives no basis for; omit `thought` when the character is a cipher this beat. Read PERSONA STATE MODE and PERSONA AGENCY: when OFF, never emit a persona present entry. When ON, emit persona mood, condition, doing, first-person thought, and stable traits only when directly established by an allowed source, with one exact source excerpt in `evidence`. Forbidden allows LATEST PLAYER INPUT only; Minor Continuity and Director may also use completed prose. This is tracker extraction and never permission to invent player behavior. Never put a group in present. '
   + 'CRITICAL: a COLLECTIVE or GROUP is a FACTION, never a character. "The household staff", "the court", "the Kingsguard", "the guards", "the council", "House Lannister" are GROUPS — put them ONLY in factions[].name (with members), NEVER in a who/a/b/keeper/present character slot. Those slots take individual named people only. If a group already exists (see the FACTIONS list in context), reuse its EXACT name; do not coin a synonym.';
 
 function parseJson(text: string): any | null {
@@ -204,7 +205,7 @@ function rosterLabels(roster: CharacterRoster): string[] {
  * exactly why bugs here (the `bad(b)` typo, the over-eager name filter) shipped
  * uncaught. `seqFn` defaults to the global monotonic seq; tests can inject one.
  */
-export function mapExtracted(obj: any, turn: number, day: number, names: { user: string; char: string }, seqFn: () => number = nextSeq, state?: ChronicleState, tone: Tone = DEFAULT_TONE, prose = ''): VellumEvent[] {
+export function mapExtracted(obj: any, turn: number, day: number, names: { user: string; char: string }, seqFn: () => number = nextSeq, state?: ChronicleState, tone: Tone = DEFAULT_TONE, prose = '', personaState = false, playerInput = '', agency: AgencyMode = 'protected'): VellumEvent[] {
   if (!obj || typeof obj !== 'object') return [];
   const out: VellumEvent[] = [];
   const base = () => ({ seq: seqFn(), turn, day, src: 'living' as const });
@@ -249,8 +250,8 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   // character detail (mood/doing/condition/thought) from prose so a dropped or
   // truncated <vellum> block doesn't lose interiority. Emitted as a NON-
   // authoritative scene.set (mergeDetail:true) that only fills gaps — never
-  // demotes cast or overwrites the block's authored detail. The player is never
-  // given interiority here (authored only by {{user}}); a group is never present.
+  // demotes cast or overwrites the block's authored detail. Persona detail is
+  // opt-in and needs an exact source quote; a group is never present.
   const presIds: string[] = [];
   const presDetail: Array<{ id: string; mood?: string; doing?: string; condition?: string; thought?: string }> = [];
   const seenPres = new Set<string>();
@@ -258,7 +259,11 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     const who = realName(p?.who, names);
     const id = subjectId(who);
     if (!id) continue;
-    if (id === userCanon) continue; // never author the player's inner state
+    const isPersona = id === userCanon;
+    if (isPersona && !personaState) continue;
+    const grounding = agency === 'protected' ? playerInput : `${playerInput}\n${prose}`;
+    const personaEvidence = String(p?.evidence || '').trim();
+    if (isPersona && (!personaEvidence || !grounding.includes(personaEvidence))) continue;
     if (seenPres.has(id)) continue;
     seenPres.add(id);
     presIds.push(id);
@@ -270,6 +275,15 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     // Refresh under the canonical cast label, never under model-returned casing
     // or a shorthand/alias. Trusted roots are the only possible first seeds.
     out.push({ ...base(), kind: 'cast.seen', id, name: canonicalName(id, who), status: 'present' } as VellumEvent);
+    if (isPersona && Array.isArray(p?.traits)) {
+      const seen = new Set<string>();
+      const traits = p.traits.map((trait: unknown) => String(trait).trim()).filter((trait: string) => {
+        const key = trait.toLocaleLowerCase();
+        if (!trait || seen.has(key)) return false;
+        seen.add(key); return true;
+      }).slice(0, 6);
+      if (traits.length) out.push({ ...base(), kind: 'cast.edit', id, patch: { traits } } as VellumEvent);
+    }
   }
   if (presDetail.some((d) => d.mood || d.doing || d.condition || d.thought) || presIds.length) {
     out.push({ ...base(), kind: 'scene.set', present: presIds, detail: presDetail, mergeDetail: true } as VellumEvent);
@@ -374,7 +388,7 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
  * supplies turn/day, the resolved persona/char names, and the prior chronicle
  * state (for cast-id resolution). No-op without generation permission/empty prose.
  */
-export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null, state?: ChronicleState, tone: Tone = DEFAULT_TONE): Promise<VellumEvent[]> {
+export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null, state?: ChronicleState, tone: Tone = DEFAULT_TONE, personaState = false, playerInput = '', agency: AgencyMode = 'protected'): Promise<VellumEvent[]> {
   if (!prose || !prose.trim() || !(await has('generation'))) return [];
   const roster = rosterLabels(buildCharacterRoster(state, names)).slice(0, 250);
   const factions = Object.values(state?.factions ?? {}).map((f) => f.name).filter(Boolean).slice(0, 100);
@@ -382,6 +396,9 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   const context = '[KNOWN CHARACTERS]\n' + (roster.length ? roster.join('\n') : '(none)')
     + '\n\n[KNOWN FACTIONS]\n' + (factions.length ? factions.join('\n') : '(none)')
     + '\n\n[KNOWN SECRETS — copy id exactly when disclosed]\n' + (secrets.length ? secrets.map((s) => `${s.id}: ${s.text}`).join('\n') : '(none)')
+    + `\n\n[PERSONA STATE MODE]\n${personaState ? 'ON' : 'OFF'}`
+    + `\n\n[PERSONA AGENCY]\n${agency}`
+    + '\n\n[LATEST PLAYER INPUT]\n' + (playerInput.trim() || '(not available)')
     + '\n\n[RECENT NARRATIVE PROSE]\n' + prose.slice(0, 8000);
   const gen = await internalGenerate(
     [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: context }],
@@ -391,7 +408,7 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   );
   if (!gen.ok) return [];
   const obj = parseJson(gen.value);
-  return mapExtracted(obj, turn, day, names, nextSeq, state, tone, prose);
+  return mapExtracted(obj, turn, day, names, nextSeq, state, tone, prose, personaState, playerInput, agency);
 }
 
 // JSON-schema for the extractor output. Best-effort: the host enforces it only
@@ -416,6 +433,7 @@ function extractSchema(roster: string[], secretIds: string[]) {
           present: { type: 'array', items: { type: 'object', properties: {
             who: character(), mood: { type: 'string' }, doing: { type: 'string' },
             condition: { type: 'string' }, thought: { type: 'string' },
+            traits: { type: 'array', items: { type: 'string' } }, evidence: { type: 'string' },
           }, required: ['who'] } },
           knowledge: { type: 'array', items: { type: 'object', properties: {
             who: character(), fact: { type: 'string' }, about: character(),

@@ -56,7 +56,7 @@ import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOff
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
-import { agencyAtTurn, enginePassEnabled, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
+import { agencyAtTurn, enginePassEnabled, personaStateEnabled, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
@@ -150,7 +150,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw, personaStateRaw] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -170,6 +170,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     getChatVar(chatId, 'vellum_block_example').catch(() => ''),
     readCompilerDiagnostic(chatId),
     getChatVar(chatId, 'vellum_engine_pass').catch(() => ''),
+    getChatVar(chatId, 'vellum_persona_state').catch(() => ''),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
@@ -180,7 +181,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const autoRetryBlock = !!autoRetryRaw;
   const blockExample = !!blockExampleRaw2;
   const enginePass = enginePassEnabled(enginePassRaw);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass }, userId ?? currentUser() ?? undefined);
+  const personaState = personaStateEnabled(personaStateRaw);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, personaState }, userId ?? currentUser() ?? undefined);
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -204,6 +206,11 @@ async function readCompilerDiagnostic(chatId: string): Promise<CompilerDiagnosti
 async function readEnginePassEnabled(chatId: string): Promise<boolean> {
   try { return enginePassEnabled(await getChatVar(chatId, 'vellum_engine_pass')); }
   catch { return true; }
+}
+
+async function readPersonaStateEnabled(chatId: string): Promise<boolean> {
+  try { return personaStateEnabled(await getChatVar(chatId, 'vellum_persona_state')); }
+  catch { return false; }
 }
 
 interface FoldTranscript {
@@ -458,10 +465,11 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   let prior = await loadState(chatId);
   // tone dials + canonical {{user}} id + locks, resolved once per fold pass (in
   // parallel; chat vars are cached but this also overlaps the name derivation).
-  const [tone, names, locks] = await Promise.all([
+  const [tone, names, locks, personaStateOn] = await Promise.all([
     readTone(chatId, userId),
     chatNames(chatId, userId),
     readLocks(chatId),
+    readPersonaStateEnabled(chatId),
   ]);
   const userCanon = names.user ? canonId(names.user) : '';
   // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
@@ -502,7 +510,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   // which runs in PASS 2 AFTER an early broadcast — so the scene/cast/relations/
   // mood the <vellum> block already established reach the "Now" window immediately
   // instead of waiting on the extractor's model round-trip.
-  const extractQueue: Array<{ turnNo: number; gist: string; day: number; hadBlock: boolean }> = [];
+  const extractQueue: Array<{ turnNo: number; gist: string; day: number; hadBlock: boolean; userInput: string; agency: TurnContract['agency'] }> = [];
   // snapshot the PRE-fold state for the continuity check: loadState/append return
   // the same cached object mutated in place, so a live reference would already show
   // this turn's reveals/learns. Clone the few slices the checker reads.
@@ -511,6 +519,11 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     const content = (msgs[turnNo - 1] ?? '').trim();
     if (!content) continue;
     const dayCap = priorTurnDays?.get(turnNo);
+    const parts = messagePartsAtTurn(transcript.raw, turnNo, transcript.snapshotFallback ? transcript.snapshot : undefined);
+    const playerInput = parts?.userInput ?? '';
+    const agency = turnNo <= turnAgencyLedger.through
+      ? agencyAtTurn(turnAgencyLedger, turnNo)
+      : turnContract?.agency ?? 'protected';
     let compiled: Awaited<ReturnType<typeof compileState>> | null = null;
     let expectedRevision: number | undefined;
     let foldContent = content;
@@ -519,16 +532,11 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       if (pendingRollback !== null && stagedExpectedRevision === undefined) stagedExpectedRevision = expectedRevision;
       const baseline = structuredClone(prior);
       const liveRevision = stateRevision(await loadState(chatId));
-      const raw = transcript.raw;
-      const parts = messagePartsAtTurn(raw, turnNo, transcript.snapshotFallback ? transcript.snapshot : undefined);
       const prose = stripScaffold(parts?.assistant ?? content);
-      const userInput = parts?.userInput ?? '';
+      const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
       const compilerConnection = await getChatVar(chatId, 'vellum_compiler_connection');
-      const agency = turnNo <= turnAgencyLedger.through
-        ? agencyAtTurn(turnAgencyLedger, turnNo)
-        : turnContract?.agency ?? 'protected';
-      compiled = await compileState({ prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency }, userId, compilerConnection ? String(compilerConnection) : undefined);
+      compiled = await compileState({ prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn }, userId, compilerConnection ? String(compilerConnection) : undefined);
       // The user may switch the pass off while a slow compiler request is in
       // flight. Re-check before committing so disabling is immediate and an old
       // result can never mutate the Chronicle after the toggle moved to Off.
@@ -571,7 +579,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       }
     }
     const folded = structuredStateEnabled
-      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, ...(dayCap !== undefined ? { dayCap } : {}) })
+      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, personaValidated: !!compiled?.ok, ...(dayCap !== undefined ? { dayCap } : {}) })
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     const { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {
@@ -606,7 +614,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     // `json-partial` means element salvage recovered the block by dropping corrupt
     // member(s) — the block WAS parsed, so treat it as a real block (the safety-net
     // prose extractor still runs, but the PASS-2 log isn't mislabeled "no block").
-    if (gist && structuredStateEnabled && !engineCompiler) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' || source === 'json-partial' });
+    if (gist && structuredStateEnabled && !engineCompiler) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' || source === 'json-partial', userInput: playerInput, agency });
     spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);
     // salvage discards data — surface WHAT was dropped so recurring model
     // malformations are visible and quantifiable, not silent.
@@ -669,7 +677,11 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
           // feed the extractor the PROSE only (strip any reverie prefix / partial
           // block), so it transcribes the narrative rather than echoing scaffold.
           const prose = stripScaffold(asstContent);
-          const ctxHeader = buildRepairContext(prior, msgs.length);
+          const latestParts = messagePartsAtTurn(transcript.raw, msgs.length, transcript.snapshotFallback ? transcript.snapshot : undefined);
+          const latestAgency = msgs.length <= turnAgencyLedger.through
+            ? agencyAtTurn(turnAgencyLedger, msgs.length)
+            : turnContract?.agency ?? 'protected';
+          const ctxHeader = buildRepairContext(prior, msgs.length, personaStateOn, latestParts?.userInput ?? '', latestAgency);
           const repaired = await repairStateBlock(prose, ctxHeader, userId);
           if (repaired && spindle.chat?.updateMessage) {
             // content-only patch: mirrors into the active swipe, emits MESSAGE_EDITED
@@ -749,7 +761,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   let extracted = 0;
   for (const q of extractQueue) {
     try {
-      const xevs = await extractFromProse(q.gist, q.turnNo, q.day, names, userId, prior, tone);
+      const xevs = await extractFromProse(q.gist, q.turnNo, q.day, names, userId, prior, tone, personaStateOn, q.userInput, q.agency);
       if (xevs.length) { prior = await appendDeferred(chatId, xevs); extracted += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal/bond)${q.hadBlock ? '' : ' [FALLBACK: no <vellum> block]'} from turn ${q.turnNo}`); }
       else if (!q.hadBlock) spindle.log?.warn?.(`[vellum_engine] turn ${q.turnNo} had no <vellum> block and prose extraction yielded nothing`);
       _extractHealthByUserChat.set(userChatKey(userId, chatId), {
@@ -1681,6 +1693,18 @@ async function wireCapabilitiesInner(): Promise<void> {
             }
           }
           const state = await loadState(chatId);
+          const personaStateOn = await readPersonaStateEnabled(chatId);
+          const personaStateText = personaStateOn && turnContract?.state !== false && turnContract?.stateCompiler !== 'engine'
+            ? '[PERSONA STATE TRACKING — ON]\nIn the final VELLUM present roster, put {{user}} first and include current mood, condition, activity, concise first-person thought, and stable traits only when grounded in the latest player input or in prose permitted by this turn\'s selected agency mode. Add `evidence` to the persona object with one exact quote from that permitted source. Preserve an established physical condition until the story changes it. This is tracker data, never permission to add player speech, behavior, decisions, consent, reactions, sensations, injuries, knowledge, or interiority. Under Forbidden agency, every changed persona field and its evidence must come directly from the latest player input. Leave unsupported fields empty.'
+            : '';
+          // ARGENT's output contract must stay the literal last assembled prompt
+          // block. Its static schema explicitly recognizes this runtime option,
+          // so place the override in VELLUM's leading context there. Older
+          // compatibility presets receive the override inside their assembled
+          // state contract when possible, after its absolute blank-player text.
+          const personaStateHead = turnContract?.argent ? personaStateText : '';
+          let personaStateTail = turnContract?.argent ? '' : personaStateText;
+          let personaStateEmbeddedAt = -1;
           if (turnContract?.argent) {
             let lead = '';
             const newest = [...rawOut].reverse().find(m => m.__isChatHistory && m.role === 'user');
@@ -1695,11 +1719,37 @@ async function wireCapabilitiesInner(): Promise<void> {
             // The compiler follows the actual main connection, not an unrelated default.
             if (!context.isDryRun) await setChatVar(chatId, 'vellum_compiler_connection', context.mainDispatch?.descriptor?.connectionId ?? '');
           }
+          // Keep the user's chat message last whenever a compatibility preset
+          // exposes a system state contract we can amend in place. Only fall
+          // back to a trailing system override for unusual presets where no
+          // VELLUM state instruction is present in the assembled prompt.
+          if (personaStateTail) {
+            for (let i = out.length - 1; i >= 0; i--) {
+              const message = out[i];
+              if (message?.role !== 'system' || typeof message.content !== 'string' || !/(?:\[VELLUM STATE|<vellum>)/i.test(message.content)) continue;
+              out = out.slice();
+              out[i] = { ...message, content: message.content + '\n\n' + personaStateTail };
+              personaStateTail = '';
+              personaStateEmbeddedAt = i;
+              break;
+            }
+          }
           if (!state.turns && !Object.keys(state.cast).length) {
-            if (!refreshText) return out;
-            const rec = recordInjection(chatId, 0, refreshText, [], { source: 'prose-refresh' });
+            const initialText = [personaStateText, refreshText].filter(Boolean).join('\n\n');
+            if (!initialText) return out;
+            const rec = recordInjection(chatId, 0, initialText, [], { source: refreshText ? 'prose-refresh' : 'persona-state' });
             try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
-            return { messages: [{ role: 'system', content: refreshText }, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Prose Refresh' }] };
+            const initialMessages = [
+              ...((refreshText || personaStateHead) ? [{ role: 'system', content: [refreshText, personaStateHead].filter(Boolean).join('\n\n') }] : []),
+              ...out,
+              ...(personaStateTail ? [{ role: 'system', content: personaStateTail }] : []),
+            ];
+            const initialBreakdown = [
+              ...((refreshText || personaStateHead) ? [{ messageIndex: 0, name: refreshText ? 'VELLUM Prose Refresh' : 'VELLUM Persona State' }] : []),
+              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((refreshText || personaStateHead) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+              ...(personaStateTail ? [{ messageIndex: initialMessages.length - 1, name: 'VELLUM Persona State' }] : []),
+            ];
+            return { messages: initialMessages, breakdown: initialBreakdown };
           }
           const present = state.scene.present ?? [];
           const nameOf = (id: string): string => state.cast[id]?.name ?? id;
@@ -1801,14 +1851,24 @@ async function wireCapabilitiesInner(): Promise<void> {
           // Refresh goes last inside VELLUM's system injection so it is the
           // freshest style instruction while every continuity/output contract
           // above it remains binding.
-          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText].filter(Boolean).join('\n\n');
-          if (!injText) return out;
-          const rec = recordInjection(chatId, state.turns || 0, injText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
+          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, personaStateHead].filter(Boolean).join('\n\n');
+          if (!injText && !personaStateText) return out;
+          const loggedText = [injText, personaStateTail, personaStateEmbeddedAt >= 0 ? personaStateText : ''].filter(Boolean).join('\n\n');
+          const rec = recordInjection(chatId, state.turns || 0, loggedText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
           // streams in real time instead of only on manual Refresh.
           try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
-          const head = { role: 'system', content: injText };
-          const result: any = { messages: [head, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Recall' }] };
+          const messages = [
+            ...(injText ? [{ role: 'system', content: injText }] : []),
+            ...out,
+            ...(personaStateTail ? [{ role: 'system', content: personaStateTail }] : []),
+          ];
+          const breakdown = [
+            ...(injText ? [{ messageIndex: 0, name: 'VELLUM Recall' }] : []),
+            ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + (injText ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+            ...(personaStateTail ? [{ messageIndex: messages.length - 1, name: 'VELLUM Persona State' }] : []),
+          ];
+          const result: any = { messages, breakdown };
           // INTERCEPTOR PARAMETER INJECTION (generation_parameters capability):
           // Optionally inject generation parameters (e.g. nudging temperature or
           // attaching a response_format for the user-facing turn so the <vellum>
@@ -2122,6 +2182,7 @@ const dispatch: Record<string, Handler> = {
 
     try {
       const msgs = await allTurnContents(chatId);
+      const rawRebuild = await getRawMessages(chatId);
       // full rebuild wipes the log; capture the durable tone first so a recovery
       // reconstruction re-seeds the user's dials (legacy chat vars are no longer
       // written, so there's nothing else to recover them from).
@@ -2136,6 +2197,9 @@ const dispatch: Record<string, Handler> = {
       const names = await chatNames(chatId, uid);
       const userCanon = names.user ? canonId(names.user) : '';
       const locks = await readLocks(chatId);
+      const personaStateOn = await readPersonaStateEnabled(chatId);
+      const rebuildContract = await activeTurnContract(chatId, uid);
+      const rebuildAgencyLedger = await activeTurnAgencyLedger(chatId, uid);
       // ids of turn-memories that already exist (messagesOnly: only backfill gaps)
       const haveTurnMem = new Set(prior.memories.filter((m) => m.tier === 'turn').map((m) => m.id));
       let turns = 0;
@@ -2143,6 +2207,10 @@ const dispatch: Record<string, Handler> = {
       for (let turnNo = 1; turnNo <= msgs.length; turnNo++) {
         const content = (msgs[turnNo - 1] ?? '').trim();
         if (!content) continue;
+        const rebuiltParts = messagePartsAtTurn(rawRebuild, turnNo);
+        const rebuildAgency = turnNo <= rebuildAgencyLedger.through
+          ? agencyAtTurn(rebuildAgencyLedger, turnNo)
+          : rebuildContract?.agency ?? 'protected';
         const sig = sigOf(content);
         const memId = 'turn_' + chatId.slice(0, 6) + '_' + turnNo;
         const evs: VellumEvent[] = [];
@@ -2155,7 +2223,7 @@ const dispatch: Record<string, Handler> = {
           if (!gist) continue;
           evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: memId, tier: 'turn', text: gist, keys: [] } as VellumEvent);
         } else {
-          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks });
+          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: rebuiltParts?.userInput ?? '', agency: rebuildAgency });
           evs.push(...events);
           if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
           const gist = turnGist(content, names);
@@ -2165,7 +2233,15 @@ const dispatch: Record<string, Handler> = {
         prior = await append(chatId, evs);
         turns++; added++;
         // optional deep extraction per turn — full mode only
-        if (!messagesOnly && p?.deep) { const g = turnGist(content, names); if (g) { try { const xe = await extractFromProse(g, turnNo, prior.day || 0, names, uid, prior, tone); if (xe.length) prior = await append(chatId, xe); } catch { /* best effort */ } } }
+        if (!messagesOnly && p?.deep) {
+          const g = turnGist(content, names);
+          if (g) {
+            try {
+              const xe = await extractFromProse(g, turnNo, prior.day || 0, names, uid, prior, tone, personaStateOn, rebuiltParts?.userInput ?? '', rebuildAgency);
+              if (xe.length) prior = await append(chatId, xe);
+            } catch { /* best effort */ }
+          }
+        }
       }
       invalidateIndex(chatId);
       await broadcastState(chatId, uid);
@@ -3096,7 +3172,17 @@ const dispatch: Record<string, Handler> = {
       const prior = await loadState(chatId);
       const msgs = await allTurnContents(chatId);
       const prose = stripScaffold(asstContent);
-      const ctxHeader = buildRepairContext(prior, msgs.length || (prior.turns || 0) + 1);
+      const repairTurn = msgs.length || (prior.turns || 0) + 1;
+      const [repairContract, repairLedger, repairPersonaState] = await Promise.all([
+        activeTurnContract(chatId, uid),
+        activeTurnAgencyLedger(chatId, uid),
+        readPersonaStateEnabled(chatId),
+      ]);
+      const repairAgency = repairTurn <= repairLedger.through
+        ? agencyAtTurn(repairLedger, repairTurn)
+        : repairContract?.agency ?? 'protected';
+      const repairParts = messagePartsAtTurn(raw, repairTurn);
+      const ctxHeader = buildRepairContext(prior, repairTurn, repairPersonaState, repairParts?.userInput ?? '', repairAgency);
       const repaired = await repairStateBlock(prose, ctxHeader, uid);
       if (!repaired) { done(false, 'no_block'); return; }
       await spindle.chat.updateMessage(chatId, msgId, { content: asstContent + '\n\n' + repaired.block });
@@ -3154,6 +3240,22 @@ const dispatch: Record<string, Handler> = {
     } catch (e) {
       spindle.log?.warn?.('[vellum_engine] engine-pass toggle: ' + ((e as Error)?.message ?? e));
       spindle.sendToFrontend?.({ type: 'vellum_engine_pass_set_done', ok: false, reason: 'error', enabled: await readEnginePassEnabled(chatId).catch(() => true) }, uid);
+    }
+  },
+  vellum_set_persona_state: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) {
+      spindle.sendToFrontend?.({ type: 'vellum_persona_state_set_done', ok: false, reason: 'no_active_chat', enabled: false }, uid);
+      return;
+    }
+    const enabled = !!p?.enabled;
+    try {
+      await setChatVar(chatId, 'vellum_persona_state', enabled ? '1' : '');
+      await broadcastState(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_persona_state_set_done', ok: true, enabled }, uid);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] persona-state toggle: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_persona_state_set_done', ok: false, reason: 'error', enabled: await readPersonaStateEnabled(chatId).catch(() => false) }, uid);
     }
   },
   vellum_set_tone: async (p, uid) => {

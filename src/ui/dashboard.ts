@@ -212,6 +212,10 @@ function presentCard(s: ChronicleState, d: PresentChar): string {
   const thought = d.thought
     ? `<div class="vld-thought"><span class="vld-thought-k">thinking</span><span class="vld-thought-q">\u201C${esc(d.thought)}\u201D</span></div>`
     : '';
+  const traits = (s.cast[d.id]?.traits ?? []).slice(0, 6);
+  const traitStrip = traits.length
+    ? `<div class="vle-card-traits vld-pc-traits">${traits.map((trait) => `<span class="vle-traitchip">${esc(trait)}</span>`).join('')}</div>`
+    : '';
   // carried-items echo: a capped, read-only chip strip of what this character holds
   const carried = (s.items ?? []).filter((it) => it.who === d.id && !it.scene);
   const itemsStrip = carried.length
@@ -226,7 +230,7 @@ function presentCard(s: ChronicleState, d: PresentChar): string {
     + `<span class="vld-pc-av${av.cls}${harmed ? ' v-orn--ring-harm' : ''}"${av.style}>${av.inner}<span class="vld-pc-dot"></span></span>`
     + `<div class="vld-pc-body">`
     + `<div class="vld-pc-top"><span class="vld-pc-n">${nameHtml(s, d.id)}</span>${status ? `<span class="vld-pc-status">${status}</span>` : ''}</div>`
-    + `${doing}${thought}${itemsStrip}`
+    + `${doing}${thought}${traitStrip}${itemsStrip}`
     + `</div></div>`;
 }
 

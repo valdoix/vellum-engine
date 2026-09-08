@@ -149,7 +149,7 @@ const ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000
 const nowTab: Component<ChronicleState> = {
   // rel term includes the affection/trust sum so the compact bond cards repaint
   // when scores shift on a turn even if the relation COUNT is unchanged.
-  version: (s) => `${s.turns}:${s.day}:${s.scene.location ?? ''}:${s.scene.tension ?? 0}:${s.scene.present.join(',')}:${s.relations.length}:${s.relations.reduce((a, r) => a + r.affection + r.trust, 0)}:${s.scene.weather ?? ''}:${s.scene.time ?? ''}:${s.scene.clock ?? ''}:${(s.scene.detail ?? []).map((d) => d.id + (d.mood ?? '') + (d.condition ?? '') + (d.doing ?? '') + (d.thought ?? '')).join(',')}`,
+  version: (s) => `${s.turns}:${s.day}:${s.scene.location ?? ''}:${s.scene.tension ?? 0}:${s.scene.present.join(',')}:${s.relations.length}:${s.relations.reduce((a, r) => a + r.affection + r.trust, 0)}:${s.scene.weather ?? ''}:${s.scene.time ?? ''}:${s.scene.clock ?? ''}:${(s.scene.detail ?? []).map((d) => d.id + (d.mood ?? '') + (d.condition ?? '') + (d.doing ?? '') + (d.thought ?? '') + (s.cast[d.id]?.traits ?? []).join('|')).join(',')}`,
   render: (s) => `<div class="vld">${dashboardHtml(s)}</div>`,
   mount: (host) => host.addEventListener('click', (e) => { const d = (e.target as HTMLElement).closest('[data-phone-sec]'); if (d) { setPhoneSection(d.getAttribute('data-phone-sec')!); refreshUI(); } }),
 };
@@ -179,6 +179,7 @@ const QOL = [
   { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc/book prompts', group: 'settings' },
   // toggles = persistent on/off state
   { id: 'enginepass', label: '\u2699 Engine pass', title: 'Run Engine Second Pass when the active preset requests it. Off keeps the prose turn and uses VELLUM\'s fallback memory extraction without compiling full state.', group: 'toggle' },
+  { id: 'personastate', label: '\u2659 Persona state', title: 'Track the persona\'s grounded mood, condition, current activity, thought, and stable traits beside the rest of the cast. This does not change the selected player-agency rule.', group: 'toggle' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree book\u2192arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
@@ -747,6 +748,7 @@ let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
 let _enginePassOn = true; // per-chat permission for Engine Second Pass; default on
+let _personaStateOn = false; // grounded persona detail/traits; explicit per-chat opt-in
 let _autoRetryOn = false; // auto-repair a dropped <vellum> block, mirrored from backend
 let _blockExampleOn = false; // inject previous turn's block as worked example, mirrored from backend
 let _traverseMode = 'off'; // off | flat | tree
@@ -992,6 +994,7 @@ function openActions(ctx: Ctx): void {
   const bodyHtml = (): string => {
     const toggleState: Record<string, string> = {
       enginepass: _enginePassOn ? 'on' : 'off',
+      personastate: _personaStateOn ? 'on' : 'off',
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
       autoretry: _autoRetryOn ? 'on' : 'off',
@@ -1098,6 +1101,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'enginepass') { _enginePassOn = !_enginePassOn; setQolBusy('enginepass', true); ctx.sendToBackend({ type: 'vellum_set_engine_pass', enabled: _enginePassOn }); }
+  else if (id === 'personastate') { _personaStateOn = !_personaStateOn; setQolBusy('personastate', true); ctx.sendToBackend({ type: 'vellum_set_persona_state', enabled: _personaStateOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'autoretry') { _autoRetryOn = !_autoRetryOn; ctx.sendToBackend({ type: 'vellum_set_autoretry', enabled: _autoRetryOn }); }
   else if (id === 'blockexample') { _blockExampleOn = !_blockExampleOn; ctx.sendToBackend({ type: 'vellum_set_block_example', enabled: _blockExampleOn }); }
@@ -1984,6 +1988,14 @@ export function setup(ctx: Ctx): () => void {
             if (status) status.textContent = _enginePassOn ? 'on' : 'off';
           });
         }
+        if (typeof p.personaState === 'boolean') {
+          _personaStateOn = p.personaState;
+          document.querySelectorAll('[data-qol=\'personastate\']').forEach((b) => {
+            b.classList.toggle('on', _personaStateOn);
+            const status = b.querySelector('.vle-act-st');
+            if (status) status.textContent = _personaStateOn ? 'on' : 'off';
+          });
+        }
         if (typeof p.autoRetryBlock === 'boolean') { _autoRetryOn = p.autoRetryBlock; document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn)); }
         if (typeof p.blockExample === 'boolean') { _blockExampleOn = p.blockExample; document.querySelectorAll('[data-qol=\'blockexample\']').forEach((b) => b.classList.toggle('on', _blockExampleOn)); }
         if (typeof p.hide === 'boolean') { _hideOn = p.hide; document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn)); }
@@ -2366,6 +2378,16 @@ export function setup(ctx: Ctx): () => void {
         });
         if (!p.ok) notify(ctx, 'warning', p.reason === 'no_active_chat' ? 'Open a chat before changing Engine Second Pass.' : 'Could not change Engine Second Pass.');
         else notify(ctx, 'success', _enginePassOn ? 'Engine Second Pass on.' : 'Engine Second Pass off — turns use fallback memory extraction.');
+      } else if (p?.type === 'vellum_persona_state_set_done') {
+        setQolBusy('personastate', false);
+        _personaStateOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'personastate\']').forEach((b) => {
+          b.classList.toggle('on', _personaStateOn);
+          const status = b.querySelector('.vle-act-st');
+          if (status) status.textContent = _personaStateOn ? 'on' : 'off';
+        });
+        if (!p.ok) notify(ctx, 'warning', p.reason === 'no_active_chat' ? 'Open a chat before changing Persona state.' : 'Could not change Persona state.');
+        else notify(ctx, 'success', _personaStateOn ? 'Persona state on — future turns track grounded state, thought, and traits.' : 'Persona state off — persona tracker fields stay blank.');
       } else if (p?.type === 'vellum_traversal_done') {
         setQolBusy('traverse', false);
         _traverseMode = p.mode ?? (p.enabled ? 'flat' : 'off');

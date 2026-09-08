@@ -38,6 +38,7 @@ export const ParsedPresent = z.object({
   condition: z.string().optional().catch(undefined), // physical state e.g. "wounded", "exhausted"
   thought: z.string().optional().catch(undefined), // first-person inner voice this turn
   traits: z.array(z.string()).optional().catch(undefined), // STABLE personality tags (not transient mood)
+  evidence: z.string().optional().catch(undefined), // exact source quote for opted-in persona fields
 });
 
 export const ParsedParallel = z.object({

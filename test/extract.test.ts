@@ -188,6 +188,23 @@ describe('mapExtracted — present + inner-thought recovery', () => {
     expect(scene.detail.some((d: any) => d.id === 'daeron' && d.thought)).toBe(true);
   });
 
+  it('recovers persona state and traits only when enabled with an exact source quote', () => {
+    const playerInput = 'I stay by the door, exhausted but stubborn. I think we should leave.';
+    const evs = mapExtracted({
+      present: [{ who: '{{user}}', mood: 'wary', condition: 'exhausted', doing: 'staying by the door', thought: 'We should leave.', traits: ['stubborn'], evidence: 'exhausted but stubborn' }],
+    }, 6, 1, names, sf, freshState(), undefined, prose, true, playerInput);
+    const scene = evs.find((e) => e.kind === 'scene.set') as any;
+    expect(scene.detail.find((d: any) => d.id === 'anne')).toMatchObject({ mood: 'wary', condition: 'exhausted', thought: 'We should leave.' });
+    expect(evs.find((e) => e.kind === 'cast.edit' && (e as any).id === 'anne')).toMatchObject({ patch: { traits: ['stubborn'] } });
+
+    const ungrounded = mapExtracted({ present: [{ who: '{{user}}', thought: 'invented', evidence: 'not in either source' }] }, 6, 1, names, sf, freshState(), undefined, prose, true, playerInput);
+    expect(ungrounded.some((e) => e.kind === 'scene.set')).toBe(false);
+
+    const proseOnly = { present: [{ who: '{{user}}', mood: 'shattered', evidence: 'She wept' }] };
+    expect(mapExtracted(proseOnly, 6, 1, names, sf, freshState(), undefined, prose, true, playerInput, 'protected').some((e) => e.kind === 'scene.set')).toBe(false);
+    expect(mapExtracted(proseOnly, 6, 1, names, sf, freshState(), undefined, prose, true, playerInput, 'director').some((e) => e.kind === 'scene.set')).toBe(true);
+  });
+
   it('drops a present entry hallucinated / not in the prose', () => {
     const evs = mapExtracted({ present: [{ who: 'Aegon', thought: 'plotting' }] }, 6, 1, names, sf, freshState(), undefined, prose);
     expect(evs.some((e) => e.kind === 'scene.set')).toBe(false);

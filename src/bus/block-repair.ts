@@ -2,6 +2,7 @@ import { parseState } from '../parse/state-block.js';
 import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate, type GenMsg } from '../host/generation.js';
 import { has } from '../host/capability.js';
+import type { AgencyMode } from '../domain/preset-runtime.js';
 
 /**
  * BLOCK REPAIR (Option C) — when a just-generated turn folds with
@@ -33,7 +34,7 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'DELTAS ONLY: include everything THIS turn establishes or changes, and omit what did not move. Shape:\n'
   + '{ "turn": int, "day": int, '
   + '"scene": { "loc": str, "time": "zero-padded HH:MM", "clock": 0-1439 integer matching HH*60+MM, "tension": 0-10, "weather": str }, '
-  + '"present": [{ "id": "Name", "mood": str, "condition": str, "doing": str, "thought": str, "traits": [str] }], '
+  + '"present": [{ "id": "Name", "mood": str, "condition": str, "doing": str, "thought": str, "traits": [str], "evidence": "exact persona source quote" }], '
   + '"delta": { '
   + '"bonds": [{ "a": "Name", "b": "Name", "aff": -100..100, "trust": -100..100, "addCats": ["familial|romantic|alliance|rivalry|social"], "removeCats": ["familial|romantic|alliance|rivalry|social"], "why": str }], '
   + '"threads": [{ "op": "new|advance|stall|resolve", "name": str, "note": str }], '
@@ -58,8 +59,11 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + '(advance it forward from the prior time only for elapsed action; never reset it backward); `scene.clock` '
   + 'MUST be the matching integer minutes after midnight. Never use a narrative label for either field. '
   + 'Emit `scene.loc`/`weather`/`tension` only when they changed from the CONTEXT.\n'
-  + 'present[] MUST list EVERY named character on-stage this beat. The player persona goes FIRST with '
-  + 'mood/condition/doing/thought/traits LEFT EMPTY (never invent the player\u2019s inner state). For each '
+  + 'present[] MUST list EVERY named character on-stage this beat. The player persona goes FIRST. When '
+  + 'the CONTEXT says PERSONA STATE OFF, leave mood/condition/doing/thought/traits empty. When it says ON, '
+  + 'those fields may contain only grounded current detail and `evidence` must copy one exact allowed source quote. Under Forbidden agency, use the latest player '
+  + 'input only; Minor Continuity and Director may also use permitted completed prose. This tracker option '
+  + 'never permits invented player behavior. For each '
   + 'on-stage NPC, `thought` is REQUIRED — their genuine first-person inner voice under limited knowledge '
   + '(what they privately think this beat), unless they are a true cipher; `doing` and `mood` reflect the '
   + 'prose; `traits` = 2-4 STABLE personality tags emitted ONLY when a character is first established or a '
@@ -92,7 +96,7 @@ export const VELLUM_BLOCK_REPAIR_SYS =
  *  day, scene continuity, real cast names, live threads) instead of guessing.
  *  Richer context ⇒ richer, more accurate recovery: knowing who was on-stage and
  *  what threads are open lets the model attribute changes correctly. Pure. */
-export function buildRepairContext(prior: ChronicleState, turnNo: number): string {
+export function buildRepairContext(prior: ChronicleState, turnNo: number, personaState = false, playerInput = '', agency: AgencyMode = 'protected'): string {
   const day = prior.day || 0;
   const loc = prior.scene?.location?.trim();
   const time = prior.scene?.time?.trim();
@@ -134,6 +138,9 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number): strin
   const lines = [
     `turn: ${turnNo}`,
     `day: ${day}`,
+    `PERSONA STATE: ${personaState ? 'ON' : 'OFF'}`,
+    `PERSONA AGENCY: ${agency}`,
+    ...(personaState && playerInput.trim() ? [`latest player input: ${playerInput.trim().slice(0, 4000)}`] : []),
     ...(loc ? [`prior scene location: ${loc}`] : []),
     ...(time ? [`prior scene time: ${time}`] : []),
     ...(typeof tension === 'number' && tension > 0 ? [`prior tension: ${tension}/10`] : []),

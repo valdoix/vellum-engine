@@ -14,6 +14,8 @@ describe('frontend distribution bundle', () => {
     expect(bundle).toContain('vellum_retry_engine');
     expect(bundle).toContain('Engine pass');
     expect(bundle).toContain('vellum_set_engine_pass');
+    expect(bundle).toContain('Persona state');
+    expect(bundle).toContain('vellum_set_persona_state');
     expect(bundle).toMatch(/export\s*\{[^}]*\bsetup\b[^}]*\}\s*;?\s*$/);
   });
 });

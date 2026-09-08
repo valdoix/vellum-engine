@@ -539,6 +539,7 @@ export const STYLES = [
   ".vle-item-note{flex:1 1 auto;min-width:0;font-size:calc(12px * var(--vscale));color:var(--vi2);opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
   // present-card carried-items chip strip (echo on the Now card)
   ".vld-pc-items{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}",
+  ".vld-pc-traits{margin-top:5px}",
   ".vld-pc-item{font:500 10px/1.4 var(--vmono);color:var(--vle-gold);background:color-mix(in srgb,var(--vle-gold) 10%,transparent);border:1px solid color-mix(in srgb,var(--vle-gold) 28%,transparent);border-radius:12px;padding:2px 7px;max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word}",
   // FUTURISTIC chrome: square, mono, accent edge — match the diary/HUD treatment
   "html[data-vle-chrome='futuristic'] .vle-item-grp-h{font-family:var(--vmono);color:var(--vg)}",

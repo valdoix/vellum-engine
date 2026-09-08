@@ -21,6 +21,15 @@ describe('block-repair — buildRepairContext', () => {
     expect(ctx).toContain('the north garden');
     expect(ctx).toContain('late evening');
     expect(ctx).toContain('Lira'); // display name, not the canonical id
+    expect(ctx).toContain('PERSONA STATE: OFF');
+  });
+
+  it('marks the persona-state opt-in for the recovery prompt', () => {
+    const ctx = buildRepairContext(stateWith(), 5, true, 'I am wounded but alert.', 'director');
+    expect(ctx).toContain('PERSONA STATE: ON');
+    expect(ctx).toContain('PERSONA AGENCY: director');
+    expect(ctx).toContain('latest player input: I am wounded but alert.');
+    expect(VELLUM_BLOCK_REPAIR_SYS).toContain('PERSONA STATE OFF');
   });
 
   it('omits scene lines that are absent (fresh state)', () => {

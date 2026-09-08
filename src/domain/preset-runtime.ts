@@ -70,6 +70,13 @@ export function enginePassEnabled(value: unknown): boolean {
   return !['off', 'false', '0', 'disabled'].includes(value.trim().toLowerCase());
 }
 
+/** Per-chat permission to retain grounded persona tracker detail. This is
+ * intentionally opt-in so an unset value preserves the historical hard blank. */
+export function personaStateEnabled(value: unknown): boolean {
+  return value === true || value === 1
+    || (typeof value === 'string' && ['1', 'true', 'on', 'enabled'].includes(value.trim().toLowerCase()));
+}
+
 type MessageLike = { role?: unknown; content?: unknown; __isChatHistory?: unknown };
 
 interface EffectiveMarker {

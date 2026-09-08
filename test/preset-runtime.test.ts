@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyArgentPolicy, compileArgentPolicy } from '../src/domain/argent-policy.js';
-import { agencyAtTurn, enginePassEnabled, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger } from '../src/domain/preset-runtime.js';
+import { agencyAtTurn, enginePassEnabled, personaStateEnabled, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger } from '../src/domain/preset-runtime.js';
 
 function argent(values: Record<string, unknown> = {}) {
   return {
@@ -50,6 +50,11 @@ describe('active preset turn contract', () => {
   it('keeps Engine Second Pass enabled by default and honors explicit off values', () => {
     for (const value of [undefined, null, '', true, 1, 'on', 'true']) expect(enginePassEnabled(value)).toBe(true);
     for (const value of [false, 0, 'off', 'OFF', 'false', '0', 'disabled']) expect(enginePassEnabled(value)).toBe(false);
+  });
+
+  it('keeps persona state opt-in and accepts persisted on spellings', () => {
+    for (const value of [undefined, null, '', false, 0, 'off', 'false', '0']) expect(personaStateEnabled(value)).toBe(false);
+    for (const value of [true, 1, '1', 'on', 'true', 'enabled']) expect(personaStateEnabled(value)).toBe(true);
   });
 
   it('uses ARGENT defaults when the preset has no stored overrides', () => {

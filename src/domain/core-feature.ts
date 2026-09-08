@@ -160,30 +160,47 @@ export const coreFeature: Feature = {
     };
 
     // scene + presence — a pronoun/generic in `present` ("she") must not seed a card
+    const uCanon = ctx.userCanon ?? '';
     const presentName = (p: { id?: string; name?: string }): string => p.id ?? p.name ?? '';
     const presentId = (p: { id?: string; name?: string }): string => {
       const n = presentName(p);
+      const rawId = canonId(n);
+      // The configured persona is an established identity even when its display
+      // name is a generic label (for example "Player" or "Protagonist"). Keep
+      // that one exact identity without weakening the junk-name gate for NPCs.
+      if (n && uCanon && rawId === uCanon) return uCanon;
       return n && !badName(n) ? rid(n) : '';
     };
     const present = (parsed.present ?? [])
       .map(presentId)
       .filter(Boolean);
-    // {{user}} must be in `present` whenever the scene is active — presence is a
-    // FACT (who is in the scene), NOT authoring them. The preset habitually drops
-    // the player because every present field (mood/thought/doing) is something it
-    // may not author for {{user}}; defensively re-include the persona id here with
-    // NO inner fields, so the dashboard/relations/items never lose the player.
-    const uCanon = ctx.userCanon ?? '';
+    // {{user}} must be in `present` whenever the scene is active. The optional
+    // persona-state mode may retain grounded current detail; its default remains
+    // presence-only so existing chats keep the strict authorship boundary.
     const sceneActive = !!(parsed.scene || present.length);
     const userExplicitlyPresent = (parsed.present ?? []).some((p) => canonId(presentName(p)) === uCanon);
     const userInScene = sceneActive && uCanon && !userExplicitlyPresent;
+    const personaGrounded = (p: NonNullable<ParsedState['present']>[number]): boolean => {
+      if (!ctx.personaState) return false;
+      if (ctx.personaValidated) return true;
+      const proof = p.evidence?.trim() ?? '';
+      const source = ctx.agency === 'protected' ? (ctx.userInput ?? '') : `${ctx.userInput ?? ''}\n${ctx.prose ?? ''}`;
+      return !!proof && source.includes(proof);
+    };
+    const priorPersonaCondition = uCanon
+      ? ctx.state.scene.detail.find((d) => canonId(d.id) === uCanon)?.condition
+      : undefined;
     if (userInScene) present.unshift(uCanon); // player leads the present list
     if (parsed.scene || present.length) {
       const detail = (parsed.present ?? []).map((p) => {
         const id = presentId(p);
-        // never store authored interiority for {{user}} even if the model emitted it
-        if (id && id === uCanon) return { id };
-        return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(p.condition ? { condition: p.condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
+        if (id && id === uCanon && !personaGrounded(p)) {
+          return { id, ...(ctx.personaState && priorPersonaCondition ? { condition: priorPersonaCondition } : {}) };
+        }
+        const condition = id === uCanon && ctx.personaState
+          ? (p.condition || priorPersonaCondition)
+          : p.condition;
+        return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(condition ? { condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
       }).filter(Boolean);
       if (userInScene) (detail as Array<{ id: string }>).unshift({ id: uCanon }); // presence only, no inner fields
       // The human time string wins when parseable: it is the visible contract and
@@ -227,13 +244,14 @@ export const coreFeature: Feature = {
     // mark present characters as cast (present status); names seed cards
     for (const p of parsed.present ?? []) {
       const name = p.name ?? p.id;
-      if (!name || badName(name)) continue; // never seed a card from a pronoun/generic/mash
-      const id = rid(name);
+      const rawId = canonId(name ?? '');
+      if (!name || (badName(name) && (!uCanon || rawId !== uCanon))) continue; // never seed a card from a pronoun/generic/mash
+      const id = uCanon && rawId === uCanon ? uCanon : rid(name);
       out.push({ ...base(), kind: 'cast.seen', id, name, status: 'present' } as VellumEvent);
       // STABLE personality tags the model surfaced — fold into the card as a
       // cast.edit (src 'model', so user edits still win in the reducer). Trim,
       // dedupe (case-insensitive), cap at 6; the reducer re-caps defensively.
-      if (Array.isArray(p.traits) && p.traits.length) {
+      if ((id !== uCanon || personaGrounded(p)) && Array.isArray(p.traits) && p.traits.length) {
         const seen = new Set<string>();
         const traits: string[] = [];
         for (const t of p.traits) {

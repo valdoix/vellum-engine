@@ -557,6 +557,8 @@ Open the VELLUM drawer to find these. There's also a compact floating **"Now"** 
 - **Undo turn** — drop the most recent turn's tracked changes.
 - **Tidy threads / Tidy lore** — merge near-duplicate plot threads or facts.
 - **Hide filed** — hide already-summarized turns from the prompt to save context.
+- **Engine pass** — enable or disable the validated state compiler for presets that request it.
+- **Persona state** — opt in to grounded persona mood, condition, activity, first-person thought, and stable traits; the selected per-turn player-agency rule still applies.
 - **Traverse** — smarter, AI-guided recall (cycles through off / one-shot / deep tree drill).
 - **Tone** — quick access to romance pace + world disposition.
 - **Off-screen** — toggle the off-screen life simulation.

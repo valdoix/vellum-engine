@@ -29,6 +29,33 @@ describe('strict pre-commit state compiler', () => {
     expect(state.delta.parallel).toEqual([{ who: 'Ada', where: 'Courtyard', activity: 'Waiting' }]);
     expect(state.scene).toMatchObject({ time: '00:03', clock: 3 });
   });
+  it('accepts grounded opted-in persona state and traits while protected mode rejects prose-only invention', () => {
+    const i = input();
+    i.personaState = true;
+    i.agency = 'protected';
+    i.userInput = 'I remain by the door. I am exhausted and wary. I think the seal is a trap. I have always been stubborn.';
+    const c = candidate();
+    const player = c.state.present.find((row) => row.id === 'Player')!;
+    Object.assign(player, { doing: 'remaining by the door', condition: 'exhausted', mood: 'wary', thought: 'The seal is a trap.', traits: ['stubborn'] });
+    c.evidence.push(
+      { path: 'present.persona.doing', quote: 'I remain by the door' },
+      { path: 'present.persona.condition', quote: 'I am exhausted and wary' },
+      { path: 'present.persona.mood', quote: 'I am exhausted and wary' },
+      { path: 'present.persona.thought', quote: 'I think the seal is a trap' },
+      { path: 'present.persona.traits', quote: 'I have always been stubborn' },
+    );
+    const accepted = validateCompilation(c, i);
+    expect(accepted.ok).toBe(true);
+    if (accepted.ok) {
+      const folded = foldTurn(accepted.block, structuredClone(i.prior), i.turn, { userCanon: 'player', personaState: true, personaValidated: true });
+      const scene = folded.events.find((event) => event.kind === 'scene.set') as any;
+      expect(scene.detail.find((row: any) => row.id === 'player')).toMatchObject({ mood: 'wary', condition: 'exhausted', thought: 'The seal is a trap.' });
+    }
+
+    i.userInput = 'I remain by the door.';
+    i.prose += ' Player is exhausted and wary and thinks the seal is a trap.';
+    expect(validateCompilation(c, i).ok).toBe(false);
+  });
   it('rejects a manufactured next day when prose does not establish a rollover', () => {
     const i = input();
     i.prior.scene = { ...i.prior.scene, time: '22:00', clock: 1320 };
@@ -250,6 +277,10 @@ describe('strict pre-commit state compiler', () => {
     const context = compilerContext(i);
     expect(context.length).toBeLessThan(75000);
     expect(context).toContain('Courtyard'); expect(context).toContain('Mara');
+  });
+  it('passes the persona-state control to the second-pass model', () => {
+    const i = input(); i.personaState = true;
+    expect(JSON.parse(compilerContext(i)).controls.personaState).toBe(true);
   });
   it('passes Living World policy and grounded starts to the second-pass model', async () => {
     const i = input();

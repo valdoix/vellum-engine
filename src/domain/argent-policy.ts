@@ -73,7 +73,7 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     ? 'After the selected Reverie, if any, output story prose only. No state block.'
     : v.state_compiler === 'engine'
       ? 'After the required visible Reverie, if selected, output the completed story and stop. The engine compiles state separately. Do not emit any state tag, JSON, ledger or state commentary.'
-      : 'After the selected Reverie, if any, output story prose and then one complete canonical <vellum> JSON block using the separately supplied state contract. Every named on-stage NPC has a private thought; player fields remain blank.';
+      : 'After the selected Reverie, if any, output story prose and then one complete canonical <vellum> JSON block using the separately supplied state contract. Every named on-stage NPC has a private thought. Player fields remain blank unless the VELLUM runtime PERSONA STATE option explicitly says ON; when ON, only grounded tracker fields and stable traits are allowed, without invented player behavior.';
   const agencyEnding = v.agency === 'director'
     ? 'DIRECTOR FINAL GATE: author the player only inside the latest explicit directorial instruction. Do not expand its goal, invent consent, add an unrelated choice or continue player autonomy after the directed beat.'
     : v.agency === 'continuity'

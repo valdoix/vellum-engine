@@ -81,6 +81,17 @@ describe('scene-visual classifier', () => {
     expect(html).toContain('data-phase="night"');
   });
 
+  it('renders stable traits on present-character cards', () => {
+    const state = freshState();
+    state.cast.anne = { id: 'anne', name: 'Anne', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false, traits: ['stubborn', 'loyal'] } as any;
+    state.scene.present = ['anne'];
+    state.scene.detail = [{ id: 'anne', thought: 'I need a plan.' }];
+    const html = dashboardHtml(state);
+    expect(html).toContain('vld-pc-traits');
+    expect(html).toContain('stubborn');
+    expect(html).toContain('loyal');
+  });
+
   it('ships a distinct palette for every clock phase and a visible sky cast for weather', () => {
     for (const phase of ['pre-dawn', 'dawn', 'morning', 'midday', 'afternoon', 'golden-hour', 'dusk', 'night']) {
       expect(STYLES).toContain(`.vld-band[data-phase='${phase}']`);

@@ -32,6 +32,13 @@ export interface ExtractCtx {
   userCanon?: string;
   /** relation locks (Plot Director): forbidden/pinned categories per pair */
   locks?: readonly import('../domain/relation-lock.js').RelationLock[];
+  /** explicit per-chat opt-in for grounded persona state and traits */
+  personaState?: boolean;
+  /** latest player-authored turn input and its resolved per-turn agency mode */
+  userInput?: string;
+  agency?: import('../domain/preset-runtime.js').AgencyMode;
+  /** Engine Second Pass already validated persona evidence before folding. */
+  personaValidated?: boolean;
 }
 
 export interface InjectCtx {
