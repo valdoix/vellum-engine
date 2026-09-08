@@ -9,7 +9,7 @@ import { traverseRanked, type CallModel, type TraversalTrace } from './traverse.
 import { traverseTree, type TreeTraversalTrace } from './traverse-tree.js';
 import { linkedOffscreen, linkedThreads } from '../domain/offscreen.js';
 import { spanLabel, formatDate } from '../domain/date-format.js';
-import { clockLabel } from '../domain/clock.js';
+import { clockTime } from '../domain/clock.js';
 import { tokenize } from './tokenize.js';
 
 /**
@@ -278,8 +278,10 @@ export function nowInjection(state: ChronicleState): string {
   const day = state.day || 0;
   if (day <= 0 && !state.scene.location && !state.scene.time) return '';
   const dateStr = formatDate(day, state.dateFormat, state);
-  // time-of-day: prefer the human string the author wrote; else label the clock.
-  const timeStr = state.scene.time?.trim() || (state.scene.clock !== undefined ? clockLabel(state.scene.clock) : '');
+  // The ordered clock is canonical. Legacy logs can carry a stale/coarse time
+  // string beside a newer numeric clock; reinjecting that string freezes future
+  // turns on the wrong minute.
+  const timeStr = state.scene.clock !== undefined ? clockTime(state.scene.clock) : (state.scene.time?.trim() || '');
   // elapsed since the previous distinct scene-day (only when we have both anchors)
   const prev = state.prevSceneDay;
   const cur = state.sceneDay ?? day;

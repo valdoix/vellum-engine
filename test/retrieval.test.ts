@@ -188,6 +188,15 @@ describe('buildInjection — continuity guardrail', () => {
     expect(inj.text.indexOf('[NOW')).toBeLessThan(inj.text.indexOf('CAST & BONDS'));
   });
 
+  it('injects the canonical numeric clock when a legacy time string is stale', () => {
+    const s = stateWith();
+    s.day = 47;
+    s.scene = { location: 'Harrenhal', tension: 4, time: '19:38', clock: 19 * 60 + 48, weather: '', present: [], detail: [] };
+    const inj = buildInjection('chatNowCanonical', s, 'what happens next');
+    expect(inj.text).toContain('19:48');
+    expect(inj.text).not.toContain('19:38');
+  });
+
   it('states the elapsed span since the previous scene when days advanced', () => {
     const s = stateWith();
     s.day = 40;

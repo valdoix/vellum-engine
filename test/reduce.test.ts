@@ -118,6 +118,22 @@ describe('reduce — monotonic scene clock', () => {
     expect(s.scene.time).toBe('00:03');
     expect(s.scene.clock).toBe(3);
   });
+  it('keeps the display string synchronized to a newer canonical clock', () => {
+    const s = reduce([
+      ev({ kind: 'scene.set', turn: 1, day: 5, time: '19:38', clock: 1178, present: [] } as any),
+      ev({ kind: 'scene.set', turn: 2, day: 5, time: '19:38', clock: 1188, present: [] } as any),
+    ]);
+    expect(s.scene.time).toBe('19:48');
+    expect(s.scene.clock).toBe(1188);
+  });
+  it('allows an explicit user correction while model events remain forward-only', () => {
+    const s = reduce([
+      ev({ kind: 'scene.set', turn: 1, day: 5, time: '19:38', clock: 1178, present: [] } as any),
+      ev({ kind: 'scene.set', turn: 1, day: 5, time: '19:20', clock: 1160, present: [], src: 'user', absolute: true } as any),
+    ]);
+    expect(s.scene.time).toBe('19:20');
+    expect(s.scene.clock).toBe(1160);
+  });
 });
 
 describe('reduce — cast, knowledge, secrets, memory', () => {

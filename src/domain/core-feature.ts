@@ -6,7 +6,7 @@ import { resolveCastId, notAName, resolveFactionId, isNameMash } from './identit
 import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
 import { findLock, applyLockToBond } from './relation-lock.js';
 import { inferLocationParent } from './locations.js';
-import { parseClock } from './clock.js';
+import { clockTime, parseClock } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 
 /**
@@ -212,9 +212,7 @@ export const coreFeature: Feature = {
       const fromNumber = (typeof rawClock === 'number' && rawClock >= 0 && rawClock <= 1439)
         ? Math.floor(rawClock) : undefined;
       const clockMinutes = fromTime ?? fromNumber;
-      const exactTime = clockMinutes !== undefined
-        ? `${String(Math.floor(clockMinutes / 60)).padStart(2, '0')}:${String(clockMinutes % 60).padStart(2, '0')}`
-        : parsed.scene?.time;
+      const exactTime = clockMinutes !== undefined ? clockTime(clockMinutes) : parsed.scene?.time;
       out.push({
         ...base(), kind: 'scene.set',
         ...(parsed.scene?.loc ? { location: parsed.scene.loc } : {}),

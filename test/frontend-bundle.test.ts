@@ -16,6 +16,8 @@ describe('frontend distribution bundle', () => {
     expect(bundle).toContain('vellum_set_engine_pass');
     expect(bundle).toContain('Persona state');
     expect(bundle).toContain('vellum_set_persona_state');
+    expect(bundle).toContain('Edit current scene');
+    expect(bundle).toContain('scene_set');
     expect(bundle).toMatch(/export\s*\{[^}]*\bsetup\b[^}]*\}\s*;?\s*$/);
   });
 });

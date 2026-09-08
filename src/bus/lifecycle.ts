@@ -2,7 +2,7 @@ import { parseState, stripScaffold } from '../parse/state-block.js';
 import { runExtractors, type ExtractCtx } from './registry.js';
 import { nextSeq } from '../core/ids.js';
 import { hashStr } from '../core/ids.js';
-import { reconcileDay, parseClock, rollover, supportsDayAdvance } from '../domain/clock.js';
+import { clockTime, elapsedClockFloor, reconcileDay, parseClock, rollover, supportsDayAdvance } from '../domain/clock.js';
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
 import type { Tone } from '../domain/tone.js';
@@ -50,11 +50,24 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // the one this turn's scene reports (explicit or derived from its time string).
   const priorClock = prior.scene?.clock ?? parseClock(prior.scene?.time);
   const clockFromTime = parseClock(parsed.scene?.time);
-  const newClock = clockFromTime ?? ((typeof parsed.scene?.clock === 'number' && parsed.scene.clock >= 0 && parsed.scene.clock <= 1439)
+  let newClock = clockFromTime ?? ((typeof parsed.scene?.clock === 'number' && parsed.scene.clock >= 0 && parsed.scene.clock <= 1439)
     ? Math.floor(parsed.scene.clock)
     : undefined);
+  // The latest player input can establish a real time cut ("ten minutes later")
+  // even when the reply does not repeat it. When either current-turn source gives
+  // a completed duration, repair a frozen/under-advanced endpoint before folding.
+  const timeSource = [opts?.userInput, prose].filter(Boolean).join('\n');
+  if (parsed.scene && newClock !== undefined) {
+    const floored = elapsedClockFloor(prior.day ?? 0, priorClock, Math.floor(parsed.day ?? prior.day ?? 0), newClock, timeSource);
+    if (floored.inferred) {
+      parsed.day = floored.day;
+      parsed.scene.clock = floored.clock;
+      parsed.scene.time = clockTime(floored.clock);
+      newClock = floored.clock;
+    }
+  }
   const reportedGap = Math.max(1, Math.floor(parsed.day ?? prior.day ?? 0) - (prior.day ?? 0));
-  const dayAdvanceEvidence = supportsDayAdvance(prose, priorClock, newClock, reportedGap);
+  const dayAdvanceEvidence = supportsDayAdvance(timeSource, priorClock, newClock, reportedGap);
   const rec = reconcileDay(parsed.day, prior.day ?? 0, dayAdvanceEvidence, {
     ...(priorClock !== undefined ? { priorClock } : {}),
     ...(newClock !== undefined ? { newClock } : {}),

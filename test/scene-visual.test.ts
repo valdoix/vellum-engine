@@ -79,6 +79,8 @@ describe('scene-visual classifier', () => {
     expect(html).toContain('data-weather="rain"');
     expect(html).toContain('data-tod="night"');
     expect(html).toContain('data-phase="night"');
+    expect(html).toContain('22:00');
+    expect(html).not.toContain('  ·  morning');
   });
 
   it('renders stable traits on present-character cards', () => {

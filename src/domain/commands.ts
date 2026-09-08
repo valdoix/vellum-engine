@@ -3,6 +3,7 @@ import type { ChronicleState } from './types.js';
 import { canonId, nextSeq } from '../core/ids.js';
 import { resolveFactionId } from './identity.js';
 import { isCategory, normalizeCategorySet } from './category.js';
+import { clockTime, parseClock } from './clock.js';
 
 /**
  * Command layer: turn a UI CRUD intent into VellumEvent[] (src:'user', so user
@@ -225,6 +226,27 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       return e.id ? [{ ...base(ctx), kind: 'lore.drop', id: String(e.id) } as VellumEvent] : [];
     case 'parallel_set':
       return [{ ...base(ctx), kind: 'parallel.set', items: (Array.isArray(e.items) ? e.items : []).map((it: any) => ({ ...(it.who ? { who: canonId(it.who) } : {}), ...(it.where ? { where: String(it.where) } : {}), activity: String(it.activity || '').trim(), ...(it.note ? { note: String(it.note) } : {}) })).filter((it: any) => it.activity) } as VellumEvent];
+    case 'scene_set': {
+      // Direct World-header correction. Preserve roster/detail and mark the event
+      // absolute so a user can repair a bad canonical clock in either direction;
+      // model-authored scene events remain subject to the monotonic reducer gate.
+      const patch: Record<string, unknown> = {};
+      if (e.location !== undefined) patch.location = String(e.location).trim();
+      if (e.weather !== undefined) patch.weather = String(e.weather).trim();
+      if (e.tension !== undefined && e.tension !== '') {
+        const tension = Number(e.tension);
+        if (!Number.isFinite(tension) || tension < 0 || tension > 10) return [];
+        patch.tension = tension;
+      }
+      if (e.time !== undefined && String(e.time).trim()) {
+        const clock = parseClock(String(e.time));
+        if (clock === undefined) return [];
+        patch.time = clockTime(clock);
+        patch.clock = clock;
+      }
+      if (!Object.keys(patch).length) return [];
+      return [{ ...base(ctx), kind: 'scene.set', ...patch, present: state.scene.present.slice(), detail: state.scene.detail.map((row) => ({ ...row })), absolute: true } as VellumEvent];
+    }
     case 'day_set': {
       // user correction of the narrative day. Absolute by default (the point of
       // the command is to fix a spurious high day the monotonic rule froze in).
@@ -269,6 +291,6 @@ export const CMD_TYPES = new Set([
   'faction_relation_set', 'faction_relation_delete',
   'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
   'memory_add', 'memory_delete', 'memory_edit', 'memory_delete_many',
-  'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set',
+  'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set', 'scene_set',
   'scar_add', 'scar_delete', 'lore_add', 'lore_confirm', 'lore_correct', 'lore_reject', 'lore_delete', 'config_set', 'day_set',
 ]);

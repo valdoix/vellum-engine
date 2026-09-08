@@ -767,9 +767,10 @@ export const STYLES = [
   ".vle-hero-cast-name{font-weight:600}",
   ".vle-hero-tension{font-family:var(--vmono);font-weight:700;color:var(--vle-gold)}",
   ".vle-hero-tension.warm{color:var(--v-press)}.vle-hero-tension.hot{color:var(--v-neg)}",
-  ".vle-hero-edit{flex:0 0 auto;margin-left:4px;border:none;background:transparent;color:var(--vle-gold);opacity:.5;cursor:pointer;font-size:calc(10px * var(--vscale));padding:2px 4px;transition:all .15s}",
-  ".vle-hero-kicker:hover .vle-hero-edit,.vle-hero-edit:focus-visible{opacity:.75}",
-  ".vle-hero-edit:hover{opacity:1;background:var(--vle-gold-soft)}",
+  ".vle-hero-actions{display:inline-flex;align-items:center;gap:4px;margin-left:auto}",
+  ".vle-hero-edit{flex:0 0 auto;border:1px solid rgba(var(--vg-rgb),.2);border-radius:4px;background:rgba(var(--vg-rgb),.05);color:var(--vle-gold);opacity:.68;cursor:pointer;font:600 calc(8px * var(--vscale))/1.2 var(--vmono);letter-spacing:.35px;text-transform:uppercase;padding:3px 6px;transition:all .15s;white-space:nowrap}",
+  ".vle-hero-kicker:hover .vle-hero-edit,.vle-hero-edit:focus-visible{opacity:.9}",
+  ".vle-hero-edit:hover{opacity:1;border-color:rgba(var(--vg-rgb),.48);background:var(--vle-gold-soft)}",
   "html[data-vle-chrome='futuristic'] .vle-hero{border-radius:2px}html[data-vle-chrome='futuristic'] .vle-hero-title{font-family:var(--vmono);letter-spacing:.5px}",
   "html[data-vle-chrome='modern'] .vle-hero{border-radius:16px}",
   // --- Illuminated leaf (Chronicle > World arcs & threads) — one collapsible

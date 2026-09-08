@@ -4,7 +4,7 @@ import { type ChronicleState, type Relation, type Track, freshState } from '../d
 import { similarFact } from '../domain/fact-match.js';
 import { freshRelation, applyScore, addCategories, removeCategories, sentimentToScores, deriveSentiment } from '../domain/relations.js';
 import { normalizeCategorySet, primaryCategory, isCategory } from '../domain/category.js';
-import { parseClock } from '../domain/clock.js';
+import { clockTime, parseClock } from '../domain/clock.js';
 import { isCatchupMarker } from '../domain/thread-catchup.js';
 
 /**
@@ -156,12 +156,14 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       // scene.set may be wrong, so enforce monotonic absolute time here as the
       // final chokepoint too: same-day and older-day clock regressions retain T0.
       // A later narrative day is allowed to wrap through midnight.
-      const clockRegressed = priorClock !== undefined && incomingClock !== undefined
+      const clockRegressed = !e.absolute && priorClock !== undefined && incomingClock !== undefined
         && e.day <= priorSceneDay && incomingClock < priorClock;
       const priorExactTime = priorClock !== undefined
         ? `${String(Math.floor(priorClock / 60)).padStart(2, '0')}:${String(priorClock % 60).padStart(2, '0')}`
         : s.scene.time;
-      const nextTime = clockRegressed ? (s.scene.time || priorExactTime) : (e.time ?? s.scene.time);
+      const nextTime = clockRegressed
+        ? (s.scene.time || priorExactTime)
+        : (incomingClock !== undefined ? clockTime(incomingClock) : (e.time ?? s.scene.time));
       // explicit clock wins; else derive from a NEW time string; else keep the
       // established clock (an unparseable/absent time never erases the order).
       const clock = clockRegressed ? priorClock : (incomingClock ?? s.scene.clock);

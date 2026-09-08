@@ -6,7 +6,7 @@ import { formModal, confirmModal } from '../modal.js';
 import { linkedOffscreen, linkedThreads } from '../../domain/offscreen.js';
 import { threadAwaitsFill, offscreenAwaitsFill } from '../../domain/thread-catchup.js';
 import { formatDate, spanLabel } from '../../domain/date-format.js';
-import { parseClock, clockLabel } from '../../domain/clock.js';
+import { parseClock, clockTime } from '../../domain/clock.js';
 import { checkThreadOffscreenSync } from '../../domain/continuity.js';
 import { activeShape } from '../theme.js';
 import { shapeOrnament } from '../ornament.js';
@@ -65,6 +65,7 @@ const _chapExpanded = new Set<string>();
 // snapshot of open arcs refilled each render(), read by the arc-link click handler
 // (which runs in mount(), where render() state `s` is not in scope).
 let _arcSnapshot: Array<{ id: string; name: string; beats: string[] }> = [];
+let _sceneSnapshot = { location: '', time: '', weather: '', tension: 0 };
 
 /** First-sentence preview of a (possibly very long) stored turn text. We store
  * turns in FULL now; the chronicle shows only one line + an ellipsis, with the
@@ -79,9 +80,15 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.day}:${s.scene.location}:${s.scene.time}:${s.scene.clock ?? ''}:${s.scene.weather}:${s.scene.tension}:${s.scene.present.join(',')}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     loreSnapshot = s.lore;
+    _sceneSnapshot = {
+      location: s.scene.location ?? '',
+      time: s.scene.clock !== undefined ? clockTime(s.scene.clock) : (s.scene.time ?? ''),
+      weather: s.scene.weather ?? '',
+      tension: Number(s.scene.tension) || 0,
+    };
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const memCount = s.memories.filter((m) => m.tier !== 'beat').length; // Memory view excludes beats (own tab)
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, turns: _turnMax, beats: s.memories.filter((m) => m.tier === 'beat').length, timesync: 0, memory: memCount, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
@@ -340,6 +347,15 @@ export const chronicleTab: Component<ChronicleState> = {
         ], (o) => { if (o.day !== '' && o.day != null) send({ type: 'vellum_set_day', day: Number(o.day) }); });
         return;
       }
+      if (t.closest('[data-scene-edit]')) {
+        formModal('Edit current scene', [
+          { key: 'location', label: 'Location', type: 'text', value: _sceneSnapshot.location, placeholder: 'Current location' },
+          { key: 'time', label: 'Time', type: 'text', value: _sceneSnapshot.time, placeholder: '19:38', hint: 'Exact 24-hour time. Names such as dusk are normalized.' },
+          { key: 'weather', label: 'Weather / sky', type: 'text', value: _sceneSnapshot.weather, placeholder: 'clear, light rain, storm…' },
+          { key: 'tension', label: 'Tension', type: 'number', min: 0, max: 10, step: 1, value: String(_sceneSnapshot.tension) },
+        ], (o) => cmd('scene_set', { location: o.location, time: o.time, weather: o.weather, tension: o.tension }));
+        return;
+      }
       const tcatch = t.closest('[data-thread-catchup]');
       if (tcatch) {
         const day = Number(tcatch.getAttribute('data-day'));
@@ -405,7 +421,7 @@ function establishingShot(s: ChronicleState): string {
   
   const dateStr = formatDate(day, s.dateFormat || 'day', s);
   const clock = s.scene.clock !== undefined ? s.scene.clock : parseClock(s.scene.time);
-  const timeStr = s.scene.time?.trim() || (clock !== undefined ? clockLabel(clock) : '');
+  const timeStr = clock !== undefined ? clockTime(clock) : (s.scene.time?.trim() || '');
   const tension = Number(s.scene.tension) || 0;
   
   // day part label
@@ -414,14 +430,16 @@ function establishingShot(s: ChronicleState): string {
     (clock >= 720 && clock < 1080) ? 'Afternoon' :
     (clock >= 1080 && clock < 1260) ? 'Evening' : 'Night';
   
-  // "Set day" pencil, so a spurious high day can be walked back (was on the old NOW chip)
-  const setBtn = `<button class="vle-hero-edit" data-day-set data-day="${day}" title="Correct the narrative day (fixes a spurious high day)" aria-label="Set day">\u270E</button>`;
+  const controls = '<span class="vle-hero-actions">'
+    + `<button class="vle-hero-edit" data-day-set data-day="${day}" title="Change the narrative day">Day</button>`
+    + '<button class="vle-hero-edit" data-scene-edit title="Edit the current scene" aria-label="Edit current scene">\u270E Scene</button>'
+    + '</span>';
   
   const kicker = '<div class="vle-hero-kicker">'
     + (day > 0 ? `<span>Now</span><span class="vle-hero-sep">\u00B7</span><span>${esc(dateStr)}</span>` : '<span>Now</span>')
     + (dayPart ? `<span class="vle-hero-sep">\u00B7</span><span>${dayPart}</span>` : '')
     + (timeStr ? `<span class="vle-hero-sep">\u00B7</span><span>${esc(timeStr)}</span>` : '')
-    + setBtn
+    + controls
     + '</div>';
   
   const location = s.scene.location || 'Unknown Location';
@@ -472,7 +490,7 @@ function nowChip(s: ChronicleState): string {
   if (day <= 0 && !s.scene.location && !s.scene.time) return '';
   const dateStr = formatDate(day, s.dateFormat || 'day', s);
   const clock = s.scene.clock !== undefined ? s.scene.clock : parseClock(s.scene.time);
-  const timeStr = s.scene.time?.trim() || (clock !== undefined ? clockLabel(clock) : '');
+  const timeStr = clock !== undefined ? clockTime(clock) : (s.scene.time?.trim() || '');
   // a dusk/night/dawn glyph tints the plate to the time of day (falls back to a clock)
   const daySlot = clock !== undefined && (clock >= 300 && clock < 1080);
   const glyph = clock === undefined ? '\u25F7' : (clock >= 300 && clock < 1080 ? '\u2600' : (clock >= 1080 && clock < 1260 ? '\u263D' : '\u2605'));

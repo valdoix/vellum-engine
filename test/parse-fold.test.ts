@@ -271,4 +271,20 @@ describe('foldTurn → events → reduce', () => {
     expect(events.find((e) => e.kind === 'scene.set')?.day).toBe(5);
     expect(events.find((e) => e.kind === 'continuity.flag')).toMatchObject({ code: 'day_creep' });
   });
+
+  it('repairs an inline clock frozen despite elapsed time in the latest player input', () => {
+    const prior = freshState();
+    prior.day = 5;
+    prior.sceneDay = 5;
+    prior.scene.time = '19:38';
+    prior.scene.clock = 1178;
+    const block = [
+      'She looks up when the door opens.',
+      '\u2039vellum\u203a',
+      JSON.stringify({ v: 2, day: 5, scene: { loc: 'archive', time: '19:38', clock: 1178 } }),
+      '\u2039/vellum\u203a',
+    ].join('\n');
+    const { events } = foldTurn(block, prior, 10, { userInput: 'Ten minutes later, I open the door.' });
+    expect(events.find((e) => e.kind === 'scene.set')).toMatchObject({ day: 5, time: '19:48', clock: 1188 });
+  });
 });

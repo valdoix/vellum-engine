@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ParsedState } from '../parse/parsed.js';
 import { canonId, hashStr } from '../core/ids.js';
-import { parseClock, supportsDayAdvance } from './clock.js';
+import { clockTime, elapsedClockFloor, parseClock, supportsDayAdvance } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 import type { ChronicleState } from './types.js';
 
@@ -224,19 +224,33 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   const s = c.state;
   const errors: string[] = [];
   if (s.turn !== input.turn) errors.push('turn must equal the engine turn');
+  const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
+  const currentTurnSource = `${input.userInput ?? ''}\n${input.prose}`;
+  // A time cut in the latest player input is part of this turn even when the
+  // generated prose does not repeat it. Deterministically repair a candidate
+  // that left the clock frozen or advanced it by less than the stated duration.
+  const flooredClock = elapsedClockFloor(input.prior.day, priorClock, s.day, s.scene.clock, currentTurnSource);
+  if (flooredClock.inferred) {
+    s.day = flooredClock.day;
+    s.scene.clock = flooredClock.clock;
+    s.scene.time = clockTime(flooredClock.clock);
+  }
   const [h, m] = s.scene.time.split(':').map(Number);
   if (h! * 60 + m! !== s.scene.clock) errors.push('time and clock disagree');
-  const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
   if (s.day * 1440 + s.scene.clock < input.prior.day * 1440 + priorClock) errors.push('clock moves backward');
-  const needsEvidence = (path: string, changed: boolean) => { if (changed && !c.evidence.some(e => e.path === path && input.prose.includes(e.quote))) errors.push(`missing evidence: ${path}`); };
+  const currentTurnEvidencePath = (path: string): boolean => path === 'scene.loc' || path === 'scene.time' || path.startsWith('present.add.') || path.startsWith('present.remove.');
+  const evidenceSource = (path: string): string => currentTurnEvidencePath(path) ? currentTurnSource : input.prose;
+  const needsEvidence = (path: string, changed: boolean, derived = false) => {
+    if (changed && !derived && !c.evidence.some(e => e.path === path && evidenceSource(path).includes(e.quote))) errors.push(`missing evidence: ${path}`);
+  };
   needsEvidence('scene.loc', s.scene.loc !== input.prior.scene.location);
-  needsEvidence('scene.time', s.day !== input.prior.day || s.scene.clock !== input.prior.scene.clock);
+  needsEvidence('scene.time', s.day !== input.prior.day || s.scene.clock !== input.prior.scene.clock, flooredClock.inferred);
   if (input.prior.day > 0 && s.day > input.prior.day) {
-    const timeProof = c.evidence.find(e => e.path === 'scene.time' && input.prose.includes(e.quote));
-    const proofAt = timeProof ? input.prose.indexOf(timeProof.quote) : -1;
+    const timeProof = c.evidence.find(e => e.path === 'scene.time' && currentTurnSource.includes(e.quote));
+    const proofAt = timeProof ? currentTurnSource.indexOf(timeProof.quote) : -1;
     const proofContext = proofAt >= 0
-      ? input.prose.slice(Math.max(0, proofAt - 80), Math.min(input.prose.length, proofAt + timeProof!.quote.length + 80))
-      : undefined;
+      ? currentTurnSource.slice(Math.max(0, proofAt - 80), Math.min(currentTurnSource.length, proofAt + timeProof!.quote.length + 80))
+      : (flooredClock.inferred ? currentTurnSource : undefined);
     if (!supportsDayAdvance(proofContext, priorClock, s.scene.clock, s.day - input.prior.day)) {
       errors.push('day advance lacks explicit prose evidence');
     }
@@ -294,7 +308,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
         ? (input.userInput ?? '').includes(e.quote)
         : (input.userInput ?? '').includes(e.quote) || input.prose.includes(e.quote);
       if (!allowed) errors.push(`evidence is not an allowed source quote: ${e.path}`);
-    } else if (!input.prose.includes(e.quote)) errors.push(`evidence is not an allowed source quote: ${e.path}`);
+    } else if (!evidenceSource(e.path).includes(e.quote)) errors.push(`evidence is not an allowed source quote: ${e.path}`);
   }
   for (const [section, rows] of Object.entries(s.delta)) {
     if (!Array.isArray(rows)) continue;

@@ -15,6 +15,7 @@ import { getLayout, type LayoutDef, type SectionId } from './layout-defs.js';
 import { getTheme, activeShape } from './theme.js';
 import { shapeOrnament } from './ornament.js';
 import { sceneVisual } from './scene-visual.js';
+import { clockTime } from '../domain/clock.js';
 
 /** Section registry — each block is a pure (state) → html function. Layouts
  * compose these by id; the functions never change, the layout owns structure. */
@@ -107,7 +108,7 @@ function statusBar(s: ChronicleState): string {
   const meta = [
     `T${s.turns ?? 0}`,
     s.day !== undefined && s.day !== null ? formatDate(s.day, s.dateFormat || 'day', s) : '',
-    s.scene.time ? esc(s.scene.time) : '',
+    s.scene.clock !== undefined ? clockTime(s.scene.clock) : (s.scene.time ? esc(s.scene.time) : ''),
     s.scene.weather ? esc(s.scene.weather) : '',
   ].filter(Boolean).join('  \u00b7  ');
   const loc = s.scene.location

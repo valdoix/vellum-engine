@@ -6,10 +6,10 @@ import { spanLabelHours } from './date-format.js';
  * engine (not just prose) can enforce "time only moves forward", order same-day
  * beats, and reason about elapsed hours. PURE: no I/O, no host calls.
  *
- * The human string stays the source of display; `parseClock` derives an ORDER
- * from it, and `clockLabel` inverts a slot for a compact label. Everything is
- * best-effort and optional — an unparseable time simply yields `undefined` and
- * the caller falls back to the string, so nothing here can break a fold.
+ * `parseClock` derives an ORDER from legacy/free text, while an established
+ * numeric clock is the display and recall authority. Everything is best-effort
+ * and optional — an unparseable time yields `undefined` and callers retain the
+ * existing value, so nothing here can break a fold.
  */
 
 /** Canonical coarse time-of-day slots → minutes-since-midnight (slot centre). */
@@ -84,6 +84,15 @@ export function clockLabel(minutes: number | undefined): string {
     if (d < bestD) { bestD = d; best = c; }
   }
   return best[0];
+}
+
+/** Exact HH:MM rendering for the canonical numeric clock. Keeping this in one
+ * place prevents a stale legacy `scene.time` label from disagreeing with the
+ * ordered clock in Now, Chronicle, exports, or reducer replay. */
+export function clockTime(minutes: number | undefined): string {
+  if (minutes === undefined || !Number.isFinite(minutes)) return '';
+  const m = ((Math.floor(minutes) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
 /** A canonical clock may never regress on the same narrative day. Keeping this
@@ -162,6 +171,64 @@ function hasElapsedPassageSyntax(text: string): boolean {
   return new RegExp(`\\b(?:after|for|over|during)\\s+(?:about\\s+|roughly\\s+|nearly\\s+|another\\s+)?${DURATION_SPAN}\\b`).test(raw)
     || new RegExp(`\\b(?:waits?|waited|waiting|sleeps?|slept|sleeping|rests?|rested|resting|works?|worked|working|travels?|traveled|travelled|traveling|travelling|takes?|took|spends?|spent)\\b[^.!?\\n]{0,40}\\b${DURATION_SPAN}\\b`).test(raw)
     || new RegExp(`\\b${DURATION_SPAN}\\b\\s*(?:later|afterward|afterwards|pass|passes|passed|elapse|elapses|elapsed|goes by|went by|slips by|slipped by|ticks by|ticked by)\\b`).test(raw);
+}
+
+/** A duration that the current turn says has actually elapsed. This adds a few
+ * common narrative phrases to the quantified parser while still excluding
+ * plans and deadlines such as "come back in five minutes". */
+export function completedElapsedMinutes(text: string | undefined): number | undefined {
+  if (!text) return undefined;
+  const raw = String(text).normalize('NFKC').toLocaleLowerCase();
+  // Quoted plans, recollections, and deadlines are not present-tense passage.
+  const narrative = raw.replace(/["“][^"”\n]*["”]/g, ' ');
+  const vague: number[] = [];
+  if (/\b(?:a\s+)?(?:brief\s+)?moment(?:s)?\s+(?:later|passes?|passed|afterward|afterwards)\b|\bafter\s+(?:a\s+)?(?:brief\s+)?moment\b/.test(narrative)) vague.push(1);
+  if (/\b(?:a\s+few|three)\s+minutes?\s+(?:later|passes?|passed|afterward|afterwards)\b|\bafter\s+(?:a\s+few|three)\s+minutes?\b/.test(narrative)) vague.push(3);
+  if (/\b(?:several|some)\s+minutes?\s+(?:later|passes?|passed|afterward|afterwards)\b|\bafter\s+(?:several|some)\s+minutes?\b|\b(?:a\s+while|some\s+time)\s+later\b|\bafter\s+(?:a\s+while|some\s+time)\b/.test(narrative)) vague.push(5);
+  const exact = hasElapsedPassageSyntax(narrative) ? explicitElapsedMinutes(narrative) : undefined;
+  if (exact !== undefined) vague.push(exact);
+  return vague.length ? Math.max(...vague) : undefined;
+}
+
+export interface ElapsedClockFloor {
+  day: number;
+  clock: number;
+  inferred: boolean;
+  elapsed?: number;
+}
+
+/** Apply completed, prose-backed duration as a floor beneath a model-reported
+ * endpoint. It repairs a frozen or under-advanced clock deterministically, but
+ * never rewinds a later reported endpoint and never advances from mere output.
+ * Day rollover is derived only when the same passage supplies the duration. */
+export function elapsedClockFloor(
+  priorDay: number,
+  priorClock: number | undefined,
+  reportedDay: number,
+  reportedClock: number,
+  currentTurnText: string | undefined,
+): ElapsedClockFloor {
+  if (priorClock === undefined || reportedDay < priorDay) return { day: reportedDay, clock: reportedClock, inferred: false };
+  const elapsedRaw = completedElapsedMinutes(currentTurnText);
+  if (elapsedRaw === undefined || elapsedRaw <= 0) return { day: reportedDay, clock: reportedClock, inferred: false };
+  const elapsed = Math.max(1, Math.ceil(elapsedRaw));
+  const expectedAbsolute = priorDay * 1440 + priorClock + elapsed;
+  const reportedAbsolute = reportedDay * 1440 + reportedClock;
+  // Vague passage can repair a frozen same-day minute, but it cannot prove that
+  // midnight happened. Crossing a date boundary still needs a named day/date cue
+  // or a quantified completed duration, matching supportsDayAdvance().
+  if (Math.floor(expectedAbsolute / 1440) > priorDay
+    && !hasDayAdvanceCue(currentTurnText)
+    && !(hasElapsedPassageSyntax(String(currentTurnText)) && explicitElapsedMinutes(currentTurnText) !== undefined)) {
+    return { day: reportedDay, clock: reportedClock, inferred: false, elapsed };
+  }
+  if (reportedAbsolute >= expectedAbsolute) return { day: reportedDay, clock: reportedClock, inferred: false, elapsed };
+  return {
+    day: Math.floor(expectedAbsolute / 1440),
+    clock: expectedAbsolute % 1440,
+    inferred: true,
+    elapsed,
+  };
 }
 
 /** True only when prose itself proves that the calendar can move forward.

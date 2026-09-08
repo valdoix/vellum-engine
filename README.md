@@ -47,7 +47,7 @@ The Character Engine now reopens established sources, rotates underused characte
 
 ### Time is now a real ledger
 
-Every planned beat starts from the last established day, ending clock, location, and action in progress (T0), estimates the duration of serial and concurrent actions, and derives the new endpoint (T1). Scene cuts and flashbacks cannot overwrite the live clock; midnight rolls the day; travel, healing, fatigue, opening hours, deadlines, weather, off-screen action, and information travel all inherit the same elapsed interval. The worked turn example now demonstrates a forward numeric `scene.clock` and the required NPC private thought.
+Every planned beat starts from the last established day, ending clock, location, and action in progress (T0), estimates the duration of serial and concurrent actions, and derives the new endpoint (T1). Completed live action advances at least one minute at the tracker’s minute resolution, while OOC, static description, and flashbacks preserve T0. Scene cuts and flashbacks cannot overwrite the live clock; midnight rolls the day only when the story proves it; travel, healing, fatigue, opening hours, deadlines, weather, off-screen action, and information travel all inherit the same elapsed interval. Explicit elapsed-time phrases are reconciled by the engine even when a generated state block leaves its clock frozen.
 
 ### Relationship landing, not relationship dice
 
@@ -541,7 +541,7 @@ Open the VELLUM drawer to find these. There's also a compact floating **"Now"** 
 **Tabs:**
 
 - **Now** — the live dashboard: current scene, who's present and their mood, tension, and the latest changes.
-- **Chronicle** — the heart of the panel, with sub-views for **World** (scene, arcs, threads, off-screen), **Timeline**, **Turns**, **Beats**, **Time Sync** (lagging threads and off-screen subplots with catch-up options), **Memory**, **Knowledge**, **Secrets**, **Scars**, **Codex**, and **Items**.
+- **Chronicle** — the heart of the panel, with sub-views for **World** (editable current scene, arcs, threads, off-screen), **Timeline**, **Turns**, **Beats**, **Time Sync** (lagging threads and off-screen subplots with catch-up options), **Memory**, **Knowledge**, **Secrets**, **Scars**, **Codex**, and **Items**. The World header has separate controls for correcting the narrative day and editing location, exact time, weather, and tension.
 - **Cast** — every character, editable.
 - **Relations** — every relationship with its affection/trust scores and history.
 - **Journal** — per-character memory books.

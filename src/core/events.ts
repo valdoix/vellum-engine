@@ -60,7 +60,7 @@ export const PresentDetail = z.object({ id: z.string(), name: z.string().optiona
 // (mood/doing/condition/thought) and never demotes cast or replaces the block's
 // authored detail. Used to recover inner thoughts when the model's <vellum>
 // block was dropped or truncated mid-`present`.
-export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), clock: z.number().int().min(0).max(1439).optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional(), mergeDetail: z.boolean().optional() });
+export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), clock: z.number().int().min(0).max(1439).optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional(), mergeDetail: z.boolean().optional(), absolute: z.boolean().optional() });
 export const ParallelItem = z.object({ who: z.string().optional(), where: z.string().optional(), activity: z.string(), note: z.string().optional(), src: z.literal('sim').optional() });
 export const EvParallel = z.object({ ...base, kind: z.literal('parallel.set'), items: z.array(ParallelItem).default([]) });
 

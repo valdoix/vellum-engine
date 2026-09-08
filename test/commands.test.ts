@@ -94,6 +94,17 @@ describe('command layer (CRUD → events)', () => {
     expect(cmdEvents('bogus', {}, freshState(), ctx)).toHaveLength(0);
   });
 
+  it('edits the current scene without losing its roster or detail', () => {
+    const s = freshState();
+    s.scene = { location: 'Old Hall', time: '19:38', clock: 1178, weather: 'clear', tension: 3, present: ['mara'], detail: [{ id: 'mara', mood: 'wary' }] };
+    const events = cmdEvents('scene_set', { location: 'West Hall', time: '7:20 PM', weather: 'rain', tension: '6' }, s, ctx);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'scene.set', location: 'West Hall', time: '19:20', clock: 1160, weather: 'rain', tension: 6, present: ['mara'], absolute: true });
+    const next = reduce(events, s, 0);
+    expect(next.scene.detail).toEqual([{ id: 'mara', mood: 'wary' }]);
+    expect(next.scene.time).toBe('19:20');
+  });
+
   it('adds & deletes journal entries with categories', () => {
     let s = freshState();
     s = reduce(cmdEvents('journal_add', { entry: { who: 'Cersei', about: 'Jaime', memory: 'the look across the hall', kind: 'shared', weight: 'defining', sentiment: 'complex' } }, s, ctx), s, 0);

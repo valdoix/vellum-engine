@@ -24,6 +24,15 @@ describe('block-repair — buildRepairContext', () => {
     expect(ctx).toContain('PERSONA STATE: OFF');
   });
 
+  it('uses the canonical numeric clock when the legacy time label is stale', () => {
+    const s = stateWith();
+    s.scene.clock = 19 * 60 + 48;
+    s.scene.time = '19:38';
+    const ctx = buildRepairContext(s, 5);
+    expect(ctx).toContain('19:48');
+    expect(ctx).not.toContain('19:38');
+  });
+
   it('marks the persona-state opt-in for the recovery prompt', () => {
     const ctx = buildRepairContext(stateWith(), 5, true, 'I am wounded but alert.', 'director');
     expect(ctx).toContain('PERSONA STATE: ON');

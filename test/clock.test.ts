@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseClock, clockLabel, detectBackwardClock, explicitElapsedMinutes, hasDayAdvanceCue, rollover,
+  parseClock, clockLabel, clockTime, completedElapsedMinutes, elapsedClockFloor, detectBackwardClock, explicitElapsedMinutes, hasDayAdvanceCue, rollover,
   supportsDayAdvance,
   reconcileDay, CLOCK_SLOTS, DAY_JUMP_LIMIT,
 } from '../src/domain/clock.js';
@@ -35,6 +35,28 @@ describe('clockLabel', () => {
     expect(clockLabel(720)).toBe('midday');
     expect(clockLabel(300)).toBe('dawn');
     expect(clockLabel(undefined)).toBe('');
+  });
+});
+
+describe('canonical clock display and elapsed floor', () => {
+  it('renders the numeric clock as exact HH:MM', () => {
+    expect(clockTime(19 * 60 + 38)).toBe('19:38');
+    expect(clockTime(24 * 60 + 3)).toBe('00:03');
+  });
+  it('recognizes completed exact and common vague passage without treating plans as elapsed', () => {
+    expect(completedElapsedMinutes('Ten minutes later, the door opens.')).toBe(10);
+    expect(completedElapsedMinutes('A few minutes later, the door opens.')).toBe(3);
+    expect(completedElapsedMinutes('After a while, the door opens.')).toBe(5);
+    expect(completedElapsedMinutes('"Come back in ten minutes," she says.')).toBeUndefined();
+  });
+  it('repairs a frozen or under-advanced endpoint from completed duration', () => {
+    expect(elapsedClockFloor(4, 19 * 60 + 38, 4, 19 * 60 + 38, 'Ten minutes later.')).toMatchObject({ day: 4, clock: 19 * 60 + 48, inferred: true });
+    expect(elapsedClockFloor(4, 19 * 60 + 38, 4, 19 * 60 + 40, 'Ten minutes later.')).toMatchObject({ day: 4, clock: 19 * 60 + 48, inferred: true });
+    expect(elapsedClockFloor(4, 19 * 60 + 38, 4, 20 * 60, 'Ten minutes later.')).toMatchObject({ day: 4, clock: 20 * 60, inferred: false });
+  });
+  it('requires quantified passage before inferring midnight', () => {
+    expect(elapsedClockFloor(4, 23 * 60 + 58, 4, 23 * 60 + 58, 'A while later.').inferred).toBe(false);
+    expect(elapsedClockFloor(4, 23 * 60 + 58, 4, 23 * 60 + 58, 'Five minutes pass.')).toMatchObject({ day: 5, clock: 3, inferred: true });
   });
 });
 

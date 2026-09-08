@@ -3,6 +3,7 @@ import type { ChronicleState } from '../domain/types.js';
 import { internalGenerate, type GenMsg } from '../host/generation.js';
 import { has } from '../host/capability.js';
 import type { AgencyMode } from '../domain/preset-runtime.js';
+import { clockTime } from '../domain/clock.js';
 
 /**
  * BLOCK REPAIR (Option C) — when a just-generated turn folds with
@@ -56,7 +57,7 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'RULES: use ONLY real character names that appear in the prose (and the player persona named in the '
   + 'CONTEXT); never placeholders or unnamed figures. Set `turn` and `day` to the values given in the '
   + 'CONTEXT header. `scene.time` MUST be exact zero-padded 24-hour HH:MM for the moment this turn ends '
-  + '(advance it forward from the prior time only for elapsed action; never reset it backward); `scene.clock` '
+  + '(advance it at least one minute for any completed live action or speech exchange; preserve it only for OOC, static description, flashback, or an instantaneous beat; never reset it backward); `scene.clock` '
   + 'MUST be the matching integer minutes after midnight. Never use a narrative label for either field. '
   + 'Emit `scene.loc`/`weather`/`tension` only when they changed from the CONTEXT.\n'
   + 'present[] MUST list EVERY named character on-stage this beat. The player persona goes FIRST. When '
@@ -99,7 +100,7 @@ export const VELLUM_BLOCK_REPAIR_SYS =
 export function buildRepairContext(prior: ChronicleState, turnNo: number, personaState = false, playerInput = '', agency: AgencyMode = 'protected'): string {
   const day = prior.day || 0;
   const loc = prior.scene?.location?.trim();
-  const time = prior.scene?.time?.trim();
+  const time = prior.scene?.clock !== undefined ? clockTime(prior.scene.clock) : prior.scene?.time?.trim();
   const tension = prior.scene?.tension;
   const weather = prior.scene?.weather?.trim();
   // Present roster WITH stable traits, so the model reuses established personality
