@@ -56,7 +56,7 @@ import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOff
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
-import { agencyAtTurn, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
+import { agencyAtTurn, enginePassEnabled, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
@@ -150,7 +150,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -169,6 +169,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     getChatVar(chatId, 'vellum_autoretry_block').catch(() => ''),
     getChatVar(chatId, 'vellum_block_example').catch(() => ''),
     readCompilerDiagnostic(chatId),
+    getChatVar(chatId, 'vellum_engine_pass').catch(() => ''),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
@@ -178,7 +179,8 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const prefs = prefsRaw ?? null;
   const autoRetryBlock = !!autoRetryRaw;
   const blockExample = !!blockExampleRaw2;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic }, userId ?? currentUser() ?? undefined);
+  const enginePass = enginePassEnabled(enginePassRaw);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass }, userId ?? currentUser() ?? undefined);
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -197,6 +199,11 @@ function parseCompilerDiagnostic(raw: unknown): CompilerDiagnostic | null {
 }
 async function readCompilerDiagnostic(chatId: string): Promise<CompilerDiagnostic | null> {
   return parseCompilerDiagnostic(await getChatVar(chatId, 'vellum_compiler_diagnostic'));
+}
+
+async function readEnginePassEnabled(chatId: string): Promise<boolean> {
+  try { return enginePassEnabled(await getChatVar(chatId, 'vellum_engine_pass')); }
+  catch { return true; }
 }
 
 interface FoldTranscript {
@@ -446,7 +453,8 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   const turnContract = await activeTurnContract(chatId, userId);
   const turnAgencyLedger = await activeTurnAgencyLedger(chatId, userId);
   const structuredStateEnabled = turnContract?.state !== false;
-  const engineCompiler = structuredStateEnabled && turnContract?.stateCompiler === 'engine';
+  let enginePassOn = await readEnginePassEnabled(chatId);
+  let engineCompiler = structuredStateEnabled && turnContract?.stateCompiler === 'engine' && enginePassOn;
   let prior = await loadState(chatId);
   // tone dials + canonical {{user}} id + locks, resolved once per fold pass (in
   // parallel; chat vars are cached but this also overlaps the name derivation).
@@ -521,35 +529,46 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         ? agencyAtTurn(turnAgencyLedger, turnNo)
         : turnContract?.agency ?? 'protected';
       compiled = await compileState({ prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency }, userId, compilerConnection ? String(compilerConnection) : undefined);
-      const currentRaw = await getRawMessages(chatId);
-      const currentSnapshotStatus = transcript.snapshot ? assistantSnapshotStatus(currentRaw, transcript.snapshot) : null;
-      if (transcript.snapshot && currentSnapshotStatus === 'match'
-        && _generationSnapshotByChat.get(chatId)?.generationId === transcript.snapshot.generationId) {
-        _generationSnapshotByChat.delete(chatId);
+      // The user may switch the pass off while a slow compiler request is in
+      // flight. Re-check before committing so disabling is immediate and an old
+      // result can never mutate the Chronicle after the toggle moved to Off.
+      if (!(await readEnginePassEnabled(chatId))) {
+        enginePassOn = false;
+        engineCompiler = false;
+        compiled = null;
+        await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+        spindle.log?.info?.(`[vellum_engine] Engine Second Pass disabled while compiling turn ${turnNo}; discarded the candidate and kept the prose fallback.`);
+      } else {
+        const currentRaw = await getRawMessages(chatId);
+        const currentSnapshotStatus = transcript.snapshot ? assistantSnapshotStatus(currentRaw, transcript.snapshot) : null;
+        if (transcript.snapshot && currentSnapshotStatus === 'match'
+          && _generationSnapshotByChat.get(chatId)?.generationId === transcript.snapshot.generationId) {
+          _generationSnapshotByChat.delete(chatId);
+        }
+        // Only keep using the event snapshot when this fold itself had to use the
+        // missing-row fallback and the row is still absent. If the host now shows
+        // a different value, an edit/swipe happened while compilation was running
+        // and the atomic candidate must be discarded.
+        const current = turnContentsFromMessages(
+          currentRaw,
+          transcript.snapshotFallback && currentSnapshotStatus === 'missing' ? transcript.snapshot : undefined,
+        );
+        const snapshotStillCurrent = !transcript.snapshot
+          || currentSnapshotStatus === 'match'
+          || (transcript.snapshotFallback && currentSnapshotStatus === 'missing'
+            && (!_generationSnapshotByChat.get(chatId)
+              || _generationSnapshotByChat.get(chatId)?.generationId === transcript.snapshot.generationId));
+        const unchanged = snapshotStillCurrent && current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
+        if (!compiled.ok || !unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
+          const errors = !compiled.ok ? compiled.errors : ['The transcript or Chronicle changed during compilation; retry the fold.'];
+          await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors }));
+          spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${errors.slice(0, 2).join('; ')}. Use Retry Engine in the floating window.` }, userId ?? undefined);
+          await flush(chatId);
+          await broadcastState(chatId, userId);
+          return;
+        }
+        foldContent = prose + '\n' + compiled.block;
       }
-      // Only keep using the event snapshot when this fold itself had to use the
-      // missing-row fallback and the row is still absent. If the host now shows
-      // a different value, an edit/swipe happened while compilation was running
-      // and the atomic candidate must be discarded.
-      const current = turnContentsFromMessages(
-        currentRaw,
-        transcript.snapshotFallback && currentSnapshotStatus === 'missing' ? transcript.snapshot : undefined,
-      );
-      const snapshotStillCurrent = !transcript.snapshot
-        || currentSnapshotStatus === 'match'
-        || (transcript.snapshotFallback && currentSnapshotStatus === 'missing'
-          && (!_generationSnapshotByChat.get(chatId)
-            || _generationSnapshotByChat.get(chatId)?.generationId === transcript.snapshot.generationId));
-      const unchanged = snapshotStillCurrent && current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
-      if (!compiled.ok || !unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
-        const errors = !compiled.ok ? compiled.errors : ['The transcript or Chronicle changed during compilation; retry the fold.'];
-        await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors }));
-        spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${errors.slice(0, 2).join('; ')}. Use Retry Engine in the floating window.` }, userId ?? undefined);
-        await flush(chatId);
-        await broadcastState(chatId, userId);
-        return;
-      }
-      foldContent = prose + '\n' + compiled.block;
     }
     const folded = structuredStateEnabled
       ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, ...(dayCap !== undefined ? { dayCap } : {}) })
@@ -630,7 +649,8 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   if (_latestSource === 'none' && _latestContent && turnContract?.state !== false && (turnContract?.active || looksLikeVellumTurn(_latestContent))) {
     let autoretry = false;
     try { autoretry = !!(await getChatVar(chatId, 'vellum_autoretry_block')); } catch { /* best effort */ }
-    if ((autoretry || turnContract?.argent) && (await has('generation'))) {
+    const argentInlineRepair = !!turnContract?.argent && turnContract.stateCompiler !== 'engine';
+    if ((autoretry || argentInlineRepair) && (await has('generation'))) {
       try {
         // newest assistant message: the one to append the recovered block to.
         const raw = await getRawMessages(chatId);
@@ -701,7 +721,13 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         const vr = validateTurnStructure(
           _latestContent,
           turnContract
-            ? { reverie: turnContract.reverie, state: turnContract.state }
+            ? {
+              reverie: turnContract.reverie,
+              // Engine-mode prose intentionally has no inline state block. When
+              // the per-chat pass is off, that absence is expected; VELLUM keeps
+              // the turn gist and runs its prose-memory fallback instead.
+              state: turnContract.state && !(turnContract.stateCompiler === 'engine' && !enginePassOn),
+            }
             : { reverie: false, state: true },
           _latestSource,
         );
@@ -2987,6 +3013,7 @@ const dispatch: Record<string, Handler> = {
     };
     if (!chatId) { done(false, { reason: 'no_active_chat' }); return; }
     if (_retryingEngine.has(chatId)) { done(false, { reason: 'busy' }); return; }
+    if (!(await readEnginePassEnabled(chatId))) { done(false, { reason: 'engine_disabled' }); return; }
     if (!(await has('generation'))) { done(false, { reason: 'no_generation' }); return; }
     const contract = await activeTurnContract(chatId, uid);
     if (!contract || contract.state === false || contract.stateCompiler !== 'engine') { done(false, { reason: 'not_engine' }); return; }
@@ -3107,6 +3134,27 @@ const dispatch: Record<string, Handler> = {
     const available = await has('generation');
     const axis = readAxis(await getChatVar(chatId, 'vellum_traversal_axis'));
     spindle.sendToFrontend?.({ type: 'vellum_traversal_done', ok: true, enabled, mode, axis, available }, uid);
+  },
+  vellum_set_engine_pass: async (p, uid) => {
+    // Per-chat override for presets configured to use Engine Second Pass.
+    // Unset means enabled for backward compatibility; only an explicit "off"
+    // suppresses compilation. Turning it off also dismisses a stale held-pass
+    // diagnostic, because Retry Engine is intentionally unavailable while off.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) {
+      spindle.sendToFrontend?.({ type: 'vellum_engine_pass_set_done', ok: false, reason: 'no_active_chat', enabled: true }, uid);
+      return;
+    }
+    const enabled = !!p?.enabled;
+    try {
+      await setChatVar(chatId, 'vellum_engine_pass', enabled ? '' : 'off');
+      if (!enabled) await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+      await broadcastState(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_engine_pass_set_done', ok: true, enabled }, uid);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] engine-pass toggle: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_engine_pass_set_done', ok: false, reason: 'error', enabled: await readEnginePassEnabled(chatId).catch(() => true) }, uid);
+    }
   },
   vellum_set_tone: async (p, uid) => {
     // persist romance pace + world disposition; they steer the fold (bond seed/

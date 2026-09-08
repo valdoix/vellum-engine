@@ -61,6 +61,15 @@ function on(value: unknown, fallback: boolean): boolean {
   return value === true || value === 1 || value === '1' || value === 'true' || value === 'on';
 }
 
+/** Per-chat permission for the optional Engine Second Pass. Unset is enabled so
+ * existing chats keep their current behavior after upgrading. Accept legacy
+ * boolean spellings defensively because chat variables are host-owned strings. */
+export function enginePassEnabled(value: unknown): boolean {
+  if (value === false || value === 0) return false;
+  if (typeof value !== 'string') return true;
+  return !['off', 'false', '0', 'disabled'].includes(value.trim().toLowerCase());
+}
+
 type MessageLike = { role?: unknown; content?: unknown; __isChatHistory?: unknown };
 
 interface EffectiveMarker {

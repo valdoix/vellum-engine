@@ -213,6 +213,7 @@ const SLIDES = [
         <ul class="vle-ob-list">
           <li><strong>Customize</strong> — Open the theme editor (colors, fonts, layout, shapes)</li>
           <li><strong>Boundaries</strong> — Set hard content limits (what this story will never depict)</li>
+          <li><strong>Engine pass</strong> — Toggle the preset-requested Engine Second Pass for this chat</li>
           <li><strong>Hide filed</strong> — Toggle: hide summarized turns from the prompt to save tokens</li>
           <li><strong>Traverse</strong> — Cycle through retrieval modes: off → flat one-shot → tree drill (book→arc→chapter→leaf)</li>
           <li><strong>Off-screen</strong> — Toggle: simulate off-screen life (characters act elsewhere every few turns)</li>

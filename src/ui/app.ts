@@ -178,6 +178,7 @@ const QOL = [
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'settings' },
   { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc/book prompts', group: 'settings' },
   // toggles = persistent on/off state
+  { id: 'enginepass', label: '\u2699 Engine pass', title: 'Run Engine Second Pass when the active preset requests it. Off keeps the prose turn and uses VELLUM\'s fallback memory extraction without compiling full state.', group: 'toggle' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree book\u2192arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
   { id: 'offscreen', label: '\u263E Off-screen', title: 'Simulate off-screen life: characters not in the scene quietly act elsewhere each few turns (needs generation permission; costs a generation per tick)', group: 'toggle' },
@@ -745,6 +746,7 @@ function createShell(ctx: Ctx, getState: () => ChronicleState) {
 let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
+let _enginePassOn = true; // per-chat permission for Engine Second Pass; default on
 let _autoRetryOn = false; // auto-repair a dropped <vellum> block, mirrored from backend
 let _blockExampleOn = false; // inject previous turn's block as worked example, mirrored from backend
 let _traverseMode = 'off'; // off | flat | tree
@@ -989,6 +991,7 @@ function openActions(ctx: Ctx): void {
   const groups: Array<[string, string]> = [['settings', 'Settings'], ['toggle', 'Toggles'], ['run', 'Run'], ['data', 'Data'], ['help', 'Help'], ['danger', 'Danger']];
   const bodyHtml = (): string => {
     const toggleState: Record<string, string> = {
+      enginepass: _enginePassOn ? 'on' : 'off',
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
       autoretry: _autoRetryOn ? 'on' : 'off',
@@ -1094,6 +1097,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rescan') { setQolBusy('rescan', true); ctx.sendToBackend({ type: 'vellum_rescan' }); notify(ctx, 'info', 'Rescanning the latest turn\u2026'); }
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
+  else if (id === 'enginepass') { _enginePassOn = !_enginePassOn; setQolBusy('enginepass', true); ctx.sendToBackend({ type: 'vellum_set_engine_pass', enabled: _enginePassOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'autoretry') { _autoRetryOn = !_autoRetryOn; ctx.sendToBackend({ type: 'vellum_set_autoretry', enabled: _autoRetryOn }); }
   else if (id === 'blockexample') { _blockExampleOn = !_blockExampleOn; ctx.sendToBackend({ type: 'vellum_set_block_example', enabled: _blockExampleOn }); }
@@ -1972,6 +1976,14 @@ export function setup(ctx: Ctx): () => void {
         }
         if (typeof p.tidy === 'boolean') _tidyOn = p.tidy;
         if (typeof p.offscreen === 'boolean') _offscreenOn = p.offscreen;
+        if (typeof p.enginePass === 'boolean') {
+          _enginePassOn = p.enginePass;
+          document.querySelectorAll('[data-qol=\'enginepass\']').forEach((b) => {
+            b.classList.toggle('on', _enginePassOn);
+            const status = b.querySelector('.vle-act-st');
+            if (status) status.textContent = _enginePassOn ? 'on' : 'off';
+          });
+        }
         if (typeof p.autoRetryBlock === 'boolean') { _autoRetryOn = p.autoRetryBlock; document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn)); }
         if (typeof p.blockExample === 'boolean') { _blockExampleOn = p.blockExample; document.querySelectorAll('[data-qol=\'blockexample\']').forEach((b) => b.classList.toggle('on', _blockExampleOn)); }
         if (typeof p.hide === 'boolean') { _hideOn = p.hide; document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn)); }
@@ -2279,6 +2291,8 @@ export function setup(ctx: Ctx): () => void {
           stickyToast('engine-retry', 'info', 'The Engine retry is already running.', true);
         } else if (p.reason === 'not_engine') {
           stickyToast('engine-retry', 'warning', 'This turn is not using Engine Second Pass.', true);
+        } else if (p.reason === 'engine_disabled') {
+          stickyToast('engine-retry', 'warning', 'Engine Second Pass is disabled in Actions.', true);
         } else if (p.reason === 'no_generation') {
           stickyToast('engine-retry', 'warning', 'Engine retry needs the generation permission.', true);
         } else if (p.reason === 'no_active_chat' || p.reason === 'no_turn') {
@@ -2342,6 +2356,16 @@ export function setup(ctx: Ctx): () => void {
         _hideOn = !!p.enabled;
         document.querySelectorAll('[data-qol=\'hide\']').forEach((b) => b.classList.toggle('on', _hideOn));
         notify(ctx, 'success', p.enabled ? `Hiding ${p.hid ?? 0} filed turn(s) from the prompt.` : `Restored ${p.shown ?? 0} turn(s).`);
+      } else if (p?.type === 'vellum_engine_pass_set_done') {
+        setQolBusy('enginepass', false);
+        _enginePassOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'enginepass\']').forEach((b) => {
+          b.classList.toggle('on', _enginePassOn);
+          const status = b.querySelector('.vle-act-st');
+          if (status) status.textContent = _enginePassOn ? 'on' : 'off';
+        });
+        if (!p.ok) notify(ctx, 'warning', p.reason === 'no_active_chat' ? 'Open a chat before changing Engine Second Pass.' : 'Could not change Engine Second Pass.');
+        else notify(ctx, 'success', _enginePassOn ? 'Engine Second Pass on.' : 'Engine Second Pass off — turns use fallback memory extraction.');
       } else if (p?.type === 'vellum_traversal_done') {
         setQolBusy('traverse', false);
         _traverseMode = p.mode ?? (p.enabled ? 'flat' : 'off');

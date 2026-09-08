@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyArgentPolicy, compileArgentPolicy } from '../src/domain/argent-policy.js';
-import { agencyAtTurn, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger } from '../src/domain/preset-runtime.js';
+import { agencyAtTurn, enginePassEnabled, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger } from '../src/domain/preset-runtime.js';
 
 function argent(values: Record<string, unknown> = {}) {
   return {
@@ -47,6 +47,11 @@ function argent(values: Record<string, unknown> = {}) {
 }
 
 describe('active preset turn contract', () => {
+  it('keeps Engine Second Pass enabled by default and honors explicit off values', () => {
+    for (const value of [undefined, null, '', true, 1, 'on', 'true']) expect(enginePassEnabled(value)).toBe(true);
+    for (const value of [false, 0, 'off', 'OFF', 'false', '0', 'disabled']) expect(enginePassEnabled(value)).toBe(false);
+  });
+
   it('uses ARGENT defaults when the preset has no stored overrides', () => {
     expect(resolveTurnContract(argent())).toMatchObject({
       active: true, argent: true, state: true, reverie: true, dialogueColor: true,
