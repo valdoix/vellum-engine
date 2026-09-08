@@ -48,12 +48,67 @@ export function activeContent(m: any): string {
   return typeof m.content === 'string' ? m.content : '';
 }
 
+/** Final assistant payload carried by GENERATION_ENDED. Lumiverse emits this
+ * after saving the message, but a newly-created/temporary chat can briefly lag
+ * behind that event when read through the extension chat API. */
+export interface AssistantSnapshot {
+  messageId: string;
+  content: string;
+  generationId?: string;
+}
+
+export type AssistantSnapshotStatus = 'missing' | 'match' | 'different';
+
+function rawMessageId(message: any): string {
+  return String(message?.id ?? message?.message_id ?? '');
+}
+
+/** Compare a generation snapshot with the host transcript without mutating it. */
+export function assistantSnapshotStatus(messages: readonly any[], snapshot: AssistantSnapshot): AssistantSnapshotStatus {
+  const message = messages.find((item) => rawMessageId(item) === snapshot.messageId);
+  if (!message) return 'missing';
+  return activeContent(message).trim() === snapshot.content.trim() ? 'match' : 'different';
+}
+
+/** Add a missing final assistant message to a transient transcript view. This
+ * is intentionally missing-only: a stored message with different content is a
+ * real edit/swipe and must win over the older generation event. */
+export function withAssistantSnapshot(messages: readonly any[], snapshot?: AssistantSnapshot): any[] {
+  const out = [...messages];
+  if (!snapshot || assistantSnapshotStatus(out, snapshot) !== 'missing') return out;
+  out.push({ id: snapshot.messageId, role: 'assistant', content: snapshot.content, swipes: [snapshot.content], swipe_id: 0 });
+  return out;
+}
+
+/** Project raw host messages into the assistant-positioned turn representation
+ * consumed by the fold. Supplying a snapshot only fills a message that the
+ * host has not exposed yet. */
+export function turnContentsFromMessages(messages: readonly any[], snapshot?: AssistantSnapshot): string[] {
+  const out: string[] = [];
+  let pendingUser: string[] = [];
+  for (const m of withAssistantSnapshot(messages, snapshot)) {
+    if (!m) continue;
+    if (m.role === 'user') {
+      const c = activeContent(m).trim();
+      if (c) pendingUser.push(c);
+    } else if (m.role === 'assistant') {
+      const reply = activeContent(m).trim();
+      const block = pendingUser.length
+        ? pendingUser.map((u) => `[Player action]\n${u}`).join('\n\n') + (reply ? `\n\n[Scene]\n${reply}` : '')
+        : reply;
+      out.push(block);
+      pendingUser = [];
+    }
+  }
+  return out;
+}
+
 /** Return the exact player input and assistant reply paired to an assistant turn. */
-export function messagePartsAtTurn(messages: readonly any[], turn: number): { userInput: string; assistant: string } | null {
+export function messagePartsAtTurn(messages: readonly any[], turn: number, snapshot?: AssistantSnapshot): { userInput: string; assistant: string } | null {
   if (!Number.isSafeInteger(turn) || turn < 1) return null;
   let current = 0;
   let pendingUser: string[] = [];
-  for (const message of messages) {
+  for (const message of withAssistantSnapshot(messages, snapshot)) {
     if (!message) continue;
     if (message.role === 'user') {
       const content = activeContent(message).trim();
@@ -142,27 +197,10 @@ export async function allAssistantContents(chatId: string): Promise<string[]> {
  * one voice. The markers are bracketed labels, not in-fiction speaker names, so
  * resolving {{user}} can't make narration read as the player's dialogue.
  */
-export async function allTurnContents(chatId: string): Promise<string[]> {
+export async function allTurnContents(chatId: string, snapshot?: AssistantSnapshot): Promise<string[]> {
   try {
     const msgs = await getRawMessages(chatId);
-    if (!Array.isArray(msgs)) return [];
-    const out: string[] = [];
-    let pendingUser: string[] = []; // user lines awaiting the next assistant turn
-    for (const m of msgs) {
-      if (!m) continue;
-      if (m.role === 'user') {
-        const c = activeContent(m).trim();
-        if (c) pendingUser.push(c);
-      } else if (m.role === 'assistant') {
-        const reply = activeContent(m).trim();
-        const block = pendingUser.length
-          ? pendingUser.map((u) => `[Player action]\n${u}`).join('\n\n') + (reply ? `\n\n[Scene]\n${reply}` : '')
-          : reply;
-        out.push(block);
-        pendingUser = [];
-      }
-    }
-    return out;
+    return Array.isArray(msgs) ? turnContentsFromMessages(msgs, snapshot) : [];
   } catch {
     return [];
   }

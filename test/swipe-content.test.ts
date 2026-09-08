@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { activeContent, messagePartsAtTurn } from '../src/host/chats.js';
+import { activeContent, assistantSnapshotStatus, messagePartsAtTurn, turnContentsFromMessages, withAssistantSnapshot } from '../src/host/chats.js';
 
 /**
  * Swipe handling: a swipe replaces the visible reply in place (same message
@@ -62,5 +62,31 @@ describe('messagePartsAtTurn', () => {
     ];
     expect(messagePartsAtTurn(messages, 1)).toEqual({ userInput: 'I try the latch.', assistant: 'The latch resists.' });
     expect(messagePartsAtTurn(messages, 2)).toEqual({ userInput: 'OOC: Direct Mara to leave.', assistant: 'Mara leaves.' });
+  });
+});
+
+describe('GENERATION_ENDED transcript snapshot', () => {
+  const snapshot = { messageId: 'a1', content: 'The latch opens.', generationId: 'g1' };
+
+  it('fills a temporarily missing assistant message and preserves its pending user input', () => {
+    const messages = [{ id: 'u1', role: 'user', content: 'I turn the key.' }];
+    expect(assistantSnapshotStatus(messages, snapshot)).toBe('missing');
+    expect(turnContentsFromMessages(messages, snapshot)).toEqual([
+      '[Player action]\nI turn the key.\n\n[Scene]\nThe latch opens.',
+    ]);
+    expect(messagePartsAtTurn(messages, 1, snapshot)).toEqual({ userInput: 'I turn the key.', assistant: 'The latch opens.' });
+  });
+
+  it('does not overwrite a stored edit or swipe with an older generation snapshot', () => {
+    const messages = [{ id: 'a1', role: 'assistant', content: 'Edited reply.', swipes: ['Old reply.', 'Edited reply.'], swipe_id: 1 }];
+    expect(assistantSnapshotStatus(messages, snapshot)).toBe('different');
+    expect(withAssistantSnapshot(messages, snapshot)).toHaveLength(1);
+    expect(turnContentsFromMessages(messages, snapshot)).toEqual(['Edited reply.']);
+  });
+
+  it('recognizes a converged host transcript without duplicating the message', () => {
+    const messages = [{ id: 'a1', role: 'assistant', content: snapshot.content }];
+    expect(assistantSnapshotStatus(messages, snapshot)).toBe('match');
+    expect(withAssistantSnapshot(messages, snapshot)).toHaveLength(1);
   });
 });

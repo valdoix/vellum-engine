@@ -34,6 +34,53 @@ export function compilerContext(input: CompilerInput): string {
   });
 }
 
+/** Recover complete JSON objects from providers that ignore response_format and
+ * wrap the answer in a code fence or a short preface. The scan is quote-aware,
+ * so braces inside prose strings cannot truncate a valid candidate. Partial
+ * objects remain rejected. */
+export function compilerReplyObjects(raw: string): unknown[] {
+  const text = String(raw || '').replace(/<think[\s\S]*?<\/think>/gi, '').replace(/```(?:json)?/gi, '').trim();
+  if (!text) return [];
+  const looksLikeRoot = (value: unknown): boolean => !!value && typeof value === 'object' && !Array.isArray(value) && 'state' in value;
+  try {
+    const parsed = JSON.parse(text);
+    return looksLikeRoot(parsed) ? [parsed] : [];
+  } catch { /* scan balanced objects */ }
+  const out: unknown[] = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const start = text.indexOf('{', cursor);
+    if (start < 0) break;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+    for (let i = start; i < text.length; i++) {
+      const char = text[i]!;
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') { inString = true; continue; }
+      if (char === '{' || char === '[') depth += 1;
+      else if (char === '}' || char === ']') {
+        depth -= 1;
+        if (depth === 0) { end = i; break; }
+        if (depth < 0) break;
+      }
+    }
+    if (end < 0) { cursor = start + 1; continue; }
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      if (looksLikeRoot(parsed)) out.push(parsed);
+    } catch { /* keep scanning */ }
+    cursor = end + 1;
+  }
+  return out;
+}
+
 export async function compileState(input: CompilerInput, userId: string | null, connectionId?: string, generate: typeof internalGenerate = internalGenerate): Promise<Compilation> {
   const schema = jsonSchema(CompilerCandidate);
   const context = compilerContext(input);
@@ -41,18 +88,31 @@ export async function compileState(input: CompilerInput, userId: string | null, 
     ? 'FULL CONTRACT: audit every schema family against the prose; include every supported change and its evidence.'
     : 'LEAN CONTRACT: keep the candidate compact; include the complete scene/present roster and only material supported changes.';
   let errors: string[] = [];
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const attempts = [
+    { extraTokens: 0, timeoutMs: 60_000 },
+    { extraTokens: 1600, timeoutMs: 90_000 },
+    { extraTokens: 3200, timeoutMs: 120_000 },
+  ];
+  for (let attempt = 0; attempt < attempts.length; attempt++) {
+    const policy = attempts[attempt]!;
+    const correction = errors.length
+      ? '\nThe previous candidate was discarded. Return a NEW complete object that fixes every listed error. Exactness outranks coverage. Omit any optional delta, ext, parallel operation, or plot proof you cannot support; use empty arrays/objects for required containers. Preserve prior scene and roster values when prose does not prove a change.\nRejected because: ' + errors.slice(0, 20).join('; ')
+      : '';
     const result = await generate([
       { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + '\nSchema: ' + JSON.stringify(schema) },
-      { role: 'user', content: context + (errors.length ? '\nPrevious candidate rejected: ' + errors.slice(0, 15).join('; ') : '') },
-    ], { temperature: 0, max_tokens: Math.min(12000, (input.verbosity === 'full' ? 3800 : 2400) + Object.keys(input.prior.cast).length * 100) }, userId,
-    { reasoningOff: true, timeoutMs: 45000, ...(connectionId ? { connectionId } : {}), responseFormat: { type: 'json_schema', json_schema: { name: 'vellum_compilation', strict: false, schema } } });
+      { role: 'user', content: context + correction },
+    ], { temperature: 0, max_tokens: Math.min(12000, (input.verbosity === 'full' ? 3800 : 2400) + Object.keys(input.prior.cast).length * 100 + policy.extraTokens) }, userId,
+    { reasoningOff: true, timeoutMs: policy.timeoutMs, ...(connectionId ? { connectionId } : {}), responseFormat: { type: 'json_schema', json_schema: { name: 'vellum_compilation', strict: false, schema } } });
     if (!result.ok) { errors = [result.error]; continue; }
-    try {
-      const validated = validateCompilation(JSON.parse(result.value.trim().replace(/^```(?:json)?\s*|\s*```$/g, '')), input);
+    const candidates = compilerReplyObjects(result.value);
+    if (!candidates.length) { errors = ['Response was not one complete JSON object']; continue; }
+    let closest: string[] | null = null;
+    for (const candidate of candidates) {
+      const validated = validateCompilation(candidate, input);
       if (validated.ok) return validated;
-      errors = validated.errors;
-    } catch { errors = ['Response was not one complete JSON object']; }
+      if (!closest || validated.errors.length < closest.length) closest = validated.errors;
+    }
+    errors = closest ?? ['Response did not contain a valid compiler object'];
   }
   return { ok: false, errors };
 }

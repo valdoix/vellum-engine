@@ -2,7 +2,7 @@ import { VELLUM_VERSION } from './version.js';
 import type { ChatForkedPayloadDTO, ChatSwitchedPayloadDTO, GenerationEndedPayloadDTO, InterceptorContextDTO, LlmMessageDTO, PromptBlockDTO, PromptVariableValuesDTO } from 'lumiverse-spindle-types';
 import { restoreUser, rememberUser, currentUser, requireUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
-import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, looksLikeTimestamp, getChatVar, setChatVar, invalidateChatVars, getRawMessages, activeContent, messagePartsAtTurn } from './host/chats.js';
+import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, looksLikeTimestamp, getChatVar, setChatVar, invalidateChatVars, getRawMessages, activeContent, assistantSnapshotStatus, messagePartsAtTurn, turnContentsFromMessages, type AssistantSnapshot } from './host/chats.js';
 import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logRevision, logHasKind, truncateAfterTurn, turnSigs, turnDays, recoverFromBackup, loadLog } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
@@ -150,7 +150,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -168,6 +168,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     readPrefs(userId),
     getChatVar(chatId, 'vellum_autoretry_block').catch(() => ''),
     getChatVar(chatId, 'vellum_block_example').catch(() => ''),
+    readCompilerDiagnostic(chatId),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
@@ -177,18 +178,72 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const prefs = prefsRaw ?? null;
   const autoRetryBlock = !!autoRetryRaw;
   const blockExample = !!blockExampleRaw2;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample }, userId ?? currentUser() ?? undefined);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic }, userId ?? currentUser() ?? undefined);
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
 const _foldChain = new Map<string, Promise<void>>();
-function foldChat(chatId: string, userId: string | null, hint?: string, forceRollbackTo?: number): Promise<void> {
+const _generationSnapshotByChat = new Map<string, AssistantSnapshot>();
+const _retryingEngine = new Set<string>();
+
+interface CompilerDiagnostic { turn: number; inputSig: string; errors: string[] }
+function parseCompilerDiagnostic(raw: unknown): CompilerDiagnostic | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<CompilerDiagnostic>;
+    if (!Number.isSafeInteger(value.turn) || Number(value.turn) < 1 || typeof value.inputSig !== 'string' || !Array.isArray(value.errors)) return null;
+    return { turn: Number(value.turn), inputSig: value.inputSig, errors: value.errors.map(String).filter(Boolean).slice(0, 50) };
+  } catch { return null; }
+}
+async function readCompilerDiagnostic(chatId: string): Promise<CompilerDiagnostic | null> {
+  return parseCompilerDiagnostic(await getChatVar(chatId, 'vellum_compiler_diagnostic'));
+}
+
+interface FoldTranscript {
+  raw: any[];
+  turns: string[];
+  snapshot?: AssistantSnapshot;
+  snapshotFallback: boolean;
+}
+
+/** GENERATION_ENDED includes the exact final assistant content. On a fresh or
+ * temporary chat, getMessages can lag behind the event despite the messageId
+ * already existing. Give the host a bounded convergence window, then compile
+ * against the event snapshot if the row is still absent. A stored differing
+ * row always wins because it represents a later edit/swipe. */
+async function foldTranscript(chatId: string, supplied?: AssistantSnapshot): Promise<FoldTranscript> {
+  const snapshot = supplied ?? _generationSnapshotByChat.get(chatId);
+  let raw = await getRawMessages(chatId);
+  if (!snapshot) return { raw, turns: turnContentsFromMessages(raw), snapshotFallback: false };
+  let status = assistantSnapshotStatus(raw, snapshot);
+  for (const delay of [120, 240, 420, 700]) {
+    if (status !== 'missing') break;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    raw = await getRawMessages(chatId);
+    status = assistantSnapshotStatus(raw, snapshot);
+  }
+  if (status === 'match') {
+    if (_generationSnapshotByChat.get(chatId)?.generationId === snapshot.generationId) _generationSnapshotByChat.delete(chatId);
+    return { raw, turns: turnContentsFromMessages(raw), snapshot, snapshotFallback: false };
+  }
+  if (status === 'different') {
+    if (_generationSnapshotByChat.get(chatId)?.generationId === snapshot.generationId) _generationSnapshotByChat.delete(chatId);
+    // The stored value is canonical (a macro-resolved save, edit, or swipe).
+    // Drop the older event snapshot from this fold so its safety check compares
+    // the stored value with a fresh stored value normally.
+    return { raw, turns: turnContentsFromMessages(raw), snapshotFallback: false };
+  }
+  return { raw, turns: turnContentsFromMessages(raw, snapshot), snapshot, snapshotFallback: true };
+}
+
+function foldChat(chatId: string, userId: string | null, snapshot?: AssistantSnapshot, forceRollbackTo?: number): Promise<void> {
+  if (snapshot?.messageId && snapshot.content.trim()) _generationSnapshotByChat.set(chatId, snapshot);
   // serialize folds per chat: concurrent triggers (GENERATION_ENDED +
   // get_state retries) would each read the same prior.turns and re-fold the
   // SAME turn, accumulating duplicate deltas (aff -30/-60/-90). Chaining makes
   // the 2nd call wait, then see turns already advanced -> nothing new to fold.
   const prev = _foldChain.get(chatId) ?? Promise.resolve();
-  const next = prev.catch(() => {}).then(() => foldChatInner(chatId, userId, hint, forceRollbackTo));
+  const next = prev.catch(() => {}).then(() => foldChatInner(chatId, userId, snapshot, forceRollbackTo));
   _foldChain.set(chatId, next.catch(() => {}));
   return next;
 }
@@ -381,10 +436,9 @@ async function nextSceneInjection(chatId: string, state?: import('./domain/types
   return '[NEXT SCENE \u2014 the author sets where/when this turn opens. Open the scene here and honor it. This frames the OPENING; it does not teleport characters who would plausibly be elsewhere.] ' + body.trim();
 }
 
-async function foldChatInner(chatId: string, userId: string | null, hint?: string, forceRollbackTo?: number): Promise<void> {
-  let msgs = await allTurnContents(chatId);
-  if (!msgs.length || !(msgs[msgs.length - 1] ?? '').trim()) { await new Promise((r) => setTimeout(r, 220)); msgs = await allTurnContents(chatId); }
-  if (hint && hint.trim() && (!msgs.length || msgs[msgs.length - 1] !== hint)) msgs.push(hint);
+async function foldChatInner(chatId: string, userId: string | null, snapshot?: AssistantSnapshot, forceRollbackTo?: number): Promise<void> {
+  const transcript = await foldTranscript(chatId, snapshot);
+  const msgs = transcript.turns;
   if (!msgs.length) return;
   // Resolve the exact active preset's output controls once for this fold. This
   // turns state/reverie validation into a real contract instead of guessing from
@@ -457,8 +511,8 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
       if (pendingRollback !== null && stagedExpectedRevision === undefined) stagedExpectedRevision = expectedRevision;
       const baseline = structuredClone(prior);
       const liveRevision = stateRevision(await loadState(chatId));
-      const raw = await getRawMessages(chatId);
-      const parts = messagePartsAtTurn(raw, turnNo);
+      const raw = transcript.raw;
+      const parts = messagePartsAtTurn(raw, turnNo, transcript.snapshotFallback ? transcript.snapshot : undefined);
       const prose = stripScaffold(parts?.assistant ?? content);
       const userInput = parts?.userInput ?? '';
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
@@ -467,12 +521,30 @@ async function foldChatInner(chatId: string, userId: string | null, hint?: strin
         ? agencyAtTurn(turnAgencyLedger, turnNo)
         : turnContract?.agency ?? 'protected';
       compiled = await compileState({ prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency }, userId, compilerConnection ? String(compilerConnection) : undefined);
-      const current = await allTurnContents(chatId);
-      const unchanged = current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
+      const currentRaw = await getRawMessages(chatId);
+      const currentSnapshotStatus = transcript.snapshot ? assistantSnapshotStatus(currentRaw, transcript.snapshot) : null;
+      if (transcript.snapshot && currentSnapshotStatus === 'match'
+        && _generationSnapshotByChat.get(chatId)?.generationId === transcript.snapshot.generationId) {
+        _generationSnapshotByChat.delete(chatId);
+      }
+      // Only keep using the event snapshot when this fold itself had to use the
+      // missing-row fallback and the row is still absent. If the host now shows
+      // a different value, an edit/swipe happened while compilation was running
+      // and the atomic candidate must be discarded.
+      const current = turnContentsFromMessages(
+        currentRaw,
+        transcript.snapshotFallback && currentSnapshotStatus === 'missing' ? transcript.snapshot : undefined,
+      );
+      const snapshotStillCurrent = !transcript.snapshot
+        || currentSnapshotStatus === 'match'
+        || (transcript.snapshotFallback && currentSnapshotStatus === 'missing'
+          && (!_generationSnapshotByChat.get(chatId)
+            || _generationSnapshotByChat.get(chatId)?.generationId === transcript.snapshot.generationId));
+      const unchanged = snapshotStillCurrent && current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
       if (!compiled.ok || !unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
         const errors = !compiled.ok ? compiled.errors : ['The transcript or Chronicle changed during compilation; retry the fold.'];
         await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors }));
-        spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${errors.slice(0, 2).join('; ')}. Rescan to retry.` }, userId ?? undefined);
+        spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${errors.slice(0, 2).join('; ')}. Use Retry Engine in the floating window.` }, userId ?? undefined);
         await flush(chatId);
         await broadcastState(chatId, userId);
         return;
@@ -1766,7 +1838,10 @@ async function wireCapabilitiesInner(): Promise<void> {
         rememberUser(userId);
         const chatId = p.chatId || (await activeChatId(userId));
         if (!chatId) return;
-        void foldChat(chatId, userId).catch((e) => {
+        const snapshot = typeof p.content === 'string' && p.content.trim()
+          ? { messageId: p.messageId, content: p.content, generationId: p.generationId }
+          : undefined;
+        void foldChat(chatId, userId, snapshot).catch((e) => {
           spindle.log?.warn?.('[vellum_engine] generation fold failed: ' + ((e as Error)?.message ?? e));
           spindle.sendToFrontend({ type: 'vellum_toast', level: 'warning', msg: 'VELLUM could not save this tracker update. Use Refresh after checking extension storage.' }, userId);
         });
@@ -1786,6 +1861,8 @@ function pruneChatState(chatId: string): void {
   lastSigByChat.delete(chatId);
   injectionLog.delete(chatId);
   _foldChain.delete(chatId);
+  _generationSnapshotByChat.delete(chatId);
+  _retryingEngine.delete(chatId);
   _toneMigrated.delete(chatId);
   _tidying.delete(chatId);
   _tidyingFacts.delete(chatId);
@@ -2902,6 +2979,40 @@ const dispatch: Record<string, Handler> = {
     // re-fold the latest turn from raw stored text (recover from a missed fold)
     const chatId = p?.chatId || (await activeChatId(uid));
     if (chatId) { lastSigByChat.delete(chatId); await foldChat(chatId, uid); spindle.sendToFrontend?.({ type: 'vellum_rescan_done', ok: true }, uid); }
+  },
+  vellum_retry_engine: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    const done = (ok: boolean, extra: Record<string, unknown> = {}): void => {
+      spindle.sendToFrontend?.({ type: 'vellum_retry_engine_done', ok, ...extra }, uid);
+    };
+    if (!chatId) { done(false, { reason: 'no_active_chat' }); return; }
+    if (_retryingEngine.has(chatId)) { done(false, { reason: 'busy' }); return; }
+    if (!(await has('generation'))) { done(false, { reason: 'no_generation' }); return; }
+    const contract = await activeTurnContract(chatId, uid);
+    if (!contract || contract.state === false || contract.stateCompiler !== 'engine') { done(false, { reason: 'not_engine' }); return; }
+    _retryingEngine.add(chatId);
+    try {
+      const diagnostic = await readCompilerDiagnostic(chatId);
+      const pendingSnapshot = _generationSnapshotByChat.get(chatId);
+      const raw = await getRawMessages(chatId);
+      const snapshot = pendingSnapshot && assistantSnapshotStatus(raw, pendingSnapshot) === 'missing' ? pendingSnapshot : undefined;
+      const turns = turnContentsFromMessages(raw, snapshot);
+      const target = diagnostic?.turn ?? turns.length;
+      if (!target || !turns[target - 1]?.trim()) { done(false, { reason: 'no_turn' }); return; }
+      const before = await loadState(chatId);
+      lastSigByChat.delete(chatId);
+      await foldChat(chatId, uid, pendingSnapshot, target <= (before.turns || 0) ? target - 1 : undefined);
+      const [after, afterDiagnostic] = await Promise.all([loadState(chatId), readCompilerDiagnostic(chatId)]);
+      const expectedSig = sigOf(turns[target - 1]!.trim());
+      const sameFailure = afterDiagnostic?.turn === target && afterDiagnostic.inputSig === expectedSig;
+      if ((after.turns || 0) >= target && !sameFailure) done(true, { turn: target });
+      else done(false, { reason: 'held', turn: target, errors: afterDiagnostic?.errors ?? diagnostic?.errors ?? [] });
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] retry-engine: ' + ((e as Error)?.message ?? e));
+      done(false, { reason: 'error' });
+    } finally {
+      _retryingEngine.delete(chatId);
+    }
   },
   vellum_refresh: async (p, uid) => {
     // REFRESH TRACKER: re-fold the LATEST turn even if it was already folded

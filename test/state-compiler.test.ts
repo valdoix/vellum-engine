@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CompilerCandidate, jsonSchema, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
-import { compileState, compilerContext } from '../src/bus/state-compiler.js';
+import { compileState, compilerContext, compilerReplyObjects } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
 import { registerFeature } from '../src/bus/registry.js';
 import { reduce } from '../src/core/reduce.js';
@@ -265,11 +265,21 @@ describe('strict pre-commit state compiler', () => {
     const generate = vi.fn().mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()).slice(0, -12) }).mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()) });
     const r = await compileState(input(), null, undefined, generate);
     expect(r.ok).toBe(true); expect(generate).toHaveBeenCalledTimes(2);
-    expect(generate.mock.calls[1]![0][1].content).toContain('Previous candidate rejected');
+    expect(generate.mock.calls[1]![0][1].content).toContain('previous candidate was discarded');
   });
-  it('quarantines repeated provider failure after two calls', async () => {
+  it('accepts a complete compiler object wrapped in harmless provider chatter', async () => {
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: 'Here is the extracted state:\n```json\n' + JSON.stringify(candidate()) + '\n```' });
+    expect((await compileState(input(), null, undefined, generate)).ok).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+  it('keeps truncated objects out of the compiler candidate scan', () => {
+    expect(compilerReplyObjects('{"state":{"turn":1}')).toEqual([]);
+  });
+  it('quarantines repeated provider failure after three escalating calls', async () => {
     const generate = vi.fn().mockResolvedValue({ ok: false, error: 'timeout' });
     expect(await compileState(input(), null, undefined, generate)).toEqual({ ok: false, errors: ['timeout'] });
-    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate).toHaveBeenCalledTimes(3);
+    expect(generate.mock.calls.map((call) => call[3].timeoutMs)).toEqual([60000, 90000, 120000]);
+    expect(generate.mock.calls[2]![0][1].content).toContain('Exactness outranks coverage');
   });
 });

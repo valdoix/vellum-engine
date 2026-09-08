@@ -1313,6 +1313,8 @@ export function setup(ctx: Ctx): () => void {
   const style = ctx.dom.addStyle(FONT_FACES + '\n' + STYLES);
   const disposeArtifacts = installArtifacts(ctx);
   let state: ChronicleState = freshState();
+  let compilerDiagnostic: { turn: number; inputSig: string; errors: string[] } | null = null;
+  let engineRetryBusy = false;
   const getState = (): ChronicleState => state;
 
   // Dialogue coloring: a SEPARATE stylesheet from the main one, rewritten whenever
@@ -1857,25 +1859,37 @@ export function setup(ctx: Ctx): () => void {
     const close = (): void => { try { ov.remove(); } catch { /* ignore */ } };
     ov.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-close]')) close(); });
   };
-  const float: FloatWindow = createFloatWindow({
+  let float!: FloatWindow;
+  const retryEngine = (): void => {
+    if (engineRetryBusy) { notify(ctx, 'info', 'The Engine retry is already running.'); return; }
+    engineRetryBusy = true;
+    stickyToast('engine-retry', 'info', 'Retrying Engine Second Pass\u2026');
+    ctx.sendToBackend({ type: 'vellum_retry_engine' });
+    try { float?.refresh(); } catch { /* float may still be initializing */ }
+  };
+  float = createFloatWindow({
     title: 'VELLUM',
     actions: [
       { id: 'tabs', label: '\u2637', title: 'Choose which tabs show in this window' },
       { id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' },
+      { id: 'retry-engine', label: '\u21BB E', title: 'Retry Engine Second Pass for the held or latest turn' },
       { id: 'repair', label: '\u21BB\u2338', title: 'Repair state block: rebuild a missing <vellum> block for the latest turn from its prose (needs generation permission). Use if auto-repair failed or is off.' },
     ],
     onAction: (id) => {
       if (id === 'refresh') { ctx.sendToBackend({ type: 'vellum_refresh' }); notify(ctx, 'info', 'Refreshing the tracker\u2026'); }
+      else if (id === 'retry-engine') retryEngine();
       else if (id === 'repair') { ctx.sendToBackend({ type: 'vellum_repair_block' }); notify(ctx, 'info', 'Rebuilding the state block from the prose\u2026'); }
       else if (id === 'tabs') { openFloatTabs(); }
     },
     render: (host) => {
       // a mini-app: the primary tabs (Now/Cast/Bonds/Chronicle/Director) mount into the body.
       let tabsEl = host.querySelector('[data-vlf-tabs]') as HTMLElement | null;
+      let engineEl = host.querySelector('[data-vlf-engine]') as HTMLElement | null;
       let bodyEl = host.querySelector('[data-vlf-tabbody]') as HTMLElement | null;
-      if (!tabsEl || !bodyEl) {
-        host.innerHTML = '<div class="vlf-tabs" data-vlf-tabs></div><div class="vlf-tabbody" data-vlf-tabbody></div>';
+      if (!tabsEl || !engineEl || !bodyEl) {
+        host.innerHTML = '<div class="vlf-tabs" data-vlf-tabs></div><div data-vlf-engine></div><div class="vlf-tabbody" data-vlf-tabbody></div>';
         tabsEl = host.querySelector('[data-vlf-tabs]') as HTMLElement;
+        engineEl = host.querySelector('[data-vlf-engine]') as HTMLElement;
         bodyEl = host.querySelector('[data-vlf-tabbody]') as HTMLElement;
         floatMounted = null; floatMountedId = null;
         tabsEl.addEventListener('click', (e) => {
@@ -1885,8 +1899,14 @@ export function setup(ctx: Ctx): () => void {
           setPref('floatTab', floatTab);
           float.refresh();
         });
+        engineEl.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).closest('[data-vlf-engine-retry]')) retryEngine();
+        });
       }
       tabsEl.innerHTML = floatTabStrip();
+      engineEl.innerHTML = compilerDiagnostic
+        ? `<div class="vlf-engine-held"><span><b>Engine held turn ${compilerDiagnostic.turn}</b><small>${esc(compilerDiagnostic.errors[0] ?? 'The state candidate did not validate.')}</small></span><button data-vlf-engine-retry${engineRetryBusy ? ' disabled' : ''}>${engineRetryBusy ? 'Retrying\u2026' : 'Retry Engine'}</button></div>`
+        : '';
       const def = FLOAT_TABS.find((t) => t.id === floatTab) ?? FLOAT_TABS[0]!;
       try {
         if (!floatMounted || floatMountedId !== def.id) {
@@ -1941,6 +1961,9 @@ export function setup(ctx: Ctx): () => void {
           try { renderPreview(); } catch { /* tab may be absent */ }
         }
         state = p.state ?? freshState();
+        compilerDiagnostic = p.compilerDiagnostic && typeof p.compilerDiagnostic === 'object'
+          ? { turn: Number(p.compilerDiagnostic.turn) || 0, inputSig: String(p.compilerDiagnostic.inputSig ?? ''), errors: Array.isArray(p.compilerDiagnostic.errors) ? p.compilerDiagnostic.errors.map(String) : [] }
+          : null;
         updateDialogueColors(state?.cast); // live-update dialogue color stylesheet from cast
         if (p.tone) {
         _tone = { romance: p.tone.romance ?? 'medium', disposition: p.tone.disposition ?? 'fair', social: p.tone.social ?? 'living', politics: p.tone.politics ?? 'off' };
@@ -2247,6 +2270,24 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, 'success', 'Rescanned.');
       } else if (p?.type === 'vellum_refresh_done') {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? (p.refolded ? `Re-folded turn ${p.refolded}.` : 'Tracker refreshed.') : (p.reason === 'no_active_chat' ? 'No active chat.' : 'Refresh failed.'));
+      } else if (p?.type === 'vellum_retry_engine_done') {
+        engineRetryBusy = false;
+        if (p.ok) {
+          compilerDiagnostic = null;
+          stickyToast('engine-retry', 'success', `Engine Second Pass completed for turn ${p.turn ?? ''}.`, true);
+        } else if (p.reason === 'busy') {
+          stickyToast('engine-retry', 'info', 'The Engine retry is already running.', true);
+        } else if (p.reason === 'not_engine') {
+          stickyToast('engine-retry', 'warning', 'This turn is not using Engine Second Pass.', true);
+        } else if (p.reason === 'no_generation') {
+          stickyToast('engine-retry', 'warning', 'Engine retry needs the generation permission.', true);
+        } else if (p.reason === 'no_active_chat' || p.reason === 'no_turn') {
+          stickyToast('engine-retry', 'warning', 'No active assistant turn is available to retry.', true);
+        } else {
+          const detail = Array.isArray(p.errors) && p.errors.length ? ` ${String(p.errors[0])}` : '';
+          stickyToast('engine-retry', 'warning', `Engine still could not validate turn ${p.turn ?? ''}.${detail}`, true);
+        }
+        try { float.refresh(); } catch { /* ignore */ }
       } else if (p?.type === 'vellum_repair_block_done') {
         if (p.ok) {
           notify(ctx, 'success', 'State block rebuilt \u2014 chronicle updated.');
