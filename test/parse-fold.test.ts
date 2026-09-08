@@ -253,4 +253,22 @@ describe('foldTurn → events → reduce', () => {
     expect(events.find((e) => e.kind === 'turn.fold')?.day).toBe(6);
     expect(events.find((e) => e.kind === 'scene.set')?.day).toBe(6);
   });
+
+  it('holds the day when an inline block resets the wall clock without prose support', () => {
+    const prior = freshState();
+    prior.day = 5;
+    prior.sceneDay = 5;
+    prior.scene.time = '22:00';
+    prior.scene.clock = 1320;
+    const block = [
+      'She closes the ledger and remains beside the desk.',
+      '\u2039vellum\u203a',
+      JSON.stringify({ v: 2, day: 6, scene: { loc: 'archive', time: '06:00', clock: 360 } }),
+      '\u2039/vellum\u203a',
+    ].join('\n');
+    const { events } = foldTurn(block, prior, 10);
+    expect(events.find((e) => e.kind === 'turn.fold')?.day).toBe(5);
+    expect(events.find((e) => e.kind === 'scene.set')?.day).toBe(5);
+    expect(events.find((e) => e.kind === 'continuity.flag')).toMatchObject({ code: 'day_creep' });
+  });
 });

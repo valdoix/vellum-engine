@@ -2,7 +2,7 @@ import { parseState, stripScaffold } from '../parse/state-block.js';
 import { runExtractors, type ExtractCtx } from './registry.js';
 import { nextSeq } from '../core/ids.js';
 import { hashStr } from '../core/ids.js';
-import { reconcileDay, hasDayAdvanceCue, parseClock, rollover } from '../domain/clock.js';
+import { reconcileDay, parseClock, rollover, supportsDayAdvance } from '../domain/clock.js';
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
 import type { Tone } from '../domain/tone.js';
@@ -40,13 +40,12 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // self-reported `parsed.turn` is unreliable (some emit a fixed "turn":1 every
   // block) — honoring it freezes the high-water at 1, which both (a) shows every
   // event as t1 and (b) makes the loop re-fold turns 2..N each GENERATION_ENDED,
-  // duplicating bond deltas. Day stays narrative (model-supplied).
+  // duplicating bond deltas. Day is reconciled against narrative evidence below.
   const turn = turnNo;
   // DAY SANITY: the day counter is model-supplied and monotonic downstream, so a
-  // bad value sticks. reconcileDay stops blindly trusting parsed.day — it keeps
-  // the prior day on a backward report and flags an unexplained large jump. A
-  // prose skip cue ("weeks later") permits a big forward leap without a flag.
-  const proseCue = hasDayAdvanceCue(content);
+  // bad value sticks. reconcileDay accepts a forward date only when the stripped
+  // prose proves a rollover or skip; unsupported increments stay on the prior day.
+  const prose = stripScaffold(content);
   // clock evidence for the day-creep guard: the prior scene's ordered clock vs
   // the one this turn's scene reports (explicit or derived from its time string).
   const priorClock = prior.scene?.clock ?? parseClock(prior.scene?.time);
@@ -54,7 +53,9 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   const newClock = clockFromTime ?? ((typeof parsed.scene?.clock === 'number' && parsed.scene.clock >= 0 && parsed.scene.clock <= 1439)
     ? Math.floor(parsed.scene.clock)
     : undefined);
-  const rec = reconcileDay(parsed.day, prior.day ?? 0, proseCue, {
+  const reportedGap = Math.max(1, Math.floor(parsed.day ?? prior.day ?? 0) - (prior.day ?? 0));
+  const dayAdvanceEvidence = supportsDayAdvance(prose, priorClock, newClock, reportedGap);
+  const rec = reconcileDay(parsed.day, prior.day ?? 0, dayAdvanceEvidence, {
     ...(priorClock !== undefined ? { priorClock } : {}),
     ...(newClock !== undefined ? { newClock } : {}),
   });
@@ -62,7 +63,7 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // If the prose explicitly crosses into a new day but the model forgot to bump
   // its day field, repair the rollover before extraction. This is the only case
   // where an earlier wall clock can still be forward-moving absolute time.
-  const inferredRollover = rollover(prior.day ?? 0, priorClock, newClock, proseCue);
+  const inferredRollover = rollover(prior.day ?? 0, priorClock, newClock, dayAdvanceEvidence);
   if (inferredRollover !== undefined && day <= (prior.day ?? 0)) day = inferredRollover;
   // REGENERATE DAY-STABILITY: when re-folding a turn that already existed (edit/
   // regenerate), the NOW line injected the pre-rollback day as authoritative, so
@@ -70,10 +71,14 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // regenerate. Clamp the re-folded day to what this turn previously held, unless
   // the prose carries a genuine skip cue (then the leap is intended). Never below
   // the prior day (that's reconcileDay's floor).
-  if (opts?.dayCap !== undefined && !proseCue && day > opts.dayCap) {
-    day = Math.max(prior.day ?? 0, opts.dayCap);
+  if (opts?.dayCap !== undefined && !dayAdvanceEvidence) {
+    // dayCap is the date this exact turn held before an edit/regeneration. Keep
+    // it when the new block tries to ratchet beyond it; this preserves the turn's
+    // established date without letting a fresh unsupported increment stick.
+    const reportedBeyondCap = parsed.day !== undefined && parsed.day > opts.dayCap;
+    if (reportedBeyondCap || day > opts.dayCap) day = Math.max(prior.day ?? 0, opts.dayCap);
   }
-  const ctx: ExtractCtx = { turn, day, state: prior, prose: stripScaffold(content), seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}) };
+  const ctx: ExtractCtx = { turn, day, state: prior, prose, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}) };
 
   const events: VellumEvent[] = [
     { seq: nextSeq(), turn, day, src: 'system', kind: 'turn.fold', sig },

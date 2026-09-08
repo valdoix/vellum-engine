@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseClock, clockLabel, detectBackwardClock, hasDayAdvanceCue, rollover,
+  parseClock, clockLabel, detectBackwardClock, explicitElapsedMinutes, hasDayAdvanceCue, rollover,
+  supportsDayAdvance,
   reconcileDay, CLOCK_SLOTS, DAY_JUMP_LIMIT,
 } from '../src/domain/clock.js';
 
@@ -60,10 +61,31 @@ describe('hasDayAdvanceCue / rollover', () => {
     expect(hasDayAdvanceCue('They worked overnight.')).toBe(true);
     expect(hasDayAdvanceCue('He drew his sword.')).toBe(false);
   });
+  it('recognizes explicit calendar references without treating ordinary prose as a skip', () => {
+    expect(hasDayAdvanceCue('On Tuesday, the hearing resumed.')).toBe(true);
+    expect(hasDayAdvanceCue('October 15th arrived cold and bright.')).toBe(true);
+    expect(hasDayAdvanceCue('May drew her sword.')).toBe(false);
+  });
   it('suggests a rollover only when the clock wrapped with a prose cue', () => {
     expect(rollover(5, 1320, 300, true)).toBe(6);   // night -> dawn, "next morning"
     expect(rollover(5, 1320, 300, false)).toBeUndefined();
     expect(rollover(5, 300, 1320, true)).toBeUndefined(); // forward, no wrap
+  });
+});
+
+describe('explicit elapsed day evidence', () => {
+  it('reads quantified elapsed durations and ignores vague passage', () => {
+    expect(explicitElapsedMinutes('She waits five minutes.')).toBe(5);
+    expect(explicitElapsedMinutes('Half an hour passes.')).toBe(30);
+    expect(explicitElapsedMinutes('They sleep for 8 hours.')).toBe(480);
+    expect(explicitElapsedMinutes('A while later.')).toBeUndefined();
+  });
+  it('requires duration long enough to reach the proposed next-day clock', () => {
+    expect(supportsDayAdvance('Five minutes pass.', 1438, 3, 1)).toBe(true);
+    expect(supportsDayAdvance('Five minutes pass.', 900, 3, 1)).toBe(false);
+    expect(supportsDayAdvance('The next morning arrives.', 900, 540, 1)).toBe(true);
+    expect(supportsDayAdvance('The clock reads 08:00.', 1320, 480, 1)).toBe(false);
+    expect(supportsDayAdvance('"Come back in five minutes," she says.', 1438, 3, 1)).toBe(false);
   });
 });
 
@@ -79,12 +101,14 @@ describe('reconcileDay', () => {
     expect(r.day).toBe(9);
     expect(r.flag?.code).toBe('day_backward');
   });
-  it('accepts an ordinary forward step with no flag', () => {
-    expect(reconcileDay(10, 9, false)).toEqual({ day: 10 });
+  it('holds an ordinary forward step when prose does not establish a new day', () => {
+    const r = reconcileDay(10, 9, false);
+    expect(r.day).toBe(9);
+    expect(r.flag?.code).toBe('day_creep');
   });
-  it('flags a large unexplained jump but still accepts it', () => {
+  it('flags and holds a large unexplained jump', () => {
     const r = reconcileDay(9 + DAY_JUMP_LIMIT + 5, 9, false);
-    expect(r.day).toBe(9 + DAY_JUMP_LIMIT + 5);
+    expect(r.day).toBe(9);
     expect(r.flag?.code).toBe('day_jump');
   });
   it('does not flag a large jump when prose signals a skip', () => {
@@ -99,22 +123,21 @@ describe('reconcileDay', () => {
       expect(r.day).toBe(9);
       expect(r.flag?.code).toBe('day_creep');
     });
-    it('allows +1 when the clock rolled past midnight (real new day)', () => {
-      // night -> dawn: newClock < priorClock ⇒ a genuine rollover, accept Day 10
+    it('does not mistake an earlier wall clock for proof of midnight', () => {
       const r = reconcileDay(10, 9, false, { priorClock: 1320, newClock: 300 });
-      expect(r.day).toBe(10);
-      expect(r.flag).toBeUndefined();
+      expect(r.day).toBe(9);
+      expect(r.flag?.code).toBe('day_creep');
     });
     it('allows +1 when a prose skip cue is present', () => {
       const r = reconcileDay(10, 9, true, { priorClock: 1140, newClock: 1320 });
       expect(r.day).toBe(10);
     });
-    it('allows +1 when clock evidence is absent (no false freeze)', () => {
-      expect(reconcileDay(10, 9, false)).toEqual({ day: 10 });
+    it('does not trust a day increment when clock evidence is absent', () => {
+      expect(reconcileDay(10, 9, false).day).toBe(9);
     });
-    it('does not touch a +2 step (only the bare +1 creep is guarded)', () => {
+    it('holds a +2 step without prose evidence too', () => {
       const r = reconcileDay(11, 9, false, { priorClock: 1140, newClock: 1320 });
-      expect(r.day).toBe(11);
+      expect(r.day).toBe(9);
     });
   });
 });

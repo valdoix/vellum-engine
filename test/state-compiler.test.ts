@@ -29,6 +29,18 @@ describe('strict pre-commit state compiler', () => {
     expect(state.delta.parallel).toEqual([{ who: 'Ada', where: 'Courtyard', activity: 'Waiting' }]);
     expect(state.scene).toMatchObject({ time: '00:03', clock: 3 });
   });
+  it('rejects a manufactured next day when prose does not establish a rollover', () => {
+    const i = input();
+    i.prior.scene = { ...i.prior.scene, time: '22:00', clock: 1320 };
+    i.prose = 'Mara closes the ledger and remains beside the desk.';
+    const c = candidate();
+    c.state.scene.time = '06:00';
+    c.state.scene.clock = 360;
+    c.evidence = [{ path: 'scene.time', quote: 'Mara closes the ledger' }];
+    const r = validateCompilation(c, i);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors).toContain('day advance lacks explicit prose evidence');
+  });
   it('preserves anonymous world parallel events during Engine Second Pass', () => {
     const i = input();
     i.prior.parallel.unshift({ where: 'Harbor', activity: 'The storm front is closing the channel', note: 'Ferries remain docked', day: 1, turn: 1 });

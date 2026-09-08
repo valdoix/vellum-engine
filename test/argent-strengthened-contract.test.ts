@@ -73,9 +73,12 @@ describe('ARGENT strengthened invariants', () => {
     expect(reality).toContain('Never store a narrative period in scene.time');
     expect(reality).toContain('A1 MUST be greater than or equal to A0');
     expect(reality).toContain('even by one minute');
+    expect(reality).toContain('Keep the day/date exactly unchanged');
+    expect(reality).toContain('An earlier wall clock alone is never proof of midnight');
     expect(schema).toContain('"time":"07:45","clock":465');
     expect(output).toContain('EXACT CLOCK — REQUIRED FINAL GATE');
     expect(output).toContain('A1 < A0 is forbidden');
+    expect(output).toContain('An earlier wall clock alone is not proof of midnight');
     expect(output).toContain('never manufacture a day advance to conceal a rollback');
     expect(variable('time_continuity').description).toContain('07:45');
     expect(reality.indexOf('{{/if}}\n\n[WORLD LAW]')).toBeGreaterThan(0);

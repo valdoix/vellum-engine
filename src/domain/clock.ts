@@ -112,7 +112,75 @@ export function detectBackwardClock(priorDay: number, priorMin: number | undefin
  */
 export function hasDayAdvanceCue(text: string | undefined): boolean {
   if (!text) return false;
-  return /\b(next|following)\s+(morning|day|dawn|week|month|year)\b|\b(days?|weeks?|months?|years?)\s+(later|after|pass|passed|hence)\b|\bthe\s+next\s+day\b|\bfollowing\s+(morning|day)\b|\blater\s+that\s+(week|month|year)\b|\b(after|past)\s+midnight\b|\bovernight\b/i.test(text);
+  return /\b(next|following)\s+(morning|day|dawn|week|month|year)\b|\b(days?|weeks?|months?|years?)\s+(later|after|pass|passed|hence)\b|\bthe\s+next\s+day\b|\bfollowing\s+(morning|day)\b|\blater\s+that\s+(week|month|year)\b|\b(after|past)\s+midnight\b|\bovernight\b|\bday\s+\d+\b|\b(?:on|by|until|come)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b/i.test(text);
+}
+
+const NUMBER_WORDS: Readonly<Record<string, number>> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+  seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17,
+  eighteen: 18, nineteen: 19, twenty: 20,
+};
+const DURATION_AMOUNT = '(?:\\d+(?:\\.\\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|an?)';
+const DURATION_UNITS = '(?:minutes?|mins?|hours?|hrs?|days?|weeks?)';
+const DURATION_SPAN = `(?:half\\s+(?:an?\\s+)?hour|(?:a\\s+)?quarter\\s+(?:of\\s+)?(?:an?\\s+)?hour|${DURATION_AMOUNT}\\s+${DURATION_UNITS})`;
+
+/** Largest explicit elapsed duration stated in text. This intentionally ignores
+ * vague phrases such as "a while" or "hours seemed to pass": only an amount the
+ * engine can use as evidence is returned. Multiple mentions are not summed,
+ * because they may describe concurrent action or repeat the same interval. */
+export function explicitElapsedMinutes(text: string | undefined): number | undefined {
+  if (!text) return undefined;
+  const raw = String(text).normalize('NFKC').toLocaleLowerCase();
+  const values: number[] = [];
+  if (/\bhalf\s+(?:an?\s+)?hour\b|\bthirty\s+minutes?\b/.test(raw)) values.push(30);
+  if (/\b(?:a\s+)?quarter\s+(?:of\s+)?(?:an?\s+)?hour\b|\bfifteen\s+minutes?\b/.test(raw)) values.push(15);
+  const amount = `(${DURATION_AMOUNT.slice(3, -1)})`;
+  const units: Readonly<Record<string, number>> = {
+    minute: 1, minutes: 1, min: 1, mins: 1,
+    hour: 60, hours: 60, hr: 60, hrs: 60,
+    day: 1440, days: 1440,
+    week: 10080, weeks: 10080,
+  };
+  const re = new RegExp(`\\b${amount}\\s+(minutes?|mins?|hours?|hrs?|days?|weeks?)\\b`, 'g');
+  for (const match of raw.matchAll(re)) {
+    const token = match[1]!;
+    // "half an hour" was already recorded as 30 above; do not also read its
+    // trailing "an hour" as a separate 60-minute duration.
+    if ((token === 'a' || token === 'an') && raw.slice(0, match.index).endsWith('half ')) continue;
+    const numeric = /^\d/.test(token) ? Number(token) : (token === 'a' || token === 'an' ? 1 : NUMBER_WORDS[token]);
+    const multiplier = units[match[2]!]!;
+    if (numeric !== undefined && Number.isFinite(numeric)) values.push(numeric * multiplier);
+  }
+  return values.length ? Math.max(...values) : undefined;
+}
+
+/** Require the amount to describe completed passage rather than merely appear in
+ * dialogue, a deadline, or a future plan ("come back in five minutes"). */
+function hasElapsedPassageSyntax(text: string): boolean {
+  const raw = text.normalize('NFKC').toLocaleLowerCase();
+  return new RegExp(`\\b(?:after|for|over|during)\\s+(?:about\\s+|roughly\\s+|nearly\\s+|another\\s+)?${DURATION_SPAN}\\b`).test(raw)
+    || new RegExp(`\\b(?:waits?|waited|waiting|sleeps?|slept|sleeping|rests?|rested|resting|works?|worked|working|travels?|traveled|travelled|traveling|travelling|takes?|took|spends?|spent)\\b[^.!?\\n]{0,40}\\b${DURATION_SPAN}\\b`).test(raw)
+    || new RegExp(`\\b${DURATION_SPAN}\\b\\s*(?:later|afterward|afterwards|pass|passes|passed|elapse|elapses|elapsed|goes by|went by|slips by|slipped by|ticks by|ticked by)\\b`).test(raw);
+}
+
+/** True only when prose itself proves that the calendar can move forward.
+ * Explicit next-day/date language is sufficient. Otherwise a quantified elapsed
+ * duration must cover the proposed absolute clock difference. An earlier wall
+ * clock by itself is never evidence of midnight; that was the day-creep hole. */
+export function supportsDayAdvance(
+  text: string | undefined,
+  priorClock: number | undefined,
+  newClock: number | undefined,
+  dayDelta = 1,
+): boolean {
+  if (hasDayAdvanceCue(text)) return true;
+  if (priorClock === undefined || newClock === undefined || dayDelta < 1) return false;
+  if (!text || !hasElapsedPassageSyntax(text)) return false;
+  const elapsed = explicitElapsedMinutes(text);
+  if (elapsed === undefined) return false;
+  const required = dayDelta * 1440 + newClock - priorClock;
+  return required > 0 && elapsed >= required;
 }
 
 /**
@@ -142,12 +210,11 @@ export const DAY_JUMP_LIMIT = 30;
  * sticks — this guard stops blindly trusting it:
  *   - absent            → keep prior (no forced 1)
  *   - < prior           → keep prior, flag `day_backward` (model tried to rewind)
- *   - > prior + LIMIT with no skip cue in prose → accept (author may intend it)
- *     but flag `day_jump` for review
+ *   - > prior with no explicit prose evidence → keep prior and flag it
  *   - otherwise         → accept
  * PURE; returns the day to use plus an optional advisory flag.
  */
-export function reconcileDay(reported: number | undefined, priorDay: number, proseCue: boolean, opts?: { priorClock?: number; newClock?: number }): DayReconcile {
+export function reconcileDay(reported: number | undefined, priorDay: number, proseAdvanceEvidence: boolean, _opts?: { priorClock?: number; newClock?: number }): DayReconcile {
   const prior = priorDay > 0 ? priorDay : 0;
   if (reported === undefined || !Number.isFinite(reported)) return { day: prior || 1 };
   const day = Math.floor(reported);
@@ -155,19 +222,11 @@ export function reconcileDay(reported: number | undefined, priorDay: number, pro
   if (day < prior) {
     return { day: prior, flag: { code: 'day_backward', detail: `Model reported Day ${day} after Day ${prior}; kept Day ${prior} (time doesn't run backward).` } };
   }
-  if (day > prior + DAY_JUMP_LIMIT && !proseCue) {
-    return { day, flag: { code: 'day_jump', detail: `Large day jump Day ${prior}\u2192${day} (+${day - prior}) with no time-skip cue in prose \u2014 confirm this leap was intended.` } };
-  }
-  // DAY-CREEP GUARD: a bare +1 step with NO prose day-advance cue, when the clock
-  // shows time did NOT actually cross a day boundary (it's known and moved FORWARD
-  // within the same day rather than wrapping past midnight), is the model nudging
-  // the calendar once per turn. Keep the prior day. High-precision: only fires
-  // with positive same-day clock evidence, so a legitimate advance (prose cue,
-  // absent clock, or a real midnight rollover) is never frozen.
-  if (day === prior + 1 && prior > 0 && !proseCue
-      && opts?.priorClock !== undefined && opts.newClock !== undefined
-      && opts.newClock >= opts.priorClock) {
-    return { day: prior, flag: { code: 'day_creep', detail: `Model advanced to Day ${day} but the clock stayed within the same day (no rollover, no skip cue); kept Day ${prior}.` } };
+  if (prior > 0 && day > prior && !proseAdvanceEvidence) {
+    if (day > prior + DAY_JUMP_LIMIT) {
+      return { day: prior, flag: { code: 'day_jump', detail: `Model reported Day ${day} after Day ${prior} without prose proving a time skip; kept Day ${prior}.` } };
+    }
+    return { day: prior, flag: { code: 'day_creep', detail: `Model advanced to Day ${day} without prose proving a new day; kept Day ${prior}.` } };
   }
   return { day };
 }

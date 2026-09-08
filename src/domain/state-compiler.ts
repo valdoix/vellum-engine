@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ParsedState } from '../parse/parsed.js';
 import { canonId, hashStr } from '../core/ids.js';
-import { parseClock } from './clock.js';
+import { parseClock, supportsDayAdvance } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 import type { ChronicleState } from './types.js';
 
@@ -230,6 +230,16 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   const needsEvidence = (path: string, changed: boolean) => { if (changed && !c.evidence.some(e => e.path === path && input.prose.includes(e.quote))) errors.push(`missing evidence: ${path}`); };
   needsEvidence('scene.loc', s.scene.loc !== input.prior.scene.location);
   needsEvidence('scene.time', s.day !== input.prior.day || s.scene.clock !== input.prior.scene.clock);
+  if (input.prior.day > 0 && s.day > input.prior.day) {
+    const timeProof = c.evidence.find(e => e.path === 'scene.time' && input.prose.includes(e.quote));
+    const proofAt = timeProof ? input.prose.indexOf(timeProof.quote) : -1;
+    const proofContext = proofAt >= 0
+      ? input.prose.slice(Math.max(0, proofAt - 80), Math.min(input.prose.length, proofAt + timeProof!.quote.length + 80))
+      : undefined;
+    if (!supportsDayAdvance(proofContext, priorClock, s.scene.clock, s.day - input.prior.day)) {
+      errors.push('day advance lacks explicit prose evidence');
+    }
+  }
   if (c.genesis && (!input.genesisAllowed || !(s.ext.codex?.length))) errors.push('genesis requires an eligible request and established world facts');
   if (s.ext.codex?.length && input.codexAllowed === false && !(input.genesisAllowed && c.genesis)) errors.push('codex output is disabled');
   if (s.ext.inventory?.length && input.inventoryAllowed === false) errors.push('inventory output is disabled');
