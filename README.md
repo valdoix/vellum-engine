@@ -321,7 +321,7 @@ The voice of the whole story.
 - **Genre** — **Off (character drama)** *(default)* / Romance / Mystery / Horror / Thriller / Fantasy / Sci-Fi / Slice-of-Life / Adventure / Comedy. Adds genre conventions on top of the character drama.
 - **Secondary Genre** — same options, **Off** *(default)*. Blend a second genre (e.g. Fantasy + Mystery).
 - **Dialogue Frequency** — Sparse / **Balanced** *(default)* / Talkative / Banter-heavy.
-- **User Agency** — **Forbidden** *(default, strict: the AI never speaks/thinks/moves your character)* / Minimal (involuntary reflexes only) / Director (expands your stated intent). Raise only if you *want* the AI to co-write your character.
+- **User Agency** — **Forbidden** *(default, strict: the AI never speaks/thinks/moves your character)* / Minor Continuity (finishes one inevitable trivial motion) / Director (co-writes your character within your latest intent and established characterization). Raise only if you *want* the AI to write your character's plausible speech, actions, reactions, perceptions, sensations, and interiority.
 - **Narrative Distance** — Intimate / **Standard** *(default)* / Cinematic / Panoramic / Adaptive. How close the "camera" sits to the POV character.
 - **Pacing** — Lingering / **Measured** *(default)* / Propulsive / Adaptive.
 
@@ -418,7 +418,7 @@ A single panel of dropdowns that set the voice of the whole story:
 - **Tense** — past or present.
 - **Prose register** — the governing style: *Literary, Gothic, Wildean (witty), Hardboiled (noir), Sparse (minimalist), Lush (rich), or Contemporary.*
 - **Stakes** — how hard the world bites, from *Cozy* to *Brutal* (permanent consequences, no plot armor).
-- **User Agency** — how much the AI is allowed to write *for you*. The default, **Forbidden**, is strict: the AI never speaks, thinks, or moves your character — it stops and hands control back to you. (**Minimal** allows only involuntary reflexes; **Director** lets it expand your stated intent.)
+- **User Agency** — how much the AI is allowed to write *for you*. The default, **Forbidden**, is strict: the AI never speaks, thinks, or moves your character. **Minor Continuity** finishes only the inevitable endpoint of a trivial action you began. **Director** co-writes your character within your latest intent and established characterization, while preserving explicit boundaries and consent.
 
 ### Prose craft & anti-slop
 
@@ -610,6 +610,7 @@ When you install the extension, Lumiverse asks you to grant these. Here's what e
 | `world_books` | The in-app Vault (lorebooks) | No Vault |
 | `memories` | Semantic recall via the host's embeddings | Recall still works, keyword-only |
 | `presets` | The VELLUM tab in the Preset Editor (link status, health check, prompt budget) | No preset editor tab |
+| `personas` | Resolving the exact persona identity used by each generation | Persona state cannot reliably identify the player's cast row |
 
 Everything runs inside your Lumiverse instance. The only optional outside request is loading a **web font**: the Gatsby and Sumi looks, a few Google-hosted picker fonts, and any Google Fonts URL you paste in **Customize → Type**, fetch from Google's font CDN (`fonts.googleapis.com`). Leave those unset and the extension makes no outside calls at all — your chronicle data and code never leave your instance either way.
 

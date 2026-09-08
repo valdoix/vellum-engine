@@ -59,6 +59,11 @@ describe('effective policy compilation and profiles', () => {
     const capsule = compileArgentPolicy(blocks, selected);
     expect(capsule).toContain(gate);
     expect(capsule).toContain(`Player agency this turn:`);
+    if (agency === 'director') {
+      expect(capsule).toContain('plausible speech, action, reaction, perception, sensation and interiority');
+      expect(capsule).not.toContain('Forbidden rejects');
+      expect(capsule).not.toContain('MINOR CONTINUITY FINAL GATE');
+    }
   });
   it('never promotes legacy raw-HTML VTK instructions into the runtime policy', () => {
     const selected = applyProfile(blocks, {}, { vtk: 'rare', vtk_cards: 1 });

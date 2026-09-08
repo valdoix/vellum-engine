@@ -20,5 +20,6 @@ describe('release compatibility contract', () => {
 
     expect(pkg.devDependencies['lumiverse-spindle-types']).toBe('0.6.29');
     expect(manifest.minimum_lumiverse_version).toBe('1.1.6');
+    expect(manifest.permissions).toContain('personas');
   });
 });

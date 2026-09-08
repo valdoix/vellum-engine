@@ -288,12 +288,26 @@ export function looksLikeTimestamp(s: string): boolean {
 /** Resolve the persona ({{user}}) + character ({{char}}) display names for the
  * active chat, so the prose extractor can replace placeholders with real names
  * and attribute knowledge/secrets/journal to the player too. Best-effort. */
-export async function chatNames(chatId: string, userId: string | null): Promise<{ user: string; char: string }> {
+export async function chatNames(chatId: string, userId: string | null, personaId?: string | null): Promise<{ user: string; char: string }> {
   const out = { user: '', char: '' };
   try {
     const chat = await (spindle.chats?.get?.(chatId, userId ?? undefined) ?? spindle.chats?.get?.(chatId));
     const compat = chat as (typeof chat & Record<string, any>);
-    out.user = String(compat?.persona?.name || compat?.personaName || compat?.user_name || compat?.metadata?.persona_name || '').trim();
+    // ChatDTO deliberately exposes ids/metadata rather than an expanded persona.
+    // The bound interceptor supplies the exact personaId used for this
+    // generation; resolve it through the current Personas API before falling
+    // back to legacy embedded fields. Without this, modern hosts return an empty
+    // user name and the engine cannot identify which present row is the persona.
+    const metadataPersonaId = typeof compat?.metadata?.persona_id === 'string'
+      ? compat.metadata.persona_id
+      : typeof compat?.metadata?.personaId === 'string' ? compat.metadata.personaId : '';
+    const resolvedPersonaId = String(personaId || metadataPersonaId || '').trim();
+    let persona: any = null;
+    try {
+      if (resolvedPersonaId && spindle.personas?.get) persona = await spindle.personas.get(resolvedPersonaId, userId ?? undefined);
+      else if (spindle.personas?.getActive) persona = await spindle.personas.getActive(userId ?? undefined);
+    } catch { /* older host or unavailable persona surface */ }
+    out.user = String(persona?.name || compat?.persona?.name || compat?.personaName || compat?.user_name || compat?.metadata?.persona_name || '').trim();
     // Prefer the real character fields. chat?.name is the chat TITLE, which
     // defaults to a creation timestamp — only accept it as a last resort when
     // it isn't a date/time string (else the greeting seed makes a cast card

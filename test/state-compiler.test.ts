@@ -310,6 +310,27 @@ describe('strict pre-commit state compiler', () => {
     const i = input(); i.personaState = true;
     expect(JSON.parse(compilerContext(i)).controls.personaState).toBe(true);
   });
+  it('accepts Director persona detail grounded in completed prose', () => {
+    const i = input();
+    i.personaState = true;
+    i.agency = 'director';
+    i.userName = 'Gabriel Winters';
+    i.prose = 'Mara waits five minutes. Gabriel Winters rubs his tired eyes, wary of the seal. The seal is a trap, he thinks.';
+    i.prior.cast.gabriel_winters = { ...i.prior.cast.mara, id: 'gabriel_winters', name: 'Gabriel Winters', aka: [], status: 'present', source: 'user', firstTurn: 1, lastTurn: 1, traits: ['stubborn'], userEdited: false };
+    i.prior.scene.present.push('gabriel_winters');
+    const c = candidate();
+    c.state.present = [
+      { id: 'Gabriel Winters', mood: 'wary', condition: 'tired', doing: 'rubbing his eyes', thought: 'The seal is a trap.', traits: ['stubborn'] },
+      { id: 'Mara', thought: 'I should wait.' },
+    ];
+    c.evidence.push(
+      { path: 'present.persona.mood', quote: 'wary of the seal' },
+      { path: 'present.persona.condition', quote: 'tired eyes' },
+      { path: 'present.persona.doing', quote: 'rubs his tired eyes' },
+      { path: 'present.persona.thought', quote: 'The seal is a trap, he thinks' },
+    );
+    expect(validateCompilation(c, i).ok).toBe(true);
+  });
   it('passes Living World policy and grounded starts to the second-pass model', async () => {
     const i = input();
     i.prior.parallel = [];

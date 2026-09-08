@@ -103,7 +103,7 @@ const proseVar = selectVar(
 const agencyVar = selectVar(
   'agency',
   'Player Agency',
-  'Controls the hard authorship boundary around the user-controlled character. Forbidden (Strict) rejects every unsupplied player predicate, including automatic reactions and consequences.',
+  'Per-turn player authorship: strict protection, minor continuity, or Director co-authorship.',
   'protected',
   [
     ['protected', 'Forbidden (Strict)', 'protected'],
@@ -346,11 +346,9 @@ Prose is the evidence-bearing event.{{if::${inlineState}}} The final <vellum> ob
 
 MODE {{var::agency}}:
 {{switch::{{var::agency}}
-::protected::{{user}} is a hard authorship boundary. Write only player predicates explicitly supplied in the latest user message. Dialogue, thought, feeling, intention, decision, perception, sensation, reaction, consent, resistance, injury, success, and movement are forbidden when unsupplied. An attempted action authorizes only the stated attempt—not success, consequence, or follow-up. Resolve NPC/world action and stop before the next player predicate, on live pressure rather than a question, menu, or frozen handoff.
-::continuity::Complete only the mechanically inevitable tail of a trivial player action already and unambiguously begun. Add no speech, interiority, consent, strategy, reaction, or new choice.
-::director::Author {{user}} only as needed to realize explicit directorial instruction. Preserve characterization; never add unsupplied consent or an irreversible choice.}}
-
-An NPC may touch, attack, entice, restrain, address, interrupt, refuse, or depart; narrate the NPC act and physical setup only. Do not convert it into {{user}}'s acceptance, resistance, balance, expression, sensation, injury, understanding, or reply. An attempted action authorizes only the stated attempt. Second-person grammar is not permission to smuggle in a player action.`, { group: CAT_CONTRACT }),
+::protected::{{user}} is a hard authorship boundary. Keep only player predicates explicitly supplied in the latest input. Unsupplied speech, thought, feeling, intent, choice, perception, sensation, reaction, consent, resistance, injury, success, and movement are forbidden. An attempted action authorizes only the stated attempt—not outcome or follow-up. For an NPC act toward {{user}}, narrate only the act and setup. Second-person grammar is not permission to smuggle in a player action. Stop before the next player predicate, on live pressure rather than a menu.
+::continuity::Complete only the mechanically inevitable tail of a trivial player action already and unambiguously begun. Add no speech, interiority, consent, strategy, reaction, or new choice. An NPC act toward {{user}} does not supply a player response.
+::director::Director grants positive authorship for this turn. Co-author {{user}} within latest intent/direction and characterization; speech, action, reaction, perception, sensation, and interiority are allowed. Do not reapply stricter modes, contradict intent, invent consent, cross a boundary, or make an unsupported irreversible choice.}}`, { group: CAT_CONTRACT }),
 
   block('arg-mode-routing', 'Generation Mode Routing', String.raw`[TURN MODE]
 - Normal: continue the latest accepted action without paraphrasing it.
@@ -666,7 +664,7 @@ Begin inside the live scene. Hold {{var::pov}}, {{var::tense}}, selected voice, 
 {{switch::{{var::agency}}
 ::protected::{{user}} is a hard authorship boundary. Write no unsupplied speech, thought, feeling, intention, choice, perception, sensation, reaction, consent, resistance, injury, outcome, or movement. An attempt licenses only that attempt. Keep NPCs active and stop before player authorship.
 ::continuity::Complete only a trivial physical continuation that {{user}} explicitly and unambiguously began. Add no new player speech, thought, feeling, consent, strategy, reaction, or choice.
-::director::Author {{user}} only to realize the user's explicit directorial instruction; do not add unsupplied consent or a major irreversible choice.}}
+::director::Co-author {{user}} within latest intent/direction and characterization. Speech, action, reaction, perception, sensation, and interiority are allowed. Do not apply stricter modes or invent consent, contradiction, crossed boundaries, or major irreversible choices.}}
 {{if::{{eq::{{var::agency}}::protected}}}}[PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE]
 “Obvious,” automatic, minor, natural, expected, or likely is still unsupplied. Do not complete the causal chain through {{user}}. For an NPC act toward them, write the NPC act and setup only. Do not use passive voice, second person, attribution{{if::${inlineState}}}, or state{{/if}} to smuggle a player result. Scan every sentence whose subject is {{user}} or “you”; delete or recast each unsupplied predicate.{{/if}}{{/if}}`, {
     group: CAT_FINAL,
@@ -688,7 +686,7 @@ Begin inside the live scene. Hold {{var::pov}}, {{var::tense}}, selected voice, 
 
   block('arg-controller', 'ARGENT Controller', String.raw`{{if::{{eq::{{var::reasoning_route}}::compact}}}}[ARGENT — COMPACT REVERIE]
 Begin the response with <reverie>. Write exactly six terse lines and close </reverie>. Do not draft prose, quote future dialogue, explain rules, or write an essay.
-A: quote the exact player predicates licensed by the latest input; name the first forbidden player predicate where narration must stop.
+A: apply MODE {{var::agency}} above; state its player authorship and exact boundary without importing another mode.
 R: T0 day + exact HH:MM + location/blocking; elapsed minutes; physically possible T1.
 G: per-character witness or transmission paths for consequential facts; name one forbidden off-scene leak.
 E: focal NPC goal, constraint, active facet, private first reaction.
@@ -696,11 +694,11 @@ N: one smallest causal movement; attempt, resistance/cost, stopping point.
 T: {{if::${inlineState}}}exact VELLUM sections supported by the prose; present exclusions and final T1 parallel positions; "none" where appropriate{{else}}{{if::${engineState}}}durable facts the prose will establish for the engine and tempting unsupported deltas to omit{{else}}continuity facts the prose must preserve with state disabled{{/if}}{{/if}}.
 Then commit once to prose. Do not reopen the plan.{{else}}{{if::{{eq::{{var::reasoning_route}}::verbose}}}}[ARGENT — VERBOSE REVERIE]
 Begin the response with <reverie>. Write a detailed but bounded planning audit of roughly 250–500 words, using these eight short labeled sections; then close </reverie>. This is planning, not draft prose: do not compose future dialogue or ornamental narration.
-A — Authority: quote every exact player predicate licensed by the latest input; list forbidden player predicates and the precise stopping boundary.
+A — Authority: apply MODE {{var::agency}} above; define its player authorship and exact boundary without importing another mode.
 R — Reality: reconstruct T0 day, exact HH:MM, location, positions, held objects, injuries, obstacles, and plausible elapsed time; derive one physically possible T1.
 G — Gnosis: for each consequential fact, map each named character to witnessed, told, overheard, inferred, mistaken, or unaware; name any tempting off-scene leak.
 E — Embodiment: for every named on-stage NPC, state goal, constraint, active trait/facet, bodily condition, private first reaction, and likely tactic in that character's own logic.
-N — Narrative: compare two or three causal continuations, reject the generic or unsupported path, and select the smallest movement that changes conditions without stealing player agency.
+N — Narrative: compare two or three causal continuations, reject the generic or unsupported path, and select the smallest movement allowed by this turn's agency mode.
 T — Truthful deltas: {{if::${inlineState}}}enumerate exact supported state sections and signed changes; reconcile present and parallel at T1{{else}}{{if::${engineState}}}name durable evidence the prose will establish and unsupported changes the engine must omit{{else}}name continuity facts to preserve with state disabled{{/if}}{{/if}}.
 V — Voice: name the chosen register, sensory anchors, dialogue work, paragraph rhythm, and one cliché/repetition to avoid.
 X — Final checks: state agency stop, time arithmetic, knowledge partition, dialogue wrappers{{if::${inlineState}}}, NPC thoughts, and complete state ending{{else}}, and prose-only ending{{/if}}.
@@ -737,7 +735,7 @@ Scan every clause whose subject is {{user}}, “you,” their body, voice, atten
 ::continuity::[PLAYER AUTHORSHIP — MINOR CONTINUITY FINAL GATE]
 Complete only the mechanically inevitable endpoint of a trivial player action explicitly begun in the latest user message. Do not add speech, thought, feeling, perception, consent, strategy, reaction, choice, injury, or a second action. Stop before the next player-controlled predicate.
 ::director::[PLAYER AUTHORSHIP — DIRECTOR FINAL GATE]
-Author {{user}} only inside the exact scope of the latest explicit directorial instruction. Do not expand its goal, invent consent, add an unrelated choice, or turn a bounded direction into continuing autonomy. Stop when the directed beat is realized.}}
+Co-author {{user}} within latest intent/direction and characterization. Speech, action, reaction, perception, sensation, and interiority are allowed. Do not apply stricter modes, contradict intent, invent consent, cross a boundary, or make an unsupported irreversible choice.}}
 
 [OFF-SCENE KNOWLEDGE — NON-NEGOTIABLE FINAL GATE]
 For each named character and consequential fact, name the witnessed or transmitted access path. If none exists, keep them unaware. Later entry never grants retroactive hearing; visible evidence permits only its bounded inference, never a hidden transcript. Remove every line, thought, reaction, tactic, or question that leaks inaccessible knowledge.

@@ -77,6 +77,26 @@ export function personaStateEnabled(value: unknown): boolean {
     || (typeof value === 'string' && ['1', 'true', 'on', 'enabled'].includes(value.trim().toLowerCase()));
 }
 
+/** Prompt guidance for the per-chat Persona State option. Engine mode still
+ * needs a narrative-side signal: otherwise the story model never knows the
+ * runtime option is on and may leave the second-pass compiler no player state
+ * to extract. The agency-specific wording prevents the tracker toggle from
+ * weakening Forbidden or Minor Continuity. */
+export function personaStateGuidance(enabled: boolean, contract: TurnContract | null, personaName = ''): string {
+  if (!enabled || contract?.state === false) return '';
+  const safeName = String(personaName || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120) || 'the player persona';
+  const mode = contract?.agency ?? 'protected';
+  if (contract?.stateCompiler === 'engine') {
+    const authority = mode === 'director'
+      ? `Director is active this turn. Enabling Persona State is explicit directorial permission to co-author ${safeName}'s plausible speech, actions, reactions, sensations, and interiority within established characterization and the latest player intent. Do not treat those categories as blanket-forbidden; stop only at contradiction, unsupplied consent, or a major irreversible choice.`
+      : mode === 'continuity'
+        ? `Minor Continuity is active. For ${safeName}, complete only the inevitable physical tail already begun; do not add speech, thought, feeling, consent, strategy, reaction, or a new choice.`
+        : `Forbidden is active. For ${safeName}, use only player predicates explicitly supplied by the latest user input; the tracker grants no added authorship.`;
+    return `[PERSONA STATE TRACKING — ON]\nKeep ${safeName} in the on-stage cast. ${authority}\nWhen authority permits and the beat supplies a basis, make current activity, physical condition, mood, and a concise natural thought legible in the prose so the engine can extract them; preserve stable traits through characterization. Do not emit tracker fields, JSON, or a state block.`;
+  }
+  return `[PERSONA STATE TRACKING — ON]\nIn the final VELLUM present roster, put ${safeName} first and include current mood, condition, activity, concise first-person thought, and stable traits only when grounded in the latest player input or in prose permitted by this turn's ${mode} agency. Add evidence to the persona object with one exact quote from that source. Preserve established physical condition and stable traits until changed. This tracker grants no authorship beyond the selected agency mode; leave unsupported fields empty.`;
+}
+
 type MessageLike = { role?: unknown; content?: unknown; __isChatHistory?: unknown };
 
 interface EffectiveMarker {

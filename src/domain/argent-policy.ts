@@ -75,20 +75,25 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
       ? 'After the required visible Reverie, if selected, output the completed story and stop. The engine compiles state separately. Do not emit any state tag, JSON, ledger or state commentary.'
       : 'After the selected Reverie, if any, output story prose and then one complete canonical <vellum> JSON block using the separately supplied state contract. Every named on-stage NPC has a private thought. Player fields remain blank unless the VELLUM runtime PERSONA STATE option explicitly says ON; when ON, only grounded tracker fields and stable traits are allowed, without invented player behavior.';
   const agencyEnding = v.agency === 'director'
-    ? 'DIRECTOR FINAL GATE: author the player only inside the latest explicit directorial instruction. Do not expand its goal, invent consent, add an unrelated choice or continue player autonomy after the directed beat.'
+    ? 'DIRECTOR FINAL GATE: co-author the player within the latest stated intent or explicit direction. Plausible speech, action, reaction, perception, sensation and interiority are permitted when consistent with established characterization. Do not apply stricter agency modes. Never contradict intent, invent consent, cross a boundary or make an unsupported major irreversible choice.'
     : v.agency === 'continuity'
       ? 'MINOR CONTINUITY FINAL GATE: complete only the mechanically inevitable endpoint of a trivial player action explicitly begun in the latest input. Add no speech, interiority, consent, strategy, reaction, injury, second action or new choice.'
       : 'FORBIDDEN FINAL GATE: keep a player predicate only when the latest input supplied it exactly. An attempt grants no success, consequence, reaction or follow-up. Recast every violation on the NPC or world side.';
   const agencyLabel = v.agency === 'director' ? 'Director' : v.agency === 'continuity' ? 'Minor Continuity' : 'Forbidden (Strict)';
+  const agencyRule = v.agency === 'director'
+    ? 'Co-author the player as an active protagonist within the latest stated intent or direction, including plausible speech, action, reaction, perception, sensation and interiority. Preserve characterization; never contradict intent, invent consent, cross a boundary or make an unsupported major irreversible choice.'
+    : v.agency === 'continuity'
+      ? 'Complete only the mechanically inevitable endpoint of a trivial player action already begun. Add no speech, interiority, consent, strategy, reaction, injury, second action or new choice.'
+      : 'Keep a player predicate only when the latest input supplied it exactly. An attempt grants no success, consequence, reaction or follow-up; recast violations on the NPC or world side.';
   const rules = [
     '[ARGENT EFFECTIVE POLICY]',
     'Authority: explicit user boundaries and corrections > confirmed engine facts > scenario/card/worldbook > provisional lore > inferred detail. Never turn a provisional invention into confirmed canon. Follow character truth and depicted causality.',
-    `Player agency this turn: ${agencyLabel}. Forbidden rejects every unsupplied player action, utterance, perception, sensation, reaction, consequence, consent and inner state. An attempt licenses only the stated attempt. Minor Continuity completes only a trivial mechanically inevitable endpoint already begun. Director stays inside explicit direction and never invents consent. Apply only this turn's selected mode.`,
+    `Player agency this turn: ${agencyLabel}. ${agencyRule} Apply only this turn's selected mode.`,
     'Knowledge: audit every character/fact pair against actual presence, hearing, language and a timed transmission path. Later entry grants no retroactive hearing. Evidence supports only bounded inference; private thought cannot exceed its owner’s knowledge.',
     'Reality: bind the current scene as T0; account for routes, occupied hands, object custody and elapsed time. Compute day x 1440 + clock and forbid rollback. Off-stage actors require motive, access, means and time.',
     'Causality: advance one smallest meaningful change. Before discovery, interruption, rescue, betrayal or escalation, verify actor, motive, knowledge, access, means, route and time. A missing link means trace, delay or deletion.',
     'Durability: threads and arcs change only when the exact tracked condition changes through a direct prose event. Mentions, shared people or places, elapsed time and thematic similarity do not advance them. Relationships remain directional; intensity is not trust, consent or commitment.',
-    'Craft: sustain stable, distinct voice fingerprints and active motives. Prefer concrete action, subtext and sourced sensory detail. Avoid recycled openings, imagery and cadence unless repetition creates a new consequence. End on live pressure without authoring the player’s response.',
+    `Craft: sustain stable, distinct voice fingerprints and active motives. Prefer concrete action, subtext and sourced sensory detail. Avoid recycled openings, imagery and cadence unless repetition creates a new consequence. ${v.agency === 'director' ? 'Let the co-authored protagonist participate within the Director scope.' : 'End on live pressure before any player predicate outside the selected scope.'}`,
     ...settings,
     v.hard_limits ? `Absolute content boundaries: ${String(v.hard_limits)}` : '',
     enabled(v.dialogue_color) ? 'Wrap each named direct speaker inline as [spk=Exact Cast Name]"speech"[/spk]. One speaker per wrapper; no guessed identities.' : 'Do not add speaker markup.',

@@ -188,6 +188,10 @@ describe('ARGENT strengthened invariants', () => {
     expect(continuity).not.toContain('PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE');
     expect(director).toContain('PLAYER AUTHORSHIP — DIRECTOR FINAL GATE');
     expect(director).not.toContain('PLAYER AUTHORSHIP — MINOR CONTINUITY FINAL GATE');
+    const directorController = expandedBlock('arg-controller', { agency: 'director' });
+    expect(directorController).toContain('without importing another mode');
+    expect(directorController).not.toContain('first forbidden player predicate');
+    expect(expandedBlock('arg-channel-agency', { agency: 'director' })).toContain('positive authorship for this turn');
   });
 
   it('reconciles parallel events as a final T1 snapshot instead of stale history', () => {

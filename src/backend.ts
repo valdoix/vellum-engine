@@ -56,7 +56,7 @@ import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOff
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
-import { agencyAtTurn, enginePassEnabled, personaStateEnabled, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
+import { agencyAtTurn, enginePassEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
@@ -465,9 +465,10 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   let prior = await loadState(chatId);
   // tone dials + canonical {{user}} id + locks, resolved once per fold pass (in
   // parallel; chat vars are cached but this also overlaps the name derivation).
+  const boundPersonaId = _personaIdByUserChat.get(userChatKey(userId, chatId));
   const [tone, names, locks, personaStateOn] = await Promise.all([
     readTone(chatId, userId),
-    chatNames(chatId, userId),
+    chatNames(chatId, userId, boundPersonaId),
     readLocks(chatId),
     readPersonaStateEnabled(chatId),
   ]);
@@ -868,6 +869,7 @@ const _presetStamped = new Map<string, number>(); // chatId -> lastStampedAt (ep
 const _presetByUserChat = new Map<string, string>();
 const _turnContractByUserChat = new Map<string, TurnContract>();
 const _turnAgencyByUserChat = new Map<string, TurnAgencyLedger>();
+const _personaIdByUserChat = new Map<string, string>();
 const TURN_CONTRACT_CHAT_VAR = 'vellum_active_turn_contract_v1';
 const TURN_AGENCY_CHAT_VAR = 'vellum_turn_agency_v1';
 const PRESET_STAMP_THROTTLE = 5 * 60 * 1000; // stamp at most once per 5 minutes per chat
@@ -1678,6 +1680,8 @@ async function wireCapabilitiesInner(): Promise<void> {
           // generation. A later interceptor with neither presetId nor ARGENT
           // evidence also must not erase it before GENERATION_ENDED runs pass 2.
           if (!context.isDryRun) {
+            if (context.personaId) _personaIdByUserChat.set(contractKey, context.personaId);
+            else _personaIdByUserChat.delete(contractKey);
             if (context.presetId) _presetByUserChat.set(contractKey, context.presetId);
             if (turnContract) {
               _turnContractByUserChat.set(contractKey, turnContract);
@@ -1694,9 +1698,10 @@ async function wireCapabilitiesInner(): Promise<void> {
           }
           const state = await loadState(chatId);
           const personaStateOn = await readPersonaStateEnabled(chatId);
-          const personaStateText = personaStateOn && turnContract?.state !== false && turnContract?.stateCompiler !== 'engine'
-            ? '[PERSONA STATE TRACKING — ON]\nIn the final VELLUM present roster, put {{user}} first and include current mood, condition, activity, concise first-person thought, and stable traits only when grounded in the latest player input or in prose permitted by this turn\'s selected agency mode. Add `evidence` to the persona object with one exact quote from that permitted source. Preserve an established physical condition until the story changes it. This is tracker data, never permission to add player speech, behavior, decisions, consent, reactions, sensations, injuries, knowledge, or interiority. Under Forbidden agency, every changed persona field and its evidence must come directly from the latest player input. Leave unsupported fields empty.'
-            : '';
+          const personaNames = personaStateOn
+            ? await chatNames(chatId, uid, context.personaId)
+            : { user: '', char: '' };
+          const personaStateText = personaStateGuidance(personaStateOn, turnContract, personaNames.user);
           // ARGENT's output contract must stay the literal last assembled prompt
           // block. Its static schema explicitly recognizes this runtime option,
           // so place the override in VELLUM's leading context there. Older
@@ -1963,6 +1968,7 @@ function pruneChatState(chatId: string): void {
   for (const key of _presetByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _presetByUserChat.delete(key);
   for (const key of _turnContractByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _turnContractByUserChat.delete(key);
   for (const key of _turnAgencyByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _turnAgencyByUserChat.delete(key);
+  for (const key of _personaIdByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _personaIdByUserChat.delete(key);
   // clear this chat's block-repair attempt keys (keyed by chatId\0messageId)
   const rp = chatId + '\u0000';
   for (const k of _blockRepairAttempts) if (k.startsWith(rp)) _blockRepairAttempts.delete(k);

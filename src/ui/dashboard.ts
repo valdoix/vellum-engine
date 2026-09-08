@@ -191,7 +191,23 @@ function tensionBar(s: ChronicleState): string {
 }
 
 function presentBlock(s: ChronicleState): string {
-  const detail = s.scene.detail?.length ? s.scene.detail : s.scene.present.map((id) => ({ id } as PresentChar));
+  // An engine snapshot may know that the persona is present before it has
+  // grounded mood/thought detail. Always render the complete present roster and
+  // overlay detail by id; choosing scene.detail wholesale hid any roster member
+  // whose detail row was absent (most visibly the player persona).
+  const byId = new Map((s.scene.detail ?? []).map((row) => [row.id, row] as const));
+  const seen = new Set<string>();
+  const detail: PresentChar[] = [];
+  for (const id of s.scene.present) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    detail.push(byId.get(id) ?? { id });
+  }
+  for (const row of s.scene.detail ?? []) {
+    if (!row.id || seen.has(row.id)) continue;
+    seen.add(row.id);
+    detail.push(row);
+  }
   if (!detail.length) return '';
   const rows = detail.map((d) => presentCard(s, d)).join('');
   return `<div class="vld-sec vld-sec--present"><div class="vld-h">Present <span class="vld-n">${detail.length}</span></div><div class="vld-pcs">${rows}</div></div>`;

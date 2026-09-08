@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { latestKnowledge, latestSecret } from '../src/ui/dashboard.js';
+import { dashboardHtml, latestKnowledge, latestSecret } from '../src/ui/dashboard.js';
 import { freshState } from '../src/domain/types.js';
 
 describe('Fix 23 — dashboard latest by turn (not array tail)', () => {
@@ -27,5 +27,17 @@ describe('Fix 23 — dashboard latest by turn (not array tail)', () => {
     const s = freshState();
     expect(latestKnowledge(s)).toBeUndefined();
     expect(latestSecret(s)).toBeUndefined();
+  });
+
+  it('renders every present actor when persona detail has not been extracted yet', () => {
+    const s = freshState();
+    s.scene.present = ['gabriel_winters', 'buffy_summers'];
+    s.scene.detail = [{ id: 'buffy_summers', mood: 'watchful', thought: 'He looks exhausted.' }];
+    s.cast.gabriel_winters = { id: 'gabriel_winters', name: 'Gabriel Winters', aka: [], status: 'present', source: 'user', firstTurn: 1, lastTurn: 1, userEdited: false };
+    s.cast.buffy_summers = { id: 'buffy_summers', name: 'Buffy Summers', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false };
+    const html = dashboardHtml(s);
+    expect(html).toContain('Gabriel Winters');
+    expect(html).toContain('Buffy Summers');
+    expect(html).toContain('Present <span class="vld-n">2</span>');
   });
 });
