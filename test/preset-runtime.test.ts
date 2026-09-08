@@ -57,14 +57,25 @@ describe('active preset turn contract', () => {
     for (const value of [true, 1, '1', 'on', 'true', 'enabled']) expect(personaStateEnabled(value)).toBe(true);
   });
 
-  it('gives Engine Director a positive narrative-side persona contract', () => {
-    const contract = resolveTurnContract(argent({ agency: 'director', state_compiler: 'engine' }))!;
+  it.each(['protected', 'continuity', 'director'] as const)('keeps Engine persona tracking active under %s agency without weakening prose agency', (agency) => {
+    const contract = resolveTurnContract(argent({ agency, state_compiler: 'engine' }))!;
     const guidance = personaStateGuidance(true, contract, 'Gabriel Winters');
     expect(guidance).toContain('Gabriel Winters');
-    expect(guidance).toContain('explicit directorial permission');
-    expect(guidance).toContain('speech, actions, reactions, sensations, and interiority');
+    expect(guidance).toContain('must populate their current mood');
+    expect(guidance).toContain(`including ${agency} agency`);
+    expect(guidance).toContain('tracker-only inference');
+    expect(guidance).toContain(`selected ${agency} prose-agency contract`);
     expect(guidance).toContain('Do not emit tracker fields, JSON, or a state block');
     expect(personaStateGuidance(false, contract, 'Gabriel Winters')).toBe('');
+  });
+
+  it.each(['protected', 'continuity', 'director'] as const)('requires Inline persona fields under %s agency without evidence quotes', (agency) => {
+    const contract = resolveTurnContract(argent({ agency, state_compiler: 'inline' }))!;
+    const guidance = personaStateGuidance(true, contract, 'Gabriel Winters');
+    expect(guidance).toContain('always populate current mood');
+    expect(guidance).toContain(`including under ${agency} agency`);
+    expect(guidance).toContain('do not require an evidence quote');
+    expect(guidance).toContain(`selected ${agency} prose-agency contract remains fully binding`);
   });
 
   it('uses ARGENT defaults when the preset has no stored overrides', () => {

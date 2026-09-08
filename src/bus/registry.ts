@@ -37,8 +37,6 @@ export interface ExtractCtx {
   /** latest player-authored turn input and its resolved per-turn agency mode */
   userInput?: string;
   agency?: import('../domain/preset-runtime.js').AgencyMode;
-  /** Engine Second Pass already validated persona evidence before folding. */
-  personaValidated?: boolean;
 }
 
 export interface InjectCtx {

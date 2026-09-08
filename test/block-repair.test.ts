@@ -39,6 +39,8 @@ describe('block-repair — buildRepairContext', () => {
     expect(ctx).toContain('PERSONA AGENCY: director');
     expect(ctx).toContain('latest player input: I am wounded but alert.');
     expect(VELLUM_BLOCK_REPAIR_SYS).toContain('PERSONA STATE OFF');
+    expect(VELLUM_BLOCK_REPAIR_SYS).toContain('regardless of PERSONA AGENCY');
+    expect(VELLUM_BLOCK_REPAIR_SYS).toContain('no evidence quote is required');
   });
 
   it('omits scene lines that are absent (fresh state)', () => {

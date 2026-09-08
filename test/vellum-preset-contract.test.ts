@@ -32,10 +32,26 @@ function block(id: string): PresetBlock {
 describe('VELLUM II preset 2.3 contract', () => {
   it('keeps the canonical v2-state block byte-for-byte intact', () => {
     const state = block('v2-state').content;
-    expect(state).toHaveLength(3883);
+    expect(state).toHaveLength(4157);
     expect(createHash('sha256').update(state, 'utf8').digest('hex')).toBe(
-      'e282747c7abcddfc2933aff2eb6705d2c52b0ed9ddd55d28888c2f55f7ea7614',
+      '60861c708f0a0519586c3432855cf5482c0eb55a46f4e7a749c5985f2bed76d8',
     );
+  });
+
+  it('tracks enabled persona state independently from story-prose agency', () => {
+    const state = block('v2-state').content;
+    const reverie = block('v2-reverie').content;
+    const example = block('v2-turn-example').content;
+    const agencyReminder = block('v2-agency-reminder').content;
+    expect(state).toContain('always populate mood, condition, doing, one concise first-person thought, and stable traits');
+    expect(state).toContain('private tracker metadata in every agency mode');
+    expect(state).toContain('never authorizes player behavior in story prose');
+    expect(reverie).toContain('tracker blank when PERSONA STATE is OFF and full in every agency when ON');
+    expect(reverie).toContain('Do not plan unstated player behavior for STORY PROSE');
+    expect(reverie).toContain('enabled PERSONA STATE still fills private tracker metadata');
+    expect(agencyReminder).toContain('[BEFORE YOU WRITE — STORY PROSE]');
+    expect(agencyReminder).toContain('Enabled PERSONA STATE still fills private tracker metadata');
+    expect(example).toContain('when ON, fill every {{user}} tracker field in every agency');
   });
 
   it('ships the bounded controller and its supporting doctrine blocks', () => {

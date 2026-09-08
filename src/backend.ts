@@ -601,7 +601,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       }
     }
     const folded = structuredStateEnabled
-      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, personaValidated: !!compiled?.ok, ...(dayCap !== undefined ? { dayCap } : {}) })
+      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, ...(dayCap !== undefined ? { dayCap } : {}) })
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     const { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {

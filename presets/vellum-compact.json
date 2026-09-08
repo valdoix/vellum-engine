@@ -1,0 +1,1070 @@
+{
+  "id": "vellum-ii-compact",
+  "name": "VELLUM II — COMPACT",
+  "description": "A separate, super-lean VELLUM roleplay preset capped at 5,000 standing-prompt tokens. It keeps strict per-turn player agency, limited knowledge, monotonic time, character fidelity, causal plot movement, NPC autonomy, dialogue colors, and full VELLUM Engine Second Pass continuity while offering a much smaller control surface.",
+  "presetVersion": "1.0.0",
+  "schemaVersion": 2,
+  "samplerOverrides": {
+    "enabled": true,
+    "maxTokens": 12000,
+    "contextSize": null,
+    "temperature": 0.85,
+    "topP": 0.95,
+    "minP": null,
+    "topK": null,
+    "frequencyPenalty": null,
+    "presencePenalty": null,
+    "repetitionPenalty": null,
+    "streaming": true
+  },
+  "promptBehavior": {},
+  "completionSettings": {
+    "assistantPrefill": "",
+    "reasoningPrefill": "Check agency, current reality, knowledge access, motive, causal movement, and truthful continuity.",
+    "assistantImpersonation": "",
+    "continuePrefill": false,
+    "continuePostfix": " ",
+    "namesBehavior": 0,
+    "squashSystemMessages": false,
+    "useSystemPrompt": true,
+    "enableWebSearch": false,
+    "sendInlineMedia": true,
+    "enableFunctionCalling": true,
+    "includeUsage": false
+  },
+  "advancedSettings": {
+    "seed": -1,
+    "customStopStrings": [],
+    "collapseMessages": false,
+    "trimIncompleteWords": false
+  },
+  "blocks": [
+    {
+      "id": "compact-cat-core",
+      "name": "VELLUM COMPACT — Core",
+      "role": "system",
+      "color": "#7f8fb3",
+      "depth": 0,
+      "group": null,
+      "marker": "category",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "arg-control",
+      "name": "Compact Controls",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:arg-control-->\n<!--VELLUM-EFFECTIVE {\"state\":{{var::state_on}},\"compiler\":\"{{var::state_compiler}}\",\"verbosity\":\"lean\",\"reasoning\":\"{{var::reasoning_route}}\",\"agency\":\"{{var::agency}}\",\"dialogueColor\":{{var::dialogue_color}},\"codex\":{{var::codex}},\"inventory\":{{var::inventory}},\"worldgen\":0,\"livingWorld\":\"{{var::living_world}}\"}-->\n[VELLUM COMPACT 1.0]\nContinue the roleplay directly. The newest user message is story input even when it contains no question. Never answer with an instruction summary or ask what to do unless the user explicitly speaks OOC and requests it.\n\nVOICE: {{var::prose}}\nLENGTH: {{var::length}}\nVIEWPOINT: {{var::pov}}\nTENSE: {{var::tense}}\nPACING: {{var::pacing}}\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": [],
+      "variables": [
+        {
+          "id": "compact_var_prose",
+          "name": "prose",
+          "label": "Prose",
+          "description": "A compact governing voice.",
+          "type": "select",
+          "defaultValue": "literary",
+          "options": [
+            {
+              "id": "literary",
+              "label": "Literary",
+              "value": "Precise literary prose: concrete images, controlled rhythm, subtext, restrained metaphor, no ornamental fog."
+            },
+            {
+              "id": "natural",
+              "label": "Natural",
+              "value": "Transparent modern prose: natural dialogue, exact physical behavior, emotional clarity, no literary posing."
+            },
+            {
+              "id": "spare",
+              "label": "Spare",
+              "value": "Lean exact prose: short clean sentences, weight in action and omission, almost no decorative explanation."
+            },
+            {
+              "id": "gothic",
+              "label": "Gothic",
+              "value": "Intimate gothic prose: embodied unease, pressured settings, controlled cadence, beauty beside decay without purple excess."
+            },
+            {
+              "id": "adaptive",
+              "label": "Adaptive",
+              "value": "Derive one coherent register from character, era, genre, and current pressure; hold it for the full response."
+            }
+          ]
+        },
+        {
+          "id": "compact_var_length",
+          "name": "length",
+          "label": "Length",
+          "description": "Approximate story-prose length.",
+          "type": "select",
+          "defaultValue": "standard",
+          "options": [
+            {
+              "id": "brief",
+              "label": "Brief",
+              "value": "Write 350–650 words unless the beat naturally ends sooner."
+            },
+            {
+              "id": "standard",
+              "label": "Standard",
+              "value": "Write 700–1,200 words unless the beat naturally ends sooner."
+            },
+            {
+              "id": "long",
+              "label": "Long",
+              "value": "Write 1,200–2,000 words while keeping every paragraph consequential."
+            }
+          ]
+        },
+        {
+          "id": "compact_var_pov",
+          "name": "pov",
+          "label": "Point of View",
+          "description": "Narrative viewpoint.",
+          "type": "select",
+          "defaultValue": "third",
+          "options": [
+            {
+              "id": "first",
+              "label": "First Person",
+              "value": "Use first person through the player persona; never use viewpoint as permission to invent protected player predicates."
+            },
+            {
+              "id": "second",
+              "label": "Second Person",
+              "value": "Use second person for the player persona; grammar never grants control of their choices or interiority."
+            },
+            {
+              "id": "third",
+              "label": "Third Limited",
+              "value": "Use close third person with controlled viewpoint and no unsignaled head-hopping."
+            },
+            {
+              "id": "adaptive",
+              "label": "Adaptive",
+              "value": "Preserve the established viewpoint; if none exists, use close third person."
+            }
+          ]
+        },
+        {
+          "id": "compact_var_tense",
+          "name": "tense",
+          "label": "Tense",
+          "description": "Narrative tense.",
+          "type": "select",
+          "defaultValue": "past",
+          "options": [
+            {
+              "id": "past",
+              "label": "Past",
+              "value": "Write in past tense."
+            },
+            {
+              "id": "present",
+              "label": "Present",
+              "value": "Write in present tense."
+            }
+          ]
+        },
+        {
+          "id": "compact_var_pacing",
+          "name": "pacing",
+          "label": "Pacing",
+          "description": "Beat density and scene movement.",
+          "type": "select",
+          "defaultValue": "measured",
+          "options": [
+            {
+              "id": "lingering",
+              "label": "Lingering",
+              "value": "Let silence, sensation, and subtext breathe; movement must still be causal."
+            },
+            {
+              "id": "measured",
+              "label": "Measured",
+              "value": "Balance dialogue, interiority, action, and consequence without rushing or stalling."
+            },
+            {
+              "id": "urgent",
+              "label": "Urgent",
+              "value": "Use compressed paragraphs and quick consequences; retain clarity and physical continuity."
+            }
+          ]
+        },
+        {
+          "id": "compact_var_agency",
+          "name": "agency",
+          "label": "Player Agency",
+          "description": "Resolved independently for every turn.",
+          "type": "select",
+          "defaultValue": "protected",
+          "options": [
+            {
+              "id": "protected",
+              "label": "Forbidden",
+              "value": "protected"
+            },
+            {
+              "id": "continuity",
+              "label": "Minor Continuity",
+              "value": "continuity"
+            },
+            {
+              "id": "director",
+              "label": "Director",
+              "value": "director"
+            }
+          ]
+        },
+        {
+          "id": "compact_var_reasoning_route",
+          "name": "reasoning_route",
+          "label": "Planning",
+          "description": "Silent is smallest; Compact shows a short continuity audit.",
+          "type": "select",
+          "defaultValue": "silent",
+          "options": [
+            {
+              "id": "silent",
+              "label": "Silent",
+              "value": "silent"
+            },
+            {
+              "id": "native",
+              "label": "Native Reasoning",
+              "value": "native"
+            },
+            {
+              "id": "compact",
+              "label": "Compact Reverie",
+              "value": "compact"
+            }
+          ]
+        },
+        {
+          "id": "compact_var_npc_dialogue",
+          "name": "npc_dialogue",
+          "label": "NPC-to-NPC Dialogue",
+          "description": "Let present NPCs speak and respond directly when motives intersect.",
+          "type": "switch",
+          "defaultValue": 1
+        },
+        {
+          "id": "compact_var_living_world",
+          "name": "living_world",
+          "label": "Living World",
+          "description": "Amount of grounded off-screen activity.",
+          "type": "select",
+          "defaultValue": "active",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off",
+              "value": "off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal",
+              "value": "minimal"
+            },
+            {
+              "id": "active",
+              "label": "Active",
+              "value": "active"
+            },
+            {
+              "id": "sandbox",
+              "label": "Autonomous",
+              "value": "sandbox"
+            }
+          ]
+        },
+        {
+          "id": "compact_var_time_continuity",
+          "name": "time_continuity",
+          "label": "Forward Time",
+          "description": "Require one monotonic story clock and evidence for day changes.",
+          "type": "switch",
+          "defaultValue": 1
+        },
+        {
+          "id": "compact_var_state_on",
+          "name": "state_on",
+          "label": "VELLUM State",
+          "description": "Track the story with VELLUM.",
+          "type": "switch",
+          "defaultValue": 1
+        },
+        {
+          "id": "compact_var_state_compiler",
+          "name": "state_compiler",
+          "label": "State Compiler",
+          "description": "Engine Pass is recommended; Inline supports hosts without the pass.",
+          "type": "select",
+          "defaultValue": "engine",
+          "options": [
+            {
+              "id": "engine",
+              "label": "Engine Second Pass",
+              "value": "engine"
+            },
+            {
+              "id": "inline",
+              "label": "Inline Compatibility",
+              "value": "inline"
+            }
+          ]
+        },
+        {
+          "id": "compact_var_codex",
+          "name": "codex",
+          "label": "Codex",
+          "description": "Maintain and refresh durable world facts.",
+          "type": "switch",
+          "defaultValue": 1
+        },
+        {
+          "id": "compact_var_inventory",
+          "name": "inventory",
+          "label": "Items",
+          "description": "Track possession and scene-item changes.",
+          "type": "switch",
+          "defaultValue": 1
+        },
+        {
+          "id": "compact_var_dialogue_color",
+          "name": "dialogue_color",
+          "label": "Dialogue Colors",
+          "description": "Emit exact speaker tags for VELLUM cast colors.",
+          "type": "switch",
+          "defaultValue": 1
+        }
+      ]
+    },
+    {
+      "id": "compact-authority",
+      "name": "Canon, Agency & Knowledge",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:compact-authority-->\n[AUTHORITY]\nObey explicit user OOC directions first. Then preserve the newest user intent, established canon and VELLUM recall, recent prose, and older summaries in that order. Treat summaries and retrieved memories as evidence, not permission to contradict newer canon. Never retcon a fact merely to ease the next beat. Keep names, relationships, injuries, items, promises, locations, and ongoing actions continuous.\n\n[PLAYER AGENCY — {{var::agency}}]\n{{switch::{{var::agency}}\n::protected::FORBIDDEN: Author NPCs and the world, not {{user}}. An attempted action authorizes only that attempt. Do not invent {{user}}'s speech, decisions, movement, reactions, perceptions, sensations, feelings, thoughts, consent, injury, or successful outcome. Second-person grammar and an NPC touching or addressing them grant no permission. Stop at the decision point.\n::continuity::MINOR CONTINUITY: Complete only the mechanically inevitable endpoint of one trivial action {{user}} explicitly began. Add no speech, thought, feeling, perception, consent, strategy, reaction, new choice, injury, or second action; then stop at the next decision.\n::director::DIRECTOR: Co-author {{user}} positively within their latest intent and established characterization. Plausible speech, action, reaction, perception, sensation, and interiority are allowed. Do not import stricter modes, contradict intent, invent consent, cross a stated boundary, or make an unsupported irreversible choice.}}\nThis mode applies only to this turn. NPCs retain full independent agency in every mode.\n\n[KNOWLEDGE FIREWALL]\nFor every character and consequential fact, require a witnessed, perceived, inferred, or transmitted access path. Narrator knowledge is not character knowledge. An absent character does not know an off-scene conversation; arriving later grants no retroactive hearing. Visible aftermath supports only the inference it actually proves. Keep private thought limited to its owner's knowledge. When prose reveals a tracked secret, only actual recipients learn it and the state must refresh that exact secret rather than duplicate it.\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-reality",
+      "name": "Reality, Character & Causality",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:compact-reality-->\n[REALITY]\nBegin from the injected current scene, bodies, items, relationships, and actions. Preserve physical access, distance, wounds, fatigue, clothing, possession, and world rules. Cause precedes effect; information and people travel through plausible routes.\n{{if::{{var::time_continuity}}}}Use one live T0→T1 clock. Active speech or completed action that consumes time advances at least one minute; OOC, flashback, static description, or a truly instant beat may hold. Compute A=day×1440+clock: A1 must never be below A0. Keep day/date unchanged unless prose establishes a new day/date, an explicit skip, or elapsed duration crosses midnight. An earlier wall clock alone never proves midnight.{{/if}}\n\n[CHARACTERS]\nWrite each character from their established motive, voice, values, habits, knowledge, body, and relationship to the present people. Let subtext alter word choice and action. Distinguish voices with syntax, vocabulary, evasion, humor, and what each notices; pass the swap test. Do not flatten conflict into instant agreement or attraction.\n{{if::{{var::npc_dialogue}}}}When present NPC motives intersect, let NPCs initiate, interrupt, answer, refuse, and act on one another without waiting for {{user}} to mediate. Every exchange must change pressure, understanding, leverage, or action; no round-robin filler.{{/if}}\n\n[CAUSAL STORY]\nAdvance from current motives and constraints through one or more earned changes. Consequences scale to causes; failure may cost, complicate, or redirect without arbitrary punishment. Preserve unresolved pressure without manufacturing twists. A tracked thread or arc changes only when this prose directly changes its condition: mention, mood, theme, shared person/place, repetition, or elapsed time is not progress. Stall requires a blocked attempt; resolve requires closure; an arc advances through a changed child thread or structural milestone.\n{{switch::{{var::living_world}}\n::off::Do not run independent off-screen events.\n::minimal::On skips or re-entry, allow one small sign of an absent actor pursuing an established goal.\n::active::Absent actors may pursue established goals during elapsed T0→T1 time. Their effects must follow motive, knowledge, access, and duration, and reach the scene only through a plausible bridge.\n::sandbox::Treat the player as one actor in an autonomous world. Absent actors and factions may act during elapsed T0→T1 time, but every move still needs motive, knowledge, access, resources, and duration.}}\n\n[CRAFT]\nOpen on live action, perception, or pressure. Prefer concrete behavior and sensory evidence over named emotion or explanation. Avoid recap, filler, generic reassurance, repetitive beats, melodramatic inflation, “not X but Y” scaffolds, stock body tells, and a packaged moral ending. End on an earned action, image, line, or changed pressure; never provide menu choices unless asked.\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "arg-colored-dialogue-contract",
+      "name": "Dialogue Speaker Contract",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:arg-colored-dialogue-contract-->\n{{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — CONTRACT]\nWrap every live spoken quotation whose speaker is named or certain as [spk=Exact Cast Name]\"complete passage\"[/spk]. Open before the quote, close immediately after it, and keep narration outside. Use one speaker per wrapper. Never tag thought, documents, remembered speech, signs, roles, pronouns, or uncertain speakers.{{/if}}\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-cat-state",
+      "name": "VELLUM COMPACT — State",
+      "role": "system",
+      "color": "#9b8066",
+      "depth": 0,
+      "group": null,
+      "marker": "category",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "arg-state-schema",
+      "name": "Inline State Schema",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:arg-state-schema-->\n{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}}}[VELLUM STATE — LEAN CONTRACT]\nAfter prose emit one raw-JSON <vellum>...</vellum> object. Use current scene/present plus supported changes only:\n{\"turn\":int,\"day\":int,\"scene\":{\"loc\":string,\"time\":\"HH:MM\",\"clock\":0..1439,\"tension\":0..10,\"weather\":string},\"present\":[{\"id\":name,\"mood\":string,\"condition\":string,\"doing\":string,\"thought\":string,\"traits\":[],\"evidence\":string}],\"delta\":{\"bonds\":[{\"a\":name,\"b\":name,\"aff\":signed,\"trust\":signed,\"addCats\":[],\"removeCats\":[],\"why\":string}],\"threads\":[{\"op\":\"new|advance|stall|resolve\",\"name\":string,\"note\":string}],\"arcs\":[{\"op\":\"new|advance|stall|resolve\",\"name\":string,\"note\":string}],\"journal\":[{\"who\":name,\"about\":name,\"memory\":string,\"kind\":string,\"weight\":\"trivial|minor|significant|defining\",\"sentiment\":string}],\"knowledge\":[{\"who\":name,\"fact\":string,\"about\":name,\"reliability\":\"knows|believes|suspects|wrong|unaware\",\"truth\":\"true|false|unknown\",\"source\":string}],\"secrets\":[{\"keeper\":name,\"secret\":string,\"from\":name}],\"secretReveals\":[{\"id\":\"exact prior id\",\"to\":[]}],\"factions\":[{\"name\":string,\"kind\":string,\"members\":[],\"standing\":signed}],\"factionRelations\":[{\"a\":string,\"b\":string,\"kind\":\"alliance|rivalry|war|vassal|trade\",\"standing\":signed,\"why\":string}],\"parallel\":[{\"who\":name,\"where\":string,\"activity\":string}]},\"ext\":{\"scars\":[],\"codex\":[{\"id\":\"existing id when refreshing\",\"op\":\"add|refresh\",\"fact\":string,\"tag\":string}],\"inventory\":[{\"who\":name,\"item\":string,\"op\":\"gain|lose|give|scene|note\",\"to\":name,\"note\":string}],\"timeline\":[{\"event\":string,\"day\":int,\"time\":\"HH:MM\",\"location\":string,\"participants\":[],\"importance\":\"minor|major|critical\"}],\"plant\":[],\"payoff\":[]}}\nOn an active scene, require exact scene time/clock and every named on-stage character. Put {{user}} first; leave their tracker fields empty unless runtime PERSONA STATE says ON. When ON, always populate mood, condition, doing, private first-person thought, and stable traits through tracker-only inference regardless of player-agency mode; no evidence quote is required. This metadata never authorizes corresponding behavior in prose. Every on-stage NPC gets one concise first-person thought within their knowledge. Bonds are signed deltas. Reuse exact thread/arc/secret/Codex IDs or titles. delta.parallel is the complete final T1 off-stage snapshot: exclude present actors, keep one current row per absent actor, and use [] to clear stale rows. Omit unsupported or unchanged optional fields; never guess.{{/if}}\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-cat-context",
+      "name": "VELLUM COMPACT — Context",
+      "role": "system",
+      "color": "#667b91",
+      "depth": 0,
+      "group": null,
+      "marker": "category",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-system-prompt",
+      "name": "Character System Prompt",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "system_prompt",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-char-desc",
+      "name": "Character Description",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "char_description",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-char-pers",
+      "name": "Character Personality",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "char_personality",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-scenario",
+      "name": "Scenario",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "scenario",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-persona",
+      "name": "Persona",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "persona",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-wi-before",
+      "name": "World Info — Before",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "world_info_before",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-examples",
+      "name": "Example Messages",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "mes_examples",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-history",
+      "name": "Chat History",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "chat_history",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-wi-after",
+      "name": "World Info — After",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "world_info_after",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-post-history",
+      "name": "Character Post-History Instructions",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": "post_history_instructions",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "post_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "compact-cat-final",
+      "name": "VELLUM COMPACT — Final",
+      "role": "system",
+      "color": "#a36f78",
+      "depth": 0,
+      "group": null,
+      "marker": "category",
+      "content": "",
+      "enabled": true,
+      "isLocked": false,
+      "position": "post_history",
+      "categoryMode": null,
+      "injectionTrigger": [],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "arg-controller",
+      "name": "Compact Controller",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:arg-controller-->\n{{switch::{{var::reasoning_route}}\n::silent::[VELLUM COMPACT — SILENT] Silently verify agency, T0 reality, knowledge access, motive, causal movement, voice, and supported state evidence. Emit no planning text.\n::native::[VELLUM COMPACT — PRIVATE] Use provider-private reasoning for agency, continuity, knowledge, causality, and truthful deltas. Emit no planning text.\n::compact::[VELLUM COMPACT — REVERIE] Begin with <reverie> and exactly five terse lines labeled Agency, Reality, Knowledge, Movement, Output. State decisions, not chain-of-thought. Close </reverie>, then commit once to prose.}}\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "post_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "arg-state-final",
+      "name": "State Compiler — Final",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:arg-state-final-->\n{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}}}[FINAL STATE COMPILER — LEAN AND ATOMIC]\nReserve about 800 output tokens. Compile only what completed prose established, except enabled PERSONA STATE explicitly permits tracker-only inference. Require current scene/present; grounded limited-knowledge thoughts for every on-stage NPC; exact time/clock; signed relationship deltas; exact existing identifiers; and a replace-all T1 parallel snapshot when the living world is active. Put {{user}} first, blank when PERSONA STATE is OFF and fully populated when ON regardless of agency. Precompose the entire object, remove guesses and empty optional data, then open <vellum>, finish valid JSON and literal </vellum>, and write nothing after it. Shorten prose before risking truncation.{{/if}}\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "post_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    },
+    {
+      "id": "arg-output-contract",
+      "name": "Output Contract — Last Instruction",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:arg-output-contract-->\n[OUTPUT — FOLLOW EXACTLY]\n{{if::{{eq::{{var::reasoning_route}}::compact}}}}Begin with the required five-line <reverie>, close it, then write story prose.{{else}}Write story prose only; no visible reasoning, preface, acknowledgement, recap, or instruction summary.{{/if}}\n{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::engine}}}}}}[ENGINE SECOND PASS] Finish the completed story prose and stop. The engine compiles and validates state separately. Do not emit a VELLUM tag, JSON, ledger, or state commentary.{{/if}}\n{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}}}Finish with exactly one complete raw-JSON <vellum>...</vellum> block and nothing after it.{{/if}}\n{{if::{{not::{{var::state_on}}}}}}Finish with prose and no state scaffold.{{/if}}\n\n{{switch::{{var::agency}}\n::protected::[PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE] In STORY PROSE, delete or recast every {{user}}/“you” predicate not explicitly supplied by the latest user message. This includes speech, choice, movement, reaction, perception, sensation, feeling, thought, consent, injury, and success. An attempted action permits only the attempt; stop at the decision point. Enabled PERSONA STATE may still populate private tracker metadata; never turn it into prose behavior.\n::continuity::[PLAYER AUTHORSHIP — MINOR CONTINUITY FINAL GATE] In STORY PROSE, complete only the inevitable endpoint of one trivial action explicitly begun. Add no speech, interiority, reaction, consent, strategy, choice, injury, or second action. Enabled PERSONA STATE may still populate private tracker metadata; never turn it into prose behavior.\n::director::[PLAYER AUTHORSHIP — DIRECTOR FINAL GATE] In STORY PROSE, co-author {{user}} within latest intent and characterization. Permit plausible speech, action, reaction, perception, sensation, and interiority. Do not apply stricter modes, contradict intent, invent consent, cross a boundary, or force an unsupported irreversible choice.}}\n\n[KNOWLEDGE FINAL GATE] Remove every line, thought, reaction, tactic, or question that depends on a fact this character neither witnessed, perceived, inferred from visible evidence, nor received through a shown transmission. Later arrival gives no retroactive hearing.\n{{if::{{var::time_continuity}}}}[TIME FINAL GATE] Active completed action or dialogue advances at least one minute. A1=day×1440+clock must be ≥ A0. Keep the day/date fixed unless prose proves a skip or midnight crossing; never invent a new day to hide a backward clock.{{/if}}\n[PLOT FINAL GATE] Change a thread or arc only for a direct condition-changing event in this prose. One event cannot advance unrelated rows. Uncertain means unchanged.\n{{if::{{var::dialogue_color}}}}[DIALOGUE FINAL GATE] Every certain live speaker uses [spk=Exact Cast Name]\"speech\"[/spk]; scan and repair every eligible bare quotation.{{/if}}\n{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}}}[STATE FINAL GATE] Preserve exact IDs; refresh revealed secrets and changed Codex facts; record supported item, scar, knowledge, and timeline changes; reconcile current T1 parallel events; finish </vellum>.{{/if}}\n{{if::{{matches::{{model}}::glm::i}}}}Continue the roleplay even when the user supplied no explicit question.{{/if}}\nNo Markdown fence or trailing commentary.\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "post_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    }
+  ],
+  "extensions": {
+    "regex_scripts": [
+      {
+        "script_id": "argent-state-display",
+        "name": "VELLUM Compact · Chronicle Delta · Display",
+        "folder": "ARGENT LOOM",
+        "description": "Display-only renderer for every VELLUM fence accepted by the engine. The stored assistant message remains raw and parseable.",
+        "find_regex": "(?:<vellum>|‹vellum›|```vellum|\\[VELLUM\\])([\\s\\S]*?)(?:<\\/vellum>|‹\\/vellum›|```|\\[\\/VELLUM\\])",
+        "replace_string": "<style>.arg-ledger{max-width:780px;margin:14px auto;font-family:var(--vmono,'JetBrains Mono',ui-monospace,monospace)}.arg-ledger>summary{cursor:pointer;list-style:none;padding:10px 15px;border:1px solid color-mix(in srgb,var(--vg,#cda84e) 32%,transparent);border-left:3px solid var(--vg,#cda84e);border-radius:10px;background:linear-gradient(145deg,rgba(30,26,20,.94),rgba(16,14,11,.97));color:var(--vi,#eadfca);font:600 11px/1.4 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:2px;text-transform:uppercase}.arg-ledger>summary::-webkit-details-marker{display:none}.arg-ledger>summary::before{content:'ARGENT  /  ';color:var(--vg,#cda84e)}.arg-ledger>pre{margin:0;padding:13px 16px;max-height:420px;overflow:auto;border:1px solid color-mix(in srgb,var(--vg,#cda84e) 20%,transparent);border-top:0;border-radius:0 0 10px 10px;background:rgba(12,11,9,.96);color:var(--vi2,#c9bea7);font:11px/1.55 var(--vmono,'JetBrains Mono',ui-monospace,monospace);white-space:pre-wrap;overflow-wrap:anywhere}</style><details class=\"arg-ledger\"><summary>Chronicle delta</summary><pre>$1</pre></details>",
+        "actions": [],
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "display"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 10,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "display",
+          "preserves_canonical_raw": true
+        }
+      },
+      {
+        "script_id": "argent-state-prompt-prune",
+        "name": "VELLUM Compact · Chronicle Delta · Prompt Prune",
+        "folder": "ARGENT LOOM",
+        "description": "Removes older state ledgers from model context while retaining the newest ledger as a worked formatting example. Never changes stored output.",
+        "find_regex": "[ \\t]*(?:<vellum>|‹vellum›|```vellum|\\[VELLUM\\])[\\s\\S]*?(?:<\\/vellum>|‹\\/vellum›|```|\\[\\/VELLUM\\])[ \\t]*(?:\\r?\\n)?",
+        "replace_string": "",
+        "actions": [],
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "prompt"
+        ],
+        "min_depth": 1,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 11,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "prompt",
+          "keeps_latest": true
+        }
+      },
+      {
+        "script_id": "argent-state-memory-prune",
+        "name": "VELLUM Compact · Chronicle Delta · Memory Prune",
+        "folder": "ARGENT LOOM",
+        "description": "Uses Lumiverse memory placement to remove machine state before long-term-memory storage and embedding; the VELLUM event log remains authoritative.",
+        "find_regex": "[ \\t]*(?:<vellum>|‹vellum›|```vellum|\\[VELLUM\\])[\\s\\S]*?(?:<\\/vellum>|‹\\/vellum›|```|\\[\\/VELLUM\\])[ \\t]*(?:\\r?\\n)?",
+        "replace_string": "",
+        "actions": [],
+        "flags": "gi",
+        "placement": [
+          "memory"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "prompt"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 12,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "memory",
+          "literal_only": true
+        }
+      },
+      {
+        "script_id": "argent-reverie-display",
+        "name": "VELLUM Compact · Reverie · Display",
+        "folder": "ARGENT LOOM",
+        "description": "Collapses either the six-line Compact audit or the extended Verbose audit into an unobtrusive display-only notebook. Raw prose and state remain untouched.",
+        "find_regex": "<reverie\\b[^>]*>([\\s\\S]*?)<\\/\\s*reverie\\s*>",
+        "replace_string": "<style>.arg-reverie{max-width:760px;margin:12px auto;border-left:2px solid color-mix(in srgb,var(--vg,#cda84e) 70%,transparent);font-family:var(--vserif,'Cormorant Garamond',Georgia,serif)}.arg-reverie>summary{cursor:pointer;list-style:none;padding:8px 13px;color:var(--vi2,#bdb29d);font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.78}.arg-reverie>summary::-webkit-details-marker{display:none}.arg-reverie>summary::before{content:'◇ ';color:var(--vg,#cda84e)}.arg-reverie>div{padding:4px 14px 11px;color:var(--vi2,#bdb29d);font:italic 13px/1.6 var(--vserif,'Cormorant Garamond',Georgia,serif);white-space:pre-wrap;opacity:.82}</style><details class=\"arg-reverie\"><summary>Reverie</summary><div>$1</div></details>",
+        "actions": [],
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "display"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 20,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "display"
+        }
+      },
+      {
+        "script_id": "argent-reverie-private-pipeline",
+        "name": "VELLUM Compact · Reverie · Prompt + Memory Prune",
+        "folder": "ARGENT LOOM",
+        "description": "Prevents visible planning from being recycled into later model prompts or embedded into long-term memory.",
+        "find_regex": "[ \\t]*<reverie\\b[^>]*>[\\s\\S]*?<\\/\\s*reverie\\s*>[ \\t]*(?:\\r?\\n)?",
+        "replace_string": "",
+        "actions": [],
+        "flags": "gi",
+        "placement": [
+          "ai_output",
+          "memory"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "prompt"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 21,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "prompt_memory",
+          "literal_only": true
+        }
+      },
+      {
+        "script_id": "argent-speaker-recover-leading-attribution",
+        "name": "VELLUM Compact · Speaker Tags · Recover Name Before Quote",
+        "folder": "ARGENT LOOM",
+        "description": "Response-stage safety net: wraps otherwise bare single-line dialogue when an explicit proper-name attribution precedes it. Never guesses a speaker.",
+        "find_regex": "{{if::{{and::{{var::dialogue_color}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}}^([ \\t]*)((?!(?:She|He|They|It|We|I|You|The|A|An|This|That|These|Those)\\b)[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*(?:[ \\t]+(?:(?:de|del|van|von|da|di|la|le|al|bin)[ \\t]+)?[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*){0,3})([ \\t]+(?:said|says|asked|asks|replied|replies|answered|answers|whispered|whispers|murmured|murmurs|called|calls|shouted|shouts|yelled|yells|cried|cries|added|adds|warned|warns|insisted|insists|admitted|admits|promised|promises|ordered|orders|demanded|demands|observed|observes|remarked|remarks|continued|continues)(?:[ \\t]+[a-z]+ly)?[ \\t]*[,—:-][ \\t]*)(?!\\[\\s*spk\\b)([\"“][^\"“”\\r\\n]{1,1200}[\"”]){{else}}(?!){{/if}}",
+        "replace_string": "$1$2$3[spk=$2]$4[/spk]",
+        "actions": [],
+        "flags": "gm",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "response"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "find",
+        "disabled": false,
+        "sort_order": 37,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "response",
+          "conservative_attribution_recovery": true,
+          "active_preset_sentinel": "reasoning_route",
+          "gated_by_active_preset_control": "dialogue_color"
+        }
+      },
+      {
+        "script_id": "argent-speaker-recover-trailing-attribution",
+        "name": "VELLUM Compact · Speaker Tags · Recover Name After Quote",
+        "folder": "ARGENT LOOM",
+        "description": "Response-stage safety net: wraps otherwise bare single-line dialogue when an explicit proper-name attribution follows it. Never guesses a speaker.",
+        "find_regex": "{{if::{{and::{{var::dialogue_color}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}}^([ \\t]*)([\"“][^\"“”\\r\\n]{1,1200}[\"”])([ \\t]*(?:,|—|-)?[ \\t]*)((?!(?:She|He|They|It|We|I|You|The|A|An|This|That|These|Those)\\b)[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*(?:[ \\t]+(?:(?:de|del|van|von|da|di|la|le|al|bin)[ \\t]+)?[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*){0,3})([ \\t]+(?:said|says|asked|asks|replied|replies|answered|answers|whispered|whispers|murmured|murmurs|called|calls|shouted|shouts|yelled|yells|cried|cries|added|adds|warned|warns|insisted|insists|admitted|admits|promised|promises|ordered|orders|demanded|demands|observed|observes|remarked|remarks|continued|continues)\\b){{else}}(?!){{/if}}",
+        "replace_string": "$1[spk=$4]$2[/spk]$3$4$5",
+        "actions": [],
+        "flags": "gm",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "response"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "find",
+        "disabled": false,
+        "sort_order": 38,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "response",
+          "conservative_attribution_recovery": true,
+          "active_preset_sentinel": "reasoning_route",
+          "gated_by_active_preset_control": "dialogue_color"
+        }
+      },
+      {
+        "script_id": "argent-speaker-recover-colon-attribution",
+        "name": "VELLUM Compact · Speaker Tags · Recover Name Colon Quote",
+        "folder": "ARGENT LOOM",
+        "description": "Response-stage safety net for screenplay/chat-style Name: \"dialogue\" lines. Never guesses a speaker.",
+        "find_regex": "{{if::{{and::{{var::dialogue_color}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}}^([ \\t]*)((?!(?:She|He|They|It|We|I|You|The|A|An|This|That|These|Those)\\b)[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*(?:[ \\t]+(?:(?:de|del|van|von|da|di|la|le|al|bin)[ \\t]+)?[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]*){0,3})([ \\t]*:[ \\t]*)(?!\\[\\s*spk\\b)([\"“][^\"“”\\r\\n]{1,1200}[\"”]){{else}}(?!){{/if}}",
+        "replace_string": "$1$2$3[spk=$2]$4[/spk]",
+        "actions": [],
+        "flags": "gm",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "response"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "find",
+        "disabled": false,
+        "sort_order": 39,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "response",
+          "conservative_attribution_recovery": true,
+          "active_preset_sentinel": "reasoning_route",
+          "gated_by_active_preset_control": "dialogue_color"
+        }
+      },
+      {
+        "script_id": "argent-speaker-display",
+        "name": "VELLUM Compact · Speaker Color Bridge · Display",
+        "folder": "ARGENT LOOM",
+        "description": "Turns exact [spk=Name] wrappers into current-Lumiverse authored-color spans resolved by VELLUM cast colors, while preserving the spoken line.",
+        "find_regex": "\\[\\s*spk\\s*=\\s*[\"']?\\s*([^\"'\\]\\r\\n]{1,80}?)\\s*[\"']?\\s*\\]([\\s\\S]*?)(?:\\[\\s*\\/\\s*spk\\s*\\]|(?=\\[\\s*spk\\b|<\\s*(?:vellum|reverie)\\b|‹vellum›|```vellum|\\[VELLUM\\])|$)",
+        "replace_string": "<span class=\"v-spk\" data-spk=\"$1\" style=\"color:var(--vle-spk-color,inherit)\">$2</span>",
+        "actions": [],
+        "flags": "gi",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "display"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 40,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "display",
+          "vellum_color_bridge": true
+        }
+      },
+      {
+        "script_id": "argent-speaker-semantic-pipeline",
+        "name": "VELLUM Compact · Speaker Tags · Prompt + Memory Clean",
+        "folder": "ARGENT LOOM",
+        "description": "Removes presentation wrappers from model context and memory while keeping dialogue verbatim.",
+        "find_regex": "\\[\\s*\\/?\\s*spk\\b(?:\\s*=\\s*[\"']?\\s*[^\"'\\]\\r\\n]{0,80}?[\"']?\\s*)?\\]",
+        "replace_string": "",
+        "actions": [],
+        "flags": "gi",
+        "placement": [
+          "ai_output",
+          "memory"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "prompt"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 41,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "prompt_memory"
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "vellum_engine": {
+      "identifier": "vellum_engine",
+      "policyCompiler": 1,
+      "compactPreset": true,
+      "promptTokenCeiling": 5000,
+      "sourceHash": "72f431f3f779904ebb0dc7078943dd5cef20cd5e4db9ca7606627e5271cadab9",
+      "dependencyHash": "b725993ab2782a0bf4951e7cf31b53469c31df0d474b8eb7b8e2980013944737"
+    }
+  }
+}

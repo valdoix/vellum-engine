@@ -13,6 +13,8 @@ describe('preset state-contract health', () => {
     expect(health.issues).toEqual([]);
     expect(VELLUM_STATE_BLOCK_CONTENT).toContain('Threads and arcs default to no change');
     expect(VELLUM_STATE_BLOCK_CONTENT).toContain('elapsed time are not progress');
+    expect(VELLUM_STATE_BLOCK_CONTENT).toContain('regardless of player-agency mode');
+    expect(VELLUM_STATE_BLOCK_CONTENT).toContain('tracker-only metadata');
   });
 
   it('does not treat an incidental vellum mention as a state block', () => {

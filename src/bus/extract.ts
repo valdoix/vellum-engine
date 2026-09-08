@@ -44,7 +44,7 @@ const EXTRACT_SYS =
   + 'JOURNAL: extract genuine TURNING POINTS a character would personally carry — a confession, promise, betrayal, gift, wound, first kiss, a moment of being truly seen — written from that character\'s POV; the PLAYER can and should hold journal entries too. '
   + 'BONDS: aff/trust are the CHANGE this excerpt caused to how A feels toward B; omit pairs that did not move; cat only when the bond\'s nature changed. '
   + 'FACTIONS: name a GROUP (household staff, a house, a guild) when it acts, is referenced as a bloc, or a character belongs to one; list known members and the group\'s standing toward the player if it shifted. Capture every real reveal/turning-point that carries dramatic weight, invent nothing the prose does not support. Empty arrays are fine. '
-  + 'PRESENT + INNER THOUGHT: for EACH rostered, individually-named character on-stage in this excerpt, emit a present[] entry with their current mood and what they are doing, and — this is the point — their `thought`: the genuine, unspoken first-person inner voice they carry through this beat, framed by ONLY what THAT character knows (never omniscient, never the narrator\'s summary). If the prose already renders a character\'s interiority (a line of free-indirect thought, a private fear, what they don\'t say aloud), capture it as `thought` in their own voice. Do NOT invent interiority the prose gives no basis for; omit `thought` when the character is a cipher this beat. Read PERSONA STATE MODE and PERSONA AGENCY: when OFF, never emit a persona present entry. When ON, emit persona mood, condition, doing, first-person thought, and stable traits only when directly established by an allowed source, with one exact source excerpt in `evidence`. Forbidden allows LATEST PLAYER INPUT only; Minor Continuity and Director may also use completed prose. This is tracker extraction and never permission to invent player behavior. Never put a group in present. '
+  + 'PRESENT + INNER THOUGHT: for EACH rostered, individually-named character on-stage in this excerpt, emit a present[] entry with their current mood and what they are doing, and — this is the point — their `thought`: the genuine, unspoken first-person inner voice they carry through this beat, framed by ONLY what THAT character knows (never omniscient, never the narrator\'s summary). If the prose already renders a character\'s interiority (a line of free-indirect thought, a private fear, what they don\'t say aloud), capture it as `thought` in their own voice. Do NOT invent NPC interiority the prose gives no basis for; omit `thought` when an NPC is a cipher this beat. Read PERSONA STATE MODE: when OFF, never emit a persona present entry. When ON, ALWAYS emit the persona with mood, condition, doing, a concise first-person thought, and stable traits. Persona State is explicit permission for tracker-only inference from LATEST PLAYER INPUT, recent prose, and established characterization regardless of PERSONA AGENCY; no evidence quote is required. This private metadata never authorizes corresponding player behavior in prose. Never put a group in present. '
   + 'CRITICAL: a COLLECTIVE or GROUP is a FACTION, never a character. "The household staff", "the court", "the Kingsguard", "the guards", "the council", "House Lannister" are GROUPS — put them ONLY in factions[].name (with members), NEVER in a who/a/b/keeper/present character slot. Those slots take individual named people only. If a group already exists (see the FACTIONS list in context), reuse its EXACT name; do not coin a synonym.';
 
 function parseJson(text: string): any | null {
@@ -251,7 +251,7 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
   // truncated <vellum> block doesn't lose interiority. Emitted as a NON-
   // authoritative scene.set (mergeDetail:true) that only fills gaps — never
   // demotes cast or overwrites the block's authored detail. Persona detail is
-  // opt-in and needs an exact source quote; a group is never present.
+  // opt-in and independent of the prose agency mode; a group is never present.
   const presIds: string[] = [];
   const presDetail: Array<{ id: string; mood?: string; doing?: string; condition?: string; thought?: string }> = [];
   const seenPres = new Set<string>();
@@ -261,9 +261,6 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
     if (!id) continue;
     const isPersona = id === userCanon;
     if (isPersona && !personaState) continue;
-    const grounding = agency === 'protected' ? playerInput : `${playerInput}\n${prose}`;
-    const personaEvidence = String(p?.evidence || '').trim();
-    if (isPersona && (!personaEvidence || !grounding.includes(personaEvidence))) continue;
     if (seenPres.has(id)) continue;
     seenPres.add(id);
     presIds.push(id);

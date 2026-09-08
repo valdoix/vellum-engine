@@ -175,41 +175,41 @@ export const coreFeature: Feature = {
       .map(presentId)
       .filter(Boolean);
     // {{user}} must be in `present` whenever the scene is active. The optional
-    // persona-state mode may retain grounded current detail; its default remains
+    // persona-state mode retains the private current snapshot; its default remains
     // presence-only so existing chats keep the strict authorship boundary.
     const sceneActive = !!(parsed.scene || present.length);
     const userExplicitlyPresent = (parsed.present ?? []).some((p) => canonId(presentName(p)) === uCanon);
     const userInScene = sceneActive && uCanon && !userExplicitlyPresent;
-    const personaGrounded = (p: NonNullable<ParsedState['present']>[number]): boolean => {
-      if (!ctx.personaState) return false;
-      if (ctx.personaValidated) return true;
-      // Director is explicit per-turn permission for the prose model to
-      // co-author the persona's plausible state and interiority. In Inline
-      // Compatibility the same model writes the canonical block, so requiring
-      // a second verbatim evidence string merely discards valid fields that are
-      // already authorized by the selected mode. Protected and Minor
-      // Continuity still require an exact allowed-source quote below.
-      if (ctx.agency === 'director') return true;
-      const proof = p.evidence?.trim() ?? '';
-      const source = ctx.userInput ?? '';
-      return !!proof && source.includes(proof);
-    };
-    const priorPersonaCondition = uCanon
-      ? ctx.state.scene.detail.find((d) => canonId(d.id) === uCanon)?.condition
+    // The setting itself authorizes tracker metadata in every agency mode.
+    // Agency still governs prose and is deliberately not consulted here.
+    const personaGrounded = (_p: NonNullable<ParsedState['present']>[number]): boolean => !!ctx.personaState;
+    const priorPersonaDetail = uCanon
+      ? ctx.state.scene.detail.find((d) => canonId(d.id) === uCanon)
       : undefined;
     if (userInScene) present.unshift(uCanon); // player leads the present list
     if (parsed.scene || present.length) {
       const detail = (parsed.present ?? []).map((p) => {
         const id = presentId(p);
         if (id && id === uCanon && !personaGrounded(p)) {
-          return { id, ...(ctx.personaState && priorPersonaCondition ? { condition: priorPersonaCondition } : {}) };
+          return { id };
         }
-        const condition = id === uCanon && ctx.personaState
-          ? (p.condition || priorPersonaCondition)
-          : p.condition;
-        return id ? { id, ...(p.mood ? { mood: p.mood } : {}), ...(p.doing ? { doing: p.doing } : {}), ...(condition ? { condition } : {}), ...(p.thought ? { thought: p.thought } : {}) } : null;
+        const prior = id === uCanon && ctx.personaState ? priorPersonaDetail : undefined;
+        const mood = p.mood || prior?.mood;
+        const doing = p.doing || prior?.doing;
+        const condition = p.condition || prior?.condition;
+        const thought = p.thought || prior?.thought;
+        return id ? { id, ...(mood ? { mood } : {}), ...(doing ? { doing } : {}), ...(condition ? { condition } : {}), ...(thought ? { thought } : {}) } : null;
       }).filter(Boolean);
-      if (userInScene) (detail as Array<{ id: string }>).unshift({ id: uCanon }); // presence only, no inner fields
+      if (userInScene) {
+        const prior = ctx.personaState ? priorPersonaDetail : undefined;
+        (detail as Array<{ id: string; mood?: string; doing?: string; condition?: string; thought?: string }>).unshift({
+          id: uCanon,
+          ...(prior?.mood ? { mood: prior.mood } : {}),
+          ...(prior?.doing ? { doing: prior.doing } : {}),
+          ...(prior?.condition ? { condition: prior.condition } : {}),
+          ...(prior?.thought ? { thought: prior.thought } : {}),
+        });
+      }
       // The human time string wins when parseable: it is the visible contract and
       // therefore the only safe tie-breaker when a model emits contradictory
       // `time`/`clock` values. A valid numeric clock is the fallback. Canonicalize

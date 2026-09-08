@@ -29,32 +29,28 @@ describe('strict pre-commit state compiler', () => {
     expect(state.delta.parallel).toEqual([{ who: 'Ada', where: 'Courtyard', activity: 'Waiting' }]);
     expect(state.scene).toMatchObject({ time: '00:03', clock: 3 });
   });
-  it('accepts grounded opted-in persona state and traits while protected mode rejects prose-only invention', () => {
+  it('requires and accepts a complete opted-in persona snapshot in every agency mode without evidence', () => {
     const i = input();
     i.personaState = true;
-    i.agency = 'protected';
     i.userInput = 'I remain by the door. I am exhausted and wary. I think the seal is a trap. I have always been stubborn.';
     const c = candidate();
     const player = c.state.present.find((row) => row.id === 'Player')!;
     Object.assign(player, { doing: 'remaining by the door', condition: 'exhausted', mood: 'wary', thought: 'The seal is a trap.', traits: ['stubborn'] });
-    c.evidence.push(
-      { path: 'present.persona.doing', quote: 'I remain by the door' },
-      { path: 'present.persona.condition', quote: 'I am exhausted and wary' },
-      { path: 'present.persona.mood', quote: 'I am exhausted and wary' },
-      { path: 'present.persona.thought', quote: 'I think the seal is a trap' },
-      { path: 'present.persona.traits', quote: 'I have always been stubborn' },
-    );
-    const accepted = validateCompilation(c, i);
-    expect(accepted.ok).toBe(true);
-    if (accepted.ok) {
-      const folded = foldTurn(accepted.block, structuredClone(i.prior), i.turn, { userCanon: 'player', personaState: true, personaValidated: true });
-      const scene = folded.events.find((event) => event.kind === 'scene.set') as any;
-      expect(scene.detail.find((row: any) => row.id === 'player')).toMatchObject({ mood: 'wary', condition: 'exhausted', thought: 'The seal is a trap.' });
+    for (const agency of ['protected', 'continuity', 'director'] as const) {
+      i.agency = agency;
+      const accepted = validateCompilation(structuredClone(c), i);
+      expect(accepted.ok, agency).toBe(true);
+      if (accepted.ok) {
+        const folded = foldTurn(accepted.block, structuredClone(i.prior), i.turn, { userCanon: 'player', personaState: true, agency });
+        const scene = folded.events.find((event) => event.kind === 'scene.set') as any;
+        expect(scene.detail.find((row: any) => row.id === 'player')).toMatchObject({ mood: 'wary', condition: 'exhausted', doing: 'remaining by the door', thought: 'The seal is a trap.' });
+      }
     }
-
-    i.userInput = 'I remain by the door.';
-    i.prose += ' Player is exhausted and wary and thinks the seal is a trap.';
-    expect(validateCompilation(c, i).ok).toBe(false);
+    const incomplete = structuredClone(c);
+    delete incomplete.state.present.find((row) => row.id === 'Player')!.condition;
+    const rejected = validateCompilation(incomplete, i);
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) expect(rejected.errors).toContain('persona state requires condition');
   });
   it('rejects a manufactured next day when prose does not establish a rollover', () => {
     const i = input();

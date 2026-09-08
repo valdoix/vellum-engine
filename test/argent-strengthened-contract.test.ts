@@ -61,7 +61,10 @@ describe('ARGENT strengthened invariants', () => {
     expect(block('arg-channel-agency')).toContain('Second-person grammar is not permission');
     expect(block('arg-final-anchor')).toContain('PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE');
     expect(block('arg-output-contract')).toContain('PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE');
-    expect(block('arg-state-final')).toContain('state must not invent player behavior');
+    expect(block('arg-state-final')).toContain('complete tracker snapshot regardless of agency');
+    expect(block('arg-output-contract')).toContain('never turn that metadata into prose behavior');
+    expect(block('arg-output-contract')).toContain('Scan every clause of STORY PROSE');
+    expect(block('arg-state-schema')).toContain('always populate mood, condition, doing, private first-person thought, and stable traits');
   });
 
   it('requires an exact 24-hour clock and matching minutes in every active scene', () => {
@@ -104,8 +107,8 @@ describe('ARGENT strengthened invariants', () => {
     expect(schema).toContain('[VELLUM STATE — FULL CONTRACT]');
     expect(compiler).toContain('[FINAL STATE COMPILER — LEAN, ATOMIC AND MANDATORY]');
     expect(compiler).toContain('[FINAL STATE COMPILER — FULL, ATOMIC AND MANDATORY]');
-    expect(schema).toContain('List every named on-stage NPC and give each a concise first-person private thought');
-    expect(compiler).toContain('Include every named on-stage NPC with a concise private first-person thought');
+    expect(schema).toContain('List every named on-stage NPC with a concise first-person thought');
+    expect(compiler).toContain('Give each on-stage NPC a knowledge-limited first-person thought');
     expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'lean' })).toContain('VELLUM STATE — LEAN CONTRACT');
     expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'lean' })).not.toContain('VELLUM STATE — FULL CONTRACT');
     expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'full' })).toContain('VELLUM STATE — FULL CONTRACT');

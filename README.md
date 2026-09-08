@@ -31,6 +31,8 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
+> **VELLUM II — COMPACT 1.0.0** — a separate small-preset option capped at 5,000 standing-prompt tokens. It retains per-turn agency, knowledge isolation, monotonic time, causal plot rules, NPC autonomy, dialogue colors, and VELLUM Engine Second Pass with 15 focused controls. Import `presets/vellum-compact.json`; it does not replace VELLUM II or ARGENT LOOM. See `presets/VELLUM-COMPACT-README.md`.
+
 > **ARGENT LOOM 1.3.0** — the narrative prompt is smaller and stronger, Engine Second Pass is now strictly prose-only, and Forbidden/Minor Continuity/Director agency is resolved independently for every turn and passed into state compilation with the exact latest user input. The final governor retains strict knowledge, monotonic time, plot-evidence, speaker-markup, and inline-state gates without repeating the full doctrine. See `presets/ARGENT-LOOM-README.md`.
 
 > **Extension 2.1.0-beta.9 (testing)** — adds streamed summarization progress, safe cancellation, configurable summary token limits, completion-driven retries, verified archival coverage, refreshed knowledge/secret propagation, and stronger long-session retrieval.
@@ -283,13 +285,15 @@ That's the whole install. There's nothing to build or configure — the extensio
 
 ## Installing & using the preset
 
-The preset is a single file, `vellum-ii.json`, found in the [`presets/`](presets/) folder of this repo.
+The full preset is `vellum-ii.json`, found in the [`presets/`](presets/) folder of this repo. A separate `vellum-compact.json` option keeps the standing prompt below 5,000 estimated tokens while retaining the essential VELLUM continuity contracts. ARGENT LOOM remains available as `argent-loom.json`.
 
 1. **Download `presets/vellum-ii.json`** to your computer.
 2. In Lumiverse, go to the preset area (**Reasoning → Presets**, or the preset selector in your chat).
 3. **Import** the file. It now appears in your list of presets as **"VELLUM II — Engine."**
 4. **Select it** for your chat or connection.
 5. (Optional) Click the **sliders / settings icon** that appears when a preset has options. This opens the **Prompt Variables** menu — a friendly settings panel where you can change POV, length, tone, content level, and toggle features on and off. You never have to edit the raw preset text.
+
+For the smaller option, import `presets/vellum-compact.json` and select **VELLUM II — COMPACT**. It has its own controls and can coexist with the other presets.
 
 ### Do I need the separate regex file?
 
@@ -558,7 +562,7 @@ Open the VELLUM drawer to find these. There's also a compact floating **"Now"** 
 - **Tidy threads / Tidy lore** — merge near-duplicate plot threads or facts.
 - **Hide filed** — hide already-summarized turns from the prompt to save context.
 - **Engine pass** — enable or disable the validated state compiler for presets that request it.
-- **Persona state** — opt in to grounded persona mood, condition, activity, first-person thought, and stable traits; the selected per-turn player-agency rule still applies.
+- **Persona state** — opt in to persona mood, condition, activity, first-person thought, and stable traits on every turn. This private tracker remains populated under Forbidden, Minor Continuity, and Director; player agency still governs what the story prose may author.
 - **Traverse** — smarter, AI-guided recall (cycles through off / one-shot / deep tree drill).
 - **Tone** — quick access to romance pace + world disposition.
 - **Off-screen** — toggle the off-screen life simulation.

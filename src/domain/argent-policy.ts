@@ -73,18 +73,18 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     ? 'After the selected Reverie, if any, output story prose only. No state block.'
     : v.state_compiler === 'engine'
       ? 'After the required visible Reverie, if selected, output the completed story and stop. The engine compiles state separately. Do not emit any state tag, JSON, ledger or state commentary.'
-      : 'After the selected Reverie, if any, output story prose and then one complete canonical <vellum> JSON block using the separately supplied state contract. Every named on-stage NPC has a private thought. Player fields remain blank unless the VELLUM runtime PERSONA STATE option explicitly says ON; when ON, only grounded tracker fields and stable traits are allowed, without invented player behavior.';
+      : 'After the selected Reverie, if any, output story prose and then one complete canonical <vellum> JSON block using the separately supplied state contract. Every named on-stage NPC has a private thought. Player fields remain blank unless the VELLUM runtime PERSONA STATE option explicitly says ON; when ON, always populate mood, condition, doing, private first-person thought, and stable traits as tracker-only metadata regardless of player-agency mode. This does not authorize corresponding player behavior in prose.';
   const agencyEnding = v.agency === 'director'
-    ? 'DIRECTOR FINAL GATE: co-author the player within the latest stated intent or explicit direction. Plausible speech, action, reaction, perception, sensation and interiority are permitted when consistent with established characterization. Do not apply stricter agency modes. Never contradict intent, invent consent, cross a boundary or make an unsupported major irreversible choice.'
+    ? 'DIRECTOR FINAL GATE: in story prose, co-author the player within the latest stated intent or explicit direction. Plausible speech, action, reaction, perception, sensation and interiority are permitted when consistent with established characterization. Do not apply stricter agency modes. Never contradict intent, invent consent, cross a boundary or make an unsupported major irreversible choice.'
     : v.agency === 'continuity'
-      ? 'MINOR CONTINUITY FINAL GATE: complete only the mechanically inevitable endpoint of a trivial player action explicitly begun in the latest input. Add no speech, interiority, consent, strategy, reaction, injury, second action or new choice.'
-      : 'FORBIDDEN FINAL GATE: keep a player predicate only when the latest input supplied it exactly. An attempt grants no success, consequence, reaction or follow-up. Recast every violation on the NPC or world side.';
+      ? 'MINOR CONTINUITY FINAL GATE: in story prose, complete only the mechanically inevitable endpoint of a trivial player action explicitly begun in the latest input. Add no speech, interiority, consent, strategy, reaction, injury, second action or new choice.'
+      : 'FORBIDDEN FINAL GATE: in story prose, keep a player predicate only when the latest input supplied it exactly. An attempt grants no success, consequence, reaction or follow-up. Recast every violation on the NPC or world side.';
   const agencyLabel = v.agency === 'director' ? 'Director' : v.agency === 'continuity' ? 'Minor Continuity' : 'Forbidden (Strict)';
   const agencyRule = v.agency === 'director'
-    ? 'Co-author the player as an active protagonist within the latest stated intent or direction, including plausible speech, action, reaction, perception, sensation and interiority. Preserve characterization; never contradict intent, invent consent, cross a boundary or make an unsupported major irreversible choice.'
+    ? 'In story prose, co-author the player as an active protagonist within the latest stated intent or direction, including plausible speech, action, reaction, perception, sensation and interiority. Preserve characterization; never contradict intent, invent consent, cross a boundary or make an unsupported major irreversible choice.'
     : v.agency === 'continuity'
-      ? 'Complete only the mechanically inevitable endpoint of a trivial player action already begun. Add no speech, interiority, consent, strategy, reaction, injury, second action or new choice.'
-      : 'Keep a player predicate only when the latest input supplied it exactly. An attempt grants no success, consequence, reaction or follow-up; recast violations on the NPC or world side.';
+      ? 'In story prose, complete only the mechanically inevitable endpoint of a trivial player action already begun. Add no speech, interiority, consent, strategy, reaction, injury, second action or new choice.'
+      : 'In story prose, keep a player predicate only when the latest input supplied it exactly. An attempt grants no success, consequence, reaction or follow-up; recast violations on the NPC or world side.';
   const rules = [
     '[ARGENT EFFECTIVE POLICY]',
     'Authority: explicit user boundaries and corrections > confirmed engine facts > scenario/card/worldbook > provisional lore > inferred detail. Never turn a provisional invention into confirmed canon. Follow character truth and depicted causality.',

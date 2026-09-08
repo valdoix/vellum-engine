@@ -261,8 +261,6 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   const present = new Set<string>();
   const allowed = new Set(Object.keys(input.prior.cast));
   const player = canonId(input.userName);
-  const priorPlayer = input.prior.scene.detail.find((detail) => canonId(detail.id) === player);
-  const priorPlayerTraits = input.prior.cast[player]?.traits ?? [];
   if (player) allowed.add(player);
   const literalName = (n: string) => input.prose.toLocaleLowerCase().includes(n.toLocaleLowerCase());
   for (const p of s.present) {
@@ -274,25 +272,20 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       if (!input.personaState) {
         if (p.thought || p.mood || p.doing || p.condition || p.traits?.length) errors.push('player fields must be empty');
       } else {
-        const playerSource = input.agency === 'protected'
-          ? (input.userInput ?? '')
-          : `${input.userInput ?? ''}\n${input.prose}`;
+        // Persona State is explicit permission for a private tracker snapshot,
+        // independent of the narrative agency mode. Requiring verbatim prose
+        // evidence made Forbidden and Minor Continuity silently blank the row.
+        // The compiler may infer these metadata fields from the current scene,
+        // latest input, prior detail, and established characterization.
         for (const field of ['mood', 'doing', 'condition', 'thought'] as const) {
-          const value = p[field]?.trim() ?? '';
-          const before = priorPlayer?.[field]?.trim() ?? '';
-          if (value === before || !value) continue;
-          const path = `present.persona.${field}`;
-          if (!c.evidence.some((entry) => entry.path === path && playerSource.includes(entry.quote))) errors.push(`missing evidence: ${path}`);
+          if (!p[field]?.trim()) errors.push(`persona state requires ${field}`);
         }
         const traits = (p.traits ?? []).map((trait: string) => trait.trim().toLocaleLowerCase()).filter(Boolean).sort();
-        const priorTraits = priorPlayerTraits.map((trait: string) => trait.trim().toLocaleLowerCase()).filter(Boolean).sort();
-        if (traits.length && JSON.stringify(traits) !== JSON.stringify(priorTraits)) {
-          const path = 'present.persona.traits';
-          if (!c.evidence.some((entry) => entry.path === path && playerSource.includes(entry.quote))) errors.push(`missing evidence: ${path}`);
-        }
+        if (!traits.length) errors.push('persona state requires traits');
       }
     } else if (!p.thought.trim()) errors.push(`missing NPC thought: ${p.id}`);
   }
+  if (input.personaState && player && !present.has(player)) errors.push('persona state requires the player in present');
   const priorPresent = new Set(input.prior.scene.present.map(canonId));
   for (const id of priorPresent) needsEvidence(`present.remove.${id}`, !present.has(id));
   for (const id of present) if (id !== player) needsEvidence(`present.add.${id}`, !priorPresent.has(id));
@@ -304,10 +297,10 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   }
   for (const e of c.evidence) {
     if (input.personaState && e.path.startsWith('present.persona.')) {
-      const allowed = input.agency === 'protected'
-        ? (input.userInput ?? '').includes(e.quote)
-        : (input.userInput ?? '').includes(e.quote) || input.prose.includes(e.quote);
-      if (!allowed) errors.push(`evidence is not an allowed source quote: ${e.path}`);
+      // Evidence is optional for tracker-only inference. If a compiler includes
+      // it, still reject fabricated quotations.
+      const allowed = (input.userInput ?? '').includes(e.quote) || input.prose.includes(e.quote);
+      if (!allowed) errors.push(`persona evidence is not a current-turn source quote: ${e.path}`);
     } else if (!evidenceSource(e.path).includes(e.quote)) errors.push(`evidence is not an allowed source quote: ${e.path}`);
   }
   for (const [section, rows] of Object.entries(s.delta)) {

@@ -11,6 +11,8 @@
     "build:frontend": "tsup --entry.frontend src/ui/app.ts",
     "build:argent": "node scripts/build-argent-loom.mjs",
     "check:argent": "node scripts/build-argent-loom.mjs --check",
+    "build:compact": "node scripts/build-vellum-compact.mjs",
+    "check:compact": "node scripts/build-vellum-compact.mjs --check",
     "eval:argent": "bun scripts/eval-argent.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

@@ -11,7 +11,7 @@ import type { VellumEvent } from '../src/core/events.js';
 let seq = 0;
 const sf = () => ++seq;
 const ev = (e: Partial<VellumEvent>): VellumEvent => ({ seq: sf(), turn: 5, day: 1, src: 'model', ...(e as object) } as VellumEvent);
-const ctx = (state = freshState(), userCanon = '', personaState = false, personaValidated = false): ExtractCtx => ({ turn: 5, day: 1, state, seq: sf, userCanon, personaState, personaValidated } as any);
+const ctx = (state = freshState(), userCanon = '', personaState = false): ExtractCtx => ({ turn: 5, day: 1, state, seq: sf, userCanon, personaState } as any);
 
 describe('possession tracker — reduce', () => {
   it('gain adds an item and registers the holder; dedups same who+item', () => {
@@ -99,17 +99,19 @@ describe('{{user}} is always present (presence != authoring)', () => {
   });
 
   it('retains opted-in persona state and stable traits', () => {
-    const out = coreFeature.extract!({ scene: { loc: 'x' }, present: [{ id: 'Anne', mood: 'wary', condition: 'tired', thought: 'I need a plan.', doing: 'watching the door', traits: ['stubborn', 'loyal'] }] } as any, ctx(freshState(), 'anne', true, true));
+    const out = coreFeature.extract!({ scene: { loc: 'x' }, present: [{ id: 'Anne', mood: 'wary', condition: 'tired', thought: 'I need a plan.', doing: 'watching the door', traits: ['stubborn', 'loyal'] }] } as any, ctx(freshState(), 'anne', true));
     const scene = out.find((e) => e.kind === 'scene.set') as any;
     expect(scene.detail.find((d: any) => d.id === 'anne')).toMatchObject({ mood: 'wary', condition: 'tired', thought: 'I need a plan.', doing: 'watching the door' });
     expect(out.find((e) => e.kind === 'cast.edit' && (e as any).id === 'anne')).toMatchObject({ patch: { traits: ['stubborn', 'loyal'] } });
   });
 
-  it('strips an unvalidated inline persona row even while the option is on', () => {
-    const out = coreFeature.extract!({ scene: { loc: 'x' }, present: [{ id: 'Anne', mood: 'invented', thought: 'invented', traits: ['invented'] }] } as any, ctx(freshState(), 'anne', true));
+  it.each(['protected', 'continuity'] as const)('retains the complete inline persona row under %s agency without evidence', (agency) => {
+    const inlineCtx = ctx(freshState(), 'anne', true);
+    inlineCtx.agency = agency;
+    const out = coreFeature.extract!({ scene: { loc: 'x' }, present: [{ id: 'Anne', mood: 'wary', condition: 'tired', doing: 'watching', thought: 'I need a plan.', traits: ['stubborn'] }] } as any, inlineCtx);
     const scene = out.find((e) => e.kind === 'scene.set') as any;
-    expect(scene.detail.find((d: any) => d.id === 'anne')).toEqual({ id: 'anne' });
-    expect(out.some((e) => e.kind === 'cast.edit' && (e as any).id === 'anne')).toBe(false);
+    expect(scene.detail.find((d: any) => d.id === 'anne')).toMatchObject({ mood: 'wary', condition: 'tired', doing: 'watching', thought: 'I need a plan.' });
+    expect(out.find((e) => e.kind === 'cast.edit' && (e as any).id === 'anne')).toMatchObject({ patch: { traits: ['stubborn'] } });
   });
 
   it('accepts an inline persona row with agency-allowed exact evidence', () => {
@@ -144,10 +146,18 @@ describe('{{user}} is always present (presence != authoring)', () => {
       .toMatchObject({ patch: { traits: ['loyal'] } });
   });
 
+  it('preserves prior persona fields when an inline row omits unchanged tracker values', () => {
+    const state = freshState();
+    state.scene.detail = [{ id: 'anne', mood: 'wary', condition: 'tired', doing: 'watching the door', thought: 'I should wait.' }];
+    const out = coreFeature.extract!({ scene: { loc: 'x' }, present: [{ id: 'Anne', mood: 'resolved' }] } as any, ctx(state, 'anne', true));
+    const scene = out.find((e) => e.kind === 'scene.set') as any;
+    expect(scene.detail.find((d: any) => d.id === 'anne')).toMatchObject({ mood: 'resolved', condition: 'tired', doing: 'watching the door', thought: 'I should wait.' });
+  });
+
   it('keeps an opted-in physical condition until the story replaces it', () => {
     const state = freshState();
     state.scene.detail = [{ id: 'anne', condition: 'wounded' }];
-    const out = coreFeature.extract!({ scene: { loc: 'x' }, present: [{ id: 'Anne' }] } as any, ctx(state, 'anne', true, true));
+    const out = coreFeature.extract!({ scene: { loc: 'x' }, present: [{ id: 'Anne' }] } as any, ctx(state, 'anne', true));
     const scene = out.find((e) => e.kind === 'scene.set') as any;
     expect(scene.detail.find((d: any) => d.id === 'anne')).toEqual({ id: 'anne', condition: 'wounded' });
   });
