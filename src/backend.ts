@@ -56,8 +56,8 @@ import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOff
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
-import { agencyAtTurn, enginePassEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
-import { compileState } from './bus/state-compiler.js';
+import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
+import { compileState, type CompilerProgress } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
 import { collapseAssembledArgentPolicy } from './domain/argent-policy.js';
@@ -171,7 +171,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw, personaStateRaw] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw, engineWindowRaw, personaStateRaw] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -191,6 +191,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     getChatVar(chatId, 'vellum_block_example').catch(() => ''),
     readCompilerDiagnostic(chatId),
     getChatVar(chatId, 'vellum_engine_pass').catch(() => ''),
+    getChatVar(chatId, 'vellum_engine_window').catch(() => ''),
     getChatVar(chatId, 'vellum_persona_state').catch(() => ''),
   ]);
   const tidy = !!tidyRaw;
@@ -202,8 +203,9 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const autoRetryBlock = !!autoRetryRaw;
   const blockExample = !!blockExampleRaw2;
   const enginePass = enginePassEnabled(enginePassRaw);
+  const engineWindow = engineWindowEnabled(engineWindowRaw);
   const personaState = personaStateEnabled(personaStateRaw);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, personaState }, userId ?? currentUser() ?? undefined);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, engineWindow, personaState }, userId ?? currentUser() ?? undefined);
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -226,6 +228,11 @@ async function readCompilerDiagnostic(chatId: string): Promise<CompilerDiagnosti
 
 async function readEnginePassEnabled(chatId: string): Promise<boolean> {
   try { return enginePassEnabled(await getChatVar(chatId, 'vellum_engine_pass')); }
+  catch { return true; }
+}
+
+async function readEngineWindowEnabled(chatId: string): Promise<boolean> {
+  try { return engineWindowEnabled(await getChatVar(chatId, 'vellum_engine_window')); }
   catch { return true; }
 }
 
@@ -525,6 +532,10 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   }
   let added = 0;
   const foldedEvents: VellumEvent[] = []; // accumulate for Plot Director self-clear
+  const stagedEngineRuns: Array<{ turn: number; run: ReturnType<typeof beginEngineRun> }> = [];
+  const finishStagedEngineRuns = (ok: boolean, extra: Record<string, unknown> = {}): void => {
+    for (const staged of stagedEngineRuns.splice(0)) staged.run.finish(ok, { turn: staged.turn, ...extra });
+  };
   // Track the latest turn's raw content + parse source for post-loop block validation.
   let _latestContent = '';
   let _latestSource: 'json' | 'json-partial' | 'regex' | 'none' = 'none';
@@ -547,6 +558,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       ? agencyAtTurn(turnAgencyLedger, turnNo)
       : turnContract?.agency ?? 'protected';
     let compiled: Awaited<ReturnType<typeof compileState>> | null = null;
+    let engineRun: ReturnType<typeof beginEngineRun> | null = null;
     let expectedRevision: number | undefined;
     let foldContent = content;
     if (engineCompiler) {
@@ -558,7 +570,24 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
       const compilerConnection = await getChatVar(chatId, 'vellum_compiler_connection');
-      compiled = await compileState({ prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn }, userId, compilerConnection ? String(compilerConnection) : undefined);
+      if (await readEngineWindowEnabled(chatId)) engineRun = beginEngineRun(chatId, userId, turnNo);
+      try {
+        compiled = await compileState(
+          { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn },
+          userId,
+          compilerConnection ? String(compilerConnection) : undefined,
+          internalGenerate,
+          engineRun ? { onProgress: engineRun.report } : undefined,
+        );
+      } catch (e) {
+        const message = (e as Error)?.message ?? 'State compiler failed unexpectedly.';
+        finishStagedEngineRuns(false, { reason: 'later_turn_failed', message });
+        engineRun?.finish(false, { reason: 'compiler_error', message, errors: [message] });
+        await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors: [message] }));
+        spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${message}. Use Retry Engine in the floating window.` }, userId ?? undefined);
+        await broadcastState(chatId, userId);
+        return;
+      }
       // The user may switch the pass off while a slow compiler request is in
       // flight. Re-check before committing so disabling is immediate and an old
       // result can never mutate the Chronicle after the toggle moved to Off.
@@ -566,6 +595,9 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         enginePassOn = false;
         engineCompiler = false;
         compiled = null;
+        finishStagedEngineRuns(false, { reason: 'engine_disabled', message: 'Engine Pass was disabled before the replacement tail could be filed.' });
+        engineRun?.finish(false, { reason: 'engine_disabled', message: 'Engine Pass was disabled before the candidate could be filed.' });
+        engineRun = null;
         await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
         spindle.log?.info?.(`[vellum_engine] Engine Second Pass disabled while compiling turn ${turnNo}; discarded the candidate and kept the prose fallback.`);
       } else {
@@ -591,6 +623,8 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         const unchanged = snapshotStillCurrent && current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
         if (!compiled.ok || !unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
           const errors = !compiled.ok ? compiled.errors : ['The transcript or Chronicle changed during compilation; retry the fold.'];
+          finishStagedEngineRuns(false, { reason: 'later_turn_failed', errors });
+          engineRun?.finish(false, { reason: !compiled.ok ? 'invalid_candidate' : 'state_changed', errors });
           await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors }));
           spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${errors.slice(0, 2).join('; ')}. Use Retry Engine in the floating window.` }, userId ?? undefined);
           await flush(chatId);
@@ -605,6 +639,8 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     const { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {
+      finishStagedEngineRuns(false, { reason: 'later_turn_failed', errors: ['A later validated candidate could not be filed.'] });
+      engineRun?.finish(false, { reason: 'parser_rejected', errors: ['A validated compiler candidate did not round-trip through the canonical parser.'] });
       await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors: ['A validated compiler candidate did not round-trip through the canonical parser.'] }));
       spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: canonical parser rejected the candidate.` }, userId ?? undefined);
       return;
@@ -622,15 +658,29 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     const gist = turnGist(content, names);
     if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
     foldedEvents.push(...evs);
-    if (pendingRollback !== null && expectedRevision !== undefined) {
-      stagedTail.push(...evs);
-      prior = reduce(evs, prior);
-      if (turnNo === msgs.length) {
-        prior = await replaceTailDeferred(chatId, pendingRollback, stagedTail, expectedRevision);
-        pendingRollback = null; stagedTail = []; stagedExpectedRevision = undefined;
-      }
-    } else prior = await appendDeferred(chatId, evs, expectedRevision);
+    try {
+      if (pendingRollback !== null && expectedRevision !== undefined) {
+        stagedTail.push(...evs);
+        prior = reduce(evs, prior);
+        if (turnNo === msgs.length) {
+          prior = await replaceTailDeferred(chatId, pendingRollback, stagedTail, expectedRevision);
+          pendingRollback = null; stagedTail = []; stagedExpectedRevision = undefined;
+        }
+      } else prior = await appendDeferred(chatId, evs, expectedRevision);
+    } catch (e) {
+      const message = (e as Error)?.message ?? 'Chronicle commit failed.';
+      finishStagedEngineRuns(false, { reason: 'commit_error', message, errors: [message] });
+      engineRun?.finish(false, { reason: 'commit_error', message, errors: [message] });
+      throw e;
+    }
     if (compiled?.ok) await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+    if (compiled?.ok && engineRun) {
+      if (pendingRollback !== null) stagedEngineRuns.push({ turn: turnNo, run: engineRun });
+      else {
+        finishStagedEngineRuns(true);
+        engineRun.finish(true, { turn: turnNo });
+      }
+    }
     added += evs.length;
     // defer prose-driven extraction to PASS 2 (below the early broadcast).
     // `json-partial` means element salvage recovered the block by dropping corrupt
@@ -1455,6 +1505,56 @@ let _summarizing = new Set<string>();
 const _summaryAbort = new Map<string, AbortController>();
 
 type SummaryMode = 'auto' | 'manual' | 'resummarize' | 'pick' | 'arc' | 'book';
+
+/** Bridge one Engine Second Pass to the optional live frontend window. Provider
+ * chunks are batched so a long JSON object does not flood Spindle; reasoning is
+ * represented only as an activity state and its private tokens never cross the
+ * extension bridge. */
+function beginEngineRun(chatId: string, userId: string | null, turn: number): {
+  runId: string;
+  report: (update: CompilerProgress) => void;
+  finish: (ok: boolean, extra?: Record<string, unknown>) => void;
+} {
+  const runId = `eng_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const target = userId ?? currentUser() ?? undefined;
+  const sendStream = (payload: Record<string, unknown>): void => {
+    try { spindle.sendToFrontend?.({ type: 'vellum_engine_stream', runId, turn, ...payload }, target); } catch { /* best effort */ }
+  };
+  let pending = '';
+  let pendingAttempt = 1;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
+  const flushPending = (): void => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (!pending) return;
+    sendStream({ event: 'chunk', status: 'chunk', attempt: pendingAttempt, delta: pending });
+    pending = '';
+  };
+  const report = (update: CompilerProgress): void => {
+    if (closed) return;
+    if (update.status === 'chunk' && update.delta) {
+      if (pending && pendingAttempt !== update.attempt) flushPending();
+      pendingAttempt = update.attempt;
+      pending += update.delta;
+      if (pending.length >= 240) flushPending();
+      else if (!timer) timer = setTimeout(flushPending, 50);
+      return;
+    }
+    flushPending();
+    sendStream({ event: 'progress', ...update });
+  };
+  sendStream({ event: 'start', attempt: 1 });
+  return {
+    runId,
+    report,
+    finish(ok, extra = {}): void {
+      if (closed) return;
+      closed = true;
+      flushPending();
+      sendStream({ event: ok ? 'complete' : 'failed', ...extra });
+    },
+  };
+}
 
 /** One real-time frontend stream per summarizer run. Text chunks are batched for
  * ~50ms so token streaming stays smooth without flooding the extension bridge. */
@@ -3297,6 +3397,24 @@ const dispatch: Record<string, Handler> = {
     } catch (e) {
       spindle.log?.warn?.('[vellum_engine] engine-pass toggle: ' + ((e as Error)?.message ?? e));
       spindle.sendToFrontend?.({ type: 'vellum_engine_pass_set_done', ok: false, reason: 'error', enabled: await readEnginePassEnabled(chatId).catch(() => true) }, uid);
+    }
+  },
+  vellum_set_engine_window: async (p, uid) => {
+    // The live compiler window is independent of Engine Pass itself: hiding it
+    // changes presentation only and never suppresses state compilation.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) {
+      spindle.sendToFrontend?.({ type: 'vellum_engine_window_set_done', ok: false, reason: 'no_active_chat', enabled: true }, uid);
+      return;
+    }
+    const enabled = !!p?.enabled;
+    try {
+      await setChatVar(chatId, 'vellum_engine_window', enabled ? '' : 'off');
+      await broadcastState(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_engine_window_set_done', ok: true, enabled }, uid);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] engine-window toggle: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_engine_window_set_done', ok: false, reason: 'error', enabled: await readEngineWindowEnabled(chatId).catch(() => true) }, uid);
     }
   },
   vellum_set_persona_state: async (p, uid) => {

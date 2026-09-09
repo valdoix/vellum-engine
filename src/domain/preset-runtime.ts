@@ -70,6 +70,15 @@ export function enginePassEnabled(value: unknown): boolean {
   return !['off', 'false', '0', 'disabled'].includes(value.trim().toLowerCase());
 }
 
+/** Per-chat visibility for the live Engine Second Pass window. Unset is on so
+ * upgraded chats immediately expose compiler progress; users can independently
+ * hide the window without disabling the state compiler itself. */
+export function engineWindowEnabled(value: unknown): boolean {
+  if (value === false || value === 0) return false;
+  if (typeof value !== 'string') return true;
+  return !['off', 'false', '0', 'disabled'].includes(value.trim().toLowerCase());
+}
+
 /** Per-chat permission to retain persona tracker detail. This is
  * intentionally opt-in so an unset value preserves the historical hard blank. */
 export function personaStateEnabled(value: unknown): boolean {

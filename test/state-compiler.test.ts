@@ -355,6 +355,20 @@ describe('strict pre-commit state compiler', () => {
     expect(r.ok).toBe(true); expect(generate).toHaveBeenCalledTimes(2);
     expect(generate.mock.calls[1]![0][1].content).toContain('previous candidate was discarded');
   });
+  it('streams compiler content and lifecycle without exposing reasoning tokens', async () => {
+    const progress: Array<Record<string, unknown>> = [];
+    const generate = vi.fn(async (_messages: unknown, _params: unknown, _userId: unknown, options: any) => {
+      options.onStream?.({ type: 'reasoning', token: 'private chain of thought' });
+      options.onStream?.({ type: 'content', token: '{"state":' });
+      options.onStream?.({ type: 'content', token: '"streamed"}' });
+      return { ok: true as const, value: JSON.stringify(candidate()) };
+    });
+    const r = await compileState(input(), null, undefined, generate as any, { onProgress: (update) => progress.push(update as unknown as Record<string, unknown>) });
+    expect(r.ok).toBe(true);
+    expect(progress.map((update) => update.status)).toEqual(expect.arrayContaining(['start', 'reasoning', 'chunk', 'validating', 'validated']));
+    expect(progress.find((update) => update.status === 'validated')?.text).toContain('<vellum>');
+    expect(JSON.stringify(progress)).not.toContain('private chain of thought');
+  });
   it('accepts a complete compiler object wrapped in harmless provider chatter', async () => {
     const generate = vi.fn().mockResolvedValue({ ok: true, value: 'Here is the extracted state:\n```json\n' + JSON.stringify(candidate()) + '\n```' });
     expect((await compileState(input(), null, undefined, generate)).ok).toBe(true);

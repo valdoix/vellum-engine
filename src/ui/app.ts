@@ -30,6 +30,7 @@ import { assessVellumStateContract } from '../domain/preset-health.js';
 import { matchesPresetResponse } from '../domain/preset-request.js';
 import { installArtifacts } from './artifacts.js';
 import { cleanupSummarizerStream, handleSummarizerStream, updateSummarizerRound } from './summarizer-stream.js';
+import { cleanupEngineStream, handleEngineStream, settleEngineRetry } from './engine-stream.js';
 import { resolveBudget, type ContextBudget } from '../domain/context-budget.js';
 import { VELLUM_VERSION } from '../version.js';
 import type {
@@ -179,6 +180,7 @@ const QOL = [
   { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc/book prompts', group: 'settings' },
   // toggles = persistent on/off state
   { id: 'enginepass', label: '\u2699 Engine pass', title: 'Run Engine Second Pass when the active preset requests it. Off keeps the prose turn and uses VELLUM\'s fallback memory extraction without compiling full state.', group: 'toggle' },
+  { id: 'enginewindow', label: '\u25a3 Engine window', title: 'Pop up a live window while Engine Second Pass writes and validates the VELLUM file. This does not enable or disable the pass itself.', group: 'toggle' },
   { id: 'personastate', label: '\u2659 Persona state', title: 'Track the persona\'s grounded mood, condition, current activity, thought, and stable traits beside the rest of the cast. This does not change the selected player-agency rule.', group: 'toggle' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
   { id: 'traverse', label: '\u2748 Traverse', title: 'Controller-guided retrieval (click to cycle: off \u2192 flat one-shot \u2192 tree book\u2192arc\u2192chapter\u2192leaf drill; needs generation permission)', group: 'toggle' },
@@ -748,6 +750,7 @@ let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
 let _enginePassOn = true; // per-chat permission for Engine Second Pass; default on
+let _engineWindowOn = true; // optional live compiler window; default on
 let _personaStateOn = false; // grounded persona detail/traits; explicit per-chat opt-in
 let _autoRetryOn = false; // auto-repair a dropped <vellum> block, mirrored from backend
 let _blockExampleOn = false; // inject previous turn's block as worked example, mirrored from backend
@@ -994,6 +997,7 @@ function openActions(ctx: Ctx): void {
   const bodyHtml = (): string => {
     const toggleState: Record<string, string> = {
       enginepass: _enginePassOn ? 'on' : 'off',
+      enginewindow: _engineWindowOn ? 'on' : 'off',
       personastate: _personaStateOn ? 'on' : 'off',
       hide: _hideOn ? 'on' : 'off',
       offscreen: _offscreenOn ? 'on' : 'off',
@@ -1101,6 +1105,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'enginepass') { _enginePassOn = !_enginePassOn; setQolBusy('enginepass', true); ctx.sendToBackend({ type: 'vellum_set_engine_pass', enabled: _enginePassOn }); }
+  else if (id === 'enginewindow') { _engineWindowOn = !_engineWindowOn; setQolBusy('enginewindow', true); if (!_engineWindowOn) cleanupEngineStream(); ctx.sendToBackend({ type: 'vellum_set_engine_window', enabled: _engineWindowOn }); }
   else if (id === 'personastate') { _personaStateOn = !_personaStateOn; setQolBusy('personastate', true); ctx.sendToBackend({ type: 'vellum_set_persona_state', enabled: _personaStateOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
   else if (id === 'autoretry') { _autoRetryOn = !_autoRetryOn; ctx.sendToBackend({ type: 'vellum_set_autoretry', enabled: _autoRetryOn }); }
@@ -1988,6 +1993,15 @@ export function setup(ctx: Ctx): () => void {
             if (status) status.textContent = _enginePassOn ? 'on' : 'off';
           });
         }
+        if (typeof p.engineWindow === 'boolean') {
+          _engineWindowOn = p.engineWindow;
+          document.querySelectorAll('[data-qol=\'enginewindow\']').forEach((b) => {
+            b.classList.toggle('on', _engineWindowOn);
+            const status = b.querySelector('.vle-act-st');
+            if (status) status.textContent = _engineWindowOn ? 'on' : 'off';
+          });
+          if (!_engineWindowOn) cleanupEngineStream();
+        }
         if (typeof p.personaState === 'boolean') {
           _personaStateOn = p.personaState;
           document.querySelectorAll('[data-qol=\'personastate\']').forEach((b) => {
@@ -2218,6 +2232,8 @@ export function setup(ctx: Ctx): () => void {
         setQolBusy('exportmd', false);
         downloadText(`vellum-${p.chatId ?? 'chronicle'}.md`, p.markdown, 'text/markdown');
         notify(ctx, 'success', 'Story exported as Markdown.');
+      } else if (p?.type === 'vellum_engine_stream') {
+        if (_engineWindowOn) handleEngineStream(p, retryEngine);
       } else if (p?.type === 'vellum_summarizer_stream') {
         handleSummarizerStream(p, () => ctx.sendToBackend({ type: 'vellum_summarize_cancel' }));
       } else if (p?.type === 'vellum_summarize_start') {
@@ -2296,6 +2312,7 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, p.ok ? 'success' : 'warning', p.ok ? (p.refolded ? `Re-folded turn ${p.refolded}.` : 'Tracker refreshed.') : (p.reason === 'no_active_chat' ? 'No active chat.' : 'Refresh failed.'));
       } else if (p?.type === 'vellum_retry_engine_done') {
         engineRetryBusy = false;
+        settleEngineRetry(p);
         if (p.ok) {
           compilerDiagnostic = null;
           stickyToast('engine-retry', 'success', `Engine Second Pass completed for turn ${p.turn ?? ''}.`, true);
@@ -2378,6 +2395,17 @@ export function setup(ctx: Ctx): () => void {
         });
         if (!p.ok) notify(ctx, 'warning', p.reason === 'no_active_chat' ? 'Open a chat before changing Engine Second Pass.' : 'Could not change Engine Second Pass.');
         else notify(ctx, 'success', _enginePassOn ? 'Engine Second Pass on.' : 'Engine Second Pass off — turns use fallback memory extraction.');
+      } else if (p?.type === 'vellum_engine_window_set_done') {
+        setQolBusy('enginewindow', false);
+        _engineWindowOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'enginewindow\']').forEach((b) => {
+          b.classList.toggle('on', _engineWindowOn);
+          const status = b.querySelector('.vle-act-st');
+          if (status) status.textContent = _engineWindowOn ? 'on' : 'off';
+        });
+        if (!_engineWindowOn) cleanupEngineStream();
+        if (!p.ok) notify(ctx, 'warning', p.reason === 'no_active_chat' ? 'Open a chat before changing the Engine window.' : 'Could not change the Engine window.');
+        else notify(ctx, 'success', _engineWindowOn ? 'Engine window on — the next pass will stream live.' : 'Engine window off.');
       } else if (p?.type === 'vellum_persona_state_set_done') {
         setQolBusy('personastate', false);
         _personaStateOn = !!p.enabled;
@@ -2528,6 +2556,7 @@ export function setup(ctx: Ctx): () => void {
     try { _spkStyle?.(); } catch { /* ignore */ }
     try { cleanupToasts(); } catch { /* ignore */ }
     try { cleanupSummarizerStream(); } catch { /* ignore */ }
+    try { cleanupEngineStream(); } catch { /* ignore */ }
     try { cleanupModals(); } catch { /* ignore */ }
     try { closeOnboarding(); } catch { /* ignore */ }
     try { document.querySelectorAll('.vlfm-overlay, .vle-ob').forEach((el) => el.remove()); } catch { /* ignore */ }

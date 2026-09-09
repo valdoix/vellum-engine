@@ -14,6 +14,10 @@ describe('frontend distribution bundle', () => {
     expect(bundle).toContain('vellum_retry_engine');
     expect(bundle).toContain('Engine pass');
     expect(bundle).toContain('vellum_set_engine_pass');
+    expect(bundle).toContain('Engine window');
+    expect(bundle).toContain('vellum_set_engine_window');
+    expect(bundle).toContain('vellum_engine_stream');
+    expect(bundle).toContain('Generated VELLUM file');
     expect(bundle).toContain('Persona state');
     expect(bundle).toContain('vellum_set_persona_state');
     expect(bundle).toContain('Edit current scene');

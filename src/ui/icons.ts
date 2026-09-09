@@ -49,6 +49,7 @@ const PATHS: Record<string, string> = {
   tidyfacts: '<path d="M6 3h9l3 3v15H6z"/><path d="M9 11h5M9 15h3" opacity=".85"/><path d="M17 3.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
   summarizer: '<circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6 6l1.5 1.5M16.5 16.5L18 18M18 6l-1.5 1.5M7.5 16.5L6 18"/>',
   enginepass: '<path d="M5 7h14M16 4l3 3-3 3"/><path d="M19 17H5M8 14l-3 3 3 3"/>',
+  enginewindow: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7 9h3M7 12h7M7 15h10"/><path d="M17 7.5l1 1-1 1" opacity=".8"/>',
   personastate: '<circle cx="12" cy="8" r="3"/><path d="M6 20c.8-4 3-6 6-6s5.2 2 6 6"/><path d="M4 4h3M17 4h3"/>',
   // preset editor = a diagnostic panel: a framed card with a heartbeat/pulse line
   // (link + health + budget readouts). Distinct from customize (sliders) and the

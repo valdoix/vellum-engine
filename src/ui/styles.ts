@@ -1162,6 +1162,15 @@ export const STYLES = [
   "body:has(>.vle-sumwin) .vle-root:not(.vlfm){padding-bottom:72px}",
   "body:has(>.vle-sumwin:not(.is-min)) .vle-root:not(.vlfm){padding-bottom:min(78vh,760px)}",
   "@media(max-width:640px){.vle-sumwin{right:8px;bottom:8px;width:calc(100vw - 16px);max-height:70vh}.vle-sumwin-output{max-height:180px}}",
+  // Engine Pass shares the proven summarizer shell, but anchors left so the two
+  // independent background processes remain visible together on desktop.
+  ".vle-engwin{left:18px;right:auto}",
+  ".vle-engwin-attempt{flex:none;color:var(--vle-gold,#cda84e);opacity:.82;text-transform:uppercase}",
+  ".vle-engwin .vle-engwin-output{min-height:180px;max-height:min(42vh,420px);color:#d8d0c0}",
+  ".vle-engwin .vle-engwin-retry{border-color:rgba(var(--vg-rgb,205,168,78),.42);background:rgba(var(--vg-rgb,205,168,78),.1);color:var(--vle-gold,#cda84e)}",
+  ".vle-engwin .vle-engwin-retry:hover{background:rgba(var(--vg-rgb,205,168,78),.22)}",
+  "@media(min-width:641px){body:has(>.vle-engwin):has(>.vle-sumwin:not(.vle-engwin))>.vle-sumwin{width:min(560px,calc(50vw - 28px))}}",
+  "@media(max-width:640px){.vle-engwin{left:8px;right:8px;width:auto}.vle-engwin .vle-engwin-output{max-height:180px}}",
   ".vlfm{width:min(440px,100%);max-height:min(86vh,calc(100dvh - 24px));min-height:0;display:flex;flex-direction:column;container-type:inline-size;border-radius:14px;overflow:hidden;color:var(--vle-ink);background:linear-gradient(168deg,rgba(28,24,17,.99),rgba(16,14,10,1));border:1px solid rgba(var(--vg-rgb),.5);box-shadow:0 28px 80px rgba(0,0,0,.7)}",
   // Search / Customize / Actions carry .vle-root (to scope theme vars); the chrome
   // `.vle-root{background-image:...}` rules would otherwise beat .vlfm's opaque fill
