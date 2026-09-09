@@ -121,7 +121,11 @@ export function detectBackwardClock(priorDay: number, priorMin: number | undefin
  */
 export function hasDayAdvanceCue(text: string | undefined): boolean {
   if (!text) return false;
-  return /\b(next|following)\s+(morning|day|dawn|week|month|year)\b|\b(days?|weeks?|months?|years?)\s+(later|after|pass|passed|hence)\b|\bthe\s+next\s+day\b|\bfollowing\s+(morning|day)\b|\blater\s+that\s+(week|month|year)\b|\b(after|past)\s+midnight\b|\bovernight\b|\bday\s+\d+\b|\b(?:on|by|until|come)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b/i.test(text);
+  // A month/day label ("October 17") is deliberately NOT a generic advance
+  // cue. The number 17 is a calendar day-of-month, not VELLUM's elapsed story
+  // day count. Treating it as permission for any forward count is what allowed
+  // a story still on Day 2 to jump to Day 17.
+  return /\b(next|following)\s+(morning|day|dawn|week|month|year)\b|\b(days?|weeks?|months?|years?)\s+(later|after|pass|passed|hence)\b|\bthe\s+next\s+day\b|\bfollowing\s+(morning|day)\b|\blater\s+that\s+(week|month|year)\b|\b(after|past)\s+midnight\b|\bovernight\b|\bday\s+\d+\b|\b(?:on|by|until|come)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(text);
 }
 
 const NUMBER_WORDS: Readonly<Record<string, number>> = {
@@ -215,7 +219,7 @@ export function elapsedClockFloor(
   const expectedAbsolute = priorDay * 1440 + priorClock + elapsed;
   const reportedAbsolute = reportedDay * 1440 + reportedClock;
   // Vague passage can repair a frozen same-day minute, but it cannot prove that
-  // midnight happened. Crossing a date boundary still needs a named day/date cue
+  // midnight happened. Crossing a boundary still needs a named day transition
   // or a quantified completed duration, matching supportsDayAdvance().
   if (Math.floor(expectedAbsolute / 1440) > priorDay
     && !hasDayAdvanceCue(currentTurnText)
@@ -231,8 +235,9 @@ export function elapsedClockFloor(
   };
 }
 
-/** True only when prose itself proves that the calendar can move forward.
- * Explicit next-day/date language is sufficient. Otherwise a quantified elapsed
+/** True only when prose itself proves that the story-day count can move forward.
+ * Explicit next-day, weekday, or narrative-day language is sufficient for its
+ * supported span. Otherwise a quantified elapsed
  * duration must cover the proposed absolute clock difference. An earlier wall
  * clock by itself is never evidence of midnight; that was the day-creep hole. */
 export function supportsDayAdvance(
@@ -241,11 +246,20 @@ export function supportsDayAdvance(
   newClock: number | undefined,
   dayDelta = 1,
 ): boolean {
-  if (hasDayAdvanceCue(text)) return true;
-  if (priorClock === undefined || newClock === undefined || dayDelta < 1) return false;
-  if (!text || !hasElapsedPassageSyntax(text)) return false;
+  if (!text || dayDelta < 1) return false;
+  // An explicit narrative count is authoritative. Other qualitative cues such
+  // as "next morning" or a weekday transition establish one boundary only;
+  // they cannot justify copying October 17 into state.day or a similarly large
+  // unexplained jump. Multi-day changes need quantified elapsed duration.
+  if (/\b(?:story|narrative)\s+day\s+\d+\b|\bday\s+\d+\b/i.test(text)) return true;
+  if (hasDayAdvanceCue(text) && dayDelta === 1) return true;
+  if (!hasElapsedPassageSyntax(text)) return false;
   const elapsed = explicitElapsedMinutes(text);
   if (elapsed === undefined) return false;
+  // Whole-day quantified skips remain valid for legacy/coarse scenes without an
+  // exact clock. A bare calendar label never reaches this path because it states
+  // no elapsed duration.
+  if (priorClock === undefined || newClock === undefined) return elapsed >= dayDelta * 1440;
   const required = dayDelta * 1440 + newClock - priorClock;
   return required > 0 && elapsed >= required;
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ParsedState } from '../parse/parsed.js';
 import { canonId, hashStr } from '../core/ids.js';
-import { clockTime, elapsedClockFloor, parseClock, supportsDayAdvance } from './clock.js';
+import { clockTime, elapsedClockFloor, parseClock, reconcileDay, supportsDayAdvance } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 import type { ChronicleState } from './types.js';
 
@@ -235,6 +235,21 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     s.scene.clock = flooredClock.clock;
     s.scene.time = clockTime(flooredClock.clock);
   }
+  // State output carries an elapsed story-day count. Reconcile it before the
+  // absolute-clock gate so a compiler that copied a visible calendar component
+  // (October 17 -> day:17) is repaired to the prior count rather than either
+  // corrupting the Chronicle or discarding every other valid state update.
+  const reportedDay = s.day;
+  const timeProof = c.evidence.find(e => e.path === 'scene.time' && currentTurnSource.includes(e.quote));
+  const proofAt = timeProof ? currentTurnSource.indexOf(timeProof.quote) : -1;
+  const proofContext = proofAt >= 0
+    ? currentTurnSource.slice(Math.max(0, proofAt - 80), Math.min(currentTurnSource.length, proofAt + timeProof!.quote.length + 80))
+    : (flooredClock.inferred ? currentTurnSource : undefined);
+  const dayAdvanceEvidence = s.day > input.prior.day
+    && supportsDayAdvance(proofContext, priorClock, s.scene.clock, s.day - input.prior.day);
+  const dayReconcile = reconcileDay(s.day, input.prior.day, dayAdvanceEvidence, { priorClock, newClock: s.scene.clock });
+  s.day = dayReconcile.day;
+  const recoveredDayCount = s.day !== reportedDay;
   const [h, m] = s.scene.time.split(':').map(Number);
   if (h! * 60 + m! !== s.scene.clock) errors.push('time and clock disagree');
   if (s.day * 1440 + s.scene.clock < input.prior.day * 1440 + priorClock) errors.push('clock moves backward');
@@ -245,16 +260,6 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   };
   needsEvidence('scene.loc', s.scene.loc !== input.prior.scene.location);
   needsEvidence('scene.time', s.day !== input.prior.day || s.scene.clock !== input.prior.scene.clock, flooredClock.inferred);
-  if (input.prior.day > 0 && s.day > input.prior.day) {
-    const timeProof = c.evidence.find(e => e.path === 'scene.time' && currentTurnSource.includes(e.quote));
-    const proofAt = timeProof ? currentTurnSource.indexOf(timeProof.quote) : -1;
-    const proofContext = proofAt >= 0
-      ? currentTurnSource.slice(Math.max(0, proofAt - 80), Math.min(currentTurnSource.length, proofAt + timeProof!.quote.length + 80))
-      : (flooredClock.inferred ? currentTurnSource : undefined);
-    if (!supportsDayAdvance(proofContext, priorClock, s.scene.clock, s.day - input.prior.day)) {
-      errors.push('day advance lacks explicit prose evidence');
-    }
-  }
   if (c.genesis && (!input.genesisAllowed || !(s.ext.codex?.length))) errors.push('genesis requires an eligible request and established world facts');
   if (s.ext.codex?.length && input.codexAllowed === false && !(input.genesisAllowed && c.genesis)) errors.push('codex output is disabled');
   if (s.ext.inventory?.length && input.inventoryAllowed === false) errors.push('inventory output is disabled');
@@ -473,7 +478,13 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   for (const id of present) rows.delete(id);
   if (errors.length) return { ok: false, errors };
   const state = { ...s, delta: { ...s.delta, parallel: [...anonymousRows, ...rows.values()] } };
-  return { ok: true, candidate: c, baseHash: stateRevision(input.prior), block: `<vellum>\n${JSON.stringify(state)}\n</vellum>` };
+  return {
+    ok: true,
+    candidate: c,
+    baseHash: stateRevision(input.prior),
+    block: `<vellum>\n${JSON.stringify(state)}\n</vellum>`,
+    ...(recoveredDayCount ? { recovered: ['state.day (kept canonical story-day count)'] } : {}),
+  };
 }
 
 function pruneCompilerShape(value: unknown, schema: Record<string, any>): unknown {

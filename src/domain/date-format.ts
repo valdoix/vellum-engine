@@ -38,16 +38,16 @@ function pickMonth(names: string[] | undefined, fallback: string[], month: numbe
 }
 
 /**
- * Format a day number according to the specified format.
+ * Render the canonical narrative day count in the selected display format.
  *
- * @param day - The day number (0-based or 1-based depending on usage)
+ * @param dayCount - VELLUM's elapsed story-day count; never a calendar component
  * @param format - The desired output format
  * @param naming - Optional epoch + custom month/era names (a ChronicleState works)
  * @returns Formatted date string
  */
-export function formatDate(day: number, format: DateFormat, naming?: DateNaming): string {
+export function formatDate(dayCount: number, format: DateFormat, naming?: DateNaming): string {
   if (format === 'day') {
-    return `Day ${day}`;
+    return `Day ${dayCount}`;
   }
 
   const epoch = naming?.dateEpoch;
@@ -56,11 +56,11 @@ export function formatDate(day: number, format: DateFormat, naming?: DateNaming)
   if (epoch) {
     calendarDate = new Date(epoch);
     if (isNaN(calendarDate.getTime())) calendarDate = new Date(1, 0, 1);
-    calendarDate.setDate(calendarDate.getDate() + day);
+    calendarDate.setDate(calendarDate.getDate() + dayCount);
   } else {
     // Default epoch: January 1, year 1 (fictional calendar)
     calendarDate = new Date(1, 0, 1);
-    calendarDate.setDate(calendarDate.getDate() + day);
+    calendarDate.setDate(calendarDate.getDate() + dayCount);
   }
 
   const month = calendarDate.getMonth();
@@ -97,7 +97,7 @@ export function formatDate(day: number, format: DateFormat, naming?: DateNaming)
       return (naming?.yearPrefix || naming?.yearSuffix) ? yearStr : `Year ${year}`;
 
     default:
-      return `Day ${day}`;
+      return `Day ${dayCount}`;
   }
 }
 

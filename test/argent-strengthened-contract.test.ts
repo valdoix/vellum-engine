@@ -87,6 +87,17 @@ describe('ARGENT strengthened invariants', () => {
     expect(reality.indexOf('{{/if}}\n\n[WORLD LAW]')).toBeGreaterThan(0);
   });
 
+  it('separates the canonical story-day count from calendar display', () => {
+    const reality = block('arg-reality-time');
+    const schema = block('arg-state-schema');
+    const output = block('arg-output-contract');
+    expect(reality).toContain('STATE DAY SEMANTICS');
+    expect(reality).toContain('story Day 2 displayed as October 17');
+    expect(schema).toContain('canonical elapsed STORY DAY COUNT');
+    expect(schema).toContain('neither day:17 nor seventeen elapsed days');
+    expect(output).toContain('displayed date such as October 17 is presentation');
+  });
+
   it('activates ambient world texture at all three levels', () => {
     const texture = block('arg-world-texture');
     expect(texture).toContain('[AMBIENT WORLD PRESSURE]');

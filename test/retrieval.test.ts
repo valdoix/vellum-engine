@@ -188,6 +188,18 @@ describe('buildInjection — continuity guardrail', () => {
     expect(inj.text.indexOf('[NOW')).toBeLessThan(inj.text.indexOf('CAST & BONDS'));
   });
 
+  it('injects the canonical story-day count separately from its calendar rendering', () => {
+    const s = stateWith();
+    s.day = 2;
+    s.dateFormat = 'month-day-year';
+    s.dateEpoch = new Date(2001, 9, 15, 12);
+    s.scene = { location: 'Harrenhal', tension: 4, time: '19:38', clock: 1178, weather: '', present: [], detail: [] };
+    const inj = buildInjection('chatCalendarCount', s, 'what happens next');
+    expect(inj.text).toContain('canonical story day count: 2');
+    expect(inj.text).toContain('day=2');
+    expect(inj.text).toContain('October 17, 2001');
+  });
+
   it('injects the canonical numeric clock when a legacy time string is stale', () => {
     const s = stateWith();
     s.day = 47;

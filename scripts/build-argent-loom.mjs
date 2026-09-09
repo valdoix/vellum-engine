@@ -253,7 +253,7 @@ const controlVariables = [
   livingWorldVar,
   existingVar('time_continuity', {
     defaultValue: 1,
-    description: 'Track exact live time as zero-padded 24-hour scene.time (07:45) plus matching minutes-since-midnight scene.clock; keep day/date fixed until prose proves a rollover or time skip.',
+    description: 'Track an internal elapsed story-day count separately from the displayed calendar date, plus exact zero-padded 24-hour scene.time (07:45) and matching scene.clock; change the count only for proven elapsed days.',
   }),
   existingVar('worldgen', {
     defaultValue: 1,
@@ -444,6 +444,7 @@ REVEAL CADENCE: {{switch::{{var::reveal_cadence}}::withheld::favor traces, parti
 
   block('arg-reality-time', 'Reality, Time & Space', String.raw`{{if::{{var::time_continuity}}}}[REALITY LEDGER — MONOTONIC]
 Bind T0 from the authoritative day/date, one exact zero-padded 24-hour live clock, location, present cast, positions, conditions, held objects, and unfinished action. Derive T1 only from narrated events and elapsed duration.
+- STATE DAY SEMANTICS: state.day is the elapsed STORY DAY COUNT, independent of the displayed calendar. If T0 is story Day 2 displayed as October 17, keep day:2; never copy 17, a month, year, weekday, turn, or clock component into day. The extension alone converts the count to the chosen display format.
 
 - Compute A0 = day × 1440 + clock and A1 the same way. A1 MUST be greater than or equal to A0; rollback even by one minute is invalid.
 - Preserve T0 for OOC, static description, flashback, or an instant. Any completed live speech/action that takes time advances at least one minute. Add serial durations; do not double-count concurrent action.
@@ -554,7 +555,7 @@ After the prose, emit exactly one <vellum>...</vellum> block containing raw vali
 SUPPORTED TOP LEVEL:
 - v?: number
 - turn?: number — include only if VELLUM supplied the number; never guess
-- day?: number — current in-story day; change only when time actually crosses a day boundary
+- day?: integer — canonical elapsed STORY DAY COUNT. Copy T0 unless story time crosses a day boundary; add only the proven elapsed-day delta. Never write a displayed calendar day-of-month (October 17 means neither day:17 nor seventeen elapsed days).
 - scene?: {loc?, time?, clock?, tension?, weather?}
 - present?: [{id or name, mood?, doing?, condition?, thought?, traits?, evidence?}]
 - delta?: {bonds?, threads?, arcs?, journal?, knowledge?, secrets?, factions?, factionRelations?, parallel?}
@@ -705,7 +706,7 @@ Use private reasoning to audit Authority, Reality, Gnosis, Embodiment, Narrative
 Silently check agency, current reality, knowledge access, character motive, causal movement, and final deltas. Do not emit <reverie>.{{/if}}{{/if}}{{/if}}`, { group: CAT_FINAL, position: 'post_history' }),
 
   block('arg-state-final', 'State Compiler — Final', String.raw`{{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::lean}}}}}}[FINAL STATE COMPILER — LEAN, ATOMIC AND MANDATORY]
-Reserve ~700 output tokens and shorten prose before risking state. Compile established changes; PERSONA STATE alone permits tracker-only inference. Emit scene/present plus supported changes; omit empty sections except required parallel:[]. Put {{user}} first, blank when PERSONA STATE is OFF and fully populated in every agency mode when ON. Give each on-stage NPC a knowledge-limited first-person thought. Reconcile final T1 parallel: no present actor or stale origin, one final where/activity per actor. Require matching HH:MM/clock and reject day × 1440 + clock below T0. Precompose the object; once <vellum> opens, finish valid JSON, </vellum>, and nothing after.
+Reserve ~700 output tokens and shorten prose before risking state. Compile established changes; PERSONA STATE alone permits tracker-only inference. Emit scene/present plus supported changes; omit empty sections except required parallel:[]. Put {{user}} first, blank when PERSONA STATE is OFF and fully populated in every agency mode when ON. Give each on-stage NPC a knowledge-limited first-person thought. Reconcile final T1 parallel: no present actor or stale origin, one final where/activity per actor. Require matching HH:MM/clock and reject day × 1440 + clock below T0. Here day is only the elapsed story-day count; a displayed calendar date is never serialized into it. Precompose the object; once <vellum> opens, finish valid JSON, </vellum>, and nothing after.
 {{/if}}
 {{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::full}}}}}}[FINAL STATE COMPILER — FULL, ATOMIC AND MANDATORY]
 Before drafting prose, reserve the final ~900 output tokens for one complete state block. If the response budget becomes tight, shorten the prose; never abbreviate, omit, or truncate <vellum>. A Reverie T line, prose summary, planned JSON, empty object, or opening tag without the literal closing </vellum> does not satisfy this contract. The turn is incomplete until </vellum> has been emitted, with nothing after it.
@@ -742,7 +743,7 @@ For each named character and consequential fact, name the witnessed or transmitt
 When present NPC motives intersect, let them address and respond to one another directly. Keep it causal: no filler, round-robin quota, shared omniscience, absent speaker, or invented player response.{{/if}}
 
 {{if::{{var::time_continuity}}}}[EXACT CLOCK — REQUIRED FINAL GATE]
-Preserve T0 only for OOC, static description, flashback, or an instant. Completed live speech/action that takes time advances at least one minute; never freeze active beats. Keep day/date unchanged unless prose establishes a new day/date/time skip or quantified duration crosses midnight. Compute A0/A1 as day × 1440 + clock; A1 < A0 is forbidden. An earlier wall clock alone is not proof of midnight; never manufacture a day advance to conceal a rollback.{{if::${inlineState}}} scene.time must be HH:MM and scene.clock the matching minutes.{{/if}}{{/if}}
+Preserve T0 only for OOC, static description, flashback, or an instant. Completed live speech/action that takes time advances at least one minute; never freeze active beats. Keep the elapsed story-day count unchanged unless prose establishes a time skip or crosses midnight. A displayed date such as October 17 is presentation, never permission to write day:17; add only proven elapsed days to T0. Compute A0/A1 as day × 1440 + clock; A1 < A0 is forbidden. An earlier wall clock alone is not proof of midnight; never manufacture a day advance to conceal a rollback.{{if::${inlineState}}} scene.time must be HH:MM and scene.clock the matching minutes.{{/if}}{{/if}}
 
 {{if::${inlineState}}}[PLOT LEDGER — DIRECT CHANGE FINAL GATE]
 Start with zero plot rows. Admit the exact title only when prior condition -> direct event in this prose -> changed condition. Mentions, shared people/themes/places, elapsed time, repetition, and unrelated beats fail. Stall needs a blocked attempt; resolve needs closure; arc advance needs a changed linked thread or structural milestone. One event cannot advance unrelated rows. Uncertain means omit and preserve prior state.
@@ -1165,7 +1166,7 @@ const engineControlBlock = blocks.find((entry) => entry.id === 'arg-control-engi
 assert(agencyBlock.includes('An attempted action authorizes only the stated attempt') && agencyBlock.includes('Second-person grammar is not permission'), 'Protected-agency contract weakened');
 assert(finalAnchorBlock.includes('PROTECTED-AGENCY FORBIDDEN-PREDICATE GATE'), 'Final protected-agency gate missing');
 assert(outputContractBlock.includes('PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE') && outputContractBlock.includes('PLAYER AUTHORSHIP — MINOR CONTINUITY FINAL GATE') && outputContractBlock.includes('PLAYER AUTHORSHIP — DIRECTOR FINAL GATE'), 'Per-mode last-instruction agency gates missing');
-assert(timeBlock.includes('one exact zero-padded 24-hour live clock') && timeBlock.includes('A1 MUST be greater than or equal to A0') && timeBlock.includes('Keep the day/date exactly unchanged') && timeBlock.includes('advances at least one minute'), 'Exact-clock monotonic reality contract missing');
+assert(timeBlock.includes('one exact zero-padded 24-hour live clock') && timeBlock.includes('A1 MUST be greater than or equal to A0') && timeBlock.includes('STORY DAY COUNT') && timeBlock.includes('October 17') && timeBlock.includes('advances at least one minute'), 'Exact-clock monotonic reality contract missing');
 assert(outputContractBlock.includes('EXACT CLOCK — REQUIRED FINAL GATE') && outputContractBlock.includes('A1 < A0 is forbidden') && outputContractBlock.includes('An earlier wall clock alone is not proof of midnight') && outputContractBlock.includes('never freeze active beats'), 'Last-instruction monotonic clock gate missing');
 assert(dialogueBlock.includes('scan for bare eligible quotes') && dialogueBlock.includes('[spk=Exact Cast Name]'), 'Colored-dialogue construction contract missing');
 assert(outputContractBlock.includes('COLORED DIALOGUE — REQUIRED OUTPUT MARKUP'), 'Last-instruction colored-dialogue gate missing');

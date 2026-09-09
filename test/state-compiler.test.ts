@@ -52,7 +52,7 @@ describe('strict pre-commit state compiler', () => {
     expect(rejected.ok).toBe(false);
     if (!rejected.ok) expect(rejected.errors).toContain('persona state requires condition');
   });
-  it('rejects a manufactured next day when prose does not establish a rollover', () => {
+  it('repairs a manufactured next day and still rejects its backward wall clock', () => {
     const i = input();
     i.prior.scene = { ...i.prior.scene, time: '22:00', clock: 1320 };
     i.prose = 'Mara closes the ledger and remains beside the desk.';
@@ -62,7 +62,7 @@ describe('strict pre-commit state compiler', () => {
     c.evidence = [{ path: 'scene.time', quote: 'Mara closes the ledger' }];
     const r = validateCompilation(c, i);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors).toContain('day advance lacks explicit prose evidence');
+    if (!r.ok) expect(r.errors).toContain('clock moves backward');
   });
   it('accepts scene-time evidence from the latest player input', () => {
     const i = input();
@@ -301,6 +301,40 @@ describe('strict pre-commit state compiler', () => {
     const context = compilerContext(i);
     expect(context.length).toBeLessThan(45000);
     expect(context).toContain('Courtyard'); expect(context).toContain('Mara');
+  });
+  it('labels the canonical day count separately from the formatted calendar date', () => {
+    const i = input();
+    i.prior.day = 2;
+    i.prior.dateFormat = 'month-day-year';
+    i.prior.dateEpoch = new Date(2001, 9, 15, 12);
+    const context = JSON.parse(compilerContext(i));
+    expect(context.prior.dayCount).toBe(2);
+    expect(context.prior.displayedDate).toBe('October 17, 2001');
+    expect(context.prior.day).toBeUndefined();
+  });
+  it('repairs a copied calendar day-of-month in engine and inline state', () => {
+    const i = input();
+    i.prior.day = 2;
+    i.prior.dateFormat = 'month-day-year';
+    i.prior.dateEpoch = new Date(2001, 9, 15, 12);
+    i.prior.scene = { ...i.prior.scene, time: '19:38', clock: 1178 };
+    i.prose = 'October 17 remains cold. Mara waits one minute. Player stays quiet.';
+    const c = candidate();
+    c.state.day = 17;
+    c.state.scene = { loc: 'Archive', time: '19:39', clock: 1179 };
+    c.evidence = [{ path: 'scene.time', quote: 'October 17' }];
+    const compiled = validateCompilation(c, i);
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    expect(compiled.recovered).toContain('state.day (kept canonical story-day count)');
+    expect(JSON.parse(compiled.block.slice(9, -9)).day).toBe(2);
+
+    const inline = foldTurn(`October 17 remains cold. Mara waits one minute.
+<vellum>
+${JSON.stringify(c.state)}
+</vellum>`, i.prior, 2);
+    expect(inline.events.find(event => event.kind === 'turn.fold')?.day).toBe(2);
+    expect(inline.events.find(event => event.kind === 'continuity.flag' && event.code === 'day_creep')).toBeTruthy();
   });
   it('prioritizes an old relevant secret over newer unrelated rows', () => {
     const i = input();

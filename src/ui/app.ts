@@ -250,8 +250,8 @@ function openCalendarModal(ctx: Ctx): void {
   formModal('World Calendar', [
     { key: 'calendar', label: 'Current epoch / season / occasion (blank = none)', type: 'text', value: _calendar, placeholder: 'the third day of the harvest festival, year 312' },
     {
-      key: 'dateFormat', label: 'Time display format', type: 'select', value: _dateFormat,
-      hint: 'How the day counter reads everywhere (dashboard, beats, journal, export). Calendar formats derive a date from the day number + start date below.',
+      key: 'dateFormat', label: 'Date display format', type: 'select', value: _dateFormat,
+      hint: 'VELLUM always stores a separate narrative day count. This setting only changes how the extension renders that count in the dashboard, beats, journal, and exports; calendar day numbers never replace the stored count.',
       options: [
         { value: 'day', label: 'Day count \u2014 Day 1, Day 2\u2026' },
         { value: 'month-day-year', label: 'Month Day, Year \u2014 January 5, 2026' },

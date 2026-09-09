@@ -270,7 +270,8 @@ function structuredBlock(state: ChronicleState, budget: number, query = ''): str
 /**
  * Authoritative NOW line — the current clock stated as a hard fact, on the same
  * verbatim footing as cast/bonds (never similarity-retrieved). Composes the
- * calendar day, the time-of-day (clock slot or the raw scene.time string), and a
+ * canonical narrative day count, its separately formatted calendar label, the
+ * time-of-day (clock slot or the raw scene.time string), and a
  * "~N since the previous scene" tail from the scene-day anchors. Returns '' when
  * there is no scene/day yet (nothing authoritative to assert). PURE.
  */
@@ -289,11 +290,10 @@ export function nowInjection(state: ChronicleState): string {
   const head = [dateStr, timeStr].filter(Boolean).join(', ');
   const tail = span ? ` ~${span} elapsed since the previous scene.` : '';
   if (!head && !tail) return '';
-  // Anchor the clock WITHOUT implying it must advance: the day only moves when
-  // the story's action actually spans a day/night, not once per turn. "Keep this
-  // date unless the scene itself moves time" replaces the old "do not reset",
-  // which read as a one-way ratchet and made the model bump the day each turn.
-  return `[NOW \u2014 current in-story date. Keep it unless the scene's own action moves time forward; most turns stay the same day.] ${head}.${tail}`.replace(/\.\./g, '.');
+  // Always expose the count alongside its rendering. Calendar formats can show
+  // "October 17" while canonical state is still narrative Day 2; without both,
+  // models copied the day-of-month back into <vellum>.day.
+  return `[NOW \u2014 canonical story day count: ${day}. State field day means only this elapsed-story count, never a calendar day-of-month; VELLUM derives the chosen display date from it. Keep day=${day} unless the scene's own action crosses a day boundary.] ${head}.${tail}`.replace(/\.\./g, '.');
 }
 
 /** Short word for a faction standing value (for the injected structured line). */

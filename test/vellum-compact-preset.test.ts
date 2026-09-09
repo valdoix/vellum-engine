@@ -116,6 +116,16 @@ describe('VELLUM II — COMPACT preset', () => {
     });
   });
 
+  it('serializes an elapsed story-day count instead of a displayed date component', () => {
+    const reality = expanded('compact-reality', { time_continuity: 1 });
+    const schema = expanded('arg-state-schema', { state_on: 1, state_compiler: 'inline' });
+    const output = expanded('arg-output-contract', { time_continuity: 1 });
+    expect(reality).toContain('STORY DAY COUNT');
+    expect(reality).toContain('October 17 but remains day:2');
+    expect(schema).toContain('canonical elapsed STORY DAY COUNT');
+    expect(output).toContain('never copy a displayed date component');
+  });
+
   it('routes agency independently and never mixes the three final gates', () => {
     for (const [mode, expected, absent] of [
       ['protected', 'PLAYER AUTHORSHIP — FORBIDDEN FINAL GATE', 'DIRECTOR FINAL GATE'],

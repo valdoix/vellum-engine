@@ -83,9 +83,10 @@ describe('hasDayAdvanceCue / rollover', () => {
     expect(hasDayAdvanceCue('They worked overnight.')).toBe(true);
     expect(hasDayAdvanceCue('He drew his sword.')).toBe(false);
   });
-  it('recognizes explicit calendar references without treating ordinary prose as a skip', () => {
+  it('keeps calendar day-of-month labels separate from narrative-day evidence', () => {
     expect(hasDayAdvanceCue('On Tuesday, the hearing resumed.')).toBe(true);
-    expect(hasDayAdvanceCue('October 15th arrived cold and bright.')).toBe(true);
+    expect(hasDayAdvanceCue('October 15th arrived cold and bright.')).toBe(false);
+    expect(hasDayAdvanceCue('Narrative Day 15 began cold and bright.')).toBe(true);
     expect(hasDayAdvanceCue('May drew her sword.')).toBe(false);
   });
   it('suggests a rollover only when the clock wrapped with a prose cue', () => {
@@ -106,6 +107,8 @@ describe('explicit elapsed day evidence', () => {
     expect(supportsDayAdvance('Five minutes pass.', 1438, 3, 1)).toBe(true);
     expect(supportsDayAdvance('Five minutes pass.', 900, 3, 1)).toBe(false);
     expect(supportsDayAdvance('The next morning arrives.', 900, 540, 1)).toBe(true);
+    expect(supportsDayAdvance('The next morning is October 17.', 900, 540, 15)).toBe(false);
+    expect(supportsDayAdvance('Two days later, the gate opens.', 900, 540, 2)).toBe(true);
     expect(supportsDayAdvance('The clock reads 08:00.', 1320, 480, 1)).toBe(false);
     expect(supportsDayAdvance('"Come back in five minutes," she says.', 1438, 3, 1)).toBe(false);
   });

@@ -43,8 +43,9 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // duplicating bond deltas. Day is reconciled against narrative evidence below.
   const turn = turnNo;
   // DAY SANITY: the day counter is model-supplied and monotonic downstream, so a
-  // bad value sticks. reconcileDay accepts a forward date only when the stripped
-  // prose proves a rollover or skip; unsupported increments stay on the prior day.
+  // bad value sticks. reconcileDay accepts a forward story-day count only when
+  // stripped prose proves elapsed days, a rollover, or a skip. Calendar date
+  // components never become the counter; unsupported increments retain T0.
   const prose = stripScaffold(content);
   // clock evidence for the day-creep guard: the prior scene's ordered clock vs
   // the one this turn's scene reports (explicit or derived from its time string).

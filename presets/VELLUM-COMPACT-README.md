@@ -9,7 +9,7 @@ The generated preset has a hard 5,000-token standing-prompt ceiling using VELLUM
 - Forbidden, Minor Continuity, and Director player agency, resolved per turn.
 - Persona mood, condition, activity, private thought, and stable traits whenever Persona State is enabled, independently of the story-prose agency mode.
 - A per-character knowledge firewall for secrets, private scenes, inference, and transmitted information.
-- A monotonic minute clock that cannot move backward or invent a day rollover.
+- A monotonic minute clock and a canonical elapsed story-day count kept separate from calendar rendering, so October 17 cannot become narrative Day 17.
 - Character-specific motives, voices, relationships, NPC-to-NPC dialogue, and limited-knowledge thoughts.
 - Causal thread and arc movement that rejects unrelated progress.
 - Grounded off-screen activity with a replace-all current T1 parallel snapshot.

@@ -32,9 +32,9 @@ function block(id: string): PresetBlock {
 describe('VELLUM II preset 2.3 contract', () => {
   it('keeps the canonical v2-state block byte-for-byte intact', () => {
     const state = block('v2-state').content;
-    expect(state).toHaveLength(4157);
+    expect(state).toHaveLength(4283);
     expect(createHash('sha256').update(state, 'utf8').digest('hex')).toBe(
-      '60861c708f0a0519586c3432855cf5482c0eb55a46f4e7a749c5985f2bed76d8',
+      'c0c1db996729c613f1dbab8298d376f940853616e3f6416680d8ca596c92674b',
     );
   });
 
@@ -103,6 +103,17 @@ describe('VELLUM II preset 2.3 contract', () => {
     expect(time).toContain('does NOT overwrite the present-day clock');
     expect(time).toContain('OFF-SCREEN SYNCHRONIZATION');
     expect(time).toContain('SPACE COSTS TIME');
+  });
+
+  it('keeps the story-day count independent from calendar rendering', () => {
+    const time = block('v2-time').content;
+    const state = block('v2-state').content;
+    expect(time).toContain('canonical STORY DAY COUNT');
+    expect(time).toContain('story Day 2');
+    expect(time).toContain('October 17');
+    expect(time).toContain('state remains day:2');
+    expect(state).toContain('day = elapsed STORY DAY COUNT');
+    expect(state).toContain('VELLUM formats display');
   });
 
   it('keeps the worked turn example inside the declared state schema', () => {
