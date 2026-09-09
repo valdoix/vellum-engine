@@ -1,6 +1,7 @@
 import type { ChronicleState } from './types.js';
 import { arcLine } from './drift.js';
 import { formatDate } from './date-format.js';
+import { timelineDay } from './timeline-days.js';
 
 /**
  * Render the chronicle to a readable Markdown document — the shareable form of
@@ -19,7 +20,7 @@ export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
   const books = state.memories.filter((m) => m.tier === 'book').sort((a, b) => (a.covers?.[0] ?? a.turn) - (b.covers?.[0] ?? b.turn));
   const arcs = state.memories.filter((m) => m.tier === 'arc').sort((a, b) => (a.covers?.[0] ?? a.turn) - (b.covers?.[0] ?? b.turn));
   const chapters = state.memories.filter((m) => m.tier === 'chapter').sort((a, b) => (a.covers?.[0] ?? a.turn) - (b.covers?.[0] ?? b.turn));
-  const beats = state.memories.filter((m) => m.tier === 'beat').sort((a, b) => ((a.beatDay ?? 0) * 1e5 + a.turn) - ((b.beatDay ?? 0) * 1e5 + b.turn));
+  const beats = state.memories.filter((m) => m.tier === 'beat').sort((a, b) => (((timelineDay(state, a.turn, a.beatDay) ?? 0) * 1e5 + a.turn) - ((timelineDay(state, b.turn, b.beatDay) ?? 0) * 1e5 + b.turn)));
   if (books.length || arcs.length || chapters.length) {
     out.push('## Story So Far', '');
     for (const b of books) out.push('### Book' + (b.covers ? ` (turns ${b.covers[0]}–${b.covers[1]})` : ''), '', b.text, '');
@@ -29,7 +30,8 @@ export function toMarkdown(state: ChronicleState, title = 'Chronicle'): string {
   if (beats.length) {
     out.push('## Landmarks', '');
     for (const b of beats) {
-      const dayLabel = b.beatDay !== undefined ? formatDate(b.beatDay, state.dateFormat || 'day', state) : '';
+      const day = timelineDay(state, b.turn, b.beatDay);
+      const dayLabel = day !== undefined ? formatDate(day, state.dateFormat || 'day', state) : '';
       const timeStr = b.beatTime ? ', ' + b.beatTime : '';
       const prefix = dayLabel ? `**${dayLabel}${timeStr}** — ` : '';
       out.push('- ' + prefix + b.text);

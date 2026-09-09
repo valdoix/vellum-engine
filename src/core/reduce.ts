@@ -88,6 +88,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'turn.fold': {
       s.turns = Math.max(s.turns, e.turn);
       s.day = Math.max(s.day, e.day);
+      (s.turnDays ??= {})[String(e.turn)] = e.day;
       break;
     }
     case 'config.set': {
@@ -783,6 +784,16 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       // the SINGLE sanctioned override of the monotonic day rule: absolute SETS
       // (can lower a spurious high day), otherwise it advances like a report.
       s.day = e.absolute ? e.day : Math.max(s.day, e.day);
+      break;
+    }
+    case 'timeline.day.set': {
+      // Last correction wins per turn. The original turn.fold/day stamps remain
+      // intact underneath, making a reset lossless and keeping audit history.
+      const overrides = (s.timelineDayOverrides ??= {});
+      for (let turn = e.fromTurn; turn <= e.toTurn; turn++) {
+        if (e.narrativeDay === null) delete overrides[String(turn)];
+        else overrides[String(turn)] = e.narrativeDay;
+      }
       break;
     }
     case 'trait.drift': {

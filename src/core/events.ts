@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 22 as const;
+export const SCHEMA_VERSION = 23 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -118,6 +118,17 @@ export const EvContinuityFlag = z.object({ ...base, kind: z.literal('continuity.
 // forward-only rule intentionally, to fix a spurious high day); otherwise it
 // advances like a normal report (Math.max). SCHEMA 17. Additive.
 export const EvDaySet = z.object({ ...base, kind: z.literal('day.set'), day: z.number().int().nonnegative(), absolute: z.boolean().optional() });
+// Historical chronology correction. Narrative time belongs to a TURN, so a
+// correction covers an inclusive turn range and moves every Timeline record in
+// that range together. `narrativeDay:null` clears a prior correction and falls
+// back to the recorded turn/entry stamp. This never rewrites the original log.
+export const EvTimelineDaySet = z.object({
+  ...base,
+  kind: z.literal('timeline.day.set'),
+  fromTurn: z.number().int().nonnegative(),
+  toTurn: z.number().int().nonnegative(),
+  narrativeDay: z.number().int().nonnegative().nullable(),
+});
 
 // --- Personality drift: a versioned, cause-linked record of how a character's
 // TRAITS change over time (self memory). The model only emits trait tags; the
@@ -236,7 +247,7 @@ export const VellumEvent = z.discriminatedUnion('kind', [
   EvJournal, EvJournalDrop, EvJournalEdit,
   EvScarForm, EvScarDrop, EvLoreNote, EvLoreConfirm, EvLoreCorrect, EvLoreRefresh, EvLoreReject, EvLoreDrop,
   EvItemChange, EvItemDrop,
-  EvLocationSet, EvLocationDrop, EvContinuityFlag, EvDaySet,
+  EvLocationSet, EvLocationDrop, EvContinuityFlag, EvDaySet, EvTimelineDaySet,
   EvTraitDrift,
   EvPlantSet, EvPlantPay, EvPlantAbandon, EvPlantDrop,
   EvParallel, EvOffscreen, EvOffscreenDrop, EvOffscreenLink,

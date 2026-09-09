@@ -189,7 +189,8 @@ export function migrate(raw: unknown): unknown {
   // v20 adds state.compiled audit events. Existing events retain their semantics.
   // v21 adds recursive archive coverage proofs, prose-driven Codex refreshes,
   // and a derived item-transfer history. v22 adds book-tier memories above arcs.
-  // Both additions are backward compatible.
+  // v23 adds append-only historical Timeline day corrections. All additions are
+  // backward compatible; older logs simply have no correction events.
   obj.version = SCHEMA_VERSION;
   return obj;
 }

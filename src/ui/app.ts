@@ -2286,6 +2286,17 @@ export function setup(ctx: Ctx): () => void {
         notify(ctx, 'info', n ? `${n} beat suggestion${n === 1 ? '' : 's'} ready in Chronicle \u2192 Beats.` : 'No new beats to suggest yet.');
       } else if (p?.type === 'vellum_beat_done') {
         // state broadcast already refreshes the view; nothing else to do
+      } else if (p?.type === 'vellum_timeline_day_set_done') {
+        if (p.ok) {
+          const turns = p.fromTurn === p.toTurn ? `turn ${p.fromTurn}` : `turns ${p.fromTurn}\u2013${p.toTurn}`;
+          notify(ctx, 'success', p.clear
+            ? `Removed the Timeline day correction for ${turns}.`
+            : `Set ${turns} to narrative day ${p.day}.${p.currentUpdated ? ' NOW was corrected too.' : ''}`);
+        } else if (p.reason === 'time_backward' && p.conflict) {
+          notify(ctx, 'warning', `That repair would make time go backward: turn ${p.conflict.earlierTurn} is day ${p.conflict.earlierDay}, but turn ${p.conflict.laterTurn} would be day ${p.conflict.laterDay}. Expand the repaired turn range.`);
+        } else if (p.reason === 'bad_range') notify(ctx, 'warning', `Choose a valid turn range between 0 and ${p.maxTurn ?? 0}.`);
+        else if (p.reason === 'bad_day') notify(ctx, 'warning', 'Narrative day must be zero or greater.');
+        else notify(ctx, 'warning', 'The Timeline day correction could not be saved.');
       } else if (p?.type === 'vellum_resummarize_done') {
         setQolBusy('resummarize', false);
         if (!p.ok) notify(ctx, p.reason === 'cancelled' || p.reason === 'busy' ? 'info' : 'warning', p.reason === 'no_generation' ? 'Re-summarize needs the generation permission.' : p.reason === 'cancelled' ? 'Re-summarize stopped safely.' : p.reason === 'busy' ? 'A summarizer run is already in progress.' : `Re-summarize failed while saving the archive: ${p.reason ?? 'unknown error'}.`);

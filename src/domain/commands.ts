@@ -255,6 +255,14 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       const absolute = e.absolute === false ? false : true;
       return [{ ...base(ctx), kind: 'day.set', day, absolute } as VellumEvent];
     }
+    case 'timeline_day_set': {
+      const fromTurn = Math.floor(Number(e.fromTurn));
+      const toTurn = Math.floor(Number(e.toTurn));
+      const narrativeDay = e.clear === true ? null : Math.floor(Number(e.day));
+      if (!Number.isFinite(fromTurn) || !Number.isFinite(toTurn) || fromTurn < 0 || toTurn < fromTurn) return [];
+      if (narrativeDay !== null && (!Number.isFinite(narrativeDay) || narrativeDay < 0)) return [];
+      return [{ ...base(ctx), kind: 'timeline.day.set', fromTurn, toTurn, narrativeDay } as VellumEvent];
+    }
     case 'config_set': {
       const formats = ['day', 'month-day-year', 'month-day', 'month', 'week', 'month-year', 'year'];
       const df = formats.includes(String(e.dateFormat)) ? e.dateFormat : undefined;
@@ -292,5 +300,5 @@ export const CMD_TYPES = new Set([
   'knowledge_add', 'knowledge_delete', 'secret_add', 'secret_reveal', 'secret_delete',
   'memory_add', 'memory_delete', 'memory_edit', 'memory_delete_many',
   'thread_op', 'arc_op', 'journal_add', 'journal_delete', 'journal_edit', 'parallel_set', 'scene_set',
-  'scar_add', 'scar_delete', 'lore_add', 'lore_confirm', 'lore_correct', 'lore_reject', 'lore_delete', 'config_set', 'day_set',
+  'scar_add', 'scar_delete', 'lore_add', 'lore_confirm', 'lore_correct', 'lore_reject', 'lore_delete', 'config_set', 'day_set', 'timeline_day_set',
 ]);

@@ -1,5 +1,6 @@
 import type { ChronicleState } from './types.js';
 import { spanLabel } from './date-format.js';
+import { timelineDay } from './timeline-days.js';
 
 /**
  * Living Clock (opt-in) — when a time-skip is detected, surface ADVISORY
@@ -50,8 +51,8 @@ export function agingInjection(state: ChronicleState, nowDay: number, skipDays: 
   // 3) Distant defining memories: a landmark beat from long before now should be
   // recalled as DISTANT ("months ago"), not as if it just happened.
   const beats = (state.memories ?? [])
-    .filter((m) => m.tier === 'beat' && typeof m.beatDay === 'number')
-    .map((m) => ({ text: m.text, age: nowDay - (m.beatDay as number) }))
+    .filter((m) => m.tier === 'beat' && timelineDay(state, m.turn, m.beatDay) !== undefined)
+    .map((m) => ({ text: m.text, age: nowDay - timelineDay(state, m.turn, m.beatDay)! }))
     .filter((m) => m.age > 0 && spanLabel(m.age))
     .sort((a, b) => b.age - a.age)
     .slice(0, 3);

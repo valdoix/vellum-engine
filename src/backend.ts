@@ -65,6 +65,7 @@ import { assessVellumStateContract, VELLUM_STATE_BLOCK_CONTENT } from './domain/
 import { formatDryRunMessages, visiblePreviewContent } from './domain/preset-preview.js';
 import { reduce } from './core/reduce.js';
 import { dialogueMarkupGuidance, repairDialogueSpeakerTags, type DialogueIdentity } from './domain/dialogue-colors.js';
+import { timelineRepairConflict } from './domain/timeline-days.js';
 
 function dialogueIdentities(state: ChronicleState, names: { user: string; char: string }): DialogueIdentity[] {
   const ordered: DialogueIdentity[] = [];
@@ -3569,6 +3570,39 @@ const dispatch: Record<string, Handler> = {
     const evs = cmdEvents('day_set', { day, absolute: true }, state, { turn: state.turns || 0, day: state.day || 0 });
     if (evs.length) { await append(chatId, evs); invalidateIndex(chatId); await broadcastState(chatId, uid); }
     spindle.sendToFrontend?.({ type: 'vellum_day_set_done', ok: true, day }, uid);
+  },
+  vellum_timeline_day_set: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_timeline_day_set_done', ok: false, reason: 'no_active_chat' }, uid); return; }
+    const fromTurn = Math.floor(Number(p?.fromTurn));
+    const toTurn = Math.floor(Number(p?.toTurn));
+    const clear = p?.clear === true;
+    const day = clear ? null : Math.floor(Number(p?.day));
+    const state = await loadState(chatId);
+    if (!Number.isFinite(fromTurn) || !Number.isFinite(toTurn) || fromTurn < 0 || toTurn < fromTurn || toTurn > state.turns) {
+      spindle.sendToFrontend?.({ type: 'vellum_timeline_day_set_done', ok: false, reason: 'bad_range', maxTurn: state.turns }, uid);
+      return;
+    }
+    if (day !== null && (!Number.isFinite(day) || day < 0)) {
+      spindle.sendToFrontend?.({ type: 'vellum_timeline_day_set_done', ok: false, reason: 'bad_day' }, uid);
+      return;
+    }
+    const conflict = timelineRepairConflict(state, fromTurn, toTurn, day);
+    if (conflict) {
+      spindle.sendToFrontend?.({ type: 'vellum_timeline_day_set_done', ok: false, reason: 'time_backward', conflict }, uid);
+      return;
+    }
+    const evs = cmdEvents('timeline_day_set', { fromTurn, toTurn, ...(clear ? { clear: true } : { day }) }, state, { turn: state.turns || 0, day: state.day || 0 });
+    // When the corrected range reaches the latest turn, keep NOW and Timeline on
+    // the same canonical day. Historical-only repairs leave the current day alone.
+    if (!clear && fromTurn <= state.turns && toTurn >= state.turns) {
+      evs.push(...cmdEvents('day_set', { day, absolute: true }, state, { turn: state.turns || 0, day: state.day || 0 }));
+    }
+    if (!evs.length) { spindle.sendToFrontend?.({ type: 'vellum_timeline_day_set_done', ok: false, reason: 'invalid' }, uid); return; }
+    await append(chatId, evs);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_timeline_day_set_done', ok: true, fromTurn, toTurn, day, clear, currentUpdated: !clear && toTurn >= state.turns }, uid);
   },
   vellum_set_chaptervault: async (p, uid) => {
     // Chapter-vault mode: off | keyed (default) | constant. Detailed hierarchical

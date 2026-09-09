@@ -367,6 +367,7 @@ export const STYLES = [
   ".vle-spine-l .vle-spine-card::after,.vle-spine-r .vle-spine-card::after{content:'';position:absolute;top:14px;width:18px;height:2px;background:rgba(var(--vg-rgb),.3)}",
   ".vle-spine-l .vle-spine-card::after{right:-21px}.vle-spine-r .vle-spine-card::after{left:-21px}",
   ".vle-spine-meta{display:flex;gap:7px;align-items:baseline;margin-bottom:2px}",
+  ".vle-spine-fix{margin-left:auto;border:0;background:transparent;color:var(--vg);opacity:.58;font:600 calc(8px * var(--vscale))/1 var(--vmono);letter-spacing:0;text-transform:uppercase;padding:2px 3px;cursor:pointer;white-space:nowrap}.vle-spine-fix:hover,.vle-spine-fix:focus-visible{opacity:1;text-decoration:underline}.vle-spine-beat-k .vle-spine-fix{margin-left:5px}",
   ".vle-spine-kind{font:600 var(--vt-eyebrow)/1 var(--vmono);letter-spacing:.5px;text-transform:uppercase;opacity:.7}",
   ".vle-spine-t{font:600 calc(9px * var(--vscale))/1 var(--vmono);opacity:.5}",
   ".vle-spine-x{font-size:calc(12.5px * var(--vscale));line-height:1.45;color:var(--vi2)}",

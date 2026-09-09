@@ -1,6 +1,7 @@
 import type { ChronicleState, Memory } from './types.js';
 import type { VellumEvent } from '../core/events.js';
 import { formatDate } from './date-format.js';
+import { timelineDay } from './timeline-days.js';
 
 /**
  * Story Beats (tier 'beat') — author-curated landmark index cards. Distinct from
@@ -20,17 +21,18 @@ export function beats(state: ChronicleState): Memory[] {
 }
 
 /** Chronological sort key: prefer the authored day/time, fall back to turn. */
-function beatOrder(m: Memory): number {
+function beatOrder(m: Memory, state?: ChronicleState): number {
   // day dominates; turn breaks ties and covers beats with no authored day
-  return (m.beatDay ?? 0) * 100000 + m.turn;
+  const day = state ? timelineDay(state, m.turn, m.beatDay) : m.beatDay;
+  return (day ?? 0) * 100000 + m.turn;
 }
 
 /** Beats in display order: manual `ord` (author reordering) wins when present;
  * otherwise chronological. Mixed lists keep ord-beats in their slot and slot the
  * rest chronologically around them via a stable comparison. */
 export function sortedBeats(state: ChronicleState): Memory[] {
-  const key = (m: Memory): number => m.ord !== undefined ? m.ord : beatOrder(m);
-  return beats(state).slice().sort((a, b) => key(a) - key(b) || beatOrder(a) - beatOrder(b));
+  const key = (m: Memory): number => m.ord !== undefined ? m.ord : beatOrder(m, state);
+  return beats(state).slice().sort((a, b) => key(a) - key(b) || beatOrder(a, state) - beatOrder(b, state));
 }
 
 /**
@@ -69,8 +71,9 @@ export function beatReorderEvents(state: ChronicleState, id: string, dir: -1 | 1
 
 /** A short "[Day N · time] text" label for one beat (display + spine line). */
 export function beatLabel(m: Memory, state?: ChronicleState): string {
-  const day = m.beatDay !== undefined
-    ? (state ? formatDate(m.beatDay, state.dateFormat || 'day', state) : `Day ${m.beatDay}`)
+  const effectiveDay = state ? timelineDay(state, m.turn, m.beatDay) : m.beatDay;
+  const day = effectiveDay !== undefined
+    ? (state ? formatDate(effectiveDay, state.dateFormat || 'day', state) : `Day ${effectiveDay}`)
     : '';
   const time = m.beatTime ? (day ? ', ' + m.beatTime : m.beatTime) : '';
   const anchor = day || time ? `[${day}${time}] ` : '';
@@ -149,7 +152,7 @@ export function suggestBeats(state: ChronicleState, limit = 8): BeatSuggestion[]
   // defining / significant journal moments
   for (const j of state.journal) {
     if (j.weight === 'defining' || j.weight === 'significant') {
-      out.push({ turn: j.turn, day: j.day, text: j.memory, source: 'journal' });
+      out.push({ turn: j.turn, day: timelineDay(state, j.turn) ?? j.day, text: j.memory, source: 'journal' });
     }
   }
   // resolved plot threads (a thread resolving is almost always a landmark)

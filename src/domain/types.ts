@@ -355,6 +355,13 @@ export interface ChronicleState {
   scene: Scene;
   day: number;
   turns: number;
+  /** Recorded narrative-day stamp for every folded turn. Re-derived from
+   * turn.fold events, including old logs, so all Timeline row kinds can share
+   * one chronological axis instead of carrying unrelated per-record dates. */
+  turnDays: Record<string, number>;
+  /** User-authored repairs layered over turnDays. Keys are turn numbers. The
+   * source events are append-only, so clearing a repair reveals the original. */
+  timelineDayOverrides: Record<string, number>;
   // Narrative-day anchors for the current and immediately-prior scene, used by
   // the authoritative NOW injection to state "~N since the previous scene".
   // Optional/derived; absent on pre-clock logs and set lazily on the next fold.
@@ -420,6 +427,8 @@ export function freshState(): ChronicleState {
     scene: { location: '', time: '', tension: 0, weather: '', present: [], detail: [] },
     day: 0,
     turns: 0,
+    turnDays: {},
+    timelineDayOverrides: {},
     tone: { ...DEFAULT_TONE },
     dateFormat: 'day',
   };

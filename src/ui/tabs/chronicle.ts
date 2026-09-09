@@ -10,6 +10,7 @@ import { parseClock, clockTime } from '../../domain/clock.js';
 import { checkThreadOffscreenSync } from '../../domain/continuity.js';
 import { activeShape } from '../theme.js';
 import { shapeOrnament } from '../ornament.js';
+import { timelineDay } from '../../domain/timeline-days.js';
 
 
 /**
@@ -66,6 +67,7 @@ const _chapExpanded = new Set<string>();
 // (which runs in mount(), where render() state `s` is not in scope).
 let _arcSnapshot: Array<{ id: string; name: string; beats: string[] }> = [];
 let _sceneSnapshot = { location: '', time: '', weather: '', tension: 0 };
+let _timelineSnapshot = { maxTurn: 0 };
 
 /** First-sentence preview of a (possibly very long) stored turn text. We store
  * turns in FULL now; the chronicle shows only one line + an ellipsis, with the
@@ -80,7 +82,7 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.day}:${s.scene.location}:${s.scene.time}:${s.scene.clock ?? ''}:${s.scene.weather}:${s.scene.tension}:${s.scene.present.join(',')}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.day}:${s.scene.location}:${s.scene.time}:${s.scene.clock ?? ''}:${s.scene.weather}:${s.scene.tension}:${s.scene.present.join(',')}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${Object.entries(s.timelineDayOverrides ?? {}).map(([t, d]) => t + '=' + d).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     loreSnapshot = s.lore;
     _sceneSnapshot = {
@@ -89,6 +91,7 @@ export const chronicleTab: Component<ChronicleState> = {
       weather: s.scene.weather ?? '',
       tension: Number(s.scene.tension) || 0,
     };
+    _timelineSnapshot = { maxTurn: s.turns || 0 };
     const openOff = (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).filter((p) => p.src !== 'sim').length;
     const memCount = s.memories.filter((m) => m.tier !== 'beat').length; // Memory view excludes beats (own tab)
     const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + openOff, timeline: s.memories.length, turns: _turnMax, beats: s.memories.filter((m) => m.tier === 'beat').length, timesync: 0, memory: memCount, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
@@ -137,6 +140,24 @@ export const chronicleTab: Component<ChronicleState> = {
       if (nv) { _view = nv.getAttribute('data-cview') as CView; if (_view === 'turns') send({ type: 'vellum_get_turnlog' }); refreshUI(); return; }
       const tu = t.closest('[data-turn-undo]');
       if (tu) { confirmModal('Undo this turn? Its chronicle changes are dropped (the chat message stays).', () => { send({ type: 'vellum_undo' }); setTimeout(() => send({ type: 'vellum_get_turnlog' }), 400); }); return; }
+      const dayFix = t.closest('[data-tl-day-fix]');
+      if (dayFix) {
+        const turn = dayFix.getAttribute('data-turn') ?? '';
+        const day = dayFix.getAttribute('data-day') ?? '';
+        formModal('Repair Timeline Days', [
+          { key: 'mode', label: 'Repair', type: 'select', value: 'set', options: [{ value: 'set', label: 'Set the correct narrative day' }, { value: 'clear', label: 'Remove a prior correction' }] },
+          { key: 'fromTurn', label: 'First turn', type: 'number', min: 0, max: _timelineSnapshot.maxTurn, step: 1, value: turn, hint: 'Every Timeline entry on the selected turns moves together.' },
+          { key: 'toTurn', label: 'Last turn', type: 'number', min: 0, max: _timelineSnapshot.maxTurn, step: 1, value: turn },
+          { key: 'day', label: 'Correct narrative day', type: 'number', min: 0, step: 1, value: day, hint: `The Chronicle stores story-day count separately from the displayed calendar date. A range reaching turn ${_timelineSnapshot.maxTurn} also corrects NOW.` },
+        ], (o) => send({
+          type: 'vellum_timeline_day_set',
+          fromTurn: o.fromTurn === '' ? undefined : Number(o.fromTurn),
+          toTurn: o.toTurn === '' ? undefined : Number(o.toTurn),
+          day: o.day === '' ? undefined : Number(o.day),
+          clear: o.mode === 'clear',
+        }), { saveLabel: 'Apply repair' });
+        return;
+      }
       const tk = t.closest('[data-tl-kind]');
       if (tk) { _tlKind = tk.getAttribute('data-tl-kind')!; refreshUI(); return; }
       const td = t.closest('[data-tl-day]');
@@ -701,10 +722,10 @@ function tracks(title: string, list: ChronicleState['arcs'], kindArc: boolean, s
  * Timeline — a vertical rail keyed on the reliable TURN axis, with model-emitted
  * `day` labels overlaid where present (day is sparse, so it's a label, never the
  * spine). Book/arc/chapter summaries render as covers-spans; their turn ranges place
- * them on the rail. Pure view over existing state — no schema change.
+ * them on the rail. Historical day repairs are layered over the immutable log.
  */
 function timeline(s: ChronicleState): string {
-  const head = sectionHeader('\u2637 Timeline', { sub: true, count: s.memories.length });
+  const head = sectionHeader('\u2637 Timeline', { sub: true, count: s.memories.length, action: '<button class="vle-add sm" data-tl-day-fix title="Correct narrative days for a turn range">\u270E fix days</button>' });
   // Collect summaries by their coverage end and individual records by turn.
   type Row = { turn: number; day?: number; min?: number; kind: string; group: string; text: string; span?: [number, number] };
   const rows: Row[] = [];
@@ -718,6 +739,17 @@ function timeline(s: ChronicleState): string {
   for (const j of s.journal) rows.push({ turn: j.turn, day: j.day, kind: 'journal', group: 'journal', text: nameOf(s, j.who) + ': ' + j.memory });
   for (const x of s.scars ?? []) rows.push({ turn: x.turn, kind: 'scar', group: 'scar', text: nameOf(s, x.who) + ' (scar): ' + x.was });
   for (const x of s.lore ?? []) rows.push({ turn: x.turn, kind: 'lore', group: 'lore', text: 'Codex: ' + x.fact });
+  // One canonical day per turn. User repairs override authored row stamps, while
+  // old turn.fold events fill days for knowledge/secrets/scars/codex/summaries
+  // that historically had no day field of their own.
+  for (const row of rows) {
+    // Beat days are explicitly authored and therefore outrank the folded stamp.
+    // Other row-level days are legacy fallbacks; their turn.fold stamp is the
+    // shared authority whenever it exists.
+    row.day = row.kind === 'beat'
+      ? timelineDay(s, row.turn, row.day)
+      : (timelineDay(s, row.turn) ?? row.day);
+  }
   if (!rows.length) return head + emptyState('Nothing on the timeline yet.', 'Books, arcs, chapters, knowledge and secrets appear here as the story advances.');
 
   // filter bars: kind (group) + day. Days are sparse, so only offer ones present.
@@ -755,14 +787,15 @@ function timeline(s: ChronicleState): string {
     if (act && act !== lastAct) { parts.push(`<div class="vle-spine-act">${esc(act)}</div>`); lastAct = act; }
     if (r.day !== undefined && r.day !== lastDay) { parts.push(`<div class="vle-spine-day"><span>D${esc(r.day)}</span></div>`); lastDay = r.day; }
     const label = r.span ? `t${r.span[0]}\u2013${r.span[1]}` : `t${r.turn}`;
+    const dayEdit = `<button class="vle-spine-fix" data-tl-day-fix data-turn="${r.turn}" data-day="${r.day ?? ''}" title="Correct the narrative day for turn ${r.turn}">\u270E day</button>`;
     if (r.kind === 'beat') {
       // spine beats sit centered ON the rail as a filled square node with a glow
-      parts.push(`<div class="vle-spine-beat vle-spine-beat--sq v-orn--glow"><span class="vle-spine-beat-k">\u2691 beat</span><span class="vle-spine-beat-x">${esc(r.text)}</span></div>`);
+      parts.push(`<div class="vle-spine-beat vle-spine-beat--sq v-orn--glow"><span class="vle-spine-beat-k">\u2691 beat \u00B7 ${esc(label)} ${dayEdit}</span><span class="vle-spine-beat-x">${esc(r.text)}</span></div>`);
       continue;
     }
     const s2 = side++ % 2 === 0 ? 'l' : 'r';
     parts.push(`<div class="vle-spine-row vle-spine-${s2}"><span class="vle-spine-node vle-spine-node--${esc(r.kind)}"></span><div class="vle-spine-card vle-spine-${esc(r.kind)}">`
-      + `<span class="vle-spine-meta"><span class="vle-spine-kind">${esc(r.kind)}</span><span class="vle-spine-t">${esc(label)}</span></span>`
+      + `<span class="vle-spine-meta"><span class="vle-spine-kind">${esc(r.kind)}</span><span class="vle-spine-t">${esc(label)}</span>${dayEdit}</span>`
       + `<span class="vle-spine-x">${esc(r.text)}</span></div></div>`);
   }
   return head + kindBar + dayBar + `<div class="vle-spine">${parts.join('')}</div>`;
@@ -786,9 +819,11 @@ function beatsView(s: ChronicleState): string {
   const list = s.memories.filter((m) => m.tier === 'beat')
     .sort((a, b) => {
       // manual `ord` (author reordering) wins when present; else chronological
-      const ka = a.ord !== undefined ? a.ord : (a.beatDay ?? 0) * 100000 + a.turn;
-      const kb = b.ord !== undefined ? b.ord : (b.beatDay ?? 0) * 100000 + b.turn;
-      return ka - kb || ((a.beatDay ?? 0) * 100000 + a.turn) - ((b.beatDay ?? 0) * 100000 + b.turn);
+      const ad = timelineDay(s, a.turn, a.beatDay) ?? 0;
+      const bd = timelineDay(s, b.turn, b.beatDay) ?? 0;
+      const ka = a.ord !== undefined ? a.ord : ad * 100000 + a.turn;
+      const kb = b.ord !== undefined ? b.ord : bd * 100000 + b.turn;
+      return ka - kb || (ad * 100000 + a.turn) - (bd * 100000 + b.turn);
     });
   const head = sectionHeader('\u2691 Story Beats', { sub: true, count: list.length, action: '<button class="vle-add sm" data-beat-suggest title="Suggest beats from the story so far">\u2728 suggest</button><button class="vle-add sm" data-beat-add>+</button>' });
   const intro = '<div class="vle-cz-note">Landmark index cards you author - the story\u2019s through-line. Spine beats (\u2691) are injected into every prompt as ground truth; the rest surface by relevance. Use \u25B4\u25BE to reorder.</div>';
@@ -797,11 +832,12 @@ function beatsView(s: ChronicleState): string {
     : '';
   if (!list.length) return head + intro + sug + emptyState('No beats yet.', 'Mark a landmark: a duel, a betrayal, a vow. Or hit \u2728 suggest to pull candidates from what already happened.');
   const rows = list.map((m, i) => {
-    const anchor = (m.beatDay !== undefined ? formatDate(m.beatDay, s.dateFormat || 'day', s) : '') + (m.beatTime ? (m.beatDay !== undefined ? ', ' : '') + m.beatTime : '');
+    const effectiveDay = timelineDay(s, m.turn, m.beatDay);
+    const anchor = (effectiveDay !== undefined ? formatDate(effectiveDay, s.dateFormat || 'day', s) : '') + (m.beatTime ? (effectiveDay !== undefined ? ', ' : '') + m.beatTime : '');
     const spine = m.spine ? '<span class="vle-mem-tier t-beat" title="On the always-injected spine">\u2691</span>' : '<span class="vle-mem-tier" title="Recalled by relevance only" style="opacity:.5">\u25CB</span>';
     const up = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="up"${i === 0 ? ' disabled' : ''} title="Move earlier">\u25B4</button>`;
     const down = `<button class="vle-mini" data-beat-move data-id="${esc(m.id)}" data-dir="down"${i === list.length - 1 ? ' disabled' : ''} title="Move later">\u25BE</button>`;
-    const edit = `<button class="vle-mini" data-beat-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-day="${m.beatDay ?? ''}" data-time="${esc(m.beatTime ?? '')}" data-spine="${m.spine ? '1' : '0'}" title="Edit">\u270E</button>`;
+    const edit = `<button class="vle-mini" data-beat-edit data-id="${esc(m.id)}" data-text="${esc(m.text)}" data-day="${effectiveDay ?? ''}" data-time="${esc(m.beatTime ?? '')}" data-spine="${m.spine ? '1' : '0'}" title="Edit">\u270E</button>`;
     return '<div class="vle-mem vle-mem--beat">' + shapeOrnament(activeShape('beats'), 'beats') + spine
       + (anchor ? `<span class="vle-tl-day">${esc(anchor)}</span>` : '')
       + `<span class="vle-mem-t">${esc(m.text)}</span>`
