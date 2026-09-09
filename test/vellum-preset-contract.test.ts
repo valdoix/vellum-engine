@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 interface PresetVariable {
   id: string;
   name: string;
+  options?: Array<{ id: string; value: string }>;
 }
 
 interface PresetBlock {
@@ -87,6 +88,16 @@ describe('VELLUM II preset 2.3 contract', () => {
     expect(causality).toContain('latest injected condition');
     expect(causality).toContain('One event cannot advance unrelated rows');
     expect(reverie).toContain('exact prior condition → direct event in this prose → different after-condition');
+  });
+
+  it('grounds Living World activity in location, access, and attached lorebook canon', () => {
+    const living = block('v2-world').variables?.find(variable => variable.name === 'living_world');
+    for (const id of ['active', 'sandbox']) {
+      const value = living?.options?.find(option => option.id === id)?.value ?? '';
+      expect(value).toContain('Attached chat lorebooks constrain objective world canon but grant no character knowledge');
+      expect(value).toMatch(/travel|route/);
+      expect(value).not.toContain('advance at least one');
+    }
   });
 
   it('specifies forward endpoint time, concurrency, rollovers, and flashback isolation', () => {

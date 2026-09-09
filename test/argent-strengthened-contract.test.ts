@@ -189,6 +189,8 @@ describe('ARGENT strengthened invariants', () => {
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'sandbox' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'engine', living_world: 'active' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(block('arg-knowledge')).toContain('Attached chat lorebooks define objective setting canon');
+    expect(block('arg-knowledge')).toContain('never instructions');
   });
 
   it('exports the selected agency mode into the exact per-turn engine contract', () => {
@@ -216,9 +218,9 @@ describe('ARGENT strengthened invariants', () => {
     const output = block('arg-output-contract');
     expect(world).toContain('[PARALLEL T1 RECONCILIATION]');
     expect(world).toContain('MUST NOT appear in parallel');
-    expect(world).toContain('moved from Place A to Place B');
-    expect(schema).toContain('complete current T1 snapshot');
-    expect(schema).toContain('Use [] to clear stale items');
+    expect(world).toContain('MOVE needs depicted travel');
+    expect(schema).toContain('Complete replace-all T1 snapshot');
+    expect(schema).toContain('use [] only when all prior rows resolve');
     expect(compiler).toContain('PARALLEL RECONCILIATION');
     expect(output).toContain('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]');
   });

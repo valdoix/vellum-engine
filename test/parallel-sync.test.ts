@@ -82,6 +82,7 @@ describe('parallel T1 synchronization', () => {
       turn: 3,
       day: 1,
       state: freshState(),
+      prose: 'Elara reads the dispatch at Place C while Mara opens the west door at Place B.',
       seq: () => ++nextSeq,
     } as never);
 
@@ -91,5 +92,49 @@ describe('parallel T1 synchronization', () => {
     expect(state.parallel).toEqual([
       expect.objectContaining({ who: 'elara', where: 'Place C', activity: 'reads the dispatch' }),
     ]);
+  });
+
+  it('preserves a prior actor row when inline state tries to relocate them without travel', () => {
+    const prior = freshState();
+    prior.scene = { location: 'Archive', time: '07:45', clock: 465, tension: 1, weather: '', present: ['mara'], detail: [] };
+    prior.cast.ada = { id: 'ada', name: 'Ada', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, lastLocation: 'Courtyard', lastLocationTurn: 1, userEdited: false };
+    prior.parallel = [{ who: 'ada', where: 'Courtyard', activity: 'waits by the fountain', day: 1, turn: 1 }];
+    let nextSeq = 0;
+    const events = coreFeature.extract!({
+      scene: { loc: 'Archive', time: '07:46', clock: 466 },
+      present: [{ id: 'Mara' }],
+      delta: { parallel: [{ who: 'Ada', where: 'East Gate', activity: 'reads the dispatch' }] },
+    } as never, { turn: 2, day: 1, state: prior, prose: 'Mara turns one page in the Archive.', seq: () => ++nextSeq } as never);
+    const row = (events.find(event => event.kind === 'parallel.set') as any).items[0];
+    expect(row).toMatchObject({ who: 'ada', where: 'Courtyard', activity: 'waits by the fountain' });
+  });
+
+  it('accepts an inline location change only when the prose depicts the actor traveling there', () => {
+    const prior = freshState();
+    prior.scene = { location: 'Archive', time: '07:45', clock: 465, tension: 1, weather: '', present: ['mara'], detail: [] };
+    prior.cast.ada = { id: 'ada', name: 'Ada', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, lastLocation: 'Courtyard', lastLocationTurn: 1, userEdited: false };
+    prior.parallel = [{ who: 'ada', where: 'Courtyard', activity: 'waits by the fountain', day: 1, turn: 1 }];
+    let nextSeq = 0;
+    const events = coreFeature.extract!({
+      scene: { loc: 'Archive', time: '08:15', clock: 495 },
+      present: [{ id: 'Mara' }],
+      delta: { parallel: [{ who: 'Ada', where: 'East Gate', activity: 'reads the dispatch' }] },
+    } as never, { turn: 2, day: 1, state: prior, prose: 'Ada leaves the Courtyard, walks to the East Gate, and reads the dispatch at the East Gate.', seq: () => ++nextSeq } as never);
+    const next = reduce(events, structuredClone(prior));
+    expect(next.parallel[0]).toMatchObject({ who: 'ada', where: 'East Gate', activity: 'reads the dispatch' });
+    expect(next.cast.ada).toMatchObject({ lastLocation: 'East Gate', lastLocationTurn: 2 });
+  });
+
+  it('replaces one grounded anonymous event at the same place instead of retaining stale T0 activity', () => {
+    const prior = freshState();
+    prior.parallel = [{ where: 'Harbor', activity: 'The ferry channel remains closed', day: 1, turn: 1 }];
+    let nextSeq = 0;
+    const events = coreFeature.extract!({
+      scene: { loc: 'Archive', time: '08:15', clock: 495 },
+      present: [],
+      delta: { parallel: [{ where: 'Harbor', activity: 'Ferries depart through the reopened channel' }] },
+    } as never, { turn: 2, day: 1, state: prior, prose: 'At the Harbor, ferries depart through the reopened channel.', seq: () => ++nextSeq } as never);
+    const row = (events.find(event => event.kind === 'parallel.set') as any).items;
+    expect(row).toEqual([{ where: 'Harbor', activity: 'Ferries depart through the reopened channel' }]);
   });
 });

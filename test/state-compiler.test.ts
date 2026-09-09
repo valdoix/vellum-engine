@@ -126,14 +126,46 @@ describe('strict pre-commit state compiler', () => {
     expect(r.ok).toBe(true);
     if (r.ok) expect(JSON.parse(r.block.slice(9, -9)).delta.parallel).toEqual([]);
   });
+  it('rejects unrelated, teleporting, and epistemically impossible parallel updates', () => {
+    const unrelated = candidate();
+    unrelated.parallelOps = [{ op: 'advance', who: 'Ada', where: 'Courtyard', activity: 'stealing the crown', evidence: 'Mara waits five minutes.' }];
+    expect(validateCompilation(unrelated, input()).ok).toBe(false);
+
+    const teleportInput = input();
+    teleportInput.prose = 'Ada stands guard at the East Gate. Mara waits five minutes. Player stays quiet.';
+    const teleport = candidate();
+    teleport.parallelOps = [{ op: 'advance', who: 'Ada', where: 'East Gate', activity: 'stands guard', evidence: 'Ada stands guard at the East Gate.' }];
+    expect(validateCompilation(teleport, teleportInput).ok).toBe(false);
+
+    const noTravel = candidate();
+    noTravel.parallelOps = [{ op: 'move', who: 'Ada', where: 'Gate', activity: 'Waiting', evidence: 'Ada is waiting at the gate.' }];
+    const noTravelInput = input();
+    noTravelInput.prose = 'Mara waits five minutes. Ada is waiting at the gate. Player stays quiet.';
+    expect(validateCompilation(noTravel, noTravelInput).ok).toBe(false);
+
+    const learned = candidate();
+    learned.state.delta.knowledge = [{ who: 'Ada', fact: 'the key is seven', reliability: 'knows', truth: 'true', source: 'Mara whispers' }];
+    learned.evidence.push({ path: 'delta.knowledge.0', quote: 'Mara whispers that the key is seven' });
+    const learnedInput = input();
+    learnedInput.prose += ' Mara whispers that the key is seven.';
+    expect(validateCompilation(learned, learnedInput).ok).toBe(false);
+  });
+  it('accepts off-stage knowledge only when a depicted channel reaches its recipient', () => {
+    const i = input();
+    i.prose += ' A messenger tells Ada at the East Gate that the key is seven.';
+    const c = candidate();
+    c.state.delta.knowledge = [{ who: 'Ada', fact: 'the key is seven', reliability: 'knows', truth: 'true', source: 'messenger tells Ada' }];
+    c.evidence.push({ path: 'delta.knowledge.0', quote: 'A messenger tells Ada at the East Gate that the key is seven' });
+    expect(validateCompilation(c, i).ok).toBe(true);
+  });
   it('starts a grounded parallel row from active Living World state without requiring it in visible prose', () => {
     const i = input();
     i.prior.parallel = [];
     i.livingWorld = 'active';
-    i.prior.threads = [{ id: 'thr_courier', name: 'The Late Courier', status: 'Ada waits at the East Gate for the courier', beats: ['Ada waits at the East Gate for the courier'], firstTurn: 1, lastTurn: 1 }];
+    i.prior.offscreen = [{ id: 'courier_watch', name: 'The Late Courier', status: 'active', who: 'ada', where: 'East Gate', gist: 'waiting for the courier', beats: ['waiting for the courier'], firstTurn: 1, lastTurn: 1 }] as any;
     const c = candidate();
     c.parallelReviewed = [];
-    c.parallelOps = [{ op: 'start', who: 'Ada', where: 'East Gate', activity: 'waiting for the courier', evidence: 'Ada waits at the East Gate for the courier' }];
+    c.parallelOps = [{ op: 'start', who: 'Ada', where: 'East Gate', activity: 'waiting for the courier', evidence: 'Ada at East Gate: waiting for the courier' }];
     const r = validateCompilation(c, i);
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -348,6 +380,17 @@ ${JSON.stringify(c.state)}
     const i = input(); i.personaState = true;
     expect(JSON.parse(compilerContext(i)).controls.personaState).toBe(true);
   });
+  it('supplies relevant attached lorebook canon as world truth without making it character knowledge', () => {
+    const i = input();
+    i.prose += ' Mara studies a map of the Moon Gate.';
+    i.lorebookCanon = [
+      { id: 'moon-gate', bookId: 'setting', title: 'Moon Gate', keys: ['Moon Gate'], content: 'The Moon Gate is the only pass through the eastern ridge.' },
+      { id: 'irrelevant', bookId: 'setting', title: 'Western Sea', keys: ['Western Sea'], content: 'The western sea freezes each winter.' },
+    ];
+    const context = JSON.parse(compilerContext(i));
+    expect(context.prior.lorebookCanon[0]).toMatchObject({ id: 'moon-gate', content: expect.stringContaining('only pass') });
+    expect(context.prior.knowledge).toEqual([]);
+  });
   it('accepts Director persona detail grounded in completed prose', () => {
     const i = input();
     i.personaState = true;
@@ -373,15 +416,15 @@ ${JSON.stringify(c.state)}
     const i = input();
     i.prior.parallel = [];
     i.livingWorld = 'sandbox';
-    i.prior.threads = [{ id: 'thr_courier', name: 'The Late Courier', status: 'Ada waits at the East Gate for the courier', beats: ['Ada waits at the East Gate for the courier'], firstTurn: 1, lastTurn: 1 }];
+    i.prior.offscreen = [{ id: 'courier_watch', name: 'The Late Courier', status: 'active', who: 'ada', where: 'East Gate', gist: 'waiting for the courier', beats: ['waiting for the courier'], firstTurn: 1, lastTurn: 1 }] as any;
     const c = candidate();
     c.parallelReviewed = [];
-    c.parallelOps = [{ op: 'start', who: 'Ada', where: 'East Gate', activity: 'waiting for the courier', evidence: 'Ada waits at the East Gate for the courier' }];
+    c.parallelOps = [{ op: 'start', who: 'Ada', where: 'East Gate', activity: 'waiting for the courier', evidence: 'Ada at East Gate: waiting for the courier' }];
     const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(c) });
     const r = await compileState(i, null, undefined, generate);
     expect(r.ok).toBe(true);
     expect(generate.mock.calls[0]![0][1].content).toContain('"livingWorld":"sandbox"');
-    expect(generate.mock.calls[0]![0][1].content).toContain('Ada waits at the East Gate for the courier');
+    expect(generate.mock.calls[0]![0][1].content).toContain('Ada at East Gate: waiting for the courier');
   });
   it.each(['protected', 'continuity', 'director'] as const)('passes the %s agency contract for this turn only', (agency) => {
     const i = input();

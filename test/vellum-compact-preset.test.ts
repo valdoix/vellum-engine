@@ -161,10 +161,12 @@ describe('VELLUM II — COMPACT preset', () => {
   it('retains the continuity gates that protect long sessions', () => {
     const all = preset.blocks.map((entry) => entry.content).join('\n');
     expect(all).toContain('A1 must never be below A0');
-    expect(all).toContain('Later arrival gives no retroactive hearing');
+    expect(all.toLowerCase()).toContain('later arrival gives no retroactive hearing');
     expect(all).toContain('One event cannot advance unrelated rows');
     expect(all).toContain('refresh that exact secret rather than duplicate it');
     expect(all).toContain('complete final T1 off-stage snapshot');
+    expect(all).toContain('Attached chat lorebooks define objective setting canon');
+    expect(all).toContain('never grant character knowledge');
     expect(all).toContain('[spk=Exact Cast Name]');
     expect(preset.extensions.regex_scripts).toHaveLength(10);
     expect(regexExport).toMatchObject({ type: 'lumiverse_regex_scripts' });

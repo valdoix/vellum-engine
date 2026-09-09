@@ -8,6 +8,7 @@ import { findLock, applyLockToBond } from './relation-lock.js';
 import { inferLocationParent } from './locations.js';
 import { clockTime, parseClock } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
+import { reconcileParallelSnapshot } from './parallel-canon.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -439,9 +440,16 @@ export const coreFeature: Feature = {
     // An explicitly empty array is meaningful: parallel is a replace-all T1
     // snapshot, so [] clears stale "meanwhile" rows from the prior turn.
     if (par !== undefined) {
+      const proposed = par.map((p) => ({
+        ...(p.who ? { who: p.who } : {}),
+        ...(p.where ? { where: p.where } : {}),
+        activity: String(p.activity || '').trim(),
+        ...(p.note ? { note: p.note } : {}),
+      })).filter((p) => p.activity);
+      const reconciled = reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '');
       out.push({
         ...base(), kind: 'parallel.set',
-        items: par.map((p) => ({ ...(p.who ? { who: rid(p.who) } : {}), ...(p.where ? { where: p.where } : {}), activity: String(p.activity || '').trim(), ...(p.note ? { note: p.note } : {}) })).filter((p) => p.activity),
+        items: reconciled,
       } as VellumEvent);
     }
 

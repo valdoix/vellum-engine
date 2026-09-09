@@ -151,6 +151,29 @@ export async function vaultSnapshot(chatId: string, uid: string | null): Promise
   return out;
 }
 
+/** Read only the lorebooks explicitly attached to this chat. This is the narrow
+ * path used by continuity compilation/off-screen simulation: it avoids scanning
+ * an account's unrelated library and never changes ownership or activation. */
+export async function attachedLoreEntries(chatId: string, uid: string | null): Promise<LiteEntry[]> {
+  const a = api();
+  if (!a || !chatId || !spindle.chats?.get || !a.entries?.list) return [];
+  let attached: string[] = [];
+  try {
+    const chat = await spindle.chats.get(chatId, uid ?? undefined);
+    attached = strings(chat?.metadata?.chat_world_book_ids);
+  } catch {
+    try { attached = strings((await spindle.chats.get(chatId))?.metadata?.chat_world_book_ids); }
+    catch { return []; }
+  }
+  const ids = [...new Set(attached.filter(Boolean))].slice(0, 40);
+  const pages = await Promise.all(ids.map(async (bookId) => {
+    const listed = await listAll(a.entries.list.bind(a.entries), [bookId], uid, 300);
+    if (!listed.complete) spindle.log?.warn?.(`[vellum_engine] attached lorebook ${bookId} returned an incomplete entry list; using the verified page only.`);
+    return listed.items.map(liteEntry).filter(Boolean) as LiteEntry[];
+  }));
+  return pages.flat().filter(entry => !entry.disabled && !!entry.content.trim());
+}
+
 export function ownedBooks(snap: VaultSnapshot, chatId: string): VaultBook[] { return snap.books.filter((b) => b.vellum && b.ownerChatId === chatId); }
 export function ownedEntries(snap: VaultSnapshot, chatId: string): LiteEntry[] { return snap.books.flatMap((b) => b.entries).filter((e) => e.vellum && e.ownerChatId === chatId); }
 

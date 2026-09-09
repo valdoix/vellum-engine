@@ -82,6 +82,12 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'An arc advances only from a changed linked thread or a structural milestone/reversal/commitment in the arc itself, '
   + 'never merely because one of its characters appeared. New threads require a newly established actionable unresolved '
   + 'question, promise, threat, task, or obstacle. When the connection is uncertain, omit the row.\n'
+  + 'ELSEWHERE CAUSALITY: the model sees the whole prose; absent characters do not. Preserve each prior parallel actor at '
+  + 'their canonical location/activity unless this prose contains a clause naming that actor, their place, and the changed '
+  + 'activity. A main-scene event cannot make someone elsewhere know or react to it without a message, call, report, witness, '
+  + 'arrival, or visible consequence explicitly reaching them by this turn. Never change `where` without depicted travel or '
+  + 'arrival naming the actor and destination. One actor occupies one place. Exclude final present actors, keep every unchanged '
+  + 'prior row, and use [] only when the prose truly clears all rows. Apply the same delivered-access rule to off-stage knowledge.\n'
   + 'Invent nothing the prose does not support, but capture everything it DOES. Omit any section with '
   + 'nothing new. A minimal { "turn": N, "day": D, "present": [...] } is valid when truly nothing else '
   + 'changed.\n'
@@ -134,6 +140,12 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number, person
     .slice(0, 6);
   const hiddenSecrets = (prior.secrets ?? []).filter((s) => !s.revealed).slice(0, 30).map((s) => `${s.id}: ${s.text}`);
   const codex = (prior.lore ?? []).filter((l) => l.status !== 'rejected').slice(-30).map((l) => `${l.id}: ${l.fact}`);
+  const parallel = (prior.parallel ?? []).slice(0, 30).map((row) => {
+    const actor = row.who ? (prior.cast[row.who]?.name ?? row.who) : 'world';
+    return `${actor}${row.where ? ` @${row.where}` : ''}: ${row.activity}`;
+  });
+  const actorLocations = Object.values(prior.cast).filter(actor => actor.lastLocation).slice(0, 40)
+    .map(actor => `${actor.name} @${actor.lastLocation}`);
   const lines = [
     `turn: ${turnNo}`,
     `day: ${day}`,
@@ -149,6 +161,8 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number, person
     ...(openArcs.length ? [`open plot arcs (reference only; structural milestones only): ${openArcs.join('; ')}`] : []),
     ...(hiddenSecrets.length ? [`tracked secrets (reveal by exact id): ${hiddenSecrets.join('; ')}`] : []),
     ...(codex.length ? [`codex facts (refresh changed fact by exact id): ${codex.join('; ')}`] : []),
+    ...(parallel.length ? [`prior parallel T1 rows (preserve unless this prose proves a change): ${parallel.join('; ')}`] : []),
+    ...(actorLocations.length ? [`canonical last locations (movement requires proof): ${actorLocations.join('; ')}`] : []),
   ];
   return '[CONTEXT]\n' + lines.join('\n');
 }

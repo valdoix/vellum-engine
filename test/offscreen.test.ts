@@ -9,8 +9,8 @@ function state(): ChronicleState {
   s.scene = { location: 'The Hall', time: 'night', tension: 5, weather: '', present: ['cersei'], detail: [] } as any;
   s.cast = {
     cersei: { id: 'cersei', name: 'Cersei', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 12, userEdited: false },
-    jaime: { id: 'jaime', name: 'Jaime', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 10, userEdited: false },
-    tyrion: { id: 'tyrion', name: 'Tyrion', aka: [], status: 'mentioned', source: 'auto', firstTurn: 1, lastTurn: 11, userEdited: false },
+    jaime: { id: 'jaime', name: 'Jaime', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 10, lastLocation: 'The Yard', lastLocationTurn: 10, userEdited: false },
+    tyrion: { id: 'tyrion', name: 'Tyrion', aka: [], status: 'mentioned', source: 'auto', firstTurn: 1, lastTurn: 11, lastLocation: 'The Yard', lastLocationTurn: 11, userEdited: false },
     robert: { id: 'robert', name: 'Robert', aka: [], status: 'mentioned', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false },
   } as any;
   return s;
@@ -65,6 +65,14 @@ describe('buildSimPrompt', () => {
     expect(buildSimPrompt(s, offscreenCast(s), { skipDays: 1 })).not.toContain('TIME-SKIP');
     expect(buildSimPrompt(s, offscreenCast(s), {})).not.toContain('TIME-SKIP');
   });
+
+  it('uses attached lorebooks as setting canon without adding them to any actor KNOWS list', () => {
+    const s = state();
+    const p = buildSimPrompt(s, offscreenCast(s), { worldCanon: [{ id: 'moon-gate', bookId: 'setting', title: 'Moon Gate', keys: ['Moon Gate'], content: 'The Moon Gate is the only pass through the eastern ridge.' }] });
+    expect(p).toContain('ATTACHED LOREBOOK WORLD CANON');
+    expect(p).toContain('The Moon Gate is the only pass');
+    expect(p).not.toContain('KNOWS: The Moon Gate');
+  });
 });
 
 describe('thread <-> off-screen bridge', () => {
@@ -77,19 +85,20 @@ describe('thread <-> off-screen bridge', () => {
     expect(threadOffscreenLink('The Letter', { name: 'The Siege', gist: 'walls hold' })).toBe(false);
   });
 
-  it('the sim prompt tells the sim which open threads a subplot ties into', () => {
+  it('does not leak on-screen plot-thread knowledge into the off-screen simulator', () => {
     const s = state();
     s.threads = [{ name: 'The Letter', status: 'advance', firstTurn: 3, lastTurn: 8 }] as any;
     s.offscreen = [{ id: 'appt', name: 'The Appointment', status: 'active', gist: 'B opens the letter', beats: ['B opens the letter'], firstTurn: 8, lastTurn: 8 }] as any;
-    // world-wide prompt lists the thread + flags the tie
+    s.knowledge = [{ who: 'jaime', fact: 'the old gate is barred', reliability: 'knows', truth: 'true', source: 'witnessed it', turn: 7 }] as any;
+    // Live plot state is author knowledge; passing the legacy field must not
+    // expose it. Only actor-addressed knowledge survives.
     const world = buildSimPrompt(s, offscreenCast(s), { threads: [{ name: 'The Letter', status: 'advance' }] });
-    expect(world).toContain('ON-SCREEN PLOT THREADS');
-    expect(world).toContain('The Letter');
-    expect(world).toContain('ties into: appt');
-    // focused prompt surfaces the linked thread for that one subplot
+    expect(world).not.toContain('ON-SCREEN PLOT THREADS');
+    expect(world).not.toContain('The Letter');
+    expect(world).toContain('the old gate is barred');
+    expect(world).toContain('@The Yard');
     const focused = buildSimPrompt(s, offscreenCast(s), { focusId: 'appt', threads: [{ name: 'The Letter', status: 'advance' }] });
-    expect(focused).toContain('TIES INTO ON-SCREEN PLOT THREAD');
-    expect(focused).toContain('The Letter');
+    expect(focused).not.toContain('The Letter');
   });
 
   it('linkedOffscreen finds the active subplot feeding a thread (reflection side)', () => {
@@ -148,6 +157,13 @@ describe('simEvents + reduce round-trip', () => {
     evs = simEvents({ offscreen: [{ op: 'resolve', id: 'siege' }] }, s, 14, 1, seq);
     s = reduce(evs, s);
     expect(s.offscreen[0]!.status).toBe('resolved');
+  });
+  it('accepts a depicted journey to a lorebook-established place and rejects the same invented destination without canon', () => {
+    const parsed = { offscreen: [{ op: 'new' as const, id: 'moon_errand', name: 'Moon errand', who: 'Jaime', where: 'Moon Gate', gist: 'travels from the yard and arrives at the Moon Gate' }] };
+    const next = () => 1;
+    expect(simEvents(parsed, state(), 12, 1, next)).toEqual([]);
+    const withCanon = simEvents(parsed, state(), 12, 1, next, { worldCanon: [{ id: 'moon-gate', bookId: 'setting', keys: ['Moon Gate'], content: 'The Moon Gate is the eastern ridge pass.' }] });
+    expect(withCanon).toEqual([expect.objectContaining({ kind: 'offscreen.op', who: 'jaime', where: 'Moon Gate' })]);
   });
 
   it('an advance on an unknown id becomes a new (no orphan)', () => {

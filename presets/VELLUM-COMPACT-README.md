@@ -12,7 +12,7 @@ The generated preset has a hard 5,000-token standing-prompt ceiling using VELLUM
 - A monotonic minute clock and a canonical elapsed story-day count kept separate from calendar rendering, so October 17 cannot become narrative Day 17.
 - Character-specific motives, voices, relationships, NPC-to-NPC dialogue, and limited-knowledge thoughts.
 - Causal thread and arc movement that rejects unrelated progress.
-- Grounded off-screen activity with a replace-all current T1 parallel snapshot.
+- Grounded off-screen activity with a replace-all current T1 parallel snapshot, canonical location locks, explicit information channels, and attached chat lorebooks as objective world canon.
 - VELLUM Codex refresh, secrets and secret reveals, knowledge, scars, items, timeline, plants, payoffs, bonds, factions, threads, and arcs.
 - Engine Second Pass by default, with Inline Compatibility for hosts that need model-written `<vellum>` state.
 - Dialogue speaker tags and the display, cleanup, and conservative attribution regex bridge.

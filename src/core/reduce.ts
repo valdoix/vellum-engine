@@ -215,6 +215,16 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         next.push({ ...(who ? { who } : {}), ...(it.where ? { where: it.where } : {}), activity: it.activity, ...(it.note ? { note: it.note } : {}), ...(it.src ? { src: it.src } : {}), turn: e.turn, day: e.day });
       }
       s.parallel = next.reverse();
+      // A validated/manual T1 row is also the actor's newest canonical physical
+      // anchor. Keep it after the volatile parallel snapshot is later cleared so
+      // a model cannot relocate the actor from an older seen place by omission.
+      for (const item of s.parallel) {
+        if (!item.who || !item.where) continue;
+        const actor = s.cast[item.who];
+        if (!actor) continue;
+        actor.lastLocation = item.where;
+        actor.lastLocationTurn = e.turn;
+      }
       break;
     }
     case 'cast.seen': {
@@ -222,11 +232,16 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (c) {
         c.lastTurn = Math.max(c.lastTurn, e.turn);
         if (e.status === 'present' || e.status === 'active') c.status = e.status;
+        if (e.status === 'present' && s.scene.location) {
+          c.lastLocation = s.scene.location;
+          c.lastLocationTurn = e.turn;
+        }
       } else {
         s.cast[e.id] = {
           id: e.id, name: e.name, aka: [], status: e.status,
           source: e.src === 'user' ? 'user' : 'auto',
           firstTurn: e.turn, lastTurn: e.turn, userEdited: e.src === 'user',
+          ...(e.status === 'present' && s.scene.location ? { lastLocation: s.scene.location, lastLocationTurn: e.turn } : {}),
         };
       }
       break;

@@ -56,7 +56,7 @@ describe('Item 1 — thread/offscreen day-stamping in reduce', () => {
   });
 });
 
-describe('Item 2 — openTracks carries beats + lastDay for the sim payload', () => {
+describe('Item 2 — openTracks carries beats + lastDay without leaking plot knowledge to the sim', () => {
   it('projects the latest beat and day anchor', () => {
     const s = reduce([
       ev({ kind: 'thread.op', op: 'new', name: 'The Letter', note: 'penned', turn: 1, day: 3 }),
@@ -67,14 +67,14 @@ describe('Item 2 — openTracks carries beats + lastDay for the sim payload', ()
     expect(t!.lastDay).toBe(9);
   });
 
-  it('surfaces the thread latest note in the sim prompt', () => {
+  it('keeps the thread latest note out of the character-specific sim prompt', () => {
     const s = freshState();
     s.scene = { location: 'The Hall', time: '', tension: 0, weather: '', present: [], detail: [] } as any;
     const prompt = buildSimPrompt(s, [{ name: 'Jaime' }], {
       threads: [{ id: 'thr_the_letter', name: 'The Letter', status: 'advance', note: 'sent by raven', lastDay: 9 }],
     });
-    expect(prompt).toContain('The Letter');
-    expect(prompt).toContain('sent by raven');
+    expect(prompt).not.toContain('The Letter');
+    expect(prompt).not.toContain('sent by raven');
   });
 });
 

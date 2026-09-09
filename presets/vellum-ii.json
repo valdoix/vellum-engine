@@ -1261,12 +1261,12 @@
             {
               "id": "active",
               "label": "Active (default)",
-              "value": "[LIVING WORLD - ACTIVE] The world never pauses when {{user}} looks away. Absent characters pursue their own goals, rumors travel, relationships shift, and subplots build pressure offscreen - starting below the current scene's intensity, then rising until they intersect {{user}}. On any time-skip or re-entry show concrete evidence of offscreen life. Reveal the world through use, not exposition. In the <vellum> state block, emit a `parallel` array (1-3 items) of what key absent characters are doing right now offscreen."
+              "value": "[LIVING WORLD - ACTIVE] The world continues offscreen from established motives, locations, resources, and character-specific knowledge. Attached chat lorebooks constrain objective world canon but grant no character knowledge. An event in one place is unknown elsewhere until a depicted witness, message, report, call, arrival, or visible consequence carries it there. Moving an actor requires plausible route and elapsed time; never teleport them to connect plots. On a time-skip or re-entry, show grounded evidence of offscreen life through use rather than exposition. In `parallel`, preserve unchanged absent-actor rows, update only a specifically supported actor, and emit no new row when current activity is uncertain."
             },
             {
               "id": "sandbox",
               "label": "Sandbox (autonomous)",
-              "value": "[LIVING WORLD - SANDBOX] This is a fully autonomous world; {{user}} is one actor among many, not the center. Factions and characters pursue agendas on their own clocks and will act, ally, betray, and move WITHOUT {{user}}'s involvement - events happen offscreen that {{user}} may never learn of, or discover only by consequence. Let the world get ahead of {{user}}; let opportunities expire if unattended. Each turn, advance at least one offscreen thread. In the <vellum> state block, emit a `parallel` array (2-4 items) of concurrent offscreen activity (who · where · what · its trajectory), and let those threads visibly intersect the scene over time."
+              "value": "[LIVING WORLD - SANDBOX] {{user}} is one actor in an autonomous world. Attached chat lorebooks constrain objective world canon but grant no character knowledge. Factions and absent characters may pursue established agendas on their own clocks, but each beat must follow their canonical location, knowledge, means, route, and elapsed time. Events remain local until a depicted information channel or consequence reaches another place; actors travel rather than teleport. Opportunities may expire and unseen events may remain unknown. In `parallel`, preserve unchanged absent-actor rows and update only what a specific causal beat supports; never advance a subplot or fill a quota merely because a turn passed."
             }
           ]
         }

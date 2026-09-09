@@ -355,6 +355,8 @@ The embedded and standalone regex packs were both imported. Keep one copy of eac
 
 ARGENT 1.3.0 compiles off-screen changes as operations against the prior T1 state. Every prior actor must be reviewed; unchanged rows survive, `move` changes the destination, `resolve` removes a row, and an actor entering `scene.present` is removed automatically. The resulting `delta.parallel` snapshot is computed by VELLUM at the final day and clock.
 
+An `advance` keeps the actor at their established location. A `move` needs prose that depicts departure, travel, or arrival at the destination. Facts from the visible scene reach an absent actor only through a depicted witness, message, report, call, arrival, or consequence. Lorebooks attached to the chat are objective world canon for geography, institutions, history, objects, and physical rules; they do not tell VELLUM what an actor is doing now and do not grant that actor knowledge.
+
 If a contradiction remains, inspect the raw final `<vellum>` block. Every character parallel item should contain an exact `who`, final `where`, and current `activity`; nobody listed in `present` may also appear in `parallel`. Re-import the complete preset for the prompt contract and rebuild/reload the VELLUM extension for the reducer guard.
 
 ### State compilation is held

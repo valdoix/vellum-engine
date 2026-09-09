@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { adoptBookForChat, contentHash, extensionsFromEntry, keywordHash, makeExtensions, ownedBooks, ownedEntries, type LiteEntry, type VaultSnapshot } from '../src/host/worldbooks.js';
+import { adoptBookForChat, attachedLoreEntries, contentHash, extensionsFromEntry, keywordHash, makeExtensions, ownedBooks, ownedEntries, type LiteEntry, type VaultSnapshot } from '../src/host/worldbooks.js';
 
 const lite = (over: Partial<LiteEntry> = {}): LiteEntry => ({
   id: 'e1', bookId: 'b1', key: ['Alice'], keysecondary: [], content: 'Alice is a courier.', comment: 'Alice',
@@ -74,5 +74,17 @@ describe('worldbook ownership envelope', () => {
     };
     expect(await adoptBookForChat(snap, 'b1', 'chat-a', 'user-a')).toEqual({ ok: false, error: 'foreign_owner' });
     expect(writes).toBe(0);
+  });
+
+  it('reads only enabled entries from lorebooks attached to this chat', async () => {
+    (globalThis as any).spindle = {
+      chats: { get: async () => ({ metadata: { chat_world_book_ids: ['attached'] } }) },
+      world_books: { entries: { list: async (bookId: string) => bookId === 'attached' ? [
+        { id: 'visible', world_book_id: bookId, key: ['Moon Gate'], content: 'The Moon Gate is canonical.' },
+        { id: 'disabled', world_book_id: bookId, key: ['Secret Road'], content: 'Ignore me.', disabled: true },
+      ] : [{ id: 'foreign', world_book_id: bookId, content: 'Not attached.' }] } },
+    };
+    const entries = await attachedLoreEntries('chat-a', 'user-a');
+    expect(entries.map(entry => entry.id)).toEqual(['visible']);
   });
 });

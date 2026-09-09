@@ -40,7 +40,7 @@ import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
-import { VAULT_SCHEMA_VERSION, vaultSnapshot, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, adoptBookForChat, hasVault, ownedBooks, ownedEntries, extensionsFromEntry, type VaultSnapshot, type VaultRole } from './host/worldbooks.js';
+import { VAULT_SCHEMA_VERSION, vaultSnapshot, attachedLoreEntries, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, adoptBookForChat, hasVault, ownedBooks, ownedEntries, extensionsFromEntry, type LiteEntry, type VaultSnapshot, type VaultRole } from './host/worldbooks.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, isSyncSource, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
@@ -66,6 +66,19 @@ import { formatDryRunMessages, visiblePreviewContent } from './domain/preset-pre
 import { reduce } from './core/reduce.js';
 import { dialogueMarkupGuidance, repairDialogueSpeakerTags, type DialogueIdentity } from './domain/dialogue-colors.js';
 import { timelineRepairConflict } from './domain/timeline-days.js';
+import { selectLorebookCanon, type LorebookCanonEntry } from './domain/lorebook-canon.js';
+
+function lorebookCanonEntries(entries: readonly LiteEntry[]): LorebookCanonEntry[] {
+  return entries.map(entry => ({
+    id: entry.id,
+    bookId: entry.bookId,
+    title: entry.comment || entry.key[0] || undefined,
+    keys: [...entry.key, ...entry.keysecondary],
+    content: entry.content,
+    constant: entry.constant,
+    priority: entry.priority,
+  }));
+}
 
 function dialogueIdentities(state: ChronicleState, names: { user: string; char: string }): DialogueIdentity[] {
   const ordered: DialogueIdentity[] = [];
@@ -496,12 +509,16 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   // tone dials + canonical {{user}} id + locks, resolved once per fold pass (in
   // parallel; chat vars are cached but this also overlaps the name derivation).
   const boundPersonaId = _personaIdByUserChat.get(userChatKey(userId, chatId));
-  const [tone, names, locks, personaStateOn] = await Promise.all([
+  const [tone, names, locks, personaStateOn, attached] = await Promise.all([
     readTone(chatId, userId),
     chatNames(chatId, userId, boundPersonaId),
     readLocks(chatId),
     readPersonaStateEnabled(chatId),
+    engineCompiler ? attachedLoreEntries(chatId, userId).catch(() => []) : Promise.resolve([]),
   ]);
+  // Read attached lore once for this fold. It is objective world canon for the
+  // compiler, while actor knowledge remains governed by the Chronicle ledger.
+  const lorebookCanon = lorebookCanonEntries(attached);
   const userCanon = names.user ? canonId(names.user) : '';
   // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
   // message count, so the forward-only fold below would never revisit it and the
@@ -580,7 +597,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       if (await readEngineWindowEnabled(chatId)) engineRun = beginEngineRun(chatId, userId, turnNo);
       try {
         compiled = await compileState(
-          { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn },
+          { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn, lorebookCanon },
           userId,
           compilerConnection ? String(compilerConnection) : undefined,
           internalGenerate,
@@ -1188,13 +1205,22 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     // per-thread advance can run even with nobody plausibly off-screen (the
     // subplot itself carries the context); the world-wide tick needs a cast.
     if (!focusId && cast.length < 1) return { beats: 0, reason: 'no_cast' };
-    const tone = await readTone(chatId, userId);
-    const locks = await readLocks(chatId);
-    const directives = await readDirectives(chatId);
-    // open plot threads feed the sim so off-screen life can build TOWARD the main
-    // plot (the thread<->offscreen bridge), newest first, capped.
-    const threads = openTracks(state, 'threads').slice(0, 6).map((t) => ({ id: t.id, name: t.name, status: t.status, ...(t.beats?.length ? { note: t.beats[t.beats.length - 1] } : {}), ...(t.lastDay !== undefined ? { lastDay: t.lastDay } : {}) }));
-    const prompt = buildSimPrompt(state, cast, { locks, directives, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}), ...(threads.length ? { threads } : {}) });
+    const [tone, locks, directives, attached] = await Promise.all([
+      readTone(chatId, userId),
+      readLocks(chatId),
+      readDirectives(chatId),
+      attachedLoreEntries(chatId, userId).catch(() => []),
+    ]);
+    const worldCanon = selectLorebookCanon(
+      lorebookCanonEntries(attached),
+      `${state.scene.location}\n${cast.map(actor => actor.name).join(' ')}\n${state.offscreen.filter(row => row.status === 'active').map(row => `${row.name} ${row.who ?? ''} ${row.where ?? ''} ${row.gist}`).join('\n')}`,
+      16,
+      12_000,
+    );
+    // Do not expose live plot-thread updates here. They are author knowledge and
+    // previously caused absent actors to react to events that never reached them.
+    // Each actor instead receives only their own knowledge/memories and subplot.
+    const prompt = buildSimPrompt(state, cast, { locks, directives, worldCanon, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}) });
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
     // 30s timeout: this runs detached (background tick or manual button), NOT on
@@ -1229,7 +1255,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     }
     const simNames = await chatNames(chatId, userId);
     const simUserCanon = simNames.user ? canonId(simNames.user) : '';
-    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, social: tone.social, politics: tone.politics, userId: simUserCanon });
+    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, worldCanon, social: tone.social, politics: tone.politics, userId: simUserCanon, ...(skipDays ? { skipDays } : {}) });
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
     invalidateIndex(chatId);
