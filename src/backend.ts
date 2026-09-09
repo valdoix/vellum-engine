@@ -212,6 +212,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
 const _foldChain = new Map<string, Promise<void>>();
 const _generationSnapshotByChat = new Map<string, AssistantSnapshot>();
 const _retryingEngine = new Set<string>();
+const _engineAbortByChat = new Map<string, AbortController>();
 
 interface CompilerDiagnostic { turn: number; inputSig: string; errors: string[] }
 function parseCompilerDiagnostic(raw: unknown): CompilerDiagnostic | null {
@@ -539,6 +540,8 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   // Track the latest turn's raw content + parse source for post-loop block validation.
   let _latestContent = '';
   let _latestSource: 'json' | 'json-partial' | 'regex' | 'none' = 'none';
+  let _latestEngineFallback = false;
+  let compilerFailure: CompilerDiagnostic | null = null;
   // PASS 1 (fast, no LLM) queues each folded turn's prose for the deep extractor,
   // which runs in PASS 2 AFTER an early broadcast — so the scene/cast/relations/
   // mood the <vellum> block already established reach the "Now" window immediately
@@ -559,6 +562,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       : turnContract?.agency ?? 'protected';
     let compiled: Awaited<ReturnType<typeof compileState>> | null = null;
     let engineRun: ReturnType<typeof beginEngineRun> | null = null;
+    let engineFallback = false;
     let expectedRevision: number | undefined;
     let foldContent = content;
     if (engineCompiler) {
@@ -570,6 +574,8 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
       const compilerConnection = await getChatVar(chatId, 'vellum_compiler_connection');
+      const compilerAbort = new AbortController();
+      _engineAbortByChat.set(chatId, compilerAbort);
       if (await readEngineWindowEnabled(chatId)) engineRun = beginEngineRun(chatId, userId, turnNo);
       try {
         compiled = await compileState(
@@ -577,17 +583,15 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
           userId,
           compilerConnection ? String(compilerConnection) : undefined,
           internalGenerate,
-          engineRun ? { onProgress: engineRun.report } : undefined,
+          { ...(engineRun ? { onProgress: engineRun.report } : {}), signal: compilerAbort.signal },
         );
       } catch (e) {
         const message = (e as Error)?.message ?? 'State compiler failed unexpectedly.';
-        finishStagedEngineRuns(false, { reason: 'later_turn_failed', message });
-        engineRun?.finish(false, { reason: 'compiler_error', message, errors: [message] });
-        await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors: [message] }));
-        spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${message}. Use Retry Engine in the floating window.` }, userId ?? undefined);
-        await broadcastState(chatId, userId);
-        return;
+        compiled = { ok: false, errors: [message] };
+      } finally {
+        if (_engineAbortByChat.get(chatId) === compilerAbort) _engineAbortByChat.delete(chatId);
       }
+      if (compiled.ok && compiled.recovered?.length) spindle.log?.info?.(`[vellum_engine] compiler recovered turn ${turnNo} locally; omitted ${compiled.recovered.join(', ')}`);
       // The user may switch the pass off while a slow compiler request is in
       // flight. Re-check before committing so disabling is immediate and an old
       // result can never mutate the Chronicle after the toggle moved to Off.
@@ -601,6 +605,19 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
         spindle.log?.info?.(`[vellum_engine] Engine Second Pass disabled while compiling turn ${turnNo}; discarded the candidate and kept the prose fallback.`);
       } else {
+        if (!compiled.ok) {
+          const errors = compiled.errors;
+          engineFallback = true;
+          compilerFailure = { turn: turnNo, inputSig: sigOf(content), errors };
+          engineRun?.finish(false, { reason: 'invalid_candidate', errors, message: 'The prose was saved immediately. Retry Engine when convenient to recover the structured tracker update.' });
+          engineRun = null;
+          await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify(compilerFailure));
+          spindle.log?.warn?.(`[vellum_engine] compiler pass held for turn ${turnNo}; filing the prose fallback without another model retry: ${errors.slice(0, 2).join('; ')}`);
+          spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `Engine Pass could not validate turn ${turnNo}. The prose and turn memory were saved; use Retry Engine when convenient.` }, userId ?? undefined);
+          compiled = null;
+        }
+      }
+      if (compiled?.ok) {
         const currentRaw = await getRawMessages(chatId);
         const currentSnapshotStatus = transcript.snapshot ? assistantSnapshotStatus(currentRaw, transcript.snapshot) : null;
         if (transcript.snapshot && currentSnapshotStatus === 'match'
@@ -621,10 +638,10 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
             && (!_generationSnapshotByChat.get(chatId)
               || _generationSnapshotByChat.get(chatId)?.generationId === transcript.snapshot.generationId));
         const unchanged = snapshotStillCurrent && current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
-        if (!compiled.ok || !unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
-          const errors = !compiled.ok ? compiled.errors : ['The transcript or Chronicle changed during compilation; retry the fold.'];
+        if (!unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
+          const errors = ['The transcript or Chronicle changed during compilation; retry the fold.'];
           finishStagedEngineRuns(false, { reason: 'later_turn_failed', errors });
-          engineRun?.finish(false, { reason: !compiled.ok ? 'invalid_candidate' : 'state_changed', errors });
+          engineRun?.finish(false, { reason: 'state_changed', errors });
           await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors }));
           spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${errors.slice(0, 2).join('; ')}. Use Retry Engine in the floating window.` }, userId ?? undefined);
           await flush(chatId);
@@ -650,7 +667,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     if (compiled?.ok) events.push({ seq: nextSeqLocal(), turn: turnNo, day: compiled.candidate.state.day, src: 'system', kind: 'state.compiled', inputSig: sig, baseHash: compiled.baseHash, block: compiled.block, genesis: compiled.candidate.genesis });
     // remember the newest turn's raw content + parse verdict for the block-
     // structure check below (the "only one block" warning).
-    if (turnNo === msgs.length) { _latestContent = foldContent; _latestSource = source; }
+    if (turnNo === msgs.length) { _latestContent = foldContent; _latestSource = source; _latestEngineFallback = engineFallback; }
     const evs: VellumEvent[] = [...events];
     // Reuse foldTurn's already-computed complete-content signature instead of
     // recomputing sigOf(content) here.
@@ -673,7 +690,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       engineRun?.finish(false, { reason: 'commit_error', message, errors: [message] });
       throw e;
     }
-    if (compiled?.ok) await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+    if (compiled?.ok && !compilerFailure) await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
     if (compiled?.ok && engineRun) {
       if (pendingRollback !== null) stagedEngineRuns.push({ turn: turnNo, run: engineRun });
       else {
@@ -810,7 +827,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
               // Engine-mode prose intentionally has no inline state block. When
               // the per-chat pass is off, that absence is expected; VELLUM keeps
               // the turn gist and runs its prose-memory fallback instead.
-              state: turnContract.state && !(turnContract.stateCompiler === 'engine' && !enginePassOn),
+              state: turnContract.state && !_latestEngineFallback && !(turnContract.stateCompiler === 'engine' && !enginePassOn),
             }
             : { reverie: false, state: true },
           _latestSource,
@@ -2105,6 +2122,8 @@ function pruneChatState(chatId: string): void {
   _foldChain.delete(chatId);
   _generationSnapshotByChat.delete(chatId);
   _retryingEngine.delete(chatId);
+  _engineAbortByChat.get(chatId)?.abort();
+  _engineAbortByChat.delete(chatId);
   _toneMigrated.delete(chatId);
   _tidying.delete(chatId);
   _tidyingFacts.delete(chatId);
@@ -2190,6 +2209,8 @@ try {
   _lifecycleDisposers.push(spindle.on('EXTENSION_UNLOADED', () => {
     try { _interceptorDispose?.(); } finally { _interceptorDispose = null; }
     try { _generationDispose?.(); } finally { _generationDispose = null; }
+    for (const controller of _engineAbortByChat.values()) controller.abort();
+    _engineAbortByChat.clear();
     for (const timer of _reconcileTimers.values()) clearTimeout(timer);
     _reconcileTimers.clear();
     for (const dispose of _lifecycleDisposers.splice(0)) { try { dispose(); } catch { /* host cleanup is best effort */ } }
@@ -3391,7 +3412,10 @@ const dispatch: Record<string, Handler> = {
     const enabled = !!p?.enabled;
     try {
       await setChatVar(chatId, 'vellum_engine_pass', enabled ? '' : 'off');
-      if (!enabled) await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+      if (!enabled) {
+        await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+        _engineAbortByChat.get(chatId)?.abort();
+      }
       await broadcastState(chatId, uid);
       spindle.sendToFrontend?.({ type: 'vellum_engine_pass_set_done', ok: true, enabled }, uid);
     } catch (e) {

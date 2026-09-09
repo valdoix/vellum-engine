@@ -1,5 +1,5 @@
 import { internalGenerate } from '../host/generation.js';
-import { CompilerCandidate, jsonSchema, parallelGrounding, validateCompilation, type CompilerInput, type Compilation } from '../domain/state-compiler.js';
+import { CompilerCandidate, jsonSchema, parallelGrounding, salvageCompilation, type CompilerInput, type Compilation } from '../domain/state-compiler.js';
 
 export interface CompilerProgress {
   status: 'start' | 'chunk' | 'reasoning' | 'retry' | 'validating' | 'validated' | 'failed';
@@ -12,6 +12,7 @@ export interface CompilerProgress {
 
 export interface CompilerRunOptions {
   onProgress?: (update: CompilerProgress) => void;
+  signal?: AbortSignal;
 }
 
 export const STATE_COMPILER_SYSTEM = `Compile the completed narrative into VELLUM state. Return only a JSON object matching the supplied schema. This is extraction, never continuation of the story.
@@ -32,19 +33,40 @@ genesis is true only when genesisAllowed and this prose establishes initial worl
 
 export function compilerContext(input: CompilerInput): string {
   const p = input.prior;
-  const byRecent = <T>(rows: T[], cap: number) => rows.slice().sort((a, b) => (((b as any).lastTurn ?? (b as any).turn ?? 0) - ((a as any).lastTurn ?? (a as any).turn ?? 0))).slice(0, cap);
+  const focus = `${input.userInput ?? ''}\n${input.prose}\n${p.scene.location}\n${p.scene.present.map(id => p.cast[id]?.name ?? id).join(' ')}`.toLocaleLowerCase();
+  const focusTokens = new Set(focus.normalize('NFKC').match(/[\p{L}\p{N}]{3,}/gu) ?? []);
+  const relevance = (value: unknown): number => {
+    const text = String(JSON.stringify(value) ?? '').toLocaleLowerCase();
+    let score = 0;
+    for (const token of new Set(text.normalize('NFKC').match(/[\p{L}\p{N}]{3,}/gu) ?? [])) if (focusTokens.has(token)) score += 1;
+    return score;
+  };
+  const byRelevant = <T>(rows: T[], cap: number): T[] => rows.slice().sort((a, b) => {
+    const related = relevance(b) - relevance(a);
+    if (related) return related;
+    return (((b as any).lastTurn ?? (b as any).turn ?? (b as any).formedTurn ?? 0)
+      - ((a as any).lastTurn ?? (a as any).turn ?? (a as any).formedTurn ?? 0));
+  }).slice(0, cap);
+  const currentIds = new Set([...p.scene.present, ...canonMentions(input, p.cast)]);
+  const cast = Object.values(p.cast).sort((a, b) => Number(currentIds.has(b.id)) - Number(currentIds.has(a.id)) || b.lastTurn - a.lastTurn).slice(0, 60);
   return JSON.stringify({
     turn: input.turn, prose: input.prose.slice(0, 24000), latestUser: input.userInput?.slice(0, 12000) ?? '', userName: input.userName,
     genesisAllowed: input.genesisAllowed, verbosity: input.verbosity,
     controls: { codex: input.codexAllowed !== false, inventory: input.inventoryAllowed !== false, livingWorld: input.livingWorld ?? 'off', agency: input.agency ?? 'protected', personaState: input.personaState === true },
     prior: {
-      day: p.day, scene: p.scene, cast: Object.values(p.cast).slice(0, 120).map(c => ({ id: c.id, name: c.name, aka: c.aka, status: c.status, traits: c.traits })),
-      relations: byRecent(p.relations, 80), knowledge: byRecent(p.knowledge, 80), secrets: byRecent(p.secrets, 50), journal: byRecent(p.journal, 40),
-      threads: p.threads.filter(t => !/resolv/i.test(t.status)).slice(0, 40), arcs: p.arcs.filter(t => !/resolv/i.test(t.status)).slice(0, 30),
-      parallel: p.parallel, parallelSupport: parallelGrounding(input), factions: Object.values(p.factions).slice(0, 40), factionRelations: p.factionRelations.slice(0, 60),
-      lore: byRecent(p.lore.filter(l => l.status !== 'rejected'), 40), items: byRecent(p.items, 80), plants: p.plants.filter(x => x.status === 'planted').slice(0, 40),
+      day: p.day, scene: p.scene, cast: cast.map(c => ({ id: c.id, name: c.name, aka: c.aka, status: c.status, traits: c.traits })),
+      relations: byRelevant(p.relations, 40), knowledge: byRelevant(p.knowledge, 40), secrets: byRelevant(p.secrets, 40), journal: byRelevant(p.journal, 24),
+      threads: byRelevant(p.threads.filter(t => !/resolv/i.test(t.status)), 24), arcs: byRelevant(p.arcs.filter(t => !/resolv/i.test(t.status)), 16),
+      parallel: p.parallel, parallelSupport: parallelGrounding(input), factions: byRelevant(Object.values(p.factions), 24), factionRelations: byRelevant(p.factionRelations, 30),
+      lore: byRelevant(p.lore.filter(l => l.status !== 'rejected'), 32), items: byRelevant(p.items, 40), plants: byRelevant(p.plants.filter(x => x.status === 'planted'), 24),
+      locations: byRelevant(p.locations ?? [], 20),
     },
   });
+}
+
+function canonMentions(input: CompilerInput, cast: CompilerInput['prior']['cast']): string[] {
+  const text = `${input.userInput ?? ''}\n${input.prose}`.toLocaleLowerCase();
+  return Object.values(cast).filter(actor => [actor.name, ...(actor.aka ?? [])].some(name => name.length >= 2 && text.includes(name.toLocaleLowerCase()))).map(actor => actor.id);
 }
 
 /** Recover complete JSON objects from providers that ignore response_format and
@@ -100,58 +122,48 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   const mode = input.verbosity === 'full'
     ? 'FULL CONTRACT: audit every schema family against the prose; include every supported change and its evidence.'
     : 'LEAN CONTRACT: keep the candidate compact; include the complete scene/present roster and only material supported changes.';
-  let errors: string[] = [];
-  const attempts = [
-    { extraTokens: 0, timeoutMs: 60_000 },
-    { extraTokens: 1600, timeoutMs: 90_000 },
-    { extraTokens: 3200, timeoutMs: 120_000 },
-  ];
-  for (let attempt = 0; attempt < attempts.length; attempt++) {
-    const policy = attempts[attempt]!;
-    const attemptNo = attempt + 1;
-    try {
-      run?.onProgress?.({
-        status: attempt === 0 ? 'start' : 'retry',
-        attempt: attemptNo,
-        ...(errors.length ? { errors: errors.slice(0, 20), message: `Retrying after ${errors[0]}` } : {}),
-      });
-    } catch { /* a progress UI must never interrupt compilation */ }
-    const correction = errors.length
-      ? '\nThe previous candidate was discarded. Return a NEW complete object that fixes every listed error. Exactness outranks coverage. Omit any optional delta, ext, parallel operation, or plot proof you cannot support; use empty arrays/objects for required containers. Preserve prior scene and roster values when prose does not prove a change.\nRejected because: ' + errors.slice(0, 20).join('; ')
-      : '';
-    const result = await generate([
-      { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + '\nSchema: ' + JSON.stringify(schema) },
-      { role: 'user', content: context + correction },
-    ], { temperature: 0, max_tokens: Math.min(12000, (input.verbosity === 'full' ? 3800 : 2400) + Object.keys(input.prior.cast).length * 100 + policy.extraTokens) }, userId,
-    {
-      reasoningOff: true,
-      timeoutMs: policy.timeoutMs,
-      ...(connectionId ? { connectionId } : {}),
-      responseFormat: { type: 'json_schema', json_schema: { name: 'vellum_compilation', strict: false, schema } },
-      ...(run?.onProgress ? {
-        onStream: (update) => {
-          try {
-            if (update.type === 'content' && update.token) run.onProgress?.({ status: 'chunk', attempt: attemptNo, delta: update.token });
-            else if (update.type === 'reasoning') run.onProgress?.({ status: 'reasoning', attempt: attemptNo });
-          } catch { /* a progress UI must never interrupt generation */ }
-        },
-      } : {}),
-    });
-    if (!result.ok) { errors = [result.error]; continue; }
-    try { run?.onProgress?.({ status: 'validating', attempt: attemptNo, text: result.value }); } catch { /* best effort */ }
-    const candidates = compilerReplyObjects(result.value);
-    if (!candidates.length) { errors = ['Response was not one complete JSON object']; continue; }
+  const attemptNo = 1;
+  try { run?.onProgress?.({ status: 'start', attempt: attemptNo }); } catch { /* a progress UI must never interrupt compilation */ }
+  let streamed = '';
+  const presentCount = Math.max(1, input.prior.scene.present.length);
+  const maxTokens = Math.min(input.verbosity === 'full' ? 6000 : 4000,
+    (input.verbosity === 'full' ? 3000 : 1900) + presentCount * 180 + Math.min(900, Math.ceil(input.prose.length / 32)));
+  const result = await generate([
+    { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + '\nRequired root: {state:{turn,day,scene:{loc,time,clock,tension?,weather?},present:[],delta:{},ext:{}},parallelOps:[],parallelWorldOps?:[],parallelReviewed:[],evidence:[],trackEvidence:[],genesis:false}. Omit unsupported optional rows.' },
+    { role: 'user', content: context },
+  ], { temperature: 0, max_tokens: maxTokens }, userId,
+  {
+    reasoningOff: true,
+    timeoutMs: input.verbosity === 'full' ? 60_000 : 45_000,
+    signal: run?.signal,
+    ...(connectionId ? { connectionId } : {}),
+    responseFormat: { type: 'json_schema', json_schema: { name: 'vellum_compilation', strict: false, schema } },
+    onStream: (update) => {
+      try {
+        if (update.type === 'content' && update.token) {
+          streamed += update.token;
+          run?.onProgress?.({ status: 'chunk', attempt: attemptNo, delta: update.token });
+        } else if (update.type === 'reasoning') run?.onProgress?.({ status: 'reasoning', attempt: attemptNo });
+      } catch { /* a progress UI must never interrupt generation */ }
+    },
+  });
+  const raw = result.ok ? result.value : streamed;
+  if (raw.trim()) {
+    try { run?.onProgress?.({ status: 'validating', attempt: attemptNo, text: raw }); } catch { /* best effort */ }
     let closest: string[] | null = null;
-    for (const candidate of candidates) {
-      const validated = validateCompilation(candidate, input);
+    for (const candidate of compilerReplyObjects(raw)) {
+      const validated = salvageCompilation(candidate, input);
       if (validated.ok) {
-        try { run?.onProgress?.({ status: 'validated', attempt: attemptNo, text: validated.block }); } catch { /* best effort */ }
+        try { run?.onProgress?.({ status: 'validated', attempt: attemptNo, text: validated.block, ...(validated.recovered?.length ? { message: `Recovered locally; omitted ${validated.recovered.length} unsupported change${validated.recovered.length === 1 ? '' : 's'}.` } : {}) }); } catch { /* best effort */ }
         return validated;
       }
       if (!closest || validated.errors.length < closest.length) closest = validated.errors;
     }
-    errors = closest ?? ['Response did not contain a valid compiler object'];
+    const errors = closest ?? ['Response was not one complete JSON object'];
+    try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, errors: errors.slice(0, 20), message: errors[0] }); } catch { /* best effort */ }
+    return { ok: false, errors };
   }
-  try { run?.onProgress?.({ status: 'failed', attempt: attempts.length, errors: errors.slice(0, 20), message: errors[0] }); } catch { /* best effort */ }
+  const errors = [result.ok ? 'Response was empty' : result.error];
+  try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, errors, message: errors[0] }); } catch { /* best effort */ }
   return { ok: false, errors };
 }

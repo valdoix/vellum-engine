@@ -2,6 +2,8 @@
  * chunks and the validated canonical block sent by the backend. Reasoning tokens
  * are never exposed; they only change the activity label. */
 
+import { attachFloatingDrag } from './floating-drag.js';
+
 export interface EngineStreamPayload {
   type: 'vellum_engine_stream';
   runId: string;
@@ -31,6 +33,7 @@ interface LiveEngine {
 let live: LiveEngine | null = null;
 let panel: HTMLElement | null = null;
 let sendRetry: (() => void) | null = null;
+let detachDrag: (() => void) | null = null;
 const dismissed = new Set<string>();
 
 function ensurePanel(): HTMLElement | null {
@@ -64,6 +67,7 @@ function ensurePanel(): HTMLElement | null {
     });
     panel.querySelector('[data-eng-close]')?.addEventListener('click', () => {
       if (live) dismissed.add(live.runId);
+      detachDrag?.(); detachDrag = null;
       panel?.remove();
       panel = null;
     });
@@ -75,6 +79,8 @@ function ensurePanel(): HTMLElement | null {
       sendRetry?.();
     });
     document.body.appendChild(panel);
+    const handle = panel.querySelector('.vle-sumwin-head') as HTMLElement | null;
+    if (handle) detachDrag = attachFloatingDrag(panel, handle, 'engine');
     return panel;
   } catch { return null; }
 }
@@ -146,7 +152,7 @@ export function handleEngineStream(payload: EngineStreamPayload, retry: () => vo
       failed: false,
       retrying: false,
     };
-    panel?.remove(); panel = null;
+    detachDrag?.(); detachDrag = null; panel?.remove(); panel = null;
     render();
     return;
   }
@@ -186,6 +192,7 @@ export function settleEngineRetry(payload: { ok?: boolean; reason?: string; erro
 }
 
 export function cleanupEngineStream(): void {
+  detachDrag?.(); detachDrag = null;
   try { panel?.remove(); } catch { /* ignore */ }
   panel = null;
   live = null;

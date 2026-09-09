@@ -1,6 +1,8 @@
 /** Live, non-modal summarizer window. The backend sends real generation chunks;
  * this module only renders them and never invents progress. */
 
+import { attachFloatingDrag } from './floating-drag.js';
+
 export interface SummarizerStreamPayload {
   type: 'vellum_summarizer_stream';
   runId: string;
@@ -46,6 +48,7 @@ interface LiveSummary {
 let live: LiveSummary | null = null;
 let panel: HTMLElement | null = null;
 let sendCancel: (() => void) | null = null;
+let detachDrag: (() => void) | null = null;
 const dismissed = new Set<string>();
 
 const phaseLabel = (phase: LiveSummary['phase']): string => phase === 'prepare'
@@ -96,6 +99,7 @@ function ensurePanel(): HTMLElement | null {
     });
     panel.querySelector('[data-sum-close]')?.addEventListener('click', () => {
       if (live) dismissed.add(live.runId);
+      detachDrag?.(); detachDrag = null;
       panel?.remove();
       panel = null;
     });
@@ -105,6 +109,8 @@ function ensurePanel(): HTMLElement | null {
       sendCancel?.();
     });
     document.body.appendChild(panel);
+    const handle = panel.querySelector('.vle-sumwin-head') as HTMLElement | null;
+    if (handle) detachDrag = attachFloatingDrag(panel, handle, 'summarizer');
     return panel;
   } catch { return null; }
 }
@@ -167,7 +173,7 @@ export function handleSummarizerStream(payload: SummarizerStreamPayload, cancel:
       tokens: 0, done: 0, total: Math.max(1, Number(payload.total) || 1), detail: '', gist: '',
       message: 'Preparing the first source window', finished: false, failed: false, cancelled: false,
     };
-    panel?.remove(); panel = null;
+    detachDrag?.(); detachDrag = null; panel?.remove(); panel = null;
     render();
     return;
   }
@@ -218,6 +224,7 @@ export function updateSummarizerRound(done: number, total: number, tokens: numbe
 }
 
 export function cleanupSummarizerStream(): void {
+  detachDrag?.(); detachDrag = null;
   try { panel?.remove(); } catch { /* ignore */ }
   panel = null;
   live = null;

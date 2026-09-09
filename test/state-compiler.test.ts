@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { CompilerCandidate, jsonSchema, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
+import { CompilerCandidate, jsonSchema, salvageCompilation, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
 import { compileState, compilerContext, compilerReplyObjects } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
@@ -299,8 +299,16 @@ describe('strict pre-commit state compiler', () => {
     const i = input();
     for (let n = 0; n < 400; n++) i.prior.knowledge.push({ id: `k${n}`, who: 'mara', fact: 'fact '.repeat(40) + n, reliability: 'knows', truth: 'unknown', turn: n });
     const context = compilerContext(i);
-    expect(context.length).toBeLessThan(75000);
+    expect(context.length).toBeLessThan(45000);
     expect(context).toContain('Courtyard'); expect(context).toContain('Mara');
+  });
+  it('prioritizes an old relevant secret over newer unrelated rows', () => {
+    const i = input();
+    i.prose += ' Mara repeats that the obsidian gate code is seven.';
+    i.prior.secrets = Array.from({ length: 80 }, (_, n) => ({ id: `sec_${n}`, keeper: 'ada', from: ['mara'], text: n === 0 ? 'the obsidian gate code is seven' : `unrelated secret ${n}`, revealed: false, revealedTo: [], formedTurn: n + 1 }));
+    const context = compilerContext(i);
+    expect(context).toContain('the obsidian gate code is seven');
+    expect(context).not.toContain('unrelated secret 1"');
   });
   it('passes the persona-state control to the second-pass model', () => {
     const i = input(); i.personaState = true;
@@ -349,11 +357,41 @@ describe('strict pre-commit state compiler', () => {
     expect(context.controls.agency).toBe(agency);
     expect(context.latestUser).toBe(i.userInput);
   });
-  it('does not salvage a truncated provider response; bounded retry can recover', async () => {
-    const generate = vi.fn().mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()).slice(0, -12) }).mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()) });
+  it('rejects a truncated provider response without repeating the expensive call', async () => {
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(candidate()).slice(0, -12) });
     const r = await compileState(input(), null, undefined, generate);
-    expect(r.ok).toBe(true); expect(generate).toHaveBeenCalledTimes(2);
-    expect(generate.mock.calls[1]![0][1].content).toContain('previous candidate was discarded');
+    expect(r.ok).toBe(false); expect(generate).toHaveBeenCalledTimes(1);
+  });
+  it('accepts a complete streamed object even when the provider terminal event times out', async () => {
+    const generate = vi.fn(async (_messages: unknown, _params: unknown, _userId: unknown, options: any) => {
+      options.onStream?.({ type: 'content', token: JSON.stringify(candidate()) });
+      return { ok: false as const, error: 'internalGenerate_timeout_45000ms' };
+    });
+    const r = await compileState(input(), null, undefined, generate as any);
+    expect(r.ok).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+  it('keeps supported state and drops only an invalid optional mutation locally', () => {
+    const i = input();
+    const c = candidate();
+    c.state.ext.codex = [{ fact: 'The moon is iron.' }];
+    const r = salvageCompilation(c, i);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.recovered).toContain('ext.codex.0');
+    expect(r.candidate.state.ext.codex).toBeUndefined();
+    expect(JSON.parse(r.block.slice(9, -9)).scene.time).toBe('00:03');
+  });
+  it('fills omitted boilerplate and strips unsupported shape keys locally', () => {
+    const c: any = candidate();
+    delete c.parallelOps; delete c.parallelReviewed; delete c.evidence; delete c.trackEvidence; delete c.genesis;
+    c.state.v = 2;
+    const r = salvageCompilation(c, input());
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.recovered).toContain('candidate shape');
+    expect((r.candidate.state as any).v).toBeUndefined();
+    expect(r.candidate.parallelReviewed).toEqual(['Ada']);
   });
   it('streams compiler content and lifecycle without exposing reasoning tokens', async () => {
     const progress: Array<Record<string, unknown>> = [];
@@ -377,11 +415,11 @@ describe('strict pre-commit state compiler', () => {
   it('keeps truncated objects out of the compiler candidate scan', () => {
     expect(compilerReplyObjects('{"state":{"turn":1}')).toEqual([]);
   });
-  it('quarantines repeated provider failure after three escalating calls', async () => {
+  it('quarantines provider failure after one bounded call', async () => {
     const generate = vi.fn().mockResolvedValue({ ok: false, error: 'timeout' });
     expect(await compileState(input(), null, undefined, generate)).toEqual({ ok: false, errors: ['timeout'] });
-    expect(generate).toHaveBeenCalledTimes(3);
-    expect(generate.mock.calls.map((call) => call[3].timeoutMs)).toEqual([60000, 90000, 120000]);
-    expect(generate.mock.calls[2]![0][1].content).toContain('Exactness outranks coverage');
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0]![3].timeoutMs).toBe(45000);
+    expect(generate.mock.calls[0]![0][0].content).not.toContain('"additionalProperties"');
   });
 });

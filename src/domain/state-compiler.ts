@@ -75,7 +75,7 @@ export type CompilerInput = {
   agency?: 'protected' | 'continuity' | 'director';
   personaState?: boolean;
 };
-export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string } | { ok: false; errors: string[] };
+export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[] } | { ok: false; errors: string[] };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
 
 export interface ParallelGrounding {
@@ -474,4 +474,219 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   if (errors.length) return { ok: false, errors };
   const state = { ...s, delta: { ...s.delta, parallel: [...anonymousRows, ...rows.values()] } };
   return { ok: true, candidate: c, baseHash: stateRevision(input.prior), block: `<vellum>\n${JSON.stringify(state)}\n</vellum>` };
+}
+
+function pruneCompilerShape(value: unknown, schema: Record<string, any>): unknown {
+  if (schema.anyOf) {
+    const branch = schema.anyOf.find((option: Record<string, unknown>) => option.type === 'array' ? Array.isArray(value)
+      : option.type === 'object' ? !!value && typeof value === 'object' && !Array.isArray(value)
+        : option.type === typeof value) ?? schema.anyOf[0];
+    return pruneCompilerShape(value, branch);
+  }
+  if (schema.type === 'array') return Array.isArray(value) ? value.map(item => pruneCompilerShape(item, schema.items ?? {})) : value;
+  if (schema.type !== 'object' || !value || typeof value !== 'object' || Array.isArray(value) || !schema.properties) return value;
+  const source = value as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(schema.properties).filter(([key]) => key in source).map(([key, child]) => [key, pruneCompilerShape(source[key], child as Record<string, any>)]));
+}
+
+/** Fill only required structural boilerplate and discard unsupported keys before
+ * strict validation. Defaults preserve prior state; they never create a delta. */
+function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown {
+  const pruned = pruneCompilerShape(raw, jsonSchema(CompilerCandidate));
+  if (!pruned || typeof pruned !== 'object' || Array.isArray(pruned)) return pruned;
+  const root = pruned as Record<string, any>;
+  const state = root.state && typeof root.state === 'object' && !Array.isArray(root.state) ? root.state : {};
+  const rawScene = state.scene && typeof state.scene === 'object' && !Array.isArray(state.scene) ? state.scene : {};
+  const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
+  const suppliedClock = Number.isSafeInteger(rawScene.clock) ? rawScene.clock : undefined;
+  const suppliedTime = typeof rawScene.time === 'string' && parseClock(rawScene.time) !== null && parseClock(rawScene.time) !== undefined ? rawScene.time : undefined;
+  const clock = suppliedClock ?? (suppliedTime ? parseClock(suppliedTime) : undefined) ?? priorClock;
+  const time = suppliedTime ?? clockTime(clock);
+  const priorRows = input.prior.scene.present.map(id => {
+    const actor = input.prior.cast[id];
+    const detail = input.prior.scene.detail.find(row => canonId(row.id) === id);
+    return { id: actor?.name ?? id, ...(detail?.mood ? { mood: detail.mood } : {}), ...(detail?.doing ? { doing: detail.doing } : {}), ...(detail?.condition ? { condition: detail.condition } : {}), thought: detail?.thought ?? '', ...(actor?.traits?.length ? { traits: actor.traits } : {}) };
+  });
+  root.state = {
+    ...state,
+    turn: Number.isSafeInteger(state.turn) ? state.turn : input.turn,
+    day: Number.isSafeInteger(state.day) ? state.day : input.prior.day,
+    scene: { ...rawScene, loc: typeof rawScene.loc === 'string' && rawScene.loc.trim() ? rawScene.loc : input.prior.scene.location, time, clock },
+    present: Array.isArray(state.present) ? state.present : priorRows,
+    delta: state.delta && typeof state.delta === 'object' && !Array.isArray(state.delta) ? state.delta : {},
+    ext: state.ext && typeof state.ext === 'object' && !Array.isArray(state.ext) ? state.ext : {},
+  };
+  root.parallelOps = Array.isArray(root.parallelOps) ? root.parallelOps : [];
+  root.parallelWorldOps = Array.isArray(root.parallelWorldOps) ? root.parallelWorldOps : [];
+  root.parallelReviewed = Array.isArray(root.parallelReviewed)
+    ? root.parallelReviewed
+    : input.prior.parallel.filter(row => row.who).map(row => input.prior.cast[canonId(row.who!)]?.name ?? row.who!);
+  root.evidence = Array.isArray(root.evidence) ? root.evidence : [];
+  root.trackEvidence = Array.isArray(root.trackEvidence) ? root.trackEvidence : [];
+  root.genesis = typeof root.genesis === 'boolean' ? root.genesis : false;
+
+  // A malformed optional member should cost only that member, not the complete
+  // scene snapshot. Zod gives the exact array index; remove those rows once and
+  // let the strict schema and semantic validator decide the remainder.
+  for (let pass = 0; pass < 4; pass++) {
+    const checked = CompilerCandidate.safeParse(root);
+    if (checked.success) return checked.data;
+    let changed = false;
+    const removals = new Map<any[], Set<number>>();
+    for (const path of checked.error.issues.map(issue => issue.path)) {
+      const index = path.find(value => typeof value === 'number');
+      if (typeof index !== 'number') continue;
+      const prefix = path.slice(0, path.indexOf(index)).join('.');
+      if (!/^state\.(delta|ext)\.[^.]+$/.test(prefix) && !/^(parallelOps|parallelWorldOps|evidence|trackEvidence|parallelReviewed)$/.test(prefix)) continue;
+      let owner: any = root;
+      for (const key of path.slice(0, path.indexOf(index))) owner = owner?.[key as any];
+      if (Array.isArray(owner) && index < owner.length) {
+        const indexes = removals.get(owner) ?? new Set<number>();
+        indexes.add(index); removals.set(owner, indexes);
+      }
+    }
+    for (const [owner, indexes] of removals) {
+      for (const index of [...indexes].sort((a, b) => b - a)) owner.splice(index, 1);
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  return root;
+}
+
+/**
+ * Keep a structurally valid compiler reply useful when one optional mutation is
+ * unsupported. The strict validator remains the authority: this routine starts
+ * from the candidate's core scene/roster snapshot, then admits each delta,
+ * extension, and parallel operation only when the whole candidate still passes.
+ * It never rewrites evidence or manufactures a state change.
+ */
+export function salvageCompilation(raw: unknown, input: CompilerInput): Compilation {
+  const prepared = preparedCompilerCandidate(raw, input);
+  const shapeRecovered = JSON.stringify(prepared) !== JSON.stringify(raw);
+  const parsed = CompilerCandidate.safeParse(prepared);
+  if (!parsed.success) return { ok: false, errors: parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`) };
+  const original = parsed.data;
+  const direct = validateCompilation(structuredClone(original), input);
+  if (direct.ok) return shapeRecovered ? { ...direct, recovered: ['candidate shape'] } : direct;
+
+  const currentSource = `${input.userInput ?? ''}\n${input.prose}`;
+  const validEvidence = original.evidence.filter((entry, index, rows) => {
+    const source = entry.path === 'scene.loc' || entry.path === 'scene.time'
+      || entry.path.startsWith('present.add.') || entry.path.startsWith('present.remove.')
+      ? currentSource : input.prose;
+    return source.includes(entry.quote) && rows.findIndex(other => other.path === entry.path) === index;
+  });
+  const evidenceFor = (path: string) => validEvidence.find(entry => entry.path === path);
+  const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
+  const scene = structuredClone(original.state.scene);
+  const parsedSceneClock = parseClock(scene.time);
+  if (parsedSceneClock !== null && parsedSceneClock !== undefined) scene.clock = parsedSceneClock;
+  else scene.time = clockTime(scene.clock);
+  if (original.state.day * 1440 + scene.clock < input.prior.day * 1440 + priorClock) {
+    original.state.day = input.prior.day;
+    scene.clock = priorClock;
+    scene.time = clockTime(priorClock);
+  }
+  if (scene.loc !== input.prior.scene.location && !evidenceFor('scene.loc')) scene.loc = input.prior.scene.location || scene.loc;
+  if ((original.state.day !== input.prior.day || scene.clock !== priorClock) && !evidenceFor('scene.time')) {
+    original.state.day = input.prior.day;
+    scene.clock = priorClock;
+    scene.time = clockTime(priorClock);
+  }
+
+  const known = new Set(Object.keys(input.prior.cast));
+  const player = canonId(input.userName);
+  if (player) known.add(player);
+  const priorPresent = new Set(input.prior.scene.present.map(canonId));
+  const priorDetail = new Map(input.prior.scene.detail.map(row => [canonId(row.id), row]));
+  const seen = new Set<string>();
+  const present: StateCandidate['state']['present'] = [];
+  for (const row of original.state.present) {
+    const id = canonId(row.id);
+    if (!id || seen.has(id)) continue;
+    const established = known.has(id) || input.prose.toLocaleLowerCase().includes(row.id.toLocaleLowerCase());
+    if (!established) continue;
+    if (!priorPresent.has(id) && id !== player && !evidenceFor(`present.add.${id}`)) continue;
+    const old = priorDetail.get(id);
+    const merged = { ...old, ...row, id: row.id };
+    if (id === player && !input.personaState) {
+      merged.mood = ''; merged.doing = ''; merged.condition = ''; merged.thought = '';
+      delete (merged as Record<string, unknown>).traits;
+    } else if (id !== player && !merged.thought?.trim()) continue;
+    seen.add(id);
+    present.push(merged);
+  }
+  for (const id of priorPresent) {
+    if (seen.has(id) || evidenceFor(`present.remove.${id}`)) continue;
+    const actor = input.prior.cast[id];
+    const old = priorDetail.get(id);
+    if (!actor || (id !== player && !old?.thought?.trim())) continue;
+    const restored: StateCandidate['state']['present'][number] = { id: actor.name, thought: old?.thought ?? '' };
+    if (old?.mood) restored.mood = old.mood;
+    if (old?.doing) restored.doing = old.doing;
+    if (old?.condition) restored.condition = old.condition;
+    if (actor.traits?.length) restored.traits = actor.traits;
+    if (id === player && !input.personaState) {
+      restored.thought = ''; restored.mood = ''; restored.doing = ''; restored.condition = ''; delete restored.traits;
+    }
+    seen.add(id);
+    present.push(restored);
+  }
+
+  const coreEvidence = validEvidence.filter(entry => entry.path === 'scene.loc' || entry.path === 'scene.time'
+    || entry.path.startsWith('present.add.') || entry.path.startsWith('present.remove.') || entry.path.startsWith('present.persona.'));
+  let accepted: StateCandidate = {
+    state: { turn: input.turn, day: original.state.day, scene, present, delta: {}, ext: {} },
+    parallelOps: [], parallelWorldOps: [],
+    parallelReviewed: input.prior.parallel.filter(row => row.who).map(row => input.prior.cast[canonId(row.who!)]?.name ?? row.who!),
+    evidence: coreEvidence, trackEvidence: [], genesis: false,
+  };
+  const core = validateCompilation(structuredClone(accepted), input);
+  if (!core.ok) return { ok: false, errors: [...new Set([...direct.errors, ...core.errors])].slice(0, 50) };
+
+  const dropped: string[] = [];
+  const tryCandidate = (label: string, build: (candidate: StateCandidate) => void): void => {
+    const trial = structuredClone(accepted);
+    build(trial);
+    const checked = validateCompilation(trial, input);
+    if (checked.ok) accepted = trial;
+    else dropped.push(label);
+  };
+
+  for (const [section, rows] of Object.entries(original.state.delta)) {
+    if (!Array.isArray(rows)) continue;
+    rows.forEach((row, originalIndex) => tryCandidate(`delta.${section}.${originalIndex}`, candidate => {
+      const delta = candidate.state.delta as Record<string, unknown[]>;
+      const next = [...(delta[section] ?? []), row];
+      delta[section] = next;
+      const path = `delta.${section}.${next.length - 1}`;
+      const oldPath = `delta.${section}.${originalIndex}`;
+      const proof = evidenceFor(oldPath);
+      if (proof) candidate.evidence.push({ ...proof, path });
+      const trackProof = original.trackEvidence.find(entry => entry.path === oldPath);
+      if (trackProof) candidate.trackEvidence.push({ ...trackProof, path });
+    }));
+  }
+  for (const [section, rows] of Object.entries(original.state.ext)) {
+    if (!Array.isArray(rows)) continue;
+    rows.forEach((row, originalIndex) => tryCandidate(`ext.${section}.${originalIndex}`, candidate => {
+      const ext = candidate.state.ext as Record<string, unknown[]>;
+      const next = [...(ext[section] ?? []), row];
+      ext[section] = next;
+      const proof = evidenceFor(`ext.${section}.${originalIndex}`);
+      if (proof) candidate.evidence.push({ ...proof, path: `ext.${section}.${next.length - 1}` });
+      if (section === 'codex' && original.genesis && input.genesisAllowed) candidate.genesis = true;
+    }));
+  }
+  original.parallelOps.forEach((operation, index) => tryCandidate(`parallelOps.${index}`, candidate => { candidate.parallelOps.push(operation); }));
+  (original.parallelWorldOps ?? []).forEach((operation, index) => tryCandidate(`parallelWorldOps.${index}`, candidate => {
+    (candidate.parallelWorldOps ??= []).push(operation);
+  }));
+  if (original.genesis && !accepted.genesis) tryCandidate('genesis', candidate => { candidate.genesis = true; });
+
+  const final = validateCompilation(accepted, input);
+  if (!final.ok) return final;
+  const recovered = [...(shapeRecovered ? ['candidate shape'] : []), ...dropped];
+  return { ...final, ...(recovered.length ? { recovered } : {}) };
 }
