@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CompilerCandidate, jsonSchema, salvageCompilation, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
-import { compileState, compilerContext, compilerReplyObjects } from '../src/bus/state-compiler.js';
+import { compileState, compilerContext, compilerReplyObjects, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
 import { registerFeature } from '../src/bus/registry.js';
 import { reduce } from '../src/core/reduce.js';
@@ -535,6 +535,17 @@ ${JSON.stringify(c.state)}
     expect(progress.find((update) => update.status === 'validated')?.text).toContain('<vellum>');
     expect(JSON.stringify(progress)).not.toContain('private chain of thought');
   });
+  it.each([
+    ['lean', ENGINE_OUTPUT_TOKENS.lean, ENGINE_TIMEOUT_MS.lean],
+    ['full', ENGINE_OUTPUT_TOKENS.full, ENGINE_TIMEOUT_MS.full],
+  ] as const)('reserves a complete-object output budget for the %s contract', async (verbosity, maxTokens, timeoutMs) => {
+    const i = input();
+    i.verbosity = verbosity;
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(candidate()) });
+    expect((await compileState(i, null, undefined, generate)).ok).toBe(true);
+    expect(generate.mock.calls[0]![1].max_tokens).toBe(maxTokens);
+    expect(generate.mock.calls[0]![3].timeoutMs).toBe(timeoutMs);
+  });
   it('accepts a complete compiler object wrapped in harmless provider chatter', async () => {
     const generate = vi.fn().mockResolvedValue({ ok: true, value: 'Here is the extracted state:\n```json\n' + JSON.stringify(candidate()) + '\n```' });
     expect((await compileState(input(), null, undefined, generate)).ok).toBe(true);
@@ -552,7 +563,7 @@ ${JSON.stringify(c.state)}
     const generate = vi.fn().mockResolvedValue({ ok: false, error: 'timeout' });
     expect(await compileState(input(), null, undefined, generate)).toEqual({ ok: false, errors: ['timeout'] });
     expect(generate).toHaveBeenCalledTimes(1);
-    expect(generate.mock.calls[0]![3].timeoutMs).toBe(45000);
+    expect(generate.mock.calls[0]![3].timeoutMs).toBe(ENGINE_TIMEOUT_MS.lean);
     expect(generate.mock.calls[0]![0][0].content).not.toContain('"additionalProperties"');
   });
 });
