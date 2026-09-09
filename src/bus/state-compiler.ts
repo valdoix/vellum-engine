@@ -4,7 +4,7 @@ import { formatDate } from '../domain/date-format.js';
 import { selectLorebookCanon } from '../domain/lorebook-canon.js';
 
 export interface CompilerProgress {
-  status: 'start' | 'chunk' | 'reasoning' | 'retry' | 'validating' | 'validated' | 'failed';
+  status: 'start' | 'requesting' | 'chunk' | 'reasoning' | 'retry' | 'validating' | 'validated' | 'failed';
   attempt: number;
   delta?: string;
   text?: string;
@@ -134,6 +134,9 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   const presentCount = Math.max(1, input.prior.scene.present.length);
   const maxTokens = Math.min(input.verbosity === 'full' ? 6000 : 4000,
     (input.verbosity === 'full' ? 3000 : 1900) + presentCount * 180 + Math.min(900, Math.ceil(input.prose.length / 32)));
+  // Preparation above is local and complete. Report the provider wait as its own
+  // phase so a slow first token is never misdiagnosed as a stuck state compiler.
+  try { run?.onProgress?.({ status: 'requesting', attempt: attemptNo, message: 'Compiler request sent; waiting for the first output token.' }); } catch { /* best effort */ }
   const result = await generate([
     { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + '\nRequired root: {state:{turn,day,scene:{loc,time,clock,tension?,weather?},present:[],delta:{},ext:{}},parallelOps:[],parallelWorldOps?:[],parallelReviewed:[],evidence:[],trackEvidence:[],genesis:false}. Omit unsupported optional rows.' },
     { role: 'user', content: context },

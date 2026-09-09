@@ -24,6 +24,14 @@ describe('offscreenCast', () => {
     expect(ids).not.toContain('cersei'); // present
     expect(ids).not.toContain('robert'); // mentioned but stale (lastTurn 1)
   });
+
+  it('keeps an old off-stage character eligible when canon still anchors their location', () => {
+    const s = state();
+    s.turns = 2_000;
+    s.cast.robert!.lastLocation = 'The Kingsroad';
+    s.cast.robert!.lastLocationTurn = 1;
+    expect(offscreenCast(s).map(c => c.id)).toContain('robert');
+  });
 });
 
 describe('buildSimPrompt', () => {
@@ -72,6 +80,16 @@ describe('buildSimPrompt', () => {
     expect(p).toContain('ATTACHED LOREBOOK WORLD CANON');
     expect(p).toContain('The Moon Gate is the only pass');
     expect(p).not.toContain('KNOWS: The Moon Gate');
+  });
+
+  it('authorizes at least one bounded beat and supplies stable characterization', () => {
+    const s = state();
+    s.cast.jaime!.role = 'sworn guard';
+    s.cast.jaime!.traits = ['dutiful', 'guarded'];
+    const p = buildSimPrompt(s, offscreenCast(s));
+    expect(simSys()).toContain('return at least one offscreen beat');
+    expect(p).toContain('(sworn guard)');
+    expect(p).toContain('TRAITS: dutiful, guarded');
   });
 });
 
@@ -125,6 +143,13 @@ describe('thread <-> off-screen bridge', () => {
   });
 });
 
+describe('parseSim provider tolerance', () => {
+  it('recovers a complete object after brace-filled provider chatter', () => {
+    const parsed = parseSim('I considered {an unsafe draft}. Final:\n```json\n{"events":[{"action":"start","name":"Gate Watch","who":"Jaime","activity":"checks the yard gate"}]}\n```');
+    expect(parsed?.offscreen).toEqual([expect.objectContaining({ op: 'new', id: 'gate_watch', who: 'Jaime', gist: 'checks the yard gate' })]);
+  });
+});
+
 describe('parseSim', () => {
   it('parses offscreen ops, slugs ids, caps to 4', () => {
     const r = parseSim('```json\n{"offscreen":[{"op":"new","name":"The Siege","gist":"walls hold"},{"op":"advance","id":"x","gist":"a"},{"op":"resolve","id":"y"},{"op":"new","id":"z","gist":"c"},{"op":"new","id":"w","gist":"d"}]}\n```')!;
@@ -148,6 +173,7 @@ describe('simEvents + reduce round-trip', () => {
     expect(s.offscreen).toHaveLength(1);
     expect(s.offscreen[0]!.who).toBe('jaime'); // resolved to cast id
     expect(s.offscreen[0]!.beats).toEqual(['walls hold']);
+    expect(s.parallel).toEqual([expect.objectContaining({ who: 'jaime', where: 'The Yard', activity: 'walls hold', src: 'sim', turn: 12, day: 1 })]);
     // turn 2: advance same id
     evs = simEvents({ offscreen: [{ op: 'advance', id: 'siege', gist: 'a breach opens' }] }, s, 13, 1, seq);
     s = reduce(evs, s);
@@ -157,6 +183,7 @@ describe('simEvents + reduce round-trip', () => {
     evs = simEvents({ offscreen: [{ op: 'resolve', id: 'siege' }] }, s, 14, 1, seq);
     s = reduce(evs, s);
     expect(s.offscreen[0]!.status).toBe('resolved');
+    expect(s.parallel).toEqual([]);
   });
   it('accepts a depicted journey to a lorebook-established place and rejects the same invented destination without canon', () => {
     const parsed = { offscreen: [{ op: 'new' as const, id: 'moon_errand', name: 'Moon errand', who: 'Jaime', where: 'Moon Gate', gist: 'travels from the yard and arrives at the Moon Gate' }] };

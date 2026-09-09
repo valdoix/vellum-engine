@@ -8,7 +8,7 @@ export interface EngineStreamPayload {
   type: 'vellum_engine_stream';
   runId: string;
   event: 'start' | 'progress' | 'chunk' | 'complete' | 'failed';
-  status?: 'start' | 'chunk' | 'reasoning' | 'retry' | 'validating' | 'validated' | 'failed';
+  status?: 'start' | 'requesting' | 'chunk' | 'reasoning' | 'retry' | 'validating' | 'validated' | 'failed';
   turn?: number;
   attempt?: number;
   delta?: string;
@@ -103,6 +103,7 @@ function progressWidth(status: string, finished: boolean): number {
   if (status === 'validated') return 94;
   if (status === 'validating') return 82;
   if (status === 'chunk' || status === 'reasoning') return 58;
+  if (status === 'requesting') return 22;
   if (status === 'retry') return 18;
   return 7;
 }
@@ -120,7 +121,8 @@ function render(): void {
             : live.status === 'validated' ? 'File validated; committing it to the Chronicle\u2026'
               : live.status === 'retry' ? (live.message || 'Discarded an invalid draft; starting a clean retry\u2026')
                 : live.status === 'chunk' ? 'Writing the VELLUM file\u2026'
-                  : 'Preparing the state compiler\u2026';
+                  : live.status === 'requesting' ? 'Waiting for the model to begin the VELLUM file\u2026'
+                    : 'Preparing the state compiler\u2026';
   setText('[data-eng-status]', status);
   setText('[data-eng-attempt]', `attempt ${live.attempt}`);
   setText('[data-eng-count]', live.output ? `${live.output.length.toLocaleString()} chars` : 'waiting');

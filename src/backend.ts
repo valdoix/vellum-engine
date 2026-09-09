@@ -685,7 +685,11 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     if (compiled?.ok) events.push({ seq: nextSeqLocal(), turn: turnNo, day: compiled.candidate.state.day, src: 'system', kind: 'state.compiled', inputSig: sig, baseHash: compiled.baseHash, block: compiled.block, genesis: compiled.candidate.genesis });
     // remember the newest turn's raw content + parse verdict for the block-
     // structure check below (the "only one block" warning).
-    if (turnNo === msgs.length) { _latestContent = foldContent; _latestSource = source; _latestEngineFallback = engineFallback; }
+    // Validate the assistant's ACTUAL response scaffold. Engine compilation
+    // deliberately strips that scaffold before appending its generated state
+    // block; validating `foldContent` therefore erased a real <reverie> and
+    // produced the false "no reverie" warning on every successful engine pass.
+    if (turnNo === msgs.length) { _latestContent = content; _latestSource = source; _latestEngineFallback = engineFallback; }
     const evs: VellumEvent[] = [...events];
     // Reuse foldTurn's already-computed complete-content signature instead of
     // recomputing sigOf(content) here.
@@ -721,7 +725,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     // `json-partial` means element salvage recovered the block by dropping corrupt
     // member(s) — the block WAS parsed, so treat it as a real block (the safety-net
     // prose extractor still runs, but the PASS-2 log isn't mislabeled "no block").
-    if (gist && structuredStateEnabled && !engineCompiler) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' || source === 'json-partial', userInput: playerInput, agency });
+    if (gist && structuredStateEnabled && (!engineCompiler || engineFallback)) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' || source === 'json-partial', userInput: playerInput, agency });
     spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);
     // salvage discards data — surface WHAT was dropped so recurring model
     // malformations are visible and quantifiable, not silent.
@@ -1202,9 +1206,10 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
   try {
     const state = await loadState(chatId);
     const cast = offscreenCast(state);
-    // per-thread advance can run even with nobody plausibly off-screen (the
-    // subplot itself carries the context); the world-wide tick needs a cast.
-    if (!focusId && cast.length < 1) return { beats: 0, reason: 'no_cast' };
+    // Existing anonymous/group subplots can advance without a named cast member.
+    // Only skip generation when there is literally no safe simulation target.
+    const hasActiveSubplot = state.offscreen.some(row => row.status === 'active');
+    if (!focusId && cast.length < 1 && !hasActiveSubplot) return { beats: 0, reason: 'no_cast' };
     const [tone, locks, directives, attached] = await Promise.all([
       readTone(chatId, userId),
       readLocks(chatId),
@@ -1226,7 +1231,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     // 30s timeout: this runs detached (background tick or manual button), NOT on
     // the prompt-assembly path — a reasoning model needs far more than the old 3s
     // to think + emit JSON, which was aborting every tick ("Generation aborted").
-    const res = await controllerGenerate([{ role: 'system', content: simSys(tone.social, tone.politics) }, { role: 'user', content: prompt }], userId, 30000, 600);
+    const res = await controllerGenerate([{ role: 'system', content: simSys(tone.social, tone.politics) }, { role: 'user', content: prompt }], userId, 30000, 900);
     if (!res.ok) {
       spindle.log?.warn?.(`[vellum_engine] off-screen sim: generation failed (${res.error})`);
       return { beats: 0, reason: 'empty_reply' };
@@ -1249,7 +1254,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
       const one = (exact.length ? exact : parsed.offscreen).slice(0, 1).map((p) => ({ ...p, id: focusId }));
       useParsed = { offscreen: one };
     }
-    if (!useParsed.offscreen.length) {
+    if (!useParsed.offscreen.length && !useParsed.bonds?.length && !useParsed.factions?.length) {
       spindle.log?.warn?.('[vellum_engine] off-screen sim: parsed reply had zero usable beats. Raw reply: ' + JSON.stringify((res.value || '').slice(0, 400)));
       return { beats: 0, reason: 'empty_reply' };
     }
@@ -1300,9 +1305,9 @@ async function maybeSimulate(chatId: string, userId: string | null): Promise<boo
   const cadenceHit = interval > 0 && (state.turns || 0) % interval === 0;
   const isSkip = skipDays >= 2;
   if (!cadenceHit && !isSkip) return false; // no cadence tick and no time-skip → nothing to do
-  // stamp the OBSERVED-day baseline up front (monotonic; see note below) so a
-  // failed/empty catch-up can't leave the marker behind and inflate the NEXT
-  // fold's skipDays. Written before the tick precisely because the tick may fail.
+  // Stamp only a SUCCESSFUL tick. The previous implementation advanced this
+  // marker before generation, so one timeout permanently swallowed a time skip
+  // and prevented the missed off-screen interval from being retried.
   const stamp = async (): Promise<void> => {
     try {
       const cur = lastSimDay ?? 0;
@@ -1312,13 +1317,14 @@ async function maybeSimulate(chatId: string, userId: string | null): Promise<boo
   };
   if (isSkip) {
     // AWAITED catch-up: beats must land before the next prompt build.
-    await stamp();
-    await simulateOffscreen(chatId, userId, undefined, skipDays);
+    const result = await simulateOffscreen(chatId, userId, undefined, skipDays);
+    if (result.beats > 0) await stamp();
     return true;
   }
   // ordinary cadence tick: no ordering constraint, keep the fold tail quick.
-  await stamp();
-  void simulateOffscreen(chatId, userId, undefined, undefined);
+  void simulateOffscreen(chatId, userId, undefined, undefined).then(async result => {
+    if (result.beats > 0) await stamp();
+  });
   return false;
 }
 

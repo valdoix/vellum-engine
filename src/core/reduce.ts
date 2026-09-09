@@ -612,6 +612,21 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (ot.firstDay === undefined) ot.firstDay = e.day;
       ot.lastDay = ot.lastDay === undefined ? e.day : Math.max(ot.lastDay, e.day);
       if (e.op === 'resolve') ot.status = 'resolved';
+      // Off-screen subplots are canonical T1 activity. Mirror their latest
+      // actor-addressed beat into the replace-all parallel snapshot immediately
+      // so Engine Pass results appear in Elsewhere on this turn, not one compiler
+      // pass later. Anonymous subplots stay in their first-class feed only.
+      const offWho = ot.who ? canonId(ot.who) : '';
+      if (offWho) {
+        s.parallel = s.parallel.filter(row => !row.who || canonId(row.who) !== offWho);
+        const current = [...s.offscreen].reverse().find(row => row.status === 'active' && row.who
+          && canonId(row.who) === offWho && row.where && row.gist);
+        if (current?.where && current.gist && !s.scene.present.map(canonId).includes(offWho)) {
+          s.parallel.push({ who: offWho, where: current.where, activity: current.gist, ...(e.src === 'system' ? { src: 'sim' as const } : {}), turn: e.turn, day: e.day });
+          const actor = s.cast[offWho];
+          if (actor) { actor.lastLocation = current.where; actor.lastLocationTurn = e.turn; }
+        }
+      }
       break;
     }
     case 'offscreen.link': {

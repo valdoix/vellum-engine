@@ -480,7 +480,8 @@ ${JSON.stringify(c.state)}
     });
     const r = await compileState(input(), null, undefined, generate as any, { onProgress: (update) => progress.push(update as unknown as Record<string, unknown>) });
     expect(r.ok).toBe(true);
-    expect(progress.map((update) => update.status)).toEqual(expect.arrayContaining(['start', 'reasoning', 'chunk', 'validating', 'validated']));
+    expect(progress.map((update) => update.status)).toEqual(expect.arrayContaining(['start', 'requesting', 'reasoning', 'chunk', 'validating', 'validated']));
+    expect(progress.find((update) => update.status === 'requesting')?.message).toContain('first output token');
     expect(progress.find((update) => update.status === 'validated')?.text).toContain('<vellum>');
     expect(JSON.stringify(progress)).not.toContain('private chain of thought');
   });
