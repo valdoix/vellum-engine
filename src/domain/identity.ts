@@ -162,7 +162,7 @@ const GENERIC = new Set([
 const META = new Set([
   'narrator', 'pov', 'protagonist', 'antagonist', 'character', 'char', 'player',
   'user', 'persona', 'speaker', 'narration', 'viewpoint', 'perspective', 'self',
-  'unnamed', 'unknown', 'nobody', 'everyone', 'someone', 'anybody', 'main',
+  'unnamed', 'unknown', 'unspecified', 'nobody', 'everyone', 'someone', 'anybody', 'main',
   // canon/world sentinels — these name LORE (true of the world), never a person.
   // Routing them through here stops a "World"/"Codex" pseudo-cast card.
   'world', 'lore', 'codex', 'canon', 'setting',

@@ -5,6 +5,7 @@ import { clockTime, elapsedClockFloor, parseClock, reconcileDay, supportsDayAdva
 import { factTokens, similarFact } from './fact-match.js';
 import type { ChronicleState } from './types.js';
 import type { LorebookCanonEntry } from './lorebook-canon.js';
+import { normalizeSecretAudience } from './secret-audience.js';
 import {
   activityNeedsAccessPath,
   canonicalActorLocation,
@@ -139,6 +140,18 @@ function knowledgeSourceGrounded(source: string, quote: string): boolean {
   const wanted = [...factTokens(source)].filter(token => !KNOWLEDGE_SOURCE_GENERIC.has(token));
   const found = [...factTokens(quote)];
   return wanted.some(token => found.some(candidate => tokenRelated(token, candidate)));
+}
+
+/** A quote may be real yet support only a fraction of an over-expanded fact.
+ * Require at least half of the durable proposition's content words to occur in
+ * its evidence. This rejects private-thought guesses and subject reversals while
+ * retaining compact paraphrases such as "the key is seven". */
+function knowledgeFactGrounded(fact: string, quote: string): boolean {
+  const wanted = [...factTokens(fact)];
+  const found = [...factTokens(quote)];
+  if (!wanted.length || !found.length) return false;
+  const shared = wanted.filter(token => found.some(candidate => tokenRelated(token, candidate))).length;
+  return shared >= Math.max(1, Math.ceil(wanted.length / 2));
 }
 
 /** Track titles are model-facing labels, while ids remain engine-owned. Match a
@@ -326,7 +339,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
         const holder = canonId(row.who);
         const quote = evidence.get(`delta.knowledge.${index}`) ?? '';
         const onStageThisTurn = input.prior.scene.present.map(canonId).includes(holder) || present.has(holder);
-        if (!onStageThisTurn && quote && !knowledgeSourceGrounded(String(row.source ?? ''), quote)) errors.push(`knowledge source is not grounded in its evidence: ${row.who}`);
+        if (quote && !knowledgeFactGrounded(String(row.fact ?? ''), quote)) errors.push(`knowledge fact overreaches its evidence: ${row.who}`);
+        if (quote && !knowledgeSourceGrounded(String(row.source ?? ''), quote)) errors.push(`knowledge source is not grounded in its evidence: ${row.who}`);
         // The compiler can read the main scene; an absent character cannot. A
         // durable off-stage update therefore needs the recipient named in the
         // evidence and a witnessed/delivered access channel in that same quote.
@@ -334,9 +348,25 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
           errors.push(`off-stage knowledge lacks a delivered access path: ${row.who}`);
         }
       }
+      if (section === 'secrets') {
+        const secretText = String(row.secret ?? row.text ?? '').trim();
+        const audience = normalizeSecretAudience(String(row.keeper ?? ''), row.from);
+        const rawAudience = (Array.isArray(row.from) ? row.from : typeof row.from === 'string' ? row.from.split(',') : [])
+          .map((value: unknown) => canonId(String(value ?? '').trim())).filter(Boolean);
+        if (!secretText) errors.push('new secret requires text');
+        if (audience.length !== rawAudience.length || audience.some((id, audienceIndex) => id !== rawAudience[audienceIndex])) {
+          errors.push('secret audience must contain distinct named people other than the keeper');
+        }
+        for (const target of audience) if (!known(target)) errors.push(`unknown secret audience: ${target}`);
+        const keeper = canonId(String(row.keeper ?? ''));
+        if (input.prior.secrets.some(secret => secret.keeper === keeper && similarFact(secret.text, secretText))) {
+          errors.push('tracked secret was recreated; update it by exact id with secretReveals');
+        }
+      }
       if (section === 'secretReveals') {
         const secret = input.prior.secrets.find(x => x.id === row.id);
         if (!secret) errors.push(`unknown secret id: ${row.id}`);
+        if (!Array.isArray(row.to)) errors.push('secret reveal requires an explicit recipient list');
         for (const target of row.to ?? []) if (!known(target)) errors.push(`unknown secret recipient: ${target}`);
       }
     });
@@ -581,6 +611,18 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
     delta: state.delta && typeof state.delta === 'object' && !Array.isArray(state.delta) ? state.delta : {},
     ext: state.ext && typeof state.ext === 'object' && !Array.isArray(state.ext) ? state.ext : {},
   };
+  // Normalize the only user-shaped identity arrays before schema validation.
+  // This turns a provider loop such as ["Cersei", "Cersei", ...] into one
+  // bounded audience instead of discarding the whole otherwise-valid candidate.
+  for (const row of Array.isArray(root.state.delta.secrets) ? root.state.delta.secrets : []) {
+    if (!row || typeof row !== 'object' || Array.isArray(row) || !('from' in row)) continue;
+    row.from = normalizeSecretAudience(String(row.keeper ?? ''), row.from);
+  }
+  for (const row of Array.isArray(root.state.delta.secretReveals) ? root.state.delta.secretReveals : []) {
+    if (!row || typeof row !== 'object' || Array.isArray(row) || !Array.isArray(row.to)) continue;
+    const secret = input.prior.secrets.find(candidate => candidate.id === row.id);
+    row.to = normalizeSecretAudience(secret?.keeper ?? '', row.to);
+  }
   root.parallelOps = Array.isArray(root.parallelOps) ? root.parallelOps : [];
   root.parallelWorldOps = Array.isArray(root.parallelWorldOps) ? root.parallelWorldOps : [];
   root.parallelReviewed = Array.isArray(root.parallelReviewed)

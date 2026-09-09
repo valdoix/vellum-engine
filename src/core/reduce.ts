@@ -6,6 +6,7 @@ import { freshRelation, applyScore, addCategories, removeCategories, sentimentTo
 import { normalizeCategorySet, primaryCategory, isCategory } from '../domain/category.js';
 import { clockTime, parseClock } from '../domain/clock.js';
 import { isCatchupMarker } from '../domain/thread-catchup.js';
+import { normalizeSecretAudience } from '../domain/secret-audience.js';
 
 /**
  * reduce(events) → ChronicleState. PURE: no I/O, no randomness, no host calls.
@@ -431,7 +432,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'secret.form': {
       if (!s.secrets.find((x) => x.id === e.id)) {
-        ensureCast(s, e.keeper, e.turn); for (const f of e.from) ensureCast(s, f, e.turn); // keeper + those kept in the dark
+        const from = normalizeSecretAudience(e.keeper, e.from);
+        ensureCast(s, e.keeper, e.turn); for (const f of from) ensureCast(s, f, e.turn); // keeper + those kept in the dark
         // dedup: the same keeper concealing the SAME secret (near-duplicate text)
         // is one secret — merge the `from` lists (who it's kept from accumulates)
         // and keep the richer wording, rather than spawning parallel rows.
@@ -440,10 +442,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
           dup.text = richer(dup.text, e.text);
           // Someone already recorded as having learned the secret must not be
           // put back into the hidden audience by a later restatement.
-          dup.from = Array.from(new Set([...dup.from, ...e.from])).filter((id) => !dup.revealedTo.includes(id));
+          dup.from = normalizeSecretAudience(dup.keeper, [...dup.from, ...from], dup.revealedTo);
           dup.lastTurn = Math.max(dup.lastTurn ?? dup.formedTurn, e.turn);
         } else {
-          s.secrets.push({ id: e.id, keeper: e.keeper, from: e.from, text: e.text, revealed: false, revealedTo: [], formedTurn: e.turn, lastTurn: e.turn });
+          s.secrets.push({ id: e.id, keeper: e.keeper, from, text: e.text, revealed: false, revealedTo: [], formedTurn: e.turn, lastTurn: e.turn });
         }
       }
       break;
@@ -452,8 +454,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       const sec = s.secrets.find((x) => x.id === e.id);
       if (sec) {
         if (e.to.length) {
-          sec.revealedTo = Array.from(new Set([...sec.revealedTo, ...e.to]));
-          sec.from = sec.from.filter((id) => !sec.revealedTo.includes(id));
+          const targets = normalizeSecretAudience(sec.keeper, e.to);
+          if (!targets.length) break;
+          sec.revealedTo = normalizeSecretAudience(sec.keeper, [...sec.revealedTo, ...targets]);
+          sec.from = normalizeSecretAudience(sec.keeper, sec.from, sec.revealedTo);
           // `revealed` means the seal has been broken at least once (the UI and
           // legacy contract use it this way). `from` remains the exact audience
           // still in the dark, while `revealedTo` records who learned it.
@@ -477,9 +481,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         const drop = new Set(e.from);
         for (const x of s.secrets) if (drop.has(x.id)) {
           into.text = richer(into.text, x.text);
-          into.from = Array.from(new Set([...into.from, ...x.from]));
-          into.revealedTo = Array.from(new Set([...into.revealedTo, ...x.revealedTo]));
-          into.from = into.from.filter((id) => !into.revealedTo.includes(id));
+          into.revealedTo = normalizeSecretAudience(into.keeper, [...into.revealedTo, ...x.revealedTo]);
+          into.from = normalizeSecretAudience(into.keeper, [...into.from, ...x.from], into.revealedTo);
           into.lastTurn = Math.max(into.lastTurn ?? into.formedTurn, x.lastTurn ?? x.formedTurn);
           if (x.revealed) into.revealed = true;
         }

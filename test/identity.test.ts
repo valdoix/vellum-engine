@@ -85,7 +85,7 @@ describe('fold dedup — bonds do not split a character across two ids', () => {
 
 describe('notAName — reject pronouns / deixis / bare generics', () => {
   it('rejects pronouns regardless of case', () => {
-    for (const p of ['she', 'She', 'her', 'Her', 'he', 'they', 'it', 'someone', 'you']) expect(notAName(p)).toBe(true);
+    for (const p of ['she', 'She', 'her', 'Her', 'he', 'they', 'it', 'someone', 'you', 'unspecified']) expect(notAName(p)).toBe(true);
   });
   it('rejects bare lowercase generics, passes capitalized epithets + proper names', () => {
     expect(notAName('a guard')).toBe(true);

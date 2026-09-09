@@ -158,6 +158,20 @@ describe('strict pre-commit state compiler', () => {
     c.evidence.push({ path: 'delta.knowledge.0', quote: 'A messenger tells Ada at the East Gate that the key is seven' });
     expect(validateCompilation(c, i).ok).toBe(true);
   });
+  it('rejects knowledge that overstates a real quote or reverses its subject', () => {
+    const i = input();
+    i.prose += ' Ada smiles at Mara. Ada says, "I ordered dinner."';
+    const c = candidate();
+    c.state.delta.knowledge = [{
+      who: 'Mara', about: 'Ada', reliability: 'knows', truth: 'true',
+      fact: 'Ada privately counted every raindrop and Mara ordered dinner to avoid the court',
+      source: 'Ada says to Mara',
+    }];
+    c.evidence.push({ path: 'delta.knowledge.0', quote: 'Ada says, "I ordered dinner."' });
+    const rejected = validateCompilation(c, i);
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) expect(rejected.errors).toContain('knowledge fact overreaches its evidence: Mara');
+  });
   it('starts a grounded parallel row from active Living World state without requiring it in visible prose', () => {
     const i = input();
     i.prior.parallel = [];
@@ -228,6 +242,34 @@ describe('strict pre-commit state compiler', () => {
     expect(schema.additionalProperties).toBe(false);
     expect(schema.properties.state.properties.scene.properties.clock).toMatchObject({ type: 'integer', minimum: 0, maximum: 1439 });
     expect(schema.properties.state.properties.delta.additionalProperties).toBe(false);
+    expect(schema.properties.state.properties.delta.properties.secrets.items.properties.from.anyOf[1].maxItems).toBe(32);
+  });
+  it('repairs a looping secret audience before filing the canonical block', () => {
+    const i = input();
+    i.prose += ' Ada whispers that the copper key opens the sealed archive.';
+    const c = candidate();
+    c.state.delta.secrets = [{
+      keeper: 'Ada', secret: 'the copper key opens the sealed archive',
+      from: ['Ada', 'Mara', ...Array.from({ length: 100 }, () => 'Mara'), 'unspecified'],
+    }];
+    c.evidence.push({ path: 'delta.secrets.0', quote: 'Ada whispers that the copper key opens the sealed archive' });
+    const compiled = salvageCompilation(c, i);
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    expect(JSON.parse(compiled.block.slice(9, -9)).delta.secrets[0].from).toEqual(['mara']);
+  });
+  it('drops a recreated tracked secret instead of echoing it into the next block', () => {
+    const i = input();
+    i.prior.secrets = [{ id: 'sec_key', keeper: 'ada', from: ['mara'], text: 'the copper key opens the sealed archive', revealed: false, revealedTo: [], formedTurn: 1 }];
+    i.prose += ' Ada repeats that the copper key opens the sealed archive.';
+    const c = candidate();
+    c.state.delta.secrets = [{ keeper: 'Ada', secret: 'the copper key opens the sealed archive', from: ['Mara'] }];
+    c.evidence.push({ path: 'delta.secrets.0', quote: 'Ada repeats that the copper key opens the sealed archive' });
+    const compiled = salvageCompilation(c, i);
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    expect(JSON.parse(compiled.block.slice(9, -9)).delta.secrets ?? []).toEqual([]);
+    expect(compiled.recovered).toContain('delta.secrets.0');
   });
   it('allows disabled Codex only for an actually consumed eligible genesis', () => {
     const i = input();
@@ -376,6 +418,14 @@ ${JSON.stringify(c.state)}
     expect(context).toContain('the obsidian gate code is seven');
     expect(context).not.toContain('unrelated secret 1"');
   });
+  it('compacts damaged prior secret audiences before sending compiler context', () => {
+    const i = input();
+    i.prior.secrets = [{
+      id: 'sec_loop', keeper: 'ada', text: 'the copper key opens the sealed archive', revealed: false,
+      from: ['ada', 'mara', ...Array.from({ length: 100 }, () => 'mara'), 'unspecified'], revealedTo: [], formedTurn: 1,
+    }];
+    expect(JSON.parse(compilerContext(i)).prior.secrets[0].from).toEqual(['mara']);
+  });
   it('passes the persona-state control to the second-pass model', () => {
     const i = input(); i.personaState = true;
     expect(JSON.parse(compilerContext(i)).controls.personaState).toBe(true);
@@ -489,6 +539,11 @@ ${JSON.stringify(c.state)}
     const generate = vi.fn().mockResolvedValue({ ok: true, value: 'Here is the extracted state:\n```json\n' + JSON.stringify(candidate()) + '\n```' });
     expect((await compileState(input(), null, undefined, generate)).ok).toBe(true);
     expect(generate).toHaveBeenCalledTimes(1);
+  });
+  it('recovers provider-added bold markers around JSON members', () => {
+    const raw = JSON.stringify(candidate());
+    const decorated = `{**${raw.slice(1, -1)}**}`;
+    expect(compilerReplyObjects(decorated)).toEqual([candidate()]);
   });
   it('keeps truncated objects out of the compiler candidate scan', () => {
     expect(compilerReplyObjects('{"state":{"turn":1}')).toEqual([]);

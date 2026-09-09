@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Category } from '../core/events.js';
+import { SECRET_AUDIENCE_LIMIT } from '../domain/secret-audience.js';
 
 /**
  * PARSED STATE — the seam between "how a turn was expressed" (JSON block, ledger
@@ -79,14 +80,14 @@ export const ParsedSecret = z.object({
   keeper: z.string(),
   secret: z.string().optional().catch(undefined),
   text: z.string().optional().catch(undefined),
-  from: z.union([z.string(), z.array(z.string())]).optional().catch(undefined),
+  from: z.union([z.string(), z.array(z.string()).max(SECRET_AUDIENCE_LIMIT)]).optional().catch(undefined),
 });
 
 /** An update to an existing secret's audience. The id must be copied from the
  * prior state; an empty `to` list means the prose made it public. */
 export const ParsedSecretReveal = z.object({
   id: z.string(),
-  to: z.array(z.string()).optional().catch(undefined),
+  to: z.array(z.string()).max(SECRET_AUDIENCE_LIMIT).optional().catch(undefined),
 });
 
 export const ParsedFaction = z.object({

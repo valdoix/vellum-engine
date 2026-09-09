@@ -9,6 +9,7 @@ import { inferLocationParent } from './locations.js';
 import { clockTime, parseClock } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 import { reconcileParallelSnapshot } from './parallel-canon.js';
+import { normalizeSecretAudience } from './secret-audience.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -400,8 +401,8 @@ export const coreFeature: Feature = {
     for (const s of parsed.delta?.secrets ?? []) {
       const text = String(s.secret || s.text || '').trim();
       if (!text || badName(s.keeper)) continue;
-      const fromRaw = Array.isArray(s.from) ? s.from : String(s.from || '').split(',');
-      const from = fromRaw.map((x) => String(x).trim()).filter((x) => x && !badName(x)).map(rid);
+      const from = normalizeSecretAudience(rid(s.keeper), s.from)
+        .filter((id) => !badName(id)).map(rid);
       out.push({ ...base(), kind: 'secret.form', id: 'sec_' + ctx.turn + '_' + (si++), keeper: rid(s.keeper), from, text } as VellumEvent);
     }
 

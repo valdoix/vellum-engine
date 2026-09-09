@@ -3,6 +3,7 @@ import { type ChronicleState } from '../domain/types.js';
 import { reduce } from '../core/reduce.js';
 import { mergeDuplicates } from '../domain/identity.js';
 import { sweepProvisionalCast } from '../domain/cast-hygiene.js';
+import { repairSecretAudiences } from '../domain/secret-audience.js';
 import { migrate } from '../core/migrate.js';
 import { tryCatchAsync } from '../core/result.js';
 
@@ -58,7 +59,7 @@ const _writeQueues = new Map<string, Promise<void>>();
  * truncate/clear did not, so a recovered/imported log could carry provisional
  * junk a fresh load would have reaped. */
 function buildState(events: VellumEvent[]): ChronicleState {
-  return sweepProvisionalCast(mergeDuplicates(reduce(events)));
+  return repairSecretAudiences(sweepProvisionalCast(mergeDuplicates(reduce(events))));
 }
 
 /** Validate an envelope leniently: keep events that parse, drop only bad ones.
@@ -185,6 +186,7 @@ export async function loadState(chatId: string): Promise<ChronicleState> {
     // SAME object when nothing is reaped, so a no-op costs one pass and no churn.
     const swept = sweepProvisionalCast(c.state);
     if (swept !== c.state) { c.state = swept; c.mergeSig = identitySig(c.state); }
+    c.state = repairSecretAudiences(c.state);
   }
   return c.state;
 }

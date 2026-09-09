@@ -42,6 +42,15 @@ describe('reducer dedup — near-duplicate secrets union the from-list', () => {
     expect(kept).toHaveLength(1);
     expect(kept[0]!.from.sort()).toEqual(['daeron', 'jaime', 'tywin']); // unioned
   });
+  it('self-heals duplicate, self, placeholder, and already-revealed audience members', () => {
+    let s = freshState();
+    s = reduce([
+      secret('s1', 'cersei', 'she hid the copper key', ['cersei', 'jaime', 'jaime', 'unspecified']),
+      { seq: sf(), turn: 6, day: 1, src: 'living', kind: 'secret.reveal', id: 's1', to: ['jaime', 'jaime'] },
+    ] as any, s);
+    expect(s.secrets[0]).toMatchObject({ from: [], revealedTo: ['jaime'] });
+    expect(s.cast.unspecified).toBeUndefined();
+  });
 });
 
 describe('knowledge.merge / secret.merge events (Tidy)', () => {
