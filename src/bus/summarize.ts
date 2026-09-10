@@ -30,10 +30,18 @@ export interface SummaryProgress {
 export interface SummaryRunOptions {
   onProgress?: (progress: SummaryProgress) => void;
   signal?: AbortSignal;
+  detailGeneration?: SummaryGenerationOptions;
+  gistGeneration?: SummaryGenerationOptions;
 }
+export interface SummaryGenerationOptions { connectionId?: string; fallbackIds?: string[]; retries?: number; maxTokens?: number; timeoutMs?: number; temperature?: number; reasoning?: import('lumiverse-spindle-types').GenerationReasoningOverrideDTO; schema?: boolean }
 
 function progress(run: SummaryRunOptions | undefined, update: SummaryProgress): void {
   try { run?.onProgress?.(update); } catch { /* reporting must never affect archival */ }
+}
+
+function connectionForAttempt(generation: SummaryGenerationOptions | undefined, attempt: number): string | undefined {
+  const ids = [generation?.connectionId, ...(generation?.fallbackIds ?? [])].filter((id): id is string => !!id);
+  return ids[Math.min(Math.max(0, attempt - 1), ids.length - 1)];
 }
 
 /**
@@ -171,7 +179,7 @@ export async function summarizeFromPlan(
     const gistSys = resolvePrompt('gist', cfg, names);
     const soFar = storySoFar(state, plan); // continuity belongs on the gist call
     // a gist is a short paragraph — cap output tight to save tokens/latency.
-    const gistBudget = Math.min(cfg.genMaxTokens, Math.max(256, Math.ceil(cfg.gistCap / 3)));
+    const gistBudget = run?.gistGeneration?.maxTokens ?? Math.min(cfg.genMaxTokens, Math.max(256, Math.ceil(cfg.gistCap / 3)));
     progress(run, { phase: 'detail', status: 'done', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, tokens, text: detail + (keys.length ? `\n\nKEYS:\n${keys.join(', ')}` : '') });
     progress(run, { phase: 'gist', status: 'start', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, attempt: 1, tokens });
     let gistAttempt = 0;
@@ -181,10 +189,13 @@ export async function summarizeFromPlan(
       const gistUser = gistTask(detail, soFar, gistCorrection);
       const gen2 = await internalGenerate(
         [{ role: 'system', content: gistSys }, { role: 'user', content: gistUser }],
-        { temperature: cfg.temperature, max_tokens: gistBudget },
+        { temperature: run?.gistGeneration?.temperature ?? cfg.temperature, max_tokens: gistBudget },
         userId,
         {
           reasoningOff: true,
+          ...(run?.gistGeneration?.reasoning ? { reasoning: run.gistGeneration.reasoning } : {}),
+          ...(connectionForAttempt(run?.gistGeneration, gistAttempt) ? { connectionId: connectionForAttempt(run?.gistGeneration, gistAttempt) } : {}),
+          ...(run?.gistGeneration?.timeoutMs ? { timeoutMs: run.gistGeneration.timeoutMs } : {}),
           signal: run?.signal,
           onStream: run?.onProgress ? (update) => progress(run, {
             phase: 'gist', status: update.type === 'content' ? 'chunk' : 'reasoning', kind,
@@ -200,7 +211,8 @@ export async function summarizeFromPlan(
         if (!issue) gist = candidate;
         else gistCorrection = issue;
       } else gistCorrection = 'it returned no usable text';
-      if (gist || !cfg.complete || terminalGenerationFailure(gen2) || run?.signal?.aborted) break;
+      const gistAttempts = 1 + (run?.gistGeneration?.retries ?? 0);
+      if (gist || (!cfg.complete && gistAttempt >= gistAttempts) || terminalGenerationFailure(gen2) || run?.signal?.aborted) break;
       progress(run, { phase: 'gist', status: 'retry', kind, sourceCount: plan.sourceIds.length, covers: plan.covers, attempt: gistAttempt + 1, tokens, message: gistCorrection ? 'Rejected a non-archive gist; retrying' : 'Gist was incomplete; retrying' });
       await retryPause(gistAttempt, run?.signal);
     }
@@ -284,8 +296,8 @@ async function generateDetail(
   keepTrying: boolean,
 ): Promise<{ text: string; tokens: number }> {
   let tokens = 0;
-  const maxAttempts = cfg.complete && keepTrying ? Number.POSITIVE_INFINITY : 2;
-  let budget = cfg.genMaxTokens;
+  const maxAttempts = cfg.complete && keepTrying ? Number.POSITIVE_INFINITY : 1 + (run?.detailGeneration?.retries ?? 1);
+  let budget = run?.detailGeneration?.maxTokens ?? cfg.genMaxTokens;
   let correction = '';
   for (let attempt = 1; attempt <= maxAttempts && !run?.signal?.aborted; attempt++) {
     if (attempt > 1) {
@@ -297,10 +309,13 @@ async function generateDetail(
     const msgs = [{ role: 'system' as const, content: sys }, { role: 'user' as const, content: user }];
     const result = await internalGenerate(
       msgs,
-      { temperature: cfg.temperature, max_tokens: budget },
+      { temperature: run?.detailGeneration?.temperature ?? cfg.temperature, max_tokens: budget },
       userId,
       {
         reasoningOff: attempt === 1,
+        ...(run?.detailGeneration?.reasoning ? { reasoning: run.detailGeneration.reasoning } : {}),
+        ...(connectionForAttempt(run?.detailGeneration, attempt) ? { connectionId: connectionForAttempt(run?.detailGeneration, attempt) } : {}),
+        ...(run?.detailGeneration?.timeoutMs ? { timeoutMs: run.detailGeneration.timeoutMs } : {}),
         signal: run?.signal,
         onStream: run?.onProgress ? (update) => progress(run, {
           phase: 'detail', status: update.type === 'content' ? 'chunk' : 'reasoning', kind,

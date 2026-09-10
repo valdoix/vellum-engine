@@ -73,6 +73,8 @@ export async function internalGenerate(
   userId: string | null,
   opts?: {
     reasoningOff?: boolean;
+    /** Explicit Lumiverse reasoning override. Wins over reasoningOff. */
+    reasoning?: import('lumiverse-spindle-types').GenerationReasoningOverrideDTO;
     responseFormat?: Record<string, unknown>;
     connectionId?: string;
     timeoutMs?: number;
@@ -113,7 +115,8 @@ export async function internalGenerate(
   const signal = opts?.signal && timeoutSignal && typeof AbortSignal?.any === 'function'
     ? AbortSignal.any([opts.signal, timeoutSignal])
     : opts?.signal ?? timeoutSignal;
-  const req = { messages, parameters: params2, ...(userId ? { userId } : {}), ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}), ...(opts?.reasoningOff !== false ? { reasoning: { source: 'off' as const } } : {}) };
+  const reasoning = opts?.reasoning ?? (opts?.reasoningOff !== false ? { source: 'off' as const } : undefined);
+  const req = { messages, parameters: params2, ...(userId ? { userId } : {}), ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}), ...(reasoning ? { reasoning } : {}) };
   return tryCatchAsync(async () => {
     const emit = (update: GenerationStreamUpdate): void => {
       if (signal?.aborted) return;
@@ -192,12 +195,13 @@ export async function controllerGenerate(
   userId: string | null,
   timeoutMs = 1500,
   maxTokens = 200,
+  options?: { connectionId?: string; temperature?: number; reasoning?: import('lumiverse-spindle-types').GenerationReasoningOverrideDTO },
 ): Promise<Result<string, string>> {
   if (!(await has('generation'))) return Err('no_generation_permission');
   if (!(spindle.generate && (spindle.generate.raw || spindle.generate.quiet))) return Err('no_generate_api');
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(timeoutMs) : undefined;
-  const connId = await defaultConnectionId(userId); // run on the user's own model
-  const req = { messages, parameters: { max_tokens: maxTokens, temperature: 0 }, reasoning: { source: 'off' as const }, ...(userId ? { userId } : {}), ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}) };
+  const connId = options?.connectionId ?? await defaultConnectionId(userId); // run on the selected task route
+  const req = { messages, parameters: { max_tokens: maxTokens, temperature: options?.temperature ?? 0 }, reasoning: options?.reasoning ?? { source: 'off' as const }, ...(userId ? { userId } : {}), ...(connId ? { connection_id: connId } : {}), ...(signal ? { signal } : {}) };
   return tryCatchAsync(async () => {
     const call = spindle.generate.quiet
       ? spindle.generate.quiet({ type: 'quiet', ...req })

@@ -385,7 +385,7 @@ export function mapExtracted(obj: any, turn: number, day: number, names: { user:
  * supplies turn/day, the resolved persona/char names, and the prior chronicle
  * state (for cast-id resolution). No-op without generation permission/empty prose.
  */
-export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null, state?: ChronicleState, tone: Tone = DEFAULT_TONE, personaState = false, playerInput = '', agency: AgencyMode = 'protected'): Promise<VellumEvent[]> {
+export async function extractFromProse(prose: string, turn: number, day: number, names: { user: string; char: string }, userId: string | null, state?: ChronicleState, tone: Tone = DEFAULT_TONE, personaState = false, playerInput = '', agency: AgencyMode = 'protected', generation?: { connectionId?: string; fallbackIds?: string[]; retries?: number; maxTokens?: number; timeoutMs?: number; temperature?: number; reasoning?: import('lumiverse-spindle-types').GenerationReasoningOverrideDTO; schema?: boolean }): Promise<VellumEvent[]> {
   if (!prose || !prose.trim() || !(await has('generation'))) return [];
   const roster = rosterLabels(buildCharacterRoster(state, names)).slice(0, 250);
   const factions = Object.values(state?.factions ?? {}).map((f) => f.name).filter(Boolean).slice(0, 100);
@@ -397,15 +397,20 @@ export async function extractFromProse(prose: string, turn: number, day: number,
     + `\n\n[PERSONA AGENCY]\n${agency}`
     + '\n\n[LATEST PLAYER INPUT]\n' + (playerInput.trim() || '(not available)')
     + '\n\n[RECENT NARRATIVE PROSE]\n' + prose.slice(0, 8000);
-  const gen = await internalGenerate(
-    [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: context }],
-    { temperature: 0.2, max_tokens: 900 },
-    userId,
-    { reasoningOff: true, responseFormat: extractSchema(roster, secrets.map((s) => s.id)), timeoutMs: 45000 },
-  );
-  if (!gen.ok) return [];
-  const obj = parseJson(gen.value);
-  return mapExtracted(obj, turn, day, names, nextSeq, state, tone, prose, personaState, playerInput, agency);
+  const ids = [generation?.connectionId, ...(generation?.fallbackIds ?? [])].filter((id): id is string => !!id);
+  const attempts = Math.max(1, 1 + (generation?.retries ?? 0));
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const gen = await internalGenerate(
+      [{ role: 'system', content: EXTRACT_SYS }, { role: 'user', content: context }],
+      { temperature: generation?.temperature ?? 0.2, max_tokens: generation?.maxTokens ?? 900 },
+      userId,
+      { reasoningOff: true, ...(generation?.reasoning ? { reasoning: generation.reasoning } : {}), ...(generation?.schema === false ? {} : { responseFormat: extractSchema(roster, secrets.map((s) => s.id)) }), timeoutMs: generation?.timeoutMs ?? 45000, ...(ids.length ? { connectionId: ids[Math.min(attempt, ids.length - 1)] } : {}) },
+    );
+    if (!gen.ok) continue;
+    const obj = parseJson(gen.value);
+    if (obj) return mapExtracted(obj, turn, day, names, nextSeq, state, tone, prose, personaState, playerInput, agency);
+  }
+  return [];
 }
 
 // JSON-schema for the extractor output. Best-effort: the host enforces it only

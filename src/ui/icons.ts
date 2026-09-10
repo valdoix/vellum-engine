@@ -25,6 +25,7 @@ const PATHS: Record<string, string> = {
   graph: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="9" cy="18" r="2"/><path d="M7.6 8.2l8.8.6M8.4 16.3l8.4-5.6M7.3 8.8l1.4 7.4" opacity=".7"/>',
   vault: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 9.2v5.6"/>',
   context: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M8 5v14" opacity=".6"/><path d="M11.5 9.5l2.5 2.5-2.5 2.5"/>',
+  workbench: '<path d="M4 7h16M7 4v6M17 4v6"/><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M8 12h3M8 16h8"/>',
   // --- header stat pills (turn counter, weather; cast/bonds/calendar reuse tab icons) ---
   turn: '<circle cx="12" cy="12" r="8"/><path d="M12 7.5v5l3.5 2"/>',
   weather: '<path d="M7 18a4 4 0 0 1 .5-8 5 5 0 0 1 9.7 1.2A3.4 3.4 0 0 1 16.5 18z"/>',

@@ -16,6 +16,7 @@ export interface CompilerProgress {
 export interface CompilerRunOptions {
   onProgress?: (update: CompilerProgress) => void;
   signal?: AbortSignal;
+  generation?: { maxTokens?: number; timeoutMs?: number; temperature?: number; reasoning?: import('lumiverse-spindle-types').GenerationReasoningOverrideDTO; schema?: boolean };
 }
 
 /**
@@ -170,23 +171,24 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   try { run?.onProgress?.({ status: 'start', attempt: attemptNo }); } catch { /* a progress UI must never interrupt compilation */ }
   let streamed = '';
   const contract = input.verbosity === 'full' ? 'full' : 'lean';
-  const maxTokens = ENGINE_OUTPUT_TOKENS[contract];
+  const maxTokens = run?.generation?.maxTokens ?? ENGINE_OUTPUT_TOKENS[contract];
   // Preparation above is local and complete. Report the provider wait as its own
   // phase so a slow first token is never misdiagnosed as a stuck state compiler.
   try { run?.onProgress?.({ status: 'requesting', attempt: attemptNo, message: 'Compiler request sent; waiting for the first output token.' }); } catch { /* best effort */ }
   const result = await generate([
     { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + '\nRequired root: {state:{turn,day,scene:{loc,time,clock,tension?,weather?},present:[],delta:{},ext:{}},parallelOps:[],parallelWorldOps?:[],parallelReviewed:[],evidence:[],trackEvidence:[],genesis:false}. Omit unsupported optional rows.' },
     { role: 'user', content: context },
-  ], { temperature: 0, max_tokens: maxTokens }, userId,
+  ], { temperature: run?.generation?.temperature ?? 0, max_tokens: maxTokens }, userId,
   {
     reasoningOff: true,
+    ...(run?.generation?.reasoning ? { reasoning: run.generation.reasoning } : {}),
     // The deadline must accommodate the larger complete-object budget. A
     // response that finishes before a terminal timeout is still recovered from
     // `streamed` below, while a genuinely stalled provider remains bounded.
-    timeoutMs: ENGINE_TIMEOUT_MS[contract],
+    timeoutMs: run?.generation?.timeoutMs ?? ENGINE_TIMEOUT_MS[contract],
     signal: run?.signal,
     ...(connectionId ? { connectionId } : {}),
-    responseFormat: { type: 'json_schema', json_schema: { name: 'vellum_compilation', strict: false, schema } },
+    ...(run?.generation?.schema === false ? {} : { responseFormat: { type: 'json_schema', json_schema: { name: 'vellum_compilation', strict: false, schema } } }),
     onStream: (update) => {
       try {
         if (update.type === 'content' && update.token) {

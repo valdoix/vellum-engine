@@ -267,40 +267,31 @@ export async function repairStateBlock(
   prose: string,
   context: string,
   userId: string | null,
+  generation?: { connectionId?: string; fallbackIds?: string[]; retries?: number; maxTokens?: number; timeoutMs?: number; temperature?: number; reasoning?: import('lumiverse-spindle-types').GenerationReasoningOverrideDTO; schema?: boolean },
 ): Promise<RepairedBlock | null> {
   if (!prose || !prose.trim() || !(await has('generation'))) return null;
   const messages: GenMsg[] = [
     { role: 'system', content: VELLUM_BLOCK_REPAIR_SYS },
     { role: 'user', content: context + '\n\n[PROSE]\n' + prose.slice(0, 8000) },
   ];
-  // ATTEMPT 1 — reasoning OFF, cheap and fast. 900 tokens: a full block (every
-  // on-stage NPC's thought, parallel, journal, ext) legitimately runs past the
-  // old 500 cap — a truncated block fails to close and parseState rejects it.
-  const first = await internalGenerate(
-    messages,
-    { temperature: 0.2, max_tokens: 900 },
-    userId,
-    { reasoningOff: true, responseFormat: REPAIR_SCHEMA, timeoutMs: 30000 },
-  );
-  if (first.ok) {
-    const block = assembleBlock(first.value);
-    if (block) return block;
+  // Keep the proven two-pass recovery baseline, then honor any extra retries
+  // configured in Workbench. Later attempts rotate through fallback profiles.
+  const ids = [generation?.connectionId, ...(generation?.fallbackIds ?? [])].filter((id): id is string => !!id);
+  const attempts = Math.max(2, 2 + (generation?.retries ?? 0));
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const escalated = attempt > 0;
+    const result = await internalGenerate(
+      messages,
+      { temperature: generation?.temperature ?? 0.2, max_tokens: escalated ? Math.max(generation?.maxTokens ?? 1800, 1800) : generation?.maxTokens ?? 900 },
+      userId,
+      { reasoningOff: !escalated, ...(generation?.reasoning ? { reasoning: generation.reasoning } : {}), ...(generation?.schema === false ? {} : { responseFormat: REPAIR_SCHEMA }), timeoutMs: escalated ? Math.max(generation?.timeoutMs ?? 45000, 45000) : generation?.timeoutMs ?? 30000, ...(ids.length ? { connectionId: ids[Math.min(attempt, ids.length - 1)] } : {}) },
+    );
+    if (result.ok) {
+      const block = assembleBlock(result.value);
+      if (block) return block;
+    }
   }
-  // ATTEMPT 2 — ESCALATE with reasoning ON. Reasoning models (DeepSeek in
-  // particular) frequently return EMPTY content when reasoning is forced off,
-  // or bury the object inside a <think> block; letting them reason lets the
-  // JSON land in the reasoning channel that extractGenContent harvests, and
-  // assembleBlock's reasoning-strip + multi-object scan pulls out the real
-  // block. Higher token budget so reasoning + a full block both fit. Gated to
-  // one retry so a stubborn model can't loop.
-  const second = await internalGenerate(
-    messages,
-    { temperature: 0.2, max_tokens: 1800 },
-    userId,
-    { reasoningOff: false, responseFormat: REPAIR_SCHEMA, timeoutMs: 45000 },
-  );
-  if (!second.ok) return null;
-  return assembleBlock(second.value);
+  return null;
 }
 
 // JSON-schema for the repair output. Best-effort: enforced only when

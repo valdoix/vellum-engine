@@ -3,7 +3,7 @@ import type { ChatForkedPayloadDTO, ChatSwitchedPayloadDTO, GenerationEndedPaylo
 import { restoreUser, rememberUser, currentUser, requireUser } from './host/user.js';
 import { invalidatePermissions, invalidateChatCaps, has } from './host/capability.js';
 import { activeChatId, latestAssistantContent, latestAssistantContentRetry, allAssistantContents, allTurnContents, chatNames, looksLikeTimestamp, getChatVar, setChatVar, invalidateChatVars, getRawMessages, activeContent, assistantSnapshotStatus, messagePartsAtTurn, turnContentsFromMessages, type AssistantSnapshot } from './host/chats.js';
-import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logRevision, logHasKind, truncateAfterTurn, turnSigs, turnDays, recoverFromBackup, loadLog } from './store/chronicle.js';
+import { loadState, append, appendDeferred, flush, invalidate, clearLog, exportLog, importLog, logVersion, logRevision, logHasKind, truncateAfterTurn, turnSigs, turnDays, recoverFromBackup, loadLog, projectEvents } from './store/chronicle.js';
 import { foldTurn } from './bus/lifecycle.js';
 import { registerFeature } from './bus/registry.js';
 import { coreFeature } from './domain/core-feature.js';
@@ -36,7 +36,7 @@ import type { CallModel } from './retrieval/traverse.js';
 type TraversalAxis = 'temporal' | 'character' | 'hybrid';
 function readAxis(v: unknown): TraversalAxis { return v === 'character' || v === 'hybrid' ? v : 'temporal'; }
 
-import { EventLog as EventLogSchema, type VellumEvent } from './core/events.js';
+import { EventLog as EventLogSchema, SCHEMA_VERSION, type VellumEvent } from './core/events.js';
 import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
@@ -67,6 +67,8 @@ import { reduce } from './core/reduce.js';
 import { dialogueMarkupGuidance, repairDialogueSpeakerTags, type DialogueIdentity } from './domain/dialogue-colors.js';
 import { timelineRepairConflict } from './domain/timeline-days.js';
 import { selectLorebookCanon, type LorebookCanonEntry } from './domain/lorebook-canon.js';
+import { TASK_ROLES, sanitizeModelRoutes, resolveTaskRoute, generationReasoning, type ModelRouteConfig, type TaskRole, type TaskRoute } from './domain/task-routing.js';
+import { auditChronicle } from './domain/workbench-health.js';
 
 function lorebookCanonEntries(entries: readonly LiteEntry[]): LorebookCanonEntry[] {
   return entries.map(entry => ({
@@ -591,24 +593,30 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const prose = stripScaffold(parts?.assistant ?? content);
       const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
-      const compilerConnection = await getChatVar(chatId, 'vellum_compiler_connection');
+      const compilerRoute = await taskRoute(chatId, userId, _retryingEngine.has(chatId) ? 'engineRetry' : 'engine');
+      const compilerTuning = routedParams(compilerRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
       const compilerAbort = new AbortController();
       _engineAbortByChat.set(chatId, compilerAbort);
       if (await readEngineWindowEnabled(chatId)) engineRun = beginEngineRun(chatId, userId, turnNo);
       try {
-        compiled = await compileState(
-          { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn, lorebookCanon },
-          userId,
-          compilerConnection ? String(compilerConnection) : undefined,
-          internalGenerate,
-          { ...(engineRun ? { onProgress: engineRun.report } : {}), signal: compilerAbort.signal },
-        );
+        const routeIds = [compilerRoute.resolvedConnectionId, ...(compilerRoute.fallbackIds ?? [])].filter((id): id is string => !!id);
+        for (let attempt = 0; attempt <= compilerTuning.retries && !compilerAbort.signal.aborted; attempt++) {
+          compiled = await compileState(
+            { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn, lorebookCanon },
+            userId,
+            routeIds[Math.min(attempt, routeIds.length - 1)] ?? compilerRoute.resolvedConnectionId,
+            internalGenerate,
+            { ...(engineRun ? { onProgress: engineRun.report } : {}), signal: compilerAbort.signal, generation: { maxTokens: compilerTuning.maxTokens, timeoutMs: compilerTuning.timeoutMs, temperature: compilerTuning.temperature, reasoning: compilerTuning.reasoning, schema: compilerTuning.schema } },
+          );
+          if (compiled.ok) break;
+        }
       } catch (e) {
         const message = (e as Error)?.message ?? 'State compiler failed unexpectedly.';
         compiled = { ok: false, errors: [message] };
       } finally {
         if (_engineAbortByChat.get(chatId) === compilerAbort) _engineAbortByChat.delete(chatId);
       }
+      if (!compiled) compiled = { ok: false, errors: ['Generation was cancelled before a candidate completed.'] };
       if (compiled.ok && compiled.recovered?.length) spindle.log?.info?.(`[vellum_engine] compiler recovered turn ${turnNo} locally; omitted ${compiled.recovered.join(', ')}`);
       // The user may switch the pass off while a slow compiler request is in
       // flight. Re-check before committing so disabling is immediate and an old
@@ -793,7 +801,9 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
             ? agencyAtTurn(turnAgencyLedger, msgs.length)
             : turnContract?.agency ?? 'protected';
           const ctxHeader = buildRepairContext(prior, msgs.length, personaStateOn, latestParts?.userInput ?? '', latestAgency);
-          const repaired = await repairStateBlock(prose, ctxHeader, userId);
+          const repairRoute = await taskRoute(chatId, userId, 'blockRepair');
+          const repairTuning = routedParams(repairRoute, { maxTokens: 1800, timeoutMs: 45000, temperature: 0.2 });
+          const repaired = await repairStateBlock(prose, ctxHeader, userId, { connectionId: repairRoute.resolvedConnectionId, fallbackIds: repairRoute.fallbackIds, retries: repairTuning.retries, maxTokens: repairTuning.maxTokens, timeoutMs: repairTuning.timeoutMs, temperature: repairTuning.temperature, reasoning: repairTuning.reasoning, schema: repairTuning.schema });
           if (repaired && spindle.chat?.updateMessage) {
             // content-only patch: mirrors into the active swipe, emits MESSAGE_EDITED
             // only (NOT a fold trigger), so this cannot auto-loop.
@@ -870,9 +880,11 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   // extractor mines the structure from prose so a forgotten block never means lost
   // continuity. Best-effort; never throws into the fold.
   let extracted = 0;
+  const extractorRoute = await taskRoute(chatId, userId, 'extractor');
+  const extractorTuning = routedParams(extractorRoute, { maxTokens: 900, timeoutMs: 45000, temperature: 0.2 });
   for (const q of extractQueue) {
     try {
-      const xevs = await extractFromProse(q.gist, q.turnNo, q.day, names, userId, prior, tone, personaStateOn, q.userInput, q.agency);
+      const xevs = await extractFromProse(q.gist, q.turnNo, q.day, names, userId, prior, tone, personaStateOn, q.userInput, q.agency, { connectionId: extractorRoute.resolvedConnectionId, fallbackIds: extractorRoute.fallbackIds, retries: extractorTuning.retries, maxTokens: extractorTuning.maxTokens, timeoutMs: extractorTuning.timeoutMs, temperature: extractorTuning.temperature, reasoning: extractorTuning.reasoning, schema: extractorTuning.schema });
       if (xevs.length) { prior = await appendDeferred(chatId, xevs); extracted += xevs.length; spindle.log?.info?.(`[vellum_engine] extracted +${xevs.length} (knowledge/secret/journal/bond)${q.hadBlock ? '' : ' [FALLBACK: no <vellum> block]'} from turn ${q.turnNo}`); }
       else if (!q.hadBlock) spindle.log?.warn?.(`[vellum_engine] turn ${q.turnNo} had no <vellum> block and prose extraction yielded nothing`);
       _extractHealthByUserChat.set(userChatKey(userId, chatId), {
@@ -1114,9 +1126,9 @@ async function tidyThreads(chatId: string, userId: string | null): Promise<numbe
     for (const kind of ['threads', 'arcs'] as const) {
       const open = openTracks(state, kind);
       if (open.length < 2) continue;
-      const res = await controllerGenerate(
+      const res = await routedControllerGenerate(chatId, userId, 'maintenance',
         [{ role: 'system', content: THREAD_MERGE_SYS }, { role: 'user', content: buildMergePrompt(open) }],
-        userId, 2500,
+        { timeoutMs: 2500, maxTokens: 200 },
       );
       if (!res.ok) continue;
       const groups = validateMerges(parseMergeReply(res.value), open.map((t) => t.name));
@@ -1152,9 +1164,9 @@ async function tidyFacts(chatId: string, userId: string | null): Promise<number>
     for (const kind of ['knowledge', 'secrets'] as const) {
       const evKind = kind === 'knowledge' ? 'knowledge.merge' : 'secret.merge';
       for (const cand of mergeCandidates(state, kind)) {
-        const res = await controllerGenerate(
+        const res = await routedControllerGenerate(chatId, userId, 'maintenance',
           [{ role: 'system', content: FACT_MERGE_SYS }, { role: 'user', content: buildFactMergePrompt(cand.label, cand.entries) }],
-          userId, 2500,
+          { timeoutMs: 2500, maxTokens: 300 },
         );
         if (!res.ok) continue;
         const groups = validateFactMerges(parseFactMergeReply(res.value), cand.entries.map((e) => e.id));
@@ -1231,7 +1243,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     // 30s timeout: this runs detached (background tick or manual button), NOT on
     // the prompt-assembly path — a reasoning model needs far more than the old 3s
     // to think + emit JSON, which was aborting every tick ("Generation aborted").
-    const res = await controllerGenerate([{ role: 'system', content: simSys(tone.social, tone.politics) }, { role: 'user', content: prompt }], userId, 30000, 900);
+    const res = await routedControllerGenerate(chatId, userId, 'offscreen', [{ role: 'system', content: simSys(tone.social, tone.politics) }, { role: 'user', content: prompt }], { timeoutMs: 30000, maxTokens: 900 });
     if (!res.ok) {
       spindle.log?.warn?.(`[vellum_engine] off-screen sim: generation failed (${res.error})`);
       return { beats: 0, reason: 'empty_reply' };
@@ -1663,6 +1675,17 @@ function beginSummaryRun(chatId: string, userId: string | null, mode: SummaryMod
   };
 }
 
+async function routedSummaryOptions(chatId: string, userId: string | null, base: SummaryRunOptions, cfg: SummarizerCfg): Promise<SummaryRunOptions> {
+  const [detailRoute, gistRoute] = await Promise.all([taskRoute(chatId, userId, 'summaryDetail'), taskRoute(chatId, userId, 'summaryGist')]);
+  const detail = routedParams(detailRoute, { maxTokens: cfg.genMaxTokens, timeoutMs: 0, temperature: cfg.temperature });
+  const gist = routedParams(gistRoute, { maxTokens: Math.max(256, Math.ceil(cfg.gistCap / 3)), timeoutMs: 0, temperature: cfg.temperature });
+  return {
+    ...base,
+    detailGeneration: { connectionId: detailRoute.resolvedConnectionId, fallbackIds: detailRoute.fallbackIds, retries: detailRoute.retries, maxTokens: detail.maxTokens, ...(detail.timeoutMs > 0 ? { timeoutMs: detail.timeoutMs } : {}), temperature: detail.temperature, reasoning: detail.reasoning, schema: detail.schema },
+    gistGeneration: { connectionId: gistRoute.resolvedConnectionId, fallbackIds: gistRoute.fallbackIds, retries: gistRoute.retries, maxTokens: gist.maxTokens, ...(gist.timeoutMs > 0 ? { timeoutMs: gist.timeoutMs } : {}), temperature: gist.temperature, reasoning: gist.reasoning, schema: gist.schema },
+  };
+}
+
 /** Read the per-chat summarizer config (caps, window, automation, prompts).
  * Falls back to the generous defaults when unset or unparseable. */
 async function summarizerCfg(chatId: string): Promise<SummarizerCfg> {
@@ -1686,11 +1709,12 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
     // user otherwise has no signal it's happening). The manual button already
     // toasts on click; this covers the automatic cadence.
     spindle.sendToFrontend?.({ type: 'vellum_summarize_start', chatId, auto: true }, userId ?? currentUser() ?? undefined);
-    const result = await summarizeWindow(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg, stream.options);
+    const runOptions = await routedSummaryOptions(chatId, userId, stream.options, cfg);
+    const result = await summarizeWindow(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg, runOptions);
     const evs = result.events;
     if (evs.length) {
       await append(chatId, evs);
-      reportArchiveSaved(evs, result.tokens, stream.options);
+      reportArchiveSaved(evs, result.tokens, runOptions);
       invalidateIndex(chatId);
       spindle.log?.info?.('[vellum_engine] auto-summarized a chapter');
     }
@@ -1774,10 +1798,9 @@ async function traversalController(chatId: string, uid: string | null, perCallMs
   let enabled = false;
   try { enabled = !!(await getChatVar(chatId, 'vellum_traversal')); } catch { /* best effort */ }
   if (!enabled || !(await has('generation'))) return undefined;
-  return async (prompt) => controllerGenerate(
+  return async (prompt) => routedControllerGenerate(chatId, uid, 'recall',
     [{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }],
-    uid,
-    perCallMs,
+    { timeoutMs: perCallMs, maxTokens: 200 },
   );
 }
 
@@ -1821,6 +1844,7 @@ async function wireCapabilitiesInner(): Promise<void> {
         // Stateless one-turn command. It is computed outside the timed build so
         // a slow recall path can still fall back to the refresh governor.
         const refreshText = proseRefreshInjection(rawOut, stripScaffold);
+        let worldgenText = '';
         // Consume current and historical command lines from this transient
         // prompt copy. The saved conversation remains untouched.
         let out = scrubProseRefreshCommands(rawOut);
@@ -1836,6 +1860,11 @@ async function wireCapabilitiesInner(): Promise<void> {
           rememberUser(uid);
           const chatId = context.chatId;
           if (!chatId) return out;
+          // The Cartographer button stages a grounded evidence packet for one
+          // normal chat generation. Consume it atomically from the prompt path;
+          // the visible transcript receives only the explicit ((worldgen)) command.
+          worldgenText = await getChatVar(chatId, 'vellum_worldgen_grounding');
+          if (worldgenText && !context.isDryRun) await setChatVar(chatId, 'vellum_worldgen_grounding', '');
           const contractKey = userChatKey(uid, chatId);
           let activePreset: any = null;
           if (context.presetId && (await has('presets')) && spindle.presets?.get) {
@@ -1912,18 +1941,18 @@ async function wireCapabilitiesInner(): Promise<void> {
             }
           }
           if (!state.turns && !Object.keys(state.cast).length) {
-            const initialText = [personaStateText, dialogueText, refreshText].filter(Boolean).join('\n\n');
+            const initialText = [personaStateText, dialogueText, refreshText, worldgenText].filter(Boolean).join('\n\n');
             if (!initialText) return out;
             const rec = recordInjection(chatId, 0, initialText, [], { source: refreshText ? 'prose-refresh' : 'persona-state' });
             try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
             const initialMessages = [
-              ...((refreshText || personaStateHead || dialogueText) ? [{ role: 'system', content: [refreshText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
+              ...((refreshText || worldgenText || personaStateHead || dialogueText) ? [{ role: 'system', content: [refreshText, worldgenText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
               ...out,
               ...(personaStateTail ? [{ role: 'system', content: personaStateTail }] : []),
             ];
             const initialBreakdown = [
-              ...((refreshText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
-              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((refreshText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+              ...((refreshText || worldgenText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: worldgenText ? 'VELLUM Cartographer Grounding' : refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
+              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((refreshText || worldgenText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
               ...(personaStateTail ? [{ messageIndex: initialMessages.length - 1, name: 'VELLUM Persona State' }] : []),
             ];
             return { messages: initialMessages, breakdown: initialBreakdown };
@@ -2028,7 +2057,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           // Refresh goes last inside VELLUM's system injection so it is the
           // freshest style instruction while every continuity/output contract
           // above it remains binding.
-          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, worldgenText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
           if (!injText && !personaStateText) return out;
           const loggedText = [injText, personaStateTail, personaStateEmbeddedAt >= 0 ? personaStateText : ''].filter(Boolean).join('\n\n');
           const rec = recordInjection(chatId, state.turns || 0, loggedText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
@@ -2077,7 +2106,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           // prose refresh still gets its lightweight governor even if recall
           // failed; otherwise ship messages byte-for-byte untouched.
           spindle.log?.warn?.('[vellum_engine] interceptor: ' + ((e as Error)?.message ?? e));
-          if (refreshText) return { messages: [{ role: 'system', content: refreshText }, ...out], breakdown: [{ messageIndex: 0, name: 'VELLUM Prose Refresh' }] };
+          if (refreshText || worldgenText) return { messages: [{ role: 'system', content: [refreshText, worldgenText].filter(Boolean).join('\n\n') }, ...out], breakdown: [{ messageIndex: 0, name: worldgenText ? 'VELLUM Cartographer Grounding' : 'VELLUM Prose Refresh' }] };
           return out;
         }
       }, 120);
@@ -2255,6 +2284,7 @@ try {
 // --- theme persistence ----------------------------------------------------
 const THEME_PATH = 'vellum/theme.json';
 const PREFS_PATH = 'vellum/prefs.json';
+const MODEL_ROUTES_PATH = 'vellum/model-routes.json';
 
 function legacyClaimPath(path: string): string {
   return 'vellum/migration-1.1.6-' + path.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.json';
@@ -2306,6 +2336,198 @@ async function writeTheme(json: string, userId: string): Promise<void> { return 
 async function readPrefs(userId: string | null): Promise<string | null> { return readPersonalFile(PREFS_PATH, userId); }
 async function writePrefs(json: string, userId: string): Promise<void> { return writePersonalFile(PREFS_PATH, json, userId); }
 
+async function personalModelRoutes(userId: string | null): Promise<ModelRouteConfig> {
+  try { const raw = await readPersonalFile(MODEL_ROUTES_PATH, userId); return raw ? sanitizeModelRoutes(JSON.parse(raw)) : sanitizeModelRoutes({}); }
+  catch { return sanitizeModelRoutes({}); }
+}
+
+async function chatModelRoutes(chatId: string): Promise<ModelRouteConfig> {
+  try { const raw = await getChatVar(chatId, 'vellum_model_routes'); return raw ? sanitizeModelRoutes(JSON.parse(raw)) : sanitizeModelRoutes({}); }
+  catch { return sanitizeModelRoutes({}); }
+}
+
+async function modelConnections(userId: string | null): Promise<any[]> {
+  try {
+    const rows = await spindle.connections?.list?.(userId ?? undefined);
+    return Array.isArray(rows) ? rows.map((c: any) => ({ id: String(c.id), name: String(c.name || c.id), provider: String(c.provider || ''), model: String(c.model || ''), is_default: !!c.is_default, has_api_key: !!c.has_api_key, reasoning: c.reasoning_bindings?.settings ?? null })) : [];
+  } catch { return []; }
+}
+
+async function taskRoute(chatId: string, userId: string | null, role: TaskRole): Promise<TaskRoute & { resolvedConnectionId?: string }> {
+  const [personal, chat] = await Promise.all([personalModelRoutes(userId), chatModelRoutes(chatId)]);
+  const route = resolveTaskRoute(role, personal, chat);
+  let connectionId = '';
+  if (route.source === 'connection') connectionId = route.connectionId ?? '';
+  else if (route.source === 'main') connectionId = await getChatVar(chatId, 'vellum_compiler_connection');
+  if (!connectionId) connectionId = await defaultConnectionId(userId);
+  return { ...route, ...(connectionId ? { resolvedConnectionId: connectionId } : {}) };
+}
+
+async function resolvedTaskRoutes(chatId: string, userId: string | null, connections?: any[]): Promise<Record<string, any>> {
+  const list = connections ?? await modelConnections(userId);
+  const names = new Map(list.map((c: any) => [c.id, c.name]));
+  const out: Record<string, any> = {};
+  for (const role of TASK_ROLES) {
+    const route = await taskRoute(chatId, userId, role);
+    out[role] = { ...route, resolvedConnectionName: route.resolvedConnectionId ? names.get(route.resolvedConnectionId) ?? 'Unavailable connection' : '' };
+  }
+  return out;
+}
+
+function routedParams(route: TaskRoute, defaults: { maxTokens: number; timeoutMs: number; temperature: number }) {
+  return {
+    maxTokens: route.maxTokens ?? defaults.maxTokens,
+    timeoutMs: route.timeoutMs ?? defaults.timeoutMs,
+    temperature: route.temperature ?? defaults.temperature,
+    retries: route.retries ?? 0,
+    reasoning: generationReasoning(route),
+    schema: route.schema !== false,
+  };
+}
+
+async function routedControllerGenerate(chatId: string, userId: string | null, role: TaskRole, messages: Parameters<typeof controllerGenerate>[0], defaults: { maxTokens: number; timeoutMs: number; temperature?: number }) {
+  const route = await taskRoute(chatId, userId, role);
+  const tuning = routedParams(route, { ...defaults, temperature: defaults.temperature ?? 0 });
+  const ids = [route.resolvedConnectionId, ...(route.fallbackIds ?? [])].filter((x): x is string => !!x);
+  const attempts = Math.max(1, tuning.retries + 1);
+  let last = await controllerGenerate(messages, userId, tuning.timeoutMs, tuning.maxTokens, { connectionId: ids[0], temperature: tuning.temperature, reasoning: tuning.reasoning });
+  for (let attempt = 1; !last.ok && attempt < attempts; attempt++) {
+    const nextId = ids[Math.min(attempt, ids.length - 1)] ?? ids[0];
+    last = await controllerGenerate(messages, userId, tuning.timeoutMs, tuning.maxTokens, { connectionId: nextId, temperature: tuning.temperature, reasoning: tuning.reasoning });
+  }
+  return last;
+}
+
+interface ReconstructionCandidate {
+  id: string; chatId: string; transcriptHash: string; baseLogHash: string; events: VellumEvent[];
+  state: ChronicleState; createdAt: number; turns: number; findings: ReturnType<typeof auditChronicle>['findings'];
+  beforeCounts: Record<string, number>; afterCounts: Record<string, number>;
+}
+const _reconstructionCandidates = new Map<string, ReconstructionCandidate>();
+const _reconstructionAbort = new Map<string, AbortController>();
+
+function transcriptHash(messages: readonly string[]): string { return hashStr(messages.join('\n\u241e\n')); }
+function reconstructionPath(chatId: string): string { return `vellum/reconstruct-${chatId}.json`; }
+function reconstructionRollbackPath(chatId: string): string { return `vellum/reconstruct-rollback-${chatId}.json`; }
+function candidateSummary(c: ReconstructionCandidate | undefined): any {
+  return c ? { id: c.id, turns: c.turns, events: c.events.length, createdAt: c.createdAt, conflicts: c.findings.length, findings: c.findings, beforeCounts: c.beforeCounts, afterCounts: c.afterCounts } : null;
+}
+
+async function loadReconstructionCandidate(chatId: string): Promise<ReconstructionCandidate | undefined> {
+  const live = _reconstructionCandidates.get(chatId);
+  if (live) return live;
+  try {
+    const path = reconstructionPath(chatId);
+    if (!spindle.storage?.exists || !(await spindle.storage.exists(path))) return undefined;
+    const saved = JSON.parse(await spindle.storage.read(path));
+    const raw = saved?.complete ? saved.candidate : null;
+    if (!raw || raw.chatId !== chatId || !Array.isArray(raw.events)) return undefined;
+    const parsed = raw.events.map((e: unknown) => EventLogSchema.shape.events.element.safeParse(e));
+    if (parsed.some((r: any) => !r.success)) return undefined;
+    const events = parsed.map((r: any) => r.data) as VellumEvent[];
+    const state = projectEvents(events);
+    const health = auditChronicle(state);
+    const candidate: ReconstructionCandidate = {
+      id: String(raw.id), chatId, transcriptHash: String(raw.transcriptHash), baseLogHash: String(raw.baseLogHash),
+      events, state, createdAt: Number(raw.createdAt) || Date.now(), turns: Number(raw.turns) || state.turns,
+      findings: health.findings,
+      beforeCounts: raw.beforeCounts && typeof raw.beforeCounts === 'object' ? raw.beforeCounts : {},
+      afterCounts: health.counts,
+    };
+    _reconstructionCandidates.set(chatId, candidate);
+    return candidate;
+  } catch { return undefined; }
+}
+
+async function sendWorkbenchState(chatId: string | null, uid: string): Promise<void> {
+  const connections = await modelConnections(uid);
+  if (!chatId) {
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_state', connections, personal: await personalModelRoutes(uid), chat: sanitizeModelRoutes({}), resolved: {}, health: { score: 100, findings: [], counts: {} }, candidate: null, rollbackAvailable: false }, uid);
+    return;
+  }
+  const [personal, chat, state, turns, diagnostic, candidate, rollbackAvailable] = await Promise.all([
+    personalModelRoutes(uid), chatModelRoutes(chatId), loadState(chatId), allTurnContents(chatId), readCompilerDiagnostic(chatId),
+    loadReconstructionCandidate(chatId),
+    spindle.storage?.exists ? spindle.storage.exists(reconstructionRollbackPath(chatId)).catch(() => false) : Promise.resolve(false),
+  ]);
+  const resolved = await resolvedTaskRoutes(chatId, uid, connections);
+  const health = auditChronicle(state);
+  const known = new Set(connections.map((c: any) => c.id));
+  const missingRoutes = TASK_ROLES.filter((role) => resolved[role]?.resolvedConnectionId && !known.has(resolved[role].resolvedConnectionId));
+  if (missingRoutes.length) health.findings.unshift({ code: 'unavailable_model_route', severity: 'error', count: missingRoutes.length, message: 'Task routes reference unavailable Lumiverse connections.' });
+  const unprocessed = Math.max(0, turns.length - state.turns);
+  if (unprocessed) health.findings.unshift({ code: 'unprocessed_turns', severity: 'warning', count: unprocessed, message: 'Saved assistant turns have not been folded into the Chronicle.' });
+  if (diagnostic) health.findings.unshift({ code: 'held_engine_candidate', severity: 'warning', count: 1, message: `Engine Pass is holding turn ${diagnostic.turn} for retry.` });
+  if (_summarizing.has(chatId)) health.findings.unshift({ code: 'summarizer_running', severity: 'info', count: 1, message: 'The summarizer is currently running.' });
+  health.score = Math.max(0, health.score - missingRoutes.length * 8 - unprocessed * 3 - (diagnostic ? 3 : 0));
+  spindle.sendToFrontend?.({ type: 'vellum_workbench_state', chatId, connections, personal, chat, resolved, health, candidate: candidateSummary(candidate), rollbackAvailable, job: _reconstructionAbort.has(chatId) ? { status: 'running', phase: 'Reconstructing', message: 'A reconstruction job is active.' } : null }, uid);
+}
+
+function capSection(text: string, cap: number): string {
+  const s = String(text || '').trim();
+  return s.length <= cap ? s : s.slice(0, cap) + '\n[…section capped by VELLUM…]';
+}
+function capBoth(text: string, cap: number): string {
+  const s = String(text || '').trim();
+  if (s.length <= cap) return s;
+  const head = Math.floor(cap * 0.38);
+  return s.slice(0, head) + '\n[…middle omitted; Chronicle archive supplies compressed coverage…]\n' + s.slice(-(cap - head));
+}
+
+async function worldgenGrounding(chatId: string, uid: string): Promise<string> {
+  const [state, lore, turns, names] = await Promise.all([
+    loadState(chatId), attachedLoreEntries(chatId, uid), allTurnContents(chatId), chatNames(chatId, uid),
+  ]);
+  let chat: any = null;
+  let persona: any = null;
+  let character: any = null;
+  try { chat = await spindle.chats?.get?.(chatId, uid); } catch { /* optional */ }
+  const personaId = String(chat?.metadata?.persona_id ?? chat?.metadata?.personaId ?? '');
+  try { persona = personaId ? await spindle.personas?.get?.(personaId, uid) : await spindle.personas?.getActive?.(uid); } catch { /* optional */ }
+  try { if (chat?.character_id) character = await spindle.characters?.get?.(chat.character_id, uid); } catch { /* optional */ }
+  const characterCard = {
+    name: character?.name ?? names.char,
+    characterId: chat?.character_id ?? null,
+    description: character?.description ?? null,
+    personality: character?.personality ?? null,
+    scenario: character?.scenario ?? null,
+    greeting: character?.first_mes ?? null,
+    examples: character?.mes_example ?? null,
+    systemPrompt: character?.system_prompt ?? null,
+    postHistoryInstructions: character?.post_history_instructions ?? null,
+  };
+  const personaCard = { name: names.user, description: persona?.description ?? persona?.persona ?? persona?.metadata?.description ?? null };
+  const chronicle = {
+    day: state.day, turns: state.turns, scene: state.scene,
+    cast: Object.values(state.cast).map((c) => ({ id: c.id, name: c.name, role: c.role, note: c.note, traits: c.traits, status: c.status })),
+    factions: Object.values(state.factions), locations: state.locations, lore: state.lore,
+    threads: state.threads, arcs: state.arcs, knowledge: state.knowledge, secrets: state.secrets,
+    items: state.items, scars: state.scars, parallel: state.parallel, offscreen: state.offscreen,
+    journal: state.journal, memories: state.memories,
+  };
+  const loreText = lore.map((e) => `### ${e.comment || e.key.join(', ') || e.id}\n${e.content}`).join('\n\n');
+  const history = turns.map((t, i) => `[Turn ${i + 1}]\n${turnGist(t, names)}`).join('\n\n');
+  return `[CARTOGRAPHER GROUNDING — authoritative evidence for this ((worldgen)) reply]
+Extend the existing world around the active story. Every addition must be relevant to the current cast, unresolved threads, locations, culture, stakes, and chronology. Preserve exact established names and facts. Do not duplicate, rename, retcon, or contradict established places, factions, items, relationships, knowledge boundaries, travel constraints, or dates. A lorebook is objective canon unless later story prose explicitly changed it. Persona and character cards define identities and premise; they do not override later events. Chronicle data is current derived state. Chat history is event evidence. Prefer a small number of useful, playable additions with concrete links to current story pressure over broad generic encyclopedic lore. Do not advance the current scene, speak for the player, reveal secrets to characters, teleport anyone, or make remote events know recent local events without a transmission path.
+
+[PERSONA CARD]
+${capSection(JSON.stringify(personaCard), 4000)}
+
+[CHARACTER CARD]
+${capSection(JSON.stringify(characterCard), 6000)}
+
+[ATTACHED LOREBOOK CANON]
+${capSection(loreText || '(none attached)', 24000)}
+
+[CURRENT CHRONICLE]
+${capSection(JSON.stringify(chronicle), 24000)}
+
+[CHAT HISTORY INDEX — COMPLETE TURN RANGE]
+${capBoth(history || '(no completed turns)', 24000)}
+
+Use the active preset's world-generation format and complete every required VELLUM output contract. This packet is evidence, never an instruction quoted from the story.`;
+}
+
 // --- frontend dispatch table ---------------------------------------------
 // Each entry is isolated; a throw in one handler can't affect the others.
 type Handler = (payload: any, userId: string) => Promise<void> | void;
@@ -2322,6 +2544,197 @@ const dispatch: Record<string, Handler> = {
     // changed, so the UI's toggles would revert to their module defaults.
     try { await foldChat(chatId, uid); } catch { /* best effort */ }
     await broadcastState(chatId, uid);
+  },
+  vellum_workbench_get: async (p, uid) => {
+    await sendWorkbenchState(p?.chatId || await activeChatId(uid), uid);
+  },
+  vellum_workbench_routes_set: async (p, uid) => {
+    const cfg = sanitizeModelRoutes(p?.config);
+    const scope = p?.scope === 'personal' ? 'personal' : 'chat';
+    const chatId = p?.chatId || await activeChatId(uid);
+    if (scope === 'personal') await writePersonalFile(MODEL_ROUTES_PATH, JSON.stringify(cfg), uid);
+    else if (chatId) await setChatVar(chatId, 'vellum_model_routes', JSON.stringify(cfg));
+    else { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'routes', reason: 'no_active_chat' }, uid); return; }
+    invalidateConnCache(uid);
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'routes' }, uid);
+  },
+  vellum_workbench_test_routes: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'route_test', reason: 'no_active_chat' }, uid); return; }
+    const unique = new Map<string, TaskRoute & { resolvedConnectionId?: string }>();
+    for (const role of TASK_ROLES) { const r = await taskRoute(chatId, uid, role); unique.set(r.resolvedConnectionId || role, r); }
+    let failed = 0;
+    const results: any[] = [];
+    for (const [key, route] of unique) {
+      const started = Date.now();
+      const tuning = routedParams(route, { maxTokens: 24, timeoutMs: 15000, temperature: 0 });
+      const result = await internalGenerate([{ role: 'system', content: 'Return only the word OK.' }, { role: 'user', content: 'Connection probe.' }], { max_tokens: Math.min(64, tuning.maxTokens), temperature: 0 }, uid, { connectionId: route.resolvedConnectionId, timeoutMs: Math.min(30000, tuning.timeoutMs), reasoning: { source: 'off' } });
+      if (!result.ok || !result.value.trim()) failed++;
+      results.push({ connectionId: key, ok: result.ok && !!result.value.trim(), latencyMs: Date.now() - started, ...(result.ok ? {} : { error: result.error }) });
+    }
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: failed === 0, op: 'route_test', failed, results, ...(failed ? { reason: 'one_or_more_routes_failed' } : {}) }, uid);
+  },
+  vellum_workbench_audit: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'audit', reason: 'no_active_chat' }, uid); return; }
+    const health = auditChronicle(await loadState(chatId));
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_progress', job: null }, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'audit', score: health.score }, uid);
+  },
+  vellum_workbench_reindex: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reindex', reason: 'no_active_chat' }, uid); return; }
+    invalidateIndex(chatId); invalidateMood(chatId);
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'reindex' }, uid);
+  },
+  vellum_intervention: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'intervention', reason: 'no_active_chat' }, uid); return; }
+    if (!spindle.chat?.appendMessage) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'intervention', reason: 'chat_append_unavailable' }, uid); return; }
+    const op = String(p?.op || '');
+    if (op === 'worldgen-now') {
+      const grounding = await worldgenGrounding(chatId, uid);
+      await setChatVar(chatId, 'vellum_worldgen_grounding', grounding);
+      try {
+        await spindle.chat.appendMessage(chatId, { role: 'user', content: 'OOC: ((worldgen))', metadata: { vellum_intervention: 'worldgen' } }, { triggerGeneration: true });
+      } catch (e) {
+        await setChatVar(chatId, 'vellum_worldgen_grounding', '');
+        throw e;
+      }
+      spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'intervention', message: 'Cartographer started from chat canon, cards, Chronicle, and attached lorebooks.' }, uid);
+      return;
+    }
+    if (op === 'refresh-now') {
+      await spindle.chat.appendMessage(chatId, { role: 'user', content: 'OOC: ((refresh))', metadata: { vellum_intervention: 'refresh' } }, { triggerGeneration: true });
+      spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'intervention', message: 'One-turn prose refresh started.' }, uid);
+      return;
+    }
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'intervention', reason: 'unknown_intervention' }, uid);
+  },
+  vellum_reconstruct_start: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reconstruct', reason: 'no_active_chat' }, uid); return; }
+    if (_reconstructionAbort.has(chatId)) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reconstruct', reason: 'busy' }, uid); return; }
+    const abort = new AbortController();
+    _reconstructionAbort.set(chatId, abort);
+    const checkpointPath = reconstructionPath(chatId);
+    const report = (phase: string, done: number, total: number, message: string): void => spindle.sendToFrontend?.({ type: 'vellum_workbench_progress', job: { status: 'running', phase, done, total, message, deep: p?.deep !== false } }, uid);
+    try {
+      const [turns, raw, oldLog, names, tone, locks, personaStateOn, contract, ledger, attached] = await Promise.all([
+        allTurnContents(chatId), getRawMessages(chatId), loadLog(chatId), chatNames(chatId, uid), readTone(chatId, uid), readLocks(chatId), readPersonaStateEnabled(chatId), activeTurnContract(chatId, uid), activeTurnAgencyLedger(chatId, uid), attachedLoreEntries(chatId, uid),
+      ]);
+      const hash = transcriptHash(turns);
+      const baseLogHash = hashStr(JSON.stringify(oldLog.events));
+      const beforeCounts = auditChronicle(projectEvents(oldLog.events)).counts;
+      const overlays = oldLog.events.filter((e) => e.src === 'user' && e.kind !== 'turn.fold');
+      let events: VellumEvent[] = [];
+      let prior = projectEvents([]);
+      let startAt = 1;
+      try {
+        if (spindle.storage?.exists && await spindle.storage.exists(checkpointPath)) {
+          const saved = JSON.parse(await spindle.storage.read(checkpointPath));
+          if (saved?.transcriptHash === hash && saved?.baseLogHash === baseLogHash && Array.isArray(saved.events)) {
+            const valid = saved.events.map((e: unknown) => (EventLogSchema.shape.events.element.safeParse(e))).filter((r: any) => r.success).map((r: any) => r.data) as VellumEvent[];
+            events = valid; prior = projectEvents(events); startAt = Math.max(1, Number(saved.nextTurn) || 1);
+          }
+        }
+      } catch { /* unusable checkpoint: start clean */ }
+      const route = await taskRoute(chatId, uid, 'reconstruction');
+      const tuning = routedParams(route, { maxTokens: 20000, timeoutMs: 180000, temperature: 0 });
+      const lorebookCanon = lorebookCanonEntries(attached);
+      report('Reading evidence', startAt - 1, turns.length, startAt > 1 ? `Resuming verified checkpoint at turn ${startAt}.` : 'Transcript and canonical sources loaded.');
+      for (let turnNo = startAt; turnNo <= turns.length; turnNo++) {
+        if (abort.signal.aborted) break;
+        const content = (turns[turnNo - 1] ?? '').trim();
+        if (!content) continue;
+        const parts = messagePartsAtTurn(raw, turnNo);
+        const userInput = parts?.userInput ?? '';
+        const agency = turnNo <= ledger.through ? agencyAtTurn(ledger, turnNo) : contract?.agency ?? 'protected';
+        const prose = stripScaffold(parts?.assistant ?? content);
+        let foldContent = content;
+        let compiledOk = false;
+        if (p?.deep !== false && await has('generation')) {
+          report('Compiling evidence', turnNo - 1, turns.length, `Reconciling turn ${turnNo} against prior state and attached canon.`);
+          const routeIds = [route.resolvedConnectionId, ...(route.fallbackIds ?? [])].filter((id): id is string => !!id);
+          for (let attempt = 0; attempt < Math.max(1, tuning.retries + 1) && !abort.signal.aborted; attempt++) {
+            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: contract?.livingWorld ?? 'active', agency, personaState: personaStateOn, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
+            if (compiled.ok) { foldContent = prose + '\n' + compiled.block; compiledOk = true; break; }
+          }
+        }
+        const folded = foldTurn(foldContent, prior, turnNo, { tone, userCanon: names.user ? canonId(names.user) : '', locks, personaState: personaStateOn, userInput, agency });
+        const evs = [...folded.events];
+        if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: hashStr(content) } as VellumEvent);
+        const gist = turnGist(content, names);
+        if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
+        if (!compiledOk && gist && !abort.signal.aborted && await has('generation')) {
+          const extracted = await extractFromProse(gist, turnNo, prior.day || 0, names, uid, prior, tone, personaStateOn, userInput, agency, { connectionId: route.resolvedConnectionId, fallbackIds: route.fallbackIds, retries: tuning.retries, maxTokens: Math.min(4000, tuning.maxTokens), timeoutMs: tuning.timeoutMs, temperature: 0.1, reasoning: tuning.reasoning, schema: tuning.schema });
+          evs.push(...extracted);
+        }
+        events.push(...evs);
+        prior = reduce(evs, prior);
+        report('Reconstructing', turnNo, turns.length, `Verified turn ${turnNo}; ${events.length} candidate events staged.`);
+        if (turnNo % 5 === 0 && spindle.storage?.write) await spindle.storage.write(checkpointPath, JSON.stringify({ transcriptHash: hash, baseLogHash, nextTurn: turnNo + 1, events }));
+      }
+      if (abort.signal.aborted) {
+        spindle.sendToFrontend?.({ type: 'vellum_workbench_progress', job: { status: 'stopped', phase: 'Stopped safely', done: prior.turns, total: turns.length, message: 'The live Chronicle was not changed. Start again to resume the checkpoint.' } }, uid);
+        return;
+      }
+      if (transcriptHash(await allTurnContents(chatId)) !== hash || hashStr(JSON.stringify((await loadLog(chatId)).events)) !== baseLogHash) throw new Error('source_changed_during_reconstruction');
+      events.push(...overlays);
+      const state = projectEvents(events);
+      const health = auditChronicle(state);
+      const candidate: ReconstructionCandidate = { id: `recon_${Date.now().toString(36)}`, chatId, transcriptHash: hash, baseLogHash, events, state, createdAt: Date.now(), turns: turns.length, findings: health.findings, beforeCounts, afterCounts: health.counts };
+      _reconstructionCandidates.set(chatId, candidate);
+      if (spindle.storage?.write) await spindle.storage.write(checkpointPath, JSON.stringify({ complete: true, candidate }));
+      spindle.sendToFrontend?.({ type: 'vellum_workbench_progress', job: { status: 'ready', phase: 'Candidate verified', done: turns.length, total: turns.length, message: `Current Chronicle remains unchanged. Review and apply the ${events.length}-event candidate.` }, candidate: candidateSummary(candidate) }, uid);
+    } catch (e) {
+      spindle.sendToFrontend?.({ type: 'vellum_workbench_progress', job: { status: 'failed', phase: 'Reconstruction stopped', message: String((e as Error)?.message ?? e) } }, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reconstruct', reason: String((e as Error)?.message ?? e) }, uid);
+    } finally {
+      if (_reconstructionAbort.get(chatId) === abort) _reconstructionAbort.delete(chatId);
+    }
+  },
+  vellum_reconstruct_cancel: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    const controller = chatId ? _reconstructionAbort.get(chatId) : undefined;
+    controller?.abort();
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: !!controller, op: 'reconstruct_cancel', ...(!controller ? { reason: 'not_running' } : {}) }, uid);
+  },
+  vellum_reconstruct_discard: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    if (chatId) { _reconstructionCandidates.delete(chatId); try { await spindle.storage?.delete?.(reconstructionPath(chatId)); } catch { /* best effort */ } }
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'reconstruct_discard' }, uid);
+  },
+  vellum_reconstruct_apply: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    const candidate = chatId ? await loadReconstructionCandidate(chatId) : undefined;
+    if (!chatId || !candidate || (p?.candidateId && p.candidateId !== candidate.id)) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reconstruct_apply', reason: 'candidate_missing' }, uid); return; }
+    const currentTranscriptHash = transcriptHash(await allTurnContents(chatId));
+    const currentLog = await loadLog(chatId);
+    if (currentTranscriptHash !== candidate.transcriptHash || hashStr(JSON.stringify(currentLog.events)) !== candidate.baseLogHash) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reconstruct_apply', reason: 'candidate_stale' }, uid); return; }
+    if (!spindle.storage?.write) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reconstruct_apply', reason: 'backup_unavailable' }, uid); return; }
+    await spindle.storage.write(reconstructionRollbackPath(chatId), JSON.stringify(currentLog));
+    const log = EventLogSchema.parse({ version: SCHEMA_VERSION, chatId, events: candidate.events, createdAt: Date.now(), updatedAt: Date.now() });
+    await importLog(chatId, log);
+    _reconstructionCandidates.delete(chatId);
+    try { await spindle.storage?.delete?.(reconstructionPath(chatId)); } catch { /* best effort */ }
+    invalidateIndex(chatId); invalidateMood(chatId); lastSigByChat.delete(chatId);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'reconstruct_apply', events: candidate.events.length }, uid);
+  },
+  vellum_reconstruct_rollback: async (p, uid) => {
+    const chatId = p?.chatId || await activeChatId(uid);
+    if (!chatId || !spindle.storage?.exists || !(await spindle.storage.exists(reconstructionRollbackPath(chatId)))) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reconstruct_rollback', reason: 'backup_missing' }, uid); return; }
+    try {
+      const backup = EventLogSchema.parse(JSON.parse(await spindle.storage.read(reconstructionRollbackPath(chatId))));
+      await importLog(chatId, backup);
+      await spindle.storage.delete?.(reconstructionRollbackPath(chatId));
+      invalidateIndex(chatId); invalidateMood(chatId); lastSigByChat.delete(chatId);
+      await broadcastState(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'reconstruct_rollback', events: backup.events.length }, uid);
+    } catch (e) {
+      spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'reconstruct_rollback', reason: String((e as Error)?.message ?? e) }, uid);
+    }
   },
   vellum_recover: async (p, uid) => {
     // Restore from the .bak if it holds more events than the current log (undo a
@@ -2362,6 +2775,13 @@ const dispatch: Record<string, Handler> = {
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_rebuild_done', ok: false, reason: 'no_active_chat' }, uid); return; }
     const messagesOnly = !!p?.messagesOnly;
     const cleanTurns = !!p?.cleanTurns;
+
+    // Legacy callers that still request a full rebuild are upgraded to the
+    // staged Workbench workflow. Never clear the live log before validation.
+    if (!messagesOnly && !cleanTurns) {
+      await dispatch.vellum_reconstruct_start!({ ...p, chatId, deep: p?.deep !== false }, uid);
+      return;
+    }
 
     // --- cleanTurns: targeted, non-destructive re-clean of existing turn memories ---
     if (cleanTurns) {
@@ -2411,6 +2831,8 @@ const dispatch: Record<string, Handler> = {
       const personaStateOn = await readPersonaStateEnabled(chatId);
       const rebuildContract = await activeTurnContract(chatId, uid);
       const rebuildAgencyLedger = await activeTurnAgencyLedger(chatId, uid);
+      const rebuildExtractorRoute = await taskRoute(chatId, uid, 'reconstruction');
+      const rebuildExtractorTuning = routedParams(rebuildExtractorRoute, { maxTokens: 1800, timeoutMs: 90000, temperature: 0.1 });
       // ids of turn-memories that already exist (messagesOnly: only backfill gaps)
       const haveTurnMem = new Set(prior.memories.filter((m) => m.tier === 'turn').map((m) => m.id));
       let turns = 0;
@@ -2448,7 +2870,7 @@ const dispatch: Record<string, Handler> = {
           const g = turnGist(content, names);
           if (g) {
             try {
-              const xe = await extractFromProse(g, turnNo, prior.day || 0, names, uid, prior, tone, personaStateOn, rebuiltParts?.userInput ?? '', rebuildAgency);
+              const xe = await extractFromProse(g, turnNo, prior.day || 0, names, uid, prior, tone, personaStateOn, rebuiltParts?.userInput ?? '', rebuildAgency, { connectionId: rebuildExtractorRoute.resolvedConnectionId, fallbackIds: rebuildExtractorRoute.fallbackIds, retries: rebuildExtractorTuning.retries, maxTokens: rebuildExtractorTuning.maxTokens, timeoutMs: rebuildExtractorTuning.timeoutMs, temperature: rebuildExtractorTuning.temperature, reasoning: rebuildExtractorTuning.reasoning, schema: rebuildExtractorTuning.schema });
               if (xe.length) prior = await append(chatId, xe);
             } catch { /* best effort */ }
           }
@@ -2504,11 +2926,12 @@ const dispatch: Record<string, Handler> = {
     const stream = beginSummaryRun(chatId, uid, 'manual', total);
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'busy' }, uid); return; }
     try {
+      const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
       const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), (done, roundTotal, tokensSoFar) => {
         invalidateIndex(chatId);
         void broadcastState(chatId, uid).catch((e) => spindle.log?.warn?.('[vellum_engine] summary round broadcast: ' + ((e as Error)?.message ?? e)));
         spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total: roundTotal, tokens: tokensSoFar }, uid);
-      }, cfg, stream.options);
+      }, cfg, runOptions);
       invalidateIndex(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
@@ -2542,11 +2965,12 @@ const dispatch: Record<string, Handler> = {
       }
       const cfg = await summarizerCfg(chatId);
       const win = Math.max(cfg.minWindow, Math.min(4, cfg.autoWindow));
+      const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
       const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), (done, total, tokensSoFar) => {
         invalidateIndex(chatId);
         void broadcastState(chatId, uid).catch((e) => spindle.log?.warn?.('[vellum_engine] resummary round broadcast: ' + ((e as Error)?.message ?? e)));
         spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total, tokens: tokensSoFar }, uid);
-      }, cfg, stream.options);
+      }, cfg, runOptions);
       invalidateIndex(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
@@ -2592,8 +3016,9 @@ const dispatch: Record<string, Handler> = {
     const stream = beginSummaryRun(chatId, uid, 'pick', 1);
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'busy' }, uid); return; }
     try {
-      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'chapter', stream.options);
-      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, stream.options); }
+      const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'chapter', runOptions);
+      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, runOptions); }
       invalidateIndex(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
@@ -2623,8 +3048,9 @@ const dispatch: Record<string, Handler> = {
     const stream = beginSummaryRun(chatId, uid, 'arc', 1);
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'busy' }, uid); return; }
     try {
-      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'arc', stream.options);
-      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, stream.options); }
+      const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'arc', runOptions);
+      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, runOptions); }
       invalidateIndex(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
@@ -2651,8 +3077,9 @@ const dispatch: Record<string, Handler> = {
     const stream = beginSummaryRun(chatId, uid, 'book', 1);
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'busy' }, uid); return; }
     try {
-      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'book', stream.options);
-      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, stream.options); }
+      const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'book', runOptions);
+      if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, runOptions); }
       invalidateIndex(chatId);
       const cancelled = !!stream.options.signal?.aborted;
       stream.finish(!cancelled, { rounds: events.length ? 1 : 0, tokens, ...(cancelled ? { reason: 'cancelled' } : {}) });
@@ -2825,9 +3252,9 @@ const dispatch: Record<string, Handler> = {
         const targets = catchupTargets(post, ids, targetDay);
         if (!targets.length) { reason = 'in_sync'; }
         else {
-          const res = await controllerGenerate(
+          const res = await routedControllerGenerate(chatId, uid, 'maintenance',
             [{ role: 'system', content: THREAD_CATCHUP_SYS }, { role: 'user', content: buildCatchupPrompt(post, targets) }],
-            uid, 30000, 700);
+            { timeoutMs: 30000, maxTokens: 700 });
           if (!res.ok) { reason = 'empty_reply'; spindle.log?.warn?.(`[vellum_engine] thread catch-up: generation failed (${res.error})`); }
           else {
             const beats = validateCatchupBeats(parseCatchupReply(res.value), targets);
@@ -2964,9 +3391,9 @@ const dispatch: Record<string, Handler> = {
         const targets = offscreenCatchupTargets(post, ids, targetDay);
         if (!targets.length) { reason = 'in_sync'; }
         else {
-          const res = await controllerGenerate(
+          const res = await routedControllerGenerate(chatId, uid, 'maintenance',
             [{ role: 'system', content: OFFSCREEN_CATCHUP_SYS }, { role: 'user', content: buildOffscreenCatchupPrompt(post, targets) }],
-            uid, 30000, 700);
+            { timeoutMs: 30000, maxTokens: 700 });
           if (!res.ok) { reason = 'empty_reply'; spindle.log?.warn?.(`[vellum_engine] offscreen catch-up: generation failed (${res.error})`); }
           else {
             const beats = validateCatchupBeats(parseCatchupReply(res.value), targets);
@@ -3394,7 +3821,9 @@ const dispatch: Record<string, Handler> = {
         : repairContract?.agency ?? 'protected';
       const repairParts = messagePartsAtTurn(raw, repairTurn);
       const ctxHeader = buildRepairContext(prior, repairTurn, repairPersonaState, repairParts?.userInput ?? '', repairAgency);
-      const repaired = await repairStateBlock(prose, ctxHeader, uid);
+      const repairRoute = await taskRoute(chatId, uid, 'blockRepair');
+      const repairTuning = routedParams(repairRoute, { maxTokens: 1800, timeoutMs: 45000, temperature: 0.2 });
+      const repaired = await repairStateBlock(prose, ctxHeader, uid, { connectionId: repairRoute.resolvedConnectionId, fallbackIds: repairRoute.fallbackIds, retries: repairTuning.retries, maxTokens: repairTuning.maxTokens, timeoutMs: repairTuning.timeoutMs, temperature: repairTuning.temperature, reasoning: repairTuning.reasoning, schema: repairTuning.schema });
       if (!repaired) { done(false, 'no_block'); return; }
       await spindle.chat.updateMessage(chatId, msgId, { content: asstContent + '\n\n' + repaired.block });
       // clear both guards so the re-fold isn't blocked and a later auto-pass is fresh.

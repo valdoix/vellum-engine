@@ -10,6 +10,7 @@ import { graphTab, resetGraphCache } from './tabs/graph.js';
 import { journalTab } from './tabs/journal.js';
 import { injectionTab, setInjectionLog, pushInjectionRecord } from './tabs/injection.js';
 import { vaultTab, setVaultSnap } from './tabs/vault.js';
+import { workbenchTab, setWorkbenchSnapshot, setWorkbenchProgress } from './tabs/workbench.js';
 import { createFloatWindow, type FloatWindow } from './float.js';
 import { applyTheme, cleanupTheme, customizePanel, wireCustomize, setThemePersist, hydrateTheme } from './theme.js';
 import { setPrefsPersist, hydratePrefs, getPref, setPref } from './prefs.js';
@@ -165,6 +166,7 @@ const TABS = [
   { id: 'graph', label: 'Graph', icon: 'graph', comp: graphTab, group: 'tools' },
   { id: 'vault', label: 'Vault', icon: 'vault', comp: vaultTab, group: 'tools' },
   { id: 'injection', label: 'Context', icon: 'context', comp: injectionTab, group: 'tools' },
+  { id: 'workbench', label: 'Workbench', icon: 'workbench', comp: workbenchTab, group: 'tools' },
 ] as const;
 
 // QOL actions, grouped. 'inline' stays on the toolbar; the rest live in the
@@ -1185,16 +1187,21 @@ function openToneModal(ctx: Ctx): void {
 function openRebuildModal(ctx: Ctx): void {
   formModal('Rebuild from transcript', [
     { key: 'mode', label: 'What to do', type: 'select', value: 'full', options: [
-      { value: 'full', label: 'Full rebuild \u2014 replace everything from the transcript' },
+      { value: 'full', label: 'Full reconstruction \u2014 build a safe candidate for review' },
       { value: 'messages', label: 'Capture messages only \u2014 keep all existing data' },
       { value: 'clean', label: 'Re-clean turn memories \u2014 strip leftover scaffold only' },
-    ], hint: 'Full REPLACES cast, relations, knowledge, secrets, journal + messages (recovery). Messages-only ADDS any missing per-turn memories and leaves everything else untouched. Re-clean re-strips reverie/vellum/dialogue scaffold from EXISTING turn memories, changing nothing else.' },
+    ], hint: 'Full builds and validates a separate candidate; the live Chronicle changes only after Apply in Workbench. Messages-only adds missing turn memories. Re-clean strips scaffold from existing turn memories.' },
   ], (out) => {
     const cleanTurns = out.mode === 'clean';
     const messagesOnly = out.mode === 'messages';
-    setQolBusy('rebuild', true);
-    ctx.sendToBackend({ type: 'vellum_rebuild', deep: !messagesOnly && !cleanTurns, messagesOnly, cleanTurns });
-    notify(ctx, 'info', cleanTurns ? 'Re-cleaning turn memories\u2026' : messagesOnly ? 'Capturing missing message memories\u2026' : 'Rebuilding full chronicle from transcript\u2026 this may take a moment.');
+    if (!messagesOnly && !cleanTurns) {
+      ctx.sendToBackend({ type: 'vellum_reconstruct_start', deep: true });
+      notify(ctx, 'info', 'Building a separate reconstruction candidate. Follow progress in Workbench.');
+    } else {
+      setQolBusy('rebuild', true);
+      ctx.sendToBackend({ type: 'vellum_rebuild', messagesOnly, cleanTurns });
+      notify(ctx, 'info', cleanTurns ? 'Re-cleaning turn memories\u2026' : 'Capturing missing message memories\u2026');
+    }
   });
 }
 
@@ -1348,8 +1355,8 @@ export function setup(ctx: Ctx): () => void {
 
   const tab = ctx.ui.registerDrawerTab({
     id: 'vellum-engine-tab', title: 'VELLUM', shortName: 'VELLUM',
-    description: 'Living-narrative chronicle, cast, relations, graph & QOL',
-    keywords: ['vellum', 'chronicle', 'cast', 'relations', 'lore', 'memory', 'graph'],
+    description: 'Living-narrative chronicle, recall, model routing, repair, and reconstruction',
+    keywords: ['vellum', 'chronicle', 'cast', 'relations', 'lore', 'memory', 'graph', 'workbench', 'models', 'repair', 'reconstruction'],
     headerTitle: 'VELLUM', iconSvg: ICON,
   });
   const drawer = createShell(ctx, getState);
@@ -2213,6 +2220,29 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_vault') {
         setVaultSnap(p);
         drawer.update();
+      } else if (p?.type === 'vellum_workbench_state') {
+        setWorkbenchSnapshot({
+          connections: Array.isArray(p.connections) ? p.connections : [],
+          personal: p.personal && typeof p.personal === 'object' ? p.personal : {},
+          chat: p.chat && typeof p.chat === 'object' ? p.chat : {},
+          resolved: p.resolved && typeof p.resolved === 'object' ? p.resolved : {},
+          health: p.health && typeof p.health === 'object' ? p.health : { score: 100, findings: [], counts: {} },
+          candidate: p.candidate ?? null,
+          rollbackAvailable: !!p.rollbackAvailable,
+          job: p.job ?? null,
+        });
+      } else if (p?.type === 'vellum_workbench_progress') {
+        setWorkbenchProgress(p.job ?? null, p.candidate);
+      } else if (p?.type === 'vellum_workbench_done') {
+        if (!p.ok) notify(ctx, 'warning', `Workbench: ${p.reason ?? 'operation failed'}.`);
+        else if (p.op === 'routes') notify(ctx, 'success', 'Task model routes saved.');
+        else if (p.op === 'route_test') notify(ctx, p.failed ? 'warning' : 'success', p.failed ? `${p.failed} task route test(s) failed.` : 'All selected task routes responded.');
+        else if (p.op === 'audit') notify(ctx, 'success', `Health audit complete: ${p.score ?? 0}/100.`);
+        else if (p.op === 'reindex') notify(ctx, 'success', 'Recall index cleared; it will rebuild from the current Chronicle.');
+        else if (p.op === 'intervention') notify(ctx, 'success', p.message ?? 'Intervention started.');
+        else if (p.op === 'reconstruct_apply') notify(ctx, 'success', `Reconstruction applied with backup (${p.events ?? 0} events).`);
+        else if (p.op === 'reconstruct_rollback') notify(ctx, 'success', `Pre-reconstruction Chronicle restored (${p.events ?? 0} events).`);
+        ctx.sendToBackend({ type: 'vellum_workbench_get' });
       } else if (p?.type === 'vellum_vault_categories') {
         // categories changed — re-request the full snapshot to reflect counts
         ctx.sendToBackend({ type: 'vellum_get_vault' });
@@ -2509,6 +2539,7 @@ export function setup(ctx: Ctx): () => void {
     // frontend-side source for the live preview (no backend round-trip, no
     // dependency on chats.getActive). Feed it straight into the preview.
     const cid = String(payload?.chatId ?? payload?.chat_id ?? '').trim();
+    if (cid) ctx.sendToBackend({ type: 'vellum_workbench_get', chatId: cid });
     if (cid && cid !== _pvChatId) {
       resetPreviewState();
       _pvChatId = cid;

@@ -62,6 +62,9 @@ function buildState(events: VellumEvent[]): ChronicleState {
   return repairSecretAudiences(sweepProvisionalCast(mergeDuplicates(reduce(events))));
 }
 
+/** Build a fully normalized read-only projection for staged imports and audits. */
+export function projectEvents(events: VellumEvent[]): ChronicleState { return buildState(events); }
+
 /** Validate an envelope leniently: keep events that parse, drop only bad ones.
  * Exported for tests — this is the durability guarantee (one bad event must
  * never discard the rest of the history). */
