@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MODES, SKINS, setMode, getTheme, patchTheme, customizePanel, resolveShape, sanitizeCardShapes, CHROME_SHAPES, SHAPE_IDS, SURFACES, setThemePersist, hydrateTheme, isLightSkin, safeFontUrl, familyFromFontUrl } from '../src/ui/theme.js';
 import { renderBondRadar } from '../src/ui/theme-render.js';
+import { STYLES } from '../src/ui/styles.js';
 import { freshState } from '../src/domain/types.js';
 
 /**
@@ -23,8 +24,8 @@ describe('theme system', () => {
     }
   });
 
-  it('MODES are exactly the twenty chromes', () => {
-    expect(MODES.map((m) => m.id).sort()).toEqual(['arcade', 'atomic', 'aurora', 'bestiary', 'bloom', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'greenhouse', 'grimoire', 'illuminated', 'modern', 'nocturne', 'riot', 'rosace', 'sumi', 'terracotta']);
+  it('MODES are exactly the twenty-three chromes', () => {
+    expect(MODES.map((m) => m.id).sort()).toEqual(['arcade', 'atomic', 'aurora', 'bestiary', 'bloom', 'candy', 'default', 'ember', 'faewild', 'futuristic', 'gatsby', 'graphite', 'greenhouse', 'grimoire', 'illuminated', 'modern', 'nocturne', 'quilt', 'riot', 'rococo', 'rosace', 'sumi', 'terracotta']);
   });
 
   it("each mode's dark + light skins exist", () => {
@@ -57,6 +58,30 @@ describe('theme system', () => {
       { id: 'nocturne', skin: 'nocturne-velvet', light: 'nocturne-matinee', accent: '#d1a268',
         shapes: { present: 'nocturne-stage', bonds: 'nocturne-score', cast: 'nocturne-mirror', beats: 'nocturne-cue', factions: 'nocturne-bill', items: 'nocturne-reliquary' } },
     ] as const;
+    for (const c of cases) {
+      setMode(c.id);
+      const t = getTheme();
+      expect(t.chrome, c.id).toBe(c.id);
+      expect(t.skin, c.id).toBe(c.skin);
+      expect(t.accent.toLowerCase(), c.id).toBe(c.accent);
+      expect(SKINS.some((s) => s.id === c.skin), `${c.id} dark`).toBe(true);
+      expect(SKINS.some((s) => s.id === c.light), `${c.id} light`).toBe(true);
+      expect(CHROME_SHAPES[c.id], c.id).toEqual(c.shapes);
+      expect(new Set(Object.values(c.shapes)).size, `${c.id} unique silhouettes`).toBe(SURFACES.length);
+      for (const id of Object.values(c.shapes)) expect(SHAPE_IDS.includes(id), `${c.id}:${id}`).toBe(true);
+    }
+  });
+
+  it('Rococo, Candy Alchemist, and Dream Quilt resolve paired skins and six unique object cards', () => {
+    const cases = [
+      { id: 'rococo', skin: 'rococo-twilight', light: 'rococo-pastel', accent: '#ffacd4',
+        shapes: { present: 'rococo-shell', bonds: 'rococo-cartouche', cast: 'rococo-cameo', beats: 'rococo-ribbon', factions: 'rococo-cabinet', items: 'rococo-medallion' } },
+      { id: 'candy', skin: 'candy-blacklight', light: 'candy-labday', accent: '#ff2fbd',
+        shapes: { present: 'candy-vessel', bonds: 'candy-flask', cast: 'candy-capsule', beats: 'candy-rack', factions: 'candy-drawer', items: 'candy-lozenge' } },
+      { id: 'quilt', skin: 'quilt-midnight', light: 'quilt-daydream', accent: '#f08fc8',
+        shapes: { present: 'quilt-patch', bonds: 'quilt-join', cast: 'quilt-locket', beats: 'quilt-runner', factions: 'quilt-pocket', items: 'quilt-square' } },
+    ] as const;
+    patchTheme({ mode: 'dark' });
     for (const c of cases) {
       setMode(c.id);
       const t = getTheme();
@@ -243,6 +268,26 @@ describe('card shapes (per-surface silhouette overrides)', () => {
       }
     }
     expect(CHROME_SHAPES.default).toEqual({ present: 'left-spine', bonds: 'split', cast: 'inset', beats: 'slab', factions: 'slab', items: 'slab' });
+  });
+
+  it('the three new shape families never clip or mask their content boxes', () => {
+    const css = STYLES;
+    for (const chrome of ['rococo', 'candy', 'quilt'] as const) {
+      for (const id of Object.values(CHROME_SHAPES[chrome])) {
+        const body = css.match(new RegExp(`\\.v-shape--${id}\\{([^}]*)\\}`))?.[1];
+        expect(body, `${id} primitive`).toBeTruthy();
+        expect(body, `${id} clip-path`).not.toContain('clip-path');
+        expect(body, `${id} mask`).not.toMatch(/(?:^|;)\s*(?:-webkit-)?mask:/);
+      }
+    }
+  });
+
+  it('Dream Quilt motion is optional and honors reduced-motion', () => {
+    const css = STYLES;
+    expect(css).toContain('@keyframes vle-quilt-drift');
+    expect(css).toContain('@keyframes vle-quilt-breathe');
+    expect(css).toContain("html[data-vle-chrome='quilt']:not([data-vle-motion='off'])");
+    expect(css).toContain('@media (prefers-reduced-motion:reduce)');
   });
 
   it('resolveShape: override wins, else falls back to the chrome default', () => {

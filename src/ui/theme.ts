@@ -69,7 +69,7 @@ const F_NOUVEAU = "'Yeseva One','Cormorant Garamond',Georgia,serif"; // Greenhou
 const F_POLAR = "'Josefin Sans',system-ui,sans-serif"; // Aurora display — airy geometric sans, loads from Google Fonts
 const F_LEADED = "'Marcellus','Cormorant Garamond',Georgia,serif"; // Rosace display — inscriptional roman, loads from Google Fonts
 
-export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'atomic' | 'bloom' | 'ember' | 'nocturne' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary' | 'terracotta' | 'greenhouse' | 'aurora' | 'rosace';
+export type Chrome = 'default' | 'illuminated' | 'modern' | 'futuristic' | 'atomic' | 'bloom' | 'ember' | 'nocturne' | 'faewild' | 'gatsby' | 'sumi' | 'graphite' | 'arcade' | 'riot' | 'grimoire' | 'bestiary' | 'terracotta' | 'greenhouse' | 'aurora' | 'rosace' | 'rococo' | 'candy' | 'quilt';
 
 // --- card shapes (mockups 24, 30-35) ---------------------------------------
 // The shape vocabulary is CSS-only (see .v-shape--* in styles.ts). A theme may
@@ -108,12 +108,16 @@ export type ShapeId =
   | 'rose-window' | 'lancet' | 'came-bar'
   // object-card systems: Atomic instruments and Nocturne backstage ephemera
   | 'atomic-console' | 'atomic-permit' | 'atomic-credential' | 'atomic-signal' | 'atomic-dossier' | 'atomic-blueprint'
-  | 'nocturne-stage' | 'nocturne-score' | 'nocturne-mirror' | 'nocturne-cue' | 'nocturne-bill' | 'nocturne-reliquary';
+  | 'nocturne-stage' | 'nocturne-score' | 'nocturne-mirror' | 'nocturne-cue' | 'nocturne-bill' | 'nocturne-reliquary'
+  // full-content silhouettes: porcelain Rococo, neon Candy Alchemist, stitched Dream Quilt
+  | 'rococo-shell' | 'rococo-cartouche' | 'rococo-cameo' | 'rococo-ribbon' | 'rococo-cabinet' | 'rococo-medallion'
+  | 'candy-vessel' | 'candy-flask' | 'candy-capsule' | 'candy-rack' | 'candy-drawer' | 'candy-lozenge'
+  | 'quilt-patch' | 'quilt-join' | 'quilt-locket' | 'quilt-runner' | 'quilt-pocket' | 'quilt-square';
 // NOTE: `secrets` is intentionally NOT a customizable surface — the secret card
 // owns a fixed left-spine + wax-seal signature across every chrome (rendered via
 // its own ::before/::after), so it isn't offered in the card-shape customizer.
 export type Surface = 'present' | 'bonds' | 'cast' | 'beats' | 'factions' | 'items';
-export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule', 'azulejo', 'amphora', 'glaze-drip', 'pane', 'whiplash-vine', 'nouveau-arch', 'ribbon-edge', 'glacier', 'icicle', 'rose-window', 'lancet', 'came-bar', 'atomic-console', 'atomic-permit', 'atomic-credential', 'atomic-signal', 'atomic-dossier', 'atomic-blueprint', 'nocturne-stage', 'nocturne-score', 'nocturne-mirror', 'nocturne-cue', 'nocturne-bill', 'nocturne-reliquary'];
+export const SHAPE_IDS: readonly ShapeId[] = ['slab', 'left-spine', 'tarot', 'notched', 'split', 'inset', 'scalloped', 'aperture', 'deckle', 'stitch', 'gilt-edge', 'binding', 'studs', 'bracket', 'toadstool', 'trellis', 'bramble', 'lantern', 'sunburst', 'marquee', 'scallop-deco', 'stepped', 'hanko', 'washi-fold', 'rail-cap', 'gauge', 'screw-tab', 'track', 'spec-frame', 'chamfer-bar', 'arcade-btn', 'pixel-step', 'coin-slot', 'taped', 'torn-edge', 'ransom-cut', 'dropcap', 'sigil-seal', 'rune-spine', 'vine-frame', 'heraldic-shield', 'manuscript-rule', 'azulejo', 'amphora', 'glaze-drip', 'pane', 'whiplash-vine', 'nouveau-arch', 'ribbon-edge', 'glacier', 'icicle', 'rose-window', 'lancet', 'came-bar', 'atomic-console', 'atomic-permit', 'atomic-credential', 'atomic-signal', 'atomic-dossier', 'atomic-blueprint', 'nocturne-stage', 'nocturne-score', 'nocturne-mirror', 'nocturne-cue', 'nocturne-bill', 'nocturne-reliquary', 'rococo-shell', 'rococo-cartouche', 'rococo-cameo', 'rococo-ribbon', 'rococo-cabinet', 'rococo-medallion', 'candy-vessel', 'candy-flask', 'candy-capsule', 'candy-rack', 'candy-drawer', 'candy-lozenge', 'quilt-patch', 'quilt-join', 'quilt-locket', 'quilt-runner', 'quilt-pocket', 'quilt-square'];
 export const SURFACES: readonly Surface[] = ['present', 'bonds', 'cast', 'beats', 'factions', 'items'];
 // Human labels for the customizer rows.
 export const SURFACE_LABELS: Record<Surface, string> = {
@@ -188,6 +192,12 @@ export const CHROME_SHAPES: Record<Chrome, Record<Surface, ShapeId>> = {
   // a came-bar beat, a lancet faction, a came-bar item.
   // 3 signature (rose-window/lancet/came-bar) + 3 survivors.
   rosace: { present: 'rose-window', bonds: 'lancet', cast: 'tarot', beats: 'came-bar', factions: 'lancet', items: 'came-bar' },
+  // porcelain salon: each surface is a different piece of carved furniture or ornament.
+  rococo: { present: 'rococo-shell', bonds: 'rococo-cartouche', cast: 'rococo-cameo', beats: 'rococo-ribbon', factions: 'rococo-cabinet', items: 'rococo-medallion' },
+  // black-light laboratory: vessel, twin flask, specimen capsule, rack, drawer, compound.
+  candy: { present: 'candy-vessel', bonds: 'candy-flask', cast: 'candy-capsule', beats: 'candy-rack', factions: 'candy-drawer', items: 'candy-lozenge' },
+  // living textile: appliqué patch, joined seam, locket, runner, pocket and quilt square.
+  quilt: { present: 'quilt-patch', bonds: 'quilt-join', cast: 'quilt-locket', beats: 'quilt-runner', factions: 'quilt-pocket', items: 'quilt-square' },
 };
 /** Resolve the shape for a surface: user override wins, else the chrome default. */
 export function resolveShape(surface: Surface, chrome: Chrome, overrides: Partial<Record<Surface, ShapeId>>): ShapeId {
@@ -303,6 +313,13 @@ export const MODES: Mode[] = [
   // gothic tracery, a slow-moving sun. Distinct from Illuminated (gilt ink) & Grimoire
   // (arcane glow): Rosace is light through leaded glass. Light twin = a limewashed nave.
   { id: 'rosace', name: 'Rosace', blurb: 'Light through leaded glass \u2014 cobalt, ruby &amp; amber panes, gothic tracery, a moving sun.', patch: { chrome: 'rosace', radius: 10, border: 3, texture: 'leadwork', serif: F_LEADED, accent: '#1f6fe0', accent2: '#e0243f', opacity: 0.92, blur: 8 }, form: 'dashboard', skin: 'rosace-leaded', skinDark: 'rosace-leaded', skinLight: 'rosace-nave' },
+  // ROCOCO — pastel porcelain and botanical ornament. Full boxes keep prose readable;
+  // shells, cameos and cartouches live in reserved border space rather than clipping it.
+  { id: 'rococo', name: 'Rococo', blurb: 'A pastel porcelain salon \u2014 shell cartouches, botanical gilt, cameos &amp; ribbon archives.', patch: { chrome: 'rococo', radius: 16, border: 2, texture: 'rococo-garden', serif: F_SERIF, accent: '#ffacd4', accent2: '#acefc3', opacity: 0.96, blur: 8 }, form: 'dashboard', skin: 'rococo-twilight', skinDark: 'rococo-twilight', skinLight: 'rococo-pastel' },
+  // CANDY ALCHEMIST — fluorescent glassware and reagent labels over a black-light lab.
+  { id: 'candy', name: 'Candy Alchemist', blurb: 'A black-light laboratory \u2014 fluorescent glassware, reagent vessels &amp; neon memory compounds.', patch: { chrome: 'candy', radius: 12, border: 2, texture: 'candy-reagents', serif: F_SANS, accent: '#ff2fbd', accent2: '#20d9ff', opacity: 0.96, blur: 8 }, form: 'dashboard', skin: 'candy-blacklight', skinDark: 'candy-blacklight', skinLight: 'candy-labday' },
+  // DREAM QUILT — animated appliqué, seams and memory pockets. Motion remains optional.
+  { id: 'quilt', name: 'Dream Quilt', blurb: 'A living continuity quilt \u2014 appliqué patches, joined seams &amp; breathing memory pockets.', patch: { chrome: 'quilt', radius: 14, border: 2, texture: 'quilt-stitch', serif: F_ETHEREAL, accent: '#f08fc8', accent2: '#aa89d4', opacity: 0.94, blur: 10 }, form: 'dashboard', skin: 'quilt-midnight', skinDark: 'quilt-midnight', skinLight: 'quilt-daydream' },
 ];
 
 
@@ -416,6 +433,15 @@ export const SKINS: Skin[] = [
   { id: 'rosace-leaded', name: 'Rosace Leaded', blurb: 'Light through leaded glass \u2014 cobalt, ruby &amp; amber panes, black came.', theme: { accent: '#1f6fe0', serif: F_LEADED, mono: F_MONO, surf1: 'rgba(20,18,38,.82)', surf2: 'rgba(12,10,26,.86)', ink: '#eae6ff', ink2: '#9a93c0', glass: 'linear-gradient(168deg,#14122a,#08060f)', ...SEM, pos: '#23c05a', posInk: '#5fd888', neg: '#e0243f', negInk: '#f06a7e', info: '#1f6fe0', warn: '#e8a41f', press: '#9a4ce0', pressInk: '#b678ee' } },
   // Light: a limewashed nave \u2014 pale stone field, deep ink, sun through color.
   { id: 'rosace-nave', name: 'Rosace Nave', blurb: 'A limewashed nave \u2014 pale stone, deep ink, sun pouring through color.', theme: { accent: '#1f5fc0', serif: F_LEADED, mono: F_MONO, surf1: 'rgba(244,242,236,.94)', surf2: 'rgba(232,229,220,.94)', ink: '#1c1a2e', ink2: '#5a5470', glass: 'linear-gradient(168deg,#f4f2ec,#e6e3da)', ...SEM, pos: '#1f9a4a', posInk: '#177a38', neg: '#c8203a', negInk: '#a2182e', info: '#1f5fc0', warn: '#c9871a', press: '#7a3ac0', pressInk: '#622a9c' } },
+  // ROCOCO SKINS — pink porcelain, spring green upholstery, blue china and lilac shadow.
+  { id: 'rococo-twilight', name: 'Rococo Twilight', blurb: 'A candlelit pastel salon \u2014 blush porcelain, mint silk, lilac shadow and soft gilt.', theme: { accent: '#ffacd4', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(52,35,51,.94)', surf2: 'rgba(31,22,32,.97)', ink: '#fff9f2', ink2: '#efd8e5', glass: 'radial-gradient(circle at 22% 0,#66465d,#201620 66%)', ...SEM, pos: '#acefc3', posInk: '#cff7dc', neg: '#ff83ac', negInk: '#ffb8d0', info: '#b8dcff', warn: '#d7b9ff', press: '#ffacd4', pressInk: '#ffd2e7' } },
+  { id: 'rococo-pastel', name: 'Rococo Pastel', blurb: 'A daylit porcelain salon \u2014 pink and green pastels, china blue and plum ink.', theme: { accent: '#c9548d', serif: F_SERIF, mono: F_MONO, surf1: 'rgba(255,247,249,.97)', surf2: 'rgba(242,251,244,.97)', ink: '#3b2637', ink2: '#765568', glass: 'linear-gradient(152deg,#fff7f9,#edf9f0)', ...SEM, pos: '#397a50', posInk: '#2c6240', neg: '#b83b68', negInk: '#922c52', info: '#4275a4', warn: '#7653a0', press: '#c9548d', pressInk: '#a03f70' } },
+  // CANDY ALCHEMIST SKINS — fluorescent reagents over black-light glass, plus a day lab.
+  { id: 'candy-blacklight', name: 'Candy Blacklight', blurb: 'A black-light reagent bench \u2014 electric pink, cyan, acid green and violet glass.', theme: { accent: '#ff2fbd', serif: F_SANS, mono: F_MONO, surf1: 'rgba(16,9,24,.95)', surf2: 'rgba(6,4,12,.98)', ink: '#fff8ff', ink2: '#d0bce0', glass: 'linear-gradient(155deg,#160d24,#07040e)', ...SEM, pos: '#40ff87', posInk: '#86ffb2', neg: '#ff356d', negInk: '#ff7f9f', info: '#20d9ff', warn: '#f6ff45', press: '#ff2fbd', pressInk: '#ff8cda' } },
+  { id: 'candy-labday', name: 'Candy Lab Day', blurb: 'A bright confectionery lab \u2014 milk glass, dark ink and precise neon reagents.', theme: { accent: '#bd167f', serif: F_SANS, mono: F_MONO, surf1: 'rgba(255,250,255,.97)', surf2: 'rgba(240,250,252,.97)', ink: '#24132d', ink2: '#654d70', glass: 'linear-gradient(155deg,#fffaff,#eaf8fb)', ...SEM, pos: '#087a3a', posInk: '#05602d', neg: '#c52255', negInk: '#a01845', info: '#087e9b', warn: '#807d00', press: '#bd167f', pressInk: '#991064' } },
+  // DREAM QUILT SKINS — soft cloth palettes built for slow, optional motion.
+  { id: 'quilt-midnight', name: 'Dream Quilt Midnight', blurb: 'A moonlit continuity quilt \u2014 plum cloth, rose patches, mint thread and blue satin.', theme: { accent: '#f08fc8', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(43,29,53,.93)', surf2: 'rgba(24,16,31,.97)', ink: '#fff7f2', ink2: '#d7c4dc', glass: 'linear-gradient(150deg,#32223d,#18101f)', ...SEM, pos: '#8fdab0', posInk: '#bde9cf', neg: '#e66f9b', negInk: '#f2a6c1', info: '#87bfe8', warn: '#aa89d4', press: '#f08fc8', pressInk: '#f8b9dc' } },
+  { id: 'quilt-daydream', name: 'Dream Quilt Daydream', blurb: 'A sunlit patchwork \u2014 cream cloth, dusty rose, mint, cornflower and lavender.', theme: { accent: '#b94f8d', serif: F_ETHEREAL, mono: F_MONO, surf1: 'rgba(255,249,244,.97)', surf2: 'rgba(244,239,250,.97)', ink: '#35263d', ink2: '#716079', glass: 'linear-gradient(150deg,#fff9f4,#f0eafa)', ...SEM, pos: '#397653', posInk: '#2c5e42', neg: '#b93f6d', negInk: '#963156', info: '#3973a0', warn: '#7653a0', press: '#b94f8d', pressInk: '#943e70' } },
 ];
 
 
@@ -458,6 +484,9 @@ const TEXTURES: Array<{ id: string; label: string; css: string }> = [
   // These are pure CSS textures, so both work offline and recolor with the skin.
   { id: 'atomic-dots', label: 'Atomic Drafting Dots', css: 'radial-gradient(color-mix(in srgb,var(--vg) 22%,transparent) .7px,transparent .8px),linear-gradient(color-mix(in srgb,var(--vg2) 7%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--vg2) 7%,transparent) 1px,transparent 1px)' },
   { id: 'nocturne-velvet', label: 'Nocturne Velvet', css: 'radial-gradient(ellipse at 20% 0,color-mix(in srgb,var(--vg2) 18%,transparent),transparent 48%),radial-gradient(ellipse at 80% 0,color-mix(in srgb,var(--vg2) 12%,transparent),transparent 52%)' },
+  { id: 'rococo-garden', label: 'Rococo Garden', css: 'radial-gradient(circle at 18% 20%,color-mix(in srgb,var(--vg) 18%,transparent) 0 2px,transparent 3px),radial-gradient(circle at 82% 72%,color-mix(in srgb,var(--vg2) 18%,transparent) 0 2px,transparent 3px),linear-gradient(115deg,transparent 46%,color-mix(in srgb,var(--v-pos) 8%,transparent) 47% 49%,transparent 50%)' },
+  { id: 'candy-reagents', label: 'Candy Reagents', css: 'radial-gradient(circle at 12px 12px,color-mix(in srgb,var(--v-info) 18%,transparent) 0 1px,transparent 2px),linear-gradient(color-mix(in srgb,var(--vg) 7%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--v-pos) 7%,transparent) 1px,transparent 1px)' },
+  { id: 'quilt-stitch', label: 'Quilt Stitch', css: 'repeating-linear-gradient(45deg,color-mix(in srgb,var(--vg) 8%,transparent) 0 18px,color-mix(in srgb,var(--v-pos) 8%,transparent) 18px 36px,color-mix(in srgb,var(--v-info) 8%,transparent) 36px 54px,color-mix(in srgb,var(--v-warn) 8%,transparent) 54px 72px)' },
   // pressed flowers & inky flourishes — soft dusk-lilac line blooms with faint
   // sage leaves and a scattered ink dot, all hairline-thin (the light-academia
   // 'marginalia' texture: gentle, hand-drawn, no hard edges). Recommended for the
@@ -525,7 +554,7 @@ export function hydrateTheme(json: string | null): void {
   try { const t = JSON.parse(json); if (t && t.accent) { _theme = sanitize({ ...DEFAULT, ...t }); } } catch { /* ignore */ }
 }
 function load(): Theme { try { const t = JSON.parse(localStorage.getItem(KEY) || ''); if (t && t.accent) return sanitize({ ...DEFAULT, ...t }); } catch { /* default */ } return { ...DEFAULT }; }
-const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'atomic', 'bloom', 'ember', 'nocturne', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary', 'terracotta', 'greenhouse', 'aurora', 'rosace'] as const;
+const CHROMES = ['default', 'illuminated', 'modern', 'futuristic', 'atomic', 'bloom', 'ember', 'nocturne', 'faewild', 'gatsby', 'sumi', 'graphite', 'arcade', 'riot', 'grimoire', 'bestiary', 'terracotta', 'greenhouse', 'aurora', 'rosace', 'rococo', 'candy', 'quilt'] as const;
 function sanitize(t: Theme): Theme {
   // migrate a cut chrome/skin to its nearest survivor before validating
   const rawChrome = t.chrome as string;
@@ -789,6 +818,9 @@ export function customizePanel(tab: CzTab = 'look'): string {
     greenhouse: '<span class="vle-mode-sk sk-greenhouse"><i></i><i></i><i></i></span>',
     aurora: '<span class="vle-mode-sk sk-aurora"><i></i><i></i><i></i></span>',
     rosace: '<span class="vle-mode-sk sk-rosace"><i></i><i></i><i></i></span>',
+    rococo: '<span class="vle-mode-sk sk-rococo"><i></i><i></i><i></i></span>',
+    candy: '<span class="vle-mode-sk sk-candy"><i></i><i></i><i></i></span>',
+    quilt: '<span class="vle-mode-sk sk-quilt"><i></i><i></i><i></i></span>',
   };
   // dark/light segmented toggle — flips every chrome to its paired skin
   const modeToggle = '<div class="vle-cz-h">Mode</div><div class="vle-fbar" data-cz-colormode-bar>'
