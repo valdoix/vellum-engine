@@ -290,6 +290,34 @@ describe('card shapes (per-surface silhouette overrides)', () => {
     expect(css).toContain('@media (prefers-reduced-motion:reduce)');
   });
 
+  it('the three new default cast cards are decorated rectangular record cards', () => {
+    const css = STYLES;
+    for (const id of ['rococo-cameo', 'candy-capsule', 'quilt-locket']) {
+      const body = css.match(new RegExp(`\\.v-shape--${id}\\{([^}]*)\\}`))?.[1];
+      expect(body, `${id} primitive`).toBeTruthy();
+      expect(body, `${id} must remain a box`).not.toMatch(/border-radius:(?:48%|50%|999px)/);
+    }
+    expect(css).toContain("[data-shape-cast='rococo-cameo'] .vle-card:not(.vle-fac)::before");
+    expect(css).toContain("[data-shape-cast='candy-capsule'] .vle-card:not(.vle-fac)::before");
+    expect(css).toContain("[data-shape-cast='quilt-locket'] .vle-card:not(.vle-fac)::before");
+  });
+
+  it('Candy Alchemist has pervasive motion-safe neon lighting', () => {
+    const css = STYLES;
+    expect(css).toContain('@keyframes vle-candy-glow');
+    expect(css).toContain("html[data-vle-chrome='candy']:not([data-vle-motion='off']) .vle-navpanel");
+    expect(css).toContain("html[data-vle-chrome='candy'] .v-chip,html[data-vle-chrome='candy'] .vle-btn");
+    expect(css).toContain("html[data-vle-chrome='candy'] .vle-tabbtn,html[data-vle-chrome='candy'] .vle-sec-h");
+  });
+
+  it('Rococo and Dream Quilt use separate salon and textile surface languages', () => {
+    const css = STYLES;
+    expect(css).toContain("html[data-vle-chrome='rococo'] .vle-navpanel{border:3px double");
+    expect(css).toContain("html[data-vle-chrome='quilt'] .vle-navpanel{border:2px dashed");
+    expect(css).toContain("html[data-vle-chrome='rococo'][data-shape-cast='rococo-cameo'] .vle-card:not(.vle-fac){border-color");
+    expect(css).toContain("html[data-vle-chrome='quilt'][data-shape-cast='quilt-locket'] .vle-card:not(.vle-fac){border-color");
+  });
+
   it('resolveShape: override wins, else falls back to the chrome default', () => {
     expect(resolveShape('present', 'ember', {})).toBe(CHROME_SHAPES.ember.present);
     expect(resolveShape('present', 'ember', { present: 'aperture' })).toBe('aperture');
