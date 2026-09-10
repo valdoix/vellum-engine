@@ -93,7 +93,7 @@ export type CompilerInput = {
    * constrain objective world canon; they are never automatic actor knowledge. */
   lorebookCanon?: readonly LorebookCanonEntry[];
 };
-export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[] } | { ok: false; errors: string[] };
+export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[] } | { ok: false; errors: string[]; draft?: unknown; fragment?: string };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
 
 export interface ParallelGrounding {
@@ -569,6 +569,69 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     block: `<vellum>\n${JSON.stringify(state)}\n</vellum>`,
     ...(recoveredDayCount ? { recovered: ['state.day (kept canonical story-day count)'] } : {}),
   };
+}
+
+/**
+ * Build a conservative, structurally complete document that a repair pass can
+ * patch when the provider stopped before returning parseable JSON. It contains
+ * only the prior canonical snapshot and empty change sets, so using it as the
+ * repair base cannot invent a story change by itself.
+ */
+export function compilerRepairBase(input: CompilerInput): StateCandidate {
+  const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
+  const player = canonId(input.userName);
+  return {
+    state: {
+      turn: input.turn,
+      day: input.prior.day,
+      scene: {
+        loc: input.prior.scene.location || 'Unknown location',
+        time: clockTime(priorClock),
+        clock: priorClock,
+        ...(Number.isFinite(input.prior.scene.tension) ? { tension: input.prior.scene.tension } : {}),
+        ...(input.prior.scene.weather ? { weather: input.prior.scene.weather } : {}),
+      },
+      present: input.prior.scene.present.map(id => {
+        const actor = input.prior.cast[canonId(id)];
+        const detail = input.prior.scene.detail.find(row => canonId(row.id) === canonId(id));
+        const isPlayer = canonId(id) === player;
+        return {
+          id: actor?.name ?? id,
+          ...(detail?.mood && (!isPlayer || input.personaState) ? { mood: detail.mood } : {}),
+          ...(detail?.doing && (!isPlayer || input.personaState) ? { doing: detail.doing } : {}),
+          ...(detail?.condition && (!isPlayer || input.personaState) ? { condition: detail.condition } : {}),
+          thought: (!isPlayer || input.personaState) ? detail?.thought ?? '' : '',
+          ...(actor?.traits?.length && (!isPlayer || input.personaState) ? { traits: actor.traits } : {}),
+        };
+      }),
+      delta: {},
+      ext: {},
+    },
+    parallelOps: [],
+    parallelWorldOps: [],
+    parallelReviewed: input.prior.parallel
+      .filter(row => row.who)
+      .map(row => input.prior.cast[canonId(row.who!)]?.name ?? row.who!),
+    evidence: [],
+    trackEvidence: [],
+    genesis: false,
+  };
+}
+
+/** Apply RFC 7396 JSON Merge Patch without permitting prototype keys. Arrays
+ * are atomic in the format, which is desirable here: a repair replaces only a
+ * faulty evidence/delta list while untouched branches stay byte-for-byte equal. */
+export function applyCompilerMergePatch(base: unknown, patch: unknown): unknown {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return structuredClone(patch);
+  const target: Record<string, unknown> = base && typeof base === 'object' && !Array.isArray(base)
+    ? structuredClone(base as Record<string, unknown>)
+    : {};
+  for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    if (key === '__proto__' || key === 'prototype' || key === 'constructor') continue;
+    if (value === null) delete target[key];
+    else target[key] = applyCompilerMergePatch(target[key], value);
+  }
+  return target;
 }
 
 function pruneCompilerShape(value: unknown, schema: Record<string, any>): unknown {

@@ -57,7 +57,7 @@ import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFact
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
 import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
-import { compileState, type CompilerProgress } from './bus/state-compiler.js';
+import { compileState, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
 import { collapseAssembledArgentPolicy } from './domain/argent-policy.js';
@@ -228,7 +228,9 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
 const _foldChain = new Map<string, Promise<void>>();
 const _generationSnapshotByChat = new Map<string, AssistantSnapshot>();
 const _retryingEngine = new Set<string>();
+const _engineRepairTargetByChat = new Map<string, number>();
 const _engineAbortByChat = new Map<string, AbortController>();
+const _heldCompilerDraftByChat = new Map<string, { turn: number; inputSig: string; errors: string[]; draft: unknown; fragment?: string }>();
 
 interface CompilerDiagnostic { turn: number; inputSig: string; errors: string[] }
 function parseCompilerDiagnostic(raw: unknown): CompilerDiagnostic | null {
@@ -593,22 +595,57 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const prose = stripScaffold(parts?.assistant ?? content);
       const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
-      const compilerRoute = await taskRoute(chatId, userId, _retryingEngine.has(chatId) ? 'engineRetry' : 'engine');
+      const manualRepair = _retryingEngine.has(chatId) && _engineRepairTargetByChat.get(chatId) === turnNo;
+      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn, lorebookCanon };
+      const compilerRoute = await taskRoute(chatId, userId, manualRepair ? 'engineRetry' : 'engine');
       const compilerTuning = routedParams(compilerRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
       const compilerAbort = new AbortController();
       _engineAbortByChat.set(chatId, compilerAbort);
       if (await readEngineWindowEnabled(chatId)) engineRun = beginEngineRun(chatId, userId, turnNo);
       try {
-        const routeIds = [compilerRoute.resolvedConnectionId, ...(compilerRoute.fallbackIds ?? [])].filter((id): id is string => !!id);
-        for (let attempt = 0; attempt <= compilerTuning.retries && !compilerAbort.signal.aborted; attempt++) {
+        if (manualRepair) {
+          const held = _heldCompilerDraftByChat.get(chatId);
+          const diagnostic = await readCompilerDiagnostic(chatId);
+          const matches = held?.turn === turnNo && held.inputSig === sigOf(content);
+          compiled = {
+            ok: false,
+            errors: matches ? held!.errors : diagnostic?.errors ?? ['Reconstruct the held turn from the conservative canonical base.'],
+            ...(matches ? { draft: held!.draft } : {}),
+            ...(matches && held!.fragment ? { fragment: held!.fragment } : {}),
+          };
+        } else {
           compiled = await compileState(
-            { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn, lorebookCanon },
+            compilerInput,
             userId,
-            routeIds[Math.min(attempt, routeIds.length - 1)] ?? compilerRoute.resolvedConnectionId,
+            compilerRoute.resolvedConnectionId,
             internalGenerate,
-            { ...(engineRun ? { onProgress: engineRun.report } : {}), signal: compilerAbort.signal, generation: { maxTokens: compilerTuning.maxTokens, timeoutMs: compilerTuning.timeoutMs, temperature: compilerTuning.temperature, reasoning: compilerTuning.reasoning, schema: compilerTuning.schema } },
+            { ...(engineRun ? { onProgress: engineRun.report } : {}), attempt: 1, signal: compilerAbort.signal, generation: { maxTokens: compilerTuning.maxTokens, timeoutMs: compilerTuning.timeoutMs, temperature: compilerTuning.temperature, reasoning: compilerTuning.reasoning, schema: compilerTuning.schema } },
           );
-          if (compiled.ok) break;
+        }
+        // Any further model call is a bounded patch repair of the rejected
+        // document. It never asks the model to regenerate the complete file.
+        if (!compiled.ok && !compilerAbort.signal.aborted) {
+          const repairRoute = manualRepair ? compilerRoute : await taskRoute(chatId, userId, 'engineRetry');
+          const repairTuning = routedParams(repairRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
+          const repairIds = [repairRoute.resolvedConnectionId, ...(repairRoute.fallbackIds ?? [])].filter((id): id is string => !!id);
+          let repairDraft = compiled.draft;
+          let repairErrors = compiled.errors;
+          let repairFragment = compiled.fragment;
+          for (let repairAttempt = 0; repairAttempt <= repairTuning.retries && !compilerAbort.signal.aborted; repairAttempt++) {
+            compiled = await repairCompilation(
+              compilerInput,
+              repairDraft,
+              repairErrors,
+              userId,
+              repairIds[Math.min(repairAttempt, repairIds.length - 1)] ?? repairRoute.resolvedConnectionId,
+              internalGenerate,
+              { ...(engineRun ? { onProgress: engineRun.report } : {}), attempt: (manualRepair ? 1 : 2) + repairAttempt, ...(repairFragment ? { rejectedFragment: repairFragment } : {}), signal: compilerAbort.signal, generation: { maxTokens: repairTuning.maxTokens, timeoutMs: repairTuning.timeoutMs, temperature: repairTuning.temperature, reasoning: repairTuning.reasoning, schema: repairTuning.schema } },
+            );
+            if (compiled.ok) break;
+            repairDraft = compiled.draft;
+            repairErrors = compiled.errors;
+            repairFragment = compiled.fragment;
+          }
         }
       } catch (e) {
         const message = (e as Error)?.message ?? 'State compiler failed unexpectedly.';
@@ -629,17 +666,19 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         engineRun?.finish(false, { reason: 'engine_disabled', message: 'Engine Pass was disabled before the candidate could be filed.' });
         engineRun = null;
         await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+        _heldCompilerDraftByChat.delete(chatId);
         spindle.log?.info?.(`[vellum_engine] Engine Second Pass disabled while compiling turn ${turnNo}; discarded the candidate and kept the prose fallback.`);
       } else {
         if (!compiled.ok) {
           const errors = compiled.errors;
           engineFallback = true;
           compilerFailure = { turn: turnNo, inputSig: sigOf(content), errors };
-          engineRun?.finish(false, { reason: 'invalid_candidate', errors, message: 'The prose was saved immediately. Retry Engine when convenient to recover the structured tracker update.' });
+          _heldCompilerDraftByChat.set(chatId, { ...compilerFailure, draft: compiled.draft ?? {}, ...(compiled.fragment ? { fragment: compiled.fragment } : {}) });
+          engineRun?.finish(false, { reason: 'invalid_candidate', errors, message: 'The prose was saved immediately. Repair Engine can patch the held tracker draft when convenient.' });
           engineRun = null;
           await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify(compilerFailure));
-          spindle.log?.warn?.(`[vellum_engine] compiler pass held for turn ${turnNo}; filing the prose fallback without another model retry: ${errors.slice(0, 2).join('; ')}`);
-          spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `Engine Pass could not validate turn ${turnNo}. The prose and turn memory were saved; use Retry Engine when convenient.` }, userId ?? undefined);
+          spindle.log?.warn?.(`[vellum_engine] compiler repair held for turn ${turnNo}; filing the prose fallback: ${errors.slice(0, 2).join('; ')}`);
+          spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `Engine Pass could not repair turn ${turnNo}. The prose and turn memory were saved; use Repair Engine when convenient.` }, userId ?? undefined);
           compiled = null;
         }
       }
@@ -668,8 +707,9 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
           const errors = ['The transcript or Chronicle changed during compilation; retry the fold.'];
           finishStagedEngineRuns(false, { reason: 'later_turn_failed', errors });
           engineRun?.finish(false, { reason: 'state_changed', errors });
+          _heldCompilerDraftByChat.set(chatId, { turn: turnNo, inputSig: sigOf(content), errors, draft: compiled.candidate });
           await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors }));
-          spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${errors.slice(0, 2).join('; ')}. Use Retry Engine in the floating window.` }, userId ?? undefined);
+          spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: ${errors.slice(0, 2).join('; ')}. Use Repair Engine in the floating window.` }, userId ?? undefined);
           await flush(chatId);
           await broadcastState(chatId, userId);
           return;
@@ -684,6 +724,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     if (compiled?.ok && source !== 'json') {
       finishStagedEngineRuns(false, { reason: 'later_turn_failed', errors: ['A later validated candidate could not be filed.'] });
       engineRun?.finish(false, { reason: 'parser_rejected', errors: ['A validated compiler candidate did not round-trip through the canonical parser.'] });
+      _heldCompilerDraftByChat.set(chatId, { turn: turnNo, inputSig: sigOf(content), errors: ['A validated compiler candidate did not round-trip through the canonical parser.'], draft: compiled.candidate });
       await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors: ['A validated compiler candidate did not round-trip through the canonical parser.'] }));
       spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: canonical parser rejected the candidate.` }, userId ?? undefined);
       return;
@@ -720,7 +761,10 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       engineRun?.finish(false, { reason: 'commit_error', message, errors: [message] });
       throw e;
     }
-    if (compiled?.ok && !compilerFailure) await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+    if (compiled?.ok && !compilerFailure) {
+      await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
+      _heldCompilerDraftByChat.delete(chatId);
+    }
     if (compiled?.ok && engineRun) {
       if (pendingRollback !== null) stagedEngineRuns.push({ turn: turnNo, run: engineRun });
       else {
@@ -2184,6 +2228,8 @@ function pruneChatState(chatId: string): void {
   _foldChain.delete(chatId);
   _generationSnapshotByChat.delete(chatId);
   _retryingEngine.delete(chatId);
+  _engineRepairTargetByChat.delete(chatId);
+  _heldCompilerDraftByChat.delete(chatId);
   _engineAbortByChat.get(chatId)?.abort();
   _engineAbortByChat.delete(chatId);
   _toneMigrated.delete(chatId);
@@ -2457,7 +2503,7 @@ async function sendWorkbenchState(chatId: string | null, uid: string): Promise<v
   if (missingRoutes.length) health.findings.unshift({ code: 'unavailable_model_route', severity: 'error', count: missingRoutes.length, message: 'Task routes reference unavailable Lumiverse connections.' });
   const unprocessed = Math.max(0, turns.length - state.turns);
   if (unprocessed) health.findings.unshift({ code: 'unprocessed_turns', severity: 'warning', count: unprocessed, message: 'Saved assistant turns have not been folded into the Chronicle.' });
-  if (diagnostic) health.findings.unshift({ code: 'held_engine_candidate', severity: 'warning', count: 1, message: `Engine Pass is holding turn ${diagnostic.turn} for retry.` });
+  if (diagnostic) health.findings.unshift({ code: 'held_engine_candidate', severity: 'warning', count: 1, message: `Engine Pass is holding turn ${diagnostic.turn} for repair.` });
   if (_summarizing.has(chatId)) health.findings.unshift({ code: 'summarizer_running', severity: 'info', count: 1, message: 'The summarizer is currently running.' });
   health.score = Math.max(0, health.score - missingRoutes.length * 8 - unprocessed * 3 - (diagnostic ? 3 : 0));
   spindle.sendToFrontend?.({ type: 'vellum_workbench_state', chatId, connections, personal, chat, resolved, health, candidate: candidateSummary(candidate), rollbackAvailable, job: _reconstructionAbort.has(chatId) ? { status: 'running', phase: 'Reconstructing', message: 'A reconstruction job is active.' } : null }, uid);
@@ -3741,6 +3787,7 @@ const dispatch: Record<string, Handler> = {
       const target = diagnostic?.turn ?? turns.length;
       if (!target || !turns[target - 1]?.trim()) { done(false, { reason: 'no_turn' }); return; }
       const before = await loadState(chatId);
+      _engineRepairTargetByChat.set(chatId, target);
       lastSigByChat.delete(chatId);
       await foldChat(chatId, uid, pendingSnapshot, target <= (before.turns || 0) ? target - 1 : undefined);
       const [after, afterDiagnostic] = await Promise.all([loadState(chatId), readCompilerDiagnostic(chatId)]);
@@ -3749,9 +3796,10 @@ const dispatch: Record<string, Handler> = {
       if ((after.turns || 0) >= target && !sameFailure) done(true, { turn: target });
       else done(false, { reason: 'held', turn: target, errors: afterDiagnostic?.errors ?? diagnostic?.errors ?? [] });
     } catch (e) {
-      spindle.log?.warn?.('[vellum_engine] retry-engine: ' + ((e as Error)?.message ?? e));
+      spindle.log?.warn?.('[vellum_engine] repair-engine: ' + ((e as Error)?.message ?? e));
       done(false, { reason: 'error' });
     } finally {
+      _engineRepairTargetByChat.delete(chatId);
       _retryingEngine.delete(chatId);
     }
   },
@@ -3865,7 +3913,7 @@ const dispatch: Record<string, Handler> = {
     // Per-chat override for presets configured to use Engine Second Pass.
     // Unset means enabled for backward compatibility; only an explicit "off"
     // suppresses compilation. Turning it off also dismisses a stale held-pass
-    // diagnostic, because Retry Engine is intentionally unavailable while off.
+    // diagnostic, because Repair Engine is intentionally unavailable while off.
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) {
       spindle.sendToFrontend?.({ type: 'vellum_engine_pass_set_done', ok: false, reason: 'no_active_chat', enabled: true }, uid);

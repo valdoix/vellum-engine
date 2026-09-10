@@ -10,7 +10,7 @@ describe('frontend distribution bundle', () => {
     // no base URL or import map there and prevent setup() from running at all.
     expect(bundle).not.toMatch(/\bfrom\s*["']zod["']/);
     expect(bundle).not.toMatch(/\bimport\s*\(\s*["']zod["']\s*\)/);
-    expect(bundle).toContain('Retry Engine');
+    expect(bundle).toContain('Repair Engine');
     expect(bundle).toContain('vellum_retry_engine');
     expect(bundle).toContain('Engine pass');
     expect(bundle).toContain('vellum_set_engine_pass');

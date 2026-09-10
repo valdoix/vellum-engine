@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { CompilerCandidate, jsonSchema, salvageCompilation, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
+import { applyCompilerMergePatch, CompilerCandidate, compilerRepairBase, jsonSchema, salvageCompilation, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
-import { compileState, compilerContext, compilerReplyObjects, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS } from '../src/bus/state-compiler.js';
+import { compileState, compilerContext, compilerPatchObjects, compilerReplyObjects, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
 import { registerFeature } from '../src/bus/registry.js';
 import { reduce } from '../src/core/reduce.js';
@@ -488,6 +488,53 @@ ${JSON.stringify(c.state)}
     const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(candidate()).slice(0, -12) });
     const r = await compileState(input(), null, undefined, generate);
     expect(r.ok).toBe(false); expect(generate).toHaveBeenCalledTimes(1);
+    if (!r.ok) expect(r.draft).toEqual(compilerRepairBase(input()));
+  });
+  it('applies a minimal merge patch without changing unaffected compiler branches', () => {
+    const base = candidate();
+    const patched = applyCompilerMergePatch(base, { state: { turn: 7, scene: { weather: 'rain' } } }) as StateCandidate;
+    expect(patched.state.turn).toBe(7);
+    expect(patched.state.scene.weather).toBe('rain');
+    expect(patched.state.present).toEqual(base.state.present);
+    expect(patched.evidence).toEqual(base.evidence);
+  });
+  it('repairs only rejected branches through a streamed merge patch', async () => {
+    const i = input();
+    i.personaState = true;
+    const rejected = candidate();
+    Object.assign(rejected.state.present.find(row => row.id === 'Player')!, {
+      mood: 'wary', doing: 'keeping still', thought: 'I should stay quiet.', traits: ['patient'],
+    });
+    const invalid = validateCompilation(structuredClone(rejected), i);
+    expect(invalid.ok).toBe(false);
+    if (invalid.ok) return;
+    const replacement = structuredClone(rejected.state.present);
+    replacement.find(row => row.id === 'Player')!.condition = 'tired';
+    const reply = JSON.stringify({ patch: { state: { present: replacement } } });
+    const progress: Array<Record<string, unknown>> = [];
+    const generate = vi.fn(async (_messages: unknown, _params: unknown, _userId: unknown, options: any) => {
+      options.onStream?.({ type: 'content', token: reply });
+      return { ok: true as const, value: reply };
+    });
+    const repaired = await repairCompilation(i, rejected, invalid.errors, null, undefined, generate as any, {
+      attempt: 2,
+      onProgress: update => progress.push(update as unknown as Record<string, unknown>),
+    });
+    expect(repaired.ok).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(1);
+    const messages = generate.mock.calls[0]![0] as Array<{ content: string }>;
+    expect(messages[0]!.content).toContain('minimal RFC 7396 JSON Merge Patch');
+    expect(messages[0]!.content).toContain('never return the complete compiler document');
+    expect(JSON.parse(messages[1]!.content).draft.state.present).toEqual(rejected.state.present);
+    expect(progress.map(update => update.status)).toEqual(expect.arrayContaining(['retry', 'chunk', 'validating', 'validated']));
+    if (repaired.ok) expect(repaired.candidate.state.present.find(row => row.id === 'Player')?.condition).toBe('tired');
+  });
+  it('rejects a no-op repair so a timeout cannot silently file an unchanged base', async () => {
+    const i = input();
+    const draft = compilerRepairBase(i);
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: '{"patch":{}}' });
+    const repaired = await repairCompilation(i, draft, ['timeout'], null, undefined, generate);
+    expect(repaired).toMatchObject({ ok: false, errors: ['Repair patch made no changes to the rejected draft'] });
   });
   it('accepts a complete streamed object even when the provider terminal event times out', async () => {
     const generate = vi.fn(async (_messages: unknown, _params: unknown, _userId: unknown, options: any) => {
@@ -559,9 +606,16 @@ ${JSON.stringify(c.state)}
   it('keeps truncated objects out of the compiler candidate scan', () => {
     expect(compilerReplyObjects('{"state":{"turn":1}')).toEqual([]);
   });
+  it('extracts a merge patch without mistaking it for a complete compiler file', () => {
+    const raw = '```json\n{"patch":{"state":{"turn":2}}}\n```';
+    expect(compilerPatchObjects(raw)).toEqual([{ patch: { state: { turn: 2 } } }]);
+    expect(compilerReplyObjects(raw)).toEqual([]);
+  });
   it('quarantines provider failure after one bounded call', async () => {
     const generate = vi.fn().mockResolvedValue({ ok: false, error: 'timeout' });
-    expect(await compileState(input(), null, undefined, generate)).toEqual({ ok: false, errors: ['timeout'] });
+    const result = await compileState(input(), null, undefined, generate);
+    expect(result).toMatchObject({ ok: false, errors: ['timeout'] });
+    if (!result.ok) expect(result.draft).toEqual(compilerRepairBase(input()));
     expect(generate).toHaveBeenCalledTimes(1);
     expect(generate.mock.calls[0]![3].timeoutMs).toBe(ENGINE_TIMEOUT_MS.lean);
     expect(generate.mock.calls[0]![0][0].content).not.toContain('"additionalProperties"');

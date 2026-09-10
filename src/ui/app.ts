@@ -1881,9 +1881,9 @@ export function setup(ctx: Ctx): () => void {
   };
   let float!: FloatWindow;
   const retryEngine = (): void => {
-    if (engineRetryBusy) { notify(ctx, 'info', 'The Engine retry is already running.'); return; }
+    if (engineRetryBusy) { notify(ctx, 'info', 'The Engine repair is already running.'); return; }
     engineRetryBusy = true;
-    stickyToast('engine-retry', 'info', 'Retrying Engine Second Pass\u2026');
+    stickyToast('engine-retry', 'info', 'Repairing Engine Second Pass draft\u2026');
     ctx.sendToBackend({ type: 'vellum_retry_engine' });
     try { float?.refresh(); } catch { /* float may still be initializing */ }
   };
@@ -1892,7 +1892,7 @@ export function setup(ctx: Ctx): () => void {
     actions: [
       { id: 'tabs', label: '\u2637', title: 'Choose which tabs show in this window' },
       { id: 'refresh', label: '\u27F3', title: 'Re-fold the latest turn (recover a mis-parsed turn)' },
-      { id: 'retry-engine', label: '\u21BB E', title: 'Retry Engine Second Pass for the held or latest turn' },
+      { id: 'retry-engine', label: '\u21BB E', title: 'Repair the held Engine Second Pass draft for the latest affected turn' },
       { id: 'repair', label: '\u21BB\u2338', title: 'Repair state block: rebuild a missing <vellum> block for the latest turn from its prose (needs generation permission). Use if auto-repair failed or is off.' },
     ],
     onAction: (id) => {
@@ -1925,7 +1925,7 @@ export function setup(ctx: Ctx): () => void {
       }
       tabsEl.innerHTML = floatTabStrip();
       engineEl.innerHTML = compilerDiagnostic
-        ? `<div class="vlf-engine-held"><span><b>Engine held turn ${compilerDiagnostic.turn}</b><small>${esc(compilerDiagnostic.errors[0] ?? 'The state candidate did not validate.')}</small></span><button data-vlf-engine-retry${engineRetryBusy ? ' disabled' : ''}>${engineRetryBusy ? 'Retrying\u2026' : 'Retry Engine'}</button></div>`
+        ? `<div class="vlf-engine-held"><span><b>Engine held turn ${compilerDiagnostic.turn}</b><small>${esc(compilerDiagnostic.errors[0] ?? 'The state candidate did not validate.')}</small></span><button data-vlf-engine-retry${engineRetryBusy ? ' disabled' : ''}>${engineRetryBusy ? 'Repairing\u2026' : 'Repair Engine'}</button></div>`
         : '';
       const def = FLOAT_TABS.find((t) => t.id === floatTab) ?? FLOAT_TABS[0]!;
       try {
@@ -2356,20 +2356,20 @@ export function setup(ctx: Ctx): () => void {
         settleEngineRetry(p);
         if (p.ok) {
           compilerDiagnostic = null;
-          stickyToast('engine-retry', 'success', `Engine Second Pass completed for turn ${p.turn ?? ''}.`, true);
+          stickyToast('engine-retry', 'success', `Engine Second Pass repaired turn ${p.turn ?? ''}.`, true);
         } else if (p.reason === 'busy') {
-          stickyToast('engine-retry', 'info', 'The Engine retry is already running.', true);
+          stickyToast('engine-retry', 'info', 'The Engine repair is already running.', true);
         } else if (p.reason === 'not_engine') {
           stickyToast('engine-retry', 'warning', 'This turn is not using Engine Second Pass.', true);
         } else if (p.reason === 'engine_disabled') {
           stickyToast('engine-retry', 'warning', 'Engine Second Pass is disabled in Actions.', true);
         } else if (p.reason === 'no_generation') {
-          stickyToast('engine-retry', 'warning', 'Engine retry needs the generation permission.', true);
+          stickyToast('engine-retry', 'warning', 'Engine repair needs the generation permission.', true);
         } else if (p.reason === 'no_active_chat' || p.reason === 'no_turn') {
-          stickyToast('engine-retry', 'warning', 'No active assistant turn is available to retry.', true);
+          stickyToast('engine-retry', 'warning', 'No active assistant turn is available to repair.', true);
         } else {
           const detail = Array.isArray(p.errors) && p.errors.length ? ` ${String(p.errors[0])}` : '';
-          stickyToast('engine-retry', 'warning', `Engine still could not validate turn ${p.turn ?? ''}.${detail}`, true);
+          stickyToast('engine-retry', 'warning', `Engine still could not repair turn ${p.turn ?? ''}.${detail}`, true);
         }
         try { float.refresh(); } catch { /* ignore */ }
       } else if (p?.type === 'vellum_repair_block_done') {

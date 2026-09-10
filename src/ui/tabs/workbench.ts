@@ -18,7 +18,7 @@ interface Snapshot {
 
 const ROLES: Array<[string, string, string]> = [
   ['engine', 'Engine compiler', 'Structured state after each reply'],
-  ['engineRetry', 'Engine retry', 'Repair or retry a failed compiler pass'],
+  ['engineRetry', 'Engine repair', 'Patch a failed compiler draft without regenerating it'],
   ['summaryDetail', 'Summary detail', 'Dense chapter, arc, and book archive'],
   ['summaryGist', 'Summary gist', 'Short Chronicle recap'],
   ['recall', 'Recall controller', 'Optional model-guided memory traversal'],
@@ -103,7 +103,7 @@ function routeEditor(role: string): string {
       <label class="wide">Connection<select data-route-field="connection">${connectionOptions(value)}</select></label>
       <label>Maximum output<input data-route-field="maxTokens" type="number" min="64" max="128000" placeholder="Task default" value="${own.maxTokens ?? ''}"></label>
       <label>Timeout (seconds)<input data-route-field="timeoutSeconds" type="number" min="1" max="900" placeholder="Task default" value="${own.timeoutMs ? Math.round(own.timeoutMs / 1000) : ''}"></label>
-      <label>Retries<input data-route-field="retries" type="number" min="0" max="8" placeholder="Task default" value="${own.retries ?? ''}"></label>
+      <label>Extra attempts<input data-route-field="retries" type="number" min="0" max="8" placeholder="Task default" value="${own.retries ?? ''}"></label>
       <label>Temperature<input data-route-field="temperature" type="number" min="0" max="2" step="0.1" placeholder="Task default" value="${own.temperature ?? ''}"></label>
       <label>Reasoning<select data-route-field="reasoning"><option value="off"${(own.reasoning ?? 'off') === 'off' ? ' selected' : ''}>Off</option><option value="inherit"${own.reasoning === 'inherit' ? ' selected' : ''}>Connection setting</option><option value="low"${own.reasoning === 'low' ? ' selected' : ''}>Low</option><option value="medium"${own.reasoning === 'medium' ? ' selected' : ''}>Medium</option><option value="high"${own.reasoning === 'high' ? ' selected' : ''}>High</option></select></label>
       ${schemaControl}
@@ -127,7 +127,7 @@ function models(): string {
   </section>`;
 }
 function actionCard(id: string, eyebrow: string, title: string, text: string, meta: string, tone = ''): string {
-  return `<article class="vlw-card vlw-action-card ${tone}"><div><span class="vlw-label">${esc(eyebrow)}</span><h3>${esc(title)}</h3><p>${esc(text)}</p></div><div class="vlw-action-foot"><span>${esc(meta)}</span><button data-wb="${esc(id)}">${id === 'retry-engine' ? 'Retry' : id === 'reindex' ? 'Reindex' : id === 'summarize' ? 'Build' : id === 'audit' ? 'Review' : 'Run'}</button></div></article>`;
+  return `<article class="vlw-card vlw-action-card ${tone}"><div><span class="vlw-label">${esc(eyebrow)}</span><h3>${esc(title)}</h3><p>${esc(text)}</p></div><div class="vlw-action-foot"><span>${esc(meta)}</span><button data-wb="${esc(id)}">${id === 'retry-engine' ? 'Repair' : id === 'reindex' ? 'Reindex' : id === 'summarize' ? 'Build' : id === 'audit' ? 'Review' : 'Run'}</button></div></article>`;
 }
 function interventions(): string {
   return `<section class="vlw-panel" aria-labelledby="vlw-interventions-title"><header class="vlw-panel-head"><div><span class="vlw-label">Active chat</span><h2 id="vlw-interventions-title">Interventions</h2><p>Run a deliberate one-off operation. Every action says what it changes.</p></div><span class="vlw-pill good"><i></i>Chronicle ready</span></header>
@@ -136,7 +136,7 @@ function interventions(): string {
       ${actionCard('worldgen-now', 'World-building', 'Generate world', 'Create one grounded living-world event from lorebooks, cards, chat history, and Chronicle evidence.', '((worldgen))', 'ready')}
       ${actionCard('rescan', 'Latest turn', 'Rescan prose', 'Fold the latest saved reply again and refresh its derived Chronicle data.', 'Derived data only')}
       ${actionCard('repair', 'State block', 'Repair latest block', 'Reconstruct a malformed or missing VELLUM block from the saved prose.', 'Uses repair route')}
-      ${actionCard('retry-engine', 'Engine candidate', 'Retry held pass', 'Compile the held Engine candidate again with the configured retry and fallback routes.', 'Held candidate', 'attention')}
+      ${actionCard('retry-engine', 'Engine candidate', 'Repair held draft', 'Patch only the invalid or missing parts of the held Engine candidate with the configured repair route.', 'Held draft', 'attention')}
       ${actionCard('reindex', 'Recall', 'Reindex memory', 'Rebuild the searchable recall index from Chronicle evidence and attached lore.', 'Safe rebuild')}
       ${actionCard('summarize', 'Archive', 'Build summaries', 'Run pending chapters, arcs, and books through their selected summarizer routes.', 'Archive pipeline')}
       ${actionCard('audit', 'Continuity', 'Audit health', 'Inspect deterministic continuity findings before starting a reconstruction.', 'Read only', 'attention')}
