@@ -2,7 +2,7 @@
 
 ARGENT LOOM is a VELLUM-native roleplay preset for long-running, causally coherent fiction. It combines strict player agency, limited character knowledge, physical and temporal continuity, durable relationships, living-world simulation, configurable prose craft, and an engine-owned state compiler that folds completed prose into the Chronicle only after validation.
 
-This guide covers all 62 user-facing controls in ARGENT LOOM 1.3.0, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
+This guide covers all 62 user-facing controls in ARGENT LOOM 1.3.1, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
 
 ## Included files
 
@@ -51,7 +51,7 @@ For most capable models, begin with the shipped defaults:
 
 If extraction misses a supported detail, temporarily use **Full** state verbosity. The engine still applies the same strict validator and atomic commit rules.
 
-For a provider with reliable private reasoning, use `reasoning_route: Native` and either `model_adapter: Auto` or `Reasoning Model`. For ordinary chat-completion models, the default Compact Reverie is the safer route.
+For a provider with reliable private reasoning, use `reasoning_route: Native` and either `model_adapter: Auto` or `Reasoning Model`. Native now runs the full robust ARGENT Reverie privately: Authority, Reality, Gnosis, Embodiment, Narrative, Truthful deltas, Voice, and Final checks. For ordinary chat-completion models, the default Compact Reverie is the safer route.
 
 Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, knowledge partitions, or difficult causal transitions. It emits a bounded 250–500 word, eight-section audit before prose, so it is more reliable but costs more output and visible scaffolding than Compact.
 
@@ -171,7 +171,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 
 ### Off-scene conversation privacy
 
-ARGENT 1.3.0 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
+ARGENT 1.3.1 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
 
 A can learn afterward only through a concrete bridge established in the fiction: B or C tells A, A plausibly overhears, a delivered message or readable record reaches A, a public announcement occurs, or observable evidence supports a limited inference. Evidence does not reveal more than it contains; suspicious aftermath may justify `suspects`, but not knowledge of the hidden transcript. The same audit applies to prose, dialogue, thoughts, reactions, interruptions, `present.thought`, and `delta.knowledge`.
 
@@ -183,7 +183,7 @@ Model-generated `ext.codex` facts and the legacy `who: "world"` knowledge route 
 
 | Control | Default | Options and effect |
 |---|---|---|
-| `reasoning_route` — Planning Route | **Compact Reverie** | **Compact Reverie:** emits a six-line `<reverie>` audit. **Verbose Reverie:** emits a bounded 250–500 word audit with Authority, Reality, Gnosis, Embodiment, Narrative, Truthful deltas, Voice, and Final checks. **Native Private Reasoning:** relies on provider-private thinking and emits no Reverie. **Silent One-Pass:** performs only a brief implicit check; fastest and least expensive, but least reliable on weaker models. Visible Reveries are collapsed for display and removed from later prompt/memory copies. |
+| `reasoning_route` — Planning Route | **Compact Reverie** | **Compact Reverie:** emits a six-line `<reverie>` audit. **Verbose Reverie:** emits a bounded 250–500 word audit with Authority, Reality, Gnosis, Embodiment, Narrative, Truthful deltas, Voice, and Final checks. **Native Private Reasoning:** runs that same robust eight-section ARGENT audit in the provider's private reasoning channel and emits no visible Reverie. **Silent One-Pass:** performs only a brief implicit check; fastest and least expensive, but least reliable on weaker models. Visible Reveries are collapsed for display and removed from later prompt/memory copies. |
 | `state_on` — Emit State Block | **On** | Enables structured Chronicle compilation. Off produces prose without new structured scene, relationship, knowledge, inventory, or world-state updates. |
 | `state_compiler` — State Compilation | **Engine Second Pass** | **Engine Second Pass:** narrative generation ends with prose; VELLUM sends the completed prose and prior Chronicle state through a temperature-zero structured extraction, validates it, and atomically commits it. **Inline Compatibility:** asks the narrative model to append the legacy `<vellum>` block and keeps the repair path available. |
 | `state_verbosity` — State Schema | **Lean** | **Lean:** the second pass emits the complete scene/present roster and only material supported changes. **Full:** separately instructs it to audit every schema family and supplies a larger output allowance. Inline Compatibility retains the distinct compact and six-stage prompt contracts. Both require a limited-knowledge private thought for every named on-stage NPC. |
@@ -353,7 +353,7 @@ The embedded and standalone regex packs were both imported. Keep one copy of eac
 
 ### Parallel events show an earlier location
 
-ARGENT 1.3.0 compiles off-screen changes as operations against the prior T1 state. Every prior actor must be reviewed; unchanged rows survive, `move` changes the destination, `resolve` removes a row, and an actor entering `scene.present` is removed automatically. The resulting `delta.parallel` snapshot is computed by VELLUM at the final day and clock.
+ARGENT 1.3.1 compiles off-screen changes as operations against the prior T1 state. Every prior actor must be reviewed; unchanged rows survive, `move` changes the destination, `resolve` removes a row, and an actor entering `scene.present` is removed automatically. The resulting `delta.parallel` snapshot is computed by VELLUM at the final day and clock.
 
 An `advance` keeps the actor at their established location. A `move` needs prose that depicts departure, travel, or arrival at the destination. Facts from the visible scene reach an absent actor only through a depicted witness, message, report, call, arrival, or consequence. Lorebooks attached to the chat are objective world canon for geography, institutions, history, objects, and physical rules; they do not tell VELLUM what an actor is doing now and do not grant that actor knowledge.
 

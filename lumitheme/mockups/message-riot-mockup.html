@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riot — MinimalMessage Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;700&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RIOT — "DIY punk zine collage"
+   Chrome: riot · Skin: riot-black (acid yellow & violet on ink)
+   accent #e8ff2e (acid yellow)  ·  accent2 #c400ff (violet)
+   texture: halftone · font: F_ZINE (Anton/Oswald) · radius 0 · border 3
+   Cut-and-paste chaos: taped/torn cards, hard offset shadows, marker
+   headers on rotated tape strips, ransom-note type, xerox glitch.
+   -- FULL-PAGE zine rework: photocopied halftone paper, torn-tape
+      corners, marker scrawl; portrait rails are xerox'd posters; figures
+      are high-contrast screenprint illustrations.
+   ============================================================ */
+:root{
+  --lumiverse-bg:#0e0e0c;              /* near-black ink */
+  --lumiverse-text:#ececdf;            /* newsprint */
+  --lumiverse-text-2:#9a9a8e;
+  --lumiverse-accent:#e8ff2e;          /* acid yellow */
+  --lumiverse-accent-2:#c400ff;        /* violet */
+  --pos:#00c853; --neg:#ff1744; --info:#2979ff; --warn:#ff9100;
+  --surf-1:rgba(24,24,20,.94);
+  --surf-2:rgba(14,14,12,.96);
+  --paper:#ececdf;
+  --ink:#101014;
+  --zine:'Anton','Oswald',Impact,sans-serif;
+  --zine2:'Oswald',Impact,sans-serif;
+  --body:'EB Garamond',Georgia,serif;
+  --radius:0px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--body);
+  color:var(--lumiverse-text);
+  background:
+    radial-gradient(700px 460px at 12% -6%, rgba(232,255,46,.1), transparent 60%),
+    radial-gradient(620px 460px at 92% 8%, rgba(196,0,255,.12), transparent 62%),
+    linear-gradient(172deg,#161612 0%, #0e0e0c 60%, #080806 100%);
+  min-height:100vh;
+  padding:2.5rem 1.25rem 6rem;
+  overflow-x:hidden;
+}
+/* halftone dot paper — drifts diagonally */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:radial-gradient(circle at 1px 1px, rgba(236,236,223,.13) 1px, transparent 1.5px);
+  background-size:7px 7px;
+  animation:halftone 8s linear infinite;
+}
+@keyframes halftone{0%{background-position:0 0}100%{background-position:28px 14px}}
+/* torn-tape corners + marker scrawl field */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.8;
+  background-image:
+    radial-gradient(circle at 20% 22%, rgba(232,255,46,.08) 0, transparent 5%),
+    radial-gradient(circle at 82% 70%, rgba(196,0,255,.09) 0, transparent 6%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cg fill='none' stroke='%23ececdf' stroke-opacity='0.05' stroke-width='2'%3E%3Cpath d='M20 40 L60 30 M30 80 L70 74 M180 60 L220 52 M170 200 L210 196'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat:no-repeat,no-repeat,repeat;
+}
+
+.stage{max-width:1080px;margin:0 auto;position:relative;z-index:1}
+.mock-label{
+  display:inline-block;font-family:var(--zine2);font-weight:700;color:var(--ink);
+  background:var(--lumiverse-accent);letter-spacing:.2em;text-transform:uppercase;
+  font-size:.72rem;padding:2px 10px;transform:rotate(-2deg);margin-bottom:.7rem;
+}
+.mock-title{
+  font-family:var(--zine);font-weight:400;font-size:3.4rem;letter-spacing:.02em;
+  text-transform:uppercase;color:var(--paper);margin-bottom:.35rem;line-height:.94;
+  text-shadow:4px 4px 0 var(--lumiverse-accent-2);animation:jitterTitle .4s steps(2) infinite;
+}
+@keyframes jitterTitle{0%{transform:translate(0,0)}50%{transform:translate(-1px,1px)}100%{transform:translate(1px,-1px)}}
+.mock-sub{font-family:var(--zine2);text-transform:uppercase;letter-spacing:.06em;color:var(--lumiverse-text-2);margin-bottom:2.75rem}
+
+.msg{
+  --avatar-w:clamp(150px,18vw,260px);
+  display:grid;grid-template-columns:var(--avatar-w) minmax(0,1fr);
+  column-gap:clamp(14px,1.6vw,26px);align-items:start;
+  margin-bottom:clamp(28px,3.4vw,52px);
+}
+.msg.user{grid-template-columns:minmax(0,1fr) var(--avatar-w)}
+
+/* xerox'd poster portrait rail — hard 3px frame + violet offset, glitch jitter */
+.avatar{
+  grid-column:1;grid-row:1/span 2;justify-self:start;position:sticky;top:24px;
+  width:var(--avatar-w);height:clamp(360px,52vh,560px);border-radius:var(--radius);
+  overflow:hidden;isolation:isolate;border:3px solid var(--paper);
+  box-shadow:8px 8px 0 var(--lumiverse-accent-2);
+  animation:posterJitter .5s steps(2) infinite;
+}
+@keyframes posterJitter{0%{transform:translate(0,0)}50%{transform:translate(.6px,-.6px)}100%{transform:translate(-.6px,.6px)}}
+.msg.user .avatar{grid-column:2;justify-self:end;box-shadow:-8px 8px 0 var(--lumiverse-accent)}
+.avatar .fill{position:absolute;inset:0}
+/* high-contrast screenprint poster fills */
+.portraitA{
+  background:
+    radial-gradient(80% 50% at 50% 6%, rgba(232,255,46,.5), transparent 56%),
+    radial-gradient(70% 40% at 50% 100%, rgba(14,14,12,.92), transparent 62%),
+    linear-gradient(165deg,#c400ff,#5a0078 50%,#120016 100%);
+}
+.portraitB{
+  background:
+    radial-gradient(80% 50% at 50% 6%, rgba(196,0,255,.45), transparent 56%),
+    radial-gradient(70% 40% at 50% 100%, rgba(14,14,12,.92), transparent 62%),
+    linear-gradient(165deg,#e8ff2e,#8a9a00 48%,#181800 100%);
+}
+/* halftone screen over the poster */
+.avatar .grain{position:absolute;inset:0;opacity:.5;mix-blend-mode:multiply;
+  background-image:radial-gradient(circle at 1px 1px, rgba(0,0,0,.6) 1px, transparent 1.6px);background-size:5px 5px;}
+.avatar .fig{position:absolute;inset:0;opacity:.96}
+/* tape strips at the corners */
+.avatar::before{content:"";position:absolute;top:-8px;left:18px;width:70px;height:24px;
+  background:rgba(232,255,46,.5);transform:rotate(-8deg);z-index:3;
+  box-shadow:0 0 0 1px rgba(0,0,0,.15);animation:tape 3s ease-in-out infinite}
+.avatar::after{content:"";position:absolute;bottom:-8px;right:18px;width:70px;height:24px;
+  background:rgba(196,0,255,.45);transform:rotate(6deg);z-index:3;
+  box-shadow:0 0 0 1px rgba(0,0,0,.15);animation:tape 3.4s ease-in-out infinite}
+@keyframes tape{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(-4deg)}}
+
+.bubble{grid-column:2;min-width:0}
+.msg.user .bubble{grid-column:1}
+
+.header{display:flex;flex-direction:column;align-items:center;gap:.45rem;padding:8px 16px 16px;position:relative}
+.name{font-family:var(--zine);font-weight:400;font-size:clamp(1.9rem,2.6vw,2.8rem);line-height:.96;
+  text-transform:uppercase;color:var(--paper);background:var(--ink);padding:2px 12px;
+  transform:rotate(-1.5deg);box-shadow:4px 4px 0 var(--lumiverse-accent);}
+.msg.user .name{box-shadow:4px 4px 0 var(--lumiverse-accent-2)}
+.pill{font-family:var(--zine2);font-weight:700;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink);background:var(--lumiverse-accent);padding:1px 8px;transform:rotate(1deg)}
+
+/* content card — riot: hard 3px frame, offset shadow (static — no shake) */
+.content{position:relative;isolation:isolate;padding:22px 24px;border-radius:var(--radius);
+  border:3px solid var(--paper);background:var(--surf-1);
+  box-shadow:6px 6px 0 var(--paper);}
+.content > .leafgrain{position:absolute;inset:0;z-index:0;opacity:.4;mix-blend-mode:multiply;pointer-events:none;
+  background-image:radial-gradient(circle at 1px 1px, rgba(0,0,0,.5) 1px, transparent 1.6px);background-size:5px 5px;}
+.content > .prose,.content > .think-toggle,.content > .think-body{position:relative;z-index:1}
+
+.prose{font-family:var(--body);font-size:1.06rem;line-height:1.7;text-align:justify;hyphens:auto;text-wrap:pretty}
+.prose p{margin:0 0 .9em}
+.prose p:last-child{margin-bottom:0}
+.prose em{font-style:italic;color:var(--lumiverse-text-2)}
+.prose .say{color:var(--lumiverse-accent);font-weight:600}
+.msg.user .prose .say{color:var(--lumiverse-accent-2)}
+.prose strong{color:#fff;font-weight:700;background:var(--lumiverse-accent-2);padding:0 3px}
+
+.think-toggle{display:inline-flex;align-items:center;gap:.5rem;margin:16px 0 0;padding:.3rem .8rem;border-radius:0;
+  font-family:var(--zine2);font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--paper);
+  font-size:.7rem;color:var(--paper);background:var(--ink);transform:rotate(-1deg)}
+.think-body{margin:12px 0 0;padding:14px 16px;border-radius:0;font-style:italic;font-size:.98rem;color:var(--lumiverse-text-2);
+  border-left:4px solid var(--lumiverse-accent-2);
+  background:repeating-linear-gradient(45deg,rgba(196,0,255,.05) 0 6px,transparent 6px 12px),var(--surf-2);}
+blockquote{margin:.2em 0;padding:.1em 0 .1em .9em;border-left:3px solid var(--lumiverse-accent);color:var(--lumiverse-text-2);font-style:italic}
+
+@media(max-width:720px){
+  .msg{--avatar-w:clamp(64px,26vw,120px)}
+  .avatar{height:clamp(180px,48vw,300px);top:14px}
+  .name{font-size:1.5rem}
+  .mock-title{font-size:2.2rem}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="mock-label">Vellum · Riot</div>
+  <h1 class="mock-title">Cut &amp; Paste Chaos</h1>
+  <p class="mock-sub">Acid yellow &amp; violet on ink — MinimalMessage layout, Riot chrome.</p>
+
+  <!-- character message -->
+  <div class="msg character">
+    <div class="avatar"><div class="fill portraitA"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="rJacketA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2a2a24"/><stop offset="1" stop-color="#0c0c08"/>
+          </linearGradient>
+          <radialGradient id="rSkinA" cx=".44" cy=".4" r=".7">
+            <stop offset="0" stop-color="#f0d6c8"/><stop offset="1" stop-color="#b98a72"/>
+          </radialGradient>
+        </defs>
+        <g>
+          <!-- studded biker jacket -->
+          <path d="M60 400 C56 300 66 236 84 214 C90 206 110 206 116 214 C134 236 144 300 140 400 Z" fill="url(#rJacketA)"/>
+          <!-- zip + stud lines -->
+          <g stroke="#e8ff2e" stroke-opacity=".7" stroke-width="1.5"><path d="M100 216 L100 398"/></g>
+          <g fill="#c9c9c9"><circle cx="82" cy="250" r="2"/><circle cx="82" cy="270" r="2"/><circle cx="82" cy="290" r="2"/><circle cx="118" cy="250" r="2"/><circle cx="118" cy="270" r="2"/><circle cx="118" cy="290" r="2"/></g>
+          <!-- torn band tee -->
+          <path d="M90 214 L100 300 L110 214 C106 210 94 210 90 214 Z" fill="#e8ff2e"/>
+          <!-- neck + head -->
+          <rect x="94" y="182" width="12" height="20" rx="5" fill="url(#rSkinA)"/>
+          <ellipse cx="100" cy="160" rx="24" ry="28" fill="url(#rSkinA)"/>
+          <!-- violet mohawk -->
+          <path d="M84 140 C84 96 116 96 116 140 C110 120 100 84 100 84 C100 84 90 120 84 140 Z" fill="#c400ff"/>
+          <path d="M92 136 L100 92 L108 136 Z" fill="#e050ff" opacity=".7"/>
+          <!-- safety-pin earring + shades -->
+          <rect x="80" y="150" width="40" height="9" rx="2" fill="#101014"/>
+          <circle cx="126" cy="168" r="3" fill="none" stroke="#e8ff2e" stroke-width="1.5"/>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">Jinx</div><div class="pill">the squat basement · last show</div></div>
+      <div class="content"><div class="leafgrain"></div>
+        <div class="prose">
+          <p><em>She kicks the amp into a howl of feedback and grins through smeared eyeliner, sweat and glitter running together under the one working bulb.</em></p>
+          <p><span class="say">"Rules are just dares nobody's taken yet."</span> <em>She tosses you a cracked drumstick.</em> <span class="say">"So — you playing, or you watching? 'Cause I don't do encores for spectators."</span></p>
+          <blockquote>Loud enough and nobody can hear how scared you are. That's the whole trick.</blockquote>
+        </div>
+        <div class="think-toggle">&#129504; reasoning</div>
+        <div class="think-body">Play her as adrenaline with a soft center — the noise is armor. Keep the lines fast, defiant, a little reckless; let the vulnerability leak only between beats.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- user message -->
+  <div class="msg user">
+    <div class="avatar"><div class="fill portraitB"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="rHoodB" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3a342a"/><stop offset="1" stop-color="#100b06"/>
+          </linearGradient>
+          <radialGradient id="rSkinB" cx=".56" cy=".4" r=".7">
+            <stop offset="0" stop-color="#eccf9c"/><stop offset="1" stop-color="#9c6f3e"/>
+          </radialGradient>
+        </defs>
+        <g>
+          <!-- patched hoodie -->
+          <path d="M54 400 C56 296 70 234 84 214 C92 204 108 204 116 214 C130 234 144 296 146 400 Z" fill="url(#rHoodB)"/>
+          <!-- drawstrings + patch -->
+          <g stroke="#c400ff" stroke-width="2"><path d="M94 216 L92 260"/><path d="M106 216 L108 260"/></g>
+          <rect x="86" y="300" width="26" height="20" fill="#e8ff2e" opacity=".8" transform="rotate(-6 99 310)"/>
+          <!-- neck + head -->
+          <rect x="94" y="184" width="12" height="20" rx="5" fill="url(#rSkinB)"/>
+          <ellipse cx="100" cy="162" rx="23" ry="27" fill="url(#rSkinB)"/>
+          <!-- buzzcut + beanie -->
+          <path d="M77 156 C76 128 124 128 123 156 C123 140 116 132 100 132 C84 132 77 140 77 156 Z" fill="#1a130a"/>
+          <path d="M74 150 C74 138 126 138 126 150 L126 142 C126 132 74 132 74 142 Z" fill="#c400ff" opacity=".85"/>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">You</div><div class="pill">front row, borrowed jacket</div></div>
+      <div class="content"><div class="leafgrain"></div>
+        <div class="prose">
+          <p><em>I catch the drumstick out of the air and spin it once, the feedback still ringing in my teeth.</em></p>
+          <p><span class="say">"Never done encores either."</span> <em>I step up onto the crate beside her.</em> <span class="say">"Let's give them one loud enough to get us both banned."</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

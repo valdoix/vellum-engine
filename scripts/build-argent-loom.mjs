@@ -141,7 +141,7 @@ const politicsVar = selectVar('politics', 'Faction Politics', 'How much factions
   ['autonomous', 'Autonomous'],
 ]);
 
-const reasoningVar = selectVar('reasoning_route', 'Planning Route', 'Compact emits six terse audit lines; Verbose emits a bounded 250–500 word eight-section audit; Native uses provider-private reasoning; Silent uses an implicit one-pass check.', 'compact', [
+const reasoningVar = selectVar('reasoning_route', 'Planning Route', 'Compact emits six terse audit lines; Verbose emits a bounded 250–500 word eight-section audit; Native runs the same robust eight-section ARGENT audit in provider-private reasoning; Silent uses an implicit one-pass check.', 'compact', [
   ['compact', 'Compact Reverie'],
   ['verbose', 'Verbose Reverie'],
   ['native', 'Native Private Reasoning'],
@@ -608,8 +608,8 @@ Apply only where they do not conflict with agency, hard limits, or VELLUM's auth
 {{if::{{or::{{eq::{{var::model_adapter}}::kimi}}::{{and::{{eq::{{var::model_adapter}}::auto}}::{{matches::{{model}}::kimi::i}}}}}}}}[KIMI] Commit after one plan; preserve exact identities and do not turn constraints into commentary.{{/if}}
 {{if::{{or::{{eq::{{var::model_adapter}}::glm}}::{{and::{{eq::{{var::model_adapter}}::auto}}::{{matches::{{model}}::glm::i}}}}}}}}[GLM — ceiling {{maxResponse}}]
 Use terse planning and one decisive movement.{{if::{{var::dialogue_color}}}} Open each [spk=Exact Name] before its quotation and close it immediately after.{{/if}}{{if::${inlineState}}} Reserve at least ~1,200 tokens for state; end prose by two-thirds if uncertain. Precompose compact JSON and never trade </vellum> for more prose.{{/if}}{{/if}}
-{{if::{{eq::{{var::model_adapter}}::reasoning}}}}[REASONING MODEL] Never expose hidden chain-of-thought. Compact/Verbose emit only their prescribed Reverie; Native is private; Silent emits none.{{/if}}
-{{if::{{eq::{{var::reasoning_route}}::native}}}}Use provider-private reasoning. Visible output begins with story prose, never analysis.{{if::${inlineState}}} It ends with the complete <vellum> block.{{else}} It contains no state scaffold.{{/if}}{{/if}}`, { group: CAT_NATIVE }),
+{{if::{{eq::{{var::model_adapter}}::reasoning}}}}[REASONING MODEL] Never expose hidden chain-of-thought. Compact/Verbose emit only their prescribed Reverie; Native completes the robust ARGENT audit privately; Silent emits none.{{/if}}
+{{if::{{eq::{{var::reasoning_route}}::native}}}}Run one bounded private ARGENT Reverie in A/R/G/E/N/T/V/X order, then commit once. Visible output begins with story prose, never analysis.{{if::${inlineState}}} It ends with the complete <vellum> block.{{else}} It contains no state scaffold.{{/if}}{{/if}}`, { group: CAT_NATIVE }),
 
   block('arg-mature', 'Mature Content & Boundaries', String.raw`[CONTENT CEILING]
 {{var::nsfw_level}}
@@ -684,19 +684,19 @@ G: per-character witness or transmission paths for consequential facts; name one
 E: focal NPC goal, constraint, active facet, private first reaction.
 N: one smallest causal movement; attempt, resistance/cost, stopping point.
 T: {{if::${inlineState}}}exact VELLUM sections supported by the prose; present exclusions and final T1 parallel positions; "none" where appropriate{{else}}{{if::${engineState}}}durable facts the prose will establish for the engine and tempting unsupported deltas to omit{{else}}continuity facts the prose must preserve with state disabled{{/if}}{{/if}}.
-Then commit once to prose. Do not reopen the plan.{{else}}{{if::{{eq::{{var::reasoning_route}}::verbose}}}}[ARGENT — VERBOSE REVERIE]
-Begin the response with <reverie>. Write a detailed but bounded planning audit of roughly 250–500 words, using these eight short labeled sections; then close </reverie>. This is planning, not draft prose: do not compose future dialogue or ornamental narration.
+Then commit once to prose. Do not reopen the plan.{{else}}{{if::{{or::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}}}}}{{if::{{eq::{{var::reasoning_route}}::verbose}}}}[ARGENT — VERBOSE REVERIE]
+Begin the response with <reverie>. Write a detailed but bounded planning audit of roughly 250–500 words, using these eight short labeled sections; then close </reverie>.{{else}}[ARGENT — PRIVATE]
+Use provider-private reasoning for one bounded robust ARGENT Reverie. Complete all eight labeled sections below in order.{{/if}} Record decisions and evidence, not draft prose, future dialogue, ornamental narration, or an essay.
 A — Authority: apply MODE {{var::agency}} above; define its player authorship and exact boundary without importing another mode.
 R — Reality: reconstruct T0 day, exact HH:MM, location, positions, held objects, injuries, obstacles, and plausible elapsed time; derive one physically possible T1.
-G — Gnosis: for each consequential fact, map each named character to witnessed, told, overheard, inferred, mistaken, or unaware; name any tempting off-scene leak.
+G — Gnosis: map each consequential character/fact pair to witnessed, told, overheard, inferred, mistaken, or unaware; reject tempting off-scene leaks.
 E — Embodiment: for every named on-stage NPC, state goal, constraint, active trait/facet, bodily condition, private first reaction, and likely tactic in that character's own logic.
 N — Narrative: compare two or three causal continuations, reject the generic or unsupported path, and select the smallest movement allowed by this turn's agency mode.
 T — Truthful deltas: {{if::${inlineState}}}enumerate exact supported state sections and signed changes; reconcile present and parallel at T1{{else}}{{if::${engineState}}}name durable evidence the prose will establish and unsupported changes the engine must omit{{else}}name continuity facts to preserve with state disabled{{/if}}{{/if}}.
 V — Voice: name the chosen register, sensory anchors, dialogue work, paragraph rhythm, and one cliché/repetition to avoid.
 X — Final checks: state agency stop, time arithmetic, knowledge partition, dialogue wrappers{{if::${inlineState}}}, NPC thoughts, and complete state ending{{else}}, and prose-only ending{{/if}}.
-Commit once to prose after </reverie>. Do not reopen, revise, or reference the plan.{{else}}{{if::{{eq::{{var::reasoning_route}}::native}}}}[ARGENT — PRIVATE]
-Use private reasoning to audit Authority, Reality, Gnosis, Embodiment, Narrative pressure, and Truthful deltas. Do not emit <reverie> or any reasoning text.{{else}}[ARGENT — SILENT ONE-PASS]
-Silently check agency, current reality, knowledge access, character motive, causal movement, and final deltas. Do not emit <reverie>.{{/if}}{{/if}}{{/if}}`, { group: CAT_FINAL, position: 'post_history' }),
+{{if::{{eq::{{var::reasoning_route}}::verbose}}}}Commit once to prose after </reverie>. Do not reopen, revise, or reference the plan.{{else}}Commit once to the final response. Never expose this audit, emit <reverie>, repeat the contract, or reference the private Reverie.{{/if}}{{else}}[ARGENT — SILENT ONE-PASS]
+Silently check agency, current reality, knowledge access, character motive, causal movement, and final deltas. Do not emit <reverie>.{{/if}}{{/if}}`, { group: CAT_FINAL, position: 'post_history' }),
 
   block('arg-state-final', 'State Compiler — Final', String.raw`{{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::lean}}}}}}[FINAL STATE COMPILER — LEAN, ATOMIC AND MANDATORY]
 Reserve ~700 output tokens and shorten prose before risking state. Compile established changes; PERSONA STATE alone permits tracker-only inference. Emit scene/present plus supported changes; omit empty sections except required parallel:[]. Put {{user}} first, blank when PERSONA STATE is OFF and fully populated in every agency mode when ON. Give each on-stage NPC a knowledge-limited first-person thought. Reconcile final T1 parallel: no present actor or stale origin, one final where/activity per actor. Require matching HH:MM/clock and reject day × 1440 + clock below T0. Here day is only the elapsed story-day count; a displayed calendar date is never serialized into it. Precompose the object; once <vellum> opens, finish valid JSON, </vellum>, and nothing after.
@@ -1041,7 +1041,7 @@ const preset = {
   id: 'vellum-ii-argent-loom',
   name: 'VELLUM II — ARGENT LOOM',
   description: 'A VELLUM-native causal chronicle preset for high-fidelity literary roleplay. ARGENT protects player agency, physical and epistemic continuity, character-specific behavior, earned directional relationships, living off-screen worlds, factions, items, plants, and exact event deltas. With VELLUM 2.1 it compiles completed prose through a separate validated state pass and commits atomically; Inline Compatibility retains model-written <vellum> output. Includes a compact effective-policy compiler, grouped controls, native Lumiverse routing, optional Reverie, typed artifacts, and a scoped prompt/display/memory pipeline.',
-  presetVersion: '1.3.0',
+  presetVersion: '1.3.1',
   schemaVersion: 2,
   samplerOverrides: {
     enabled: true,
@@ -1059,7 +1059,7 @@ const preset = {
   promptBehavior: {},
   completionSettings: {
     assistantPrefill: '',
-    reasoningPrefill: 'Audit player agency, VELLUM continuity, knowledge access, physical possibility, character motive, one causal movement, and only the state deltas the prose establishes.',
+    reasoningPrefill: '[ARGENT PRIVATE REVERIE]\nComplete one bounded audit in this order: A — Authority and current-turn agency; R — Reality, exact T0→T1 time and physical blocking; G — Gnosis per character/fact/source; E — Embodiment for every on-stage NPC; N — Narrative alternatives and the smallest supported causal movement; T — Truthful evidence and deltas only; V — Voice and repetition control; X — Final agency, time, knowledge, dialogue, and output checks. Record decisions, not draft prose. Commit once and never expose this private audit.',
     assistantImpersonation: '',
     continuePrefill: false,
     continuePostfix: ' ',

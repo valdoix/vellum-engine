@@ -33,7 +33,7 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 > **VELLUM II — COMPACT 1.0.0** — a separate small-preset option capped at 5,000 standing-prompt tokens. It retains per-turn agency, knowledge isolation, monotonic time, causal plot rules, NPC autonomy, dialogue colors, and VELLUM Engine Second Pass with 15 focused controls. Import `presets/vellum-compact.json`; it does not replace VELLUM II or ARGENT LOOM. See `presets/VELLUM-COMPACT-README.md`.
 
-> **ARGENT LOOM 1.3.0** — the narrative prompt is smaller and stronger, Engine Second Pass is now strictly prose-only, and Forbidden/Minor Continuity/Director agency is resolved independently for every turn and passed into state compilation with the exact latest user input. The final governor retains strict knowledge, monotonic time, plot-evidence, speaker-markup, and inline-state gates without repeating the full doctrine. See `presets/ARGENT-LOOM-README.md`.
+> **ARGENT LOOM 1.3.1** — Native Private Reasoning now runs the full robust eight-section ARGENT Reverie privately, while visible output still begins directly with prose. Engine Second Pass remains strictly prose-only, and Forbidden/Minor Continuity/Director agency is resolved independently for every turn. See `presets/ARGENT-LOOM-README.md`.
 
 > **Extension 2.1.0-beta.9 (testing)** — adds streamed summarization progress, safe cancellation, configurable summary token limits, completion-driven retries, verified archival coverage, refreshed knowledge/secret propagation, and stronger long-session retrieval.
 

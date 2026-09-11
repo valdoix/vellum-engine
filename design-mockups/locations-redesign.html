@@ -1,0 +1,591 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II — Director · Locations Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e0b07;--bg2:#15100a;
+  --surface:rgba(28,20,12,0.76);--surface2:rgba(38,28,17,0.62);--surface3:rgba(50,37,22,0.5);
+  --keyline:rgba(205,168,78,0.22);--keyline-strong:rgba(205,168,78,0.44);
+  --gold:#cda84e;--gold-bright:#e6c56b;--gold-dim:#8a7238;--gold-faint:rgba(205,168,78,0.12);
+  --ink:#e7d6ad;--ink-dim:#a99a76;--ink-faint:#6f6448;
+  --crimson:#9c3b32;--crimson-bright:#c85a4e;--crimson-faint:rgba(156,59,50,0.18);
+  --sage:#6f8a5f;--sage-bright:#9ab88a;--sage-faint:rgba(111,138,95,0.14);
+  --amber:#c4882a;--amber-bright:#e0a84a;--amber-faint:rgba(196,136,42,0.15);
+  --info:#4a6e9c;--info-bright:#7aaad8;--info-faint:rgba(74,110,156,0.15);
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(1400px 700px at 18% -12%,rgba(205,168,78,0.07),transparent 58%),
+    radial-gradient(900px 500px at 95% 5%,rgba(74,110,156,0.05),transparent 52%),
+    radial-gradient(600px 400px at 50% 100%,rgba(111,138,95,0.04),transparent 60%),
+    linear-gradient(165deg,var(--bg),var(--bg2));
+  background-attachment:fixed;
+  color:var(--ink);font-family:var(--serif);font-size:16px;line-height:1.55;
+  min-height:100vh;padding-bottom:8rem;
+}
+.wrap{max-width:840px;margin:0 auto;padding:0 1.5rem}
+.wide{max-width:1100px;margin:0 auto;padding:0 1.5rem}
+.masthead{text-align:center;padding:4rem 1.5rem 2.5rem}
+.masthead .seal{width:68px;height:68px;margin:0 auto 1.4rem;border-radius:50%;background:radial-gradient(circle at 32% 28%,var(--gold-bright),var(--gold-dim));box-shadow:0 0 0 1px var(--keyline-strong),0 0 40px rgba(205,168,78,0.22),0 10px 32px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:2rem;color:#1e1408;font-weight:700}
+.masthead h1{font-size:2.8rem;color:var(--gold-bright);letter-spacing:0.03em}
+.masthead .sub{color:var(--ink-dim);font-style:italic;font-size:1.1rem;margin-top:0.35rem}
+.masthead .ctx{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-top:0.9rem}
+.gallery-nav{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,rgba(14,11,7,0.97),rgba(14,11,7,0.84));backdrop-filter:blur(14px);border-bottom:1px solid var(--keyline);padding:0.7rem 0}
+.gallery-nav .wide{display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.gallery-nav a{color:var(--ink-dim);text-decoration:none;font-family:var(--mono);font-size:0.63rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.35rem 0.75rem;border:1px solid transparent;border-radius:3px;transition:all .18s}
+.gallery-nav a:hover{color:var(--gold-bright);border-color:var(--keyline)}
+.gallery-nav .tag{color:var(--gold);font-weight:700;font-family:var(--mono);font-size:0.63rem;letter-spacing:0.12em;text-transform:uppercase;margin-right:0.3rem}
+.concept{padding:3.5rem 0 1.5rem}
+.concept-head{margin-bottom:1.8rem}
+.concept-head .kicker{font-family:var(--mono);font-size:0.63rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem}
+.concept-head h2{font-size:2.1rem;color:var(--ink);letter-spacing:0.01em}
+.concept-head .desc{color:var(--ink-dim);font-style:italic;max-width:64ch;margin-top:0.4rem;font-size:0.97rem}
+.drawer{background:var(--surface);border:1px solid var(--keyline);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.025);overflow:hidden}
+.drawer-inner{padding:1.4rem 1.5rem}
+.sec-head{display:flex;align-items:center;gap:0.6rem;margin:0 0 0.5rem}
+.sec-head .glyph{color:var(--gold)}
+.sec-head .title{font-family:var(--mono);font-size:0.68rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold-dim)}
+.sec-head .count{font-family:var(--mono);font-size:0.58rem;color:var(--ink-faint);background:rgba(205,168,78,0.1);border-radius:999px;padding:1px 8px}
+.sec-head .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--keyline),transparent)}
+.sec-head .add{background:transparent;color:var(--gold);border:1px solid var(--keyline);width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.sec-head .add:hover{border-color:var(--keyline-strong);color:var(--gold-bright);background:rgba(205,168,78,0.08)}
+.intro{color:var(--ink-dim);font-size:0.9rem;font-style:italic;margin:0 0 1.3rem;opacity:.85;line-height:1.5}
+.mini{background:transparent;border:1px solid var(--keyline);color:var(--ink-dim);width:24px;height:24px;border-radius:5px;cursor:pointer;font-size:0.72rem;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.mini:hover{border-color:var(--keyline-strong);color:var(--gold)}
+.mini.on{border-color:var(--keyline-strong);color:var(--gold)}
+.mini.del:hover{border-color:var(--crimson);color:var(--crimson-bright)}
+.hr{height:1px;background:linear-gradient(90deg,transparent,var(--keyline),transparent);margin:2.5rem 0}
+</style>
+</head>
+<body>
+<div class="masthead">
+  <div class="seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Director — Locations Gazetteer</div>
+  <div class="ctx">Redesign Mockups &nbsp;·&nbsp; Three Concepts</div>
+</div>
+<nav class="gallery-nav">
+  <div class="wide">
+    <span class="tag">Locations</span>
+    <a href="#atlas">I · The Atlas</a>
+    <a href="#cart">II · Cartographer's Table</a>
+    <a href="#estate">III · The Estate Map</a>
+    <a href="#gazetteer">IV · The Gazetteer</a>
+  </div>
+</nav>
+<div class="wrap">
+<!-- ============================================================
+     I · THE ATLAS — each place is a gazetteer plate: region spine,
+     containment breadcrumb, "last seen" stamp, you-are-here glow.
+     ============================================================ -->
+<style>
+.atlas-plate{position:relative;display:flex;gap:0;background:var(--surface2);border:1px solid var(--keyline);border-radius:10px;margin:0 0 0.7rem;overflow:hidden;transition:border-color .15s,transform .15s}
+.atlas-plate:hover{border-color:var(--keyline-strong)}
+.atlas-plate .spine{flex:0 0 4px;background:var(--gold-dim)}
+.atlas-plate.here{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 0 26px rgba(205,168,78,0.14)}
+.atlas-plate.here .spine{background:linear-gradient(180deg,var(--gold-bright),var(--gold))}
+.atlas-plate.region .spine{background:var(--info)}
+.atlas-plate.region.here .spine{background:linear-gradient(180deg,var(--info-bright),var(--info))}
+.atlas-body{flex:1;min-width:0;padding:0.75rem 0.9rem}
+.atlas-top{display:flex;align-items:baseline;gap:0.55rem;margin-bottom:0.15rem}
+.atlas-idx{font-family:var(--mono);font-size:0.56rem;letter-spacing:0.14em;color:var(--gold-dim);flex-shrink:0;padding-top:0.15rem}
+.atlas-name{font-family:var(--serif);font-size:1.28rem;font-weight:600;color:var(--ink);line-height:1.1}
+.atlas-plate.region .atlas-name{color:var(--info-bright)}
+.atlas-here-tag{font-family:var(--mono);font-size:0.5rem;letter-spacing:0.16em;text-transform:uppercase;color:#1e1408;background:var(--gold);border-radius:3px;padding:2px 6px;flex-shrink:0;align-self:center}
+.atlas-kind{margin-left:auto;font-family:var(--mono);font-size:0.52rem;letter-spacing:0.1em;text-transform:uppercase;flex-shrink:0;align-self:center}
+.atlas-kind.pinned{color:var(--gold)}
+.atlas-kind.auto{color:var(--ink-faint)}
+.atlas-crumb{font-family:var(--mono);font-size:0.6rem;color:var(--ink-faint);letter-spacing:0.03em;margin-bottom:0.4rem}
+.atlas-crumb .sep{opacity:0.5;margin:0 0.3rem}
+.atlas-crumb .cur{color:var(--ink-dim)}
+.atlas-note{font-size:0.94rem;color:var(--ink-dim);line-height:1.45}
+.atlas-foot{display:flex;align-items:center;gap:0.8rem;margin-top:0.55rem;padding-top:0.5rem;border-top:1px solid rgba(205,168,78,0.1)}
+.atlas-seen{font-family:var(--mono);font-size:0.56rem;letter-spacing:0.06em;color:var(--ink-faint);display:flex;align-items:center;gap:0.35rem}
+.atlas-seen .dot{width:6px;height:6px;border-radius:50%;background:var(--sage);box-shadow:0 0 8px var(--sage)}
+.atlas-seen.cold .dot{background:var(--ink-faint);box-shadow:none}
+.atlas-childtag{font-family:var(--mono);font-size:0.54rem;color:var(--info-bright);letter-spacing:0.05em}
+.atlas-ctl{margin-left:auto;display:flex;gap:0.3rem}
+</style>
+<section id="atlas" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Director · Locations · Concept I</div>
+    <h2>The Atlas</h2>
+    <div class="desc">
+      Every place is a gazetteer plate. A region-colored spine, a containment breadcrumb showing
+      exactly where it sits, and a "last seen" pulse that fades cold as turns pass. The current
+      scene glows gold and reads "You are here." Places feel located, not listed.
+    </div>
+  </div>
+  <div class="drawer">
+    <div class="drawer-inner">
+      <div class="sec-head">
+        <span class="glyph">&#9673;</span>
+        <span class="title">Locations</span>
+        <span class="count">7</span>
+        <span class="rule"></span>
+        <button class="add">+</button>
+      </div>
+      <div class="intro">Established places, injected each turn so the model reuses these names instead of inventing or renaming. The breadcrumb shows containment; the pulse shows recency.</div>
+
+      <!-- region -->
+      <div class="atlas-plate region">
+        <div class="spine"></div>
+        <div class="atlas-body">
+          <div class="atlas-top">
+            <span class="atlas-idx">R-01</span>
+            <span class="atlas-name">The Riverlands</span>
+            <span class="atlas-kind pinned">&#9873; pinned</span>
+          </div>
+          <div class="atlas-note">A patchwork of river-fed holdings between the Trident's forks; contested ground for three houses.</div>
+          <div class="atlas-foot">
+            <span class="atlas-seen cold"><span class="dot"></span>last seen t3</span>
+            <span class="atlas-childtag">&#8627; contains 2 places</span>
+            <span class="atlas-ctl"><button class="mini on" title="Unpin">&#9873;</button><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- child -->
+      <div class="atlas-plate here" style="margin-left:1.5rem">
+        <div class="spine"></div>
+        <div class="atlas-body">
+          <div class="atlas-top">
+            <span class="atlas-idx">L-04</span>
+            <span class="atlas-name">Harrenhal</span>
+            <span class="atlas-here-tag">you are here</span>
+            <span class="atlas-kind pinned">&#9873; pinned</span>
+          </div>
+          <div class="atlas-crumb">The Riverlands <span class="sep">&#9656;</span> <span class="cur">Harrenhal</span></div>
+          <div class="atlas-note">A colossal ruined castle, its towers melted by dragonfire into grotesque shapes. Vast, cold, half-abandoned.</div>
+          <div class="atlas-foot">
+            <span class="atlas-seen"><span class="dot"></span>current scene</span>
+            <span class="atlas-childtag">&#8627; contains 3 places</span>
+            <span class="atlas-ctl"><button class="mini on" title="Unpin">&#9873;</button><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- grandchildren -->
+      <div class="atlas-plate" style="margin-left:3rem">
+        <div class="spine"></div>
+        <div class="atlas-body">
+          <div class="atlas-top">
+            <span class="atlas-idx">L-07</span>
+            <span class="atlas-name">The Kingspyre Tower</span>
+            <span class="atlas-kind auto">&#9675; auto</span>
+          </div>
+          <div class="atlas-crumb">The Riverlands <span class="sep">&#9656;</span> Harrenhal <span class="sep">&#9656;</span> <span class="cur">Kingspyre Tower</span></div>
+          <div class="atlas-note">The least ruined of the five towers; its hearths still draw. Where the castellan keeps her rooms.</div>
+          <div class="atlas-foot">
+            <span class="atlas-seen"><span class="dot"></span>last seen t12</span>
+            <span class="atlas-ctl"><button class="mini" title="Pin">&#9872;</button><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="atlas-plate" style="margin-left:3rem">
+        <div class="spine"></div>
+        <div class="atlas-body">
+          <div class="atlas-top">
+            <span class="atlas-idx">L-08</span>
+            <span class="atlas-name">The Flowstone Yard</span>
+            <span class="atlas-kind auto">&#9675; auto</span>
+          </div>
+          <div class="atlas-crumb">The Riverlands <span class="sep">&#9656;</span> Harrenhal <span class="sep">&#9656;</span> <span class="cur">Flowstone Yard</span></div>
+          <div class="atlas-note">Training yard of packed earth, ringed by weapon racks gone to rust.</div>
+          <div class="atlas-foot">
+            <span class="atlas-seen cold"><span class="dot"></span>last seen t9</span>
+            <span class="atlas-ctl"><button class="mini" title="Pin">&#9872;</button><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+<div class="hr"></div>
+<style>
+/* shared bits used across concepts */
+.intro{font-size:0.86rem;color:var(--ink-dim);font-style:italic;line-height:1.5;margin:0 0 1.2rem;padding-left:0.7rem;border-left:2px solid var(--keyline)}
+.filt{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.08em;text-transform:uppercase;padding:0.32rem 0.7rem;border-radius:999px;border:1px solid var(--keyline);background:transparent;color:var(--ink-dim);cursor:pointer;transition:all .15s}
+.filt:hover{color:var(--gold);border-color:var(--keyline-strong)}
+.filt.on{color:#1e1408;background:var(--gold);border-color:var(--gold);font-weight:700}
+.filt .fn{opacity:0.65;margin-left:0.2rem}
+
+/* CONCEPT II — Cartographer's Table: indented map-tree with a running rail,
+   node markers scaled by depth, a live "here" marker, inline recency heat. */
+.cart-tree{position:relative;margin-top:0.4rem}
+.cart-node{position:relative}
+.cart-kids{margin-left:1.1rem;padding-left:1.2rem;position:relative}
+.cart-kids::before{content:'';position:absolute;left:0;top:0;bottom:1.1rem;width:2px;background:linear-gradient(180deg,var(--keyline-strong),var(--keyline))}
+.cart-row{position:relative;display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.6rem;border-radius:7px;transition:background .12s}
+.cart-row:hover{background:rgba(205,168,78,0.05)}
+.cart-kids>.cart-node>.cart-row::before{content:'';position:absolute;left:-1.2rem;top:50%;width:1rem;height:2px;background:var(--keyline-strong)}
+.cart-caret{flex:0 0 auto;width:16px;height:16px;display:grid;place-items:center;background:transparent;border:none;color:var(--gold);cursor:pointer;font-size:0.6rem;opacity:0.7;transition:transform .12s,opacity .12s}
+.cart-caret:hover{opacity:1}
+.cart-caret.closed{transform:rotate(-90deg)}
+.cart-caret.spacer{opacity:0;pointer-events:none}
+.cart-mark{flex:0 0 auto;display:grid;place-items:center;border-radius:50%;background:var(--surface);border:1px solid var(--keyline-strong);box-shadow:0 0 0 3px var(--bg)}
+.cart-mark.region{width:26px;height:26px;font-size:0.8rem;color:var(--info-bright);border-color:rgba(74,110,156,0.5)}
+.cart-mark.place{width:21px;height:21px;font-size:0.62rem;color:var(--gold)}
+.cart-mark.here{border-color:var(--gold);color:var(--gold-bright);box-shadow:0 0 0 3px var(--bg),0 0 16px rgba(205,168,78,0.4)}
+.cart-name{font-family:var(--serif);font-weight:600;color:var(--ink)}
+.cart-mark.region+.cart-name{font-size:1.15rem;color:var(--info-bright)}
+.cart-place-name{font-size:1rem}
+.cart-heat{flex:0 0 auto;width:34px;height:5px;border-radius:999px;background:rgba(255,255,255,0.06);overflow:hidden;position:relative}
+.cart-heat i{position:absolute;inset:0;transform-origin:left;border-radius:999px}
+.cart-heat.hot i{background:linear-gradient(90deg,var(--sage-bright),var(--sage));transform:scaleX(1)}
+.cart-heat.warm i{background:var(--amber);transform:scaleX(0.6)}
+.cart-heat.cold i{background:var(--ink-faint);transform:scaleX(0.25)}
+.cart-note{flex:1;min-width:0;font-size:0.82rem;color:var(--ink-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cart-seen{font-family:var(--mono);font-size:0.54rem;color:var(--ink-faint);flex-shrink:0}
+.cart-badge{font-family:var(--mono);font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;flex-shrink:0}
+.cart-badge.here{color:#1e1408;background:var(--gold);border-radius:3px;padding:2px 6px}
+.cart-badge.pin{color:var(--gold)}
+.cart-ctl{display:flex;gap:0.25rem;flex-shrink:0;opacity:0;transition:opacity .12s}
+.cart-row:hover .cart-ctl{opacity:1}
+</style>
+<section id="cart" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Director · Locations · Concept II</div>
+    <h2>The Cartographer's Table</h2>
+    <div class="desc">
+      The containment tree made legible: a continuous rail with elbow connectors, node markers
+      scaled by tier (region &gt; place), a recency heat-bar per row, and the live scene marked
+      with a glowing "here" node. Structure and freshness in one scan, controls on hover.
+    </div>
+  </div>
+  <div class="drawer">
+    <div class="drawer-inner">
+      <div class="sec-head">
+        <span class="glyph">&#9673;</span>
+        <span class="title">Locations</span>
+        <span class="count">7</span>
+        <span class="rule"></span>
+        <button class="add">+</button>
+      </div>
+      <div class="intro">Contained places nest under the place they sit inside. The heat-bar shows how recently each place was in play; the glowing node is the current scene.</div>
+
+      <div class="cart-tree">
+        <div class="cart-node">
+          <div class="cart-row">
+            <button class="cart-caret">&#9662;</button>
+            <span class="cart-mark region">&#9670;</span>
+            <span class="cart-name">The Riverlands</span>
+            <span class="cart-heat cold"><i></i></span>
+            <span class="cart-note">Contested river holdings between the Trident's forks.</span>
+            <span class="cart-badge pin">&#9873;</span>
+            <span class="cart-ctl"><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+          </div>
+          <div class="cart-kids">
+            <div class="cart-node">
+              <div class="cart-row">
+                <button class="cart-caret">&#9662;</button>
+                <span class="cart-mark place here">&#9737;</span>
+                <span class="cart-name cart-place-name">Harrenhal</span>
+                <span class="cart-heat hot"><i></i></span>
+                <span class="cart-note">Colossal ruined castle, towers melted by dragonfire.</span>
+                <span class="cart-badge here">here</span>
+                <span class="cart-ctl"><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+              </div>
+              <div class="cart-kids">
+                <div class="cart-node">
+                  <div class="cart-row">
+                    <span class="cart-caret spacer"></span>
+                    <span class="cart-mark place">&#9675;</span>
+                    <span class="cart-name cart-place-name">Kingspyre Tower</span>
+                    <span class="cart-heat warm"><i></i></span>
+                    <span class="cart-note">Least ruined tower; hearths still draw.</span>
+                    <span class="cart-seen">t12</span>
+                    <span class="cart-ctl"><button class="mini" title="Pin">&#9872;</button><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+                  </div>
+                </div>
+                <div class="cart-node">
+                  <div class="cart-row">
+                    <span class="cart-caret spacer"></span>
+                    <span class="cart-mark place">&#9675;</span>
+                    <span class="cart-name cart-place-name">The Flowstone Yard</span>
+                    <span class="cart-heat cold"><i></i></span>
+                    <span class="cart-note">Training yard of packed earth, racks gone to rust.</span>
+                    <span class="cart-seen">t9</span>
+                    <span class="cart-ctl"><button class="mini" title="Pin">&#9872;</button><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+                  </div>
+                </div>
+                <div class="cart-node">
+                  <div class="cart-row">
+                    <span class="cart-caret spacer"></span>
+                    <span class="cart-mark place">&#9675;</span>
+                    <span class="cart-name cart-place-name">The Wailing Tower</span>
+                    <span class="cart-heat cold"><i></i></span>
+                    <span class="cart-note">Sealed since the fire; the smallfolk avoid it.</span>
+                    <span class="cart-seen">t5</span>
+                    <span class="cart-ctl"><button class="mini" title="Pin">&#9872;</button><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="cart-node">
+              <div class="cart-row">
+                <span class="cart-caret spacer"></span>
+                <span class="cart-mark place">&#9675;</span>
+                <span class="cart-name cart-place-name">Lord Harroway's Town</span>
+                <span class="cart-heat cold"><i></i></span>
+                <span class="cart-note">River crossing and market on the road south.</span>
+                <span class="cart-seen">t3</span>
+                <span class="cart-ctl"><button class="mini" title="Pin">&#9872;</button><button class="mini" title="Edit">&#9998;</button><button class="mini del" title="Delete">&#10005;</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+<div class="hr"></div>
+<style>
+.intro{font-size:0.9rem;color:var(--ink-dim);font-style:italic;line-height:1.5;margin:0 0 1.2rem;padding-bottom:0.9rem;border-bottom:1px solid rgba(205,168,78,0.1)}
+.filt{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.06em;text-transform:uppercase;padding:0.32rem 0.6rem;border-radius:5px;cursor:pointer;border:1px solid var(--keyline);background:transparent;color:var(--ink-dim);transition:all .15s}
+.filt:hover{border-color:var(--keyline-strong);color:var(--gold)}
+.filt.on{border-color:var(--keyline-strong);color:var(--gold);background:rgba(205,168,78,0.06)}
+.filt .fn{opacity:0.6;margin-left:0.2rem}
+
+/* ===== II · THE ESTATE MAP — nested containment frames ===== */
+.estate{background:var(--surface2);border:1px solid var(--keyline);border-radius:10px;padding:0.5rem 0.5rem 0.55rem;margin:0 0 0.7rem;position:relative}
+.estate.region{border-color:var(--info-faint);background:rgba(74,110,156,0.05)}
+.estate-h{display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem 0.5rem}
+.estate-glyph{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:0.7rem;flex-shrink:0;border:1px solid var(--keyline)}
+.estate-glyph.region{color:var(--info-bright);border-color:var(--info-faint);background:rgba(74,110,156,0.1)}
+.estate-glyph.place{color:var(--gold);background:rgba(205,168,78,0.08)}
+.estate-name{font-family:var(--serif);font-size:1.18rem;font-weight:600;color:var(--ink)}
+.estate.region>.estate-h .estate-name{color:var(--info-bright);letter-spacing:0.02em}
+.estate-scale{font-family:var(--mono);font-size:0.5rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-faint);border:1px solid var(--keyline);border-radius:3px;padding:1px 5px;flex-shrink:0}
+.estate-note{font-size:0.86rem;color:var(--ink-dim);font-style:italic;opacity:0.85;margin-left:auto;max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.estate-ctl{display:flex;gap:0.25rem;flex-shrink:0}
+.estate-inner{border-left:2px solid var(--keyline);margin:0 0 0.15rem 1.05rem;padding-left:0.6rem}
+.estate.region>.estate-inner{border-left-color:var(--info-faint)}
+.leaf{display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.55rem;border-radius:7px;transition:background .12s}
+.leaf:hover{background:rgba(205,168,78,0.05)}
+.leaf.here{background:rgba(205,168,78,0.1);box-shadow:inset 2px 0 0 var(--gold)}
+.leaf-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.leaf-dot.auto{background:transparent;border:1.5px solid var(--ink-faint)}
+.leaf-dot.pinned{background:var(--gold);box-shadow:0 0 8px rgba(205,168,78,0.5)}
+.leaf-name{font-family:var(--serif);font-size:1.02rem;color:var(--ink);font-weight:500}
+.leaf.here .leaf-name{color:var(--gold-bright)}
+.leaf-here{font-family:var(--mono);font-size:0.48rem;letter-spacing:0.14em;text-transform:uppercase;color:#1e1408;background:var(--gold);border-radius:3px;padding:1px 5px}
+.leaf-note{font-size:0.82rem;color:var(--ink-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.leaf-seen{font-family:var(--mono);font-size:0.52rem;color:var(--ink-faint);flex-shrink:0}
+.leaf-ctl{display:flex;gap:0.25rem;flex-shrink:0}
+</style>
+<section id="estate" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Director · Locations · Concept III</div>
+    <h2>The Estate Map</h2>
+    <div class="desc">
+      Containment made literal: each place that holds others is a framed enclosure, and the places
+      inside it sit within its border. You read nesting as physical enclosure, not indentation.
+      Regions frame in cool blue; places in gold. The scale tag (region / site / room) labels depth.
+    </div>
+  </div>
+  <div class="drawer">
+    <div class="drawer-inner">
+      <div class="sec-head">
+        <span class="glyph">&#9673;</span>
+        <span class="title">Locations</span>
+        <span class="count">7</span>
+        <span class="rule"></span>
+        <button class="add">+</button>
+      </div>
+      <div class="intro">Contained places nest inside the frame of the place that holds them. Pinned places carry a solid gold dot; auto-collected ones a hollow ring.</div>
+
+      <div class="estate region">
+        <div class="estate-h">
+          <span class="estate-glyph region">&#9634;</span>
+          <span class="estate-name">The Riverlands</span>
+          <span class="estate-scale">region</span>
+          <span class="estate-note">contested ground between the Trident's forks</span>
+          <span class="estate-ctl"><button class="mini on">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+        </div>
+        <div class="estate-inner">
+          <div class="estate place" style="border-color:var(--gold-faint)">
+            <div class="estate-h">
+              <span class="estate-glyph place">&#9632;</span>
+              <span class="estate-name">Harrenhal</span>
+              <span class="estate-scale">site</span>
+              <span class="estate-note">a ruined castle melted by dragonfire</span>
+              <span class="estate-ctl"><button class="mini on">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+            </div>
+            <div class="estate-inner">
+              <div class="leaf here">
+                <span class="leaf-dot auto"></span>
+                <span class="leaf-name">The Kingspyre Tower</span>
+                <span class="leaf-here">here</span>
+                <span class="leaf-note">the least ruined tower; the castellan's rooms</span>
+                <span class="leaf-seen">t12</span>
+                <span class="leaf-ctl"><button class="mini">&#9872;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+              </div>
+              <div class="leaf">
+                <span class="leaf-dot auto"></span>
+                <span class="leaf-name">The Flowstone Yard</span>
+                <span class="leaf-note">training yard of packed earth, racks gone to rust</span>
+                <span class="leaf-seen">t9</span>
+                <span class="leaf-ctl"><button class="mini">&#9872;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+              </div>
+              <div class="leaf">
+                <span class="leaf-dot pinned"></span>
+                <span class="leaf-name">The Wailing Tower</span>
+                <span class="leaf-note">where the maester keeps the ravenry</span>
+                <span class="leaf-seen">t6</span>
+                <span class="leaf-ctl"><button class="mini on">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+              </div>
+            </div>
+          </div>
+          <div class="leaf">
+            <span class="leaf-dot auto"></span>
+            <span class="leaf-name">The God's Eye</span>
+            <span class="leaf-note">the great lake; the Isle of Faces at its heart</span>
+            <span class="leaf-seen">t3</span>
+            <span class="leaf-ctl"><button class="mini">&#9872;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+<div class="hr"></div>
+<style>
+/* ===== III · THE GAZETTEER — a cartographer's index ===== */
+.gaz{background:var(--surface);border:1px solid var(--keyline);border-radius:10px;overflow:hidden}
+.gaz-region{border-bottom:1px solid rgba(205,168,78,0.1)}
+.gaz-region:last-child{border-bottom:none}
+.gaz-region-h{display:flex;align-items:baseline;gap:0.6rem;padding:0.85rem 1rem 0.55rem;background:rgba(74,110,156,0.05)}
+.gaz-region-name{font-family:var(--mono);font-size:0.68rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--info-bright)}
+.gaz-region-note{font-size:0.82rem;font-style:italic;color:var(--ink-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gaz-region-rule{flex:1;height:1px;background:linear-gradient(90deg,var(--info-faint),transparent);align-self:center}
+.gaz-region-n{font-family:var(--mono);font-size:0.55rem;color:var(--ink-faint)}
+.gaz-entry{display:grid;grid-template-columns:auto 1fr auto auto;align-items:baseline;gap:0.65rem;padding:0.5rem 1rem 0.5rem 1.6rem;border-left:2px solid transparent;transition:all .12s;position:relative}
+.gaz-entry:hover{background:rgba(205,168,78,0.045)}
+.gaz-entry.here{border-left-color:var(--gold);background:rgba(205,168,78,0.08)}
+.gaz-entry.sub{padding-left:2.7rem}
+.gaz-entry.sub::before{content:'';position:absolute;left:1.9rem;top:50%;width:0.5rem;height:1px;background:var(--keyline-strong)}
+.gaz-pin{font-size:0.7rem;flex-shrink:0}
+.gaz-pin.auto{color:var(--ink-faint)}
+.gaz-pin.pinned{color:var(--gold)}
+.gaz-e-name{font-family:var(--serif);font-size:1.05rem;color:var(--ink);font-weight:500}
+.gaz-entry.here .gaz-e-name{color:var(--gold-bright);font-weight:600}
+.gaz-e-note{font-size:0.84rem;color:var(--ink-faint);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gaz-e-seen{font-family:var(--mono);font-size:0.55rem;color:var(--ink-faint);letter-spacing:0.06em;white-space:nowrap}
+.gaz-e-ctl{display:flex;gap:0.2rem;opacity:0;transition:opacity .12s}
+.gaz-entry:hover .gaz-e-ctl{opacity:1}
+</style>
+<section id="gazetteer" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Director · Locations · Concept IV</div>
+    <h2>The Gazetteer</h2>
+    <div class="desc">
+      A cartographer's index rather than a tree. Regions become quiet section headers with a fading rule;
+      places list beneath, contained places one indent deeper with a hairline elbow. Dense, scannable,
+      documentary — the current place carries a gold spine. Controls stay hidden until hover so the
+      column reads clean.
+    </div>
+  </div>
+  <div class="drawer">
+    <div class="drawer-inner">
+      <div class="sec-head">
+        <span class="glyph">&#9673;</span>
+        <span class="title">Locations</span>
+        <span class="count">7</span>
+        <span class="rule"></span>
+        <button class="add">+</button>
+      </div>
+      <div class="intro">Established places, injected each turn so the model reuses these names instead of inventing or renaming. Grouped by the region they sit inside.</div>
+
+      <div class="gaz">
+        <div class="gaz-region">
+          <div class="gaz-region-h">
+            <span class="gaz-region-name">The Riverlands</span>
+            <span class="gaz-region-note">contested ground between the Trident's forks</span>
+            <span class="gaz-region-rule"></span>
+            <span class="gaz-region-n">5</span>
+          </div>
+          <div class="gaz-entry">
+            <span class="gaz-pin auto" title="auto-collected">&#9711;</span>
+            <span class="gaz-e-name">Harrenhal</span>
+            <span class="gaz-e-note">a ruined castle melted by dragonfire</span>
+            <span class="gaz-e-seen">t12</span>
+            <span class="gaz-e-ctl"><button class="mini">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+          </div>
+          <div class="gaz-entry sub here">
+            <span class="gaz-pin auto">&#9711;</span>
+            <span class="gaz-e-name">The Kingspyre Tower</span>
+            <span class="gaz-e-note">the castellan's rooms &middot; scene opens here</span>
+            <span class="gaz-e-seen">t12</span>
+            <span class="gaz-e-ctl"><button class="mini">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+          </div>
+          <div class="gaz-entry sub">
+            <span class="gaz-pin auto">&#9711;</span>
+            <span class="gaz-e-name">The Flowstone Yard</span>
+            <span class="gaz-e-note">training yard of packed earth</span>
+            <span class="gaz-e-seen">t9</span>
+            <span class="gaz-e-ctl"><button class="mini">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+          </div>
+          <div class="gaz-entry sub">
+            <span class="gaz-pin pinned" title="pinned">&#9873;</span>
+            <span class="gaz-e-name">The Wailing Tower</span>
+            <span class="gaz-e-note">where the maester keeps the ravenry</span>
+            <span class="gaz-e-seen">t6</span>
+            <span class="gaz-e-ctl"><button class="mini on">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+          </div>
+          <div class="gaz-entry">
+            <span class="gaz-pin auto">&#9711;</span>
+            <span class="gaz-e-name">The God's Eye</span>
+            <span class="gaz-e-note">the great lake; the Isle of Faces at its heart</span>
+            <span class="gaz-e-seen">t3</span>
+            <span class="gaz-e-ctl"><button class="mini">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+          </div>
+        </div>
+        <div class="gaz-region">
+          <div class="gaz-region-h">
+            <span class="gaz-region-name">King's Landing</span>
+            <span class="gaz-region-note">the capital on Blackwater Bay</span>
+            <span class="gaz-region-rule"></span>
+            <span class="gaz-region-n">2</span>
+          </div>
+          <div class="gaz-entry">
+            <span class="gaz-pin pinned">&#9873;</span>
+            <span class="gaz-e-name">The Red Keep</span>
+            <span class="gaz-e-note">the royal seat above the city</span>
+            <span class="gaz-e-seen">t1</span>
+            <span class="gaz-e-ctl"><button class="mini on">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+          </div>
+          <div class="gaz-entry sub">
+            <span class="gaz-pin auto">&#9711;</span>
+            <span class="gaz-e-name">The Tower of the Hand</span>
+            <span class="gaz-e-note">cramped apartments of the King's Hand</span>
+            <span class="gaz-e-seen">t2</span>
+            <span class="gaz-e-ctl"><button class="mini">&#9873;</button><button class="mini">&#9998;</button><button class="mini del">&#10005;</button></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="wrap" style="text-align:center;padding:2rem 0 4rem;color:var(--ink-faint);font-family:var(--mono);font-size:0.6rem;letter-spacing:0.14em;text-transform:uppercase">
+  VELLUM II &nbsp;&middot;&nbsp; Director / Locations redesign &nbsp;&middot;&nbsp; three concepts
+</div>
+</div>
+</body>
+</html>

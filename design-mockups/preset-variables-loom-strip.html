@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II &mdash; Loom + Stat Strip + Live Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@300;400;500;600;700&family=Cinzel:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e0b07; --bg2:#15100a;
+  --surf:rgba(28,20,12,.78); --surf2:rgba(40,29,16,.62); --surf3:rgba(52,38,22,.5);
+  --kl:rgba(205,168,78,.22); --kl2:rgba(205,168,78,.44);
+  --g:#cda84e; --gb:#e6c56b; --gd:#8a7238; --gf:rgba(205,168,78,.1);
+  --ink:#e7d6ad; --id:#a99a76; --if:#6f6448;
+  --neg:#9c3b32; --negi:#c85a4e;
+  --sage:#6f8a5f; --sagei:#9ab88a;
+  --info:#4a6e9c; --infoi:#7aaad8;
+  --warn:#c4882a; --warni:#e0a84a;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --display:'Cinzel',serif;
+  --play:'Playfair Display',Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(1400px 700px at 15% -10%,rgba(205,168,78,.07),transparent 58%),radial-gradient(900px 500px at 95% 5%,rgba(156,59,50,.05),transparent 52%),radial-gradient(600px 400px at 50% 100%,rgba(111,138,95,.04),transparent 60%),linear-gradient(165deg,var(--bg),var(--bg2));background-attachment:fixed;color:var(--ink);font-family:var(--serif);font-size:16px;line-height:1.55;min-height:100vh;padding-bottom:8rem}
+.mast{text-align:center;padding:4rem 1.5rem 2rem}
+.mast-seal{width:66px;height:66px;margin:0 auto 1.3rem;border-radius:50%;background:radial-gradient(circle at 32% 28%,var(--gb),var(--gd));box-shadow:0 0 0 1px var(--kl2),0 0 0 8px rgba(205,168,78,.08),0 12px 40px rgba(205,168,78,.22);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:1.8rem;color:#1e1408;font-weight:700}
+.mast h1{font-family:var(--display);font-size:2.5rem;color:var(--gb);letter-spacing:.12em;text-transform:uppercase}
+.mast .sub{color:var(--id);font-style:italic;font-size:1.1rem;margin-top:.4rem;font-family:var(--play)}
+.mast .ctx{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--g);margin-top:1rem}
+.concept{padding:2.5rem 1.5rem 1rem;max-width:1200px;margin:0 auto}
+.concept-head{margin-bottom:1.6rem;text-align:center}
+.concept-head .kicker{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--g);margin-bottom:.5rem}
+.concept-head h2{font-family:var(--display);font-size:1.7rem;color:var(--ink);letter-spacing:.08em}
+.concept-head .desc{color:var(--id);font-style:italic;max-width:66ch;margin:.5rem auto 0;font-size:.95rem;font-family:var(--play)}
+.stages{display:flex;gap:2.5rem;justify-content:center;align-items:flex-start;flex-wrap:wrap;margin-top:1.5rem}
+.stage-wrap{display:flex;flex-direction:column;align-items:center;gap:.9rem}
+.stage-label{font-family:var(--mono);font-size:.56rem;letter-spacing:.16em;text-transform:uppercase;color:var(--if)}
+.stage-label b{color:var(--g)}
+.hr{height:1px;background:linear-gradient(90deg,transparent,var(--kl),transparent);margin:3rem 0}
+
+.panel{width:344px;background:var(--surf);border:1px solid var(--kl);border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.panel-scroll{max-height:820px;overflow-y:auto}
+.panel-scroll::-webkit-scrollbar{width:6px}
+.panel-scroll::-webkit-scrollbar-thumb{background:var(--kl);border-radius:3px}
+
+/* control atoms */
+.tog{display:inline-flex;width:34px;height:19px;border-radius:10px;border:1px solid var(--kl);background:rgba(205,168,78,.06);position:relative;cursor:pointer;flex-shrink:0}
+.tog::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--if);transition:all .2s}
+.tog.on{border-color:rgba(205,168,78,.6);background:rgba(205,168,78,.18)}
+.tog.on::after{left:17px;background:var(--g)}
+.sel{width:100%;font-family:var(--mono);font-size:.72rem;color:var(--ink);background:rgba(0,0,0,.28);border:1px solid var(--kl);border-radius:5px;padding:.42rem .6rem;appearance:none;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--gd) 50%),linear-gradient(135deg,var(--gd) 50%,transparent 50%);background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.range{-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--g) 0 60%,var(--kl) 60% 100%);width:100%;cursor:pointer}
+.range::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gb);border:2px solid var(--bg);box-shadow:0 0 6px rgba(205,168,78,.5)}
+.chips{display:flex;flex-wrap:wrap;gap:.3rem}
+.chip{font-family:var(--mono);font-size:.58rem;padding:.22rem .5rem;border-radius:999px;border:1px solid var(--kl);color:var(--id);cursor:pointer;transition:all .15s}
+.chip.on{border-color:var(--g);background:rgba(205,168,78,.16);color:var(--gb)}
+
+/* ===== HEAD ===== */
+.lh{padding:1.05rem 1.15rem .9rem;border-bottom:1px solid var(--kl);background:linear-gradient(180deg,var(--surf2),transparent)}
+.lh-eyebrow{font-family:var(--mono);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--g);display:flex;align-items:center;justify-content:space-between}
+.lh-eyebrow .lk{display:inline-flex;align-items:center;gap:.3rem;color:var(--sagei)}
+.lh-eyebrow .lk .d{width:6px;height:6px;border-radius:50%;background:var(--sagei);box-shadow:0 0 7px var(--sage)}
+.lh-title{font-family:var(--display);font-size:1.3rem;color:var(--gb);letter-spacing:.05em;margin-top:.45rem}
+
+/* ===== STAT STRIP (from Control Desk) ===== */
+.strip{display:flex;gap:1px;background:var(--kl);border-bottom:1px solid var(--kl)}
+.stat{flex:1;background:linear-gradient(180deg,rgba(40,29,16,.5),rgba(14,10,6,.7));padding:.6rem .4rem;text-align:center;position:relative}
+.stat .v{font-family:var(--mono);font-size:.95rem;color:var(--gb);font-weight:600;line-height:1}
+.stat .v.ok{color:var(--sagei)}
+.stat .k{font-family:var(--mono);font-size:.46rem;letter-spacing:.12em;text-transform:uppercase;color:var(--if);margin-top:.3rem}
+
+/* ===== LIVE PREVIEW (the new part) ===== */
+.pv{margin:1rem 1rem 0;border:1px solid var(--kl);border-radius:9px;background:linear-gradient(160deg,rgba(231,214,173,.055),rgba(0,0,0,.16));position:relative;overflow:hidden}
+.pv-top{display:flex;align-items:center;justify-content:space-between;padding:.55rem .8rem;border-bottom:1px solid var(--kl);background:rgba(0,0,0,.16)}
+.pv-top .pt{font-family:var(--mono);font-size:.54rem;letter-spacing:.16em;text-transform:uppercase;color:var(--g);display:flex;align-items:center;gap:.4rem}
+.pv-top .pt .spark{width:6px;height:6px;border-radius:50%;background:var(--gb);box-shadow:0 0 7px var(--g);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.pv-top .live{font-family:var(--mono);font-size:.5rem;letter-spacing:.12em;text-transform:uppercase;color:var(--if)}
+.pv-body{padding:1rem 1.05rem 1.1rem;max-height:200px;overflow:hidden;position:relative}
+.pv-body::after{content:"";position:absolute;left:0;right:0;bottom:0;height:44px;background:linear-gradient(180deg,transparent,rgba(20,14,8,.92))}
+.pv-body p{font-family:var(--play);font-size:.92rem;line-height:1.68;color:var(--ink);margin-bottom:.7rem}
+.pv-body p:last-child{margin-bottom:0}
+.pv-hl{color:var(--gb);font-style:italic;border-bottom:1px dotted var(--kl2)}
+.pv-dim{color:var(--id)}
+.pv-foot{display:flex;align-items:center;justify-content:space-between;padding:.5rem .8rem;border-top:1px solid var(--kl);font-family:var(--mono);font-size:.52rem;letter-spacing:.08em;color:var(--if)}
+.pv-foot .re{color:var(--g);cursor:pointer;display:inline-flex;align-items:center;gap:.3rem}
+/* empty state */
+.pv-empty{padding:1.4rem 1.1rem;text-align:center}
+.pv-empty .ic{font-family:var(--display);font-size:1.6rem;color:var(--gd);opacity:.6}
+.pv-empty .msg{font-family:var(--play);font-style:italic;color:var(--id);font-size:.88rem;margin-top:.4rem;line-height:1.5}
+
+/* ===== LOOM GROUPS ===== */
+.lbody{padding:.4rem 0 .6rem}
+.grp{margin:.85rem 1rem;border-radius:9px;border:1px solid var(--kl);overflow:hidden;background:rgba(0,0,0,.14)}
+.grptop{display:flex;align-items:center;gap:.5rem;padding:.58rem .8rem;background:linear-gradient(90deg,rgba(205,168,78,.14),rgba(205,168,78,.03));border-bottom:1px solid var(--kl);cursor:pointer}
+.grptop .spool{width:14px;height:14px;border-radius:50%;border:2px solid var(--g);position:relative;flex-shrink:0}
+.grptop .spool::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--gb)}
+.grptop .gt{flex:1;font-family:var(--mono);font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gb)}
+.grptop .gc{font-family:var(--mono);font-size:.55rem;color:var(--gd)}
+.grpbody{padding:.75rem}
+.var{display:flex;flex-direction:column;gap:.32rem;padding:.52rem 0 .52rem 1rem;position:relative}
+.var + .var{border-top:1px dashed var(--kl)}
+.var::before{content:"";position:absolute;left:0;top:.8rem;bottom:.8rem;width:2px;background:linear-gradient(180deg,var(--g),transparent);border-radius:1px}
+.var .vl{font-size:.92rem;color:var(--ink);font-weight:500;display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+.var .vl .vt{font-family:var(--mono);font-size:.5rem;letter-spacing:.08em;text-transform:uppercase;color:var(--if);border:1px solid var(--kl);border-radius:3px;padding:1px 5px;flex-shrink:0}
+.var .vd{font-size:.76rem;color:var(--id);font-style:italic;font-family:var(--play)}
+.sliderrow{display:flex;align-items:center;gap:.6rem}
+.sliderrow .sv{font-family:var(--mono);font-size:.62rem;color:var(--gb);min-width:2.4rem;text-align:right}
+.diag{margin-top:.3rem;border-top:1px solid var(--kl)}
+.diagsum{display:flex;align-items:center;gap:.5rem;padding:.7rem 1rem;cursor:pointer;font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--if)}
+.diagsum::before{content:"\25B8";color:var(--gd)}
+.diagsum:hover{color:var(--id)}
+.legend{max-width:720px;margin:2rem auto 0;padding:1.2rem 1.4rem;border:1px solid var(--kl);border-radius:10px;background:var(--surf2)}
+.legend h3{font-family:var(--display);font-size:1rem;color:var(--gb);letter-spacing:.05em;margin-bottom:.6rem}
+.legend ul{list-style:none;display:flex;flex-direction:column;gap:.5rem}
+.legend li{font-size:.9rem;color:var(--id);padding-left:1.2rem;position:relative;line-height:1.5}
+.legend li::before{content:"\25C6";position:absolute;left:0;color:var(--gd);font-size:.7rem;top:.28rem}
+.legend b{color:var(--ink);font-weight:600}
+.legend code{font-family:var(--mono);font-size:.82em;color:var(--gb)}
+</style>
+</head>
+<body>
+<div class="mast">
+  <div class="mast-seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Preset Variables &mdash; The Loom, with a Stat Strip &amp; Live Preview</div>
+  <div class="ctx">Loom &times; Control Desk synthesis &middot; 2026</div>
+</div>
+
+<section class="concept">
+  <div class="concept-head">
+    <div class="kicker">Combined concept</div>
+    <h2>The Loom, Instrumented</h2>
+    <p class="desc">The Loom's warmth &mdash; gilt threads, spools, grouped variables &mdash; crowned by Control Desk's stat strip, and a live manuscript preview that shows what your choices actually produce. The preview is real: it calls the host's <code style="font-family:var(--mono);font-size:.85em;color:var(--gb)">assemble()</code> to resolve the session-settings block against the open chat, no LLM cost. Two states shown: an active chat, and the graceful fallback when none is open.</p>
+  </div>
+
+  <div class="stages">
+    <!-- STATE A: active chat, preview populated -->
+    <div class="stage-wrap">
+      <div class="stage-label">State A &middot; <b>chat open</b> &middot; preview live</div>
+      <div class="panel">
+        <div class="panel-scroll">
+          <div class="lh">
+            <div class="lh-eyebrow"><span>Companion Preset</span><span class="lk"><span class="d"></span> Linked</span></div>
+            <div class="lh-title">Configure Variables</div>
+          </div>
+
+          <div class="strip">
+            <div class="stat"><div class="v">7</div><div class="k">variables</div></div>
+            <div class="stat"><div class="v">1.2k</div><div class="k">tokens</div></div>
+            <div class="stat"><div class="v ok">&#10003;</div><div class="k">state block</div></div>
+            <div class="stat"><div class="v ok">4/4</div><div class="k">extract</div></div>
+          </div>
+
+          <div class="pv">
+            <div class="pv-top">
+              <span class="pt"><span class="spark"></span> Live Manuscript</span>
+              <span class="live">assembled &middot; no LLM</span>
+            </div>
+            <div class="pv-body">
+              <p>Rain threaded the lamplight as <span class="pv-hl">Elara</span> pressed her back to the cold arch, breath held. <span class="pv-dim">She could not have said which frightened her more &mdash; the footsteps behind, or the silence that swallowed them whole.</span></p>
+              <p>Every sense sharpened: the iron tang of the gutter, the wet gleam of cobbles, the way the dark seemed to <span class="pv-hl">lean toward her</span>.</p>
+            </div>
+            <div class="pv-foot">
+              <span>3rd&nbsp;limited &middot; past &middot; stakes&nbsp;6</span>
+              <span class="re">&#8635; refresh</span>
+            </div>
+          </div>
+
+          <div class="lbody">
+            <div class="grp">
+              <div class="grptop"><span class="spool"></span><span class="gt">VELLUM II &mdash; Core</span><span class="gc">4 vars</span></div>
+              <div class="grpbody">
+                <div class="var">
+                  <div class="vl">Point of View <span class="vt">select</span></div>
+                  <div class="vd">Narration perspective</div>
+                  <select class="sel"><option>Third Limited</option><option>First</option><option>Third Omniscient</option></select>
+                </div>
+                <div class="var">
+                  <div class="vl">Narrative Stakes <span class="vt">slider</span></div>
+                  <div class="sliderrow"><input class="range" type="range" min="0" max="10" value="6"><span class="sv">6/10</span></div>
+                </div>
+                <div class="var">
+                  <div class="vl">Tense <span class="vt">select</span></div>
+                  <select class="sel"><option>Past</option><option>Present</option></select>
+                </div>
+                <div class="var">
+                  <div class="vl">Sensory Detail <span class="vt">switch</span></div>
+                  <div class="sliderrow" style="justify-content:space-between"><span class="vd">Foreground the five senses</span><span class="tog on"></span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grp">
+              <div class="grptop"><span class="spool"></span><span class="gt">Tone &amp; Genre</span><span class="gc">3 vars</span></div>
+              <div class="grpbody">
+                <div class="var">
+                  <div class="vl">Genre <span class="vt">select</span></div>
+                  <select class="sel"><option>Literary Fantasy</option><option>Noir</option></select>
+                </div>
+                <div class="var">
+                  <div class="vl">Content Filters <span class="vt">multiselect</span></div>
+                  <div class="chips"><span class="chip on">filter-words</span><span class="chip">euphemism</span><span class="chip on">purple prose</span></div>
+                </div>
+                <div class="var">
+                  <div class="vl">Romance Heat <span class="vt">slider</span></div>
+                  <div class="sliderrow"><input class="range" type="range" min="0" max="10" value="3" style="background:linear-gradient(90deg,var(--g) 0 30%,var(--kl) 30% 100%)"><span class="sv">3/10</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="diag"><div class="diagsum">Diagnostics &middot; health, injection, budget</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATE B: no chat open, preview fallback -->
+    <div class="stage-wrap">
+      <div class="stage-label">State B &middot; <b>no chat open</b> &middot; preview fallback</div>
+      <div class="panel">
+        <div class="panel-scroll">
+          <div class="lh">
+            <div class="lh-eyebrow"><span>Companion Preset</span><span class="lk"><span class="d"></span> Linked</span></div>
+            <div class="lh-title">Configure Variables</div>
+          </div>
+
+          <div class="strip">
+            <div class="stat"><div class="v">7</div><div class="k">variables</div></div>
+            <div class="stat"><div class="v">1.2k</div><div class="k">tokens</div></div>
+            <div class="stat"><div class="v ok">&#10003;</div><div class="k">state block</div></div>
+            <div class="stat"><div class="v" style="color:var(--id)">&mdash;</div><div class="k">no chat</div></div>
+          </div>
+
+          <div class="pv">
+            <div class="pv-top">
+              <span class="pt" style="color:var(--gd)"><span class="spark" style="background:var(--gd);box-shadow:none;animation:none"></span> Live Manuscript</span>
+              <span class="live">idle</span>
+            </div>
+            <div class="pv-empty">
+              <div class="ic">&#9906;</div>
+              <div class="msg">Open a chat to preview how these settings shape the prose. Macros like <span style="font-family:var(--mono);font-size:.8em;color:var(--gb)">{{char}}</span> need a live scene to resolve.</div>
+            </div>
+          </div>
+
+          <div class="lbody">
+            <div class="grp">
+              <div class="grptop"><span class="spool"></span><span class="gt">VELLUM II &mdash; Core</span><span class="gc">4 vars</span></div>
+              <div class="grpbody">
+                <div class="var">
+                  <div class="vl">Point of View <span class="vt">select</span></div>
+                  <select class="sel"><option>Third Limited</option></select>
+                </div>
+                <div class="var">
+                  <div class="vl">Narrative Stakes <span class="vt">slider</span></div>
+                  <div class="sliderrow"><input class="range" type="range" min="0" max="10" value="6"><span class="sv">6/10</span></div>
+                </div>
+                <div class="var">
+                  <div class="vl">Sensory Detail <span class="vt">switch</span></div>
+                  <div class="sliderrow" style="justify-content:space-between"><span class="vd">Foreground the five senses</span><span class="tog on"></span></div>
+                </div>
+              </div>
+            </div>
+            <div class="diag"><div class="diagsum">Diagnostics &middot; health, injection, budget</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>How the preview works (real, not simulated)</h3>
+    <ul>
+      <li><b>Source:</b> <code>spindle.assemble({ blocks, chatId, promptVariables })</code> runs Lumiverse's full prompt-assembly &mdash; resolving <code>{{char}}</code>, history, world-info and your variable choices &mdash; and returns the exact <code>system</code> messages the model would receive. <b>It never calls an LLM</b>, so it's free and instant.</li>
+      <li><b>What's shown:</b> the resolved session-settings block, rendered as a manuscript excerpt. The footer echoes the active dials (POV &middot; tense &middot; stakes) so cause and effect are legible.</li>
+      <li><b>Debounced:</b> a variable change waits ~800ms, then re-assembles &mdash; the same rhythm as the save, so one gesture updates value, preview, and persistence together.</li>
+      <li><b>Fallback (State B):</b> with no chat open, macros can't resolve, so the preview shows a quiet prompt instead of broken text. Requires the <code>generation</code> permission &mdash; which VELLUM already holds.</li>
+      <li><b>Honest preview:</b> it shows the <b>prompt</b> the model sees, not a fabricated response. For an actual generated sample we'd use <code>generate.quiet()</code>, which costs tokens &mdash; offered later as an explicit &ldquo;generate sample&rdquo; button if wanted.</li>
+    </ul>
+  </div>
+</section>
+
+</body>
+</html>

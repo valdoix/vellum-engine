@@ -98,7 +98,13 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     v.hard_limits ? `Absolute content boundaries: ${String(v.hard_limits)}` : '',
     enabled(v.dialogue_color) ? 'Wrap each named direct speaker inline as [spk=Exact Cast Name]"speech"[/spk]. One speaker per wrapper; no guessed identities.' : 'Do not add speaker markup.',
     enabled(v.vtk_cards) ? 'Presentation: optional <artifact>{"type":"letter|codex|text|decree|portrait|map|item|title|verse|tarot|broadsheet|playbill","title":"plain text","body":"plain text","tone":"neutral|warning|warm"}</artifact>. No HTML, CSS, URLs or executable markup. Artifacts are presentation; establish durable facts in prose.' : 'No artifact markup.',
-    v.reasoning_route === 'verbose' ? 'Planning route: one <reverie> with an extended 250–500 word fictional scene plan in eight sections A Authority, R Reality, G Gnosis, E Embodiment, N Narrative, T Truthful deltas, V Voice, X Final checks. Keep every named on-stage NPC in the embodiment check.' : v.reasoning_route === 'compact' ? 'Planning route: one compact six-line <reverie> scene plan (Authority, Reality, Gnosis, Embodiment, Narrative, Truthful deltas).' : 'Do not emit a visible Reverie.',
+    v.reasoning_route === 'verbose'
+      ? 'Planning route: one <reverie> with an extended 250–500 word fictional scene plan in eight sections A Authority, R Reality, G Gnosis, E Embodiment, N Narrative, T Truthful deltas, V Voice, X Final checks. Keep every named on-stage NPC in the embodiment check.'
+      : v.reasoning_route === 'compact'
+        ? 'Planning route: one compact six-line <reverie> scene plan (Authority, Reality, Gnosis, Embodiment, Narrative, Truthful deltas).'
+        : v.reasoning_route === 'native'
+          ? 'Planning route: complete one bounded robust ARGENT Reverie in provider-private reasoning, in eight sections A Authority, R Reality, G Gnosis, E Embodiment, N Narrative, T Truthful deltas, V Voice, X Final checks. Audit every on-stage NPC and consequential character/fact pair, compare causal continuations, select one, commit once, and expose none of the audit.'
+          : 'Do not emit a visible Reverie.',
     '[OUTPUT CONTRACT — FINAL]',
     visibleReverie,
     stateEnding,

@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM — More Chrome Mockups III: Aquarelle · Werkbund · Almanac · Terrazzo · Loom · Origami</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Petrona:ital,wght@0,500;1,500&family=Jost:wght@400;500;700&family=IM+Fell+English:ital@0;1&family=Fredoka:wght@400;500;600;700&family=Zilla+Slab:wght@500;600;700&family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --gap: 18px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0a0a0c;
+    color: #e8e8ea;
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  .page-head { max-width: 1200px; margin: 0 auto 40px; }
+  .page-head h1 {
+    font-family: 'Zilla Slab', serif;
+    font-size: 34px; letter-spacing: .3px; margin: 0 0 6px; font-weight: 700;
+    background: linear-gradient(90deg, #5b7fb0, #e2231a, #b08a3a, #4bb39a, #d98aa0, #7a8aa0);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .page-head p { margin: 0; color: #8a8a92; font-size: 14px; max-width: 780px; }
+
+  .theme-block { max-width: 1200px; margin: 0 auto 56px; }
+  .theme-label {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    margin: 0 0 4px; padding-bottom: 10px; border-bottom: 1px solid #26262c;
+  }
+  .theme-label .name { font-family: 'Zilla Slab', serif; font-size: 24px; letter-spacing: .3px; font-weight: 700; }
+  .theme-label .blurb { color: #8a8a92; font-size: 13px; font-style: italic; }
+  .theme-label .swatches { display: flex; gap: 6px; margin-left: auto; }
+  .theme-label .sw { width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); }
+  .theme-meta { color: #6a6a72; font-size: 11.5px; font-family: 'JetBrains Mono', monospace; margin: 12px 0 18px; }
+
+  .frame { border-radius: 14px; overflow: hidden; position: relative; }
+  .frame-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 12px; letter-spacing: 1px; position: relative; z-index: 2; }
+  .frame-bar .dot { width: 9px; height: 9px; border-radius: 50%; opacity: .6; }
+  .frame-body { padding: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); position: relative; z-index: 1; }
+  .card { position: relative; padding: 16px 16px 15px; overflow: hidden; }
+  .card h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .card .line { font-size: 13px; margin: 4px 0; }
+  .card .muted { opacity: .68; }
+  .tension { height: 7px; border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
+  .tension i { display: block; height: 100%; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; margin: 3px 4px 0 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .cast-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .val { font-family: 'JetBrains Mono', monospace; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+  /* ============================================================
+     THEME 1 — AQUARELLE (wet-on-wet watercolor on cold-press paper)
+     ============================================================ */
+  .aquarelle {
+    --acc: #4a6fa5; --acc2: #c65f7a;
+    --ink: #3a4152; --ink2: #7c8296;
+    --pos: #5c9a6a; --neg: #c05a52; --warn: #c99a3a; --info: #4a6fa5;
+    --s1: #fbf9f4; --s2: #f2eee3;
+  }
+  .aquarelle .frame {
+    background:
+      /* pigment blooms bleeding into the paper */
+      radial-gradient(38% 30% at 22% 16%, rgba(74,111,165,.22), transparent 70%),
+      radial-gradient(34% 28% at 82% 24%, rgba(198,95,122,.2), transparent 72%),
+      radial-gradient(40% 34% at 68% 90%, rgba(92,154,106,.18), transparent 72%),
+      radial-gradient(30% 26% at 8% 82%, rgba(201,154,58,.16), transparent 74%),
+      linear-gradient(160deg, #fbf9f4, #f0ebdf);
+    border: 1px solid #ddd6c6;
+    box-shadow: 0 0 0 6px rgba(255,255,255,.5), 0 18px 44px rgba(80,80,90,.22);
+  }
+  /* cold-press paper tooth */
+  .aquarelle .frame::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: .5; mix-blend-mode: multiply;
+    background-image: radial-gradient(circle at 1px 1px, rgba(120,110,90,.09) 1px, transparent 1.5px);
+    background-size: 5px 5px;
+  }
+  /* blooms breathe/spread slowly */
+  .aquarelle .frame::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(30% 24% at 46% 40%, rgba(74,111,165,.12), transparent 70%),
+      radial-gradient(26% 22% at 60% 66%, rgba(198,95,122,.12), transparent 72%);
+    animation: aqua-bloom 12s ease-in-out infinite;
+  }
+  @keyframes aqua-bloom { 0%,100% { transform: scale(1); opacity: .6; } 50% { transform: scale(1.12); opacity: .95; } }
+  .aquarelle .frame-bar {
+    background: linear-gradient(90deg, rgba(74,111,165,.5), rgba(198,95,122,.34), transparent);
+    border-bottom: 1px solid rgba(120,110,90,.2); color: #35405a;
+    font-family: 'Caveat', cursive; font-weight: 700; letter-spacing: .5px; font-size: 19px;
+  }
+  .aquarelle .frame-bar .dot { background: var(--acc); opacity: .5; }
+  .aquarelle .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(120,110,90,.18); border-radius: 14px 12px 16px 12px; color: var(--ink);
+    box-shadow: 0 3px 10px rgba(90,90,100,.1);
+  }
+  /* each card washed with a soft irregular pigment edge */
+  .aquarelle .card::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    box-shadow: inset 0 0 0 2px rgba(74,111,165,.14), inset 0 0 16px rgba(74,111,165,.08);
+  }
+  .aquarelle .card.present::before { box-shadow: inset 0 0 0 2px rgba(198,95,122,.2), inset 0 0 18px rgba(198,95,122,.1); }
+  .aquarelle .card h3 { font-family: 'Caveat', cursive; font-weight: 700; font-size: 19px; letter-spacing: .3px; color: var(--acc); text-transform: none; }
+  .aquarelle .card.present h3 { color: var(--acc2); }
+  .aquarelle .val, .aquarelle .line b { color: var(--acc2); font-family: 'Petrona', serif; font-style: italic; font-weight: 500; }
+  .aquarelle .card .line { font-family: 'Petrona', serif; }
+  .aquarelle .tension { background: rgba(120,110,90,.14); border-radius: 99px; }
+  .aquarelle .tension i { background: linear-gradient(90deg, var(--acc), var(--acc2)); filter: saturate(1.1); }
+  .aquarelle .avatar { border-radius: 60% 40% 55% 45%; background: radial-gradient(circle at 35% 30%, #6f92c4, #4a6fa5); color: #fbf9f4; }
+  .aquarelle .chip { border-radius: 99px; background: rgba(74,111,165,.12); border: 1px solid rgba(74,111,165,.4); color: #3a5680; }
+  .aquarelle .chip.pos { background: rgba(92,154,106,.14); border-color: rgba(92,154,106,.5); color: #3d7049; }
+  .aquarelle .chip.neg { background: rgba(192,90,82,.14); border-color: rgba(192,90,82,.5); color: #a8443c; }
+
+  /* ============================================================
+     THEME 2 — WERKBUND (Bauhaus primary geometry)
+     ============================================================ */
+  .werkbund {
+    --acc: #e2231a; --acc2: #1c4fd8;
+    --ink: #111111; --ink2: #555555;
+    --pos: #1c4fd8; --neg: #e2231a; --warn: #f4c20d; --info: #1c4fd8;
+    --s1: #ffffff; --s2: #f4f2ec;
+  }
+  .werkbund .frame {
+    background: #f4f2ec;
+    border: 3px solid #111; border-radius: 0;
+    box-shadow: 10px 10px 0 #111;
+  }
+  .werkbund .frame-bar {
+    background: #111; color: #fff;
+    border-bottom: 3px solid #111;
+    font-family: 'Jost', sans-serif; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; font-size: 13px;
+  }
+  .werkbund .frame-bar .dot { border-radius: 0; opacity: 1; }
+  .werkbund .frame-bar .dot:nth-of-type(1) { background: #e2231a; }
+  .werkbund .frame-bar .dot:nth-of-type(2) { background: #f4c20d; border-radius: 50%; }
+  .werkbund .card {
+    background: #fff;
+    border: 2.5px solid #111; border-radius: 0; color: var(--ink);
+    box-shadow: 5px 5px 0 #111;
+  }
+  /* a solid primary corner block on each card */
+  .werkbund .card::before {
+    content: ''; position: absolute; top: 0; right: 0; width: 26px; height: 26px; background: #1c4fd8;
+    animation: werk-cycle 6s steps(1) infinite;
+  }
+  .werkbund .card:nth-child(2)::before { animation-delay: -1.5s; }
+  .werkbund .card:nth-child(3)::before { animation-delay: -3s; }
+  .werkbund .card:nth-child(4)::before { animation-delay: -4.5s; }
+  @keyframes werk-cycle { 0% { background: #e2231a; } 33% { background: #1c4fd8; } 66% { background: #f4c20d; } 100% { background: #e2231a; } }
+  .werkbund .card.present { box-shadow: 5px 5px 0 #e2231a; }
+  .werkbund .card.present::before { background: #e2231a; border-radius: 50%; }
+  .werkbund .card h3 { font-family: 'Jost', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 2px; color: #111; }
+  .werkbund .card.present h3 { color: #e2231a; }
+  .werkbund .card .line { font-family: 'Jost', sans-serif; }
+  .werkbund .val, .werkbund .line b { color: #1c4fd8; font-family: 'Jost', sans-serif; font-weight: 700; }
+  .werkbund .tension { background: #eae7df; border-radius: 0; border: 2px solid #111; height: 10px; }
+  .werkbund .tension i { background: #f4c20d; }
+  .werkbund .card.present .tension i { background: #e2231a; }
+  /* the circle-square badge, slowly rotating */
+  .werkbund .avatar { border-radius: 0; background: #f4c20d; color: #111; border: 2.5px solid #111; position: relative; font-family: 'Jost', sans-serif; }
+  .werkbund .avatar::after { content: ''; position: absolute; inset: 5px; border: 2px solid #111; border-radius: 50%; animation: werk-spin 8s linear infinite; }
+  @keyframes werk-spin { to { transform: rotate(360deg); } }
+  .werkbund .chip { border-radius: 0; background: #fff; border: 2px solid #111; color: #111; font-family: 'Jost', sans-serif; font-weight: 500; }
+  .werkbund .chip.pos { background: #1c4fd8; color: #fff; border-color: #111; }
+  .werkbund .chip.neg { background: #e2231a; color: #fff; border-color: #111; }
+
+  /* ============================================================
+     THEME 3 — ALMANAC (antique celestial atlas / engraved star chart)
+     ============================================================ */
+  .almanac {
+    --acc: #b0863a; --acc2: #7c94b0;
+    --ink: #e6dcc4; --ink2: #a99a78;
+    --pos: #8a9a6a; --neg: #b06a52; --warn: #c9a24a; --info: #7c94b0;
+    --s1: rgba(28,26,22,.9); --s2: rgba(20,18,15,.94);
+  }
+  .almanac .frame {
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(176,134,58,.16), transparent 55%),
+      radial-gradient(80% 60% at 85% 105%, rgba(124,148,176,.1), transparent 60%),
+      linear-gradient(165deg, #221f19, #14120e);
+    border: 1px solid rgba(176,134,58,.4);
+    box-shadow: 0 0 0 3px rgba(176,134,58,.14), 0 20px 50px rgba(0,0,0,.6);
+  }
+  /* engraved constellation lines + scattered stars */
+  .almanac .frame::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: .7;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cg stroke='%23b0863a' stroke-opacity='0.22' stroke-width='0.8' fill='none'%3E%3Cpath d='M28 44 L92 74 L150 40 L210 82 L236 52'/%3E%3Cpath d='M44 190 L110 158 L166 198 L224 160'/%3E%3Cpath d='M92 74 L110 158'/%3E%3C/g%3E%3Cg fill='%23e6dcc4'%3E%3Ccircle cx='28' cy='44' r='1.5' fill-opacity='0.8'/%3E%3Ccircle cx='150' cy='40' r='1.8' fill-opacity='0.7'/%3E%3Ccircle cx='210' cy='82' r='1.3' fill-opacity='0.6'/%3E%3Ccircle cx='110' cy='158' r='1.6' fill-opacity='0.7'/%3E%3Ccircle cx='224' cy='160' r='1.2' fill-opacity='0.6'/%3E%3C/g%3E%3Cg fill='%23b0863a'%3E%3Ccircle cx='92' cy='74' r='1.4' fill-opacity='0.7'/%3E%3Ccircle cx='166' cy='198' r='1.5' fill-opacity='0.6'/%3E%3C/g%3E%3C/svg%3E");
+    animation: alm-twinkle 6s ease-in-out infinite;
+  }
+  @keyframes alm-twinkle { 0%,100% { opacity: .55; } 50% { opacity: .85; } }
+  .almanac .frame-bar {
+    background: linear-gradient(90deg, rgba(176,134,58,.28), transparent);
+    border-bottom: 1px solid rgba(176,134,58,.4); color: #e0d2ac;
+    font-family: 'IM Fell English', serif; letter-spacing: 2px; font-size: 15px; font-style: italic;
+    text-shadow: 0 0 10px rgba(176,134,58,.4);
+  }
+  .almanac .frame-bar .dot { background: var(--acc); box-shadow: 0 0 6px rgba(176,134,58,.6); }
+  .almanac .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(176,134,58,.28); border-radius: 3px; color: var(--ink);
+    box-shadow: inset 0 0 26px rgba(0,0,0,.4);
+  }
+  /* a faint engraved corner rule + orbiting node on the present card */
+  .almanac .card::before {
+    content: ''; position: absolute; top: 6px; left: 6px; width: 16px; height: 16px;
+    border-top: 1px solid rgba(176,134,58,.5); border-left: 1px solid rgba(176,134,58,.5); pointer-events: none;
+  }
+  .almanac .card.present::after {
+    content: ''; position: absolute; top: 12px; right: 14px; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--acc); box-shadow: 0 0 10px rgba(176,134,58,.8);
+    transform-origin: -10px 4px; animation: alm-orbit 9s linear infinite;
+  }
+  @keyframes alm-orbit { to { transform: rotate(360deg); } }
+  .almanac .card h3 { font-family: 'IM Fell English', serif; font-style: italic; letter-spacing: 1px; color: #d6b878; text-transform: none; font-size: 14px; }
+  .almanac .card.present h3 { color: #e6dcc4; }
+  .almanac .val, .almanac .line b { color: var(--acc); font-family: 'IM Fell English', serif; }
+  .almanac .card .line { font-family: 'IM Fell English', serif; }
+  .almanac .tension { background: rgba(176,134,58,.12); border: 1px solid rgba(176,134,58,.28); }
+  .almanac .tension i { background: linear-gradient(90deg, #8a6a2e, var(--acc)); box-shadow: 0 0 8px rgba(176,134,58,.5); }
+  .almanac .avatar { border-radius: 50%; background: radial-gradient(circle at 40% 35%, #2a2620, #14120e); border: 1px solid var(--acc); color: #d6b878; font-family: 'IM Fell English', serif; box-shadow: 0 0 0 1px rgba(176,134,58,.3); }
+  .almanac .chip { background: rgba(176,134,58,.12); border: 1px solid rgba(176,134,58,.4); color: #d6b878; font-family: 'IM Fell English', serif; }
+  .almanac .chip.pos { background: rgba(138,154,106,.14); border-color: rgba(138,154,106,.5); color: #a9bc86; }
+  .almanac .chip.neg { background: rgba(176,106,82,.14); border-color: rgba(176,106,82,.5); color: #d09080; }
+
+  /* ============================================================
+     THEME 4 — TERRAZZO (Memphis / postmodern-80s confetti)
+     ============================================================ */
+  .terrazzo {
+    --acc: #ff5c8a; --acc2: #23c4b8;
+    --ink: #2a2540; --ink2: #6f6a88;
+    --pos: #3ec48a; --neg: #ff5c6a; --warn: #ffb43a; --info: #4a7aff;
+    --s1: #fffdf8; --s2: #f6f2ea;
+  }
+  .terrazzo .frame {
+    background:
+      /* confetti chips scattered on cream */
+      radial-gradient(circle at 14% 20%, #ff5c8a 0 5px, transparent 6px),
+      radial-gradient(circle at 78% 14%, #23c4b8 0 6px, transparent 7px),
+      radial-gradient(circle at 40% 82%, #ffb43a 0 4px, transparent 5px),
+      radial-gradient(circle at 90% 66%, #4a7aff 0 5px, transparent 6px),
+      radial-gradient(circle at 62% 40%, #2a2540 0 3px, transparent 4px),
+      radial-gradient(circle at 24% 62%, #23c4b8 0 4px, transparent 5px),
+      linear-gradient(160deg, #fffdf8, #f2ede2);
+    background-size: 130px 130px, 150px 150px, 120px 120px, 160px 160px, 100px 100px, 140px 140px, 100% 100%;
+    border: 3px solid #2a2540; border-radius: 20px;
+    box-shadow: 8px 8px 0 rgba(255,92,138,.35), 0 18px 40px rgba(42,37,64,.2);
+  }
+  .terrazzo .frame-bar {
+    background: linear-gradient(90deg, #ff5c8a, #ffb43a); color: #2a2540;
+    border-bottom: 3px solid #2a2540;
+    font-family: 'Fredoka', sans-serif; font-weight: 600; letter-spacing: 1px; font-size: 14px;
+  }
+  .terrazzo .frame-bar .dot { background: #2a2540; }
+  .terrazzo .frame-bar .dot:nth-of-type(2) { background: #23c4b8; }
+  .terrazzo .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 2.5px solid #2a2540; border-radius: 16px; color: var(--ink);
+    box-shadow: 4px 4px 0 #2a2540;
+  }
+  /* a squiggle that wiggles in the corner */
+  .terrazzo .card::before {
+    content: ''; position: absolute; top: 8px; right: 10px; width: 22px; height: 10px; pointer-events: none;
+    background:
+      radial-gradient(circle at 3px 5px, transparent 2px, #23c4b8 2px 3px, transparent 3.5px),
+      radial-gradient(circle at 9px 5px, transparent 2px, #ff5c8a 2px 3px, transparent 3.5px),
+      radial-gradient(circle at 15px 5px, transparent 2px, #ffb43a 2px 3px, transparent 3.5px);
+    animation: terr-wiggle 2.4s ease-in-out infinite;
+  }
+  @keyframes terr-wiggle { 0%,100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+  .terrazzo .card.present { border-color: #ff5c8a; box-shadow: 4px 4px 0 #ff5c8a; }
+  .terrazzo .card h3 { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: .5px; color: var(--acc); text-transform: none; }
+  .terrazzo .card.present h3 { color: #2a2540; }
+  .terrazzo .card .line { font-family: 'Fredoka', sans-serif; font-weight: 400; }
+  .terrazzo .val, .terrazzo .line b { color: var(--acc2); font-family: 'Fredoka', sans-serif; font-weight: 600; }
+  .terrazzo .tension { background: #eae4d8; border-radius: 99px; border: 2px solid #2a2540; height: 9px; }
+  .terrazzo .tension i { background: repeating-linear-gradient(45deg, #ff5c8a 0 6px, #ffb43a 6px 12px); }
+  .terrazzo .avatar { border-radius: 40% 60% 55% 45%; background: #4a7aff; color: #fff; border: 2.5px solid #2a2540; font-family: 'Fredoka', sans-serif; }
+  .terrazzo .chip { border-radius: 99px; background: #fff; border: 2px solid #2a2540; color: #2a2540; font-family: 'Fredoka', sans-serif; }
+  .terrazzo .chip.pos { background: #d6f7e8; border-color: #3ec48a; color: #1f7a56; }
+  .terrazzo .chip.neg { background: #ffe0e3; border-color: #ff5c6a; color: #c0384a; }
+
+  /* ============================================================
+     THEME 5 — LOOM (woven textile / warp & weft)
+     ============================================================ */
+  .loom {
+    --acc: #b0472e; --acc2: #2f5a7a;
+    --ink: #33291d; --ink2: #7a6a54;
+    --pos: #5e7a3a; --neg: #b0472e; --warn: #c99340; --info: #2f5a7a;
+    --s1: #efe6d2; --s2: #e4d8bf;
+  }
+  .loom .frame {
+    background:
+      /* warp & weft thread grid */
+      repeating-linear-gradient(0deg, rgba(51,41,29,.07) 0 2px, transparent 2px 5px),
+      repeating-linear-gradient(90deg, rgba(51,41,29,.07) 0 2px, transparent 2px 5px),
+      linear-gradient(160deg, #eee3cd, #e0d3b6);
+    border: 1px solid #c9b78e;
+    box-shadow: 0 0 0 5px #d8c9a6, 0 0 0 7px #b0472e, 0 18px 44px rgba(70,50,24,.32);
+  }
+  /* fair-isle motif band across the top + a subtle weave shimmer */
+  .loom .frame::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 8px; z-index: 1; pointer-events: none;
+    background:
+      repeating-linear-gradient(90deg, #b0472e 0 8px, #2f5a7a 8px 16px, #c99340 16px 24px, #5e7a3a 24px 32px);
+    opacity: .55;
+  }
+  .loom .frame::after {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 44%, rgba(255,255,255,.28) 50%, transparent 56%);
+    background-size: 280% 100%; animation: loom-shimmer 9s ease-in-out infinite;
+  }
+  @keyframes loom-shimmer { 0% { background-position: 130% 0; } 100% { background-position: -40% 0; } }
+  .loom .frame-bar {
+    background: linear-gradient(90deg, var(--acc), #8a341f); color: #efe6d2;
+    border-bottom: 3px solid var(--acc2);
+    font-family: 'Zilla Slab', serif; font-weight: 600; letter-spacing: 1px; font-size: 14px;
+  }
+  .loom .frame-bar .dot { background: #efe6d2; opacity: .8; }
+  .loom .card {
+    background:
+      repeating-linear-gradient(0deg, rgba(51,41,29,.05) 0 2px, transparent 2px 5px),
+      linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid #c9b78e; border-radius: 4px; color: var(--ink);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.35), 0 4px 10px rgba(70,50,24,.16);
+  }
+  /* selvedge edge on the present card */
+  .loom .card.present { border-left: 4px solid var(--acc); }
+  .loom .card h3 { font-family: 'Zilla Slab', serif; font-weight: 700; font-size: 13px; letter-spacing: .5px; color: var(--acc); }
+  .loom .card.present h3 { color: var(--acc2); }
+  .loom .card .line { font-family: 'Zilla Slab', serif; font-weight: 500; }
+  .loom .val, .loom .line b { color: var(--acc); font-family: 'Zilla Slab', serif; font-weight: 700; }
+  .loom .tension { background: rgba(51,41,29,.14); border-radius: 2px; height: 8px; }
+  .loom .tension i { background: repeating-linear-gradient(90deg, var(--acc) 0 4px, var(--acc2) 4px 8px, var(--warn) 8px 12px); }
+  .loom .avatar { border-radius: 4px; background: linear-gradient(135deg, var(--acc2), #1f4056); color: #efe6d2; border: 2px solid #efe6d2; box-shadow: 0 0 0 1px var(--acc2); font-family: 'Zilla Slab', serif; }
+  .loom .chip { border-radius: 3px; background: rgba(176,71,46,.12); border: 1px solid var(--acc); color: #8a341f; font-family: 'Zilla Slab', serif; }
+  .loom .chip.pos { background: rgba(94,122,58,.14); border-color: var(--pos); color: #47601f; }
+  .loom .chip.neg { background: rgba(176,71,46,.16); border-color: var(--acc); color: #8a341f; }
+
+  /* ============================================================
+     THEME 6 — ORIGAMI (folded paper / layered cut-paper shadow)
+     ============================================================ */
+  .origami {
+    --acc: #e07a54; --acc2: #5a86c4;
+    --ink: #37404e; --ink2: #7e879a;
+    --pos: #5fa872; --neg: #e0655a; --warn: #e0aa4a; --info: #5a86c4;
+    --s1: #ffffff; --s2: #eef1f6;
+  }
+  .origami .frame {
+    background:
+      /* faint fold crease lines fanning across the sheet */
+      linear-gradient(115deg, transparent 49.6%, rgba(90,100,120,.09) 49.8%, transparent 50.2%),
+      linear-gradient(150deg, transparent 49.6%, rgba(90,100,120,.07) 49.8%, transparent 50.2%),
+      linear-gradient(70deg, transparent 49.6%, rgba(90,100,120,.07) 49.8%, transparent 50.2%),
+      linear-gradient(160deg, #f4f6fa, #e6eaf2);
+    border: 1px solid #d4dae6; border-radius: 4px;
+    box-shadow: 0 18px 44px rgba(70,80,100,.2);
+  }
+  .origami .frame-bar {
+    background: linear-gradient(180deg, #ffffff, #eef1f6); color: var(--ink);
+    border-bottom: 1px solid #d4dae6;
+    font-family: 'Manrope', sans-serif; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 12px;
+    /* folded-corner ribbon */
+    position: relative;
+  }
+  .origami .frame-bar::after {
+    content: ''; position: absolute; top: 0; left: 0; border-width: 0 0 14px 14px; border-style: solid;
+    border-color: transparent transparent transparent var(--acc); opacity: .8;
+  }
+  .origami .frame-bar .dot { background: var(--acc2); opacity: .7; }
+  .origami .card {
+    background: linear-gradient(150deg, var(--s1) 60%, #e4e9f1);
+    border: none; border-radius: 3px; color: var(--ink);
+    /* stacked cut-paper shadow layers */
+    box-shadow: 0 1px 0 #d8deea, 0 2px 3px rgba(70,80,100,.12), 0 8px 16px rgba(70,80,100,.14);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  }
+  /* the folded triangle in the clipped corner */
+  .origami .card::after {
+    content: ''; position: absolute; bottom: 0; left: 0; width: 14px; height: 14px; pointer-events: none;
+    background: linear-gradient(135deg, transparent 50%, rgba(90,100,120,.2) 50%);
+  }
+  /* present card lifts on a slow fold */
+  .origami .card.present { animation: ori-fold 6s ease-in-out infinite; transform-origin: top center; }
+  @keyframes ori-fold { 0%,100% { transform: perspective(600px) rotateX(0deg); } 50% { transform: perspective(600px) rotateX(3deg); } }
+  .origami .card h3 { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 12px; letter-spacing: 1px; color: var(--acc); }
+  .origami .card.present h3 { color: var(--acc2); }
+  .origami .card .line { font-family: 'Manrope', sans-serif; }
+  .origami .val, .origami .line b { color: var(--acc2); font-family: 'Manrope', sans-serif; font-weight: 700; }
+  .origami .tension { background: #e2e7f0; border-radius: 99px; }
+  .origami .tension i { background: linear-gradient(90deg, var(--acc), var(--acc2)); }
+  .origami .avatar { border-radius: 0; clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%); background: linear-gradient(135deg, #6f97d0, #5a86c4); color: #fff; font-family: 'Manrope', sans-serif; }
+  .origami .chip { border-radius: 0; clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); background: #eef2f8; border: 1px solid #ccd4e2; color: #4a5568; font-family: 'Manrope', sans-serif; }
+  .origami .chip.pos { background: #e4f3e8; color: #3d7a4f; }
+  .origami .chip.neg { background: #fbe6e4; color: #b0463c; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>VELLUM · More Chrome Mockups III</h1>
+  <p>Six more chrome concepts in registers the set hasn't touched, each a floating window with the six customizable surfaces (Present, Bonds, Cast, Beats, Factions, Items): <b>Aquarelle</b> (wet-on-wet watercolor), <b>Werkbund</b> (Bauhaus primary geometry), <b>Almanac</b> (antique celestial atlas), <b>Terrazzo</b> (Memphis-80s confetti), <b>Loom</b> (woven textile), and <b>Origami</b> (folded cut-paper). Built to slot into the existing Chrome + Skin + CHROME_SHAPES architecture; fonts load from Google Fonts on demand. Animated — respects prefers-reduced-motion.</p>
+</div>
+
+<!-- ========================= AQUARELLE ========================= -->
+<div class="theme-block">
+  <div class="theme-label aquarelle">
+    <span class="name" style="color:#4a6fa5">Aquarelle</span>
+    <span class="blurb">Wet-on-wet watercolor — indigo &amp; rose pigment blooms, granulated washes on cold-press paper.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#4a6fa5"></span>
+      <span class="sw" style="background:#c65f7a"></span>
+      <span class="sw" style="background:#5c9a6a"></span>
+      <span class="sw" style="background:#fbf9f4"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'aquarelle' · skinLight:'aquarelle-paper' / skinDark:'aquarelle-nocturne' · new ShapeId:'wash' / 'bleed' · texture:'coldpress' · serif:F_WASH (Caveat / Petrona) · radius:14 border:1 · motion: pigment bloom + granulation</div>
+  <div class="aquarelle">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> The Oracle · Sketchbook</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">The wash is still wet; two colors reach for each other and bleed into one.</div>
+          <div class="line muted">Scene: the studio window, grey afternoon light</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">EL</span><div><div class="line">Elowen <b class="val">+63</b></div><div class="tension"><i style="width:63%"></i></div></div></div>
+          <span class="chip pos">Muse</span><span class="chip neg">Rival</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">JO</span><span class="line">Jonah <span class="muted val">Framer</span></span></div>
+          <div class="cast-row"><span class="avatar">MA</span><span class="line">Maris <span class="muted val">Dealer</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Lay the ground wash <b class="val">DONE</b></div>
+          <div class="line">2. Drop in the shadows</div>
+          <div class="line muted">3. The exhibition</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Salon <b class="val">72%</b></div>
+          <div class="tension"><i style="width:72%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Sable brush x4</span><span class="chip pos">Ultramarine</span><span class="chip neg">Buckled paper</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= WERKBUND ========================= -->
+<div class="theme-block">
+  <div class="theme-label werkbund">
+    <span class="name" style="color:#e2231a">Werkbund</span>
+    <span class="blurb">Bauhaus primary geometry — red, cobalt &amp; chrome-yellow blocks on black-and-white, hard grid.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#e2231a"></span>
+      <span class="sw" style="background:#1c4fd8"></span>
+      <span class="sw" style="background:#f4c20d"></span>
+      <span class="sw" style="background:#111111"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'werkbund' · skinLight:'werkbund-paper' / skinDark:'werkbund-nacht' · new ShapeId:'blockframe' / 'circle-square' · texture:'letterpress' · serif:F_GROTESK (Jost) · radius:0 border:2.5 · motion: block snap + color-cycle + badge spin</div>
+  <div class="werkbund">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE / STAATLICHES</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>PRESENT</h3>
+          <div class="line">Everything squared to the grid. The composition holds. Nothing is accidental.</div>
+          <div class="line muted">Scene: the workshop, north light, 09:00</div>
+        </div>
+        <div class="card">
+          <h3>BONDS</h3>
+          <div class="cast-row"><span class="avatar">AN</span><div><div class="line">Anni <b class="val">+70</b></div><div class="tension"><i style="width:70%"></i></div></div></div>
+          <span class="chip pos">Master</span><span class="chip neg">Reactionary</span>
+        </div>
+        <div class="card">
+          <h3>CAST</h3>
+          <div class="cast-row"><span class="avatar">LA</span><span class="line">Laszlo <span class="muted val">Metal</span></span></div>
+          <div class="cast-row"><span class="avatar">OS</span><span class="line">Oskar <span class="muted val">Stage</span></span></div>
+        </div>
+        <div class="card">
+          <h3>BEATS</h3>
+          <div class="line">1. Rule the grid <b class="val">DONE</b></div>
+          <div class="line">2. Print the manifesto</div>
+          <div class="line muted">3. The exhibition</div>
+        </div>
+        <div class="card">
+          <h3>FACTIONS</h3>
+          <div class="line">The Workshop <b class="val">84%</b></div>
+          <div class="tension"><i style="width:84%"></i></div>
+        </div>
+        <div class="card">
+          <h3>ITEMS</h3>
+          <span class="chip">T-square</span><span class="chip pos">Primary set</span><span class="chip neg">Warped board</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= ALMANAC ========================= -->
+<div class="theme-block">
+  <div class="theme-label almanac">
+    <span class="name" style="color:#b0863a">Almanac</span>
+    <span class="blurb">Antique celestial atlas — engraved constellations &amp; brass on ink, sepia star-chart.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#b0863a"></span>
+      <span class="sw" style="background:#7c94b0"></span>
+      <span class="sw" style="background:#c9a24a"></span>
+      <span class="sw" style="background:#14120e"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'almanac' · skinDark:'almanac-nocturne' / skinLight:'almanac-vellum' · new ShapeId:'astrolabe' / 'constellation' · texture:'starchart' · serif:F_ENGRAVED (IM Fell English) · radius:3 border:1 · motion: star twinkle + orbiting node</div>
+  <div class="almanac">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> The Oracle &#10038; Uranographia</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">The astrolabe aligns; a star long thought fixed begins, faintly, to wander.</div>
+          <div class="line muted">Scene: the observatory dome, midnight, clear</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">CA</span><div><div class="line">Cassia <b class="val">+59</b></div><div class="tension"><i style="width:59%"></i></div></div></div>
+          <span class="chip pos">Colleague</span><span class="chip neg">Skeptic</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">TY</span><span class="line">Tycho <span class="muted val">Cartographer</span></span></div>
+          <div class="cast-row"><span class="avatar">VE</span><span class="line">Vera <span class="muted val">Engraver</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Chart the quadrant <b class="val">DONE</b></div>
+          <div class="line">2. Name the new star</div>
+          <div class="line muted">3. Present to the academy</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Academy <b class="val">76%</b></div>
+          <div class="tension"><i style="width:76%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Brass sextant</span><span class="chip pos">Clear ephemeris</span><span class="chip neg">Foxed chart</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= TERRAZZO ========================= -->
+<div class="theme-block">
+  <div class="theme-label terrazzo">
+    <span class="name" style="color:#ff5c8a">Terrazzo</span>
+    <span class="blurb">Memphis-80s confetti — pink &amp; teal chips, squiggles &amp; zigzags, playful geometric pop.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#ff5c8a"></span>
+      <span class="sw" style="background:#23c4b8"></span>
+      <span class="sw" style="background:#ffb43a"></span>
+      <span class="sw" style="background:#4a7aff"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'terrazzo' · skinLight:'terrazzo-cream' / skinDark:'terrazzo-neon' · new ShapeId:'chip' / 'squiggle' · texture:'confetti' · serif:F_MEMPHIS (Fredoka) · radius:16 border:2.5 · motion: chip settle + squiggle wiggle</div>
+  <div class="terrazzo">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> The Oracle &#9670; Studio Memphis</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">Nothing matches and that's the point — the whole room hums at a friendly angle.</div>
+          <div class="line muted">Scene: the design studio, neon afternoon</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">ET</span><div><div class="line">Ettore <b class="val">+67</b></div><div class="tension"><i style="width:67%"></i></div></div></div>
+          <span class="chip pos">Collab</span><span class="chip neg">Purist</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">NA</span><span class="line">Nadia <span class="muted val">Lacquer</span></span></div>
+          <div class="cast-row"><span class="avatar">GI</span><span class="line">Gio <span class="muted val">Print</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Sketch the console <b class="val">DONE</b></div>
+          <div class="line">2. Lacquer the chips</div>
+          <div class="line muted">3. The Milan launch</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Collective <b class="val">79%</b></div>
+          <div class="tension"><i style="width:79%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Laminate x8</span><span class="chip pos">Squiggle jig</span><span class="chip neg">Chipped edge</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= LOOM ========================= -->
+<div class="theme-block">
+  <div class="theme-label loom">
+    <span class="name" style="color:#b0472e">Loom</span>
+    <span class="blurb">Woven textile — madder red &amp; indigo warp and weft, fair-isle bands, selvedge edges.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#b0472e"></span>
+      <span class="sw" style="background:#2f5a7a"></span>
+      <span class="sw" style="background:#c99340"></span>
+      <span class="sw" style="background:#efe6d2"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'loom' · skinLight:'loom-linen' / skinDark:'loom-indigo' · new ShapeId:'selvedge' / 'fairisle' · texture:'weave' · serif:F_TEXTILE (Zilla Slab) · radius:4 border:1 · motion: weave shimmer + thread</div>
+  <div class="loom">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> The Oracle &#9636; The Weaving Shed</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">The shuttle passes; another row of the pattern locks into the cloth for good.</div>
+          <div class="line muted">Scene: the loom room, dust in the window light</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">BR</span><div><div class="line">Bríd <b class="val">+64</b></div><div class="tension"><i style="width:64%"></i></div></div></div>
+          <span class="chip pos">Kin</span><span class="chip neg">Undercutter</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">EA</span><span class="line">Eamon <span class="muted val">Dyer</span></span></div>
+          <div class="cast-row"><span class="avatar">SI</span><span class="line">Sile <span class="muted val">Spinner</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Warp the loom <b class="val">DONE</b></div>
+          <div class="line">2. Weave the border band</div>
+          <div class="line muted">3. The market fair</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Weavers' Guild <b class="val">83%</b></div>
+          <div class="tension"><i style="width:83%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Madder skein x6</span><span class="chip pos">Indigo vat</span><span class="chip neg">Snapped warp</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= ORIGAMI ========================= -->
+<div class="theme-block">
+  <div class="theme-label origami">
+    <span class="name" style="color:#e07a54">Origami</span>
+    <span class="blurb">Folded cut-paper — coral &amp; slate creases, layered paper shadows, low-poly folded corners.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#e07a54"></span>
+      <span class="sw" style="background:#5a86c4"></span>
+      <span class="sw" style="background:#5fa872"></span>
+      <span class="sw" style="background:#eef1f6"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'origami' · skinLight:'origami-kami' / skinDark:'origami-sumi' · new ShapeId:'fold' / 'crease' · texture:'creases' · serif:F_FOLD (Manrope) · radius:3 border:0 · motion: paper fold + layer lift</div>
+  <div class="origami">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE / KAMI</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">One more fold and the flat sheet becomes a thing that can stand on its own.</div>
+          <div class="line muted">Scene: the low table, a single square of paper</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">HA</span><div><div class="line">Haru <b class="val">+61</b></div><div class="tension"><i style="width:61%"></i></div></div></div>
+          <span class="chip pos">Student</span><span class="chip neg">Doubter</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">KO</span><span class="line">Kohaku <span class="muted val">Binder</span></span></div>
+          <div class="cast-row"><span class="avatar">NA</span><span class="line">Nao <span class="muted val">Papermaker</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Score the creases <b class="val">DONE</b></div>
+          <div class="line">2. Collapse the base</div>
+          <div class="line muted">3. The gallery folding</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Folding Circle <b class="val">75%</b></div>
+          <div class="tension"><i style="width:75%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Washi x10</span><span class="chip pos">Bone folder</span><span class="chip neg">Torn crease</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

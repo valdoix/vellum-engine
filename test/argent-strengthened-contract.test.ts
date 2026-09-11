@@ -19,7 +19,7 @@ interface PromptBlock {
 
 const preset = JSON.parse(
   readFileSync(new URL('../presets/argent-loom.json', import.meta.url), 'utf8'),
-) as { presetVersion: string; blocks: PromptBlock[] };
+) as { presetVersion: string; blocks: PromptBlock[]; completionSettings: { reasoningPrefill: string } };
 
 function block(id: string): string {
   const found = preset.blocks.find((entry) => entry.id === id);
@@ -51,7 +51,7 @@ function expandedBlock(id: string, overrides: Record<string, unknown> = {}): str
 
 describe('ARGENT strengthened invariants', () => {
   it('ships the 1.3 control surface without Guided Choices', () => {
-    expect(preset.presetVersion).toBe('1.3.0');
+    expect(preset.presetVersion).toBe('1.3.1');
     expect(() => variable('guided_choices')).toThrow();
     expect(preset.blocks.some((entry) => entry.content.includes('<argent-choices>'))).toBe(false);
   });
@@ -136,6 +136,20 @@ describe('ARGENT strengthened invariants', () => {
     expect(controller).toContain('roughly 250–500 words');
     expect(controller).toContain('X — Final checks');
     expect(output).toContain('eight bounded Verbose sections');
+  });
+
+  it('runs Native Private Reasoning as a robust eight-section ARGENT Reverie', () => {
+    const native = expandedBlock('arg-controller', { reasoning_route: 'native', state_on: 1, state_compiler: 'engine' });
+    expect(native).toContain('[ARGENT — PRIVATE]');
+    expect(native).toContain('one bounded robust ARGENT Reverie');
+    for (const label of ['A — Authority', 'R — Reality', 'G — Gnosis', 'E — Embodiment', 'N — Narrative', 'T — Truthful deltas', 'V — Voice', 'X — Final checks']) {
+      expect(native).toContain(label);
+    }
+    expect(native).toContain('Never expose this audit');
+    expect(native).not.toContain('Begin the response with <reverie>');
+    expect(preset.completionSettings.reasoningPrefill).toContain('[ARGENT PRIVATE REVERIE]');
+    expect(preset.completionSettings.reasoningPrefill).toContain('A — Authority');
+    expect(preset.completionSettings.reasoningPrefill).toContain('X — Final');
   });
 
   it('assembles every planning route correctly across engine, inline, and state-off modes', () => {

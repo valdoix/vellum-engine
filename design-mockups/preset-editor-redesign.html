@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II &mdash; Preset Editor Redesign Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600&family=JetBrains+Mono:wght@300;400;500;600;700&family=Cinzel:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e0b07; --bg2:#15100a;
+  --surf:rgba(28,20,12,.76); --surf2:rgba(40,29,16,.62); --surf3:rgba(52,38,22,.5);
+  --kl:rgba(205,168,78,.22); --kl2:rgba(205,168,78,.44);
+  --g:#cda84e; --gb:#e6c56b; --gd:#8a7238; --gf:rgba(205,168,78,.1);
+  --ink:#e7d6ad; --id:#a99a76; --if:#6f6448;
+  --neg:#9c3b32; --negi:#c85a4e;
+  --sage:#6f8a5f; --sagei:#9ab88a;
+  --info:#4a6e9c; --infoi:#7aaad8;
+  --warn:#c4882a; --warni:#e0a84a;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --display:'Cinzel',serif;
+  --play:'Playfair Display',Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(1400px 700px at 15% -10%,rgba(205,168,78,.07),transparent 58%),radial-gradient(900px 500px at 95% 5%,rgba(156,59,50,.05),transparent 52%),radial-gradient(600px 400px at 50% 100%,rgba(111,138,95,.04),transparent 60%),linear-gradient(165deg,var(--bg),var(--bg2));background-attachment:fixed;color:var(--ink);font-family:var(--serif);font-size:16px;line-height:1.55;min-height:100vh;padding-bottom:8rem}
+.mast{text-align:center;padding:4.5rem 1.5rem 3rem;position:relative;overflow:hidden}
+.mast-seal{width:72px;height:72px;margin:0 auto 1.5rem;border-radius:50%;background:radial-gradient(circle at 32% 28%,var(--gb),var(--gd));box-shadow:0 0 0 1px var(--kl2),0 0 0 8px rgba(205,168,78,.08),0 12px 40px rgba(205,168,78,.22);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:2rem;color:#1e1408;font-weight:700}
+.mast h1{font-family:var(--display);font-size:3rem;color:var(--gb);letter-spacing:.12em;text-transform:uppercase}
+.mast .sub{color:var(--id);font-style:italic;font-size:1.15rem;margin-top:.4rem;font-family:var(--play)}
+.mast .ctx{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--g);margin-top:1rem}
+.nav{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,rgba(14,11,7,.97),rgba(14,11,7,.84));backdrop-filter:blur(16px);border-bottom:1px solid var(--kl);padding:.7rem 0}
+.nav-inner{max-width:1400px;margin:0 auto;padding:0 1.5rem;display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.nav a{color:var(--id);text-decoration:none;font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;padding:.35rem .75rem;border:1px solid transparent;border-radius:3px;transition:all .18s}
+.nav a:hover{color:var(--gb);border-color:var(--kl)}
+.nav .tag{color:var(--g);font-weight:700;font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;margin-right:.4rem}
+.concept{padding:4rem 1.5rem 2rem;max-width:1400px;margin:0 auto}
+.concept-head{margin-bottom:2rem}
+.concept-head .kicker{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--g);margin-bottom:.5rem}
+.concept-head h2{font-family:var(--display);font-size:2rem;color:var(--ink);letter-spacing:.08em}
+.concept-head .desc{color:var(--id);font-style:italic;max-width:68ch;margin-top:.5rem;font-size:.95rem;font-family:var(--play)}
+.hr{height:1px;background:linear-gradient(90deg,transparent,var(--kl),transparent);margin:3rem 0}
+.pill{display:inline-block;font-family:var(--mono);font-size:.54rem;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid transparent}
+.pill.gold{color:var(--gb);border-color:rgba(205,168,78,.35);background:rgba(205,168,78,.1)}
+.pill.sage{color:var(--sagei);border-color:rgba(111,138,95,.35);background:rgba(111,138,95,.1)}
+.pill.info{color:var(--infoi);border-color:rgba(74,110,156,.35);background:rgba(74,110,156,.1)}
+.pill.neg{color:var(--negi);border-color:rgba(156,59,50,.35);background:rgba(156,59,50,.1)}
+.pill.warn{color:var(--warni);border-color:rgba(196,136,42,.35);background:rgba(196,136,42,.1)}
+.btn{display:inline-flex;align-items:center;gap:.45rem;font-family:var(--mono);font-size:.6rem;letter-spacing:.07em;text-transform:uppercase;padding:.45rem .95rem;border-radius:5px;cursor:pointer;border:1px solid var(--kl);background:transparent;color:var(--id);transition:all .18s}
+.btn:hover{border-color:var(--kl2);color:var(--g);background:var(--gf)}
+.btn.primary{border-color:rgba(205,168,78,.5);color:var(--g);background:rgba(205,168,78,.08)}
+.tog{display:inline-flex;width:36px;height:20px;border-radius:10px;border:1px solid var(--kl);background:rgba(205,168,78,.06);position:relative;cursor:pointer;flex-shrink:0}
+.tog::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--if);transition:all .2s}
+.tog.on{border-color:rgba(205,168,78,.6);background:rgba(205,168,78,.18)}
+.tog.on::after{left:18px;background:var(--g)}
+.sel{font-family:var(--mono);font-size:.7rem;color:var(--id);background:var(--surf2);border:1px solid var(--kl);border-radius:4px;padding:.35rem .65rem;appearance:none;cursor:pointer}
+.range{-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;background:var(--kl);width:100%;cursor:pointer}
+.range::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--g);border:2px solid var(--bg)}
+</style>
+</head>
+<body>
+<div class="mast">
+  <div class="mast-seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Preset Editor &mdash; Four Redesign Concepts</div>
+  <div class="ctx">Design Exploration &middot; 2026</div>
+</div>
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="tag">Concepts</span>
+    <a href="#c-atelier">I &middot; The Atelier</a>
+    <a href="#c-codex">II &middot; Illuminated Codex</a>
+    <a href="#c-engine">III &middot; The Engine Room</a>
+    <a href="#c-ritual">IV &middot; Ritual Interface</a>
+  </div>
+</nav>
+<style>
+/* ===== I · THE ATELIER ===== */
+.atl{display:grid;grid-template-columns:1fr 1.15fr;gap:0;border:1px solid var(--kl);border-radius:12px;overflow:hidden;background:var(--surf);box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.atl-rail{background:linear-gradient(180deg,var(--surf2),var(--surf3));border-right:1px solid var(--kl);padding:0}
+.atl-railhead{padding:1.1rem 1.2rem;border-bottom:1px solid var(--kl);display:flex;align-items:center;justify-content:space-between}
+.atl-railhead .t{font-family:var(--display);letter-spacing:.1em;color:var(--gb);font-size:.95rem}
+.atl-search{margin:1rem 1.2rem;position:relative}
+.atl-search input{width:100%;background:rgba(0,0,0,.25);border:1px solid var(--kl);border-radius:6px;padding:.5rem .75rem .5rem 1.9rem;color:var(--ink);font-family:var(--serif);font-size:.9rem}
+.atl-search .mag{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:var(--gd);font-size:.8rem}
+.atl-group{padding:.35rem 0}
+.atl-glabel{font-family:var(--mono);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--if);padding:.5rem 1.2rem .35rem}
+.atl-item{display:flex;align-items:center;gap:.65rem;padding:.5rem 1.2rem;cursor:pointer;border-left:2px solid transparent;transition:all .15s}
+.atl-item:hover{background:var(--gf);border-left-color:var(--kl2)}
+.atl-item.on{background:rgba(205,168,78,.12);border-left-color:var(--g)}
+.atl-item .dot{width:6px;height:6px;border-radius:50%;background:var(--gd);flex-shrink:0}
+.atl-item.on .dot{background:var(--gb);box-shadow:0 0 8px var(--g)}
+.atl-item .nm{flex:1;font-size:.9rem;color:var(--id)}
+.atl-item.on .nm{color:var(--ink)}
+.atl-item .vv{font-family:var(--mono);font-size:.58rem;color:var(--gd)}
+.atl-canvas{padding:0;display:flex;flex-direction:column}
+.atl-cvhead{padding:1.1rem 1.4rem;border-bottom:1px solid var(--kl);display:flex;align-items:center;justify-content:space-between}
+.atl-cvhead .crumb{font-family:var(--mono);font-size:.58rem;letter-spacing:.1em;color:var(--gd);text-transform:uppercase}
+.atl-cvhead .crumb b{color:var(--gb)}
+.atl-preview{margin:1.4rem;padding:1.6rem 1.8rem;border-radius:10px;background:linear-gradient(160deg,rgba(231,214,173,.05),rgba(0,0,0,.15));border:1px solid var(--kl);position:relative;min-height:180px}
+.atl-preview::before{content:"LIVE MANUSCRIPT";position:absolute;top:.7rem;right:1rem;font-family:var(--mono);font-size:.5rem;letter-spacing:.18em;color:var(--if)}
+.atl-preview p{font-family:var(--play);font-size:1.02rem;line-height:1.75;color:var(--ink);margin-bottom:.9rem}
+.atl-preview .redact{color:var(--gb);font-style:italic}
+.atl-preview .dim{color:var(--id)}
+.atl-controls{margin:0 1.4rem 1.4rem;padding:1.3rem;border-radius:10px;background:var(--surf2);border:1px solid var(--kl)}
+.atl-ctlhead{font-family:var(--display);font-size:1.15rem;color:var(--gb);letter-spacing:.06em;margin-bottom:.3rem}
+.atl-ctlsub{color:var(--id);font-style:italic;font-size:.85rem;margin-bottom:1.1rem;font-family:var(--play)}
+.atl-optrow{display:flex;flex-direction:column;gap:.55rem}
+.atl-opt{display:flex;align-items:center;gap:.75rem;padding:.6rem .8rem;border-radius:7px;border:1px solid var(--kl);background:rgba(0,0,0,.15);cursor:pointer;transition:all .15s}
+.atl-opt:hover{border-color:var(--kl2)}
+.atl-opt.on{border-color:var(--g);background:rgba(205,168,78,.1)}
+.atl-opt .rd{width:15px;height:15px;border-radius:50%;border:2px solid var(--gd);flex-shrink:0;position:relative}
+.atl-opt.on .rd{border-color:var(--g)}
+.atl-opt.on .rd::after{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--gb)}
+.atl-opt .ol{flex:1}
+.atl-opt .ot{font-family:var(--serif);font-size:1rem;color:var(--ink)}
+.atl-opt .od{font-size:.78rem;color:var(--id);font-style:italic}
+</style>
+<section class="concept" id="c-atelier">
+  <div class="concept-head">
+    <div class="kicker">Concept I</div>
+    <h2>The Atelier</h2>
+    <div class="desc">A writer&rsquo;s studio. The left rail is the index of every dial; the right is a living manuscript that rewrites itself the instant you change a setting &mdash; so you edit prose, not a form. What you tune, you see.</div>
+  </div>
+  <div class="atl">
+    <div class="atl-rail">
+      <div class="atl-railhead"><span class="t">&#10038; The Voice</span><span class="pill gold">53 dials</span></div>
+      <div class="atl-search"><span class="mag">&#9906;</span><input placeholder="Search dials&hellip;" value=""></div>
+      <div class="atl-group">
+        <div class="atl-glabel">Session</div>
+        <div class="atl-item on"><span class="dot"></span><span class="nm">Point of View</span><span class="vv">3rd ltd</span></div>
+        <div class="atl-item"><span class="dot"></span><span class="nm">Length</span><span class="vv">adaptive</span></div>
+        <div class="atl-item"><span class="dot"></span><span class="nm">Prose Register</span><span class="vv">literary</span></div>
+        <div class="atl-item"><span class="dot"></span><span class="nm">Stakes</span><span class="vv">grounded</span></div>
+      </div>
+      <div class="atl-group">
+        <div class="atl-glabel">Style &amp; Era</div>
+        <div class="atl-item"><span class="dot"></span><span class="nm">Era / Idiom</span><span class="vv">off</span></div>
+        <div class="atl-item"><span class="dot"></span><span class="nm">Tonal Cast</span><span class="vv">off</span></div>
+      </div>
+      <div class="atl-group">
+        <div class="atl-glabel">Mature</div>
+        <div class="atl-item"><span class="dot"></span><span class="nm">NSFW Level</span><span class="vv">romantic</span></div>
+      </div>
+    </div>
+    <div class="atl-canvas">
+      <div class="atl-cvhead"><span class="crumb">Session &rsaquo; <b>Point of View</b></span><span class="pill sage">unsaved &middot; live</span></div>
+      <div class="atl-preview">
+        <p>The door gave under <span class="dim">her</span> hand. <span class="redact">She</span> stepped into the dark of the archive and let it close behind <span class="redact">her</span>, the hush folding over the sound of <span class="redact">her</span> own breath.</p>
+        <p class="dim">Somewhere in the stacks a page turned that no one had touched.</p>
+      </div>
+      <div class="atl-controls">
+        <div class="atl-ctlhead">Point of View</div>
+        <div class="atl-ctlsub">Whose eyes the story looks through. Watch the manuscript above rewrite as you choose.</div>
+        <div class="atl-optrow">
+          <div class="atl-opt"><span class="rd"></span><span class="ol"><span class="ot">First person</span><span class="od"> &mdash; one focal interiority, &ldquo;I stepped into the dark&hellip;&rdquo;</span></span></div>
+          <div class="atl-opt"><span class="rd"></span><span class="ol"><span class="ot">Second person</span><span class="od"> &mdash; &ldquo;you&rdquo;; the reader is the character</span></span></div>
+          <div class="atl-opt on"><span class="rd"></span><span class="ol"><span class="ot">Third limited</span><span class="od"> &mdash; perceive only what the focal character could</span></span></div>
+          <div class="atl-opt"><span class="rd"></span><span class="ol"><span class="ot">Third omniscient</span><span class="od"> &mdash; glide between minds with clean transitions</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="hr"></div>
+<style>
+/* ===== II · ILLUMINATED CODEX ===== */
+.cdx{border:1px solid var(--kl);border-radius:14px;overflow:hidden;background:radial-gradient(1000px 500px at 50% -10%,rgba(205,168,78,.06),transparent 60%),var(--surf);box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.cdx-head{text-align:center;padding:2rem 1.5rem 1.4rem;border-bottom:1px solid var(--kl);position:relative}
+.cdx-head::before,.cdx-head::after{content:"&#10086;";position:absolute;top:2.1rem;color:var(--gd);font-size:1.2rem}
+.cdx-head::before{left:2rem}.cdx-head::after{right:2rem;transform:scaleX(-1)}
+.cdx-head .drop{font-family:var(--display);font-size:1.6rem;color:var(--gb);letter-spacing:.14em;text-transform:uppercase}
+.cdx-head .leg{font-family:var(--play);font-style:italic;color:var(--id);font-size:.95rem;margin-top:.3rem}
+.cdx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--kl)}
+.cdx-cell{background:var(--surf);padding:1.4rem 1.3rem;position:relative;transition:background .2s}
+.cdx-cell:hover{background:var(--surf2)}
+.cdx-cell .illum{font-family:var(--display);font-size:2.4rem;color:var(--gb);float:left;line-height:.85;margin:.1rem .6rem 0 0;text-shadow:0 2px 8px rgba(205,168,78,.3)}
+.cdx-cell .cname{font-family:var(--mono);font-size:.55rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gd);margin-bottom:.5rem}
+.cdx-cell .cval{font-family:var(--play);font-size:1.15rem;color:var(--ink);font-style:italic;margin-bottom:.15rem}
+.cdx-cell .cdesc{font-size:.8rem;color:var(--id);line-height:1.5;clear:both;padding-top:.3rem}
+.cdx-cell .marg{position:absolute;top:1rem;right:1rem;font-family:var(--mono);font-size:.5rem;color:var(--if);letter-spacing:.1em}
+.cdx-cell.lit{background:linear-gradient(160deg,rgba(205,168,78,.1),var(--surf))}
+.cdx-cell.lit .cval{color:var(--gb)}
+.cdx-foot{padding:1.2rem 1.5rem;border-top:1px solid var(--kl);display:flex;align-items:center;justify-content:space-between;background:var(--surf2)}
+.cdx-foot .note{font-family:var(--play);font-style:italic;color:var(--id);font-size:.85rem}
+</style>
+<section class="concept" id="c-codex">
+  <div class="concept-head">
+    <div class="kicker">Concept II</div>
+    <h2>The Illuminated Codex</h2>
+    <div class="desc">The preset as a medieval manuscript page. Each setting is an illuminated capital in a grid of marginalia. Active dials glow gold; the whole page reads like a spellbook of your story&rsquo;s laws. Beauty as navigation.</div>
+  </div>
+  <div class="cdx">
+    <div class="cdx-head">
+      <div class="drop">Liber Vellum</div>
+      <div class="leg">the book of what this story shall be</div>
+    </div>
+    <div class="cdx-grid">
+      <div class="cdx-cell lit"><span class="illum">P</span><div class="cname">Perspective</div><div class="cval">Third Limited</div><div class="cdesc">Perceive only what the focal character could.</div><span class="marg">i.</span></div>
+      <div class="cdx-cell"><span class="illum">L</span><div class="cname">Length</div><div class="cval">Adaptive</div><div class="cdesc">Match the beat &mdash; terse or full, never padded.</div><span class="marg">ii.</span></div>
+      <div class="cdx-cell lit"><span class="illum">R</span><div class="cname">Register</div><div class="cval">Literary</div><div class="cdesc">Measured sentences, earned metaphor, deep interiority.</div><span class="marg">iii.</span></div>
+      <div class="cdx-cell"><span class="illum">S</span><div class="cname">Stakes</div><div class="cval">Grounded</div><div class="cdesc">Mistakes cost something but aren&rsquo;t ruinous.</div><span class="marg">iv.</span></div>
+      <div class="cdx-cell lit"><span class="illum">E</span><div class="cname">Era</div><div class="cval">Victorian</div><div class="cdesc">Gaslight, rail and telegraph; the machine age.</div><span class="marg">v.</span></div>
+      <div class="cdx-cell"><span class="illum">C</span><div class="cname">Tonal Cast</div><div class="cval">Blue</div><div class="cdesc">A melancholy, elegiac wash over the prose.</div><span class="marg">vi.</span></div>
+    </div>
+    <div class="cdx-foot">
+      <span class="note">&#10038; Six of fifty-three laws inscribed &middot; the rest sleep in the margins</span>
+      <span><button class="btn">&#9906; Reveal all</button> <button class="btn primary">&#10003; Seal the codex</button></span>
+    </div>
+  </div>
+</section>
+<div class="hr"></div>
+<style>
+/* ===== III · THE ENGINE ROOM ===== */
+.eng{border:1px solid rgba(122,170,216,.25);border-radius:10px;overflow:hidden;background:linear-gradient(165deg,#0a0e14,#0c1219);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(122,170,216,.08);font-family:var(--mono)}
+.eng-bar{display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;background:#070a0f;border-bottom:1px solid rgba(122,170,216,.2)}
+.eng-dot{width:9px;height:9px;border-radius:50%}
+.eng-dot.r{background:#c85a4e}.eng-dot.y{background:#e0a84a}.eng-dot.g{background:#6f8a5f}
+.eng-bar .ttl{margin-left:.5rem;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:#7aaad8}
+.eng-bar .stat{margin-left:auto;font-size:.55rem;color:#4a6e9c;letter-spacing:.1em}
+.eng-body{display:grid;grid-template-columns:180px 1fr;min-height:340px}
+.eng-side{background:#070a0f;border-right:1px solid rgba(122,170,216,.15);padding:.8rem 0}
+.eng-navitem{padding:.5rem 1rem;font-size:.62rem;letter-spacing:.08em;color:#587390;cursor:pointer;border-left:2px solid transparent;display:flex;align-items:center;gap:.5rem}
+.eng-navitem:hover{background:rgba(122,170,216,.05);color:#7aaad8}
+.eng-navitem.on{border-left-color:#7aaad8;color:#9ec5ea;background:rgba(122,170,216,.08)}
+.eng-navitem .c{margin-left:auto;font-size:.5rem;color:#4a6e9c}
+.eng-main{padding:1.2rem 1.4rem;overflow:auto}
+.eng-sec{font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:#4a6e9c;margin:0 0 .8rem;padding-bottom:.4rem;border-bottom:1px dashed rgba(122,170,216,.2)}
+.eng-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:1rem;padding:.55rem .6rem;border-radius:4px;transition:background .15s}
+.eng-row:hover{background:rgba(122,170,216,.05)}
+.eng-row .k{font-size:.68rem;color:#c9d6e5}
+.eng-row .k .path{color:#4a6e9c;font-size:.55rem;display:block;margin-top:.1rem}
+.eng-val{font-size:.62rem;color:#7aaad8;background:rgba(122,170,216,.08);border:1px solid rgba(122,170,216,.2);border-radius:3px;padding:.2rem .55rem}
+.eng-tog{width:34px;height:18px;border-radius:9px;border:1px solid rgba(122,170,216,.3);background:rgba(122,170,216,.06);position:relative}
+.eng-tog::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#3a4f68;transition:.2s}
+.eng-tog.on{background:rgba(122,170,216,.2);border-color:#7aaad8}
+.eng-tog.on::after{left:16px;background:#9ec5ea}
+.eng-meter{margin-top:1rem;padding:.8rem;background:#070a0f;border:1px solid rgba(122,170,216,.15);border-radius:5px}
+.eng-meter .ml{font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;color:#4a6e9c;display:flex;justify-content:space-between}
+.eng-meter .mbar{height:5px;border-radius:3px;background:rgba(122,170,216,.12);margin-top:.5rem;overflow:hidden}
+.eng-meter .mfill{height:100%;background:linear-gradient(90deg,#4a6e9c,#7aaad8);width:62%}
+</style>
+<section class="concept" id="c-engine">
+  <div class="concept-head">
+    <div class="kicker">Concept III</div>
+    <h2>The Engine Room</h2>
+    <div class="desc">For power users. The preset laid bare as an instrument panel &mdash; every block a labelled system with its raw variable path exposed, a live token meter, and a sidebar of subsystems. Cold, precise, diagnostic. This is the cockpit view.</div>
+  </div>
+  <div class="eng">
+    <div class="eng-bar">
+      <span class="eng-dot r"></span><span class="eng-dot y"></span><span class="eng-dot g"></span>
+      <span class="ttl">vellum-ii.engine &mdash; systems</span>
+      <span class="stat">53 blocks &middot; 41 active &middot; ~2.1k tok</span>
+    </div>
+    <div class="eng-body">
+      <div class="eng-side">
+        <div class="eng-navitem on">&#9636; Core <span class="c">9</span></div>
+        <div class="eng-navitem">&#9704; World &amp; Cast <span class="c">7</span></div>
+        <div class="eng-navitem">&#9829; Tone <span class="c">5</span></div>
+        <div class="eng-navitem">&#10058; Variance <span class="c">5</span></div>
+        <div class="eng-navitem">&#9881; Contract <span class="c">6</span></div>
+        <div class="eng-navitem">&#9888; Mature <span class="c">3</span></div>
+        <div class="eng-navitem">&#9640; Visual <span class="c">4</span></div>
+        <div class="eng-navitem">&#8853; Errata <span class="c">1</span></div>
+      </div>
+      <div class="eng-main">
+        <div class="eng-sec">// core &mdash; session parameters</div>
+        <div class="eng-row"><div class="k">Point of View<span class="path">var::pov</span></div><span class="eng-val">third_lim &#9662;</span></div>
+        <div class="eng-row"><div class="k">Length<span class="path">var::length</span></div><span class="eng-val">adaptive &#9662;</span></div>
+        <div class="eng-row"><div class="k">Prose Register<span class="path">var::prose</span></div><span class="eng-val">literary &#9662;</span></div>
+        <div class="eng-row"><div class="k">OOC Channel<span class="path">var::ooc</span></div><span class="eng-tog on"></span></div>
+        <div class="eng-sec" style="margin-top:1.2rem">// contract &mdash; engine i/o</div>
+        <div class="eng-row"><div class="k">State Block<span class="path">var::state_on</span></div><span class="eng-tog on"></span></div>
+        <div class="eng-row"><div class="k">Verbosity<span class="path">var::state_verbosity</span></div><span class="eng-val">lean &#9662;</span></div>
+        <div class="eng-row"><div class="k">Reverie Depth<span class="path">var::reverie_depth</span></div><span class="eng-val">standard &#9662;</span></div>
+        <div class="eng-meter">
+          <div class="ml"><span>PROMPT BUDGET</span><span>2,134 / 3,400 tok</span></div>
+          <div class="mbar"><div class="mfill"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="hr"></div>
+<style>
+/* ===== IV · RITUAL INTERFACE ===== */
+.rit{position:relative;border-radius:12px;overflow:hidden;background:radial-gradient(900px 500px at 50% -10%,rgba(156,59,50,.12),transparent 60%),linear-gradient(165deg,#120a09,#0a0605);border:1px solid rgba(156,59,50,.2);box-shadow:0 24px 70px rgba(0,0,0,.6);padding:2.5rem 2rem}
+.rit::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle at 50% 12%,rgba(205,168,78,.06) 0,transparent 2%);pointer-events:none}
+.rit-title{text-align:center;font-family:var(--display);font-size:1.5rem;letter-spacing:.3em;text-transform:uppercase;color:var(--gb);margin-bottom:.3rem}
+.rit-sub{text-align:center;font-family:var(--play);font-style:italic;color:var(--id);font-size:.92rem;margin-bottom:2rem}
+.rit-circle{max-width:620px;margin:0 auto;position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center}
+.rit-ring{position:absolute;border-radius:50%;border:1px solid rgba(205,168,78,.18)}
+.rit-ring.r1{inset:0;border-color:rgba(205,168,78,.12)}
+.rit-ring.r2{inset:14%;border-style:dashed;border-color:rgba(205,168,78,.16)}
+.rit-ring.r3{inset:30%;border-color:rgba(156,59,50,.2)}
+.rit-core{width:34%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(205,168,78,.22),rgba(30,20,10,.9));border:1px solid var(--kl2);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 0 40px rgba(205,168,78,.15),inset 0 0 30px rgba(0,0,0,.5)}
+.rit-core .cs{font-family:var(--display);font-size:1.6rem;color:var(--gb);letter-spacing:.1em}
+.rit-core .cl{font-family:var(--mono);font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;color:var(--id);margin-top:.2rem}
+.rit-node{position:absolute;width:74px;height:74px;border-radius:50%;background:var(--surf);border:1px solid var(--kl);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;transition:all .2s}
+.rit-node:hover{border-color:var(--kl2);box-shadow:0 0 24px rgba(205,168,78,.2);transform:scale(1.06)}
+.rit-node.on{border-color:var(--kl2);background:rgba(205,168,78,.1)}
+.rit-node.off{opacity:.4}
+.rit-node .gl{font-size:1rem;color:var(--g)}
+.rit-node .nl{font-family:var(--mono);font-size:.44rem;letter-spacing:.08em;text-transform:uppercase;color:var(--id);margin-top:.15rem}
+.rit-legend{display:flex;gap:1.5rem;justify-content:center;margin-top:2rem;flex-wrap:wrap}
+.rit-legend span{font-family:var(--mono);font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;color:var(--id);display:flex;align-items:center;gap:.4rem}
+.rit-legend .sw{width:10px;height:10px;border-radius:50%}
+</style>
+<section class="concept" id="c-ritual">
+  <div class="concept-head">
+    <div class="kicker">Concept IV</div>
+    <h2>The Ritual Interface</h2>
+    <div class="desc">The boldest departure. The preset as an orrery &mdash; a summoning circle where the companion sits at the core and every subsystem orbits it as a glyph-node you can tap to wake or dim. Radial, ceremonial, and unlike any settings panel you have seen. Hover a node to bring it forward.</div>
+  </div>
+  <div class="rit">
+    <div class="rit-title">The Binding</div>
+    <div class="rit-sub">vellum-ii &mdash; nine systems in orbit</div>
+    <div class="rit-circle">
+      <div class="rit-ring r1"></div>
+      <div class="rit-ring r2"></div>
+      <div class="rit-ring r3"></div>
+      <div class="rit-core"><div class="cs">V</div><div class="cl">Linked</div></div>
+      <div class="rit-node on" style="top:0;left:50%;transform:translate(-50%,0)"><span class="gl">&#9636;</span><span class="nl">Core</span></div>
+      <div class="rit-node on" style="top:12%;right:6%"><span class="gl">&#9704;</span><span class="nl">World</span></div>
+      <div class="rit-node on" style="top:50%;right:0;transform:translate(0,-50%)"><span class="gl">&#9829;</span><span class="nl">Tone</span></div>
+      <div class="rit-node on" style="bottom:12%;right:6%"><span class="gl">&#10058;</span><span class="nl">Variance</span></div>
+      <div class="rit-node on" style="bottom:0;left:50%;transform:translate(-50%,0)"><span class="gl">&#9881;</span><span class="nl">Contract</span></div>
+      <div class="rit-node off" style="bottom:12%;left:6%"><span class="gl">&#9888;</span><span class="nl">Mature</span></div>
+      <div class="rit-node off" style="top:50%;left:0;transform:translate(0,-50%)"><span class="gl">&#9640;</span><span class="nl">Visual</span></div>
+      <div class="rit-node on" style="top:12%;left:6%"><span class="gl">&#8853;</span><span class="nl">Errata</span></div>
+    </div>
+    <div class="rit-legend">
+      <span><span class="sw" style="background:var(--g)"></span>Woken</span>
+      <span><span class="sw" style="background:var(--if)"></span>Dormant</span>
+      <span><span class="sw" style="background:var(--negi)"></span>Gated</span>
+    </div>
+  </div>
+</section>
+<div style="text-align:center;padding:3rem 1.5rem;color:var(--if);font-family:var(--mono);font-size:.56rem;letter-spacing:.2em;text-transform:uppercase">Four concepts &middot; one companion &middot; VELLUM II</div>
+</body>
+</html>

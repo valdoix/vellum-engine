@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ember — MinimalMessage Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Quicksand:wght@400;500;700&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   EMBER — "a starlit night dreaming"
+   Chrome: ember · Skin: starfall (Ember Sky, dark)
+   accent #b8a9ff (lilac)  ·  accent2 #8fd6c8 (mint)
+   texture: starfall · font: F_ETHEREAL (Quicksand) · radius 22
+   Layout ported from Kittylit Ripple MinimalMessage.
+   -- FULL-PAGE starfield rework: layered nebula depth, drifting motes,
+      a milky-way band, deep space vignette; portrait rails are starlit
+      night scenes; figures are painted lilac/mint star-gazer illustrations.
+   ============================================================ */
+:root{
+  --lumiverse-bg:#0d0d1a;              /* indigo void */
+  --lumiverse-text:#e6e0f5;            /* pastel starlight ink */
+  --lumiverse-text-2:#b0a8d0;
+  --lumiverse-accent:#b8a9ff;          /* lilac */
+  --lumiverse-accent-2:#8fd6c8;        /* mint */
+  --surf-1:rgba(24,24,40,.62);
+  --surf-2:rgba(15,15,28,.58);
+  --glass-border:rgba(184,169,255,.16);
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --ethereal:'Quicksand','Cormorant Garamond',Georgia,serif;
+  --body:'EB Garamond',Georgia,serif;
+  --radius:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--body);
+  color:var(--lumiverse-text);
+  /* deep space: lilac nebula high-right, mint cloud low-left, milky band, void vignette */
+  background:
+    radial-gradient(1100px 620px at 82% -10%, rgba(184,169,255,.22), transparent 60%),
+    radial-gradient(960px 720px at 6% 112%, rgba(143,214,200,.16), transparent 60%),
+    radial-gradient(520px 420px at 68% 42%, rgba(150,120,220,.12), transparent 66%),
+    radial-gradient(600px 300px at 30% 20%, rgba(120,150,220,.1), transparent 70%),
+    radial-gradient(150% 130% at 50% 46%, transparent 52%, rgba(4,4,10,.72) 100%),
+    linear-gradient(165deg,#141430 0%, #0d0d1c 58%, #06060d 100%);
+  min-height:100vh;
+  padding:2.5rem 1.25rem 6rem;
+  overflow-x:hidden;
+}
+/* dense starfield + nebula cloud wash */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.7;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='24' cy='30' r='1.1' fill-opacity='0.7'/%3E%3Ccircle cx='120' cy='18' r='0.8' fill-opacity='0.5'/%3E%3Ccircle cx='72' cy='84' r='1.3' fill-opacity='0.6'/%3E%3Ccircle cx='140' cy='120' r='0.9' fill-opacity='0.55'/%3E%3Ccircle cx='40' cy='134' r='1' fill-opacity='0.45'/%3E%3Ccircle cx='196' cy='60' r='1' fill-opacity='0.5'/%3E%3Ccircle cx='178' cy='168' r='0.8' fill-opacity='0.4'/%3E%3Ccircle cx='90' cy='196' r='1.1' fill-opacity='0.5'/%3E%3C/g%3E%3Cg fill='%23b8a9ff'%3E%3Ccircle cx='60' cy='50' r='0.9' fill-opacity='0.5'/%3E%3Ccircle cx='150' cy='40' r='0.7' fill-opacity='0.4'/%3E%3Ccircle cx='30' cy='180' r='0.8' fill-opacity='0.45'/%3E%3Ccircle cx='206' cy='110' r='0.9' fill-opacity='0.4'/%3E%3C/g%3E%3Cg fill='%238fd6c8'%3E%3Ccircle cx='96' cy='52' r='0.9' fill-opacity='0.45'/%3E%3Ccircle cx='16' cy='96' r='1' fill-opacity='0.4'/%3E%3Ccircle cx='128' cy='72' r='0.7' fill-opacity='0.35'/%3E%3Ccircle cx='170' cy='210' r='0.9' fill-opacity='0.4'/%3E%3C/g%3E%3C/svg%3E");
+}
+/* soft nebula smoke drifting across the void */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;mix-blend-mode:screen;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='neb'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0.55  0 0 0 0 0.45  0 0 0 0 0.85  0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23neb)'/%3E%3C/svg%3E");
+  background-size:cover;
+}
+/* twinkling starlight */
+.star{position:fixed;z-index:0;pointer-events:none;border-radius:50%;
+  background:radial-gradient(circle,#fff,rgba(184,169,255,.5) 55%,transparent 72%);
+  animation:twinkle ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.2;transform:scale(.7)}50%{opacity:.95;transform:scale(1.15)}}
+.s1{top:14%;left:20%;width:5px;height:5px;animation-duration:4.2s}
+.s2{top:28%;left:74%;width:4px;height:4px;animation-duration:5.6s;animation-delay:-2s}
+.s3{top:62%;left:12%;width:6px;height:6px;animation-duration:3.8s;animation-delay:-1s}
+.s4{top:78%;left:86%;width:4px;height:4px;animation-duration:6.1s;animation-delay:-3s}
+.s5{top:44%;left:52%;width:3px;height:3px;animation-duration:4.9s;animation-delay:-2.5s}
+/* rising bubbles / fireflies */
+.bub{position:fixed;bottom:-30px;z-index:0;pointer-events:none;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,rgba(143,214,200,.55),rgba(184,169,255,.2) 60%,transparent 72%);
+  box-shadow:0 0 10px rgba(143,214,200,.4);animation:rise linear infinite}
+@keyframes rise{0%{transform:translateY(0) translateX(0);opacity:0}
+  12%{opacity:.7}88%{opacity:.7}100%{transform:translateY(-114vh) translateX(24px);opacity:0}}
+.b1{left:16%;width:12px;height:12px;animation-duration:20s}
+.b2{left:42%;width:8px;height:8px;animation-duration:26s;animation-delay:-8s}
+.b3{left:66%;width:14px;height:14px;animation-duration:22s;animation-delay:-13s}
+.b4{left:88%;width:9px;height:9px;animation-duration:28s;animation-delay:-4s}
+
+.stage{max-width:1080px;margin:0 auto;position:relative;z-index:1}
+.mock-label{
+  text-align:center;font-family:var(--ethereal);font-weight:700;color:var(--lumiverse-accent);
+  letter-spacing:.32em;text-transform:uppercase;font-size:.74rem;margin-bottom:.35rem;opacity:.85;
+}
+.mock-title{
+  text-align:center;font-family:var(--serif);font-weight:700;font-size:2.5rem;
+  color:var(--lumiverse-text);margin-bottom:.25rem;
+}
+.mock-sub{text-align:center;font-style:italic;color:var(--lumiverse-text-2);margin-bottom:2.75rem;font-family:var(--ethereal)}
+
+/* ---- message grid (character = portrait left, user = portrait right) ---- */
+.msg{
+  --avatar-w:clamp(150px,18vw,260px);
+  display:grid;grid-template-columns:var(--avatar-w) minmax(0,1fr);
+  column-gap:clamp(14px,1.6vw,26px);align-items:start;
+  margin-bottom:clamp(28px,3.4vw,52px);
+}
+.msg.user{grid-template-columns:minmax(0,1fr) var(--avatar-w)}
+
+/* sticky masked portrait rail */
+.avatar{
+  grid-column:1;grid-row:1/span 2;justify-self:start;position:sticky;top:24px;
+  width:var(--avatar-w);height:clamp(360px,52vh,560px);border-radius:var(--radius);
+  overflow:hidden;isolation:isolate;
+  -webkit-mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  -webkit-mask-composite:source-in;mask-composite:intersect;
+}
+.msg.user .avatar{grid-column:2;justify-self:end;
+  -webkit-mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+}
+.avatar .fill{position:absolute;inset:0}
+/* starlit night scene: moon-glow crown, nebula band, dark horizon */
+.portraitA{
+  background:
+    radial-gradient(70% 42% at 50% 6%, rgba(230,224,255,.6), transparent 58%),
+    radial-gradient(90% 60% at 30% 40%, rgba(150,120,220,.4), transparent 64%),
+    radial-gradient(60% 40% at 50% 100%, rgba(10,10,26,.9), transparent 66%),
+    linear-gradient(160deg,#cabfff,#7a68c6 46%,#26224a 100%);
+}
+.portraitB{
+  background:
+    radial-gradient(70% 42% at 50% 6%, rgba(214,244,236,.5), transparent 58%),
+    radial-gradient(90% 60% at 70% 40%, rgba(90,180,164,.34), transparent 64%),
+    radial-gradient(60% 40% at 50% 100%, rgba(8,20,18,.9), transparent 66%),
+    linear-gradient(160deg,#b3ebe0,#559a8c 48%,#1c3a34 100%);
+}
+/* starry speckle overlay on the plate */
+.avatar .grain{position:absolute;inset:0;opacity:.85;mix-blend-mode:screen;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='18' cy='22' r='0.9' fill-opacity='0.8'/%3E%3Ccircle cx='70' cy='40' r='0.7' fill-opacity='0.6'/%3E%3Ccircle cx='100' cy='16' r='0.8' fill-opacity='0.7'/%3E%3Ccircle cx='44' cy='70' r='0.6' fill-opacity='0.5'/%3E%3Ccircle cx='96' cy='90' r='0.9' fill-opacity='0.7'/%3E%3Ccircle cx='30' cy='104' r='0.7' fill-opacity='0.5'/%3E%3C/g%3E%3C/svg%3E");}
+.avatar .fig{position:absolute;inset:0;opacity:.94}
+.avatar::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 12%,rgba(255,255,255,.16),transparent 55%)}
+
+/* bubble lane */
+.bubble{grid-column:2;min-width:0}
+.msg.user .bubble{grid-column:1}
+
+.header{display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:8px 16px 14px}
+.name{font-family:var(--serif);font-weight:700;font-size:clamp(1.5rem,2vw,2.15rem);line-height:1.02;
+  background:linear-gradient(92deg,var(--lumiverse-accent),#d6cbff 60%,var(--lumiverse-accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.msg.user .name{background:linear-gradient(92deg,var(--lumiverse-accent-2),#c2efe6 60%,var(--lumiverse-accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.pill{font-family:var(--ethereal);font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.6;color:var(--lumiverse-text-2)}
+
+/* glass content card — ember uses a gilt-edge/tarot inner keyline */
+.content{position:relative;isolation:isolate;padding:18px 20px 20px;border-radius:var(--radius);overflow:hidden}
+.content::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
+  border:1px solid var(--glass-border);
+  background:color-mix(in srgb, var(--lumiverse-bg) 42%, transparent);
+  box-shadow:inset 0 0 0 1px rgba(184,169,255,.05),0 12px 36px rgba(0,0,0,.36);
+  backdrop-filter:blur(12px) saturate(122%);-webkit-backdrop-filter:blur(12px) saturate(122%);}
+.content::after{content:"";position:absolute;inset:6px;z-index:-1;border-radius:calc(var(--radius) - 8px);
+  border:1px solid color-mix(in srgb,var(--lumiverse-accent) 36%,transparent);
+  box-shadow:inset 0 0 14px color-mix(in srgb,var(--lumiverse-accent) 14%,transparent);pointer-events:none;opacity:.85}
+
+.prose{font-family:var(--body);font-size:1.06rem;line-height:1.72;text-align:justify;hyphens:auto;text-wrap:pretty}
+.prose p{margin:0 0 .9em}
+.prose p:last-child{margin-bottom:0}
+.prose em{font-style:italic;color:var(--lumiverse-text-2)}         /* thoughts / narration */
+.prose .say{color:var(--lumiverse-accent);text-shadow:0 1px 14px rgba(184,169,255,.22)} /* dialogue */
+.msg.user .prose .say{color:var(--lumiverse-accent-2)}
+.prose strong{color:#fff;font-weight:700}
+
+/* thinking pill + panel */
+.think-toggle{display:inline-flex;align-items:center;gap:.45rem;margin:14px 0 0;padding:.35rem .7rem;border-radius:999px;
+  font-family:var(--ethereal);border:1px solid rgba(184,169,255,.14);font-size:.72rem;opacity:.82;color:var(--lumiverse-text-2);
+  background:color-mix(in srgb,var(--lumiverse-bg) 72%,transparent);}
+.think-body{margin:12px 0 0;padding:12px 14px;border-radius:16px;font-style:italic;font-size:.98rem;color:var(--lumiverse-text-2);
+  border:1px solid rgba(184,169,255,.1);
+  background:radial-gradient(circle at 12% 0,rgba(184,169,255,.11),transparent 42%),color-mix(in srgb,var(--lumiverse-bg) 80%,transparent);}
+blockquote{margin:.2em 0;padding:.1em 0 .1em .9em;border-left:2px solid color-mix(in srgb,var(--lumiverse-accent) 55%,transparent);color:var(--lumiverse-text-2);font-style:italic}
+
+@media(max-width:720px){
+  .msg{--avatar-w:clamp(64px,26vw,120px)}
+  .avatar{height:clamp(180px,48vw,300px);top:14px}
+  .name{font-size:1.35rem}
+}
+</style>
+</head>
+<body>
+<span class="star s1"></span><span class="star s2"></span><span class="star s3"></span><span class="star s4"></span><span class="star s5"></span>
+<span class="bub b1"></span><span class="bub b2"></span><span class="bub b3"></span><span class="bub b4"></span>
+
+<div class="stage">
+  <div class="mock-label">Vellum · Ember</div>
+  <h1 class="mock-title">A Starlit Night, Dreaming</h1>
+  <p class="mock-sub">Lilac &amp; mint over the indigo void — MinimalMessage layout, Ember chrome.</p>
+
+  <!-- character message -->
+  <div class="msg character">
+    <div class="avatar"><div class="fill portraitA"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="eGownA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#d7ccff"/><stop offset=".5" stop-color="#8f7fd0"/><stop offset="1" stop-color="#302a52"/>
+          </linearGradient>
+          <linearGradient id="eRimA" x1="1" y1="0" x2="0" y2="0">
+            <stop offset="0" stop-color="#f2ecff" stop-opacity=".7"/><stop offset="1" stop-color="#f2ecff" stop-opacity="0"/>
+          </linearGradient>
+          <radialGradient id="eSkinA" cx=".44" cy=".4" r=".7">
+            <stop offset="0" stop-color="#efe3d6"/><stop offset="1" stop-color="#b294a0"/>
+          </radialGradient>
+        </defs>
+        <!-- stargazer, head tipped back toward the sky -->
+        <g>
+          <!-- flowing gown -->
+          <path d="M48 400 C46 300 58 236 80 214 C90 204 110 204 120 214 C142 236 154 300 152 400 Z" fill="url(#eGownA)"/>
+          <!-- fold shading -->
+          <g stroke="#2a2448" stroke-opacity=".45" stroke-width="2" fill="none">
+            <path d="M92 234 C88 292 84 346 82 396"/><path d="M110 234 C114 292 118 346 120 396"/>
+          </g>
+          <!-- rim light -->
+          <path d="M120 214 C142 236 154 300 152 400 L142 400 C142 306 132 240 110 218 Z" fill="url(#eRimA)"/>
+          <!-- shoulders / neck (head tilted) -->
+          <path d="M80 218 C88 200 112 200 122 216 C112 206 90 206 80 218 Z" fill="url(#eSkinA)"/>
+          <rect x="96" y="186" width="12" height="20" rx="5" fill="url(#eSkinA)" transform="rotate(-8 102 196)"/>
+          <!-- head, tilted up -->
+          <ellipse cx="98" cy="158" rx="24" ry="27" fill="url(#eSkinA)" transform="rotate(-10 98 158)"/>
+          <!-- long hair drifting like it floats -->
+          <path d="M74 156 C66 120 128 116 124 158 C130 190 118 214 108 226 C120 200 120 176 112 156 C100 150 86 150 78 160 Z" fill="#3a3260"/>
+          <path d="M120 158 C132 182 128 214 116 236 C126 208 124 180 116 160 Z" fill="#4a4078" opacity=".7"/>
+          <!-- pointing arm raised to the stars -->
+          <g transform="translate(120 200) rotate(-42)">
+            <rect x="0" y="-7" width="70" height="13" rx="6" fill="url(#eGownA)"/>
+            <ellipse cx="72" cy="0" rx="8" ry="6" fill="url(#eSkinA)"/>
+          </g>
+          <!-- little star at the fingertip -->
+          <g transform="translate(176 152)" fill="#fff">
+            <path d="M0 -7 L1.6 -1.6 L7 0 L1.6 1.6 L0 7 L-1.6 1.6 L-7 0 L-1.6 -1.6 Z" opacity=".95"/>
+          </g>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">Vesper</div><div class="pill">the observatory · midnight</div></div>
+      <div class="content">
+        <div class="prose">
+          <p><em>She tips her head back against the cold brass of the telescope mount, tracing constellations that aren't on any chart.</em> Above the dome, the whole sky breathes — slow, violet, endless.</p>
+          <p><span class="say">"There. Do you see it?"</span> <em>Her finger draws a line between two faint stars.</em> <span class="say">"That's the one I named after you. It won't rise again for a hundred years."</span></p>
+          <blockquote>Every light up there is already a memory. We only ever look at the past and call it wonder.</blockquote>
+        </div>
+        <div class="think-toggle">&#129504; reasoning</div>
+        <div class="think-body">Lean into the dreamy, cosmic register — wistful, unhurried. She measures time in centuries, so let her tenderness feel a little untethered from ordinary hours.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- user message -->
+  <div class="msg user">
+    <div class="avatar"><div class="fill portraitB"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="eCoatB" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#bfeee4"/><stop offset=".5" stop-color="#6aa99a"/><stop offset="1" stop-color="#20423b"/>
+          </linearGradient>
+          <linearGradient id="eRimB" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#e6fff8" stop-opacity="0"/><stop offset="1" stop-color="#e6fff8" stop-opacity=".55"/>
+          </linearGradient>
+          <radialGradient id="eSkinB" cx=".56" cy=".4" r=".7">
+            <stop offset="0" stop-color="#ecdccb"/><stop offset="1" stop-color="#9c7864"/>
+          </radialGradient>
+        </defs>
+        <!-- seated companion, gazing up beside her -->
+        <g>
+          <path d="M50 400 C52 300 64 238 84 216 C92 206 108 206 116 216 C136 238 148 300 150 400 Z" fill="url(#eCoatB)"/>
+          <g stroke="#1a352f" stroke-opacity=".45" stroke-width="2" fill="none">
+            <path d="M92 236 C88 292 84 346 84 396"/><path d="M110 236 C114 292 118 346 118 396"/>
+          </g>
+          <path d="M116 216 C136 238 148 300 150 400 L140 400 C140 306 130 242 108 220 Z" fill="url(#eRimB)"/>
+          <!-- scarf collar -->
+          <path d="M82 218 C90 202 112 202 120 218 C110 208 92 208 82 218 Z" fill="#2c534a"/>
+          <rect x="94" y="188" width="12" height="20" rx="5" fill="url(#eSkinB)"/>
+          <!-- head tilted up toward the sky -->
+          <ellipse cx="100" cy="160" rx="23" ry="27" fill="url(#eSkinB)" transform="rotate(-6 100 160)"/>
+          <!-- tousled hair -->
+          <path d="M78 158 C76 126 124 126 122 158 C122 140 114 132 100 132 C86 132 78 140 78 158 Z" fill="#243b34"/>
+          <path d="M82 148 C94 140 116 142 118 152 C108 146 90 146 82 152 Z" fill="#345349" opacity=".7"/>
+          <!-- rim starlight on cheek -->
+          <path d="M120 162 C120 178 112 190 100 192 C114 184 118 174 118 162 Z" fill="#e6fff8" opacity=".4"/>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">You</div><div class="pill">beside her in the dark</div></div>
+      <div class="content">
+        <div class="prose">
+          <p><em>I follow the line of her arm up into the black and, for a moment, I do see it — a pinprick, patient and pale.</em></p>
+          <p><span class="say">"A hundred years is a long time to wait."</span> <em>I let my shoulder rest against hers.</em> <span class="say">"Good thing I'm in no hurry to leave."</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

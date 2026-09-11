@@ -1,6 +1,6 @@
 # ARGENT control reference (generated)
 
-Version 1.3.0; 62 controls; 18 regex scripts.
+Version 1.3.1; 62 controls; 18 regex scripts.
 
 | Section | Control | Default | Options | Description |
 |---|---|---|---|---|
@@ -50,7 +50,7 @@ Version 1.3.0; 62 controls; 18 regex scripts.
 | World & Simulation Controls | World Law | "coherent" | grounded: Grounded; coherent: Coherent Speculative; mythic: Mythic but Lawful; surreal: Surreal Causality | How rigidly the setting obeys established rules. |
 | World & Simulation Controls | Antagonist Pressure | "adaptive" | low: Low; measured: Measured; adaptive: Adaptive; relentless: Relentless | How aggressively opposition uses its available leverage. |
 | World & Simulation Controls | Narrative Variance | "disciplined" | steady: Steady; disciplined: Disciplined Surprise; wild: High Variance | How strongly the controller rejects obvious or repeated continuations. |
-| Planning & State Controls | Planning Route | "compact" | compact: Compact Reverie; verbose: Verbose Reverie; native: Native Private Reasoning; silent: Silent One-Pass | Compact emits six terse audit lines; Verbose emits a bounded 250–500 word eight-section audit; Native uses provider-private reasoning; Silent uses an implicit one-pass check. |
+| Planning & State Controls | Planning Route | "compact" | compact: Compact Reverie; verbose: Verbose Reverie; native: Native Private Reasoning; silent: Silent One-Pass | Compact emits six terse audit lines; Verbose emits a bounded 250–500 word eight-section audit; Native runs the same robust eight-section ARGENT audit in provider-private reasoning; Silent uses an implicit one-pass check. |
 | Planning & State Controls | Emit State Block | 1 |  | Append the <vellum> JSON block the engine folds into the chronicle |
 | Planning & State Controls | State Compilation | "engine" | engine: Engine Second Pass; inline: Inline Compatibility | Engine: compile completed prose in a separate validated pass before committing state. Inline: legacy model-written state. Requires the updated VELLUM extension for Engine mode. |
 | Planning & State Controls | State Spec Verbosity | "lean" | lean: Lean (compact); full: Full (with example) | Lean selects the compact schema and ~700-token final compiler. Full selects a separate field-by-field schema and ~900-token repair/teaching compiler. Both retain private thoughts for every named on-stage NPC. |

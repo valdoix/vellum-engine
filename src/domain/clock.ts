@@ -251,7 +251,11 @@ export function supportsDayAdvance(
   // as "next morning" or a weekday transition establish one boundary only;
   // they cannot justify copying October 17 into state.day or a similarly large
   // unexplained jump. Multi-day changes need quantified elapsed duration.
-  if (/\b(?:story|narrative)\s+day\s+\d+\b|\bday\s+\d+\b/i.test(text)) return true;
+  if (/\b(?:story|narrative)\s+day\s+\d+\b/i.test(text)) return true;
+  // A bare "Day N" label is ambiguous (calendar day-of-month, chapter label,
+  // quoted recollection, etc.). It can corroborate one nearby boundary, but it
+  // cannot by itself authorize a multi-day leap such as Day 2 -> Day 11.
+  if (/\bday\s+\d+\b/i.test(text) && dayDelta === 1) return true;
   if (hasDayAdvanceCue(text) && dayDelta === 1) return true;
   if (!hasElapsedPassageSyntax(text)) return false;
   const elapsed = explicitElapsedMinutes(text);

@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM — More Chrome Mockups II: Greenhouse · Onryo · Aurora · Case File</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Yeseva+One&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Yuji+Syuku&family=Shippori+Mincho:wght@500;700&family=Josefin+Sans:wght@300;400;600&family=Special+Elite&family=Courier+Prime:wght@400;700&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --gap: 18px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0a0a0c;
+    color: #e8e8ea;
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  .page-head { max-width: 1200px; margin: 0 auto 40px; }
+  .page-head h1 {
+    font-family: 'Yeseva One', serif;
+    font-size: 34px; letter-spacing: 1px; margin: 0 0 6px;
+    background: linear-gradient(90deg, #4b9e5f, #b81f2d, #4ff0c0, #d4342a);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .page-head p { margin: 0; color: #8a8a92; font-size: 14px; max-width: 760px; }
+
+  .theme-block { max-width: 1200px; margin: 0 auto 56px; }
+  .theme-label {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    margin: 0 0 4px; padding-bottom: 10px;
+    border-bottom: 1px solid #26262c;
+  }
+  .theme-label .name { font-family: 'Yeseva One', serif; font-size: 24px; letter-spacing: .5px; }
+  .theme-label .blurb { color: #8a8a92; font-size: 13px; font-style: italic; }
+  .theme-label .swatches { display: flex; gap: 6px; margin-left: auto; }
+  .theme-label .sw { width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); }
+  .theme-meta { color: #6a6a72; font-size: 11.5px; font-family: 'JetBrains Mono', monospace; margin: 12px 0 18px; }
+
+  .frame { border-radius: 14px; overflow: hidden; position: relative; }
+  .frame-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; font-size: 12px; letter-spacing: 1px;
+    position: relative; z-index: 2;
+  }
+  .frame-bar .dot { width: 9px; height: 9px; border-radius: 50%; opacity: .6; }
+  .frame-body {
+    padding: 20px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap);
+    position: relative; z-index: 1;
+  }
+  .card { position: relative; padding: 16px 16px 15px; overflow: hidden; }
+  .card h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .card .line { font-size: 13px; margin: 4px 0; }
+  .card .muted { opacity: .68; }
+  .tension { height: 7px; border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
+  .tension i { display: block; height: 100%; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; margin: 3px 4px 0 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .cast-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .val { font-family: 'JetBrains Mono', monospace; }
+
+  /* ============================================================
+     THEME 1 — GREENHOUSE (solarpunk glasshouse / art nouveau)
+     ============================================================ */
+  .greenhouse {
+    --acc: #3f8f57; --acc2: #c69a3e;
+    --ink: #21301d; --ink2: #5c6b52;
+    --pos: #4f9a44; --neg: #c65a4a; --warn: #d99a3a; --info: #4a8ab0;
+    --s1: rgba(248,251,242,.92); --s2: rgba(233,242,224,.92);
+  }
+  .greenhouse .frame {
+    background:
+      linear-gradient(115deg, transparent 46%, rgba(198,154,62,.06) 50%, transparent 54%),
+      linear-gradient(160deg, #eef5e4, #dfeacd);
+    border: 2px solid var(--acc2);
+    box-shadow: 0 0 0 1px rgba(63,143,87,.22), 0 20px 50px rgba(30,50,25,.28), inset 0 0 60px rgba(255,255,255,.4);
+  }
+  /* glass-pane grid + brass mullions over the whole window */
+  .greenhouse .frame::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .5;
+    background-image:
+      linear-gradient(rgba(63,143,87,.14) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(63,143,87,.14) 1px, transparent 1px);
+    background-size: 46px 46px;
+  }
+  /* a slow sun-dapple that sweeps across the glasshouse */
+  .greenhouse .frame::after {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 30%, rgba(214,178,90,.22) 48%, transparent 66%);
+    background-size: 260% 100%;
+    animation: gh-sun 11s ease-in-out infinite;
+  }
+  @keyframes gh-sun { 0%{background-position:120% 0} 100%{background-position:-40% 0} }
+  .greenhouse .frame-bar {
+    background: linear-gradient(90deg, rgba(198,154,62,.28), rgba(63,143,87,.12), transparent);
+    border-bottom: 1px solid rgba(198,154,62,.5);
+    color: #4a6a3c;
+    font-family: 'Yeseva One', serif; letter-spacing: 1.5px; font-size: 14px;
+  }
+  .greenhouse .frame-bar .dot { background: var(--acc); box-shadow: 0 0 6px rgba(63,143,87,.5); }
+  .greenhouse .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(198,154,62,.4);
+    border-radius: 6px 6px 16px 16px;
+    color: var(--ink);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 6px 16px rgba(40,60,30,.14);
+  }
+  /* nouveau whiplash vine that grows up from the bottom corner */
+  .greenhouse .card::before {
+    content: ''; position: absolute; left: 6px; bottom: 6px; width: 26px; height: 30px; pointer-events: none;
+    border-left: 2px solid rgba(63,143,87,.5); border-bottom: 2px solid rgba(63,143,87,.5);
+    border-bottom-left-radius: 22px; opacity: .7;
+    transform-origin: bottom left; animation: gh-grow 3.6s ease-in-out infinite;
+  }
+  @keyframes gh-grow { 0%,100%{transform:scaleY(.86) rotate(0deg)} 50%{transform:scaleY(1.05) rotate(-3deg)} }
+  .greenhouse .card h3 { font-family: 'Yeseva One', serif; font-weight: 400; font-size: 13px; letter-spacing: .5px; text-transform: none; color: var(--acc); }
+  .greenhouse .card.present { border-color: var(--acc); background: linear-gradient(168deg, #fbfdf5, #eaf4dc); }
+  .greenhouse .card.present h3 { color: #b3812a; }
+  .greenhouse .val, .greenhouse .line b { color: #b3812a; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 15px; }
+  .greenhouse .tension { background: rgba(63,143,87,.16); }
+  .greenhouse .tension i { background: linear-gradient(90deg, var(--acc), var(--acc2)); }
+  .greenhouse .avatar { border-radius: 50%; background: radial-gradient(circle at 35% 30%, #6cbf6c, #3f8f57); border: 2px solid var(--acc2); color: #fff; font-family: 'Cormorant Garamond', serif; }
+  .greenhouse .chip { border-radius: 99px; background: rgba(63,143,87,.12); border: 1px solid var(--acc); color: #3f7a4c; }
+  .greenhouse .chip.pos { background: rgba(79,154,68,.16); border-color: var(--pos); color: #3a7a30; }
+  .greenhouse .chip.neg { background: rgba(198,90,74,.14); border-color: var(--neg); color: #a8483a; }
+
+  /* ============================================================
+     THEME 2 — ONRYO (Japanese vengeful-spirit horror)
+     ============================================================ */
+  .onryo {
+    --acc: #b81f2d; --acc2: #7fa88f;
+    --ink: #d8d2c6; --ink2: #877f70;
+    --pos: #7fa88f; --neg: #b81f2d; --warn: #b8975a; --info: #6a8a9a;
+    --s1: rgba(20,18,20,.92); --s2: rgba(11,10,12,.95);
+  }
+  .onryo .frame {
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(184,31,45,.1), transparent 55%),
+      radial-gradient(80% 60% at 80% 108%, rgba(127,168,143,.06), transparent 60%),
+      linear-gradient(160deg, #16141a, #08070a);
+    border: 1px solid rgba(184,31,45,.35);
+    box-shadow: 0 0 40px rgba(0,0,0,.7), inset 0 0 90px rgba(0,0,0,.6);
+  }
+  /* water-stain / ink-bleed blotches that seep and fade */
+  .onryo .frame::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .5;
+    background-image:
+      radial-gradient(60px 90px at 22% 30%, rgba(0,0,0,.5), transparent 70%),
+      radial-gradient(80px 60px at 78% 68%, rgba(0,0,0,.45), transparent 70%),
+      radial-gradient(40px 120px at 55% 12%, rgba(127,168,143,.05), transparent 72%);
+    animation: on-seep 12s ease-in-out infinite;
+  }
+  @keyframes on-seep { 0%,100%{opacity:.4;transform:translateY(0)} 50%{opacity:.6;transform:translateY(4px)} }
+  /* a cold flicker over the whole pane, like a dying bulb */
+  .onryo .frame::after {
+    content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background: rgba(0,0,0,.0);
+    animation: on-flicker 5.5s steps(1) infinite;
+  }
+  @keyframes on-flicker { 0%,93%,100%{background:rgba(0,0,0,0)} 94%{background:rgba(0,0,0,.28)} 95%{background:rgba(0,0,0,0)} 97%{background:rgba(0,0,0,.2)} }
+  .onryo .frame-bar {
+    background: linear-gradient(90deg, rgba(184,31,45,.2), transparent);
+    border-bottom: 1px solid rgba(184,31,45,.4);
+    color: #c9c2b4;
+    font-family: 'Yuji Syuku', serif; letter-spacing: 3px; font-size: 14px;
+    text-shadow: 0 0 10px rgba(184,31,45,.5);
+  }
+  .onryo .frame-bar .dot { background: var(--acc); box-shadow: 0 0 8px var(--acc); }
+  .onryo .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(216,210,198,.12);
+    border-radius: 2px;
+    color: var(--ink);
+    box-shadow: inset 0 0 30px rgba(0,0,0,.6);
+  }
+  /* torn ofuda talisman strip down the left; a red seal watches from the corner */
+  .onryo .card::before {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 4px; pointer-events: none;
+    background: repeating-linear-gradient(180deg, rgba(216,210,198,.25) 0 6px, transparent 6px 10px);
+  }
+  .onryo .card.present { border-color: rgba(184,31,45,.5); }
+  .onryo .card.present::after {
+    content: '呪'; position: absolute; top: 8px; right: 10px; font-family: 'Yuji Syuku', serif;
+    color: var(--acc); font-size: 20px; opacity: .5; text-shadow: 0 0 12px rgba(184,31,45,.8);
+    animation: on-pulse 3.4s ease-in-out infinite;
+  }
+  @keyframes on-pulse { 0%,100%{opacity:.35} 50%{opacity:.7;text-shadow:0 0 18px rgba(184,31,45,1)} }
+  .onryo .card h3 { font-family: 'Yuji Syuku', serif; font-weight: 400; letter-spacing: 2px; color: #c05a5a; text-shadow: 0 0 10px rgba(184,31,45,.4); }
+  .onryo .card.present h3 { color: var(--acc); }
+  .onryo .val, .onryo .line b { color: var(--acc2); font-family: 'Shippori Mincho', serif; }
+  .onryo .tension { background: rgba(216,210,198,.1); border-radius: 0; }
+  .onryo .tension i { background: linear-gradient(90deg, #6a1520, var(--acc)); box-shadow: 0 0 10px rgba(184,31,45,.6); }
+  .onryo .avatar { border-radius: 50%; background: #0c0b0e; border: 1px solid var(--acc); color: #c9c2b4; font-family: 'Shippori Mincho', serif; box-shadow: 0 0 12px rgba(184,31,45,.4); }
+  .onryo .chip { border-radius: 1px; background: rgba(216,210,198,.06); border: 1px solid rgba(216,210,198,.25); color: var(--ink); font-family: 'Shippori Mincho', serif; }
+  .onryo .chip.pos { background: rgba(127,168,143,.1); border-color: var(--acc2); color: var(--acc2); }
+  .onryo .chip.neg { background: rgba(184,31,45,.14); border-color: var(--acc); color: #e0808a; }
+
+  /* ============================================================
+     THEME 3 — AURORA (northern lights over a glacier)
+     ============================================================ */
+  .aurora {
+    --acc: #4ff0c0; --acc2: #9a6cff;
+    --ink: #e6f0f7; --ink2: #8fa8bc;
+    --pos: #4ff0c0; --neg: #ff6a8a; --warn: #ffd66a; --info: #6ab8ff;
+    --s1: rgba(16,26,44,.72); --s2: rgba(9,16,32,.78);
+  }
+  .aurora .frame {
+    background:
+      radial-gradient(1000px 300px at 50% -20%, rgba(79,240,192,.16), transparent 60%),
+      radial-gradient(700px 260px at 80% -8%, rgba(154,108,255,.14), transparent 62%),
+      linear-gradient(180deg, #0c1830, #060c1c);
+    border: 1px solid rgba(79,240,192,.3);
+    box-shadow: 0 0 40px rgba(79,240,192,.14), 0 20px 60px rgba(2,6,18,.7);
+  }
+  /* star field */
+  .aurora .frame::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      radial-gradient(1.2px 1.2px at 12% 24%, rgba(255,255,255,.8), transparent),
+      radial-gradient(1px 1px at 68% 16%, rgba(255,255,255,.6), transparent),
+      radial-gradient(1.4px 1.4px at 42% 40%, rgba(200,230,255,.7), transparent),
+      radial-gradient(1px 1px at 86% 30%, rgba(255,255,255,.6), transparent),
+      radial-gradient(1px 1px at 26% 12%, rgba(255,255,255,.55), transparent);
+    background-repeat: no-repeat;
+    animation: au-twinkle 4s ease-in-out infinite;
+  }
+  @keyframes au-twinkle { 0%,100%{opacity:.55} 50%{opacity:1} }
+  /* aurora curtains that wave across the top */
+  .aurora .frame::after {
+    content: ''; position: absolute; top: 0; left: -20%; right: -20%; height: 60%; z-index: 0; pointer-events: none;
+    background:
+      linear-gradient(100deg, transparent 20%, rgba(79,240,192,.22) 40%, rgba(154,108,255,.18) 58%, transparent 78%);
+    filter: blur(14px);
+    background-size: 200% 100%;
+    animation: au-wave 9s ease-in-out infinite;
+  }
+  @keyframes au-wave { 0%,100%{background-position:0 0;transform:translateY(0)} 50%{background-position:100% 0;transform:translateY(6px)} }
+  .aurora .frame-bar {
+    background: linear-gradient(90deg, rgba(79,240,192,.16), rgba(154,108,255,.12), transparent);
+    border-bottom: 1px solid rgba(79,240,192,.28);
+    color: #d4ecf7;
+    font-family: 'Josefin Sans', sans-serif; font-weight: 400; letter-spacing: 4px; text-transform: uppercase; font-size: 12px;
+    text-shadow: 0 0 12px rgba(79,240,192,.5);
+  }
+  .aurora .frame-bar .dot { background: var(--acc); box-shadow: 0 0 8px var(--acc); }
+  .aurora .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(79,240,192,.2);
+    border-radius: 14px;
+    color: var(--ink);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 22px rgba(2,6,18,.5);
+    backdrop-filter: blur(4px);
+  }
+  /* a glowing aurora line along the top edge that shifts hue */
+  .aurora .card::before {
+    content: ''; position: absolute; top: 0; left: 12px; right: 12px; height: 2px; pointer-events: none;
+    background: linear-gradient(90deg, var(--acc), var(--acc2), #6ab8ff, var(--acc));
+    background-size: 300% 100%;
+    box-shadow: 0 0 10px rgba(79,240,192,.5);
+    animation: au-flow 6s linear infinite;
+  }
+  @keyframes au-flow { 0%{background-position:0 0} 100%{background-position:300% 0} }
+  .aurora .card h3 { font-family: 'Josefin Sans', sans-serif; font-weight: 600; letter-spacing: 2px; color: #9ff0da; text-shadow: 0 0 10px rgba(79,240,192,.4); }
+  .aurora .card.present { border-color: rgba(154,108,255,.4); }
+  .aurora .card.present h3 { color: #c4abff; text-shadow: 0 0 10px rgba(154,108,255,.5); }
+  .aurora .val, .aurora .line b { color: var(--acc); font-family: 'JetBrains Mono', monospace; }
+  .aurora .tension { background: rgba(79,240,192,.12); }
+  .aurora .tension i { background: linear-gradient(90deg, var(--acc), var(--acc2)); box-shadow: 0 0 10px rgba(79,240,192,.5); }
+  .aurora .avatar { border-radius: 50%; background: radial-gradient(circle at 35% 30%, #16324a, #0a1830); border: 1px solid var(--acc); color: #9ff0da; box-shadow: 0 0 14px rgba(79,240,192,.4); }
+  .aurora .chip { border-radius: 99px; background: rgba(79,240,192,.12); border: 1px solid var(--acc); color: #9ff0da; }
+  .aurora .chip.pos { background: rgba(79,240,192,.14); border-color: var(--pos); color: var(--pos); }
+  .aurora .chip.neg { background: rgba(255,106,138,.14); border-color: var(--neg); color: var(--neg); }
+
+  /* ============================================================
+     THEME 4 — CASE FILE (film-noir detective board)
+     ============================================================ */
+  .casefile {
+    --acc: #d4342a; --acc2: #3a8f8a;
+    --ink: #e8e4dc; --ink2: #9a948a;
+    --pos: #7a9a5a; --neg: #d4342a; --warn: #c99a3a; --info: #5a8a9a;
+    --s1: #f2ede1; --s2: #e6dfce; /* photo / paper are light on a dark board */
+  }
+  .casefile .frame {
+    background:
+      repeating-linear-gradient(96deg, rgba(0,0,0,.16) 0 3px, transparent 3px 34px),
+      radial-gradient(120% 90% at 50% -10%, rgba(120,110,96,.14), transparent 60%),
+      linear-gradient(160deg, #2a2723, #1a1815);
+    border: 1px solid #14120f;
+    box-shadow: inset 0 0 120px rgba(0,0,0,.6), 0 24px 60px rgba(0,0,0,.7);
+  }
+  /* venetian-blind light bars that drift slowly across the board */
+  .casefile .frame::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .5;
+    background: repeating-linear-gradient(96deg, rgba(230,220,190,.09) 0 4px, transparent 4px 40px);
+    animation: cf-blinds 14s linear infinite;
+  }
+  @keyframes cf-blinds { 0%{background-position:0 0} 100%{background-position:0 80px} }
+  /* film-grain flicker haze */
+  .casefile .frame::after {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .06;
+    background-image: radial-gradient(circle at 1px 1px, #fff 1px, transparent 1.4px);
+    background-size: 3px 3px;
+    animation: cf-grain .4s steps(2) infinite;
+  }
+  @keyframes cf-grain { 0%{transform:translate(0,0)} 50%{transform:translate(1px,-1px)} 100%{transform:translate(-1px,1px)} }
+  .casefile .frame-bar {
+    background: linear-gradient(90deg, #201d19, transparent);
+    border-bottom: 1px solid rgba(212,52,42,.5);
+    color: #d8d2c6;
+    font-family: 'Special Elite', 'Courier Prime', monospace; letter-spacing: 2px; font-size: 13px;
+  }
+  .casefile .frame-bar .dot { background: var(--acc); box-shadow: 0 0 6px rgba(212,52,42,.6); }
+  /* pinned paper cards, slightly rotated like tacked evidence */
+  .casefile .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid #cfc7b4;
+    border-radius: 1px;
+    color: #201d17;
+    box-shadow: 0 8px 18px rgba(0,0,0,.55);
+  }
+  .casefile .card:nth-child(3n+1) { transform: rotate(-1.1deg); }
+  .casefile .card:nth-child(3n+2) { transform: rotate(.6deg); }
+  .casefile .card:nth-child(3n) { transform: rotate(-.4deg); }
+  /* a pushpin at the top center of every card */
+  .casefile .card::before {
+    content: ''; position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+    width: 10px; height: 10px; border-radius: 50%; z-index: 2;
+    background: radial-gradient(circle at 35% 30%, #ff6a5e, #a8231b);
+    box-shadow: 0 2px 3px rgba(0,0,0,.5);
+  }
+  /* the present card gets a red string tacked across it, gently swaying */
+  .casefile .card.present::after {
+    content: ''; position: absolute; top: 11px; left: 50%; width: 130%; height: 2px; z-index: 1;
+    background: var(--acc); transform-origin: left center; transform: rotate(8deg);
+    box-shadow: 0 1px 2px rgba(0,0,0,.5); opacity: .85;
+    animation: cf-string 5s ease-in-out infinite;
+  }
+  @keyframes cf-string { 0%,100%{transform:rotate(8deg)} 50%{transform:rotate(6deg)} }
+  .casefile .card h3 { font-family: 'Special Elite', monospace; letter-spacing: 1px; color: #a8231b; margin-top: 6px; }
+  .casefile .card.present { background: #f6f1e6; }
+  .casefile .val, .casefile .line b { font-family: 'Courier Prime', monospace; font-weight: 700; color: #1a1813; }
+  .casefile .muted { color: #6a6459; opacity: 1; }
+  .casefile .tension { background: rgba(0,0,0,.12); border-radius: 0; }
+  .casefile .tension i { background: repeating-linear-gradient(90deg, var(--acc) 0 8px, #8a201a 8px 12px); }
+  .casefile .avatar { border-radius: 1px; background: #d8cfbc; border: 3px solid #fff; color: #2a251d; font-family: 'Special Elite', monospace; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+  .casefile .chip { border-radius: 1px; background: #e0d7c2; border: 1px solid #b8ad94; color: #40382c; font-family: 'Courier Prime', monospace; }
+  .casefile .chip.pos { background: rgba(122,154,90,.2); border-color: var(--pos); color: #4a6030; }
+  .casefile .chip.neg { background: rgba(212,52,42,.14); border-color: var(--acc); color: #a8231b; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>VELLUM · More Chrome Mockups II</h1>
+  <p>Four more maximally-distinct chrome concepts, each a floating window with the six customizable surfaces (Present, Bonds, Cast, Beats, Factions, Items): <b>Greenhouse</b> (solarpunk glasshouse), <b>Onryo</b> (ghost-story horror), <b>Aurora</b> (northern lights), <b>Case File</b> (film-noir board). Built to slot into the existing Chrome + Skin + CHROME_SHAPES architecture. Fonts load from Google Fonts, matching how gatsby/sumi pull display faces on demand.</p>
+</div>
+
+<!-- ========================= GREENHOUSE ========================= -->
+<div class="theme-block">
+  <div class="theme-label greenhouse">
+    <span class="name" style="color:#3f8f57">Greenhouse</span>
+    <span class="blurb">A solarpunk conservatory — leaf-green &amp; brass, glass panes, nouveau vines, moving sun.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#3f8f57"></span>
+      <span class="sw" style="background:#c69a3e"></span>
+      <span class="sw" style="background:#4f9a44"></span>
+      <span class="sw" style="background:#eef5e4"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'greenhouse' · skinDark:'greenhouse-dusk' / skinLight:'greenhouse-glass' · new ShapeId:'pane' / 'whiplash-vine' · texture:'glasshouse' · serif:F_NOUVEAU (Yeseva One) · radius:16 border:2 · motion: sun dapple + vine grow</div>
+  <div class="greenhouse">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> The Oracle · Conservatory</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#10047; Present</h3>
+          <div class="line">Sunlight tips through the west panes and the whole orangery leans toward it.</div>
+          <div class="line muted">Scene: the glasshouse, late afternoon gold</div>
+        </div>
+        <div class="card">
+          <h3>&#10048; Bonds</h3>
+          <div class="cast-row"><span class="avatar">FE</span><div><div class="line">Fern <b class="val">+74</b></div><div class="tension"><i style="width:74%"></i></div></div></div>
+          <span class="chip pos">Kindred</span><span class="chip neg">Blight</span>
+        </div>
+        <div class="card">
+          <h3>&#10049; Cast</h3>
+          <div class="cast-row"><span class="avatar">HO</span><span class="line">Hollis <span class="muted val">Gardener</span></span></div>
+          <div class="cast-row"><span class="avatar">IV</span><span class="line">Ivy <span class="muted val">Grafter</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#10050; Beats</h3>
+          <div class="line">1. Coax the night-bloom <b class="val">DONE</b></div>
+          <div class="line">2. Repair the west vault</div>
+          <div class="line muted">3. The solstice graft</div>
+        </div>
+        <div class="card">
+          <h3>&#10051; Factions</h3>
+          <div class="line">The Gardeners' Guild <b class="val">82%</b></div>
+          <div class="tension"><i style="width:82%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#10052; Items</h3>
+          <span class="chip">Seed vault x9</span><span class="chip pos">Brass secateurs</span><span class="chip neg">Cracked pane</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= ONRYO ========================= -->
+<div class="theme-block">
+  <div class="theme-label onryo">
+    <span class="name" style="color:#b81f2d">Onryo</span>
+    <span class="blurb">A vengeful spirit lingers — bone-white on ink-black, one blood seal, water stains, cold flicker.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#b81f2d"></span>
+      <span class="sw" style="background:#7fa88f"></span>
+      <span class="sw" style="background:#d8d2c6"></span>
+      <span class="sw" style="background:#08070a"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'onryo' · skinDark:'onryo-ink' / skinLight:'onryo-shoji' · new ShapeId:'ofuda' / 'seal-corner' · texture:'water-stain' · serif:F_KAIDAN (Yuji Syuku) · radius:2 border:1 · motion: seep + bulb flicker + seal pulse</div>
+  <div class="onryo">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span> 怪談 · THE ORACLE</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>PRESENT</h3>
+          <div class="line">The well water goes still, and something under it opens its eyes.</div>
+          <div class="line muted">Scene: the old house, hour of the ox</div>
+        </div>
+        <div class="card">
+          <h3>BONDS</h3>
+          <div class="cast-row"><span class="avatar">KA</span><div><div class="line">Kaede <b class="val">-38</b></div><div class="tension"><i style="width:38%"></i></div></div></div>
+          <span class="chip pos">Bound</span><span class="chip neg">Cursed</span>
+        </div>
+        <div class="card">
+          <h3>CAST</h3>
+          <div class="cast-row"><span class="avatar">YU</span><span class="line">Yuki <span class="muted val">Medium</span></span></div>
+          <div class="cast-row"><span class="avatar">SO</span><span class="line">Sora <span class="muted val">Priest</span></span></div>
+        </div>
+        <div class="card">
+          <h3>BEATS</h3>
+          <div class="line">1. Hear the wet footsteps <b class="val">DONE</b></div>
+          <div class="line">2. Find the drowned name</div>
+          <div class="line muted">3. Seal the well</div>
+        </div>
+        <div class="card">
+          <h3>FACTIONS</h3>
+          <div class="line">The Grieving Dead <b class="val">66%</b></div>
+          <div class="tension"><i style="width:66%"></i></div>
+        </div>
+        <div class="card">
+          <h3>ITEMS</h3>
+          <span class="chip">Ofuda x3</span><span class="chip pos">Salt pouch</span><span class="chip neg">Wet hair</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= AURORA ========================= -->
+<div class="theme-block">
+  <div class="theme-label aurora">
+    <span class="name" style="color:#4ff0c0">Aurora</span>
+    <span class="blurb">Northern lights over a glacier — teal &amp; violet curtains, starfield, glacial glass cards.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#4ff0c0"></span>
+      <span class="sw" style="background:#9a6cff"></span>
+      <span class="sw" style="background:#6ab8ff"></span>
+      <span class="sw" style="background:#060c1c"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'aurora' · skinDark:'aurora-polar' / skinLight:'aurora-daybreak' · new ShapeId:'glacier' / 'ribbon-edge' · texture:'aurora-curtain' · serif:F_POLAR (Josefin Sans) · radius:14 border:1 · motion: aurora wave + twinkle + edge flow</div>
+  <div class="aurora">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE // 69°N</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#10022; Present</h3>
+          <div class="line">The sky ignites in green fire and the ice below answers in the same color.</div>
+          <div class="line muted">Scene: the frozen fjord, midnight</div>
+        </div>
+        <div class="card">
+          <h3>&#10022; Bonds</h3>
+          <div class="cast-row"><span class="avatar">SI</span><div><div class="line">Sigrun <b class="val">+61</b></div><div class="tension"><i style="width:61%"></i></div></div></div>
+          <span class="chip pos">Sworn</span><span class="chip neg">Estranged</span>
+        </div>
+        <div class="card">
+          <h3>&#10022; Cast</h3>
+          <div class="cast-row"><span class="avatar">EI</span><span class="line">Eir <span class="muted val">Guide</span></span></div>
+          <div class="cast-row"><span class="avatar">BJ</span><span class="line">Bjorn <span class="muted val">Tracker</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#10022; Beats</h3>
+          <div class="line">1. Cross the ice sheet <b class="val">DONE</b></div>
+          <div class="line">2. Read the lights</div>
+          <div class="line muted">3. Reach the observatory</div>
+        </div>
+        <div class="card">
+          <h3>&#10022; Factions</h3>
+          <div class="line">The Star-Watchers <b class="val">77%</b></div>
+          <div class="tension"><i style="width:77%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#10022; Items</h3>
+          <span class="chip">Rations x6</span><span class="chip pos">Sky-glass lens</span><span class="chip neg">Frostbite</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= CASE FILE ========================= -->
+<div class="theme-block">
+  <div class="theme-label casefile">
+    <span class="name" style="color:#d4342a">Case File</span>
+    <span class="blurb">The investigation wall — grayscale photos, one red thread, venetian light, typewriter stamps.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#d4342a"></span>
+      <span class="sw" style="background:#3a8f8a"></span>
+      <span class="sw" style="background:#f2ede1"></span>
+      <span class="sw" style="background:#1a1815"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'casefile' · skinDark:'casefile-board' / skinLight:'casefile-corkboard' · new ShapeId:'polaroid' / 'red-string' · texture:'venetian' · serif:F_NOIR (Special Elite) · radius:2 border:1 · motion: blinds drift + grain + string sway</div>
+  <div class="casefile">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span> CASE #0417 — THE ORACLE</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>PRESENT</h3>
+          <div class="line">The photo was taken from across the street. Someone was watching her too.</div>
+          <div class="line muted">Scene: the office, 3 a.m., rain</div>
+        </div>
+        <div class="card">
+          <h3>BONDS</h3>
+          <div class="cast-row"><span class="avatar">DR</span><div><div class="line">Dray <b class="val">+44</b></div><div class="tension"><i style="width:44%"></i></div></div></div>
+          <span class="chip pos">Informant</span><span class="chip neg">Suspect</span>
+        </div>
+        <div class="card">
+          <h3>CAST</h3>
+          <div class="cast-row"><span class="avatar">VE</span><span class="line">Vera <span class="muted val">Witness</span></span></div>
+          <div class="cast-row"><span class="avatar">HAL</span><span class="line">Hale <span class="muted val">Fixer</span></span></div>
+        </div>
+        <div class="card">
+          <h3>BEATS</h3>
+          <div class="line">1. Pull the case file <b class="val">DONE</b></div>
+          <div class="line">2. Trace the photograph</div>
+          <div class="line muted">3. Confront the client</div>
+        </div>
+        <div class="card">
+          <h3>FACTIONS</h3>
+          <div class="line">The Syndicate <b class="val">58%</b></div>
+          <div class="tension"><i style="width:58%"></i></div>
+        </div>
+        <div class="card">
+          <h3>ITEMS</h3>
+          <span class="chip">Case notes x5</span><span class="chip pos">Wire tap</span><span class="chip neg">Torn photo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

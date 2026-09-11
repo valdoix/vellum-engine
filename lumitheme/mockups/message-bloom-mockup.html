@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bloom — MinimalMessage Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   BLOOM — "a pressed-flower garden after dusk"
+   Chrome: bloom · Skin: blush-noir (dark twin)
+   accent #d98cab (rose)  ·  accent2 #8fbf7f (sage)
+   Layout ported from Kittylit Ripple MinimalMessage.
+   -- FULL-PAGE moonlit-garden rework: soft foliage canopy, moon-glow,
+      drifting petals & pollen, dusk vignette; portrait rails are moonlit
+      rose-garden scenes; figures are painted rose/sage illustrations.
+   ============================================================ */
+:root{
+  --lumiverse-bg:#1a0e16;              /* plum-charcoal field */
+  --lumiverse-text:#f2dce7;            /* moonlit rose ink */
+  --lumiverse-text-2:#c7a9ba;
+  --lumiverse-accent:#d98cab;          /* rose */
+  --lumiverse-accent-2:#8fbf7f;        /* sage */
+  --surf-1:rgba(38,28,40,.6);
+  --surf-2:rgba(26,18,28,.55);
+  --glass-border:rgba(230,163,192,.14);
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --body:'EB Garamond',Georgia,serif;
+  --radius:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--body);
+  color:var(--lumiverse-text);
+  /* moonlit garden: rose moon-glow high-right, sage foliage low-left, dusk vignette */
+  background:
+    radial-gradient(1200px 600px at 78% -8%, rgba(217,140,171,.22), transparent 60%),
+    radial-gradient(1000px 700px at 8% 108%, rgba(143,191,127,.18), transparent 60%),
+    radial-gradient(520px 420px at 62% 44%, rgba(180,110,150,.12), transparent 66%),
+    radial-gradient(150% 130% at 50% 44%, transparent 52%, rgba(8,4,8,.7) 100%),
+    linear-gradient(160deg,#20111c 0%, #150a12 60%, #0c060b 100%);
+  min-height:100vh;
+  padding:2.5rem 1.25rem 6rem;
+  overflow-x:hidden;
+}
+/* soft foliage / leaf-shadow canopy across the page */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cg fill='%238fbf7f' fill-opacity='0.12'%3E%3Cpath d='M30 40c26-14 52 0 52 26-26 6-50-6-52-26z'/%3E%3Cpath d='M170 60c-24-16-52-4-54 22 26 8 52-2 54-22z'/%3E%3Cpath d='M60 150c22 18 18 48-6 58-10-24-4-46 6-58z'/%3E%3Cpath d='M180 168c-20 16-16 44 6 54 10-22 4-42-6-54z'/%3E%3C/g%3E%3Cg fill='%23d98cab' fill-opacity='0.1'%3E%3Cpath d='M120 30c6-10 14-10 20 0-6 6-14 6-20 0z'/%3E%3Cpath d='M28 110c6-10 14-10 20 0-6 6-14 6-20 0z'/%3E%3Cpath d='M150 190c6-10 14-10 20 0-6 6-14 6-20 0z'/%3E%3C/g%3E%3C/svg%3E");
+}
+/* drifting pollen / soft bokeh haze */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.6;
+  background-image:
+    radial-gradient(circle at 22% 30%, rgba(242,220,231,.14) 0, transparent 4%),
+    radial-gradient(circle at 68% 20%, rgba(217,140,171,.12) 0, transparent 3%),
+    radial-gradient(circle at 82% 66%, rgba(143,191,127,.1) 0, transparent 5%),
+    radial-gradient(circle at 34% 80%, rgba(242,220,231,.1) 0, transparent 4%);
+  background-repeat:no-repeat;
+}
+/* slow drifting petals */
+.petal{position:fixed;top:-40px;z-index:0;font-size:18px;opacity:.35;pointer-events:none;animation:fall linear infinite;filter:drop-shadow(0 2px 6px rgba(217,140,171,.4))}
+@keyframes fall{0%{transform:translateY(-40px) rotate(0deg)}100%{transform:translateY(112vh) rotate(340deg)}}
+.p1{left:12%;animation-duration:19s}
+.p2{left:38%;animation-duration:24s;animation-delay:-6s}
+.p3{left:64%;animation-duration:21s;animation-delay:-11s}
+.p4{left:86%;animation-duration:26s;animation-delay:-3s}
+
+.stage{max-width:1080px;margin:0 auto;position:relative;z-index:1}
+.mock-label{
+  text-align:center;font-family:var(--serif);color:var(--lumiverse-accent);
+  letter-spacing:.32em;text-transform:uppercase;font-size:.74rem;margin-bottom:.35rem;opacity:.85;
+}
+.mock-title{
+  text-align:center;font-family:var(--serif);font-weight:700;font-size:2.5rem;
+  color:var(--lumiverse-text);margin-bottom:.25rem;
+}
+.mock-sub{text-align:center;font-style:italic;color:var(--lumiverse-text-2);margin-bottom:2.75rem}
+
+/* ---- message grid (character = portrait left, user = portrait right) ---- */
+.msg{
+  --avatar-w:clamp(150px,18vw,260px);
+  display:grid;grid-template-columns:var(--avatar-w) minmax(0,1fr);
+  column-gap:clamp(14px,1.6vw,26px);align-items:start;
+  margin-bottom:clamp(28px,3.4vw,52px);
+}
+.msg.user{grid-template-columns:minmax(0,1fr) var(--avatar-w)}
+
+/* sticky masked portrait rail */
+.avatar{
+  grid-column:1;grid-row:1/span 2;justify-self:start;position:sticky;top:24px;
+  width:var(--avatar-w);height:clamp(360px,52vh,560px);border-radius:var(--radius);
+  overflow:hidden;isolation:isolate;
+  -webkit-mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  -webkit-mask-composite:source-in;mask-composite:intersect;
+}
+.msg.user .avatar{grid-column:2;justify-self:end;
+  -webkit-mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+}
+.avatar .fill{position:absolute;inset:0}
+/* moonlit rose-garden scene: moon-glow crown, rose bloom mid, dark hedge base */
+.portraitA{
+  background:
+    radial-gradient(70% 42% at 50% 6%, rgba(248,228,238,.55), transparent 58%),
+    radial-gradient(90% 60% at 34% 42%, rgba(200,110,150,.4), transparent 64%),
+    radial-gradient(60% 40% at 50% 100%, rgba(20,10,18,.9), transparent 66%),
+    linear-gradient(160deg,#e9a7c4,#a35d80 46%,#3a2230 100%);
+}
+.portraitB{
+  background:
+    radial-gradient(70% 42% at 50% 6%, rgba(236,246,226,.5), transparent 58%),
+    radial-gradient(90% 60% at 66% 42%, rgba(120,170,104,.36), transparent 64%),
+    radial-gradient(60% 40% at 50% 100%, rgba(12,20,10,.9), transparent 66%),
+    linear-gradient(160deg,#a7d495,#5f8a52 48%,#233019 100%);
+}
+/* soft petal / pollen speckle overlay on the plate */
+.avatar .grain{position:absolute;inset:0;opacity:.6;mix-blend-mode:screen;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='%23f8e4ee'%3E%3Ccircle cx='20' cy='24' r='1' fill-opacity='0.6'/%3E%3Ccircle cx='72' cy='40' r='0.8' fill-opacity='0.5'/%3E%3Ccircle cx='98' cy='18' r='0.9' fill-opacity='0.55'/%3E%3Ccircle cx='46' cy='74' r='0.7' fill-opacity='0.45'/%3E%3Ccircle cx='96' cy='92' r='1' fill-opacity='0.5'/%3E%3C/g%3E%3C/svg%3E");}
+.avatar .fig{position:absolute;inset:0;opacity:.94}
+.avatar::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 12%,rgba(255,255,255,.14),transparent 55%)}
+
+/* bubble lane */
+.bubble{grid-column:2;min-width:0}
+.msg.user .bubble{grid-column:1}
+
+.header{display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:8px 16px 14px}
+.name{font-family:var(--serif);font-weight:700;font-size:clamp(1.5rem,2vw,2.15rem);line-height:1.02;
+  background:linear-gradient(92deg,var(--lumiverse-accent),#f0b7cf 60%,var(--lumiverse-accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.msg.user .name{background:linear-gradient(92deg,var(--lumiverse-accent-2),#c7e3b8 60%,var(--lumiverse-accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.pill{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.6;color:var(--lumiverse-text-2)}
+
+/* glass content card — bloom uses a stitched dashed keyline (its 'stitch' shape) */
+.content{position:relative;isolation:isolate;padding:18px 20px 20px;border-radius:var(--radius);overflow:hidden}
+.content::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
+  border:1px solid var(--glass-border);
+  background:color-mix(in srgb, var(--lumiverse-bg) 42%, transparent);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),0 12px 32px rgba(0,0,0,.28);
+  backdrop-filter:blur(10px) saturate(120%);-webkit-backdrop-filter:blur(10px) saturate(120%);}
+.content::after{content:"";position:absolute;inset:7px;z-index:-1;border-radius:calc(var(--radius) - 8px);
+  border:1.5px dashed color-mix(in srgb,var(--lumiverse-accent) 34%,transparent);pointer-events:none;opacity:.8}
+
+.prose{font-family:var(--body);font-size:1.06rem;line-height:1.72;text-align:justify;hyphens:auto;text-wrap:pretty}
+.prose p{margin:0 0 .9em}
+.prose p:last-child{margin-bottom:0}
+.prose em{font-style:italic;color:var(--lumiverse-text-2)}         /* thoughts / narration */
+.prose .say{color:var(--lumiverse-accent);text-shadow:0 1px 12px rgba(0,0,0,.28)} /* dialogue */
+.msg.user .prose .say{color:var(--lumiverse-accent-2)}
+.prose strong{color:#fff;font-weight:700}
+
+/* thinking pill + panel */
+.think-toggle{display:inline-flex;align-items:center;gap:.45rem;margin:14px 0 0;padding:.35rem .7rem;border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);font-size:.72rem;opacity:.82;color:var(--lumiverse-text-2);
+  background:color-mix(in srgb,var(--lumiverse-bg) 74%,transparent);}
+.think-body{margin:12px 0 0;padding:12px 14px;border-radius:16px;font-style:italic;font-size:.98rem;color:var(--lumiverse-text-2);
+  border:1px solid rgba(255,255,255,.07);
+  background:radial-gradient(circle at 12% 0,rgba(217,140,171,.1),transparent 40%),color-mix(in srgb,var(--lumiverse-bg) 80%,transparent);}
+blockquote{margin:.2em 0;padding:.1em 0 .1em .9em;border-left:2px solid color-mix(in srgb,var(--lumiverse-accent-2) 55%,transparent);color:var(--lumiverse-text-2);font-style:italic}
+
+@media(max-width:720px){
+  .msg{--avatar-w:clamp(64px,26vw,120px)}
+  .avatar{height:clamp(180px,48vw,300px);top:14px}
+  .name{font-size:1.35rem}
+}
+</style>
+</head>
+<body>
+<span class="petal p1" style="color:#e9a7c4">&#10047;</span>
+<span class="petal p2" style="color:#8fbf7f">&#10047;</span>
+<span class="petal p3" style="color:#e9a7c4">&#10047;</span>
+<span class="petal p4" style="color:#c7e3b8">&#10047;</span>
+
+<div class="stage">
+  <div class="mock-label">Vellum · Bloom</div>
+  <h1 class="mock-title">Pressed-Flower Garden</h1>
+  <p class="mock-sub">Blush &amp; sage on plum dusk — MinimalMessage layout, Bloom chrome.</p>
+
+  <!-- character message -->
+  <div class="msg character">
+    <div class="avatar"><div class="fill portraitA"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="bDressA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f6cfe0"/><stop offset=".5" stop-color="#cf7ba0"/><stop offset="1" stop-color="#5c3346"/>
+          </linearGradient>
+          <linearGradient id="bRimA" x1="1" y1="0" x2="0" y2="0">
+            <stop offset="0" stop-color="#fdeef5" stop-opacity=".7"/><stop offset="1" stop-color="#fdeef5" stop-opacity="0"/>
+          </linearGradient>
+          <radialGradient id="bSkinA" cx=".44" cy=".4" r=".7">
+            <stop offset="0" stop-color="#f2ddd0"/><stop offset="1" stop-color="#b98d86"/>
+          </radialGradient>
+        </defs>
+        <!-- gardener kneeling among the asters, cradling a pot -->
+        <g>
+          <!-- skirt / apron, kneeling -->
+          <path d="M48 400 C46 320 56 262 78 240 C90 228 112 228 122 240 C144 262 154 320 152 400 Z" fill="url(#bDressA)"/>
+          <!-- fold shading -->
+          <g stroke="#4a2838" stroke-opacity=".45" stroke-width="2" fill="none">
+            <path d="M90 258 C86 308 84 354 84 396"/><path d="M112 258 C116 308 118 354 118 396"/>
+          </g>
+          <!-- rim moonlight -->
+          <path d="M122 240 C144 262 154 320 152 400 L142 400 C142 322 132 266 110 244 Z" fill="url(#bRimA)"/>
+          <!-- bodice / shoulders -->
+          <path d="M80 244 C88 218 112 218 120 244 C110 230 90 230 80 244 Z" fill="url(#bDressA)"/>
+          <path d="M82 226 C90 212 110 212 118 226 C108 218 92 218 82 226 Z" fill="url(#bSkinA)"/>
+          <rect x="94" y="196" width="12" height="18" rx="5" fill="url(#bSkinA)"/>
+          <!-- head, gently bowed -->
+          <ellipse cx="100" cy="172" rx="23" ry="26" fill="url(#bSkinA)"/>
+          <!-- loose upswept hair with a tucked bloom -->
+          <path d="M78 172 C76 140 124 140 122 172 C122 152 114 146 100 146 C86 146 78 152 78 172 Z" fill="#3a2230"/>
+          <path d="M80 160 C92 150 116 152 118 162 C108 156 90 156 80 164 Z" fill="#54313f" opacity=".7"/>
+          <!-- tucked rose -->
+          <g transform="translate(120 152)"><circle r="6" fill="#e9a7c4"/><circle r="3" fill="#f6cfe0"/></g>
+          <!-- forearm cradling a terracotta pot -->
+          <g transform="translate(70 262) rotate(20)">
+            <rect x="0" y="-8" width="46" height="15" rx="7" fill="url(#bDressA)"/>
+            <ellipse cx="0" cy="0" rx="8" ry="7" fill="url(#bSkinA)"/>
+          </g>
+          <!-- terracotta pot with sprig -->
+          <g transform="translate(64 292)">
+            <path d="M-14 0 L14 0 L10 20 L-10 20 Z" fill="#b5623f"/>
+            <rect x="-16" y="-4" width="32" height="6" rx="2" fill="#c9704a"/>
+            <path d="M0 0 C-4 -16 -12 -20 -10 -30 M0 0 C4 -14 10 -18 12 -28" stroke="#8fbf7f" stroke-width="2.5" fill="none"/>
+          </g>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">Marguerite</div><div class="pill">the greenhouse · dusk</div></div>
+      <div class="content">
+        <div class="prose">
+          <p><em>She kneels among the late asters, thumbing soil from a cracked terracotta rim.</em> The glass roof holds the last of the light, and the whole room smells of wet earth and bruised petals.</p>
+          <p><span class="say">"You came back."</span> <em>A breath of a laugh, half surprise.</em> <span class="say">"I'd almost decided the frost got you before I did."</span></p>
+          <blockquote>The sage has gone leggy in your absence. It missed the pruning shears — and the company.</blockquote>
+        </div>
+        <div class="think-toggle">&#129504; reasoning</div>
+        <div class="think-body">Keep it warm but guarded — she's glad, not yet willing to show how much. Let the plants carry the feeling she won't say aloud.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- user message -->
+  <div class="msg user">
+    <div class="avatar"><div class="fill portraitB"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="bCoatB" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#c7e3b8"/><stop offset=".5" stop-color="#6f9e63"/><stop offset="1" stop-color="#24361c"/>
+          </linearGradient>
+          <linearGradient id="bRimB" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#eafbe0" stop-opacity="0"/><stop offset="1" stop-color="#eafbe0" stop-opacity=".5"/>
+          </linearGradient>
+          <radialGradient id="bSkinB" cx=".56" cy=".4" r=".7">
+            <stop offset="0" stop-color="#ecdccb"/><stop offset="1" stop-color="#9c7864"/>
+          </radialGradient>
+        </defs>
+        <!-- visitor crouching at the threshold, coat collar up -->
+        <g>
+          <path d="M50 400 C52 306 64 244 84 222 C92 212 108 212 116 222 C136 244 148 306 150 400 Z" fill="url(#bCoatB)"/>
+          <g stroke="#182611" stroke-opacity=".45" stroke-width="2" fill="none">
+            <path d="M92 242 C88 298 84 350 84 396"/><path d="M110 242 C114 298 118 350 118 396"/>
+          </g>
+          <path d="M116 222 C136 244 148 306 150 400 L140 400 C140 310 130 248 108 226 Z" fill="url(#bRimB)"/>
+          <!-- collar up -->
+          <path d="M82 224 C90 206 112 206 120 224 C112 212 118 200 100 200 C82 200 88 212 82 224 Z" fill="#2c4322"/>
+          <rect x="94" y="196" width="12" height="18" rx="5" fill="url(#bSkinB)"/>
+          <!-- head -->
+          <ellipse cx="100" cy="168" rx="23" ry="26" fill="url(#bSkinB)"/>
+          <!-- short tousled hair -->
+          <path d="M78 166 C76 136 124 136 122 166 C122 148 114 142 100 142 C86 142 78 148 78 166 Z" fill="#233019"/>
+          <path d="M82 156 C94 148 116 150 118 158 C108 152 90 152 82 158 Z" fill="#34492a" opacity=".7"/>
+          <!-- rim moonlight on cheek -->
+          <path d="M120 170 C120 186 112 196 100 198 C114 190 118 180 118 170 Z" fill="#eafbe0" opacity=".4"/>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">You</div><div class="pill">at the threshold</div></div>
+      <div class="content">
+        <div class="prose">
+          <p><em>I let the door swing shut behind me, cutting off the cold.</em></p>
+          <p><span class="say">"The frost is patient. So am I."</span> <em>I crouch beside her, close enough to see the dirt under her nails.</em> <span class="say">"Show me what survived."</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

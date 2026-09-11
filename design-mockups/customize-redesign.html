@@ -1,0 +1,390 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II — Customize Panel Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e0b07;--bg2:#15100a;
+  --surf:rgba(28,20,12,.76);--surf2:rgba(40,29,16,.62);
+  --kl:rgba(205,168,78,.22);--kl2:rgba(205,168,78,.44);
+  --g:#cda84e;--gb:#e6c56b;--gd:#8a7238;--gf:rgba(205,168,78,.1);
+  --ink:#e7d6ad;--id:#a99a76;--if:#6f6448;
+  --neg:#9c3b32;--sage:#6f8a5f;--info:#4a6e9c;--warn:#b48ed0;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:linear-gradient(165deg,var(--bg),var(--bg2));background-attachment:fixed;color:var(--ink);font-family:var(--serif);font-size:16px;line-height:1.55;min-height:100vh;padding-bottom:8rem}
+.wrap{max-width:1300px;margin:0 auto;padding:0 1.5rem}
+.mast{text-align:center;padding:4rem 1.5rem 2.5rem}
+.mast .seal{width:60px;height:60px;margin:0 auto 1.2rem;border-radius:50%;background:radial-gradient(circle at 32% 28%,var(--gb),var(--gd));box-shadow:0 0 0 1px var(--kl2),0 10px 32px rgba(205,168,78,.22);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.8rem;color:#1e1408;font-weight:700}
+.mast h1{font-size:2.6rem;color:var(--gb);letter-spacing:.03em}
+.mast .sub{color:var(--id);font-style:italic;font-size:1.05rem;margin-top:.3rem}
+.mast .ctx{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--g);margin-top:.8rem}
+.nav{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,rgba(14,11,7,.97),rgba(14,11,7,.84));backdrop-filter:blur(14px);border-bottom:1px solid var(--kl);padding:.7rem 0}
+.nav .wrap{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.nav a{color:var(--id);text-decoration:none;font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;padding:.35rem .75rem;border:1px solid transparent;border-radius:3px;transition:all .18s}
+.nav a:hover{color:var(--gb);border-color:var(--kl)}
+.nav .tag{color:var(--g);font-weight:700;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;margin-right:.3rem}
+.section{padding:3.5rem 0 1.5rem}
+.section-head{margin-bottom:1.8rem}
+.section-head .kicker{font-family:var(--mono);font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--g);margin-bottom:.5rem}
+.section-head h2{font-size:2rem;color:var(--ink);letter-spacing:.01em}
+.section-head .desc{color:var(--id);font-style:italic;max-width:68ch;margin-top:.4rem;font-size:.95rem}
+.notes{background:rgba(205,168,78,.06);border:1px solid var(--kl);border-radius:8px;padding:1rem 1.2rem;margin-top:1.2rem}
+.notes h4{font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;color:var(--g);margin-bottom:.6rem}
+.notes ul{padding-left:1.1rem;color:var(--id);font-size:.9rem;line-height:1.6}
+.hr{height:1px;background:linear-gradient(90deg,transparent,var(--kl),transparent);margin:2.5rem 0}
+/* --- shared atoms --- */
+.pill{display:inline-block;font-family:var(--mono);font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid transparent}
+.pill.g{color:var(--gb);border-color:rgba(205,168,78,.35);background:rgba(205,168,78,.1)}
+.pill.d{color:var(--id);border-color:var(--kl);background:rgba(205,168,78,.05)}
+.mini{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;border:1px solid var(--kl);background:transparent;color:var(--id);cursor:pointer;font-size:.7rem;transition:all .15s}
+.mini:hover{border-color:var(--kl2);color:var(--g)}
+</style>
+</head>
+<body>
+<div class="mast">
+  <div class="seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Customize Panel — Three Redesign Concepts</div>
+  <div class="ctx">Mockups &nbsp;·&nbsp; Design Exploration</div>
+</div>
+<nav class="nav">
+  <div class="wrap">
+    <span class="tag">Concepts</span>
+    <a href="#wizard">I · Wizard</a>
+    <a href="#sidebar">II · Sidebar + Canvas</a>
+    <a href="#cards">III · Card Gallery</a>
+  </div>
+</nav>
+<div class="wrap">
+<style>
+/* ============ CONCEPT I — WIZARD ============ */
+.wiz{width:min(820px,100%);margin:0 auto;background:var(--surf);border:1px solid var(--kl2);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.55);overflow:hidden}
+.wiz-head{display:flex;align-items:center;gap:.7rem;padding:1rem 1.3rem;border-bottom:1px solid var(--kl);font-size:1.15rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+.wiz-head .m{color:var(--g)}
+.wiz-head .x{margin-left:auto;font-size:.9rem}
+/* stepper */
+.wiz-steps{display:flex;gap:0;padding:0 1.3rem;border-bottom:1px solid var(--kl);background:rgba(0,0,0,.15)}
+.wiz-step{flex:1;display:flex;align-items:center;gap:.5rem;padding:.8rem .4rem;font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--if);border-bottom:2px solid transparent;cursor:pointer}
+.wiz-step .n{width:20px;height:20px;border-radius:50%;border:1px solid var(--kl);display:flex;align-items:center;justify-content:center;font-size:.6rem}
+.wiz-step.on{color:var(--gb);border-bottom-color:var(--g)}
+.wiz-step.on .n{background:var(--g);color:#1e1408;border-color:var(--g)}
+.wiz-step.done{color:var(--id)}
+.wiz-step.done .n{border-color:var(--kl2);color:var(--sage)}
+.wiz-body{padding:1.5rem 1.4rem 1.7rem;min-height:340px}
+.wiz-q{font-size:1.35rem;color:var(--ink);margin-bottom:.3rem}
+.wiz-sub{color:var(--id);font-style:italic;font-size:.9rem;margin-bottom:1.3rem}
+/* theme grid — 2 col wide */
+.tgrid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.tcard{display:grid;grid-template-columns:74px 1fr;gap:.2rem .9rem;align-items:center;text-align:left;padding:.8rem .9rem;border:1px solid var(--kl);border-radius:11px;background:rgba(205,168,78,.04);cursor:pointer;transition:all .15s}
+.tcard:hover{border-color:var(--kl2);transform:translateY(-1px)}
+.tcard.on{border-color:var(--g);background:rgba(205,168,78,.12);box-shadow:0 0 0 1px var(--g)}
+.tcard .prev{grid-row:1/3;width:74px;height:54px;border-radius:7px;border:1px solid var(--kl2);overflow:hidden;position:relative}
+.tcard .nm{font-size:1.1rem;color:var(--ink);align-self:end}
+.tcard .bl{font-size:.76rem;color:var(--id);line-height:1.4;align-self:start}
+/* mini theme previews */
+.pv-default{background:linear-gradient(165deg,#1c1914,#12100b)}
+.pv-default::after{content:'';position:absolute;left:6px;top:8px;right:6px;height:8px;border-left:3px solid var(--g);background:rgba(205,168,78,.12)}
+.pv-fantasy{background:linear-gradient(165deg,#33261a,#231a10)}
+.pv-fantasy::after{content:'';position:absolute;inset:7px;border:1px solid rgba(199,154,78,.6);border-radius:2px}
+.pv-modern{background:#e8ebf0}
+.pv-modern::after{content:'';position:absolute;left:7px;top:9px;right:7px;height:7px;border-radius:999px;background:#3f6fb0}
+.pv-graphite{background:linear-gradient(165deg,#30353a,#20242a)}
+.pv-graphite::after{content:'';position:absolute;left:0;top:9px;width:100%;height:7px;border-top:2px solid #5b8fb0;background:rgba(91,143,176,.15)}
+/* mode toggle big */
+.modeseg{display:flex;gap:.6rem;margin:0 auto;max-width:420px}
+.modeseg button{flex:1;padding:1.1rem;border:1px solid var(--kl);border-radius:12px;background:rgba(205,168,78,.04);cursor:pointer;color:var(--id);font-family:var(--serif);font-size:1.1rem;display:flex;flex-direction:column;align-items:center;gap:.5rem}
+.modeseg button.on{border-color:var(--g);box-shadow:0 0 0 1px var(--g)}
+.modeseg .dark{color:var(--gb)}
+.modeseg .swatch{width:60px;height:38px;border-radius:6px;border:1px solid var(--kl2)}
+.modeseg .swatch.d{background:linear-gradient(165deg,#1c1914,#12100b)}
+.modeseg .swatch.l{background:linear-gradient(165deg,#f3ecd8,#e6d9b8)}
+/* size slider demo */
+.szrow{display:flex;align-items:center;gap:1rem;max-width:480px;margin:1rem auto 0}
+.szrow .track{flex:1;height:5px;border-radius:3px;background:rgba(205,168,78,.18);position:relative}
+.szrow .track::after{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:52%;height:5px;border-radius:3px;background:var(--g)}
+.szrow .knob{position:absolute;left:52%;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:var(--gb);box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.szrow .val{font-family:var(--mono);color:var(--g);font-size:.8rem;min-width:44px;text-align:right}
+.wiz-foot{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.4rem;border-top:1px solid var(--kl)}
+.wiz-btn{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:.6rem 1.2rem;border-radius:8px;border:1px solid var(--kl2);background:transparent;color:var(--ink);cursor:pointer}
+.wiz-btn.pri{background:var(--g);border-color:var(--g);color:#1e1408;font-weight:600}
+.wiz-btn.ghost{border-color:transparent;color:var(--id)}
+.wiz-adv{text-align:center;margin-top:1rem;font-family:var(--mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--id)}
+.wiz-adv a{color:var(--g);text-decoration:none;border-bottom:1px dotted var(--kl2)}
+</style>
+<section class="section" id="wizard">
+  <div class="section-head">
+    <div class="kicker">Concept I</div>
+    <h2>The Wizard</h2>
+    <div class="desc">A guided, step-by-step flow for first-timers. One decision per screen, big readable previews, and an escape hatch to Advanced for power users. Answers the core complaint — "not cluttered" — by showing only one question at a time.</div>
+  </div>
+  <div class="wiz">
+    <div class="wiz-head"><span class="m">✦</span> Customize <span class="x mini">✕</span></div>
+    <div class="wiz-steps">
+      <div class="wiz-step done"><span class="n">✓</span> Theme</div>
+      <div class="wiz-step on"><span class="n">2</span> Mode</div>
+      <div class="wiz-step"><span class="n">3</span> Size</div>
+      <div class="wiz-step"><span class="n">4</span> Cards</div>
+    </div>
+    <div class="wiz-body">
+      <div class="wiz-q">Dark or light?</div>
+      <div class="wiz-sub">Every theme has a matched day and night palette. You can flip this anytime.</div>
+      <div class="modeseg">
+        <button class="on"><span class="swatch d"></span><span class="dark">Dark</span></button>
+        <button><span class="swatch l"></span><span>Light</span></button>
+      </div>
+      <div class="szrow" style="margin-top:2.5rem;opacity:.5">
+        <span style="font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.08em">Next: size</span>
+        <div class="track"><div class="knob"></div></div>
+        <span class="val">110%</span>
+      </div>
+    </div>
+    <div class="wiz-foot">
+      <button class="wiz-btn ghost">‹ Back</button>
+      <div class="wiz-adv" style="margin:0"><a href="#">Skip to Advanced ›</a></div>
+      <button class="wiz-btn pri">Next ›</button>
+    </div>
+  </div>
+  <div class="notes">
+    <h4>Design notes</h4>
+    <ul>
+      <li><b>Wider:</b> 820px vs the current ~440px, so two-column theme cards with real previews fit without scrolling.</li>
+      <li><b>Preview images:</b> each theme card carries a live CSS mini-render of its actual look, not an abstract sketch.</li>
+      <li><b>One question per step</b> removes clutter entirely — Theme → Mode → Size → Cards, each a full clean screen.</li>
+      <li><b>Advanced escape hatch</b> in the footer jumps power users straight to the full cockpit, skipping the wizard.</li>
+      <li>Honest tradeoff: a wizard adds clicks for repeat users. Best paired with "remember I've done this" so it only guides on first open.</li>
+    </ul>
+  </div>
+</section>
+<div class="hr"></div>
+<style>
+/* ============ CONCEPT II — SIDEBAR + CANVAS ============ */
+.sb{width:min(860px,100%);margin:0 auto;display:grid;grid-template-columns:200px 1fr;border:1px solid var(--kl2);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.55);overflow:hidden;background:var(--surf)}
+.sb-rail{background:rgba(0,0,0,.2);border-right:1px solid var(--kl);padding:.8rem 0}
+.sb-rail-head{padding:.4rem 1.1rem .8rem;font-family:var(--mono);font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gd)}
+.sb-item{display:flex;align-items:center;gap:.6rem;padding:.55rem 1.1rem;font-size:.92rem;color:var(--id);cursor:pointer;border-left:2px solid transparent;transition:all .15s}
+.sb-item:hover{background:var(--gf);color:var(--ink)}
+.sb-item.on{color:var(--gb);border-left-color:var(--g);background:rgba(205,168,78,.08)}
+.sb-item .ic{font-size:.85rem;opacity:.7;width:16px;text-align:center}
+.sb-canvas{padding:1.4rem 1.5rem;display:flex;flex-direction:column;gap:1rem}
+.sb-canvas-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:.8rem;border-bottom:1px solid var(--kl)}
+.sb-canvas-head h3{font-family:var(--serif);font-size:1.3rem;color:var(--ink);letter-spacing:.03em}
+.sb-canvas-head .actions{display:flex;gap:.4rem}
+/* dark/light toggle inline */
+.sb-modetog{display:flex;gap:0;border:1px solid var(--kl);border-radius:999px;overflow:hidden;align-self:flex-start}
+.sb-modetog button{padding:.35rem .8rem;font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;background:transparent;border:none;color:var(--id);cursor:pointer}
+.sb-modetog button.on{background:var(--g);color:#1e1408;font-weight:600}
+/* skin grid — grouped with headings */
+.sb-group-h{font-family:var(--mono);font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gd);padding:.15rem 0 .5rem;border-bottom:1px solid var(--kl);margin-bottom:.6rem}
+.sg{display:grid;grid-template-columns:repeat(3,1fr);gap:.55rem;margin-bottom:1.2rem}
+.sg-card{border:1px solid var(--kl);border-radius:9px;overflow:hidden;cursor:pointer;transition:all .15s}
+.sg-card:hover{border-color:var(--kl2);transform:translateY(-1px)}
+.sg-card.on{border-color:var(--g);box-shadow:0 0 0 1px var(--g)}
+.sg-swatch{height:50px;position:relative}
+.sg-swatch::after{content:'';position:absolute;bottom:6px;left:6px;right:6px;height:6px;border-radius:2px;background:var(--sw,rgba(205,168,78,.5))}
+.sg-meta{padding:5px 7px;background:rgba(0,0,0,.2)}
+.sg-name{font-size:.82rem;color:var(--ink)}
+.sg-blurb{font-family:var(--mono);font-size:.56rem;color:var(--if);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* light group different tint */
+.sg-card.light .sg-meta{background:rgba(255,255,255,.05)}
+/* shape preview grid */
+.sp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.55rem}
+.sp-card{border:1px solid var(--kl);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .15s;position:relative}
+.sp-card.on{border-color:var(--g);box-shadow:0 0 0 1px var(--g)}
+.sp-card:hover{border-color:var(--kl2)}
+.sp-preview{height:52px;background:rgba(205,168,78,.07);display:flex;align-items:center;justify-content:center;padding:8px;position:relative;overflow:hidden}
+/* shape previews using CSS geometry */
+.sh-slab{width:100%;height:100%;background:rgba(205,168,78,.25);border-radius:6px}
+.sh-left-spine{width:100%;height:100%;background:rgba(205,168,78,.12);border-radius:4px;position:relative}
+.sh-left-spine::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--g);border-radius:4px 0 0 4px}
+.sh-notched{width:100%;height:100%;background:rgba(205,168,78,.18);clip-path:polygon(8px 0,100% 0,100% 100%,0 100%,0 8px)}
+.sh-bracket{width:100%;height:100%;background:rgba(205,168,78,.12);position:relative;border:1px solid transparent}
+.sh-bracket::before{content:'';position:absolute;inset:3px;background:linear-gradient(var(--g),var(--g)) 0 0/6px 1.5px no-repeat,linear-gradient(var(--g),var(--g)) 0 0/1.5px 6px no-repeat,linear-gradient(var(--g),var(--g)) 100% 0/6px 1.5px no-repeat,linear-gradient(var(--g),var(--g)) 100% 0/1.5px 6px no-repeat,linear-gradient(var(--g),var(--g)) 0 100%/6px 1.5px no-repeat,linear-gradient(var(--g),var(--g)) 0 100%/1.5px 6px no-repeat,linear-gradient(var(--g),var(--g)) 100% 100%/6px 1.5px no-repeat,linear-gradient(var(--g),var(--g)) 100% 100%/1.5px 6px no-repeat}
+.sh-gauge{width:100%;height:100%;background:rgba(205,168,78,.12);border-radius:0 4px 4px 0;position:relative}
+.sh-gauge::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:5px;background:repeating-linear-gradient(180deg,var(--g) 0,var(--g) 2px,transparent 2px,transparent 6px);opacity:.75}
+.sh-rail-cap{width:100%;height:100%;background:rgba(205,168,78,.14);border-radius:0 4px 4px 4px;position:relative}
+.sh-rail-cap::before{content:'';position:absolute;top:5px;left:4px;right:4px;height:1.5px;background:var(--g);opacity:.7}
+.sp-label{padding:4px 6px;font-family:var(--mono);font-size:.56rem;color:var(--id);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp-card.on .sp-label{color:var(--g)}
+</style>
+<section class="section" id="sidebar">
+  <div class="section-head">
+    <div class="kicker">Concept II</div>
+    <h2>Sidebar + Canvas</h2>
+    <div class="desc">A permanent left rail of sections. Click once to switch context; the canvas shows the relevant controls at full width. Skins are grouped Light / Dark with visible swatches. Card shapes each get a CSS preview tile — you can see the silhouette before picking.</div>
+  </div>
+  <div class="sb">
+    <div class="sb-rail">
+      <div class="sb-rail-head">VELLUM</div>
+      <div class="sb-item on"><span class="ic">◈</span> Look</div>
+      <div class="sb-item"><span class="ic">&#9681;</span> Skins</div>
+      <div class="sb-item"><span class="ic">&#9632;</span> Cards</div>
+      <div class="sb-item"><span class="ic">⟳</span> Layout</div>
+      <div class="sb-item"><span class="ic">&#9670;</span> Color</div>
+      <div class="sb-item"><span class="ic">T</span> Type</div>
+      <div class="sb-item"><span class="ic">&#9633;</span> Window</div>
+    </div>
+    <div class="sb-canvas">
+      <div class="sb-canvas-head">
+        <h3>Skins</h3>
+        <div class="actions">
+          <div class="sb-modetog"><button class="on">Dark</button><button>Light</button></div>
+        </div>
+      </div>
+      <div>
+        <div class="sb-group-h">Dark skins</div>
+        <div class="sg">
+          <div class="sg-card on">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#1c1914,#12100b);--sw:#cda84e"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#cda84e"></div></div>
+            <div class="sg-meta"><div class="sg-name">Illuminated</div><div class="sg-blurb">gilt on aged vellum</div></div>
+          </div>
+          <div class="sg-card">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#182028,#0e151e);--sw:#9bc0e6"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#9bc0e6"></div></div>
+            <div class="sg-meta"><div class="sg-name">Moonlit Ink</div><div class="sg-blurb">cold silver-blue</div></div>
+          </div>
+          <div class="sg-card">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#30353a,#20242a);--sw:#5b8fb0"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#5b8fb0"></div></div>
+            <div class="sg-meta"><div class="sg-name">Graphite</div><div class="sg-blurb">charcoal &amp; steel</div></div>
+          </div>
+          <div class="sg-card">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#20181a,#150e10);--sw:#d98cab"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#d98cab"></div></div>
+            <div class="sg-meta"><div class="sg-name">Moonlit Bloom</div><div class="sg-blurb">plum &amp; rose pastels</div></div>
+          </div>
+          <div class="sg-card">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#14100c,#0a0806);--sw:#d4af37"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#d4af37"></div></div>
+            <div class="sg-meta"><div class="sg-name">Gatsby Noir</div><div class="sg-blurb">midnight &amp; gilt gold</div></div>
+          </div>
+          <div class="sg-card">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#1a1410,#100c0a);--sw:#c8371a"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#c8371a"></div></div>
+            <div class="sg-meta"><div class="sg-name">Sumi Ink</div><div class="sg-blurb">deep sumi &amp; vermillion</div></div>
+          </div>
+        </div>
+        <div class="sb-group-h">Light skins</div>
+        <div class="sg">
+          <div class="sg-card light">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#efe2c0,#e3d2a6)"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#9a6f1e"></div></div>
+            <div class="sg-meta"><div class="sg-name">Parchment</div><div class="sg-blurb">aged paper &amp; brown ink</div></div>
+          </div>
+          <div class="sg-card light">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#f0f4f8,#e4eaf0)"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#3f6fb0"></div></div>
+            <div class="sg-meta"><div class="sg-name">Daylit</div><div class="sg-blurb">paper white &amp; slate</div></div>
+          </div>
+          <div class="sg-card light">
+            <div class="sg-swatch" style="background:linear-gradient(165deg,#f4f6f8,#e6eaee)"><div style="position:absolute;bottom:6px;left:6px;right:6px;height:5px;border-radius:2px;background:#3f6f90"></div></div>
+            <div class="sg-meta"><div class="sg-name">Graphite Light</div><div class="sg-blurb">cool paper &amp; slate</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h4>Design notes</h4>
+    <ul>
+      <li><b>Wider:</b> 860px — skins lay out 3-column with color swatches visible without opening the panel.</li>
+      <li><b>Light / Dark grouping:</b> skins are split into two labelled groups so users don't pick a dark skin when they want light mode.</li>
+      <li><b>Sidebar navigation</b> removes the cramped horizontal tab bar (9 tabs in ~440px) in favor of a persistent left rail — always visible, no scrolling.</li>
+      <li>The Canvas area adapts — clicking Skins shows the swatch grid, clicking Cards shows shape tiles, etc.</li>
+    </ul>
+  </div>
+</section>
+<div class="hr"></div>
+<style>
+/* ============ CONCEPT III — ACCORDION + SHAPE GALLERY ============ */
+.ac{width:min(720px,100%);margin:0 auto;border:1px solid var(--kl2);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.55);overflow:hidden;background:var(--surf)}
+.ac-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.3rem;border-bottom:1px solid var(--kl)}
+.ac-head h3{font-family:var(--serif);font-size:1.4rem;color:var(--ink);letter-spacing:.03em}
+.ac-modetog{display:flex;border:1px solid var(--kl);border-radius:999px;overflow:hidden}
+.ac-modetog button{padding:.4rem 1rem;font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;background:transparent;border:none;color:var(--id);cursor:pointer}
+.ac-modetog button.on{background:var(--g);color:#1e1408;font-weight:600}
+.ac-sec{border-bottom:1px solid var(--kl)}
+.ac-sec-h{display:flex;align-items:center;gap:.7rem;padding:.9rem 1.3rem;cursor:pointer;user-select:none}
+.ac-sec-h .chev{margin-left:auto;color:var(--id);transition:transform .2s}
+.ac-sec.open .ac-sec-h .chev{transform:rotate(90deg)}
+.ac-sec-h .lbl{font-family:var(--serif);font-size:1.1rem;color:var(--ink)}
+.ac-sec-h .ic{color:var(--gd);font-size:.9rem}
+.ac-sec-h .val{font-family:var(--mono);font-size:.62rem;color:var(--gb);letter-spacing:.04em;background:var(--gf);padding:2px 8px;border-radius:999px}
+.ac-body{padding:0 1.3rem 1.2rem;display:none}
+.ac-sec.open .ac-body{display:block}
+/* the featured shape gallery */
+.shg{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem}
+.shg-card{border:1px solid var(--kl);border-radius:10px;overflow:hidden;cursor:pointer;transition:all .15s;background:rgba(0,0,0,.15)}
+.shg-card:hover{border-color:var(--kl2);transform:translateY(-2px)}
+.shg-card.on{border-color:var(--g);box-shadow:0 0 0 1px var(--g)}
+.shg-prev{height:64px;display:flex;align-items:center;justify-content:center;padding:11px;background:radial-gradient(120% 90% at 30% 20%,rgba(205,168,78,.08),transparent)}
+/* mini card mock inside preview */
+.mc{width:100%;height:100%;background:rgba(205,168,78,.16);display:flex;align-items:center;gap:5px;padding:0 8px}
+.mc::before{content:'';width:14px;height:14px;border-radius:50%;background:rgba(205,168,78,.5);flex:none}
+.mc i{display:block;height:3px;background:rgba(230,214,173,.4);border-radius:2px}
+.mc .l1{width:60%}.mc .l2{width:40%}
+.mc-wrap{display:flex;flex-direction:column;gap:3px;flex:1}
+/* silhouette modifiers on .mc */
+.p-slab .mc{border-radius:7px}
+.p-spine .mc{border-radius:4px;position:relative;padding-left:12px}
+.p-spine .mc::after{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--g)}
+.p-notched .mc{clip-path:polygon(9px 0,100% 0,100% 100%,0 100%,0 9px)}
+.p-gauge .mc{border-radius:0 6px 6px 0;position:relative;padding-left:13px}
+.p-gauge .mc::after{content:'';position:absolute;left:0;top:5px;bottom:5px;width:5px;background:repeating-linear-gradient(180deg,var(--g) 0,var(--g) 2px,transparent 2px,transparent 6px)}
+.p-screw .mc{border-radius:6px;position:relative}
+.p-screw .mc i.l1{width:55%}
+.p-tarot .mc{border-radius:6px;position:relative;box-shadow:inset 0 0 0 2px rgba(205,168,78,.3)}
+.shg-cap{padding:6px 9px;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:space-between}
+.shg-name{font-size:.85rem;color:var(--ink)}
+.shg-tag{font-family:var(--mono);font-size:.54rem;color:var(--if);text-transform:uppercase;letter-spacing:.08em}
+.shg-card.on .shg-name{color:var(--gb)}
+.ac-note{font-family:var(--mono);font-size:.62rem;line-height:1.6;color:var(--if);margin-top:.8rem;padding-top:.7rem;border-top:1px dashed var(--kl)}
+.surf-lbl{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gd);margin:.9rem 0 .5rem}
+</style>
+<section class="section" id="accordion">
+  <div class="section-head">
+    <div class="kicker">Concept III</div>
+    <h2>Accordion + Shape Gallery</h2>
+    <div class="desc">One vertical scroll. Each setting group is a collapsible row showing its current value at a glance; open one to reveal its controls. The Cards section is the star — a full visual gallery where every silhouette is drawn on a miniature card mock, per surface.</div>
+  </div>
+  <div class="ac">
+    <div class="ac-head">
+      <h3>Customize</h3>
+      <div class="ac-modetog"><button class="on">Dark</button><button>Light</button></div>
+    </div>
+    <div class="ac-sec"><div class="ac-sec-h"><span class="ic">◈</span><span class="lbl">Theme</span><span class="val">Fantasy</span><span class="chev">›</span></div></div>
+    <div class="ac-sec"><div class="ac-sec-h"><span class="ic">&#9681;</span><span class="lbl">Skin</span><span class="val">Illuminated</span><span class="chev">›</span></div></div>
+    <div class="ac-sec open">
+      <div class="ac-sec-h"><span class="ic">&#9632;</span><span class="lbl">Card shapes</span><span class="val">6 surfaces</span><span class="chev">›</span></div>
+      <div class="ac-body">
+        <div class="surf-lbl">Cast — currently: Portrait</div>
+        <div class="shg">
+          <div class="shg-card p-slab"><div class="shg-prev"><div class="mc-wrap-x p-slab"><div class="mc"><div class="mc-wrap"><i class="l1"></i><i class="l2"></i></div></div></div></div><div class="shg-cap"><span class="shg-name">Slab</span><span class="shg-tag">soft</span></div></div>
+          <div class="shg-card p-tarot on"><div class="shg-prev"><div class="mc"><div class="mc-wrap"><i class="l1"></i><i class="l2"></i></div></div></div><div class="shg-cap"><span class="shg-name">Portrait</span><span class="shg-tag">framed</span></div></div>
+          <div class="shg-card p-spine"><div class="shg-prev"><div class="mc"><div class="mc-wrap"><i class="l1"></i><i class="l2"></i></div></div></div><div class="shg-cap"><span class="shg-name">Left-spine</span><span class="shg-tag">rail</span></div></div>
+          <div class="shg-card p-notched"><div class="shg-prev"><div class="mc"><div class="mc-wrap"><i class="l1"></i><i class="l2"></i></div></div></div><div class="shg-cap"><span class="shg-name">Notched</span><span class="shg-tag">HUD</span></div></div>
+          <div class="shg-card p-gauge"><div class="shg-prev"><div class="mc"><div class="mc-wrap"><i class="l1"></i><i class="l2"></i></div></div></div><div class="shg-cap"><span class="shg-name">Gauge</span><span class="shg-tag">instrument</span></div></div>
+          <div class="shg-card p-screw"><div class="shg-prev"><div class="mc"><div class="mc-wrap"><i class="l1"></i><i class="l2"></i></div></div></div><div class="shg-cap"><span class="shg-name">Screw-tab</span><span class="shg-tag">machined</span></div></div>
+        </div>
+        <div class="ac-note">Each tile draws the actual silhouette on a mock card. Pick per surface (Cast, Bonds, Present, Beats, Factions, Items). <b>Auto</b> follows the theme default. Palette &amp; type stay from your skin.</div>
+      </div>
+    </div>
+    <div class="ac-sec"><div class="ac-sec-h"><span class="ic">&#9670;</span><span class="lbl">Color</span><span class="val">#cda84e</span><span class="chev">›</span></div></div>
+    <div class="ac-sec"><div class="ac-sec-h"><span class="ic">T</span><span class="lbl">Type &amp; size</span><span class="val">Cormorant · 100%</span><span class="chev">›</span></div></div>
+    <div class="ac-sec"><div class="ac-sec-h"><span class="ic">&#9633;</span><span class="lbl">Window</span><span class="val">blur 8 · r14</span><span class="chev">›</span></div></div>
+  </div>
+  <div class="notes">
+    <h4>Design notes</h4>
+    <ul>
+      <li><b>Visual shape gallery</b> is the headline: every silhouette rendered on a mock card so users see exactly what they're picking — no more reading "notched / deckle / aperture" text labels blind.</li>
+      <li><b>Collapsed rows show the current value</b> (skin name, accent hex, font) so the whole config is scannable at a glance without opening anything.</li>
+      <li><b>Dark/Light toggle</b> lives in the header, always reachable.</li>
+      <li>Single scroll — no horizontal tab bar. Works well on narrow panel widths (your 42vw).</li>
+      <li>Trade-off: only one section open at a time keeps it tidy, but power users comparing two groups must click back and forth.</li>
+    </ul>
+  </div>
+</section>
+</div>
+</body>
+</html>

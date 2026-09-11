@@ -221,7 +221,10 @@ export async function compileState(input: CompilerInput, userId: string | null, 
     try { run?.onProgress?.({ status: 'validating', attempt: attemptNo, text: raw }); } catch { /* best effort */ }
     let closest: string[] | null = null;
     let closestDraft: unknown;
-    for (const candidate of compilerReplyObjects(raw)) {
+    // If a provider emits a draft/example and then a corrected document, the
+    // final complete object is authoritative, matching inline <vellum> parsing.
+    // Reading oldest-first could commit a valid but superseded clock snapshot.
+    for (const candidate of compilerReplyObjects(raw).reverse()) {
       const validated = salvageCompilation(candidate, input);
       if (validated.ok) {
         try { run?.onProgress?.({ status: 'validated', attempt: attemptNo, text: validated.block, ...(validated.recovered?.length ? { message: `Recovered locally; omitted ${validated.recovered.length} unsupported change${validated.recovered.length === 1 ? '' : 's'}.` } : {}) }); } catch { /* best effort */ }
@@ -306,7 +309,7 @@ export async function repairCompilation(
   }
   let closest = [...validationErrors];
   let closestDraft: unknown = draft;
-  for (const envelope of compilerPatchObjects(raw)) {
+  for (const envelope of compilerPatchObjects(raw).reverse()) {
     const patched = applyCompilerMergePatch(draft, envelope.patch);
     if (JSON.stringify(patched) === JSON.stringify(draft)) {
       closest = ['Repair patch made no changes to the rejected draft'];

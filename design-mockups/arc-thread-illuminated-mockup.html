@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II — Chronicle · World (Illuminated) — Arcs + Threads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#100c07;
+  --bg2:#171009;
+  --surface:rgba(30,22,13,0.72);
+  --surface2:rgba(42,31,18,0.55);
+  --surface3:rgba(52,39,22,0.5);
+  --keyline:rgba(205,168,78,0.26);
+  --keyline-strong:rgba(205,168,78,0.5);
+  --gold:#cda84e;
+  --gold-bright:#e6c56b;
+  --gold-dim:#8a7238;
+  --ink:#e7d6ad;
+  --ink-dim:#a99a76;
+  --ink-faint:#6f6448;
+  --crimson:#9c3b32;
+  --crimson-bright:#c85a4e;
+  --sage:#6f8a5f;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(1200px 600px at 20% -10%,rgba(205,168,78,0.08),transparent 60%),
+    radial-gradient(900px 500px at 100% 0%,rgba(156,59,50,0.06),transparent 55%),
+    linear-gradient(160deg,var(--bg),var(--bg2));
+  background-attachment:fixed;color:var(--ink);font-family:var(--serif);
+  font-size:17px;line-height:1.5;min-height:100vh;padding-bottom:6rem;
+}
+.wrap{max-width:840px;margin:0 auto;padding:0 1.5rem}
+h1,h2,h3,h4{font-weight:600;letter-spacing:0.01em}
+
+/* masthead */
+.masthead{text-align:center;padding:4rem 1.5rem 2rem}
+.masthead .seal{width:64px;height:64px;margin:0 auto 1.2rem;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,var(--gold-bright),var(--gold-dim));
+  box-shadow:0 0 0 1px var(--keyline-strong),0 8px 30px rgba(205,168,78,0.25);
+  display:flex;align-items:center;justify-content:center;font-family:var(--serif);
+  font-size:1.8rem;color:#241809;font-weight:700}
+.masthead h1{font-size:2.8rem;color:var(--gold-bright);letter-spacing:0.04em}
+.masthead .sub{color:var(--ink-dim);font-style:italic;font-size:1.15rem;margin-top:0.3rem}
+.masthead .ctx{font-family:var(--mono);font-size:0.66rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-top:1rem}
+
+.concept{padding:2.5rem 0 1rem}
+.concept-head{margin-bottom:1.6rem}
+.concept-head .kicker{font-family:var(--mono);font-size:0.66rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem}
+.concept-head h2{font-size:2rem;color:var(--ink)}
+.concept-head .desc{color:var(--ink-dim);font-style:italic;max-width:66ch;margin-top:0.4rem}
+
+/* drawer frame */
+.drawer{background:var(--surface);border:1px solid var(--keyline);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,0.45),inset 0 1px 0 rgba(255,255,255,0.03);overflow:hidden}
+.drawer-inner{padding:1.4rem}
+
+/* establishing-shot hero (context so the world view reads whole) */
+.hero{background:linear-gradient(135deg,rgba(156,59,50,0.14),rgba(42,31,18,0.35));
+  border:1px solid var(--keyline);border-radius:8px;padding:1.3rem 1.4rem;margin-bottom:1.6rem;position:relative}
+.hero::after{content:"";position:absolute;inset:5px;border:1px solid rgba(205,168,78,0.12);border-radius:4px;pointer-events:none}
+.hero .kick{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem}
+.hero h3{font-size:1.7rem;color:var(--ink);margin-bottom:0.25rem}
+.hero .loc{color:var(--ink-dim);font-style:italic}
+.hero .metas{display:flex;gap:1.5rem;flex-wrap:wrap;margin-top:0.8rem;font-size:0.9rem}
+.hero .metas .lab{color:var(--ink-faint)}
+.hero .metas .hot{color:var(--crimson-bright)}
+
+/* section header */
+.sec-head{display:flex;align-items:center;gap:0.6rem;margin:1.6rem 0 1.1rem}
+.sec-head:first-of-type{margin-top:0}
+.sec-head .glyph{color:var(--gold)}
+.sec-head .title{font-family:var(--mono);font-size:0.7rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold-dim)}
+.sec-head .count{font-family:var(--mono);font-size:0.6rem;color:var(--ink-faint);background:rgba(205,168,78,0.1);border-radius:999px;padding:1px 8px}
+.sec-head .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--keyline),transparent)}
+.sec-head .add{margin-left:auto;background:transparent;color:var(--gold);border:1px solid var(--keyline);width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.sec-head .add:hover{border-color:var(--keyline-strong);color:var(--gold-bright);background:rgba(205,168,78,0.08)}
+.note{margin-top:1.4rem;padding-top:0.9rem;border-top:1px solid var(--keyline);font-size:0.86rem;color:var(--ink-faint);font-style:italic}
+
+.mini{background:transparent;border:1px solid var(--keyline);color:var(--ink-dim);width:24px;height:24px;border-radius:5px;cursor:pointer;font-size:0.74rem;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}
+.mini:hover{border-color:var(--keyline-strong);color:var(--gold);background:rgba(205,168,78,0.06)}
+.mini.del:hover{border-color:var(--crimson);color:var(--crimson-bright)}
+.btn{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.06em;text-transform:uppercase;padding:0.4rem 0.8rem;border-radius:3px;cursor:pointer;border:1px solid var(--keyline);background:transparent;color:var(--ink-dim);transition:all .15s}
+.btn:hover{border-color:var(--keyline-strong);color:var(--gold);background:rgba(205,168,78,0.06)}
+.btn--primary{border-color:var(--keyline-strong);color:var(--gold)}
+.btn--danger:hover{border-color:var(--crimson);color:var(--crimson-bright)}
+
+/* =====================================================================
+   ILLUMINATED CARD — shared by arcs AND threads
+   ===================================================================== */
+.leaf{position:relative;border:1px solid var(--keyline);border-radius:6px;overflow:hidden;
+  background:
+    radial-gradient(120% 80% at 0% 0%,rgba(205,168,78,0.1),transparent 45%),
+    linear-gradient(180deg,rgba(42,31,18,0.7),rgba(30,22,13,0.6));
+  transition:border-color .18s,box-shadow .18s}
+.leaf:hover{border-color:var(--keyline-strong);box-shadow:0 8px 26px rgba(0,0,0,0.35)}
+.leaf::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--gold-bright),var(--gold-dim))}
+.leaf::after{content:"";position:absolute;inset:5px;border:1px solid rgba(205,168,78,0.14);border-radius:3px;pointer-events:none}
+.leaf.hot::before{background:linear-gradient(180deg,var(--crimson-bright),var(--crimson))}
+.leaf.done{opacity:0.6}
+.leaf.done::before{background:var(--gold-dim)}
+
+.lhead{display:flex;align-items:center;gap:0.85rem;padding:1rem 1.2rem 1rem 1.5rem;cursor:pointer;user-select:none}
+.lhead .chev{color:var(--gold-dim);font-size:0.66rem;transition:transform .18s,color .15s;flex-shrink:0}
+.leaf.open .lhead .chev{transform:rotate(90deg);color:var(--gold)}
+.lhead:hover .chev{color:var(--gold)}
+.ltitle-wrap{flex:1;min-width:0}
+.lkicker{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:0.25rem}
+.lkicker.arclink{color:var(--gold)}
+.ltitle{font-family:var(--serif);font-size:1.38rem;line-height:1.2;color:var(--ink);font-weight:600;overflow-wrap:anywhere}
+.leaf.done .ltitle{color:var(--ink-dim)}
+.lsub{font-size:0.9rem;color:var(--ink-faint);font-style:italic;margin-top:0.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leaf.open .lsub{display:none}
+.lcluster{display:flex;align-items:center;gap:0.5rem;flex-shrink:0}
+.beats-pill{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.05em;text-transform:uppercase;color:var(--gold);background:rgba(205,168,78,0.12);border:1px solid rgba(205,168,78,0.2);border-radius:3px;padding:3px 9px}
+.status-pill{display:inline-flex;align-items:center;gap:0.4rem;font-family:var(--mono);font-size:0.6rem;letter-spacing:0.06em;text-transform:uppercase;padding:3px 10px;border-radius:3px;border:1px solid transparent}
+.status-pill.open{color:var(--sage);border-color:rgba(111,138,95,0.35);background:rgba(111,138,95,0.1)}
+.status-pill.hot{color:var(--crimson-bright);border-color:rgba(200,90,78,0.4);background:rgba(156,59,50,0.14)}
+.status-pill.done{color:var(--ink-faint);border-color:var(--keyline)}
+.status-pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
+.status-pill.done .dot{box-shadow:none}
+
+.lbody{padding:0 1.2rem 1.2rem 1.5rem}
+.leaf.closed .lbody{display:none}
+.lbody-rule{height:1px;background:linear-gradient(90deg,var(--keyline),transparent);margin:0 0 1rem}
+
+.momentum{display:flex;align-items:center;gap:0.7rem;margin-bottom:1rem}
+.momentum .bar{flex:1;height:5px;border-radius:3px;background:rgba(205,168,78,0.1);overflow:hidden}
+.momentum .bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-dim),var(--gold-bright))}
+.leaf.hot .momentum .bar i{background:linear-gradient(90deg,var(--crimson),var(--crimson-bright))}
+.momentum .lbl{font-family:var(--mono);font-size:0.56rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-faint)}
+
+/* inline vertical beat rail */
+.brail{position:relative;margin:0 0 0.4rem}
+.beat{position:relative;padding:0 0 1rem 1.6rem}
+.beat:last-child{padding-bottom:0}
+.beat::before{content:"";position:absolute;left:4px;top:9px;bottom:-3px;width:1px;background:linear-gradient(180deg,var(--keyline),rgba(205,168,78,0.12))}
+.beat:last-child::before{display:none}
+.beat .node{position:absolute;left:0;top:4px;width:9px;height:9px;border-radius:50%;background:var(--bg2);border:1.5px solid var(--gold-dim)}
+.beat.latest .node{background:var(--gold-bright);border-color:var(--gold-bright);box-shadow:0 0 9px rgba(230,197,107,0.65)}
+.leaf.hot .beat.latest .node{background:var(--crimson-bright);border-color:var(--crimson-bright);box-shadow:0 0 9px rgba(200,90,78,0.6)}
+.beat .bmeta{font-family:var(--mono);font-size:0.56rem;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:0.2rem}
+.beat.latest .bmeta{color:var(--gold)}
+.beat .btxt{font-size:0.98rem;color:var(--ink-dim);line-height:1.5}
+.beat.latest .btxt{color:var(--ink)}
+.brail .more-toggle{font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim);cursor:pointer;list-style:none;padding:0.15rem 0 0.6rem 1.6rem;position:relative}
+.brail .more-toggle::-webkit-details-marker{display:none}
+.brail .more-toggle:hover{color:var(--gold)}
+
+.meanwhile{margin-top:0.5rem;padding:0.6rem 0.85rem;border-radius:0 4px 4px 0;background:rgba(111,138,95,0.09);border-left:2px solid var(--sage)}
+.meanwhile .lbl{font-family:var(--mono);font-size:0.55rem;letter-spacing:0.11em;text-transform:uppercase;color:var(--sage);margin-bottom:0.2rem}
+.meanwhile .txt{font-size:0.9rem;color:var(--ink-dim)}
+
+.threads-chips{display:flex;flex-wrap:wrap;gap:0.45rem;margin-top:1rem}
+.tchip{display:inline-flex;align-items:center;gap:0.4rem;font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);background:var(--surface3);border:1px solid var(--keyline);border-radius:3px;padding:3px 5px 3px 10px;transition:border-color .15s}
+.tchip:hover{border-color:var(--keyline-strong)}
+.tchip .lead{color:var(--gold-dim)}
+.tchip .x{width:16px;height:16px;border-radius:50%;border:none;background:transparent;color:var(--ink-faint);cursor:pointer;font-size:0.8rem;line-height:1}
+.tchip .x:hover{color:var(--crimson-bright)}
+.tchip.more{color:var(--ink-faint);padding:3px 10px}
+
+.lactions{display:flex;gap:0.5rem;margin-top:1.1rem;flex-wrap:wrap}
+
+/* ---- ARC level vs THREAD level distinctions ---- */
+.arcs{display:grid;gap:1.1rem}
+/* threads read as smaller, nested leaves — indented, thinner rail, a connector */
+.threads{display:grid;gap:0.75rem;margin-top:0.4rem}
+.leaf--thread{border-radius:5px}
+.leaf--thread .ltitle{font-size:1.2rem}
+.leaf--thread::before{width:3px;background:linear-gradient(180deg,var(--gold),var(--gold-dim))}
+.leaf--thread.hot::before{background:linear-gradient(180deg,var(--crimson-bright),var(--crimson))}
+.leaf--thread .lhead{padding:0.85rem 1.1rem 0.85rem 1.35rem}
+.leaf--thread .lbody{padding:0 1.1rem 1.1rem 1.35rem}
+.leaf--thread::after{inset:4px}
+
+/* the "nested under arc" grouping used in the second layout */
+.arc-group{position:relative}
+.arc-group .nest{position:relative;margin:0.75rem 0 0 1.4rem;padding-left:1.3rem}
+.arc-group .nest::before{content:"";position:absolute;left:0;top:-0.4rem;bottom:0.9rem;width:1px;background:linear-gradient(180deg,var(--keyline),rgba(205,168,78,0.1))}
+.arc-group .nest .leaf--thread{position:relative}
+.arc-group .nest .leaf--thread::after{}
+.arc-group .nest > .leaf--thread + .leaf--thread{margin-top:0.75rem}
+.arc-group .nest .connector{position:absolute;left:0;width:1.3rem;height:1px;background:var(--keyline)}
+.nest-label{font-family:var(--mono);font-size:0.56rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-dim);margin:0 0 0.55rem 1.4rem;display:flex;align-items:center;gap:0.5rem}
+.nest-label::before{content:"\21B3";color:var(--gold)}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Chronicle · World — Illuminated, arcs + threads unified</div>
+  <div class="ctx">One illuminated leaf, two tiers</div>
+</div>
+
+<div class="wrap">
+
+<!-- ============================================================
+     LAYOUT A — TWO STACKED SECTIONS
+     ============================================================ -->
+<section class="concept">
+  <div class="concept-head">
+    <div class="kicker">Illuminated · Layout A</div>
+    <h2>Two sections, one leaf</h2>
+    <div class="desc">
+      Arcs and Threads keep their own section headers, but both are now the same illuminated leaf — thick
+      gold rail, inner keyline frame, squared corners, corner-light wash. Threads are visibly the lesser
+      tier: smaller title, thinner rail, and a "&#8627; belongs-to-arc" kicker instead of a beat count.
+      Everything else (beat rail, meanwhile, controls) is shared.
+    </div>
+  </div>
+
+  <div class="drawer">
+    <div class="drawer-inner">
+      <!-- hero for context -->
+      <div class="hero">
+        <div class="kick">Now · Day 14 · Afternoon</div>
+        <h3>The Throne Room, Red Keep</h3>
+        <div class="loc">King's Landing</div>
+        <div class="metas">
+          <div><span class="lab">Present:</span> Tyrion, Cersei, Joffrey, Varys</div>
+          <div><span class="lab">Tension:</span> <span class="hot">8</span></div>
+        </div>
+      </div>
+
+      <!-- ARCS -->
+      <div class="sec-head">
+        <span class="glyph">&#10054;</span><span class="title">Arcs</span><span class="count">2</span>
+        <span class="rule"></span><button class="add">+</button>
+      </div>
+      <div class="arcs">
+
+        <div class="leaf hot open">
+          <div class="lhead" data-toggle>
+            <span class="chev">&#9654;</span>
+            <div class="ltitle-wrap">
+              <div class="ltitle">Tyrion's Gambit</div>
+              <div class="lsub">Three councilors, three secrets, one trap.</div>
+            </div>
+            <div class="lcluster">
+              <span class="beats-pill">4</span>
+              <span class="status-pill hot"><span class="dot"></span>escalating</span>
+            </div>
+          </div>
+          <div class="lbody">
+            <div class="lbody-rule"></div>
+            <div class="momentum"><span class="lbl">momentum</span><div class="bar"><i style="width:60%"></i></div></div>
+            <div class="brail">
+              <details>
+                <summary class="more-toggle">show 2 earlier beats &#9662;</summary>
+                <div class="beat"><span class="node"></span><div class="bmeta">Day 11</div><div class="btxt">Tyrion arrives as acting Hand and begins dismantling Cersei's spies.</div></div>
+                <div class="beat"><span class="node"></span><div class="bmeta">Day 12</div><div class="btxt">He dismisses Janos Slynt to the Wall and hands the Watch to Bronn.</div></div>
+              </details>
+              <div class="beat"><span class="node"></span><div class="bmeta">Day 13</div><div class="btxt">A whisper reaches him: someone on the council answers to the Queen.</div></div>
+              <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">He feeds three councilors three different secrets to smoke out the leak.</div></div>
+            </div>
+            <div class="meanwhile"><div class="lbl">Meanwhile</div><div class="txt">Jaime languishes in Stark custody &rarr; advancing</div></div>
+            <div class="threads-chips">
+              <span class="tchip"><span class="lead">&#8627;</span> Cersei's Suspicion <button class="x">&times;</button></span>
+              <span class="tchip"><span class="lead">&#8627;</span> Varys' Web <button class="x">&times;</button></span>
+            </div>
+            <div class="lactions"><button class="btn btn--primary">Link thread</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+          </div>
+        </div>
+
+        <div class="leaf closed">
+          <div class="lhead" data-toggle>
+            <span class="chev">&#9654;</span>
+            <div class="ltitle-wrap">
+              <div class="ltitle">The War of Five Kings</div>
+              <div class="lsub">Robb's host has crossed the Neck.</div>
+            </div>
+            <div class="lcluster">
+              <span class="beats-pill">7</span>
+              <span class="status-pill open"><span class="dot"></span>open</span>
+            </div>
+          </div>
+          <div class="lbody">
+            <div class="lbody-rule"></div>
+            <div class="brail">
+              <div class="beat"><span class="node"></span><div class="bmeta">Day 9</div><div class="btxt">Stannis and Renly both declare for the Iron Throne.</div></div>
+              <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">Word reaches King's Landing that Robb's host has crossed the Neck.</div></div>
+            </div>
+            <div class="lactions"><button class="btn btn--primary">Link thread</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- THREADS -->
+      <div class="sec-head">
+        <span class="glyph">&#9884;</span><span class="title">Threads</span><span class="count">3</span>
+        <span class="rule"></span><button class="add">+</button>
+      </div>
+      <div class="threads">
+
+        <div class="leaf leaf--thread hot open">
+          <div class="lhead" data-toggle>
+            <span class="chev">&#9654;</span>
+            <div class="ltitle-wrap">
+              <div class="lkicker arclink">&#8627; Tyrion's Gambit</div>
+              <div class="ltitle">Cersei's Suspicion</div>
+              <div class="lsub">She sets a watcher on her brother's door.</div>
+            </div>
+            <div class="lcluster">
+              <span class="status-pill hot"><span class="dot"></span>escalating</span>
+            </div>
+          </div>
+          <div class="lbody">
+            <div class="lbody-rule"></div>
+            <div class="brail">
+              <div class="beat"><span class="node"></span><div class="bmeta">Day 12</div><div class="btxt">The Queen Regent notes her brother meeting Bronn in private.</div></div>
+              <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">Convinced he plots against Joffrey, she sets a watcher on his door.</div></div>
+            </div>
+            <div class="meanwhile"><div class="lbl">Meanwhile</div><div class="txt">Jaime languishes in Stark custody &rarr; advancing</div></div>
+            <div class="lactions"><button class="btn btn--primary">&#8627; Tyrion's Gambit &times;</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+          </div>
+        </div>
+
+        <div class="leaf leaf--thread closed">
+          <div class="lhead" data-toggle>
+            <span class="chev">&#9654;</span>
+            <div class="ltitle-wrap">
+              <div class="lkicker arclink">&#8627; Tyrion's Gambit</div>
+              <div class="ltitle">Varys' Web</div>
+              <div class="lsub">The Spider shares whispers, loyalties shrouded.</div>
+            </div>
+            <div class="lcluster">
+              <span class="status-pill open"><span class="dot"></span>active</span>
+            </div>
+          </div>
+          <div class="lbody">
+            <div class="lbody-rule"></div>
+            <div class="brail">
+              <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">The Spider shares a whisper with the Hand, but his true loyalties remain shrouded.</div></div>
+            </div>
+            <div class="lactions"><button class="btn btn--primary">&#8627; Tyrion's Gambit &times;</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+          </div>
+        </div>
+
+        <!-- unlinked thread: kicker reads "Thread", offers LINK ARC -->
+        <div class="leaf leaf--thread closed">
+          <div class="lhead" data-toggle>
+            <span class="chev">&#9654;</span>
+            <div class="ltitle-wrap">
+              <div class="lkicker">Thread</div>
+              <div class="ltitle">Joffrey's Cruelty</div>
+              <div class="lsub">Courtiers whisper of madness.</div>
+            </div>
+            <div class="lcluster">
+              <span class="status-pill hot"><span class="dot"></span>escalating</span>
+            </div>
+          </div>
+          <div class="lbody">
+            <div class="lbody-rule"></div>
+            <div class="brail">
+              <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">The boy king's sadism deepens; courtiers whisper of madness.</div></div>
+            </div>
+            <div class="lactions"><button class="btn btn--primary">Link arc</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">Arcs and threads share the illuminated leaf; tier is signalled by size, rail weight, and the arc-link kicker. A thread that isn't linked reads "Thread" and offers "Link arc".</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     LAYOUT B — THREADS NESTED UNDER THEIR ARC
+     ============================================================ -->
+<section class="concept">
+  <div class="concept-head">
+    <div class="kicker">Illuminated · Layout B</div>
+    <h2>Threads nested under their arc</h2>
+    <div class="desc">
+      Same leaves, but instead of two flat lists the threads sit indented directly beneath the arc they
+      belong to, joined by a hairline connector. The arc becomes a heading with its children tucked under
+      it — the arc&#8596;thread link is now spatial, not just a chip. Unlinked threads collect in a final
+      "Unassigned" group.
+    </div>
+  </div>
+
+  <div class="drawer">
+    <div class="drawer-inner">
+      <div class="sec-head">
+        <span class="glyph">&#10054;</span><span class="title">Arcs &amp; Threads</span><span class="count">2 · 3</span>
+        <span class="rule"></span><button class="add">+</button>
+      </div>
+
+      <div class="arcs">
+        <!-- Arc group 1 -->
+        <div class="arc-group">
+          <div class="leaf hot open">
+            <div class="lhead" data-toggle>
+              <span class="chev">&#9654;</span>
+              <div class="ltitle-wrap">
+                <div class="ltitle">Tyrion's Gambit</div>
+                <div class="lsub">Three councilors, three secrets, one trap.</div>
+              </div>
+              <div class="lcluster">
+                <span class="beats-pill">4</span>
+                <span class="status-pill hot"><span class="dot"></span>escalating</span>
+              </div>
+            </div>
+            <div class="lbody">
+              <div class="lbody-rule"></div>
+              <div class="momentum"><span class="lbl">momentum</span><div class="bar"><i style="width:60%"></i></div></div>
+              <div class="brail">
+                <div class="beat"><span class="node"></span><div class="bmeta">Day 13</div><div class="btxt">A whisper reaches him: someone on the council answers to the Queen.</div></div>
+                <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">He feeds three councilors three different secrets to smoke out the leak.</div></div>
+              </div>
+              <div class="lactions"><button class="btn btn--primary">Link thread</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+            </div>
+          </div>
+
+          <div class="nest-label">2 threads</div>
+          <div class="nest">
+            <div class="leaf leaf--thread closed">
+              <span class="connector" style="top:1.55rem"></span>
+              <div class="lhead" data-toggle>
+                <span class="chev">&#9654;</span>
+                <div class="ltitle-wrap">
+                  <div class="ltitle">Cersei's Suspicion</div>
+                  <div class="lsub">She sets a watcher on her brother's door.</div>
+                </div>
+                <div class="lcluster"><span class="status-pill hot"><span class="dot"></span>escalating</span></div>
+              </div>
+              <div class="lbody">
+                <div class="lbody-rule"></div>
+                <div class="brail">
+                  <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">Convinced he plots against Joffrey, she sets a watcher on his door.</div></div>
+                </div>
+                <div class="meanwhile"><div class="lbl">Meanwhile</div><div class="txt">Jaime languishes in Stark custody &rarr; advancing</div></div>
+                <div class="lactions"><button class="btn btn--primary">&#8627; unlink</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+              </div>
+            </div>
+
+            <div class="leaf leaf--thread closed">
+              <span class="connector" style="top:1.55rem"></span>
+              <div class="lhead" data-toggle>
+                <span class="chev">&#9654;</span>
+                <div class="ltitle-wrap">
+                  <div class="ltitle">Varys' Web</div>
+                  <div class="lsub">The Spider shares whispers, loyalties shrouded.</div>
+                </div>
+                <div class="lcluster"><span class="status-pill open"><span class="dot"></span>active</span></div>
+              </div>
+              <div class="lbody">
+                <div class="lbody-rule"></div>
+                <div class="brail">
+                  <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">The Spider shares a whisper with the Hand, but his true loyalties remain shrouded.</div></div>
+                </div>
+                <div class="lactions"><button class="btn btn--primary">&#8627; unlink</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Arc group 2 (no threads linked yet) -->
+        <div class="arc-group">
+          <div class="leaf closed">
+            <div class="lhead" data-toggle>
+              <span class="chev">&#9654;</span>
+              <div class="ltitle-wrap">
+                <div class="ltitle">The War of Five Kings</div>
+                <div class="lsub">Robb's host has crossed the Neck.</div>
+              </div>
+              <div class="lcluster">
+                <span class="beats-pill">7</span>
+                <span class="status-pill open"><span class="dot"></span>open</span>
+              </div>
+            </div>
+            <div class="lbody">
+              <div class="lbody-rule"></div>
+              <div class="brail">
+                <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">Word reaches King's Landing that Robb's host has crossed the Neck.</div></div>
+              </div>
+              <div class="lactions"><button class="btn btn--primary">Link thread</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Unassigned threads group -->
+        <div class="arc-group">
+          <div class="nest-label" style="margin-left:0">Unassigned threads · 1</div>
+          <div class="threads" style="margin-top:0">
+            <div class="leaf leaf--thread hot closed">
+              <div class="lhead" data-toggle>
+                <span class="chev">&#9654;</span>
+                <div class="ltitle-wrap">
+                  <div class="lkicker">Thread</div>
+                  <div class="ltitle">Joffrey's Cruelty</div>
+                  <div class="lsub">Courtiers whisper of madness.</div>
+                </div>
+                <div class="lcluster"><span class="status-pill hot"><span class="dot"></span>escalating</span></div>
+              </div>
+              <div class="lbody">
+                <div class="lbody-rule"></div>
+                <div class="brail">
+                  <div class="beat latest"><span class="node"></span><div class="bmeta">Day 14 · latest</div><div class="btxt">The boy king's sadism deepens; courtiers whisper of madness.</div></div>
+                </div>
+                <div class="lactions"><button class="btn btn--primary">Link arc</button><button class="btn">Edit</button><button class="btn">Resolve</button><button class="btn btn--danger">Delete</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">Nesting makes the arc&#8596;thread relationship physical: children tuck under their parent with a hairline connector. Best when most threads are linked; unlinked ones fall to an "Unassigned" group at the end.</div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+document.querySelectorAll('[data-toggle]').forEach(function(h){
+  h.addEventListener('click', function(e){
+    if(e.target.closest('.x')||e.target.closest('.btn')||e.target.closest('.more-toggle')||e.target.closest('summary')) return;
+    var card = h.closest('.leaf');
+    var open = card.classList.contains('open');
+    card.classList.toggle('open', !open);
+    card.classList.toggle('closed', open);
+  });
+});
+</script>
+
+</body>
+</html>

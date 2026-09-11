@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sumi Card Shape Alternatives</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Noto+Serif:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --vermillion:#c8371a;
+  --ink:#1a1410;
+  --ink-light:#4a3828;
+  --paper:#faf6ed;
+  --wash:#8a7a68;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:linear-gradient(160deg,#f5ead8,#ebe0ca);
+  color:var(--ink);
+  font-family:'Noto Serif','Noto Serif JP',Georgia,serif;
+  padding:3rem 1.5rem;
+  min-height:100vh;
+}
+.wrap{max-width:1400px;margin:0 auto}
+h1{
+  text-align:center;font-size:2.5rem;color:var(--ink);
+  letter-spacing:0.08em;margin-bottom:0.5rem;
+  font-weight:700;
+}
+.subtitle{
+  text-align:center;color:var(--wash);font-style:italic;
+  margin-bottom:3rem;font-size:1.1rem;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(380px,1fr));
+  gap:2.5rem;
+  margin-bottom:3rem;
+}
+
+.option{
+  background:rgba(250,246,237,0.8);
+  border:1px solid rgba(26,20,16,0.12);
+  padding:2rem;
+  box-shadow:4px 4px 0 rgba(26,20,16,0.06);
+}
+.option-name{
+  font-size:1.5rem;
+  color:var(--ink);
+  letter-spacing:0.05em;
+  margin-bottom:0.5rem;
+  text-align:center;
+  font-weight:700;
+}
+.option-desc{
+  color:var(--wash);
+  font-size:0.92rem;
+  text-align:center;
+  margin-bottom:2rem;
+  font-style:italic;
+}
+
+/* Card container */
+.card{
+  background:#faf6ed;
+  padding:1.5rem;
+  margin-bottom:1.5rem;
+  position:relative;
+}
+
+/* OPTION 1: DECKLE EDGE (torn paper) */
+.card-deckle{
+  border:none;
+  border-left:4px solid var(--ink);
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+  -webkit-mask:
+    linear-gradient(90deg, #000 calc(100% - 12px), transparent 100%),
+    radial-gradient(circle 3px at 0 3px, transparent 2.5px, #000 3px) 100% 0 / 6px 6px repeat-y;
+  -webkit-mask-composite:destination-in;
+  mask:
+    linear-gradient(90deg, #000 calc(100% - 12px), transparent 100%),
+    radial-gradient(circle 3px at 0 3px, transparent 2.5px, #000 3px) 100% 0 / 6px 6px repeat-y;
+  mask-composite:intersect;
+}
+
+/* OPTION 2: VERTICAL STROKE */
+.card-vstroke{
+  border:none;
+  padding-left:2rem;
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+}
+.card-vstroke::before{
+  content:'';position:absolute;
+  left:0;top:10%;bottom:10%;width:6px;
+  background:linear-gradient(180deg,
+    transparent 0%, var(--ink) 5%, var(--ink) 95%, transparent 100%);
+  opacity:0.9;
+}
+
+/* OPTION 3: HANKO CORNER */
+.card-hanko-corner{
+  border:1px solid rgba(26,20,16,0.12);
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+  padding-top:2rem;
+}
+.card-hanko-corner::after{
+  content:'印';position:absolute;
+  top:-8px;right:-8px;
+  width:40px;height:40px;
+  background:radial-gradient(circle at 45% 40%,var(--vermillion),#a02814);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--paper);font-weight:700;font-size:1.3rem;
+  box-shadow:0 3px 10px rgba(200,55,26,0.4);
+  transform:rotate(-8deg);
+}
+
+/* OPTION 4: BAMBOO RAIL */
+.card-bamboo{
+  border:none;
+  border-left:1px solid rgba(26,20,16,0.2);
+  padding-left:2rem;
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+}
+.card-bamboo::before{
+  content:'';position:absolute;
+  left:-1px;top:0;bottom:0;width:3px;
+  background:
+    linear-gradient(180deg,
+      transparent 0, transparent 8%,
+      rgba(26,20,16,0.15) 8%, rgba(26,20,16,0.15) 10%,
+      transparent 10%, transparent 23%,
+      rgba(26,20,16,0.15) 23%, rgba(26,20,16,0.15) 25%,
+      transparent 25%, transparent 38%,
+      rgba(26,20,16,0.15) 38%, rgba(26,20,16,0.15) 40%,
+      transparent 40%, transparent 53%,
+      rgba(26,20,16,0.15) 53%, rgba(26,20,16,0.15) 55%,
+      transparent 55%, transparent 68%,
+      rgba(26,20,16,0.15) 68%, rgba(26,20,16,0.15) 70%,
+      transparent 70%, transparent 83%,
+      rgba(26,20,16,0.15) 83%, rgba(26,20,16,0.15) 85%,
+      transparent 85%
+    );
+}
+
+/* OPTION 5: SCROLL ENDS */
+.card-scroll{
+  border-top:3px solid var(--ink);
+  border-bottom:3px solid var(--ink);
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+  padding:1.8rem 1.5rem;
+}
+.card-scroll::before{
+  content:'';position:absolute;
+  top:-6px;left:12px;right:12px;height:3px;
+  background:
+    linear-gradient(90deg,
+      transparent 0, var(--ink-light) 20px,
+      var(--ink-light) calc(100% - 20px), transparent 100%);
+  opacity:0.4;
+}
+.card-scroll::after{
+  content:'';position:absolute;
+  bottom:-6px;left:12px;right:12px;height:3px;
+  background:
+    linear-gradient(90deg,
+      transparent 0, var(--ink-light) 20px,
+      var(--ink-light) calc(100% - 20px), transparent 100%);
+  opacity:0.4;
+}
+
+/* OPTION 6: ENSO FRAME */
+.card-enso{
+  border:2px solid rgba(26,20,16,0.15);
+  border-radius:50% 50% 48% 52% / 48% 52% 48% 52%;
+  padding:2rem;
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+}
+
+/* OPTION 7: ASYMMETRIC MINIMAL */
+.card-asym{
+  border:none;
+  border-left:5px solid var(--ink);
+  border-bottom:1px solid rgba(26,20,16,0.2);
+  padding:1.5rem 1.5rem 1.5rem 2rem;
+  box-shadow:2px 3px 0 rgba(26,20,16,0.08);
+}
+
+/* OPTION 8: FOLDED CORNER */
+.card-fold{
+  border:1px solid rgba(26,20,16,0.12);
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+  position:relative;
+}
+.card-fold::before{
+  content:'';position:absolute;
+  top:0;right:0;
+  width:0;height:0;
+  border-style:solid;
+  border-width:0 32px 32px 0;
+  border-color:transparent rgba(26,20,16,0.08) transparent transparent;
+}
+.card-fold::after{
+  content:'';position:absolute;
+  top:0;right:0;
+  width:0;height:0;
+  border-style:solid;
+  border-width:0 30px 30px 0;
+  border-color:transparent var(--paper) transparent transparent;
+}
+
+/* OPTION 9: INKSTONE EDGE */
+.card-inkstone{
+  border:none;
+  border-left:4px solid var(--ink);
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+  padding-left:2rem;
+}
+.card-inkstone::before{
+  content:'';position:absolute;
+  left:0;top:0;width:4px;height:40%;
+  background:linear-gradient(180deg,
+    var(--ink) 0%, var(--ink) 60%, transparent 100%);
+}
+.card-inkstone::after{
+  content:'';position:absolute;
+  left:4px;top:0;bottom:0;width:60px;
+  background:linear-gradient(90deg,
+    rgba(26,20,16,0.04) 0%, transparent 100%);
+  pointer-events:none;
+}
+
+/* OPTION 10: WASHI FOLD */
+.card-washi{
+  border:none;
+  box-shadow:
+    3px 3px 0 rgba(26,20,16,0.08),
+    inset 0 0 0 1px rgba(26,20,16,0.08);
+  background:
+    linear-gradient(135deg, transparent 0%, transparent calc(100% - 20px),
+      rgba(26,20,16,0.05) calc(100% - 20px), rgba(26,20,16,0.05) 100%),
+    var(--paper);
+}
+.card-washi::after{
+  content:'';position:absolute;
+  bottom:0;right:0;
+  width:0;height:0;
+  border-style:solid;
+  border-width:0 0 20px 20px;
+  border-color:transparent transparent rgba(26,20,16,0.12) transparent;
+}
+
+.card-content{
+  position:relative;
+  z-index:1;
+}
+.card-label{
+  font-size:0.72rem;
+  letter-spacing:0.05em;
+  color:var(--wash);
+  margin-bottom:0.5rem;
+  font-style:italic;
+}
+.card-title{
+  font-size:1.1rem;
+  font-weight:700;
+  color:var(--ink);
+  margin-bottom:0.7rem;
+  letter-spacing:0.02em;
+}
+.card-text{
+  color:var(--ink-light);
+  line-height:1.8;
+  font-size:0.94rem;
+}
+
+.notes{
+  margin-top:1rem;
+  padding-top:1rem;
+  border-top:1px solid rgba(26,20,16,0.12);
+  font-size:0.88rem;
+  color:var(--wash);
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>墨 SUMI CARD ALTERNATIVES</h1>
+  <div class="subtitle">Japanese ink wash card shape explorations</div>
+
+  <div class="grid">
+    
+    <!-- OPTION 1 -->
+    <div class="option">
+      <div class="option-name">1. DECKLE EDGE</div>
+      <div class="option-desc">Torn paper right edge, bold left stroke</div>
+      
+      <div class="card card-deckle">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Authentic paper texture, organic<br>
+        <strong>Cons:</strong> Complex mask, may degrade on old browsers<br>
+        <strong>CSS:</strong> Mask with radial gradient pattern
+      </div>
+    </div>
+
+    <!-- OPTION 2 -->
+    <div class="option">
+      <div class="option-name">2. VERTICAL STROKE</div>
+      <div class="option-desc">Single calligraphy brush stroke left side</div>
+      
+      <div class="card card-vstroke">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Clean, minimal, brush-like<br>
+        <strong>Cons:</strong> May be too subtle<br>
+        <strong>CSS:</strong> Gradient stroke with fade at ends
+      </div>
+    </div>
+
+    <!-- OPTION 3 -->
+    <div class="option">
+      <div class="option-name">3. HANKO CORNER</div>
+      <div class="option-desc">Vermillion seal stamp at top-right</div>
+      
+      <div class="card card-hanko-corner">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Iconic, authentic, strong identity<br>
+        <strong>Cons:</strong> Hanko may overlap content if too large<br>
+        <strong>CSS:</strong> Circle pseudo with kanji character
+      </div>
+    </div>
+
+    <!-- OPTION 4 -->
+    <div class="option">
+      <div class="option-name">4. BAMBOO RAIL</div>
+      <div class="option-desc">Segmented bamboo stalk left border</div>
+      
+      <div class="card card-bamboo">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Natural, meditative, unique<br>
+        <strong>Cons:</strong> Busy, may distract from content<br>
+        <strong>CSS:</strong> Segmented gradient border
+      </div>
+    </div>
+
+    <!-- OPTION 5 -->
+    <div class="option">
+      <div class="option-name">5. SCROLL ENDS</div>
+      <div class="option-desc">Horizontal scroll with rolled edges</div>
+      
+      <div class="card card-scroll">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Evokes kakemono scrolls, elegant<br>
+        <strong>Cons:</strong> May look too symmetric<br>
+        <strong>CSS:</strong> Top/bottom borders with faded underlays
+      </div>
+    </div>
+
+    <!-- OPTION 6 -->
+    <div class="option">
+      <div class="option-name">6. ENSO FRAME</div>
+      <div class="option-desc">Imperfect circle border (Zen circle)</div>
+      
+      <div class="card card-enso">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Deeply symbolic, distinctive<br>
+        <strong>Cons:</strong> Unconventional for cards, wastes space<br>
+        <strong>CSS:</strong> Irregular border-radius percentages
+      </div>
+    </div>
+
+    <!-- OPTION 7 -->
+    <div class="option">
+      <div class="option-name">7. ASYMMETRIC MINIMAL</div>
+      <div class="option-desc">Heavy left, light bottom—pure asymmetry</div>
+      
+      <div class="card card-asym">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> True to minimalist aesthetic, clean<br>
+        <strong>Cons:</strong> Very subtle, may lack identity<br>
+        <strong>CSS:</strong> Two-border approach (left heavy, bottom light)
+      </div>
+    </div>
+
+    <!-- OPTION 8 -->
+    <div class="option">
+      <div class="option-name">8. FOLDED CORNER</div>
+      <div class="option-desc">Top-right paper fold (dog-ear)</div>
+      
+      <div class="card card-fold">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Playful, paper-like, easy to implement<br>
+        <strong>Cons:</strong> Western (book) metaphor, not very Japanese<br>
+        <strong>CSS:</strong> Triangle border trick with two pseudos
+      </div>
+    </div>
+
+    <!-- OPTION 9 -->
+    <div class="option">
+      <div class="option-name">9. INKSTONE EDGE</div>
+      <div class="option-desc">Left border fades like grinding ink</div>
+      
+      <div class="card card-inkstone">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Authentic ink metaphor, elegant fade<br>
+        <strong>Cons:</strong> Complex with two gradients<br>
+        <strong>CSS:</strong> Vertical fade + horizontal wash gradient
+      </div>
+    </div>
+
+    <!-- OPTION 10 -->
+    <div class="option">
+      <div class="option-name">10. WASHI FOLD</div>
+      <div class="option-desc">Bottom-right diagonal crease</div>
+      
+      <div class="card card-washi">
+        <div class="card-content">
+          <div class="card-label">active thread</div>
+          <div class="card-title">The Broken Sword</div>
+          <div class="card-text">
+            Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+            but by his own hand. A vow, broken cleanly.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Subtle paper texture, elegant detail<br>
+        <strong>Cons:</strong> Small fold may not be noticed<br>
+        <strong>CSS:</strong> Diagonal gradient + triangle pseudo
+      </div>
+    </div>
+
+  </div>
+
+  <div style="text-align:center;color:var(--wash);margin-top:3rem;padding-top:2rem;border-top:1px solid rgba(26,20,16,0.12)">
+    <p style="margin-bottom:0.5rem">VELLUM II — Sumi Chrome Card Explorations</p>
+    <p style="font-style:italic;font-size:0.9rem">Recommendations: <strong style="color:var(--vermillion)">Inkstone Edge (#9)</strong> for authenticity, <strong style="color:var(--vermillion)">Vertical Stroke (#2)</strong> for clean minimalism, <strong style="color:var(--vermillion)">Hanko Corner (#3)</strong> for strong identity</p>
+  </div>
+</div>
+
+</body>
+</html>

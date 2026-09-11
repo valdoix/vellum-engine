@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II — UI Redesign Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#100c07;
+  --bg2:#171009;
+  --surface:rgba(30,22,13,0.72);
+  --surface2:rgba(42,31,18,0.6);
+  --keyline:rgba(205,168,78,0.28);
+  --keyline-strong:rgba(205,168,78,0.5);
+  --gold:#cda84e;
+  --gold-bright:#e6c56b;
+  --gold-dim:#8a7238;
+  --ink:#e7d6ad;
+  --ink-dim:#a99a76;
+  --ink-faint:#6f6448;
+  --crimson:#9c3b32;
+  --sage:#6f8a5f;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(1200px 600px at 20% -10%,rgba(205,168,78,0.08),transparent 60%),
+    radial-gradient(900px 500px at 100% 0%,rgba(156,59,50,0.06),transparent 55%),
+    linear-gradient(160deg,var(--bg),var(--bg2));
+  background-attachment:fixed;
+  color:var(--ink);
+  font-family:var(--serif);
+  font-size:17px;
+  line-height:1.5;
+  min-height:100vh;
+  padding-bottom:6rem;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 1.5rem}
+h1,h2,h3,h4{font-weight:600;letter-spacing:0.01em}
+.mono{font-family:var(--mono);font-size:0.72em;letter-spacing:0.06em}
+.upper{text-transform:uppercase;letter-spacing:0.18em}
+
+/* ---- masthead ---- */
+.masthead{
+  text-align:center;padding:4rem 1.5rem 2rem;position:relative;
+}
+.masthead .seal{
+  width:64px;height:64px;margin:0 auto 1.2rem;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,var(--gold-bright),var(--gold-dim));
+  box-shadow:0 0 0 1px var(--keyline-strong),0 8px 30px rgba(205,168,78,0.25);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--serif);font-size:1.8rem;color:#241809;font-weight:700;
+}
+.masthead h1{font-size:2.8rem;color:var(--gold-bright);letter-spacing:0.04em}
+.masthead .sub{color:var(--ink-dim);font-style:italic;font-size:1.15rem;margin-top:0.3rem}
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--keyline-strong),transparent);margin:2rem 0}
+
+/* ---- nav ---- */
+.gallery-nav{
+  position:sticky;top:0;z-index:50;
+  background:linear-gradient(180deg,rgba(16,12,7,0.96),rgba(16,12,7,0.82));
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--keyline);
+  padding:0.8rem 0;
+}
+.gallery-nav .wrap{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.gallery-nav a{
+  color:var(--ink-dim);text-decoration:none;font-family:var(--mono);
+  font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;
+  padding:0.4rem 0.8rem;border:1px solid transparent;border-radius:3px;
+  transition:all .2s;
+}
+.gallery-nav a:hover{color:var(--gold-bright);border-color:var(--keyline)}
+.gallery-nav .tag{color:var(--gold);font-weight:700;margin-right:0.4rem}
+
+/* ---- section framing ---- */
+.concept{padding:3.5rem 0 1rem}
+.concept-head{margin-bottom:1.6rem}
+.concept-head .kicker{
+  font-family:var(--mono);font-size:0.66rem;letter-spacing:0.22em;
+  text-transform:uppercase;color:var(--gold);margin-bottom:0.5rem
+}
+.concept-head h2{font-size:2rem;color:var(--ink)}
+.concept-head .desc{color:var(--ink-dim);font-style:italic;max-width:62ch;margin-top:0.4rem}
+
+/* ---- generic card / panel ---- */
+.panel{
+  background:var(--surface);
+  border:1px solid var(--keyline);
+  border-radius:8px;
+  box-shadow:0 12px 40px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.03);
+  overflow:hidden;
+}
+.panel-frame{position:relative;padding:1.5rem}
+.panel-frame::before{
+  content:"";position:absolute;inset:8px;border:1px solid var(--keyline);
+  border-radius:5px;pointer-events:none;opacity:0.5
+}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Palimpsest — UI Redesign Mockups</div>
+</div>
+
+<nav class="gallery-nav">
+  <div class="wrap">
+    <span class="tag">Chronicle · World</span>
+    <a href="#world-establishing">Establishing Shot</a>
+    <a href="#world-constellation">Constellation</a>
+    <a href="#world-loom">The Loom</a>
+    <span class="tag" style="margin-left:1rem">Director · Off-screen</span>
+    <a href="#dir-situation">Situation Room</a>
+    <a href="#dir-approach">Approach Lanes</a>
+    <a href="#dir-feed">Elsewhere Feed</a>
+  </div>
+</nav>
+
+<!-- MOCKUP SECTIONS APPENDED BELOW -->
+
+<div class="wrap">
+
+<!-- ============================================================
+     CHRONICLE → WORLD : ESTABLISHING SHOT
+     ============================================================ -->
+<section id="world-establishing" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Chronicle · World · Concept A</div>
+    <h2>Establishing Shot</h2>
+    <div class="desc">
+      Opens with a cinematic hero header showing the present moment (scene title, day, time, location). 
+      Arcs form a horizontal spine with threads nested below. Off-screen reflections appear as subtle margin notes.
+    </div>
+  </div>
+
+  <div class="panel" style="padding:0">
+    <!-- Hero header -->
+    <div style="background:linear-gradient(135deg,rgba(156,59,50,0.15),rgba(42,31,18,0.4));padding:2rem;border-bottom:1px solid var(--keyline)">
+      <div style="font-family:var(--mono);font-size:0.64rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold);margin-bottom:0.6rem">
+        Now · Day 14 · Afternoon
+      </div>
+      <h3 style="font-size:1.8rem;color:var(--ink);margin-bottom:0.5rem">A Clash of Kings</h3>
+      <div style="color:var(--ink-dim);font-style:italic">The Throne Room, Red Keep — King's Landing</div>
+      <div style="margin-top:1rem;display:flex;gap:1.5rem;flex-wrap:wrap;font-size:0.92rem">
+        <div><span style="color:var(--ink-faint)">Present:</span> <span style="color:var(--ink)">Tyrion, Cersei, Joffrey, Varys</span></div>
+        <div><span style="color:var(--ink-faint)">Tension:</span> <span style="color:var(--crimson)">8</span></div>
+      </div>
+    </div>
+
+    <!-- Arcs spine -->
+    <div style="padding:1.5rem;border-bottom:1px solid var(--keyline)">
+      <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:1rem">
+        Story Arcs
+      </div>
+      <div style="display:flex;gap:1rem;overflow-x:auto;padding-bottom:0.5rem">
+        <!-- Arc card -->
+        <div style="min-width:240px;background:var(--surface2);border:1px solid var(--keyline);border-radius:6px;padding:1rem">
+          <div style="font-weight:600;color:var(--ink);margin-bottom:0.4rem">The War of Five Kings</div>
+          <div style="font-size:0.9rem;color:var(--ink-dim);margin-bottom:0.8rem">Westeros fractures as claimants rise</div>
+          <div style="display:flex;gap:0.6rem;font-size:0.88rem">
+            <span style="background:rgba(205,168,78,0.15);color:var(--gold);padding:0.2rem 0.5rem;border-radius:3px;font-family:var(--mono);font-size:0.68rem">5 threads</span>
+            <span style="color:var(--sage)">●</span><span style="color:var(--ink-faint)">Active</span>
+          </div>
+        </div>
+
+        <div style="min-width:240px;background:var(--surface2);border:1px solid var(--keyline);border-radius:6px;padding:1rem">
+          <div style="font-weight:600;color:var(--ink);margin-bottom:0.4rem">Tyrion's Gambit</div>
+          <div style="font-size:0.9rem;color:var(--ink-dim);margin-bottom:0.8rem">The Imp plays the game from King's Landing</div>
+          <div style="display:flex;gap:0.6rem;font-size:0.88rem">
+            <span style="background:rgba(205,168,78,0.15);color:var(--gold);padding:0.2rem 0.5rem;border-radius:3px;font-family:var(--mono);font-size:0.68rem">3 threads</span>
+            <span style="color:var(--sage)">●</span><span style="color:var(--ink-faint)">Active</span>
+          </div>
+        </div>
+
+        <div style="min-width:240px;background:var(--surface2);border:1px solid var(--keyline);border-radius:6px;padding:1rem;opacity:0.6">
+          <div style="font-weight:600;color:var(--ink);margin-bottom:0.4rem">The Night's Watch</div>
+          <div style="font-size:0.9rem;color:var(--ink-dim);margin-bottom:0.8rem">Beyond the Wall, darkness gathers</div>
+          <div style="display:flex;gap:0.6rem;font-size:0.88rem">
+            <span style="background:rgba(205,168,78,0.15);color:var(--gold);padding:0.2rem 0.5rem;border-radius:3px;font-family:var(--mono);font-size:0.68rem">2 threads</span>
+            <span style="color:var(--ink-faint)">●</span><span style="color:var(--ink-faint)">Dormant</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Threads nested under arcs -->
+    <div style="padding:1.5rem">
+      <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:1rem">
+        Active Threads
+      </div>
+      <div style="display:grid;gap:1rem">
+        <!-- Thread card with margin note -->
+        <div style="position:relative;background:var(--surface2);border-left:3px solid var(--gold);padding:1rem 1rem 1rem 1.2rem;border-radius:4px">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem">
+            <div>
+              <div style="font-weight:600;color:var(--ink)">Cersei's Suspicion</div>
+              <div style="font-size:0.88rem;color:var(--ink-dim);font-style:italic">Arc: Tyrion's Gambit</div>
+            </div>
+            <div style="font-family:var(--mono);font-size:0.68rem;color:var(--sage)">ACTIVE</div>
+          </div>
+          <div style="font-size:0.94rem;color:var(--ink-dim);line-height:1.6">
+            The Queen Regent mistrusts her brother's every move, convinced he plots against Joffrey.
+          </div>
+          <!-- Off-screen reflection as margin note -->
+          <div style="margin-top:0.8rem;padding:0.6rem;background:rgba(111,138,95,0.1);border-left:2px solid var(--sage);border-radius:3px">
+            <div style="font-family:var(--mono);font-size:0.62rem;color:var(--sage);margin-bottom:0.3rem">MEANWHILE</div>
+            <div style="font-size:0.88rem;color:var(--ink-dim)">Jaime languishes in Stark custody → advancing</div>
+          </div>
+        </div>
+
+        <div style="position:relative;background:var(--surface2);border-left:3px solid var(--gold);padding:1rem 1rem 1rem 1.2rem;border-radius:4px">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem">
+            <div>
+              <div style="font-weight:600;color:var(--ink)">Varys' Web</div>
+              <div style="font-size:0.88rem;color:var(--ink-dim);font-style:italic">Arc: Tyrion's Gambit</div>
+            </div>
+            <div style="font-family:var(--mono);font-size:0.68rem;color:var(--sage)">ACTIVE</div>
+          </div>
+          <div style="font-size:0.94rem;color:var(--ink-dim);line-height:1.6">
+            The Spider shares whispers with the Hand, but his true loyalties remain shrouded.
+          </div>
+        </div>
+
+        <div style="position:relative;background:var(--surface2);border-left:3px solid var(--crimson);padding:1rem 1rem 1rem 1.2rem;border-radius:4px">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem">
+            <div>
+              <div style="font-weight:600;color:var(--ink)">Joffrey's Cruelty</div>
+              <div style="font-size:0.88rem;color:var(--ink-dim);font-style:italic">Arc: The War of Five Kings</div>
+            </div>
+            <div style="font-family:var(--mono);font-size:0.68rem;color:var(--crimson)">ESCALATING</div>
+          </div>
+          <div style="font-size:0.94rem;color:var(--ink-dim);line-height:1.6">
+            The boy king's sadism deepens; courtiers whisper of madness.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CHRONICLE → WORLD : CONSTELLATION
+     ============================================================ -->
+<section id="world-constellation" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Chronicle · World · Concept B</div>
+    <h2>Constellation</h2>
+    <div class="desc">
+      The present scene sits at the center. Arcs orbit as concentric rings; threads are stars placed by proximity to "now."
+      Brighter stars are more active. A reader's map of narrative gravity.
+    </div>
+  </div>
+
+  <div class="panel panel-frame">
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:1.5rem;align-items:stretch">
+      <!-- Constellation canvas -->
+      <div style="position:relative;min-height:420px;background:radial-gradient(circle at 50% 50%,rgba(205,168,78,0.06),transparent 70%);border:1px solid var(--keyline);border-radius:6px;overflow:hidden">
+        <!-- rings -->
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:130px;height:130px;border:1px solid var(--keyline);border-radius:50%"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:250px;height:250px;border:1px solid rgba(205,168,78,0.15);border-radius:50%"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:370px;height:370px;border:1px dashed rgba(205,168,78,0.1);border-radius:50%"></div>
+
+        <!-- center: now -->
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:96px;height:96px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--gold-bright),var(--gold-dim));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 0 30px rgba(205,168,78,0.4)">
+          <div style="font-family:var(--mono);font-size:0.52rem;color:#241809;letter-spacing:0.1em">NOW</div>
+          <div style="font-size:0.82rem;color:#241809;font-weight:700;line-height:1.1;padding:0 0.4rem">Throne Room</div>
+        </div>
+
+        <!-- stars (threads) -->
+        <div title="Cersei's Suspicion" style="position:absolute;top:28%;left:64%;width:14px;height:14px;border-radius:50%;background:var(--gold-bright);box-shadow:0 0 12px var(--gold)"></div>
+        <div title="Varys' Web" style="position:absolute;top:62%;left:70%;width:11px;height:11px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold-dim)"></div>
+        <div title="Joffrey's Cruelty" style="position:absolute;top:70%;left:38%;width:15px;height:15px;border-radius:50%;background:var(--crimson);box-shadow:0 0 14px var(--crimson)"></div>
+        <div title="Jaime captive" style="position:absolute;top:20%;left:26%;width:8px;height:8px;border-radius:50%;background:var(--ink-faint);opacity:0.7"></div>
+        <div title="Night's Watch" style="position:absolute;top:82%;left:60%;width:7px;height:7px;border-radius:50%;background:var(--ink-faint);opacity:0.5"></div>
+        <div title="Dragons in Qarth" style="position:absolute;top:15%;left:52%;width:9px;height:9px;border-radius:50%;background:var(--sage);box-shadow:0 0 8px rgba(111,138,95,0.5)"></div>
+      </div>
+
+      <!-- Legend / list -->
+      <div>
+        <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:1rem">
+          Bodies in Orbit
+        </div>
+        <div style="display:grid;gap:0.7rem">
+          <div style="display:flex;gap:0.7rem;align-items:center">
+            <span style="width:12px;height:12px;border-radius:50%;background:var(--gold-bright);box-shadow:0 0 8px var(--gold);flex-shrink:0"></span>
+            <div><span style="color:var(--ink)">Cersei's Suspicion</span> <span style="color:var(--ink-faint);font-size:0.82rem">— inner ring, brightest</span></div>
+          </div>
+          <div style="display:flex;gap:0.7rem;align-items:center">
+            <span style="width:12px;height:12px;border-radius:50%;background:var(--crimson);box-shadow:0 0 8px var(--crimson);flex-shrink:0"></span>
+            <div><span style="color:var(--ink)">Joffrey's Cruelty</span> <span style="color:var(--ink-faint);font-size:0.82rem">— escalating</span></div>
+          </div>
+          <div style="display:flex;gap:0.7rem;align-items:center">
+            <span style="width:12px;height:12px;border-radius:50%;background:var(--gold);flex-shrink:0"></span>
+            <div><span style="color:var(--ink)">Varys' Web</span> <span style="color:var(--ink-faint);font-size:0.82rem">— active</span></div>
+          </div>
+          <div style="display:flex;gap:0.7rem;align-items:center">
+            <span style="width:12px;height:12px;border-radius:50%;background:var(--sage);flex-shrink:0"></span>
+            <div><span style="color:var(--ink)">Dragons in Qarth</span> <span style="color:var(--ink-faint);font-size:0.82rem">— off-screen, glowing</span></div>
+          </div>
+          <div style="display:flex;gap:0.7rem;align-items:center">
+            <span style="width:12px;height:12px;border-radius:50%;background:var(--ink-faint);opacity:0.6;flex-shrink:0"></span>
+            <div><span style="color:var(--ink-dim)">Jaime captive</span> <span style="color:var(--ink-faint);font-size:0.82rem">— distant, dim</span></div>
+          </div>
+        </div>
+        <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--keyline);font-size:0.86rem;color:var(--ink-faint);font-style:italic">
+          Proximity to center = narrative immediacy. Off-screen threads glow sage — present in the world, absent from the page.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CHRONICLE → WORLD : THE LOOM
+     ============================================================ -->
+<section id="world-loom" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Chronicle · World · Concept C</div>
+    <h2>The Loom</h2>
+    <div class="desc">
+      Threads weave horizontally through time, left (past) to right (future). Arcs are vertical lanes.
+      The "now" line cuts through all threads. A tapestry of cause and consequence.
+    </div>
+  </div>
+
+  <div class="panel" style="padding:1.5rem;overflow-x:auto">
+    <div style="min-width:900px">
+      <!-- Time axis -->
+      <div style="display:flex;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--keyline)">
+        <div style="flex:1;display:flex;align-items:center;gap:0.5rem">
+          <div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-faint)">DAY 10</div>
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,var(--keyline),transparent)"></div>
+          <div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">DAY 12</div>
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,var(--keyline),transparent)"></div>
+        </div>
+        <div style="position:relative;padding:0 1.2rem">
+          <div style="font-family:var(--mono);font-size:0.66rem;color:var(--gold);font-weight:700;letter-spacing:0.15em">NOW · DAY 14</div>
+          <div style="position:absolute;top:100%;left:50%;transform:translateX(-50%);width:2px;height:400px;background:linear-gradient(180deg,var(--gold),transparent);opacity:0.4"></div>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;gap:0.5rem">
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--keyline))"></div>
+          <div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-faint)">DAY 16</div>
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--keyline))"></div>
+        </div>
+      </div>
+
+      <!-- Arc lanes with threads -->
+      <div style="display:grid;gap:1.5rem">
+        <!-- Lane: War of Five Kings -->
+        <div>
+          <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:0.8rem">
+            Arc: The War of Five Kings
+          </div>
+          <div style="position:relative;display:flex;gap:1rem;align-items:center">
+            <!-- Thread strand -->
+            <div style="flex:1;height:48px;background:linear-gradient(90deg,rgba(205,168,78,0.1),rgba(205,168,78,0.25),rgba(205,168,78,0.15));border:1px solid var(--keyline);border-radius:4px;padding:0.6rem;display:flex;align-items:center">
+              <span style="font-size:0.9rem;color:var(--ink)">Joffrey's Cruelty</span>
+              <span style="margin-left:auto;font-family:var(--mono);font-size:0.62rem;color:var(--crimson)">ESCALATING</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lane: Tyrion's Gambit -->
+        <div>
+          <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:0.8rem">
+            Arc: Tyrion's Gambit
+          </div>
+          <div style="position:relative;display:grid;gap:0.6rem">
+            <div style="height:48px;background:linear-gradient(90deg,transparent,rgba(205,168,78,0.15),rgba(205,168,78,0.25));border:1px solid var(--keyline);border-radius:4px;padding:0.6rem;display:flex;align-items:center">
+              <span style="font-size:0.9rem;color:var(--ink)">Cersei's Suspicion</span>
+              <span style="margin-left:auto;font-family:var(--mono);font-size:0.62rem;color:var(--sage)">ACTIVE</span>
+            </div>
+            <div style="height:48px;background:linear-gradient(90deg,rgba(205,168,78,0.08),rgba(205,168,78,0.2),rgba(205,168,78,0.18));border:1px solid var(--keyline);border-radius:4px;padding:0.6rem;display:flex;align-items:center">
+              <span style="font-size:0.9rem;color:var(--ink)">Varys' Web</span>
+              <span style="margin-left:auto;font-family:var(--mono);font-size:0.62rem;color:var(--sage)">ACTIVE</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lane: Off-screen (Elsewhere) -->
+        <div style="opacity:0.7">
+          <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--sage);margin-bottom:0.8rem">
+            Meanwhile · Off-screen
+          </div>
+          <div style="position:relative;display:grid;gap:0.6rem">
+            <div style="height:48px;background:linear-gradient(90deg,rgba(111,138,95,0.1),rgba(111,138,95,0.2));border:1px solid rgba(111,138,95,0.3);border-radius:4px;padding:0.6rem;display:flex;align-items:center">
+              <span style="font-size:0.9rem;color:var(--ink)">Jaime in Stark custody</span>
+              <span style="margin-left:auto;font-family:var(--mono);font-size:0.62rem;color:var(--sage)">→ ADVANCING</span>
+            </div>
+            <div style="height:48px;background:linear-gradient(90deg,transparent,rgba(111,138,95,0.15));border:1px solid rgba(111,138,95,0.25);border-radius:4px;padding:0.6rem;display:flex;align-items:center">
+              <span style="font-size:0.9rem;color:var(--ink-dim)">Dragons in Qarth</span>
+              <span style="margin-left:auto;font-family:var(--mono);font-size:0.62rem;color:var(--ink-faint)">DISTANT</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--keyline);font-size:0.86rem;color:var(--ink-faint);font-style:italic">
+        Threads flow left-to-right through time. The NOW line marks the present scene. Off-screen threads appear below in sage, weaving unseen.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DIRECTOR → OFF-SCREEN : SITUATION ROOM
+     ============================================================ -->
+<section id="dir-situation" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Director · Off-screen · Concept A</div>
+    <h2>Situation Room</h2>
+    <div class="desc">
+      Subplots grouped by location with a special "Approaching the Scene" lane for threads nearing on-stage.
+      A tactical control board for steering distant action toward convergence.
+    </div>
+  </div>
+
+  <div class="panel" style="padding:1.5rem">
+    <div style="display:grid;gap:1.5rem">
+      <!-- Approaching lane -->
+      <div style="background:linear-gradient(135deg,rgba(111,138,95,0.15),rgba(42,31,18,0.3));border:2px solid var(--sage);border-radius:6px;padding:1.2rem">
+        <div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:1rem">
+          <div style="font-family:var(--mono);font-size:0.66rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--sage);font-weight:700">
+            ⟶ Approaching the Scene
+          </div>
+          <span style="font-size:0.82rem;color:var(--ink-faint)">Plots converging toward on-stage</span>
+        </div>
+        <div style="display:grid;gap:0.8rem">
+          <!-- Ripe subplot -->
+          <div style="background:var(--surface2);border:1px solid var(--keyline-strong);border-radius:4px;padding:1rem;display:flex;justify-content:space-between;align-items:start">
+            <div style="flex:1">
+              <div style="font-weight:600;color:var(--ink);margin-bottom:0.3rem">Jaime's Escape Attempt</div>
+              <div style="font-size:0.88rem;color:var(--ink-dim);margin-bottom:0.6rem">Riverrun → approaching King's Landing arc</div>
+              <div style="font-size:0.86rem;color:var(--ink-faint)">Latest: Brienne offered to escort him under parley...</div>
+            </div>
+            <div style="display:flex;gap:0.5rem;margin-left:1rem;flex-shrink:0">
+              <button style="background:var(--sage);color:#241809;border:none;padding:0.4rem 0.8rem;border-radius:3px;font-family:var(--mono);font-size:0.64rem;cursor:pointer;font-weight:700">ADVANCE</button>
+              <button style="background:var(--surface2);color:var(--ink-dim);border:1px solid var(--keyline);padding:0.4rem 0.8rem;border-radius:3px;font-family:var(--mono);font-size:0.64rem;cursor:pointer">EDIT</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Location group: Riverrun -->
+      <div>
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem">
+          <div style="font-family:var(--mono);font-size:0.64rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold-dim)">
+            Location: Riverrun
+          </div>
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,var(--keyline),transparent)"></div>
+          <span style="font-size:0.82rem;color:var(--ink-faint)">2 active</span>
+        </div>
+        <div style="display:grid;gap:0.8rem">
+          <div style="background:var(--surface2);border-left:3px solid var(--gold);padding:1rem;border-radius:4px">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem">
+              <div>
+                <div style="font-weight:600;color:var(--ink)">Catelyn's Grief</div>
+                <div style="font-size:0.88rem;color:var(--ink-dim);font-style:italic">Thread advancing</div>
+              </div>
+              <span style="font-family:var(--mono);font-size:0.64rem;color:var(--sage)">ACTIVE</span>
+            </div>
+            <div style="font-size:0.88rem;color:var(--ink-faint);margin-bottom:0.8rem">
+              She prays at the sept, haunted by Ned's execution and her sons at war.
+            </div>
+            <div style="display:flex;gap:0.5rem">
+              <button style="background:transparent;color:var(--gold);border:1px solid var(--keyline-strong);padding:0.35rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem;cursor:pointer">ADVANCE</button>
+              <button style="background:transparent;color:var(--ink-dim);border:1px solid var(--keyline);padding:0.35rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem;cursor:pointer">RESOLVE</button>
+            </div>
+          </div>
+
+          <div style="background:var(--surface2);border-left:3px solid var(--gold-dim);padding:1rem;border-radius:4px;opacity:0.7">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem">
+              <div>
+                <div style="font-weight:600;color:var(--ink)">Edmure's Command</div>
+                <div style="font-size:0.88rem;color:var(--ink-dim);font-style:italic">Thread stalled</div>
+              </div>
+              <span style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-faint)">STALLED</span>
+            </div>
+            <div style="font-size:0.88rem;color:var(--ink-faint);margin-bottom:0.8rem">
+              The young lord struggles to lead Riverrun's garrison; his uncle's shadow looms.
+            </div>
+            <div style="display:flex;gap:0.5rem">
+              <button style="background:transparent;color:var(--gold);border:1px solid var(--keyline-strong);padding:0.35rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem;cursor:pointer">ADVANCE</button>
+              <button style="background:transparent;color:var(--ink-dim);border:1px solid var(--keyline);padding:0.35rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem;cursor:pointer">EDIT</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Location group: Qarth -->
+      <div>
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem">
+          <div style="font-family:var(--mono);font-size:0.64rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold-dim)">
+            Location: Qarth
+          </div>
+          <div style="flex:1;height:1px;background:linear-gradient(90deg,var(--keyline),transparent)"></div>
+          <span style="font-size:0.82rem;color:var(--ink-faint)">1 active</span>
+        </div>
+        <div style="display:grid;gap:0.8rem">
+          <div style="background:var(--surface2);border-left:3px solid var(--gold);padding:1rem;border-radius:4px">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.5rem">
+              <div>
+                <div style="font-weight:600;color:var(--ink)">Dany's Dragons</div>
+                <div style="font-size:0.88rem;color:var(--ink-dim);font-style:italic">Parallel storyline</div>
+              </div>
+              <span style="font-family:var(--mono);font-size:0.64rem;color:var(--sage)">ACTIVE</span>
+            </div>
+            <div style="font-size:0.88rem;color:var(--ink-faint);margin-bottom:0.8rem">
+              The Khaleesi seeks allies among Qarth's merchant princes. Her dragons grow restless.
+            </div>
+            <div style="display:flex;gap:0.5rem">
+              <button style="background:transparent;color:var(--gold);border:1px solid var(--keyline-strong);padding:0.35rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem;cursor:pointer">ADVANCE</button>
+              <button style="background:transparent;color:var(--ink-dim);border:1px solid var(--keyline);padding:0.35rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem;cursor:pointer">SIMULATE</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--keyline);display:flex;gap:1rem">
+      <button style="background:var(--gold);color:#241809;border:none;padding:0.6rem 1.2rem;border-radius:4px;font-family:var(--mono);font-size:0.68rem;cursor:pointer;font-weight:700">+ ADD SUBPLOT</button>
+      <button style="background:transparent;color:var(--ink-dim);border:1px solid var(--keyline);padding:0.6rem 1.2rem;border-radius:4px;font-family:var(--mono);font-size:0.68rem;cursor:pointer">SIMULATE ALL</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DIRECTOR → OFF-SCREEN : APPROACH LANES
+     ============================================================ -->
+<section id="dir-approach" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Director · Off-screen · Concept B</div>
+    <h2>Approach Lanes</h2>
+    <div class="desc">
+      A horizontal pipeline. Each subplot is a token positioned by its distance to the on-stage scene:
+      Distant → Stirring → Ripe → On the Threshold. Drag-forward mental model for pacing convergence.
+    </div>
+  </div>
+
+  <div class="panel" style="padding:1.5rem;overflow-x:auto">
+    <div style="min-width:900px">
+      <!-- Lane headers -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem">
+        <div style="text-align:center;padding:0.6rem;border-bottom:2px solid var(--ink-faint)">
+          <div style="font-family:var(--mono);font-size:0.66rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-faint)">Distant</div>
+        </div>
+        <div style="text-align:center;padding:0.6rem;border-bottom:2px solid var(--gold-dim)">
+          <div style="font-family:var(--mono);font-size:0.66rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-dim)">Stirring</div>
+        </div>
+        <div style="text-align:center;padding:0.6rem;border-bottom:2px solid var(--gold)">
+          <div style="font-family:var(--mono);font-size:0.66rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold)">Ripe</div>
+        </div>
+        <div style="text-align:center;padding:0.6rem;border-bottom:2px solid var(--sage)">
+          <div style="font-family:var(--mono);font-size:0.66rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--sage)">On the Threshold</div>
+        </div>
+      </div>
+
+      <!-- Lane content -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;position:relative">
+        <!-- flow arrow -->
+        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--keyline),var(--sage));z-index:0"></div>
+
+        <!-- Distant column -->
+        <div style="display:grid;gap:0.8rem;position:relative;z-index:1">
+          <div style="background:var(--surface2);border:1px solid var(--keyline);border-radius:6px;padding:0.9rem;opacity:0.6">
+            <div style="font-weight:600;color:var(--ink);font-size:0.94rem;margin-bottom:0.3rem">Night's Watch</div>
+            <div style="font-size:0.82rem;color:var(--ink-faint)">Beyond the Wall</div>
+            <div style="margin-top:0.6rem;font-family:var(--mono);font-size:0.58rem;color:var(--ink-faint)">4 turns idle</div>
+          </div>
+        </div>
+
+        <!-- Stirring column -->
+        <div style="display:grid;gap:0.8rem;position:relative;z-index:1">
+          <div style="background:var(--surface2);border:1px solid var(--gold-dim);border-radius:6px;padding:0.9rem">
+            <div style="font-weight:600;color:var(--ink);font-size:0.94rem;margin-bottom:0.3rem">Dany's Dragons</div>
+            <div style="font-size:0.82rem;color:var(--ink-dim)">Qarth</div>
+            <div style="margin-top:0.6rem;font-family:var(--mono);font-size:0.58rem;color:var(--gold-dim)">2 beats logged</div>
+          </div>
+        </div>
+
+        <!-- Ripe column -->
+        <div style="display:grid;gap:0.8rem;position:relative;z-index:1">
+          <div style="background:linear-gradient(135deg,rgba(205,168,78,0.15),var(--surface2));border:1px solid var(--gold);border-radius:6px;padding:0.9rem;box-shadow:0 0 16px rgba(205,168,78,0.15)">
+            <div style="font-weight:600;color:var(--ink);font-size:0.94rem;margin-bottom:0.3rem">Catelyn's Grief</div>
+            <div style="font-size:0.82rem;color:var(--ink-dim)">Riverrun</div>
+            <div style="margin-top:0.6rem;font-family:var(--mono);font-size:0.58rem;color:var(--gold)">ready to intersect</div>
+          </div>
+        </div>
+
+        <!-- Threshold column -->
+        <div style="display:grid;gap:0.8rem;position:relative;z-index:1">
+          <div style="background:linear-gradient(135deg,rgba(111,138,95,0.2),var(--surface2));border:2px solid var(--sage);border-radius:6px;padding:0.9rem;box-shadow:0 0 20px rgba(111,138,95,0.2)">
+            <div style="font-weight:600;color:var(--ink);font-size:0.94rem;margin-bottom:0.3rem">Jaime's Escape</div>
+            <div style="font-size:0.82rem;color:var(--ink-dim)">→ King's Landing</div>
+            <div style="margin-top:0.6rem;display:flex;gap:0.4rem">
+              <button style="background:var(--sage);color:#241809;border:none;padding:0.3rem 0.6rem;border-radius:3px;font-family:var(--mono);font-size:0.58rem;cursor:pointer;font-weight:700">BRING ON</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--keyline);font-size:0.86rem;color:var(--ink-faint);font-style:italic">
+        Subplots flow left to right as they ripen. "On the Threshold" plots are ready to intersect the main scene — bring them on when the moment is right.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DIRECTOR → OFF-SCREEN : ELSEWHERE FEED
+     ============================================================ -->
+<section id="dir-feed" class="concept">
+  <div class="concept-head">
+    <div class="kicker">Director · Off-screen · Concept C</div>
+    <h2>Elsewhere Feed</h2>
+    <div class="desc">
+      A vertical timeline of "meanwhile" moments. Each subplot shows its latest beat, status, and cast.
+      Cleaner, more narrative than the current list. Expandable cards reveal full beat history.
+    </div>
+  </div>
+
+  <div class="panel" style="padding:0">
+    <!-- Feed items -->
+    <div style="display:grid;gap:0">
+      <!-- Feed item: expanded -->
+      <div style="border-bottom:1px solid var(--keyline);padding:1.5rem;background:linear-gradient(135deg,rgba(111,138,95,0.08),transparent)">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.8rem">
+          <div style="flex:1">
+            <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--sage);margin-bottom:0.4rem">
+              Meanwhile · Riverrun
+            </div>
+            <h3 style="font-size:1.4rem;color:var(--ink);margin-bottom:0.4rem">Jaime's Escape Attempt</h3>
+            <div style="font-size:0.9rem;color:var(--ink-dim);font-style:italic">Last advanced 2 turns ago</div>
+          </div>
+          <div style="display:flex;gap:0.6rem;margin-left:1rem">
+            <span style="background:rgba(111,138,95,0.2);color:var(--sage);padding:0.3rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem;font-weight:700">RIPE</span>
+            <button style="background:transparent;border:1px solid var(--keyline);color:var(--ink-dim);padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:1.1rem;line-height:1">▼</button>
+          </div>
+        </div>
+
+        <!-- Latest beat -->
+        <div style="background:var(--surface2);border-left:3px solid var(--sage);padding:1rem;border-radius:4px;margin-bottom:1rem">
+          <div style="font-family:var(--mono);font-size:0.62rem;color:var(--sage);margin-bottom:0.5rem">LATEST BEAT</div>
+          <div style="color:var(--ink);line-height:1.6">
+            Brienne of Tarth offered to escort the Kingslayer under parley. Catelyn, torn between vengeance and strategy, weighed the gambit in silence.
+          </div>
+        </div>
+
+        <!-- Cast & metadata -->
+        <div style="display:flex;gap:2rem;flex-wrap:wrap;font-size:0.88rem">
+          <div>
+            <span style="color:var(--ink-faint)">Cast:</span> 
+            <span style="color:var(--ink)">Jaime, Brienne, Catelyn</span>
+          </div>
+          <div>
+            <span style="color:var(--ink-faint)">Linked thread:</span> 
+            <span style="color:var(--gold)">Cersei's Suspicion</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="margin-top:1rem;display:flex;gap:0.6rem">
+          <button style="background:var(--sage);color:#241809;border:none;padding:0.5rem 1rem;border-radius:4px;font-family:var(--mono);font-size:0.64rem;cursor:pointer;font-weight:700">ADVANCE</button>
+          <button style="background:transparent;color:var(--gold);border:1px solid var(--keyline-strong);padding:0.5rem 1rem;border-radius:4px;font-family:var(--mono);font-size:0.64rem;cursor:pointer">EDIT</button>
+          <button style="background:transparent;color:var(--ink-dim);border:1px solid var(--keyline);padding:0.5rem 1rem;border-radius:4px;font-family:var(--mono);font-size:0.64rem;cursor:pointer">RESOLVE</button>
+        </div>
+      </div>
+
+      <!-- Feed item: collapsed -->
+      <div style="border-bottom:1px solid var(--keyline);padding:1.5rem;transition:background 0.2s">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="flex:1">
+            <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:0.4rem">
+              Meanwhile · Riverrun
+            </div>
+            <h3 style="font-size:1.15rem;color:var(--ink);margin-bottom:0.3rem">Catelyn's Grief</h3>
+            <div style="font-size:0.86rem;color:var(--ink-dim)">She prays at the sept, haunted by loss...</div>
+          </div>
+          <div style="display:flex;gap:0.6rem;margin-left:1rem;align-items:center">
+            <span style="background:rgba(205,168,78,0.15);color:var(--gold);padding:0.3rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem">ACTIVE</span>
+            <button style="background:transparent;border:1px solid var(--keyline);color:var(--ink-dim);padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:1.1rem;line-height:1">▶</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feed item: collapsed -->
+      <div style="border-bottom:1px solid var(--keyline);padding:1.5rem;transition:background 0.2s">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="flex:1">
+            <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:0.4rem">
+              Meanwhile · Qarth
+            </div>
+            <h3 style="font-size:1.15rem;color:var(--ink);margin-bottom:0.3rem">Dany's Dragons</h3>
+            <div style="font-size:0.86rem;color:var(--ink-dim)">The Khaleesi negotiates with merchant princes...</div>
+          </div>
+          <div style="display:flex;gap:0.6rem;margin-left:1rem;align-items:center">
+            <span style="background:rgba(205,168,78,0.15);color:var(--gold);padding:0.3rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem">ACTIVE</span>
+            <button style="background:transparent;border:1px solid var(--keyline);color:var(--ink-dim);padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:1.1rem;line-height:1">▶</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feed item: stalled -->
+      <div style="border-bottom:1px solid var(--keyline);padding:1.5rem;opacity:0.6;transition:background 0.2s">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="flex:1">
+            <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:0.4rem">
+              Meanwhile · Riverrun
+            </div>
+            <h3 style="font-size:1.15rem;color:var(--ink);margin-bottom:0.3rem">Edmure's Command</h3>
+            <div style="font-size:0.86rem;color:var(--ink-dim)">The young lord struggles with his garrison...</div>
+          </div>
+          <div style="display:flex;gap:0.6rem;margin-left:1rem;align-items:center">
+            <span style="background:rgba(111,100,72,0.15);color:var(--ink-faint);padding:0.3rem 0.7rem;border-radius:3px;font-family:var(--mono);font-size:0.62rem">STALLED</span>
+            <button style="background:transparent;border:1px solid var(--keyline);color:var(--ink-dim);padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:1.1rem;line-height:1">▶</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer actions -->
+    <div style="padding:1.5rem;background:var(--surface2);display:flex;gap:0.8rem;border-top:1px solid var(--keyline-strong)">
+      <button style="background:var(--gold);color:#241809;border:none;padding:0.6rem 1.2rem;border-radius:4px;font-family:var(--mono);font-size:0.68rem;cursor:pointer;font-weight:700">+ ADD SUBPLOT</button>
+      <button style="background:transparent;color:var(--ink-dim);border:1px solid var(--keyline);padding:0.6rem 1.2rem;border-radius:4px;font-family:var(--mono);font-size:0.68rem;cursor:pointer">SIMULATE ALL</button>
+      <button style="background:transparent;color:var(--ink-dim);border:1px solid var(--keyline);padding:0.6rem 1.2rem;border-radius:4px;font-family:var(--mono);font-size:0.68rem;cursor:pointer">LINK TO THREAD</button>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="wrap" style="margin-top:4rem;padding-top:2rem;border-top:1px solid var(--keyline)">
+  <div style="text-align:center;color:var(--ink-faint);font-size:0.9rem">
+    <p style="margin-bottom:0.5rem">VELLUM II — Palimpsest · UI Redesign Mockups</p>
+    <p style="font-style:italic">Crafted with the illuminated aesthetic: dark parchment, gilt keylines, Cormorant serif.</p>
+  </div>
+</div>
+
+</body>
+</html>

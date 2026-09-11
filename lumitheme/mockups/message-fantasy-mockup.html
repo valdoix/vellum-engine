@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fantasy — MinimalMessage Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   FANTASY — "an open codex"
+   Chrome: illuminated · Skin: vellum-dark (Aged Vellum)
+   accent #c79a4e (gilt gold)  ·  accent2 #b34a3a (rubric red)
+   texture: parchment · font: F_SERIF (Cormorant) · radius 18 · border 1
+   Warm tea-stained parchment, brown leather, gilt double-rule keylines,
+   rubric-red headers, a wax-seal glyph, drop-caps. Codex / open book.
+   Layout ported from Kittylit Ripple MinimalMessage.
+   -- FULL-PAGE parchment rework: open-book spread with a center gutter,
+      foxing stains, deep vignette, fibre grain; portrait rails are aged
+      vellum plates; figures are sepia ink-and-wash illuminations.
+   ============================================================ */
+:root{
+  --lumiverse-bg:#231a10;              /* dark tea-stained vellum */
+  --lumiverse-text:#e8d6b0;            /* gilt ink */
+  --lumiverse-text-2:#b59a72;
+  --lumiverse-accent:#c79a4e;          /* gilt gold */
+  --lumiverse-accent-2:#b34a3a;        /* rubric red */
+  --lumiverse-gilt-2:#dcb568;          /* pressInk — bright gilt */
+  --parch-1:#e9d5a8;                   /* lit parchment */
+  --parch-2:#d8bd86;                   /* mid parchment */
+  --parch-3:#b9975c;                   /* shaded parchment */
+  --surf-1:rgba(46,34,22,.92);
+  --surf-2:rgba(33,24,15,.94);
+  --glass-border:rgba(199,154,78,.28);
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --body:'EB Garamond',Georgia,serif;
+  --radius:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--body);
+  color:var(--lumiverse-text);
+  /* open-codex spread: two warm parchment pages meeting at a shadowed gutter */
+  background:
+    /* candle glow high on the spread */
+    radial-gradient(1200px 680px at 50% -10%, rgba(220,181,104,.16), transparent 60%),
+    /* rubric warmth pooling low-left */
+    radial-gradient(900px 640px at 4% 108%, rgba(179,74,58,.12), transparent 62%),
+    /* corner foxing / tea-stain blooms */
+    radial-gradient(420px 320px at 96% 8%, rgba(120,80,36,.28), transparent 70%),
+    radial-gradient(520px 380px at 2% 84%, rgba(96,62,26,.3), transparent 72%),
+    /* center gutter shadow — the book's spine fold */
+    linear-gradient(90deg, transparent 46%, rgba(20,13,5,.42) 50%, transparent 54%),
+    /* deep vellum field */
+    linear-gradient(158deg,#3a2b18 0%, #2b2012 55%, #150f07 100%);
+  min-height:100vh;
+  padding:2.5rem 1.25rem 6rem;
+  overflow-x:hidden;
+}
+/* tea-stained parchment fibre grain (page-wide) */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.55;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+  mix-blend-mode:overlay;
+}
+/* deep page vignette + faint gilt filigree corners */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(140% 120% at 50% 42%, transparent 58%, rgba(12,8,3,.55) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cg fill='none' stroke='%23c79a4e' stroke-opacity='0.1' stroke-width='1'%3E%3Cpath d='M14 14q34 5 34 34M166 14q-34 5-34 34M14 166q34-5 34-34M166 166q-34-5-34-34'/%3E%3Ccircle cx='14' cy='14' r='2'/%3E%3Ccircle cx='166' cy='14' r='2'/%3E%3Ccircle cx='14' cy='166' r='2'/%3E%3Ccircle cx='166' cy='166' r='2'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat:no-repeat,repeat;
+}
+
+.stage{max-width:1080px;margin:0 auto;position:relative;z-index:1}
+.mock-label{
+  text-align:center;font-family:var(--serif);color:var(--lumiverse-accent);
+  letter-spacing:.34em;text-transform:uppercase;font-size:.76rem;margin-bottom:.4rem;opacity:.9;
+}
+.mock-title{
+  text-align:center;font-family:var(--serif);font-weight:700;font-size:2.7rem;letter-spacing:.01em;
+  color:var(--lumiverse-text);margin-bottom:.3rem;text-shadow:0 2px 16px rgba(199,154,78,.24);
+}
+/* gilt double-rule flourish under the title, with a rubric wax-seal centre */
+.mock-title::after{content:"\2766";display:block;color:var(--lumiverse-accent-2);font-size:1.15rem;margin-top:.35rem;
+  text-shadow:0 0 14px rgba(179,74,58,.5)}
+.mock-sub{text-align:center;font-style:italic;color:var(--lumiverse-text-2);margin-bottom:2.75rem;letter-spacing:.02em}
+
+/* ---- message grid (character = portrait left, user = portrait right) ---- */
+.msg{
+  --avatar-w:clamp(150px,18vw,260px);
+  display:grid;grid-template-columns:var(--avatar-w) minmax(0,1fr);
+  column-gap:clamp(14px,1.6vw,26px);align-items:start;
+  margin-bottom:clamp(28px,3.4vw,52px);
+}
+.msg.user{grid-template-columns:minmax(0,1fr) var(--avatar-w)}
+
+/* sticky masked portrait rail — gilt-framed aged-vellum codex plate */
+.avatar{
+  grid-column:1;grid-row:1/span 2;justify-self:start;position:sticky;top:24px;
+  width:var(--avatar-w);height:clamp(360px,52vh,560px);border-radius:var(--radius);
+  overflow:hidden;isolation:isolate;
+  -webkit-mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  -webkit-mask-composite:source-in;mask-composite:intersect;
+}
+.msg.user .avatar{grid-column:2;justify-self:end;
+  -webkit-mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+}
+.avatar .fill{position:absolute;inset:0}
+/* aged vellum leaf: candle glow top, foxing edges, page-fold shadow */
+.portraitA{
+  background:
+    radial-gradient(120% 80% at 46% 6%, rgba(255,236,190,.5), transparent 58%),
+    radial-gradient(60% 50% at 88% 92%, rgba(120,78,34,.55), transparent 70%),
+    radial-gradient(40% 34% at 8% 88%, rgba(150,98,44,.4), transparent 72%),
+    linear-gradient(160deg,var(--parch-1),var(--parch-2) 46%,var(--parch-3) 100%);
+}
+.portraitB{
+  background:
+    radial-gradient(120% 80% at 54% 6%, rgba(255,228,196,.46), transparent 58%),
+    radial-gradient(60% 50% at 12% 92%, rgba(150,60,44,.5), transparent 70%),
+    radial-gradient(40% 34% at 92% 86%, rgba(150,98,44,.4), transparent 72%),
+    linear-gradient(160deg,#e6c79c,#cc9a72 48%,#8f5a3a 100%);
+}
+/* fibre grain + foxing speckle over the plate */
+.avatar .grain{position:absolute;inset:0;opacity:.5;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='0.5'/%3E%3C/svg%3E");}
+.avatar .fig{position:absolute;inset:0;opacity:.96}
+/* gilt double keyline around the plate (illuminated 'gilt-edge') + worn corners */
+.avatar::after{content:"";position:absolute;inset:6px;border-radius:calc(var(--radius) - 6px);
+  border:1px solid rgba(199,154,78,.55);
+  box-shadow:inset 0 0 0 3px rgba(179,74,58,.12),inset 0 0 26px rgba(60,36,12,.55),inset 0 0 90px rgba(30,18,6,.4);pointer-events:none}
+
+/* bubble lane */
+.bubble{grid-column:2;min-width:0}
+.msg.user .bubble{grid-column:1}
+
+.header{display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:8px 16px 16px;position:relative}
+/* rubric wax-seal glyph above the name */
+.header::before{content:"\2766";color:var(--lumiverse-accent-2);font-size:1rem;opacity:.9;text-shadow:0 0 10px rgba(179,74,58,.5)}
+.name{font-family:var(--serif);font-weight:700;font-size:clamp(1.6rem,2.1vw,2.3rem);line-height:1.02;letter-spacing:.01em;
+  background:linear-gradient(92deg,var(--lumiverse-accent),var(--lumiverse-gilt-2) 55%,var(--lumiverse-accent));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.msg.user .name{background:linear-gradient(92deg,var(--lumiverse-accent-2),#d97a68 58%,var(--lumiverse-accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.pill{font-family:var(--serif);font-size:.78rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;opacity:.72;color:var(--lumiverse-text-2)}
+
+/* content card — aged codex leaf: warm surface, fibre grain, gilt double-rule keyline */
+.content{position:relative;isolation:isolate;padding:20px 24px;border-radius:var(--radius);
+  border:1px solid var(--glass-border);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(199,154,78,.08), transparent 60%),
+    var(--surf-1);
+  box-shadow:inset 0 0 0 1px rgba(199,154,78,.06),0 14px 36px rgba(0,0,0,.5);
+  backdrop-filter:blur(8px) saturate(112%);-webkit-backdrop-filter:blur(8px) saturate(112%);}
+/* fibre grain wash across the leaf */
+.content > .leafgrain{content:"";position:absolute;inset:0;z-index:-1;border-radius:var(--radius);opacity:.28;mix-blend-mode:overlay;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='lg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23lg)' opacity='0.4'/%3E%3C/svg%3E");}
+/* inner gilt keyline (the illuminated double-rule signature) */
+.content::after{content:"";position:absolute;inset:6px;z-index:0;border-radius:calc(var(--radius) - 6px);
+  border:1px solid rgba(199,154,78,.4);pointer-events:none;
+  box-shadow:inset 0 0 0 3px rgba(199,154,78,.05)}
+/* rubric spine — a thin red rule down the codex gutter */
+.content::before{content:"";position:absolute;top:14px;bottom:14px;left:0;width:3px;border-radius:2px;
+  background:linear-gradient(180deg,var(--lumiverse-accent-2),transparent);opacity:.8}
+.msg.user .content::before{left:auto;right:0;background:linear-gradient(180deg,var(--lumiverse-accent),transparent)}
+.content > .prose,.content > .think-toggle,.content > .think-body{position:relative;z-index:1}
+
+.prose{font-family:var(--body);font-size:1.07rem;line-height:1.74;text-align:justify;hyphens:auto;text-wrap:pretty}
+.prose p{margin:0 0 .9em}
+.prose p:last-child{margin-bottom:0}
+/* rubric drop-cap on the first paragraph — an illuminated initial */
+.prose > p:first-of-type::first-letter{
+  font-family:var(--serif);font-weight:700;font-size:3.1em;line-height:.78;float:left;margin:.04em .1em 0 0;
+  color:var(--lumiverse-accent-2);text-shadow:0 1px 0 rgba(199,154,78,.4)}
+.prose em{font-style:italic;color:var(--lumiverse-text-2)}         /* thoughts / narration */
+.prose .say{color:var(--lumiverse-accent);text-shadow:0 1px 12px rgba(199,154,78,.24)} /* dialogue */
+.msg.user .prose .say{color:var(--lumiverse-accent-2)}
+.prose strong{color:#fff;font-weight:700}
+
+/* thinking pill + panel */
+.think-toggle{display:inline-flex;align-items:center;gap:.5rem;margin:16px 0 0;padding:.35rem .8rem;border-radius:999px;
+  font-family:var(--serif);letter-spacing:.1em;text-transform:uppercase;border:1px solid rgba(199,154,78,.3);
+  font-size:.74rem;opacity:.85;color:var(--lumiverse-text-2);background:rgba(199,154,78,.06);}
+.think-body{margin:12px 0 0;padding:14px 16px;border-radius:12px;font-style:italic;font-size:.99rem;color:var(--lumiverse-text-2);
+  border-left:3px solid var(--lumiverse-accent-2);
+  background:linear-gradient(90deg,rgba(179,74,58,.08),transparent 60%),var(--surf-2);}
+blockquote{margin:.2em 0;padding:.1em 0 .1em .9em;border-left:2px solid color-mix(in srgb,var(--lumiverse-accent) 60%,transparent);color:var(--lumiverse-text-2);font-style:italic}
+
+@media(max-width:720px){
+  .msg{--avatar-w:clamp(64px,26vw,120px)}
+  .avatar{height:clamp(180px,48vw,300px);top:14px}
+  .name{font-size:1.4rem}
+  .mock-title{font-size:2rem}
+  .prose > p:first-of-type::first-letter{font-size:2.6em}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="mock-label">Vellum · Fantasy</div>
+  <h1 class="mock-title">The Open Codex</h1>
+  <p class="mock-sub">Gilt ink &amp; rubric red on aged vellum — MinimalMessage layout, Illuminated chrome.</p>
+
+  <!-- character message -->
+  <div class="msg character">
+    <div class="avatar"><div class="fill portraitA"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="fRobeA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#5a3a1c"/><stop offset=".55" stop-color="#3d2712"/><stop offset="1" stop-color="#241608"/>
+          </linearGradient>
+          <linearGradient id="fRimA" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#e7c887" stop-opacity=".0"/><stop offset="1" stop-color="#f2dca0" stop-opacity=".55"/>
+          </linearGradient>
+          <radialGradient id="fSkinA" cx=".42" cy=".38" r=".7">
+            <stop offset="0" stop-color="#e8c79a"/><stop offset="1" stop-color="#8a5d34"/>
+          </radialGradient>
+        </defs>
+        <!-- seated robed scholar, sepia ink-and-wash -->
+        <g>
+          <!-- robe body -->
+          <path d="M40 400 C40 300 52 232 74 208 C86 196 114 196 126 208 C150 234 160 300 160 400 Z" fill="url(#fRobeA)"/>
+          <!-- rim light along right edge of robe -->
+          <path d="M126 208 C150 234 160 300 160 400 L150 400 C150 306 142 240 120 214 Z" fill="url(#fRimA)"/>
+          <!-- cowl / shoulders -->
+          <path d="M66 214 C74 176 126 176 134 214 C120 198 80 198 66 214 Z" fill="#2c1c0d"/>
+          <!-- cloth folds -->
+          <g stroke="#20140a" stroke-opacity=".5" stroke-width="2" fill="none">
+            <path d="M92 236 C90 288 86 344 84 396"/>
+            <path d="M112 236 C116 292 120 346 122 396"/>
+            <path d="M102 240 L102 396"/>
+          </g>
+          <!-- head -->
+          <ellipse cx="100" cy="150" rx="30" ry="34" fill="url(#fSkinA)"/>
+          <!-- hood shadow over crown -->
+          <path d="M70 150 C70 116 130 116 130 150 C130 132 70 132 70 150 Z" fill="#241608" opacity=".8"/>
+          <!-- candle rim light on face -->
+          <path d="M128 150 C128 168 118 182 104 184 C120 176 126 162 126 150 Z" fill="#f2dca0" opacity=".5"/>
+          <!-- beard suggestion -->
+          <path d="M84 168 C90 190 110 190 116 168 C112 182 88 182 84 168 Z" fill="#3d2712" opacity=".7"/>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">Maester Aldric</div><div class="pill">the scriptorium · candlemark past midnight</div></div>
+      <div class="content"><div class="leafgrain"></div>
+        <div class="prose">
+          <p><em>Rain frets the high windows as he sets down his quill, the wax of a broken seal still soft on the letter between you.</em> Shelves of chained folios lean into the dark, breathing dust and tallow-smoke.</p>
+          <p><span class="say">"The seal is the old king's own — I would know that stag in any wax."</span> <em>His thumb traces the impression, slow, reverent.</em> <span class="say">"Which means someone has been raiding a dead man's chancery. Sit. This is no longer a matter for the morning."</span></p>
+          <blockquote>Every codex here has outlived the hand that wrote it. That is the only immortality men are granted — and someone means to forge it.</blockquote>
+        </div>
+        <div class="think-toggle">&#129504; reasoning</div>
+        <div class="think-body">Play him as a scholar first, courtier second — he reads people the way he reads marginalia, quick and unimpressed. Let dread arrive through detail, not volume.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- user message -->
+  <div class="msg user">
+    <div class="avatar"><div class="fill portraitB"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="fRobeB" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#6a2a20"/><stop offset=".55" stop-color="#48231a"/><stop offset="1" stop-color="#2a130d"/>
+          </linearGradient>
+          <linearGradient id="fRimB" x1="1" y1="0" x2="0" y2="0">
+            <stop offset="0" stop-color="#e7c887" stop-opacity=".0"/><stop offset="1" stop-color="#f0d59a" stop-opacity=".5"/>
+          </linearGradient>
+          <radialGradient id="fSkinB" cx=".58" cy=".38" r=".7">
+            <stop offset="0" stop-color="#e6bd90"/><stop offset="1" stop-color="#7e502e"/>
+          </radialGradient>
+        </defs>
+        <!-- hooded traveler in a rain-dark cloak -->
+        <g>
+          <path d="M40 400 C42 296 56 236 80 214 C92 202 108 202 120 214 C144 236 158 296 160 400 Z" fill="url(#fRobeB)"/>
+          <path d="M80 214 C56 236 42 296 40 400 L50 400 C52 302 62 242 86 218 Z" fill="url(#fRimB)"/>
+          <!-- raised hood -->
+          <path d="M62 176 C70 120 130 120 138 176 C138 150 128 138 100 138 C72 138 62 150 62 176 Z" fill="#2a130d"/>
+          <path d="M70 178 C74 150 126 150 130 178 C124 158 76 158 70 178 Z" fill="#1c0d08"/>
+          <!-- shadowed face inside hood -->
+          <ellipse cx="100" cy="164" rx="24" ry="28" fill="url(#fSkinB)" opacity=".9"/>
+          <path d="M76 164 C76 140 124 140 124 164 C124 150 76 150 76 164 Z" fill="#1c0d08" opacity=".7"/>
+          <path d="M120 168 C120 184 112 196 100 198 C114 190 118 178 118 168 Z" fill="#f0d59a" opacity=".45"/>
+          <!-- cloak folds -->
+          <g stroke="#180a06" stroke-opacity=".5" stroke-width="2" fill="none">
+            <path d="M90 238 C86 292 82 346 80 396"/>
+            <path d="M114 238 C118 292 122 346 124 396"/>
+          </g>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">You</div><div class="pill">rain on your cloak</div></div>
+      <div class="content"><div class="leafgrain"></div>
+        <div class="prose">
+          <p><em>I draw the stool close and lay my gloved hand flat beside the letter, not yet touching it.</em></p>
+          <p><span class="say">"Then tell me who profits from a dead king still signing his name."</span> <em>The candle gutters; I do not look away from the seal.</em> <span class="say">"And whether the ink is dry enough to catch them by."</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

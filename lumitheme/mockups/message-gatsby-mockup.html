@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gatsby — MinimalMessage Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poiret+One&family=Playfair+Display:wght@600;700&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   GATSBY — "Jazz Age opulence"
+   Chrome: gatsby · Skin: gatsby-noir (midnight & gilt gold)
+   accent #d4af37 (gold)  ·  accent2 #2a1810 (bittersweet brown)
+   texture: deco-rays · font: F_DECO (Poiret One) · radius 0 · border 2
+   Hard-edged geometric chrome: 3px gold top/bottom card rules,
+   corner accent bars, sunburst headers, octagon portraits, gold shimmer.
+   Layout ported from Kittylit Ripple MinimalMessage.
+   -- FULL-PAGE deco rework: sunburst-ray field, gilt fan corners, gold
+      bokeh, a midnight-and-champagne ballroom vignette; portrait rails are
+      lit deco interiors; figures are painted gold-leaf illustrations.
+   ============================================================ */
+:root{
+  --lumiverse-bg:#0a0806;              /* midnight */
+  --lumiverse-text:#f8e5a0;            /* champagne gold ink */
+  --lumiverse-text-2:#c8a870;
+  --lumiverse-accent:#d4af37;          /* gilt gold */
+  --lumiverse-accent-2:#e8c85a;        /* bright champagne (pressInk) */
+  --gild-1:#f4e6a8;                    /* lit gold */
+  --gild-2:#c99a2e;                    /* deep gold */
+  --surf-1:rgba(20,16,12,.95);
+  --surf-2:rgba(10,8,6,.98);
+  --glass-border:rgba(212,175,55,.35);
+  --deco:'Poiret One','Playfair Display',Georgia,serif;
+  --serif:'Playfair Display',Georgia,serif;
+  --body:'EB Garamond',Georgia,serif;
+  --radius:0px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--body);
+  color:var(--lumiverse-text);
+  /* midnight ballroom: champagne glow above, gold pooling low, bokeh, deep vignette */
+  background:
+    radial-gradient(720px 460px at 50% -4%, rgba(232,200,90,.22), transparent 62%),
+    radial-gradient(560px 420px at 88% 12%, rgba(212,175,55,.12), transparent 66%),
+    radial-gradient(600px 460px at 6% 96%, rgba(212,175,55,.14), transparent 68%),
+    radial-gradient(140% 130% at 50% 46%, transparent 52%, rgba(4,3,2,.72) 100%),
+    linear-gradient(180deg,#141009 0%, #0a0806 55%, #050403 100%);
+  min-height:100vh;
+  padding:2.5rem 1.25rem 6rem;
+  overflow-x:hidden;
+}
+/* deco-rays sunburst radiating from top center */
+body::before{
+  content:"";position:fixed;top:-46vh;left:50%;transform:translateX(-50%);
+  width:190vw;height:190vw;pointer-events:none;z-index:0;opacity:.16;
+  background:repeating-conic-gradient(from 0deg at 50% 50%,
+    rgba(232,200,90,.9) 0deg, rgba(232,200,90,.9) .5deg, transparent .5deg, transparent 6deg);
+  -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 0,transparent 44%);
+  mask-image:radial-gradient(circle at 50% 50%,#000 0,transparent 44%);
+}
+/* gold bokeh + gilt fan corners + faint chevron field */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    radial-gradient(circle at 18% 24%, rgba(232,200,90,.10) 0, transparent 5%),
+    radial-gradient(circle at 74% 16%, rgba(212,175,55,.09) 0, transparent 4%),
+    radial-gradient(circle at 86% 62%, rgba(232,200,90,.08) 0, transparent 6%),
+    radial-gradient(circle at 30% 78%, rgba(212,175,55,.08) 0, transparent 5%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='230' height='230'%3E%3Cg fill='none' stroke='%23d4af37' stroke-opacity='0.16' stroke-width='1.4'%3E%3Cpath d='M6 6h48M6 6v48M6 6l40 40'/%3E%3Cpath d='M6 20l30 30M6 34l22 22M6 48l14 14'/%3E%3Cpath d='M224 6h-48M224 6v48M224 6l-40 40'/%3E%3Cpath d='M224 224h-48M224 224v-48M224 224l-40-40'/%3E%3Cpath d='M6 224h48M6 224v-48M6 224l40-40'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cg fill='none' stroke='%23d4af37' stroke-opacity='0.06' stroke-width='1'%3E%3Cpath d='M0 30l15-15 15 15 15-15 15 15'/%3E%3Cpath d='M0 45l15-15 15 15 15-15 15 15'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat:no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,repeat;
+  background-position:0 0,0 0,0 0,0 0,0 0,0 0;
+  opacity:.9;
+}
+
+.stage{max-width:1080px;margin:0 auto;position:relative;z-index:1}
+.mock-label{
+  text-align:center;font-family:var(--deco);color:var(--lumiverse-accent);
+  letter-spacing:.4em;text-transform:uppercase;font-size:.78rem;margin-bottom:.5rem;opacity:.9;
+}
+.mock-title{
+  text-align:center;font-family:var(--deco);font-weight:400;font-size:2.9rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--lumiverse-text);margin-bottom:.35rem;
+  text-shadow:0 2px 18px rgba(212,175,55,.35);
+}
+/* sunburst rule under the title */
+.mock-title::after{content:"\2726";display:block;color:var(--lumiverse-accent);font-size:1.1rem;margin-top:.3rem;
+  text-shadow:0 0 16px rgba(212,175,55,.6);animation:shimmer 4s ease-in-out infinite}
+@keyframes shimmer{0%,100%{opacity:.5;text-shadow:0 0 16px rgba(212,175,55,.4)}50%{opacity:1;text-shadow:0 0 26px rgba(212,175,55,.85)}}
+.mock-sub{text-align:center;font-style:italic;color:var(--lumiverse-text-2);margin-bottom:2.75rem;font-family:var(--body);letter-spacing:.04em}
+
+/* ---- message grid (character = portrait left, user = portrait right) ---- */
+.msg{
+  --avatar-w:clamp(150px,18vw,260px);
+  display:grid;grid-template-columns:var(--avatar-w) minmax(0,1fr);
+  column-gap:clamp(14px,1.6vw,26px);align-items:start;
+  margin-bottom:clamp(28px,3.4vw,52px);
+}
+.msg.user{grid-template-columns:minmax(0,1fr) var(--avatar-w)}
+
+/* sticky masked portrait rail (hard-edged, gold framed) */
+.avatar{
+  grid-column:1;grid-row:1/span 2;justify-self:start;position:sticky;top:24px;
+  width:var(--avatar-w);height:clamp(360px,52vh,560px);border-radius:var(--radius);
+  overflow:hidden;isolation:isolate;
+  -webkit-mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  -webkit-mask-composite:source-in;mask-composite:intersect;
+}
+.msg.user .avatar{grid-column:2;justify-self:end;
+  -webkit-mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+}
+.avatar .fill{position:absolute;inset:0}
+/* lit deco interior: champagne spotlight top, gilt sunburst wall, dark parquet floor */
+.portraitA{
+  background:
+    radial-gradient(90% 60% at 50% 8%, rgba(244,230,168,.55), transparent 58%),
+    repeating-conic-gradient(from 0deg at 50% 30%, rgba(201,154,46,.16) 0deg, rgba(201,154,46,.16) 1deg, transparent 1deg, transparent 9deg),
+    radial-gradient(70% 40% at 50% 100%, rgba(20,12,4,.85), transparent 66%),
+    linear-gradient(165deg,#e8c85a,#b8902a 46%,#241606 100%);
+}
+.portraitB{
+  background:
+    radial-gradient(90% 60% at 50% 8%, rgba(232,222,178,.42), transparent 58%),
+    repeating-conic-gradient(from 0deg at 50% 30%, rgba(160,132,70,.14) 0deg, rgba(160,132,70,.14) 1deg, transparent 1deg, transparent 9deg),
+    radial-gradient(70% 40% at 50% 100%, rgba(14,10,6,.88), transparent 66%),
+    linear-gradient(165deg,#d9c9a0,#8f7038 48%,#1c140a 100%);
+}
+/* gold-grain / film-grain overlay on the plate */
+.avatar .grain{position:absolute;inset:0;opacity:.4;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='0.5'/%3E%3C/svg%3E");}
+.avatar .fig{position:absolute;inset:0;opacity:.95}
+.avatar::before{content:"";position:absolute;top:8px;left:8px;width:44px;height:3px;background:var(--lumiverse-accent);box-shadow:0 0 10px rgba(212,175,55,.6);z-index:2}
+.avatar::after{content:"";position:absolute;top:8px;left:8px;width:3px;height:44px;background:var(--lumiverse-accent);box-shadow:0 0 10px rgba(212,175,55,.6);z-index:2}
+.msg.user .avatar::before{left:auto;right:8px}
+.msg.user .avatar::after{left:auto;right:8px}
+
+/* bubble lane */
+.bubble{grid-column:2;min-width:0}
+.msg.user .bubble{grid-column:1}
+
+.header{display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:8px 16px 16px;position:relative}
+.header::before{content:"\2726";color:var(--lumiverse-accent);font-size:1rem;opacity:.9;text-shadow:0 0 12px rgba(212,175,55,.6);animation:shimmer 4s ease-in-out infinite}
+.name{font-family:var(--deco);font-weight:400;font-size:clamp(1.6rem,2.2vw,2.3rem);line-height:1.02;letter-spacing:.14em;text-transform:uppercase;
+  background:linear-gradient(92deg,var(--lumiverse-accent),#f8e5a0 55%,var(--lumiverse-accent));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.pill{font-family:var(--deco);font-size:.7rem;font-weight:400;letter-spacing:.22em;text-transform:uppercase;opacity:.65;color:var(--lumiverse-text-2)}
+
+/* content card — gatsby: sharp edges, 3px gold top/bottom rules, corner bars */
+.content{position:relative;isolation:isolate;padding:22px 24px;border-radius:var(--radius);
+  border:1px solid rgba(212,175,55,.35);border-top:3px solid var(--lumiverse-accent);border-bottom:3px solid var(--lumiverse-accent);
+  background:var(--surf-1);
+  box-shadow:inset 0 0 24px rgba(212,175,55,.06),0 14px 40px rgba(0,0,0,.6);
+  backdrop-filter:blur(6px) saturate(115%);-webkit-backdrop-filter:blur(6px) saturate(115%);}
+/* film-grain wash across the card */
+.content > .leafgrain{position:absolute;inset:0;z-index:0;opacity:.16;mix-blend-mode:overlay;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='lg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23lg)' opacity='0.5'/%3E%3C/svg%3E");}
+.content::before{content:"";position:absolute;top:0;left:0;width:46px;height:3px;background:var(--lumiverse-accent);animation:pulse 3s ease-in-out infinite;z-index:1}
+.content::after{content:"";position:absolute;top:0;right:0;width:46px;height:3px;background:var(--lumiverse-accent);animation:pulse 3s ease-in-out infinite;z-index:1}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.content > .prose,.content > .think-toggle,.content > .think-body{position:relative;z-index:1}
+
+.prose{font-family:var(--body);font-size:1.06rem;line-height:1.72;text-align:justify;hyphens:auto;text-wrap:pretty}
+.prose p{margin:0 0 .9em}
+.prose p:last-child{margin-bottom:0}
+.prose em{font-style:italic;color:var(--lumiverse-text-2)}         /* thoughts / narration */
+.prose .say{color:var(--lumiverse-accent);text-shadow:0 1px 14px rgba(212,175,55,.28)} /* dialogue */
+.msg.user .prose .say{color:var(--lumiverse-accent-2)}
+.prose strong{color:#fff;font-weight:700}
+
+/* thinking pill + panel */
+.think-toggle{display:inline-flex;align-items:center;gap:.5rem;margin:16px 0 0;padding:.35rem .8rem;border-radius:0;
+  font-family:var(--deco);letter-spacing:.14em;text-transform:uppercase;border:1px solid rgba(212,175,55,.35);
+  font-size:.7rem;opacity:.85;color:var(--lumiverse-text-2);background:rgba(212,175,55,.05);}
+.think-body{margin:12px 0 0;padding:14px 16px;border-radius:0;font-style:italic;font-size:.98rem;color:var(--lumiverse-text-2);
+  border-left:3px solid var(--lumiverse-accent);
+  background:linear-gradient(90deg,rgba(212,175,55,.07),transparent 60%),var(--surf-2);}
+blockquote{margin:.2em 0;padding:.1em 0 .1em .9em;border-left:2px solid color-mix(in srgb,var(--lumiverse-accent) 60%,transparent);color:var(--lumiverse-text-2);font-style:italic}
+
+@media(max-width:720px){
+  .msg{--avatar-w:clamp(64px,26vw,120px)}
+  .avatar{height:clamp(180px,48vw,300px);top:14px}
+  .name{font-size:1.4rem}
+  .mock-title{font-size:2rem}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="mock-label">Vellum · Gatsby</div>
+  <h1 class="mock-title">Jazz Age Opulence</h1>
+  <p class="mock-sub">Gilt gold on midnight &amp; champagne — MinimalMessage layout, Gatsby chrome.</p>
+
+  <!-- character message -->
+  <div class="msg character">
+    <div class="avatar"><div class="fill portraitA"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="gDressA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f4e6a8"/><stop offset=".5" stop-color="#d4af37"/><stop offset="1" stop-color="#7a5a16"/>
+          </linearGradient>
+          <linearGradient id="gRimA" x1="1" y1="0" x2="0" y2="0">
+            <stop offset="0" stop-color="#fff3c4" stop-opacity=".7"/><stop offset="1" stop-color="#fff3c4" stop-opacity="0"/>
+          </linearGradient>
+          <radialGradient id="gSkinA" cx=".44" cy=".4" r=".7">
+            <stop offset="0" stop-color="#f0d6a8"/><stop offset="1" stop-color="#b98a52"/>
+          </radialGradient>
+        </defs>
+        <!-- flapper in beaded gold fringe, coupe raised -->
+        <g>
+          <!-- gown column with beaded fringe hem -->
+          <path d="M66 400 C62 300 70 236 84 214 C90 206 110 206 116 214 C130 236 138 300 134 400 Z" fill="url(#gDressA)"/>
+          <!-- vertical bead lines -->
+          <g stroke="#8a6418" stroke-opacity=".45" stroke-width="1.5">
+            <path d="M84 232 L82 396"/><path d="M96 230 L95 398"/><path d="M108 230 L109 398"/><path d="M120 232 L122 396"/>
+          </g>
+          <!-- fringe hem dots -->
+          <g fill="#e8c85a"><circle cx="70" cy="396" r="2.4"/><circle cx="84" cy="398" r="2.4"/><circle cx="100" cy="399" r="2.4"/><circle cx="116" cy="398" r="2.4"/><circle cx="130" cy="396" r="2.4"/></g>
+          <!-- rim light -->
+          <path d="M116 214 C130 236 138 300 134 400 L124 400 C128 306 120 240 108 218 Z" fill="url(#gRimA)"/>
+          <!-- shoulders / bare décolletage -->
+          <path d="M80 216 C88 196 112 196 120 216 C110 206 90 206 80 216 Z" fill="url(#gSkinA)"/>
+          <!-- neck -->
+          <rect x="94" y="182" width="12" height="20" rx="5" fill="url(#gSkinA)"/>
+          <!-- head -->
+          <ellipse cx="100" cy="160" rx="24" ry="28" fill="url(#gSkinA)"/>
+          <!-- sleek bob with finger-wave -->
+          <path d="M74 158 C72 122 128 122 126 158 C126 140 120 130 100 130 C80 130 74 140 74 158 Z" fill="#2a1c0a"/>
+          <path d="M76 150 C82 138 118 138 124 150 C112 144 88 144 76 150 Z" fill="#4a3410" opacity=".7"/>
+          <!-- deco headband + feather -->
+          <path d="M76 138 C88 130 112 130 124 138" stroke="#e8c85a" stroke-width="3" fill="none"/>
+          <path d="M118 138 C132 118 138 104 132 92 C130 108 124 122 116 134 Z" fill="#d4af37" opacity=".8"/>
+          <!-- raised coupe of champagne -->
+          <g transform="translate(150 176) rotate(12)" fill="#f4e6a8" opacity=".9">
+            <path d="M-10 0 L10 0 L4 16 L-4 16 Z"/><rect x="-1.6" y="16" width="3.2" height="18"/><ellipse cx="0" cy="34" rx="8" ry="2.4"/>
+          </g>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">Josephine</div><div class="pill">the west egg ballroom · 2 a.m.</div></div>
+      <div class="content"><div class="leafgrain"></div>
+        <div class="prose">
+          <p><em>She descends the marble stair in a fall of gold-bead fringe, a coupe of champagne held like a scepter, the orchestra swelling to meet her.</em> The whole room turns, as rooms always do.</p>
+          <p><span class="say">"Darling, you're late — and everyone worth knowing has already made three bad decisions."</span> <em>A laugh, bright as struck brass.</em> <span class="say">"Come. Let's go make the fourth."</span></p>
+          <blockquote>They throw these parties to be seen. I come to watch who thinks nobody's watching them.</blockquote>
+        </div>
+        <div class="think-toggle">&#129504; reasoning</div>
+        <div class="think-body">Play her as glittering armor over something watchful — she performs carelessness but misses nothing. Keep the wit sharp, the warmth rationed like good champagne.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- user message -->
+  <div class="msg user">
+    <div class="avatar"><div class="fill portraitB"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="gTuxB" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3a342a"/><stop offset=".55" stop-color="#20190f"/><stop offset="1" stop-color="#100b06"/>
+          </linearGradient>
+          <linearGradient id="gRimB" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#f0dca0" stop-opacity="0"/><stop offset="1" stop-color="#f0dca0" stop-opacity=".55"/>
+          </linearGradient>
+          <radialGradient id="gSkinB" cx=".56" cy=".4" r=".7">
+            <stop offset="0" stop-color="#eccf9c"/><stop offset="1" stop-color="#9c6f3e"/>
+          </radialGradient>
+        </defs>
+        <!-- gentleman in black tie, hand offered -->
+        <g>
+          <!-- tux jacket / trousers column -->
+          <path d="M52 400 C54 296 68 234 84 214 C92 204 108 204 116 214 C132 234 146 296 148 400 Z" fill="url(#gTuxB)"/>
+          <!-- white dress-shirt V + bow tie -->
+          <path d="M90 214 L100 300 L110 214 C106 210 94 210 90 214 Z" fill="#efe8d6"/>
+          <path d="M92 220 L100 228 L108 220 L104 232 L96 232 Z" fill="#0c0906"/>
+          <!-- satin lapels -->
+          <path d="M90 214 L82 300 L90 250 Z" fill="#0c0906"/>
+          <path d="M110 214 L118 300 L110 250 Z" fill="#0c0906"/>
+          <!-- rim light down right side -->
+          <path d="M116 214 C132 234 146 296 148 400 L138 400 C136 302 126 240 108 218 Z" fill="url(#gRimB)"/>
+          <!-- neck + head -->
+          <rect x="94" y="184" width="12" height="20" rx="5" fill="url(#gSkinB)"/>
+          <ellipse cx="100" cy="162" rx="23" ry="27" fill="url(#gSkinB)"/>
+          <!-- slicked side-part hair -->
+          <path d="M77 160 C76 128 124 128 123 160 C123 142 116 134 100 134 C84 134 77 142 77 160 Z" fill="#1a130a"/>
+          <path d="M80 146 C92 138 118 140 120 150 C110 144 90 144 80 152 Z" fill="#2c2010" opacity=".7"/>
+          <!-- offered hand / cuff -->
+          <g transform="translate(150 250) rotate(-18)">
+            <rect x="-8" y="-6" width="18" height="12" rx="3" fill="url(#gTuxB)"/>
+            <rect x="8" y="-5" width="4" height="10" fill="#efe8d6"/>
+            <ellipse cx="18" cy="0" rx="9" ry="6" fill="url(#gSkinB)"/>
+          </g>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">You</div><div class="pill">at the foot of the stair</div></div>
+      <div class="content"><div class="leafgrain"></div>
+        <div class="prose">
+          <p><em>I set down my untouched glass and offer a hand, the band sliding into something slow and gilded.</em></p>
+          <p><span class="say">"Three bad decisions is a slow night for you."</span> <em>I meet her eyes and don't look away.</em> <span class="say">"Show me the fourth, then. I'll keep it a secret."</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -20,7 +20,7 @@ const FENCES: Array<[string, string]> = [
 const SCHEMA_KEY = /"(?:delta|scene|present|turn|day)"/;
 
 function extractFenced(content: string): string | null {
-  const candidates: string[] = [];
+  const candidates: Array<{ body: string; at: number }> = [];
   for (const [open, close] of FENCES) {
     let from = 0;
     // collect EVERY occurrence of this fence (a model may show an example block
@@ -30,17 +30,21 @@ function extractFenced(content: string): string | null {
       if (i < 0) break;
       const j = content.indexOf(close, i + open.length);
       // closing fence missing (truncated mid-block) → take the rest of the message
-      candidates.push(content.slice(i + open.length, j < 0 ? undefined : j).trim());
+      candidates.push({ body: content.slice(i + open.length, j < 0 ? undefined : j).trim(), at: i });
       from = i + open.length;
       if (j < 0) break;
     }
   }
   if (candidates.length) {
     // prefer a candidate that actually looks like our state block
-    const withSchema = candidates.filter((c) => SCHEMA_KEY.test(c));
+    const withSchema = candidates.filter((c) => SCHEMA_KEY.test(c.body));
     const pool = withSchema.length ? withSchema : candidates;
-    // among those, the LARGEST (most complete) wins
-    return pool.reduce((a, b) => (b.length > a.length ? b : a));
+    // The final block is the turn's authoritative T1 declaration. A model can
+    // echo a worked example or leave an earlier draft before correcting itself;
+    // choosing the largest block let that stale draft beat a shorter, correct
+    // suffix (for example Day 11/night instead of Day 2/morning). Track source
+    // positions across every supported fence spelling and take the latest one.
+    return pool.reduce((a, b) => (b.at > a.at ? b : a)).body;
   }
   // last resort: the first balanced {...} that contains a schema key (non-greedy,
   // bracket-aware — not the old greedy regex that ran to the last } in the message)

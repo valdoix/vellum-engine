@@ -108,6 +108,8 @@ describe('explicit elapsed day evidence', () => {
     expect(supportsDayAdvance('Five minutes pass.', 900, 3, 1)).toBe(false);
     expect(supportsDayAdvance('The next morning arrives.', 900, 540, 1)).toBe(true);
     expect(supportsDayAdvance('The next morning is October 17.', 900, 540, 15)).toBe(false);
+    expect(supportsDayAdvance('Day 11. The lamps are lit.', 540, 1320, 9)).toBe(false);
+    expect(supportsDayAdvance('Narrative Day 11 begins.', 540, 1320, 9)).toBe(true);
     expect(supportsDayAdvance('Two days later, the gate opens.', 900, 540, 2)).toBe(true);
     expect(supportsDayAdvance('The clock reads 08:00.', 1320, 480, 1)).toBe(false);
     expect(supportsDayAdvance('"Come back in five minutes," she says.', 1438, 3, 1)).toBe(false);

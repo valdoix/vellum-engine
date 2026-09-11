@@ -1,0 +1,13 @@
+{
+  "name": "vellum-lumitheme-build",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Builds the 5 Vellum .lumitheme theme packs (Layer-1 ThemeConfig + Layer-2 globalCSS + Layer-3 MinimalMessage TSX override).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  }
+}

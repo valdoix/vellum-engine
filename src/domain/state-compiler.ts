@@ -270,6 +270,16 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   const dayReconcile = reconcileDay(s.day, input.prior.day, dayAdvanceEvidence, { priorClock, newClock: s.scene.clock });
   s.day = dayReconcile.day;
   const recoveredDayCount = s.day !== reportedDay;
+  // A quote that names a recognizable time of day must support the compiled
+  // endpoint, not merely exist somewhere in the turn. The old presence-only
+  // check accepted `quote: "Morning"` for a 22:00/night candidate. Keep a wide
+  // four-hour tolerance for coarse prose labels (dawn/early morning), while
+  // rejecting a contradictory part of day.
+  const proofClock = timeProof ? parseClock(timeProof.quote) : undefined;
+  if (proofClock !== undefined) {
+    const clockDistance = Math.min(Math.abs(proofClock - s.scene.clock), 1440 - Math.abs(proofClock - s.scene.clock));
+    if (clockDistance > 240) errors.push('scene.time evidence disagrees with compiled clock');
+  }
   const [h, m] = s.scene.time.split(':').map(Number);
   if (h! * 60 + m! !== s.scene.clock) errors.push('time and clock disagree');
   if (s.day * 1440 + s.scene.clock < input.prior.day * 1440 + priorClock) errors.push('clock moves backward');

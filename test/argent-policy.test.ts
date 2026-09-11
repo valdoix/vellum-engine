@@ -50,6 +50,16 @@ describe('effective policy compilation and profiles', () => {
     const capsule = compileArgentPolicy(blocks);
     expect(capsule.length).toBeLessThan(blocks.reduce((n: number, b: any) => n + b.content.length, 0) / 2);
   });
+  it('compiles Native into a private robust ARGENT Reverie without a visible scaffold', () => {
+    const selected = applyProfile(blocks, {}, { reasoning_route: 'native', state_compiler: 'engine' });
+    const capsule = compileArgentPolicy(blocks, selected);
+    expect(capsule).toContain('bounded robust ARGENT Reverie in provider-private reasoning');
+    for (const section of ['A Authority', 'R Reality', 'G Gnosis', 'E Embodiment', 'N Narrative', 'T Truthful deltas', 'V Voice', 'X Final checks']) {
+      expect(capsule).toContain(section);
+    }
+    expect(capsule).toContain('expose none of the audit');
+    expect(capsule).not.toContain('visible response MUST begin with the literal <reverie> tag');
+  });
   it.each([
     ['protected', 'FORBIDDEN FINAL GATE'],
     ['continuity', 'MINOR CONTINUITY FINAL GATE'],

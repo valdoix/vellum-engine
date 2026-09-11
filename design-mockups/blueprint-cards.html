@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II — Blueprint Card Designs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cyan:#8fc4d9;
+  --cyan-bright:#b4dcec;
+  --cyan-dim:#6a9cb8;
+  --ink:#c8dce8;
+  --ink2:#7aa4ba;
+  --ink3:#aabcc8;
+  --s1:#0e1a24;
+  --s2:#0a141c;
+  --field:#08121a;
+  --amber:#d9a84e;
+  --red:#d97a6a;
+  --green:#8fc99a;
+  --grotesk:'Archivo',-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --grid:rgba(143,196,217,0.05);
+  --line:rgba(143,196,217,0.24);
+  --line-strong:rgba(143,196,217,0.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:
+    repeating-linear-gradient(0deg,transparent,transparent 23px,var(--grid) 23px,var(--grid) 24px),
+    repeating-linear-gradient(90deg,transparent,transparent 23px,var(--grid) 23px,var(--grid) 24px),
+    linear-gradient(180deg,#0a141c,#06101a);
+  background-attachment:fixed;
+  color:var(--ink);
+  font-family:var(--grotesk);
+  font-size:16px;line-height:1.5;
+  min-height:100vh;padding-bottom:6rem;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 1.5rem}
+
+/* masthead */
+.masthead{text-align:center;padding:3.5rem 1.5rem 1.5rem;position:relative}
+.masthead .mark{
+  font-family:var(--mono);font-size:2rem;color:var(--cyan);
+  border:2px solid var(--cyan);width:64px;height:64px;line-height:60px;
+  margin:0 auto 1.1rem;position:relative;
+}
+.masthead .mark::before,.masthead .mark::after{
+  content:'';position:absolute;background:var(--cyan);
+}
+.masthead h1{font-size:2.5rem;color:var(--ink);letter-spacing:0.04em;font-weight:700}
+.masthead .sub{color:var(--ink2);font-family:var(--mono);font-size:0.72rem;letter-spacing:0.24em;text-transform:uppercase;margin-top:0.6rem}
+
+/* sticky nav */
+.nav{position:sticky;top:0;z-index:50;background:rgba(8,16,24,0.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:0.7rem 0}
+.nav .wrap{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.nav .tag{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--cyan);margin-right:0.4rem}
+.nav a{color:var(--ink2);text-decoration:none;font-family:var(--mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.3rem 0.7rem;border:1px solid transparent;transition:all .18s}
+.nav a:hover{color:var(--cyan-bright);border-color:var(--line)}
+
+/* section */
+.sec{padding:3rem 0 1rem}
+.sec-head{display:flex;align-items:baseline;gap:0.8rem;margin-bottom:0.4rem}
+.sec-head .no{font-family:var(--mono);font-size:0.7rem;color:var(--cyan);letter-spacing:0.1em}
+.sec-head h2{font-size:1.5rem;color:var(--ink);font-weight:600;letter-spacing:0.01em}
+.sec-desc{color:var(--ink2);font-size:0.9rem;max-width:66ch;margin-bottom:1.6rem;font-family:var(--mono);line-height:1.6}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1.4rem}
+
+/* ============================================================
+   BASE BLUEPRINT CARD — the drafting-sheet shell every card shares
+   ============================================================ */
+.bp{
+  position:relative;
+  background:linear-gradient(168deg,var(--s1),var(--s2));
+  border:1px solid var(--line);
+  padding:1.15rem 1.2rem 1.1rem;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 19px,rgba(143,196,217,0.035) 19px,rgba(143,196,217,0.035) 20px),
+    repeating-linear-gradient(90deg,transparent,transparent 19px,rgba(143,196,217,0.035) 19px,rgba(143,196,217,0.035) 20px);
+}
+/* registration corner brackets — the signature drafting mark */
+.bp .cnr{position:absolute;width:10px;height:10px;border-color:var(--line-strong);border-style:solid;border-width:0;pointer-events:none}
+.bp .cnr.tl{top:4px;left:4px;border-top-width:1.5px;border-left-width:1.5px}
+.bp .cnr.tr{top:4px;right:4px;border-top-width:1.5px;border-right-width:1.5px}
+.bp .cnr.bl{bottom:4px;left:4px;border-bottom-width:1.5px;border-left-width:1.5px}
+.bp .cnr.br{bottom:4px;right:4px;border-bottom-width:1.5px;border-right-width:1.5px}
+
+/* card head row */
+.bp-head{display:flex;align-items:flex-start;gap:0.7rem;margin-bottom:0.7rem}
+.bp-label{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--cyan-dim)}
+.bp-title{font-family:var(--grotesk);font-size:1.15rem;color:var(--ink);font-weight:600;line-height:1.25}
+.bp-sub{font-family:var(--mono);font-size:0.68rem;color:var(--ink2);margin-top:0.15rem}
+.bp-text{font-size:0.9rem;color:var(--ink3);line-height:1.6}
+
+/* the drafting-sheet id in the corner: a small mono code, like a sheet number */
+.bp-id{font-family:var(--mono);font-size:0.58rem;color:var(--cyan-dim);letter-spacing:0.1em;margin-left:auto;white-space:nowrap}
+
+/* avatar as a corner-bracketed reticle (no fill, no rounding) */
+.bp-ava{position:relative;flex:0 0 auto;width:44px;height:44px;display:grid;place-items:center;font-family:var(--mono);font-size:0.9rem;color:var(--cyan);background:rgba(143,196,217,0.05)}
+.bp-ava::before,.bp-ava::after{content:'';position:absolute;width:8px;height:8px;border:1.5px solid var(--cyan);opacity:0.8}
+.bp-ava::before{top:0;left:0;border-right:none;border-bottom:none}
+.bp-ava::after{bottom:0;right:0;border-left:none;border-top:none}
+.bp-ava .x{position:absolute;font-size:0.5rem;color:var(--cyan-dim);opacity:0.5}
+
+/* dimension line: a measured bar with end ticks + a mono value */
+.dim{display:flex;align-items:center;gap:0.5rem;margin:0.35rem 0}
+.dim .dim-k{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink2);width:56px;flex:0 0 auto}
+.dim .dim-bar{position:relative;flex:1 1 auto;height:14px}
+.dim .dim-bar .track{position:absolute;top:50%;left:0;right:0;height:1px;background:var(--line)}
+.dim .dim-bar .track::before,.dim .dim-bar .track::after{content:'';position:absolute;top:-3px;width:1px;height:7px;background:var(--line-strong)}
+.dim .dim-bar .track::before{left:0}
+.dim .dim-bar .track::after{right:0}
+.dim .dim-bar .fill{position:absolute;top:50%;left:0;height:2px;background:var(--cyan);transform:translateY(-50%);box-shadow:0 0 5px rgba(143,196,217,0.5)}
+.dim .dim-bar .fill.neg{background:var(--red);box-shadow:0 0 5px rgba(217,122,106,0.5)}
+.dim .dim-v{font-family:var(--mono);font-size:0.66rem;color:var(--cyan);width:40px;text-align:right;flex:0 0 auto}
+.dim .dim-v.neg{color:var(--red)}
+
+/* trait chips as spec callouts */
+.chips{display:flex;gap:0.45rem;flex-wrap:wrap;margin-top:0.7rem}
+.chip{font-family:var(--mono);font-size:0.64rem;color:var(--ink2);border:1px solid var(--line);padding:0.24rem 0.55rem;letter-spacing:0.04em;position:relative}
+.chip.evolving{color:var(--cyan);border-color:var(--line-strong)}
+.chip.evolving::after{content:'▸';position:absolute;right:-2px;top:50%;transform:translate(100%,-50%);color:var(--cyan-dim);font-size:0.6rem;padding-left:4px}
+
+/* aside / annotation block */
+.bp-aside{background:rgba(143,196,217,0.055);border-left:2px solid var(--cyan);padding:0.7rem 0.85rem;margin:0.8rem 0 0;position:relative}
+.bp-aside .bp-label{margin-bottom:0.35rem;display:block}
+
+/* footer: a drafting title-block strip */
+.bp-foot{display:flex;align-items:center;gap:0.8rem;margin-top:0.9rem;padding-top:0.6rem;border-top:1px solid var(--line);font-family:var(--mono);font-size:0.62rem;color:var(--ink2)}
+.bp-foot .rev{color:var(--cyan-dim);letter-spacing:0.1em}
+.bp-foot .acts{margin-left:auto;display:flex;gap:0.45rem}
+.bp-btn{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink2);background:transparent;border:1px solid var(--line);padding:0.28rem 0.6rem;cursor:pointer;transition:all .15s}
+.bp-btn:hover{color:var(--ink);border-color:var(--cyan)}
+.bp-btn.pri{background:var(--cyan);color:var(--s2);border-color:var(--cyan);font-weight:700}
+
+/* status pip: a drafting circle */
+.pip{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid var(--cyan);border-radius:50%;font-size:0.55rem;color:var(--cyan);flex:0 0 auto}
+.pip.filled{background:var(--cyan);color:var(--s2)}
+
+/* crosshair section origin mark */
+.origin{position:relative;display:inline-block;width:14px;height:14px;flex:0 0 auto}
+.origin::before,.origin::after{content:'';position:absolute;background:var(--cyan);opacity:0.7}
+.origin::before{left:50%;top:0;bottom:0;width:1px;transform:translateX(-50%)}
+.origin::after{top:50%;left:0;right:0;height:1px;transform:translateY(-50%)}
+
+/* danger-coded left rail for secrets */
+.bp.sec-minor{border-left:3px solid var(--cyan)}
+.bp.sec-major{border-left:3px solid var(--amber)}
+.bp.sec-explosive{border-left:3px solid var(--red)}
+.danger{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.12em;text-transform:uppercase;padding:0.18rem 0.5rem;border:1px solid}
+.danger.minor{color:var(--cyan);border-color:var(--line-strong)}
+.danger.major{color:var(--amber);border-color:rgba(217,168,78,0.5)}
+.danger.explosive{color:var(--red);border-color:rgba(217,122,106,0.5)}
+
+/* keeper/target name pills */
+.namepill{font-family:var(--mono);font-size:0.64rem;color:var(--ink);border:1px solid var(--line);padding:0.18rem 0.5rem;background:rgba(143,196,217,0.05)}
+
+/* location breadcrumb */
+.crumb{font-family:var(--mono);font-size:0.64rem;color:var(--ink2);margin:0.3rem 0 0.4rem}
+.crumb .sep{color:var(--cyan-dim);margin:0 0.3rem}
+.crumb .cur{color:var(--cyan)}
+
+/* bond connector: two reticles joined by a measured line */
+.bond-row{display:flex;align-items:center;gap:0;margin:0.3rem 0 0.5rem}
+.bond-link{flex:1 1 auto;position:relative;height:44px;display:flex;align-items:center;justify-content:center}
+.bond-link .ln{position:absolute;left:6px;right:6px;top:50%;height:1px;background:var(--line-strong)}
+.bond-link .badge{position:relative;font-family:var(--mono);font-size:0.58rem;color:var(--cyan);background:var(--s1);border:1px solid var(--line);padding:0.15rem 0.45rem;letter-spacing:0.06em}
+
+/* knowledge reliability icon */
+.rel{font-family:var(--mono);font-size:0.7rem;flex:0 0 auto;width:16px;text-align:center}
+.rel.knows{color:var(--cyan)}
+.rel.believes{color:var(--amber)}
+.rel.false{color:var(--red)}
+.know-row{display:flex;align-items:flex-start;gap:0.55rem;padding:0.4rem 0;border-bottom:1px solid rgba(143,196,217,0.08)}
+.know-row:last-child{border-bottom:none}
+.know-row.irony{background:rgba(217,122,106,0.07);border-left:2px solid var(--red);padding-left:0.5rem;margin:0.1rem 0}
+.know-fact{font-size:0.86rem;color:var(--ink3);line-height:1.45}
+.know-src{font-family:var(--mono);font-size:0.58rem;color:var(--ink2);opacity:0.7;margin-top:0.15rem}
+
+/* pin/here markers for location */
+.loc-here{font-family:var(--mono);font-size:0.56rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--s2);background:var(--cyan);padding:0.14rem 0.45rem}
+.loc-kind{font-family:var(--mono);font-size:0.6rem;color:var(--ink2)}
+
+/* thread progress ticks */
+.ticks{display:flex;gap:3px;margin:0.5rem 0}
+.ticks .t{width:100%;height:5px;background:rgba(143,196,217,0.12)}
+.ticks .t.on{background:var(--cyan)}
+
+/* note under section titles */
+.mini-note{font-family:var(--mono);font-size:0.62rem;color:var(--ink2);opacity:0.75;margin-top:0.2rem}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="mark">+</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Blueprint &mdash; Card Design Sheet</div>
+</div>
+
+<nav class="nav">
+  <div class="wrap">
+    <span class="tag">Sheets:</span>
+    <a href="#cast">Cast</a>
+    <a href="#bond">Bond</a>
+    <a href="#memory">Memory</a>
+    <a href="#secret">Secret</a>
+    <a href="#knowledge">Knowledge</a>
+    <a href="#location">Location</a>
+    <a href="#thread">Thread</a>
+    <a href="#plant">Plant</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- ========================= CAST ========================= -->
+<section id="cast" class="sec">
+  <div class="sec-head"><span class="no">SHT-01</span><h2>Cast Card</h2></div>
+  <div class="sec-desc">The character as a spec sheet. Reticle avatar, standing/trust as dimension lines with end ticks, traits as spec callouts &mdash; evolving traits marked with a ▸ advance arrow. Title-block footer carries the revision.</div>
+  <div class="grid2">
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head">
+        <div class="bp-ava">C<span class="x" style="top:2px;left:2px">+</span></div>
+        <div>
+          <div class="bp-label">Cast &middot; Present</div>
+          <div class="bp-title">Cersei Lannister</div>
+          <div class="bp-sub">Queen Regent &middot; seat: Red Keep</div>
+        </div>
+        <div class="bp-id">REF&middot;C-01</div>
+      </div>
+      <div class="dim"><span class="dim-k">Standing</span><span class="dim-bar"><span class="track"></span><span class="fill neg" style="width:38%"></span></span><span class="dim-v neg">-24</span></div>
+      <div class="dim"><span class="dim-k">Trust</span><span class="dim-bar"><span class="track"></span><span class="fill" style="width:18%"></span></span><span class="dim-v">+12</span></div>
+      <div class="chips">
+        <span class="chip">proud</span>
+        <span class="chip">ruthless</span>
+        <span class="chip evolving">unraveling</span>
+        <span class="chip">protective</span>
+      </div>
+      <div class="bp-foot"><span class="rev">REV C</span><span>first seen t3</span><span class="acts"><button class="bp-btn">Edit</button><button class="bp-btn">Hide</button></span></div>
+    </div>
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head">
+        <div class="bp-ava">J</div>
+        <div>
+          <div class="bp-label">Cast &middot; Mentioned</div>
+          <div class="bp-title">Jaime Lannister</div>
+          <div class="bp-sub">Lord Commander &middot; seat: &mdash;</div>
+        </div>
+        <div class="bp-id">REF&middot;C-02</div>
+      </div>
+      <div class="dim"><span class="dim-k">Standing</span><span class="dim-bar"><span class="track"></span><span class="fill" style="width:64%"></span></span><span class="dim-v">+41</span></div>
+      <div class="dim"><span class="dim-k">Trust</span><span class="dim-bar"><span class="track"></span><span class="fill" style="width:55%"></span></span><span class="dim-v">+30</span></div>
+      <div class="chips">
+        <span class="chip">honorable</span>
+        <span class="chip evolving">softening</span>
+        <span class="chip">skilled</span>
+      </div>
+      <div class="bp-foot"><span class="rev">REV A</span><span>first seen t1</span><span class="acts"><button class="bp-btn">Edit</button><button class="bp-btn">Hide</button></span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========================= BOND ========================= -->
+<section id="bond" class="sec">
+  <div class="sec-head"><span class="no">SHT-02</span><h2>Bond Card</h2></div>
+  <div class="sec-desc">A relationship drawn as an assembly diagram: two reticles joined by a measured connector carrying the bond category. Affection &amp; trust as paired dimension lines below.</div>
+  <div class="grid2">
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head"><div class="bp-label">Bond &middot; Romantic</div><div class="bp-id">ASM&middot;B-04</div></div>
+      <div class="bond-row">
+        <div class="bp-ava">J</div>
+        <div class="bond-link"><span class="ln"></span><span class="badge">ROMANTIC</span></div>
+        <div class="bp-ava">E</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:0.66rem;color:var(--ink);margin-bottom:0.4rem"><span>Jaime</span><span>Elia</span></div>
+      <div class="dim"><span class="dim-k">Affection</span><span class="dim-bar"><span class="track"></span><span class="fill" style="width:80%"></span></span><span class="dim-v">+62</span></div>
+      <div class="dim"><span class="dim-k">Trust</span><span class="dim-bar"><span class="track"></span><span class="fill" style="width:70%"></span></span><span class="dim-v">+48</span></div>
+      <div class="bp-aside"><span class="bp-label">Origin</span><span class="bp-text">First kiss in the tower chamber; he made her come first, with patience.</span></div>
+      <div class="bp-foot"><span class="rev">REV D</span><span>t142</span><span class="acts"><button class="bp-btn">Edit</button></span></div>
+    </div>
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head"><div class="bp-label">Bond &middot; Rivalry</div><div class="bp-id">ASM&middot;B-05</div></div>
+      <div class="bond-row">
+        <div class="bp-ava">C</div>
+        <div class="bond-link"><span class="ln"></span><span class="badge">RIVALRY</span></div>
+        <div class="bp-ava">T</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:0.66rem;color:var(--ink);margin-bottom:0.4rem"><span>Cersei</span><span>Tyrion</span></div>
+      <div class="dim"><span class="dim-k">Affection</span><span class="dim-bar"><span class="track"></span><span class="fill neg" style="width:72%"></span></span><span class="dim-v neg">-55</span></div>
+      <div class="dim"><span class="dim-k">Trust</span><span class="dim-bar"><span class="track"></span><span class="fill neg" style="width:88%"></span></span><span class="dim-v neg">-70</span></div>
+      <div class="bp-aside"><span class="bp-label">Origin</span><span class="bp-text">She has blamed him for their mother's death since the day he was born.</span></div>
+      <div class="bp-foot"><span class="rev">REV B</span><span>t142</span><span class="acts"><button class="bp-btn">Edit</button></span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========================= MEMORY ========================= -->
+<section id="memory" class="sec">
+  <div class="sec-head"><span class="no">SHT-03</span><h2>Memory &mdash; Compression Tiers</h2></div>
+  <div class="sec-desc">The three memory tiers as three drafting weights. Arc = full title-block sheet with a turn-span dimension. Chapter = standard sheet. Turn = a compact log line with a drafting-circle marker.</div>
+
+  <!-- ARC -->
+  <div class="bp" style="border-left:3px solid var(--cyan);margin-bottom:1rem">
+    <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+    <div class="bp-head">
+      <span class="origin" style="margin-top:3px"></span>
+      <div>
+        <div class="bp-label">Memory &middot; Arc</div>
+        <div class="bp-title" style="font-style:italic">The Fall of the Lannisters</div>
+      </div>
+      <div class="bp-id">T1 &mdash; T47 &middot; SPAN 46</div>
+    </div>
+    <div class="bp-text">A dynasty's slow collapse: from the height of Cersei's regency through the loss of three children, the burning of the Sept, and the final siege that left the Red Keep in ash.</div>
+    <div class="mini-note">&#8627; contains 5 chapters</div>
+  </div>
+
+  <!-- CHAPTER -->
+  <div class="bp" style="margin-bottom:1rem">
+    <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+    <div class="bp-head">
+      <div><div class="bp-label">Memory &middot; Chapter</div><div class="bp-title" style="font-size:1.05rem">The Wildfire Cache</div></div>
+      <div class="bp-id">T18 &mdash; T24</div>
+    </div>
+    <div class="bp-text">Cersei's discovery of the caches beneath the city, and the plan that formed in the ruin of her trial.</div>
+    <div class="mini-note" style="cursor:pointer;color:var(--cyan)">&#9662; source turns (3)</div>
+  </div>
+
+  <!-- TURN LINES -->
+  <div class="bp" style="padding:0.9rem 1.2rem">
+    <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+    <div class="bp-label" style="margin-bottom:0.5rem">Uncovered Turns</div>
+    <div style="display:flex;align-items:center;gap:0.6rem;padding:0.35rem 0;border-bottom:1px solid rgba(143,196,217,0.08)">
+      <span class="pip">&#9675;</span><span class="bp-text" style="flex:1">Tyrion mapped the Greyjoy fleet's blockade of the bay.</span><span class="bp-id">T142</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.6rem;padding:0.35rem 0">
+      <span class="pip">&#9675;</span><span class="bp-text" style="flex:1">Ravens dispatched to Dorne; no reply by nightfall.</span><span class="bp-id">T141</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= SECRET ========================= -->
+<section id="secret" class="sec">
+  <div class="sec-head"><span class="no">SHT-04</span><h2>Secret Card</h2></div>
+  <div class="sec-desc">Danger encoded on the left rail (cyan / amber / red). Keeper and "hidden from" targets as name-pills in the head row. A revealed secret is stamped and dimmed.</div>
+  <div class="grid2">
+
+    <div class="bp sec-explosive">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head" style="align-items:center">
+        <span class="namepill">Cersei</span>
+        <span class="danger explosive">Explosive</span>
+        <div class="bp-id">SEC-11</div>
+      </div>
+      <div class="bp-text" style="margin:0.4rem 0 0.6rem">She has caches of wildfire hidden beneath every sept and holdfast in the city.</div>
+      <div style="display:flex;align-items:center;gap:0.5rem;font-family:var(--mono);font-size:0.62rem;color:var(--ink2)"><span>hidden from</span><span class="namepill">Tyrion</span><span class="namepill">Jaime</span></div>
+      <div class="bp-foot"><span class="rev">ACTIVE</span><span class="acts"><button class="bp-btn">Reveal</button><button class="bp-btn">Edit</button></span></div>
+    </div>
+
+    <div class="bp sec-major" style="opacity:0.6">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head" style="align-items:center">
+        <span class="namepill">Jaime</span>
+        <span class="danger major">Major</span>
+        <div class="bp-id" style="color:var(--red)">REVEALED T140</div>
+      </div>
+      <div class="bp-text" style="margin:0.4rem 0 0.6rem;text-decoration:line-through;text-decoration-color:var(--ink2)">He was the one who pushed the Stark boy from the tower.</div>
+      <div style="display:flex;align-items:center;gap:0.5rem;font-family:var(--mono);font-size:0.62rem;color:var(--ink2)"><span>was hidden from</span><span class="namepill">Everyone</span></div>
+      <div class="bp-foot"><span class="rev">CLOSED</span><span class="acts"><button class="bp-btn">Delete</button></span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========================= KNOWLEDGE ========================= -->
+<section id="knowledge" class="sec">
+  <div class="sec-head"><span class="no">SHT-05</span><h2>Knowledge Card</h2></div>
+  <div class="sec-desc">Grouped by character. Each fact carries a reliability glyph &mdash; ○ knows, ◐ believes, ✕ false. A false belief (dramatic irony) is flagged red and rail-marked: the one thing you want to see at a glance.</div>
+  <div class="grid2">
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head"><div class="bp-ava" style="width:34px;height:34px;font-size:0.75rem">E</div><div class="bp-title" style="font-size:1.05rem">Elia knows</div><div class="bp-id">KNW &middot; 3</div></div>
+      <div class="know-row"><span class="rel knows">&#9675;</span><div><div class="know-fact">Kael is hiding something about the Order.</div><div class="know-src">witnessed the sigil on his wrist</div></div></div>
+      <div class="know-row"><span class="rel believes">&#9680;</span><div><div class="know-fact"><em>believes</em> the sword is still in the crypt.</div><div class="know-src">last saw it there, t30</div></div></div>
+      <div class="know-row irony"><span class="rel false">&#10007;</span><div><div class="know-fact">Her father is alive.</div><div class="know-src" style="color:var(--red)">FALSE &mdash; dramatic irony</div></div></div>
+    </div>
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head"><div class="bp-ava" style="width:34px;height:34px;font-size:0.75rem">O</div><div class="bp-title" style="font-size:1.05rem">Oberyn knows</div><div class="bp-id">KNW &middot; 2</div></div>
+      <div class="know-row"><span class="rel knows">&#9675;</span><div><div class="know-fact">Daeron flirts openly with Cersei. <span style="color:var(--cyan-dim);font-family:var(--mono);font-size:0.6rem">re: Daeron</span></div><div class="know-src">witnessed the wink in the yard</div></div></div>
+      <div class="know-row"><span class="rel knows">&#9675;</span><div><div class="know-fact">The maester keeps a second ledger.</div><div class="know-src">Carn told him directly</div></div></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========================= LOCATION ========================= -->
+<section id="location" class="sec">
+  <div class="sec-head"><span class="no">SHT-06</span><h2>Location Plate (Atlas)</h2></div>
+  <div class="sec-desc">A gazetteer plate as a site drawing. Breadcrumb shows containment; a pin ⚑ (always injected) or ○ auto chip marks provenance; the live scene gets a "YOU ARE HERE" registration tag and a bright rail.</div>
+  <div class="grid2">
+
+    <div class="bp" style="border-left:3px solid var(--cyan)">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head" style="align-items:center">
+        <span class="origin"></span>
+        <div class="bp-title" style="font-size:1.1rem">Harrenhal</div>
+        <span class="loc-here">You are here</span>
+        <span class="loc-kind" style="margin-left:auto">&#9873; pinned</span>
+      </div>
+      <div class="crumb">The Riverlands <span class="sep">&#9656;</span> <span class="cur">Harrenhal</span></div>
+      <div class="bp-text">A colossal ruined castle, its towers melted by dragonfire into grotesque shapes.</div>
+      <div class="bp-foot"><span class="rev">CURRENT SCENE</span><span>&#8627; 3 inside</span><span class="acts"><button class="bp-btn">Unpin</button><button class="bp-btn">Edit</button></span></div>
+    </div>
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head" style="align-items:center">
+        <span class="origin" style="opacity:0.4"></span>
+        <div class="bp-title" style="font-size:1.1rem">The Kingspyre Tower</div>
+        <span class="loc-kind" style="margin-left:auto;color:var(--cyan-dim)">&#9675; auto</span>
+      </div>
+      <div class="crumb">The Riverlands <span class="sep">&#9656;</span> Harrenhal <span class="sep">&#9656;</span> <span class="cur">Kingspyre</span></div>
+      <div class="bp-text">The least ruined of the five towers; its hearths still draw.</div>
+      <div class="bp-foot"><span class="rev">last seen t138</span><span class="acts"><button class="bp-btn">Pin</button><button class="bp-btn">Edit</button></span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========================= THREAD ========================= -->
+<section id="thread" class="sec">
+  <div class="sec-head"><span class="no">SHT-07</span><h2>Thread / Arc Card</h2></div>
+  <div class="sec-desc">A plot thread as a progress schedule: status tag, a tick-bar showing how far it's advanced, and the latest beat as an annotation.</div>
+  <div class="grid2">
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head" style="align-items:center"><div class="bp-title" style="font-size:1.05rem">Harrenhal Restoration</div><span class="danger minor" style="margin-left:auto">Advancing</span></div>
+      <div class="ticks"><span class="t on"></span><span class="t on"></span><span class="t on"></span><span class="t on"></span><span class="t"></span><span class="t"></span></div>
+      <div class="bp-aside"><span class="bp-label">Latest beat</span><span class="bp-text">Jaime and Elia surveyed the western drainage channel; Oberyn drilling the castle guard.</span></div>
+      <div class="bp-foot"><span class="rev">4 beats</span><span>t142</span><span class="acts"><button class="bp-btn">Advance</button></span></div>
+    </div>
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head" style="align-items:center"><div class="bp-title" style="font-size:1.05rem">The Missing Heir</div><span class="danger major" style="margin-left:auto">Stalled</span></div>
+      <div class="ticks"><span class="t on"></span><span class="t on"></span><span class="t"></span><span class="t"></span><span class="t"></span><span class="t"></span></div>
+      <div class="bp-aside"><span class="bp-label">Latest beat</span><span class="bp-text">A sealed letter surfaced in the rookery, but the wax bore no house sigil.</span></div>
+      <div class="bp-foot"><span class="rev">2 beats</span><span>t121</span><span class="acts"><button class="bp-btn">Advance</button></span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========================= PLANT ========================= -->
+<section id="plant" class="sec">
+  <div class="sec-head"><span class="no">SHT-08</span><h2>Plant Card</h2></div>
+  <div class="sec-desc">A Chekhov plant as a flagged component. Planted / paid / abandoned status; overdue plants annotated. Subject noted like a parts reference.</div>
+  <div class="grid2">
+
+    <div class="bp">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head" style="align-items:center"><span class="pip">&#9906;</span><div class="bp-title" style="font-size:1rem">The locked drawer in the solar</div><div class="bp-id">PLT-07</div></div>
+      <div style="display:flex;gap:0.6rem;align-items:center;margin-top:0.3rem"><span class="namepill">re: Cersei</span><span class="danger explosive">overdue</span><span class="bp-id" style="margin-left:auto">planted t118 &middot; +24</span></div>
+      <div class="bp-foot"><span class="rev">PLANTED</span><span class="acts"><button class="bp-btn pri">Pay off</button><button class="bp-btn">Abandon</button></span></div>
+    </div>
+
+    <div class="bp" style="opacity:0.6">
+      <span class="cnr tl"></span><span class="cnr tr"></span><span class="cnr bl"></span><span class="cnr br"></span>
+      <div class="bp-head" style="align-items:center"><span class="pip filled">&#10003;</span><div class="bp-title" style="font-size:1rem">The omen of the red comet</div><div class="bp-id">PLT-03</div></div>
+      <div style="display:flex;gap:0.6rem;align-items:center;margin-top:0.3rem"><span class="namepill">re: world</span><span class="bp-id" style="margin-left:auto">paid t139</span></div>
+      <div class="bp-foot"><span class="rev">PAID</span><span class="acts"><button class="bp-btn">Delete</button></span></div>
+    </div>
+
+  </div>
+</section>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Faewild — MinimalMessage Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Quicksand:wght@400;500;700&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   FAEWILD — "a twilight storybook glade"
+   Chrome: faewild · Skin: faewild-dusk (dark)
+   accent #8fbf88 (sage green)  ·  accent2 #c9b6f0 (lilac)
+   texture: firefly-grove · font: F_ETHEREAL (Quicksand) · radius 22
+   Layout ported from Kittylit Ripple MinimalMessage.
+   -- FULL-PAGE moonlit-glade rework: layered leaf canopy, moon godrays,
+      drifting mist, deeper dusk vignette; existing vine frame + fairy-lights
+      kept and enhanced; portrait rails are moonlit-glade scenes; figures are
+      painted fae / traveler illustrations.
+   ============================================================ */
+:root{
+  --lumiverse-bg:#101a14;              /* deep glade dusk */
+  --lumiverse-text:#e6efe0;            /* moonlit leaf ink */
+  --lumiverse-text-2:#aec2ac;
+  --lumiverse-accent:#8fbf88;          /* sage green */
+  --lumiverse-accent-2:#c9b6f0;        /* lilac */
+  --surf-1:rgba(30,36,34,.62);
+  --surf-2:rgba(20,26,24,.58);
+  --glass-border:rgba(143,191,136,.16);
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --ethereal:'Quicksand','Cormorant Garamond',Georgia,serif;
+  --body:'EB Garamond',Georgia,serif;
+  --radius:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--body);
+  color:var(--lumiverse-text);
+  /* moonlit glade: lilac moon-glow high-right, sage undergrowth low-left,
+     a warm clearing bloom mid, and a deep dusk vignette pulling the edges in */
+  background:
+    radial-gradient(1100px 620px at 80% -10%, rgba(201,182,240,.22), transparent 60%),
+    radial-gradient(980px 720px at 6% 110%, rgba(143,191,136,.2), transparent 60%),
+    radial-gradient(520px 420px at 56% 46%, rgba(120,150,110,.14), transparent 66%),
+    radial-gradient(150% 132% at 50% 46%, transparent 52%, rgba(4,9,6,.72) 100%),
+    linear-gradient(165deg,#16241b 0%, #0f1a13 58%, #08110b 100%);
+  min-height:100vh;
+  padding:2.5rem 1.25rem 6rem;
+  overflow-x:hidden;
+}
+/* layered leaf canopy + dappled firefly-grove texture */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.55;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cg fill='%238fbf88' fill-opacity='0.13'%3E%3Cpath d='M28 34c30-14 58 0 58 28-28 8-56-6-58-28z'/%3E%3Cpath d='M188 56c-26-16-56-4-58 24 28 8 56-2 58-24z'/%3E%3Cpath d='M56 150c24 18 20 50-6 60-12-24-6-48 6-60z'/%3E%3Cpath d='M186 170c-22 16-18 46 6 56 12-22 6-44-6-56z'/%3E%3C/g%3E%3Cg fill='%23c9b6f0' fill-opacity='0.11'%3E%3Ccircle cx='120' cy='40' r='2'/%3E%3Ccircle cx='40' cy='120' r='1.6'/%3E%3Ccircle cx='170' cy='120' r='1.8'/%3E%3Cpath d='M96 96c12-6 22 2 20 14-12 0-20-4-20-14z'/%3E%3C/g%3E%3C/svg%3E");
+}
+/* moon godrays slanting through the canopy + drifting ground mist */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.6;
+  background:
+    linear-gradient(114deg, transparent 46%, rgba(201,182,240,.08) 52%, transparent 58%),
+    linear-gradient(120deg, transparent 62%, rgba(220,230,210,.06) 68%, transparent 74%),
+    radial-gradient(120% 60% at 50% 118%, rgba(180,200,180,.12), transparent 60%);
+}
+/* climbing-vine frame down both edges */
+.vine{position:fixed;top:0;bottom:0;width:120px;z-index:0;pointer-events:none;opacity:.55}
+.vine.left{left:0}
+.vine.right{right:0;transform:scaleX(-1)}
+/* drifting fairy lights */
+.fly{position:fixed;z-index:0;pointer-events:none;border-radius:50%;
+  background:radial-gradient(circle,#fff,rgba(201,182,240,.6) 45%,transparent 70%);
+  box-shadow:0 0 8px rgba(201,182,240,.7),0 0 16px rgba(143,191,136,.4);
+  animation:drift ease-in-out infinite}
+@keyframes drift{0%{transform:translate(0,0);opacity:.25}25%{opacity:.9}
+  50%{transform:translate(18px,-22px);opacity:.55}75%{opacity:.9}100%{transform:translate(0,0);opacity:.25}}
+.f1{top:22%;left:16%;width:6px;height:6px;animation-duration:7s}
+.f2{top:40%;left:80%;width:5px;height:5px;animation-duration:9s;animation-delay:-3s}
+.f3{top:66%;left:24%;width:7px;height:7px;animation-duration:8s;animation-delay:-1.5s}
+.f4{top:80%;left:70%;width:5px;height:5px;animation-duration:10s;animation-delay:-4s}
+.f5{top:14%;left:60%;width:4px;height:4px;animation-duration:6.5s;animation-delay:-2s}
+
+.stage{max-width:1080px;margin:0 auto;position:relative;z-index:1}
+.mock-label{
+  text-align:center;font-family:var(--ethereal);font-weight:700;color:var(--lumiverse-accent);
+  letter-spacing:.32em;text-transform:uppercase;font-size:.74rem;margin-bottom:.35rem;opacity:.85;
+}
+.mock-title{
+  text-align:center;font-family:var(--serif);font-weight:700;font-size:2.5rem;
+  color:var(--lumiverse-text);margin-bottom:.25rem;
+}
+.mock-sub{text-align:center;font-style:italic;color:var(--lumiverse-text-2);margin-bottom:2.75rem;font-family:var(--ethereal)}
+
+/* ---- message grid (character = portrait left, user = portrait right) ---- */
+.msg{
+  --avatar-w:clamp(150px,18vw,260px);
+  display:grid;grid-template-columns:var(--avatar-w) minmax(0,1fr);
+  column-gap:clamp(14px,1.6vw,26px);align-items:start;
+  margin-bottom:clamp(28px,3.4vw,52px);
+}
+.msg.user{grid-template-columns:minmax(0,1fr) var(--avatar-w)}
+
+/* sticky masked portrait rail */
+.avatar{
+  grid-column:1;grid-row:1/span 2;justify-self:start;position:sticky;top:24px;
+  width:var(--avatar-w);height:clamp(360px,52vh,560px);border-radius:var(--radius);
+  overflow:hidden;isolation:isolate;
+  -webkit-mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  -webkit-mask-composite:source-in;mask-composite:intersect;
+}
+.msg.user .avatar{grid-column:2;justify-self:end;
+  -webkit-mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+}
+.avatar .fill{position:absolute;inset:0}
+/* moonlit glade scene: lilac moon-glow crown, sage bloom mid, dark loam base */
+.portraitA{
+  background:
+    radial-gradient(70% 42% at 50% 6%, rgba(224,236,214,.5), transparent 58%),
+    radial-gradient(90% 60% at 34% 42%, rgba(120,164,110,.42), transparent 64%),
+    radial-gradient(60% 40% at 50% 100%, rgba(10,18,12,.9), transparent 66%),
+    linear-gradient(160deg,#b6dcaf,#6f9e68 46%,#22321f 100%);
+}
+.portraitB{
+  background:
+    radial-gradient(70% 42% at 50% 6%, rgba(232,224,248,.5), transparent 58%),
+    radial-gradient(90% 60% at 66% 42%, rgba(160,140,208,.4), transparent 64%),
+    radial-gradient(60% 40% at 50% 100%, rgba(14,10,22,.9), transparent 66%),
+    linear-gradient(160deg,#ddccf7,#a58fd6 48%,#342a48 100%);
+}
+/* spore / light-mote speckle overlay on the plate */
+.avatar .grain{position:absolute;inset:0;opacity:.6;mix-blend-mode:screen;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='%23e8f0dd'%3E%3Ccircle cx='22' cy='26' r='1' fill-opacity='0.6'/%3E%3Ccircle cx='74' cy='42' r='0.8' fill-opacity='0.5'/%3E%3Ccircle cx='100' cy='20' r='0.9' fill-opacity='0.55'/%3E%3Ccircle cx='48' cy='76' r='0.7' fill-opacity='0.45'/%3E%3Ccircle cx='98' cy='94' r='1' fill-opacity='0.5'/%3E%3C/g%3E%3Cg fill='%23c9b6f0'%3E%3Ccircle cx='60' cy='58' r='0.9' fill-opacity='0.5'/%3E%3Ccircle cx='30' cy='100' r='0.8' fill-opacity='0.45'/%3E%3C/g%3E%3C/svg%3E");}
+.avatar .fig{position:absolute;inset:0;opacity:.94}
+.avatar::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 12%,rgba(255,255,255,.15),transparent 55%)}
+
+/* bubble lane */
+.bubble{grid-column:2;min-width:0}
+.msg.user .bubble{grid-column:1}
+
+.header{display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:8px 16px 14px}
+.name{font-family:var(--serif);font-weight:700;font-size:clamp(1.5rem,2vw,2.15rem);line-height:1.02;
+  background:linear-gradient(92deg,var(--lumiverse-accent),#bfe0b8 60%,var(--lumiverse-accent-2));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.msg.user .name{background:linear-gradient(92deg,var(--lumiverse-accent-2),#e3d8f7 60%,var(--lumiverse-accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.pill{font-family:var(--ethereal);font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.6;color:var(--lumiverse-text-2)}
+
+/* glass content card — faewild uses a toadstool/lantern rounded inner keyline */
+.content{position:relative;isolation:isolate;padding:18px 20px 20px;border-radius:var(--radius);overflow:hidden}
+.content::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
+  border:1px solid var(--glass-border);
+  background:color-mix(in srgb, var(--lumiverse-bg) 42%, transparent);
+  box-shadow:inset 0 0 0 1px rgba(143,191,136,.05),0 12px 34px rgba(0,0,0,.34);
+  backdrop-filter:blur(10px) saturate(120%);-webkit-backdrop-filter:blur(10px) saturate(120%);}
+.content::after{content:"";position:absolute;inset:7px;z-index:-1;border-radius:calc(var(--radius) - 6px);
+  border:1.5px solid color-mix(in srgb,var(--lumiverse-accent) 34%,transparent);
+  box-shadow:inset 0 0 16px color-mix(in srgb,var(--lumiverse-accent-2) 12%,transparent);pointer-events:none;opacity:.8}
+
+.prose{font-family:var(--body);font-size:1.06rem;line-height:1.72;text-align:justify;hyphens:auto;text-wrap:pretty}
+.prose p{margin:0 0 .9em}
+.prose p:last-child{margin-bottom:0}
+.prose em{font-style:italic;color:var(--lumiverse-text-2)}         /* thoughts / narration */
+.prose .say{color:var(--lumiverse-accent);text-shadow:0 1px 12px rgba(0,0,0,.3)} /* dialogue */
+.msg.user .prose .say{color:var(--lumiverse-accent-2)}
+.prose strong{color:#fff;font-weight:700}
+
+/* thinking pill + panel */
+.think-toggle{display:inline-flex;align-items:center;gap:.45rem;margin:14px 0 0;padding:.35rem .7rem;border-radius:999px;
+  font-family:var(--ethereal);border:1px solid rgba(143,191,136,.14);font-size:.72rem;opacity:.82;color:var(--lumiverse-text-2);
+  background:color-mix(in srgb,var(--lumiverse-bg) 72%,transparent);}
+.think-body{margin:12px 0 0;padding:12px 14px;border-radius:16px;font-style:italic;font-size:.98rem;color:var(--lumiverse-text-2);
+  border:1px solid rgba(143,191,136,.1);
+  background:radial-gradient(circle at 12% 0,rgba(201,182,240,.1),transparent 42%),color-mix(in srgb,var(--lumiverse-bg) 80%,transparent);}
+blockquote{margin:.2em 0;padding:.1em 0 .1em .9em;border-left:2px solid color-mix(in srgb,var(--lumiverse-accent-2) 55%,transparent);color:var(--lumiverse-text-2);font-style:italic}
+
+@media(max-width:720px){
+  .msg{--avatar-w:clamp(64px,26vw,120px)}
+  .avatar{height:clamp(180px,48vw,300px);top:14px}
+  .name{font-size:1.35rem}
+  .vine{width:64px;opacity:.35}
+}
+</style>
+</head>
+<body>
+<svg class="vine left" viewBox="0 0 120 800" preserveAspectRatio="xMidYMid slice">
+  <path d="M14 -10 C 60 120, -20 220, 30 340 S 70 560, 24 700 S 40 820, 30 820" fill="none" stroke="#6f9e68" stroke-opacity="0.7" stroke-width="4"/>
+  <g fill="#8fbf88" fill-opacity="0.8">
+    <path d="M30 120c26-6 40 10 34 30-24 2-40-12-34-30z"/>
+    <path d="M22 300c-24-8-30-28-16-42 16 8 22 28 16 42z"/>
+    <path d="M40 500c26-6 40 10 34 30-24 2-40-12-34-30z"/>
+    <path d="M20 660c-24-8-30-28-16-42 16 8 22 28 16 42z"/>
+  </g>
+  <g fill="#c9b6f0" fill-opacity="0.85"><circle cx="52" cy="200" r="4"/><circle cx="18" cy="420" r="4"/><circle cx="58" cy="600" r="4"/></g>
+</svg>
+<svg class="vine right" viewBox="0 0 120 800" preserveAspectRatio="xMidYMid slice">
+  <path d="M14 -10 C 60 120, -20 220, 30 340 S 70 560, 24 700 S 40 820, 30 820" fill="none" stroke="#6f9e68" stroke-opacity="0.7" stroke-width="4"/>
+  <g fill="#8fbf88" fill-opacity="0.8">
+    <path d="M30 120c26-6 40 10 34 30-24 2-40-12-34-30z"/>
+    <path d="M22 300c-24-8-30-28-16-42 16 8 22 28 16 42z"/>
+    <path d="M40 500c26-6 40 10 34 30-24 2-40-12-34-30z"/>
+    <path d="M20 660c-24-8-30-28-16-42 16 8 22 28 16 42z"/>
+  </g>
+  <g fill="#c9b6f0" fill-opacity="0.85"><circle cx="52" cy="200" r="4"/><circle cx="18" cy="420" r="4"/><circle cx="58" cy="600" r="4"/></g>
+</svg>
+<span class="fly f1"></span><span class="fly f2"></span><span class="fly f3"></span><span class="fly f4"></span><span class="fly f5"></span>
+
+<div class="stage">
+  <div class="mock-label">Vellum · Faewild</div>
+  <h1 class="mock-title">A Twilight Storybook Glade</h1>
+  <p class="mock-sub">Sage &amp; lilac among the fairy lights — MinimalMessage layout, Faewild chrome.</p>
+
+  <!-- character message -->
+  <div class="msg character">
+    <div class="avatar"><div class="fill portraitA"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="faeCloakA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#bfe0b8"/><stop offset=".5" stop-color="#6f9e68"/><stop offset="1" stop-color="#26361f"/>
+          </linearGradient>
+          <linearGradient id="faeRimA" x1="1" y1="0" x2="0" y2="0">
+            <stop offset="0" stop-color="#eafff0" stop-opacity=".65"/><stop offset="1" stop-color="#eafff0" stop-opacity="0"/>
+          </linearGradient>
+          <radialGradient id="faeSkinA" cx=".44" cy=".4" r=".7">
+            <stop offset="0" stop-color="#e9f0e2"/><stop offset="1" stop-color="#a7b8a2"/>
+          </radialGradient>
+          <linearGradient id="faeWingA" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#c9b6f0" stop-opacity=".8"/><stop offset="1" stop-color="#8fbf88" stop-opacity=".4"/>
+          </linearGradient>
+        </defs>
+        <!-- fae seated in the toadstool ring, moth-wing cloak spread -->
+        <g>
+          <!-- moth wings behind, translucent -->
+          <g opacity=".7">
+            <path d="M96 220 C50 176 26 210 30 262 C36 316 74 300 96 264 Z" fill="url(#faeWingA)"/>
+            <path d="M104 220 C150 176 174 210 170 262 C164 316 126 300 104 264 Z" fill="url(#faeWingA)"/>
+            <g stroke="#3a4a5e" stroke-opacity=".3" stroke-width="1.5" fill="none">
+              <path d="M92 236 C68 220 46 232 40 258"/><path d="M108 236 C132 220 154 232 160 258"/>
+            </g>
+          </g>
+          <!-- cloak / gown, seated, pooling around bare feet -->
+          <path d="M50 400 C48 322 58 264 80 242 C90 232 110 232 120 242 C142 264 152 322 150 400 Z" fill="url(#faeCloakA)"/>
+          <!-- fold shading -->
+          <g stroke="#1c2a16" stroke-opacity=".45" stroke-width="2" fill="none">
+            <path d="M90 260 C86 310 84 356 84 396"/><path d="M112 260 C116 310 118 356 118 396"/>
+          </g>
+          <!-- rim moonlight -->
+          <path d="M120 242 C142 264 152 322 150 400 L140 400 C140 324 130 268 108 246 Z" fill="url(#faeRimA)"/>
+          <!-- shoulders / collar -->
+          <path d="M80 246 C88 222 112 222 120 246 C110 232 90 232 80 246 Z" fill="url(#faeCloakA)"/>
+          <path d="M84 228 C92 216 108 216 116 228 C106 220 94 220 84 228 Z" fill="url(#faeSkinA)"/>
+          <rect x="94" y="200" width="12" height="16" rx="5" fill="url(#faeSkinA)"/>
+          <!-- head, softly tilted -->
+          <ellipse cx="100" cy="176" rx="22" ry="25" fill="url(#faeSkinA)"/>
+          <!-- pointed ears -->
+          <path d="M78 172 C68 164 66 176 76 182 Z" fill="url(#faeSkinA)"/>
+          <path d="M122 172 C132 164 134 176 124 182 Z" fill="url(#faeSkinA)"/>
+          <!-- wild upswept leaf-strewn hair -->
+          <path d="M78 176 C74 142 126 142 122 176 C122 154 114 148 100 148 C86 148 78 154 78 176 Z" fill="#2c4028"/>
+          <path d="M80 162 C92 152 116 154 118 164 C108 158 90 158 80 166 Z" fill="#3d5636" opacity=".7"/>
+          <!-- tucked lilac blossom -->
+          <g transform="translate(120 156)"><circle r="5" fill="#c9b6f0"/><circle r="2.5" fill="#e3d8f7"/></g>
+          <!-- slender arm resting toward a toadstool -->
+          <g transform="translate(120 268) rotate(28)">
+            <rect x="0" y="-7" width="42" height="13" rx="6" fill="url(#faeCloakA)"/>
+            <ellipse cx="42" cy="0" rx="7" ry="6" fill="url(#faeSkinA)"/>
+          </g>
+          <!-- toadstool in the ring -->
+          <g transform="translate(150 320)">
+            <rect x="-4" y="-2" width="8" height="18" rx="3" fill="#e6efe0" opacity=".8"/>
+            <path d="M-16 0 C-16 -14 16 -14 16 0 Z" fill="#b34a6a"/>
+            <g fill="#f2e6ea"><circle cx="-8" cy="-6" r="1.6"/><circle cx="4" cy="-8" r="1.8"/><circle cx="10" cy="-4" r="1.4"/></g>
+          </g>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">Thistle</div><div class="pill">the hollow oak · gloaming</div></div>
+      <div class="content">
+        <div class="prose">
+          <p><em>She unfolds from the toadstool ring like something the dusk itself decided to make, moth-wing cloak settling around bare feet.</em> Somewhere behind her the fairy-lights hum, curious.</p>
+          <p><span class="say">"Mortal feet, in my glade, and not a single offering?"</span> <em>A grin, all mischief, no malice.</em> <span class="say">"Bold. I like bold. Sit — the mushrooms won't bite unless I ask them nicely."</span></p>
+          <blockquote>Names are currency here, little wanderer. Give me yours and I'll give you a story worth the trade.</blockquote>
+        </div>
+        <div class="think-toggle">&#129504; reasoning</div>
+        <div class="think-body">Playful, faerie-logic tone — she bargains in riddles and delights in the unexpected. Keep her warm underneath the trickster shell; she wants company more than she'll admit.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- user message -->
+  <div class="msg user">
+    <div class="avatar"><div class="fill portraitB"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="faeCoatB" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#e3d8f7"/><stop offset=".5" stop-color="#a58fd6"/><stop offset="1" stop-color="#2e2542"/>
+          </linearGradient>
+          <linearGradient id="faeRimB" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#f4eeff" stop-opacity="0"/><stop offset="1" stop-color="#f4eeff" stop-opacity=".5"/>
+          </linearGradient>
+          <radialGradient id="faeSkinB" cx=".56" cy=".4" r=".7">
+            <stop offset="0" stop-color="#ecdccb"/><stop offset="1" stop-color="#9c7864"/>
+          </radialGradient>
+        </defs>
+        <!-- traveler stepping into the ring, road-cloak, one boot forward -->
+        <g>
+          <path d="M50 400 C52 308 64 246 84 224 C92 214 108 214 116 224 C136 246 148 308 150 400 Z" fill="url(#faeCoatB)"/>
+          <g stroke="#1e1830" stroke-opacity=".45" stroke-width="2" fill="none">
+            <path d="M92 244 C88 300 84 352 84 396"/><path d="M110 244 C114 300 118 352 118 396"/>
+          </g>
+          <path d="M116 224 C136 246 148 308 150 400 L140 400 C140 312 130 250 108 228 Z" fill="url(#faeRimB)"/>
+          <!-- travel cloak collar, turned up -->
+          <path d="M82 226 C90 208 112 208 120 226 C112 214 118 202 100 202 C82 202 88 214 82 226 Z" fill="#3a3054"/>
+          <rect x="94" y="198" width="12" height="18" rx="5" fill="url(#faeSkinB)"/>
+          <!-- head, chin lifted, wary curiosity -->
+          <ellipse cx="100" cy="170" rx="23" ry="26" fill="url(#faeSkinB)"/>
+          <!-- windswept hair -->
+          <path d="M78 168 C76 138 124 138 122 168 C122 150 114 144 100 144 C86 144 78 150 78 168 Z" fill="#2b2340"/>
+          <path d="M82 158 C94 150 116 152 118 160 C108 154 90 154 82 160 Z" fill="#3c3358" opacity=".7"/>
+          <!-- lilac rim moonlight on cheek -->
+          <path d="M120 172 C120 188 112 198 100 200 C114 192 118 182 118 172 Z" fill="#f4eeff" opacity=".4"/>
+          <!-- offered open hand, hovering at the ring's edge -->
+          <g transform="translate(64 272) rotate(-20)">
+            <rect x="0" y="-7" width="40" height="13" rx="6" fill="url(#faeCoatB)"/>
+            <ellipse cx="0" cy="0" rx="7" ry="6" fill="url(#faeSkinB)"/>
+          </g>
+        </g>
+      </svg>
+      <div class="grain"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">You</div><div class="pill">a step into the ring</div></div>
+      <div class="content">
+        <div class="prose">
+          <p><em>I stop just shy of the mushrooms, remembering every story that warned against exactly this.</em></p>
+          <p><span class="say">"No name, then. But I've got a story of my own to trade."</span> <em>I settle onto a root, meeting her grin with one of my own.</em> <span class="say">"Fair's fair, isn't it?"</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

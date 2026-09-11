@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II — Graphite Card Shapes (same DOM)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700&family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --grotesk:'Archivo',-apple-system,sans-serif;
+  /* Graphite skin tokens (steel-blue accent, cool neutral greys) */
+  --vg:#5b8fb0; --vg-rgb:91,143,176;
+  --vi:#d4dce4; --vi2:#8a9eb2;
+  --vsurf-1:#30353a; --vsurf-2:#262a2f;
+  --vradius:4px; --v-shape-radius:var(--vradius);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:#0c0d0f;color:#c4ccd4;font-family:var(--grotesk);font-size:16px;line-height:1.5;min-height:100vh;padding-bottom:6rem}
+.wrap{max-width:1180px;margin:0 auto;padding:0 1.5rem}
+.masthead{text-align:center;padding:3.5rem 1.5rem 1.5rem;background:radial-gradient(800px 380px at 50% 0%,rgba(91,143,176,0.1),transparent)}
+.masthead .seal{width:58px;height:58px;margin:0 auto 1rem;border-radius:8px;background:linear-gradient(145deg,#3a4048,#20242a);box-shadow:0 0 0 1px rgba(150,170,190,0.25),0 8px 26px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:#c4ccd4;font-weight:800}
+.masthead h1{font-size:2.3rem;color:#aeb8c2;letter-spacing:0.03em;font-weight:700}
+.masthead .sub{color:#7a848e;font-size:1rem;margin-top:0.3rem;font-family:var(--mono);letter-spacing:0.05em}
+.note{max-width:720px;margin:1.4rem auto 0;color:#8a949e;font-size:0.9rem;line-height:1.6;font-family:var(--serif);font-style:italic;text-align:center}
+.gallery-nav{position:sticky;top:0;z-index:50;background:rgba(12,13,15,0.94);backdrop-filter:blur(12px);border-bottom:1px solid rgba(150,170,190,0.18);padding:0.8rem 0;margin-top:2rem}
+.gallery-nav .wrap{display:flex;gap:0.7rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.gallery-nav .tag{color:#8a949e;font-weight:700;font-family:var(--mono);font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase}
+.gallery-nav a{color:#7a848e;text-decoration:none;font-family:var(--mono);font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.35rem 0.7rem;border:1px solid transparent;border-radius:3px;transition:all .2s}
+.gallery-nav a:hover{color:#aeb8c2;border-color:rgba(150,170,190,0.3)}
+
+.shape-section{padding:3rem 0 1rem}
+.shape-head{margin-bottom:1.4rem;border-bottom:1px solid rgba(150,170,190,0.14);padding-bottom:1rem}
+.shape-head .id{font-family:var(--mono);font-size:0.66rem;letter-spacing:0.16em;text-transform:uppercase;color:#5b8fb0;font-weight:600}
+.shape-head h2{font-size:1.7rem;color:#d4dce4;font-weight:600;margin:0.3rem 0 0.4rem;letter-spacing:-0.01em}
+.shape-head .desc{color:#8a949e;font-size:0.9rem;max-width:760px;line-height:1.55}
+.shape-head .geom{font-family:var(--mono);font-size:0.72rem;color:#7a94ae;background:rgba(91,143,176,0.08);border:1px solid rgba(91,143,176,0.18);border-radius:3px;padding:0.5rem 0.7rem;margin-top:0.7rem;display:inline-block;letter-spacing:0.02em}
+
+.demo{display:grid;grid-template-columns:1fr;gap:1rem;margin-top:1.2rem}
+@media(min-width:720px){.demo{grid-template-columns:1fr 1fr}}
+
+/* ============================================================
+   BASE CARD — the real VELLUM wide horizontal row. Same DOM for
+   every shape; only the SHAPE class changes the silhouette.
+   ============================================================ */
+.card{
+  position:relative;
+  display:flex;align-items:center;gap:11px;
+  padding:11px 13px;
+  background:linear-gradient(168deg,var(--vsurf-1),var(--vsurf-2));
+  border:1px solid rgba(150,170,190,0.24);
+  border-radius:var(--vradius);
+  color:var(--vi);
+}
+.card .av{
+  flex:0 0 auto;width:40px;height:40px;border-radius:7px;
+  background:linear-gradient(145deg,#3a4048,#22262b);
+  border:1px solid rgba(150,170,190,0.3);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:0.9rem;color:#aeb8c2;font-weight:600;
+}
+.card .body{flex:1 1 auto;min-width:0}
+.card .nm{font-family:var(--grotesk);font-weight:600;font-size:0.98rem;color:#d4dce4}
+.card .sub{font-family:var(--mono);font-size:0.72rem;color:#8a9eb2;margin-top:2px}
+.card .ref{flex:0 0 auto;font-family:var(--mono);font-size:0.64rem;color:#5b8fb0;letter-spacing:0.08em;align-self:flex-start;opacity:0.8}
+
+/* a taller variant to show shapes behave on multi-line rows */
+.card.tall{align-items:flex-start}
+.card.tall .prose{font-family:var(--grotesk);font-size:0.9rem;color:#aeb8c2;line-height:1.55;margin-top:4px}
+
+/* ============================================================
+   NEW GRAPHITE-FAMILY SHAPES — geometry only, never color/type.
+   Each mirrors the SHAPE_GEOM contract: radius / border / clip /
+   mask / padding, plus at most ONE ::before or ::after detail that
+   lives in reserved padding and never crosses content.
+   ============================================================ */
+
+/* 1 · RAIL-CAP — a machined top-left "corner cap": squared-off top-left
+   corner via clip, rest softly radiused. A 2px accent tick rides the cap.
+   Distinct from notched (all 4 corners) & split (asymmetric radius). */
+.s-railcap{
+  border-radius:0 var(--vradius) var(--vradius) var(--vradius);
+  clip-path:polygon(0 0,14px 0,14px 3px,3px 3px,3px 14px,0 14px);
+  /* clip is subtle; fake it with a corner accent instead for the demo */
+  clip-path:none;
+  padding-top:13px;
+}
+.s-railcap::before{
+  content:'';position:absolute;top:0;left:0;
+  width:16px;height:16px;
+  border-top:2px solid var(--vg);border-left:2px solid var(--vg);
+  border-radius:2px 0 0 0;opacity:0.85;
+}
+
+/* 2 · GAUGE — a segmented "instrument scale" strip runs down the LEFT edge
+   (reserved by left padding). Reads like a bezel tick-scale. Distinct from
+   binding (round holes) & trellis (vine) & left-spine (solid bar). */
+.s-gauge{
+  border-radius:0 var(--vradius) var(--vradius) 0;
+  border-left:0;
+  padding-left:20px;
+}
+.s-gauge::before{
+  content:'';position:absolute;left:0;top:6px;bottom:6px;width:5px;
+  border-radius:2px;
+  background:
+    repeating-linear-gradient(180deg,
+      var(--vg) 0, var(--vg) 3px,
+      transparent 3px, transparent 7px);
+  opacity:0.75;
+}
+
+/* 3 · CHAMFER-BAR — hard 45° machined chamfers on the two RIGHT corners
+   only (clip in the right padding). Looks like a milled aluminum end.
+   Distinct from notched (all corners) — this is right-side only, larger. */
+.s-chamfer{
+  border-radius:var(--vradius) 0 0 var(--vradius);
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%);
+  padding-right:20px;
+}
+
+/* 4 · SCREW-TABS — two recessed fastener slots on the RIGHT edge (top &
+   bottom), like a panel screwed to a chassis. Detail in right padding.
+   Distinct from studs (4 corner dots) — these are 2 slotted screws, right only. */
+.s-screwtab{
+  border-radius:var(--vradius);
+  padding-right:20px;
+}
+.s-screwtab::before,.s-screwtab::after{
+  content:'';position:absolute;right:6px;width:7px;height:7px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#3a4048,#20242a);
+  box-shadow:inset 0 0 0 1px rgba(150,170,190,0.4);
+}
+.s-screwtab::before{top:8px}
+.s-screwtab::after{bottom:8px}
+/* the slot line across each screw */
+.s-screwtab .av::after{content:none}
+
+/* 5 · TRACK — a bottom "measurement track": a fine tick ruler runs along the
+   BOTTOM edge (reserved by bottom padding). Distinct from scalloped (bumps)
+   & scallop-deco (fans) — this is a flat printed ruler, not a cut edge. */
+.s-track{
+  border-radius:var(--vradius);
+  padding-bottom:15px;
+}
+.s-track::after{
+  content:'';position:absolute;left:10px;right:10px;bottom:6px;height:6px;
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(150,170,190,0.5) 0, rgba(150,170,190,0.5) 1px,
+      transparent 1px, transparent 8px),
+    linear-gradient(90deg,transparent,rgba(91,143,176,0.35),transparent);
+  background-position:0 100%, 0 0;
+  background-size:100% 4px, 100% 1px;
+  background-repeat:repeat-x,no-repeat;
+  opacity:0.7;
+}
+
+/* 6 · SPEC-FRAME — a thin double-keyline frame with clipped inner corners
+   (inset pseudo). An engineering drawing border. Distinct from gilt-edge
+   (single keyline) & inset (single inset shadow) — this is a double rule
+   with corner ticks. */
+.s-specframe{
+  border-radius:2px;
+  padding:13px 15px;
+}
+.s-specframe::before{
+  content:'';position:absolute;inset:4px;
+  border:1px solid rgba(150,170,190,0.28);
+  border-radius:2px;
+  box-shadow:inset 0 0 0 2px rgba(0,0,0,0.15);
+  pointer-events:none;
+}
+.s-specframe::after{
+  content:'';position:absolute;inset:4px;pointer-events:none;
+  background:
+    linear-gradient(var(--vg),var(--vg)) 4px 4px/8px 1px no-repeat,
+    linear-gradient(var(--vg),var(--vg)) 4px 4px/1px 8px no-repeat,
+    linear-gradient(var(--vg),var(--vg)) calc(100% - 4px) calc(100% - 4px)/8px 1px no-repeat,
+    linear-gradient(var(--vg),var(--vg)) calc(100% - 4px) calc(100% - 4px)/1px 8px no-repeat;
+  opacity:0.8;
+}
+
+/* 7 · SLOTTED — a hard mechanical slot bitten out of the TOP edge center
+   (mask), like a keyed panel. Distinct from every existing top treatment
+   (toadstool dome, sunburst keystone) — this is a subtractive square slot. */
+.s-slotted{
+  border-radius:var(--vradius);
+  padding-top:14px;
+  -webkit-mask:
+    linear-gradient(#000,#000) 0 0/calc(50% - 14px) 6px no-repeat,
+    linear-gradient(#000,#000) calc(50% + 14px) 0/calc(50% - 14px) 6px no-repeat,
+    linear-gradient(#000,#000) 0 6px/100% calc(100% - 6px) no-repeat;
+  mask:
+    linear-gradient(#000,#000) 0 0/calc(50% - 14px) 6px no-repeat,
+    linear-gradient(#000,#000) calc(50% + 14px) 0/calc(50% - 14px) 6px no-repeat,
+    linear-gradient(#000,#000) 0 6px/100% calc(100% - 6px) no-repeat;
+}
+
+/* 8 · RIVET-EDGE — a left seam of small rivets with a hairline seam line,
+   like two plates bolted together. Distinct from binding (ledger holes,
+   empty) — these are raised rivets on a visible seam. */
+.s-rivet{
+  border-radius:0 var(--vradius) var(--vradius) 0;
+  padding-left:20px;
+}
+.s-rivet::before{
+  content:'';position:absolute;left:7px;top:6px;bottom:6px;width:1px;
+  background:rgba(150,170,190,0.35);
+}
+.s-rivet::after{
+  content:'';position:absolute;left:4px;top:0;bottom:0;width:7px;
+  background:
+    radial-gradient(circle 2px at 3.5px 12px,var(--vg),transparent 70%),
+    radial-gradient(circle 2px at 3.5px 50%,var(--vg),transparent 70%),
+    radial-gradient(circle 2px at 3.5px calc(100% - 12px),var(--vg),transparent 70%);
+  opacity:0.7;
+}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="seal">V</div>
+  <h1>VELLUM II — Graphite Shapes</h1>
+  <div class="sub">Same DOM · swap shape only</div>
+  <p class="note">Eight new card silhouettes for the Graphite chrome, built to the real shape contract: geometry only — radius, border, clip-path, mask, or reserved padding plus a single pseudo-element detail. No new markup, no color or type baked in. Each row below is the identical card DOM; only the shape class differs. Distinct from all 24 existing shapes — a machined, instrument-panel family.</p>
+</div>
+
+<nav class="gallery-nav">
+  <div class="wrap">
+    <span class="tag">Shapes:</span>
+    <a href="#railcap">Rail-cap</a>
+    <a href="#gauge">Gauge</a>
+    <a href="#chamfer">Chamfer-bar</a>
+    <a href="#screwtab">Screw-tab</a>
+    <a href="#track">Track</a>
+    <a href="#specframe">Spec-frame</a>
+    <a href="#slotted">Slotted</a>
+    <a href="#rivet">Rivet-edge</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <section id="railcap" class="shape-section">
+    <div class="shape-head">
+      <div class="id">Shape 01</div>
+      <h2>Rail-cap</h2>
+      <div class="desc">A machined corner cap on the top-left: an accent L-bracket tick rides the corner in reserved top padding. Signals "start of module" without clipping content. Distinct from <code>notched</code> (all four corners) and <code>split</code> (asymmetric radius only).</div>
+      <div class="geom">border-radius:0 R R R; padding-top:13px; ::before = 16px steel L-tick</div>
+    </div>
+    <div class="demo">
+      <div class="card s-railcap"><div class="av">C</div><div class="body"><div class="nm">Cersei Lannister</div><div class="sub">Queen Regent · Red Keep</div></div><div class="ref">C-01</div></div>
+      <div class="card s-railcap tall"><div class="av">M</div><div class="body"><div class="nm">The Wildfire Cache</div><div class="prose">Cersei's discovery of the caches beneath the city, and the plan that formed in the ruin of her trial.</div></div><div class="ref">MEM</div></div>
+    </div>
+  </section>
+
+  <section id="gauge" class="shape-section">
+    <div class="shape-head">
+      <div class="id">Shape 02</div>
+      <h2>Gauge</h2>
+      <div class="desc">A segmented instrument tick-scale runs down the left edge — a bezel scale, reserved by left padding. Distinct from <code>binding</code> (round ledger holes), <code>left-spine</code> (solid bar), and <code>trellis</code> (organic vine): this is discrete measurement ticks.</div>
+      <div class="geom">border-radius:0 R R 0; padding-left:20px; ::before = repeating tick gradient</div>
+    </div>
+    <div class="demo">
+      <div class="card s-gauge"><div class="av">J</div><div class="body"><div class="nm">Jaime Lannister</div><div class="sub">Lord Commander · off-screen</div></div><div class="ref">C-02</div></div>
+      <div class="card s-gauge tall"><div class="av">T</div><div class="body"><div class="nm">Tyrion Lannister</div><div class="prose">Hand of the Queen. Three dragons, two armies, one throne — the pieces were all there.</div></div><div class="ref">C-03</div></div>
+    </div>
+  </section>
+
+  <section id="chamfer" class="shape-section">
+    <div class="shape-head">
+      <div class="id">Shape 03</div>
+      <h2>Chamfer-bar</h2>
+      <div class="desc">Hard 45° machined chamfers on the two right corners only (clip in right padding) — a milled aluminum end-cap. Distinct from <code>notched</code>, which shaves all four corners with a smaller bevel; this is a bolder, right-side-only mill.</div>
+      <div class="geom">border-radius:R 0 0 R; clip-path right chamfers; padding-right:20px</div>
+    </div>
+    <div class="demo">
+      <div class="card s-chamfer"><div class="av">O</div><div class="body"><div class="nm">Oberyn Martell</div><div class="sub">The Red Viper · Dorne</div></div><div class="ref">C-04</div></div>
+      <div class="card s-chamfer tall"><div class="av">A</div><div class="body"><div class="nm">The Siege of King's Landing</div><div class="prose">Active thread — the fleet holds the bay, the armies control the crownlands.</div></div><div class="ref">A-02</div></div>
+    </div>
+  </section>
+
+  <section id="screwtab" class="shape-section">
+    <div class="shape-head">
+      <div class="id">Shape 04</div>
+      <h2>Screw-tab</h2>
+      <div class="desc">Two recessed fastener slots on the right edge (top &amp; bottom) — a panel screwed to a chassis. Detail lives in right padding. Distinct from <code>studs</code> (four corner registration dots): these are two functional-looking screws on one edge only.</div>
+      <div class="geom">border-radius:R; padding-right:20px; ::before/::after = 2 recessed screws</div>
+    </div>
+    <div class="demo">
+      <div class="card s-screwtab"><div class="av">S</div><div class="body"><div class="nm">The wildfire caches</div><div class="sub">Secret · explosive</div></div><div class="ref">S-07</div></div>
+      <div class="card s-screwtab tall"><div class="av">P</div><div class="body"><div class="nm">Chekhov: the caches</div><div class="prose">Planted T18 · unpaid · overdue by 100+ turns.</div></div><div class="ref">P-01</div></div>
+    </div>
+  </section>
+
+  <section id="track" class="shape-section">
+    <div class="shape-head">
+      <div class="id">Shape 05</div>
+      <h2>Track</h2>
+      <div class="desc">A fine printed measurement ruler runs along the bottom edge (reserved by bottom padding). Distinct from <code>scalloped</code> (cut bumps) and <code>scallop-deco</code> (deco fans): this bottom edge is not cut — it carries a flat engineering ruler with a faint accent underline.</div>
+      <div class="geom">border-radius:R; padding-bottom:15px; ::after = tick ruler strip</div>
+    </div>
+    <div class="demo">
+      <div class="card s-track"><div class="av">L</div><div class="body"><div class="nm">Dragonstone Keep</div><div class="sub">Location · pinned</div></div><div class="ref">L-06</div></div>
+      <div class="card s-track tall"><div class="av">B</div><div class="body"><div class="nm">Cersei — Jaime</div><div class="prose">Bond · twin · forbidden. Affection high, trust eroding.</div></div><div class="ref">B-04</div></div>
+    </div>
+  </section>
+
+  <section id="specframe" class="shape-section">
+    <div class="shape-head">
+      <div class="id">Shape 06</div>
+      <h2>Spec-frame</h2>
+      <div class="desc">A thin double-keyline frame with accent corner ticks (inset pseudo) — an engineering-drawing border. Distinct from <code>gilt-edge</code> (single hairline keyline) and <code>inset</code> (single inset shadow): this is a double rule with registration ticks at opposite corners.</div>
+      <div class="geom">border-radius:2px; padding:13px 15px; ::before double rule + ::after corner ticks</div>
+    </div>
+    <div class="demo">
+      <div class="card s-specframe"><div class="av">K</div><div class="body"><div class="nm">Knowledge — Tyrion</div><div class="sub">3 facts · 1 false belief</div></div><div class="ref">K-05</div></div>
+      <div class="card s-specframe tall"><div class="av">F</div><div class="body"><div class="nm">House Lannister</div><div class="prose">Faction · the westerlands. Wealth waning, alliances fraying.</div></div><div class="ref">FAC</div></div>
+    </div>
+  </section>
+
+  <section id="slotted" class="shape-section">
+    <div class="shape-head">
+      <div class="id">Shape 07</div>
+      <h2>Slotted</h2>
+      <div class="desc">A hard square slot bitten out of the top edge center (CSS mask) — a keyed panel tab. Distinct from every existing top treatment: <code>toadstool</code> domes the top, <code>sunburst</code> adds a keystone; this subtracts a clean rectangular notch from the top center.</div>
+      <div class="geom">border-radius:R; padding-top:14px; mask = top-center 28px slot cut</div>
+    </div>
+    <div class="demo">
+      <div class="card s-slotted"><div class="av">E</div><div class="body"><div class="nm">Elia Martell</div><div class="sub">Princess · Dorne</div></div><div class="ref">C-05</div></div>
+      <div class="card s-slotted tall"><div class="av">D</div><div class="body"><div class="nm">The Fall of the Lannisters</div><div class="prose">Arc · T1—T47. A dynasty's slow collapse across forty-six turns.</div></div><div class="ref">ARC</div></div>
+    </div>
+  </section>
+
+  <section id="rivet" class="shape-section">
+    <div class="shape-head">
+      <div class="id">Shape 08</div>
+      <h2>Rivet-edge</h2>
+      <div class="desc">A left seam of small accent rivets over a hairline seam line — two plates bolted together. Detail in left padding. Distinct from <code>binding</code> (empty round ledger holes): these are filled rivets on a visible structural seam.</div>
+      <div class="geom">border-radius:0 R R 0; padding-left:20px; ::before seam line + ::after 3 rivets</div>
+    </div>
+    <div class="demo">
+      <div class="card s-rivet"><div class="av">C</div><div class="body"><div class="nm">Carn Bettley</div><div class="sub">Sellsword · notebook</div></div><div class="ref">C-06</div></div>
+      <div class="card s-rivet tall"><div class="av">T</div><div class="body"><div class="nm">Tyrion's negotiation</div><div class="prose">Thread · stalled. The Dornish envoy has not returned a raven in nine turns.</div></div><div class="ref">A-05</div></div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

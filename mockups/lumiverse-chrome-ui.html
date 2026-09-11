@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM × Lumiverse — Themed Drawer Tabs &amp; Input Area</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Anton&family=Oswald:wght@500;700&family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@500;700&family=MedievalSharp&family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Yeseva+One&family=Josefin+Sans:wght@300;400;600&family=Marcellus&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0a0a0c;
+    color: #e8e8ea;
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  .page-head { max-width: 1280px; margin: 0 auto 34px; }
+  .page-head h1 {
+    font-family: 'Fraunces', serif; font-weight: 700;
+    font-size: 32px; letter-spacing: .4px; margin: 0 0 6px;
+    background: linear-gradient(90deg,#c96f4a,#3f8f57,#4ff0c0,#1f6fe0,#a24cff,#ff2ea6);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .page-head p { margin: 0; color: #8a8a92; font-size: 13.5px; max-width: 820px; }
+  .page-head code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7a7c8; }
+
+  .grid { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 26px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .theme-card { min-width: 0; }
+  .theme-label { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 0 0 4px; padding-bottom: 8px; border-bottom: 1px solid #26262c; }
+  .theme-label .name { font-size: 18px; font-weight: 700; letter-spacing: .3px; }
+  .theme-label .blurb { color: #8a8a92; font-size: 12px; font-style: italic; }
+  .theme-label .sw { width: 15px; height: 15px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); display: inline-block; }
+  .theme-label .sws { margin-left: auto; display: flex; gap: 5px; }
+  .theme-meta { color: #6a6a72; font-size: 10.5px; font-family: 'JetBrains Mono', monospace; margin: 8px 0 12px; }
+
+  /* ============================================================
+     STAGE: reconstructs the real Lumiverse chat viewport with a
+     LEFT drawer rail (56px sidebar + panel) and a floating composer
+     pill anchored to the bottom. All surfaces read --lumiverse-*
+     vars, exactly like the app; each .lv-<chrome> block below just
+     remaps those vars + adds signature chrome accents.
+     ============================================================ */
+  .stage {
+    position: relative; height: 470px; border-radius: 16px; overflow: hidden;
+    background: var(--lumiverse-bg-deep); color: var(--lumiverse-text);
+    border: 1px solid var(--lumiverse-border);
+    box-shadow: 0 18px 44px rgba(0,0,0,.5);
+    font-family: var(--lv-ui, 'Inter', sans-serif);
+  }
+  /* faux conversation backdrop so the glass composer has something to float over */
+  .stage-bg { position: absolute; inset: 0; z-index: 0; padding: 20px 22px 20px 92px;
+    background:
+      radial-gradient(120% 80% at 12% 0%, var(--lv-wash1, transparent), transparent 60%),
+      radial-gradient(100% 70% at 100% 100%, var(--lv-wash2, transparent), transparent 62%);
+  }
+  .msg-line { height: 9px; border-radius: 6px; background: color-mix(in srgb, var(--lumiverse-text) 12%, transparent); margin: 0 0 9px; }
+  .msg-line.s { width: 42%; } .msg-line.m { width: 66%; } .msg-line.l { width: 84%; }
+  .msg-line.accent { background: color-mix(in srgb, var(--lumiverse-primary) 34%, transparent); width: 30%; height: 11px; margin-bottom: 14px; }
+  .msg-block { margin-bottom: 20px; }
+
+  /* ---- drawer rail (fixed-left, flush) ---- */
+  .lv-wrapper { position: absolute; top: 0; bottom: 0; left: 0; z-index: 8; display: flex; }
+  .lv-sidebar {
+    width: 56px; flex-shrink: 0; display: flex; flex-direction: column; padding: 6px 0; gap: 4px;
+    background: color-mix(in srgb, var(--lumiverse-primary) 6%, var(--lumiverse-bg-deep));
+    border-right: 1px solid var(--lumiverse-primary-020);
+  }
+  .lv-tablist { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: hidden; }
+  .lv-tab {
+    width: 100%; height: 48px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    border: none; background: transparent; color: var(--lumiverse-text-muted); cursor: pointer; border-radius: 8px;
+    transition: all .2s ease;
+  }
+  .lv-tab svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .lv-tab .lv-tablabel { font-size: 8.5px; font-weight: 500; line-height: 1; color: var(--lumiverse-text-dim); }
+  .lv-tab:hover { background: var(--lumiverse-primary-015); color: var(--lumiverse-text); }
+  .lv-tab.active {
+    background: var(--lumiverse-primary-020); color: var(--lumiverse-primary);
+    box-shadow: inset 3px 0 0 var(--lumiverse-primary); border-radius: 0 8px 8px 0;
+  }
+  .lv-tab.active .lv-tablabel { color: var(--lumiverse-primary); }
+  .lv-sidebar-bottom { padding-top: 8px; margin-top: 8px; border-top: 1px solid var(--lumiverse-primary-020); }
+  .lv-sidebar-bottom .lv-tab { height: 40px; }
+
+  /* ---- drawer panel (peeking open) ---- */
+  .lv-panel { width: 168px; display: flex; flex-direction: column; background: var(--lumiverse-bg-deep);
+    border-right: 1px solid var(--lumiverse-border); box-shadow: 12px 0 30px rgba(0,0,0,.28); }
+  .lv-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; min-height: 48px;
+    background: var(--lumiverse-primary-008); border-bottom: 1px solid var(--lumiverse-primary-015); }
+  .lv-panel-title { font-size: 14px; font-weight: 600; color: var(--lumiverse-text); font-family: var(--lv-display, inherit); }
+  .lv-panel-x { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--lumiverse-border); background: transparent; color: var(--lumiverse-text-dim); cursor: pointer; font-size: 13px; line-height: 1; }
+  .lv-panel-body { padding: 12px; display: flex; flex-direction: column; gap: 9px; }
+  .lv-field { height: 30px; border-radius: 8px; background: var(--lumiverse-fill-subtle); box-shadow: inset 0 0 0 1px var(--lumiverse-border); }
+  .lv-field.tall { height: 46px; }
+  .lv-pill-btn { height: 28px; border-radius: 999px; border: 1px solid var(--lumiverse-primary); color: var(--lumiverse-primary); background: color-mix(in srgb, var(--lumiverse-primary) 12%, transparent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+
+  /* ---- floating composer pill ---- */
+  .lv-composer {
+    position: absolute; z-index: 12; bottom: 12px; left: 92px; right: 14px;
+    display: flex; flex-direction: column; gap: 6px; padding: 8px 14px 10px;
+    border-radius: var(--lv-radius, 14px); isolation: isolate;
+    background: var(--lumiverse-bg-elevated); border: 1px solid var(--lumiverse-border);
+    box-shadow: 0 14px 34px rgba(0,0,0,.42);
+  }
+  .lv-actionbar { display: flex; align-items: center; gap: 2px; padding: 0 2px; }
+  .lv-actbtn { width: 30px; height: 26px; border: none; border-radius: 6px; background: transparent; color: var(--lumiverse-text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .lv-actbtn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  .lv-actbtn:hover { color: var(--lumiverse-text); background: var(--lumiverse-fill); }
+  .lv-actbtn.armed { color: var(--lumiverse-primary); background: color-mix(in srgb, var(--lumiverse-primary) 12%, transparent); position: relative; }
+  .lv-actbtn.armed .lv-badge { position: absolute; top: -2px; right: -2px; min-width: 13px; height: 13px; border-radius: 999px; background: var(--lumiverse-primary); color: var(--lumiverse-primary-contrast,#fff); font-size: 8px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+  .lv-actdiv { width: 1px; height: 14px; background: var(--lumiverse-border); margin: 0 2px; }
+  .lv-actbar-spacer { flex: 1; }
+
+  .lv-inputrow { display: flex; align-items: flex-end; gap: 8px; }
+  .lv-attach { width: 40px; height: 40px; flex-shrink: 0; border: none; border-radius: var(--lv-radius, 14px); background: transparent; color: var(--lumiverse-text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .lv-attach svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  .lv-inputwrap {
+    flex: 1; min-height: 40px; display: flex; align-items: center; border-radius: var(--lv-radius, 14px);
+    background: var(--lumiverse-fill-subtle); box-shadow: inset 0 0 0 1px var(--lumiverse-border);
+    padding: 9px 14px; position: relative;
+  }
+  /* the mockup shows a focused composer so the theme's focus ring is visible */
+  .lv-inputwrap.focus { background: var(--lumiverse-fill); box-shadow: inset 0 0 0 1px var(--lumiverse-border-hover), 0 0 0 2px color-mix(in srgb, var(--lumiverse-border-hover) 55%, transparent); }
+  .lv-inputwrap .ph { font-size: 14px; color: var(--lumiverse-text-dim); font-family: var(--lv-body, inherit); }
+  .lv-sendshell { width: 40px; min-height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .lv-send { width: 40px; height: 40px; border: none; border-radius: var(--lv-radius, 14px); background: var(--lumiverse-primary); color: var(--lumiverse-primary-contrast, #fff); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .lv-send svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.9; }
+
+  .caption { font-size: 11px; color: #7a7a82; margin: 9px 2px 0; font-family: 'JetBrains Mono', monospace; }
+
+  /* ============================================================
+     BASE var scaffold — every theme overrides these. Defaults are
+     Lumiverse's stock dark values so anything unset still reads.
+     ============================================================ */
+  .stage {
+    --lumiverse-primary: #8c82ff; --lumiverse-primary-contrast: #fff;
+    --lumiverse-bg-deep: #14121c; --lumiverse-bg-elevated: rgba(35,30,48,.95);
+    --lumiverse-text: #ecebf4; --lumiverse-text-muted: #a9a3c0; --lumiverse-text-dim: #726c86;
+    --lumiverse-border: rgba(255,255,255,.1); --lumiverse-border-hover: rgba(255,255,255,.22);
+    --lumiverse-fill: rgba(255,255,255,.07); --lumiverse-fill-subtle: rgba(255,255,255,.04);
+    --lumiverse-primary-008: color-mix(in srgb, var(--lumiverse-primary) 8%, transparent);
+    --lumiverse-primary-015: color-mix(in srgb, var(--lumiverse-primary) 15%, transparent);
+    --lumiverse-primary-020: color-mix(in srgb, var(--lumiverse-primary) 20%, transparent);
+  }
+
+  /* ===================== TERRACOTTA ===================== */
+  .lv-terracotta {
+    --lumiverse-primary: #c96f4a; --lumiverse-primary-contrast: #f6ead7;
+    --lumiverse-bg-deep: #1c120b; --lumiverse-bg-elevated: rgba(46,30,20,.96);
+    --lumiverse-text: #f4e2cc; --lumiverse-text-muted: #c0a082; --lumiverse-text-dim: #8a6a4a;
+    --lumiverse-border: rgba(201,111,74,.34); --lumiverse-border-hover: rgba(47,143,143,.6);
+    --lumiverse-fill: rgba(201,111,74,.1); --lumiverse-fill-subtle: rgba(201,111,74,.05);
+    --lv-display: 'Fraunces', serif; --lv-body: 'Fraunces', serif; --lv-radius: 8px;
+    --lv-wash1: rgba(201,111,74,.14); --lv-wash2: rgba(47,143,143,.1);
+  }
+  /* glazed double keyline on the composer + tab active gets a kiln glow */
+  .lv-terracotta .lv-composer { box-shadow: inset 0 0 0 3px rgba(255,255,255,.06), inset 0 0 0 4px rgba(47,143,143,.14), 0 14px 34px rgba(90,50,24,.5); }
+  .lv-terracotta .lv-send { background: linear-gradient(135deg,#c96f4a,#a8542f); }
+  .lv-terracotta .lv-tab.active { box-shadow: inset 3px 0 0 #2f8f8f; color: #2f8f8f; }
+
+  /* ===================== GREENHOUSE ===================== */
+  .lv-greenhouse {
+    --lumiverse-primary: #3f8f57; --lumiverse-primary-contrast: #fff;
+    --lumiverse-bg-deep: #0e1811; --lumiverse-bg-elevated: rgba(22,36,26,.95);
+    --lumiverse-text: #e2eed8; --lumiverse-text-muted: #9ab090; --lumiverse-text-dim: #6a8060;
+    --lumiverse-border: rgba(198,154,62,.4); --lumiverse-border-hover: rgba(198,154,62,.7);
+    --lumiverse-fill: rgba(63,143,87,.12); --lumiverse-fill-subtle: rgba(63,143,87,.06);
+    --lv-display: 'Yeseva One', serif; --lv-body: 'Inter', sans-serif; --lv-radius: 16px;
+    --lv-wash1: rgba(63,143,87,.14); --lv-wash2: rgba(198,154,62,.12);
+  }
+  /* brass-mullion glass panes on the sidebar + nouveau-rounded composer */
+  .lv-greenhouse .lv-sidebar { background-image: linear-gradient(rgba(63,143,87,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(63,143,87,.1) 1px, transparent 1px); background-size: 28px 28px; }
+  .lv-greenhouse .lv-composer { border-color: rgba(198,154,62,.5); border-radius: 6px 6px 18px 18px; }
+  .lv-greenhouse .lv-inputwrap { border-radius: 6px 6px 14px 14px; }
+  .lv-greenhouse .lv-send { border-radius: 6px 6px 14px 14px; background: radial-gradient(circle at 35% 30%, #6cbf6c, #3f8f57); }
+
+  /* ===================== AURORA ===================== */
+  .lv-aurora {
+    --lumiverse-primary: #4ff0c0; --lumiverse-primary-contrast: #04140f;
+    --lumiverse-bg-deep: #060c1c; --lumiverse-bg-elevated: rgba(16,26,44,.92);
+    --lumiverse-text: #e6f0f7; --lumiverse-text-muted: #8fa8bc; --lumiverse-text-dim: #5f7488;
+    --lumiverse-border: rgba(79,240,192,.24); --lumiverse-border-hover: rgba(154,108,255,.55);
+    --lumiverse-fill: rgba(79,240,192,.1); --lumiverse-fill-subtle: rgba(79,240,192,.05);
+    --lv-display: 'Josefin Sans', sans-serif; --lv-body: 'Inter', sans-serif; --lv-radius: 14px;
+    --lv-wash1: rgba(79,240,192,.14); --lv-wash2: rgba(154,108,255,.14);
+  }
+  /* aurora ribbon glows along the composer top edge + neon send */
+  .lv-aurora .lv-composer { border-color: rgba(79,240,192,.3); box-shadow: 0 0 34px rgba(79,240,192,.12), 0 14px 34px rgba(2,6,18,.6); }
+  .lv-aurora .lv-composer::before { content: ''; position: absolute; top: 0; left: 14px; right: 14px; height: 2px; background: linear-gradient(90deg,#4ff0c0,#9a6cff,#6ab8ff,#4ff0c0); background-size: 300% 100%; box-shadow: 0 0 10px rgba(79,240,192,.5); animation: lvAuFlow 6s linear infinite; }
+  @keyframes lvAuFlow { 0% { background-position: 0 0; } 100% { background-position: 300% 0; } }
+  .lv-aurora .lv-send { box-shadow: 0 0 16px rgba(79,240,192,.5); }
+  .lv-aurora .lv-tab.active { box-shadow: inset 3px 0 0 #9a6cff; }
+
+  /* ===================== ROSACE ===================== */
+  .lv-rosace {
+    --lumiverse-primary: #1f6fe0; --lumiverse-primary-contrast: #f0ecff;
+    --lumiverse-bg-deep: #08060f; --lumiverse-bg-elevated: rgba(20,18,38,.9);
+    --lumiverse-text: #eae6ff; --lumiverse-text-muted: #9a93c0; --lumiverse-text-dim: #6a6488;
+    --lumiverse-border: rgba(120,120,140,.3); --lumiverse-border-hover: rgba(224,36,63,.6);
+    --lumiverse-fill: rgba(31,111,224,.12); --lumiverse-fill-subtle: rgba(31,111,224,.07);
+    --lv-display: 'Marcellus', serif; --lv-body: 'Inter', sans-serif; --lv-radius: 10px;
+    --lv-wash1: rgba(31,111,224,.18); --lv-wash2: rgba(224,36,63,.14);
+  }
+  /* thick leaded came borders + amber send accent */
+  .lv-rosace .stage-bg, .lv-rosace .lv-composer { }
+  .lv-rosace .lv-composer { border: 2.5px solid #05040a; box-shadow: inset 0 0 22px rgba(31,111,224,.16), 0 14px 34px rgba(0,0,0,.6); border-radius: 10px 10px 4px 4px; }
+  .lv-rosace .lv-panel-head { border-bottom: 2.5px solid #05040a; }
+  .lv-rosace .lv-send { background: linear-gradient(160deg,#1f6fe0,#9a4ce0); box-shadow: 0 0 12px rgba(31,111,224,.5); }
+  .lv-rosace .lv-tab.active { box-shadow: inset 3px 0 0 #e0243f; color: #ff9fb0; }
+
+  /* ===================== ARCADE ===================== */
+  .lv-arcade {
+    --lumiverse-primary: #ff2ea6; --lumiverse-primary-contrast: #0a0710;
+    --lumiverse-bg-deep: #0a0710; --lumiverse-bg-elevated: rgba(23,16,31,.94);
+    --lumiverse-text: #f4eaff; --lumiverse-text-muted: #b79fd0; --lumiverse-text-dim: #7a6a90;
+    --lumiverse-border: rgba(46,240,255,.4); --lumiverse-border-hover: rgba(46,240,255,.8);
+    --lumiverse-fill: rgba(46,240,255,.1); --lumiverse-fill-subtle: rgba(46,240,255,.05);
+    --lv-display: 'Press Start 2P', monospace; --lv-body: 'Share Tech Mono', monospace; --lv-radius: 3px;
+    --lv-wash1: rgba(255,46,166,.14); --lv-wash2: rgba(46,240,255,.1);
+  }
+  .lv-arcade .lv-panel-title { font-size: 10px; }
+  .lv-arcade .lv-sidebar { border-right: 2px solid #ff2ea6; }
+  .lv-arcade .lv-composer { border: 2px solid #2ef0ff; box-shadow: 0 0 0 1px rgba(255,46,166,.4), 0 0 24px rgba(255,46,166,.3), 0 14px 34px rgba(0,0,0,.6); }
+  .lv-arcade .lv-inputwrap { border-radius: 2px; }
+  .lv-arcade .lv-send { border-radius: 3px; box-shadow: 4px 4px 0 rgba(46,240,255,.5); }
+  .lv-arcade .lv-tab.active { box-shadow: inset 3px 0 0 #2ef0ff; color: #2ef0ff; }
+  /* CRT scanline field over the whole viewport */
+  .lv-arcade .stage-bg::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(46,240,255,.05) 0 2px, transparent 2px 4px); }
+
+  /* ===================== RIOT ===================== */
+  .lv-riot {
+    --lumiverse-primary: #e8ff2e; --lumiverse-primary-contrast: #101014;
+    --lumiverse-bg-deep: #0a0a08; --lumiverse-bg-elevated: rgba(24,24,20,.95);
+    --lumiverse-text: #ececdf; --lumiverse-text-muted: #9a9a8e; --lumiverse-text-dim: #6a6a5e;
+    --lumiverse-border: rgba(236,236,223,.4); --lumiverse-border-hover: #c400ff;
+    --lumiverse-fill: rgba(196,0,255,.1); --lumiverse-fill-subtle: rgba(236,236,223,.05);
+    --lv-display: 'Anton', sans-serif; --lv-body: 'Oswald', sans-serif; --lv-radius: 0px;
+    --lv-wash1: rgba(232,255,46,.1); --lv-wash2: rgba(196,0,255,.12);
+  }
+  .lv-riot .lv-panel-title { text-transform: uppercase; letter-spacing: 1px; }
+  .lv-riot .lv-sidebar { border-right: 3px solid #c400ff; }
+  .lv-riot .lv-composer { border: 3px solid #ececdf; border-radius: 0; box-shadow: 6px 6px 0 #c400ff, 0 14px 34px rgba(0,0,0,.5); }
+  .lv-riot .lv-inputwrap, .lv-riot .lv-send, .lv-riot .lv-attach { border-radius: 0; }
+  .lv-riot .lv-send { box-shadow: 3px 3px 0 #c400ff; }
+  .lv-riot .lv-tab.active { box-shadow: inset 3px 0 0 #c400ff; color: #e8ff2e; }
+
+  /* ===================== GRIMOIRE ===================== */
+  .lv-grimoire {
+    --lumiverse-primary: #a24cff; --lumiverse-primary-contrast: #ece2ff;
+    --lumiverse-bg-deep: #0d0819; --lumiverse-bg-elevated: rgba(38,26,58,.9);
+    --lumiverse-text: #ece2ff; --lumiverse-text-muted: #a98fd0; --lumiverse-text-dim: #6f5c90;
+    --lumiverse-border: rgba(162,76,255,.3); --lumiverse-border-hover: rgba(47,212,143,.6);
+    --lumiverse-fill: rgba(162,76,255,.1); --lumiverse-fill-subtle: rgba(162,76,255,.05);
+    --lv-display: 'Cinzel Decorative', serif; --lv-body: 'Inter', sans-serif; --lv-radius: 12px;
+    --lv-wash1: rgba(162,76,255,.2); --lv-wash2: rgba(47,212,143,.14);
+  }
+  .lv-grimoire .lv-composer { box-shadow: 0 0 30px rgba(162,76,255,.2), 0 14px 34px rgba(6,3,16,.6); }
+  .lv-grimoire .lv-inputwrap { backdrop-filter: blur(6px); }
+  .lv-grimoire .lv-send { background: linear-gradient(135deg,#a24cff,#2fd48f); box-shadow: 0 0 16px rgba(162,76,255,.5); }
+  .lv-grimoire .lv-tab.active { box-shadow: inset 3px 0 0 #2fd48f; }
+
+  /* ===================== BESTIARY ===================== */
+  .lv-bestiary {
+    --lumiverse-primary: #c8a24e; --lumiverse-primary-contrast: #241a10;
+    --lumiverse-bg-deep: #160f08; --lumiverse-bg-elevated: rgba(38,28,18,.95);
+    --lumiverse-text: #f0e2c4; --lumiverse-text-muted: #b8a276; --lumiverse-text-dim: #7a6a48;
+    --lumiverse-border: rgba(200,162,78,.4); --lumiverse-border-hover: rgba(200,162,78,.7);
+    --lumiverse-fill: rgba(200,162,78,.1); --lumiverse-fill-subtle: rgba(200,162,78,.05);
+    --lv-display: 'MedievalSharp', serif; --lv-body: 'Inter', sans-serif; --lv-radius: 4px;
+    --lv-wash1: rgba(200,162,78,.14); --lv-wash2: rgba(163,36,58,.12);
+  }
+  .lv-bestiary .lv-composer { border: 2px solid #c8a24e; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(200,162,78,.4), inset 0 0 0 3px var(--lumiverse-bg-elevated), inset 0 0 0 4px rgba(163,36,58,.3), 0 14px 34px rgba(0,0,0,.5); }
+  .lv-bestiary .lv-sidebar { border-right: 3px double #c8a24e; }
+  .lv-bestiary .lv-send { background: #c8a24e; }
+  .lv-bestiary .lv-tab.active { box-shadow: inset 3px 0 0 #a3243a; color: #e0c078; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>VELLUM × Lumiverse — Themed Drawer Tabs &amp; Input Area</h1>
+  <p>The real Lumiverse <b>drawer rail</b> (56&nbsp;px sidebar + peeking panel) and <b>floating composer</b> pill, reconstructed from <code>ViewportDrawer.module.css</code> and <code>InputArea.module.css</code>, then re-skinned by the eight new Vellum chromes. Each block only remaps the app's own <code>--lumiverse-*</code> variables (primary / bg-deep / border / fill / text) plus a couple of signature chrome accents — exactly how a <code>.lumitheme</code> pack restyles the app. Active tab shows the <code>inset&nbsp;3px</code> primary rail; composer shows the <code>:focus-within</code> ring and themed send button.</p>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+/* icons (lucide-style, stroked) */
+const I = {
+  user: '<path d="M12 12a4 4 0 100-8 4 4 0 000 8z"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/>',
+  sliders: '<path d="M4 6h10"/><path d="M18 6h2"/><circle cx="16" cy="6" r="2"/><path d="M4 12h4"/><path d="M12 12h8"/><circle cx="10" cy="12" r="2"/><path d="M4 18h10"/><path d="M18 18h2"/><circle cx="16" cy="18" r="2"/>',
+  users: '<path d="M9 11a3 3 0 100-6 3 3 0 000 6z"/><path d="M2 20c0-3 3-5 7-5s7 2 7 5"/><path d="M17 11a3 3 0 000-6"/><path d="M22 20c0-2.5-2-4.2-5-4.8"/>',
+  book: '<path d="M4 5c0-1 1-2 3-2h11v16H7c-2 0-3 1-3 2z"/><path d="M4 19V5"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  palette: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1"/><circle cx="12" cy="8" r="1"/><circle cx="16" cy="10" r="1"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+  refresh: '<path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  ret: '<path d="M9 10l-5 5 5 5"/><path d="M20 4v7a4 4 0 01-4 4H4"/>',
+  msg: '<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>',
+  link: '<path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 016 6l-1 1"/><path d="M13 18l-1 1a4 4 0 01-6-6l1-1"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="M16 8l-2.5 5.5L8 16l2.5-5.5z"/>',
+  more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+  paperclip: '<path d="M21 11l-9 9a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8"/>',
+  send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+};
+const svg = (p) => `<svg viewBox="0 0 24 24">${p}</svg>`;
+
+const THEMES = [
+  { id:'terracotta', name:'Terracotta', blurb:'fired clay & glazed teal', sw:['#c96f4a','#2f8f8f','#d99a2e','#1c120b'],
+    meta:"--lumiverse-primary:#c96f4a · Fraunces · radius 8 · glazed keyline composer, teal active rail" },
+  { id:'greenhouse', name:'Greenhouse', blurb:'leaf-green & brass glasshouse', sw:['#3f8f57','#c69a3e','#4f9a44','#0e1811'],
+    meta:"--lumiverse-primary:#3f8f57 · Yeseva One · radius 16 · brass-mullion rail, nouveau-rounded pill" },
+  { id:'aurora', name:'Aurora', blurb:'teal & violet polar curtains', sw:['#4ff0c0','#9a6cff','#6ab8ff','#060c1c'],
+    meta:"--lumiverse-primary:#4ff0c0 · Josefin Sans · radius 14 · flowing aurora ribbon on composer top edge" },
+  { id:'rosace', name:'Rosace', blurb:'leaded cobalt & ruby glass', sw:['#1f6fe0','#e0243f','#e8a41f','#08060f'],
+    meta:"--lumiverse-primary:#1f6fe0 · Marcellus · radius 10 · thick came borders, ruby active rail" },
+  { id:'arcade', name:'Arcade', blurb:'hot-pink & cyan CRT cabinet', sw:['#ff2ea6','#2ef0ff','#2bff88','#0a0710'],
+    meta:"--lumiverse-primary:#ff2ea6 · Press Start 2P · radius 3 · scanline field, hard offset send" },
+  { id:'riot', name:'Riot', blurb:'acid-yellow & violet zine', sw:['#e8ff2e','#c400ff','#ff1744','#0a0a08'],
+    meta:"--lumiverse-primary:#e8ff2e · Anton · radius 0 · hard 3px frame, offset-shadow pill" },
+  { id:'grimoire', name:'Grimoire', blurb:'arcane violet & emerald tome', sw:['#a24cff','#2fd48f','#ffcf5a','#0d0819'],
+    meta:"--lumiverse-primary:#a24cff · Cinzel Decorative · radius 12 · glow composer, emerald active rail" },
+  { id:'bestiary', name:'Bestiary', blurb:'crimson, royal blue & gilt', sw:['#c8a24e','#a3243a','#2f4a9a','#160f08'],
+    meta:"--lumiverse-primary:#c8a24e · MedievalSharp · radius 4 · gilt double-frame pill, crimson rail" },
+];
+
+const tabs = [
+  { icon:'user', label:'Profile' },
+  { icon:'sliders', label:'Presets', active:true },
+  { icon:'users', label:'Cast' },
+  { icon:'book', label:'Lore' },
+  { icon:'globe', label:'World' },
+  { icon:'palette', label:'Theme' },
+];
+
+function stage(t) {
+  const tabBtns = tabs.map(tb =>
+    `<button class="lv-tab${tb.active?' active':''}">${svg(I[tb.icon])}<span class="lv-tablabel">${tb.label}</span></button>`
+  ).join('');
+  return `
+  <div class="theme-card">
+    <div class="theme-label">
+      <span class="name">${t.name}</span>
+      <span class="blurb">${t.blurb}</span>
+      <span class="sws">${t.sw.map(c=>`<span class="sw" style="background:${c}"></span>`).join('')}</span>
+    </div>
+    <div class="theme-meta">${t.meta}</div>
+    <div class="stage lv-${t.id}">
+      <div class="stage-bg">
+        <div class="msg-block">
+          <div class="msg-line accent"></div>
+          <div class="msg-line l"></div><div class="msg-line m"></div><div class="msg-line s"></div>
+        </div>
+        <div class="msg-block">
+          <div class="msg-line accent"></div>
+          <div class="msg-line m"></div><div class="msg-line l"></div>
+        </div>
+      </div>
+
+      <!-- drawer rail: sidebar + peeking panel -->
+      <div class="lv-wrapper">
+        <div class="lv-sidebar">
+          <div class="lv-tablist">${tabBtns}</div>
+          <div class="lv-sidebar-bottom"><button class="lv-tab">${svg(I.settings)}</button></div>
+        </div>
+        <div class="lv-panel">
+          <div class="lv-panel-head"><span class="lv-panel-title">Presets</span><button class="lv-panel-x">&times;</button></div>
+          <div class="lv-panel-body">
+            <div class="lv-field tall"></div>
+            <div class="lv-field"></div>
+            <div class="lv-field"></div>
+            <div class="lv-pill-btn">Apply preset</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- floating composer -->
+      <div class="lv-composer">
+        <div class="lv-actionbar">
+          <button class="lv-actbtn">${svg(I.home)}</button>
+          <span class="lv-actdiv"></span>
+          <button class="lv-actbtn">${svg(I.refresh)}</button>
+          <button class="lv-actbtn">${svg(I.ret)}</button>
+          <button class="lv-actbtn">${svg(I.msg)}</button>
+          <button class="lv-actbtn armed">${svg(I.user)}<span class="lv-badge">1</span></button>
+          <button class="lv-actbtn">${svg(I.link)}</button>
+          <button class="lv-actbtn">${svg(I.compass)}</button>
+          <span class="lv-actbar-spacer"></span>
+          <button class="lv-actbtn">${svg(I.more)}</button>
+        </div>
+        <div class="lv-inputrow">
+          <button class="lv-attach">${svg(I.paperclip)}</button>
+          <div class="lv-inputwrap focus"><span class="ph">Write a message&hellip;</span></div>
+          <div class="lv-sendshell"><button class="lv-send">${svg(I.send)}</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">drawer rail (active = Presets) · composer focused, persona armed</div>
+  </div>`;
+}
+
+document.getElementById('grid').innerHTML = THEMES.map(stage).join('');
+</script>
+</body>
+</html>

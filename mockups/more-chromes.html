@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM — More Chrome Mockups: Terracotta · Rosace · Abyss · Y2K</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Marcellus&family=Nunito:wght@600;700;800&family=Varela+Round&family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --gap: 18px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0a0a0c;
+    color: #e8e8ea;
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  .page-head { max-width: 1200px; margin: 0 auto 40px; }
+  .page-head h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 34px; letter-spacing: .5px; margin: 0 0 6px; font-weight: 700;
+    background: linear-gradient(90deg, #c96f4a, #e0243f, #35f0e0, #00b4ff);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .page-head p { margin: 0; color: #8a8a92; font-size: 14px; max-width: 760px; }
+
+  .theme-block { max-width: 1200px; margin: 0 auto 56px; }
+  .theme-label {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    margin: 0 0 4px; padding-bottom: 10px; border-bottom: 1px solid #26262c;
+  }
+  .theme-label .name { font-family: 'Fraunces', serif; font-size: 24px; letter-spacing: .3px; font-weight: 700; }
+  .theme-label .blurb { color: #8a8a92; font-size: 13px; font-style: italic; }
+  .theme-label .swatches { display: flex; gap: 6px; margin-left: auto; }
+  .theme-label .sw { width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); }
+  .theme-meta { color: #6a6a72; font-size: 11.5px; font-family: 'JetBrains Mono', monospace; margin: 12px 0 18px; }
+
+  .frame { border-radius: 14px; overflow: hidden; position: relative; }
+  .frame-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 12px; letter-spacing: 1px; position: relative; z-index: 2; }
+  .frame-bar .dot { width: 9px; height: 9px; border-radius: 50%; opacity: .6; }
+  .frame-body { padding: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); position: relative; z-index: 1; }
+  .card { position: relative; padding: 16px 16px 15px; overflow: hidden; }
+  .card h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .card .line { font-size: 13px; margin: 4px 0; }
+  .card .muted { opacity: .68; }
+  .tension { height: 7px; border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
+  .tension i { display: block; height: 100%; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; margin: 3px 4px 0 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .cast-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .val { font-family: 'JetBrains Mono', monospace; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+  /* ============================================================
+     THEME 1 — TERRACOTTA (sun-baked Mediterranean / glazed tile)
+     ============================================================ */
+  .terracotta {
+    --acc: #c96f4a; --acc2: #2f8f8f;
+    --ink: #3a2418; --ink2: #8a6a4a;
+    --pos: #6f8f3a; --neg: #b5432f; --warn: #d99a2e; --info: #2f8f8f;
+    --s1: #f4e6d2; --s2: #ecd8bd;
+  }
+  .terracotta .frame {
+    background:
+      /* faint talavera tile grid */
+      repeating-linear-gradient(0deg, rgba(58,36,24,.05) 0 1px, transparent 1px 46px),
+      repeating-linear-gradient(90deg, rgba(58,36,24,.05) 0 1px, transparent 1px 46px),
+      radial-gradient(120% 90% at 20% 0%, #f6ead7, transparent 60%),
+      linear-gradient(160deg, #efe0c8, #e6cfae);
+    border: 2px solid #c96f4a;
+    box-shadow: 0 0 0 4px rgba(201,111,74,.18), 0 18px 44px rgba(90,50,24,.4);
+  }
+  .terracotta .frame-bar {
+    background: linear-gradient(90deg, var(--acc), #b5563a);
+    border-bottom: 3px solid var(--acc2);
+    color: #f6ead7; font-family: 'Fraunces', serif; font-weight: 700; letter-spacing: 1.5px;
+    text-shadow: 0 1px 0 rgba(90,40,20,.5);
+  }
+  .terracotta .frame-bar .dot { background: #f6ead7; box-shadow: inset 0 0 0 1px rgba(90,40,20,.4); }
+  .terracotta .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1.5px solid #d8b98c; border-radius: 8px; color: var(--ink);
+    box-shadow: inset 0 0 0 3px rgba(255,255,255,.4), inset 0 0 0 4px rgba(201,111,74,.28), 0 4px 12px rgba(120,70,30,.18);
+  }
+  /* glazed sheen sweep across every tile */
+  .terracotta .card::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,.35) 50%, transparent 58%);
+    background-size: 260% 260%; animation: terra-glaze 7s ease-in-out infinite;
+  }
+  @keyframes terra-glaze { 0% { background-position: 130% 0; } 100% { background-position: -40% 0; } }
+  .terracotta .card h3 { font-family: 'Fraunces', serif; font-weight: 700; font-size: 13px; letter-spacing: .5px; color: var(--acc); }
+  .terracotta .card.present { border-color: var(--acc2); box-shadow: inset 0 0 0 3px rgba(255,255,255,.4), inset 0 0 0 4px rgba(47,143,143,.3), 0 4px 12px rgba(120,70,30,.18); }
+  .terracotta .card.present h3 { color: var(--acc2); }
+  /* kiln-warm glow pulse on the present card */
+  .terracotta .card.present { animation: terra-kiln 5s ease-in-out infinite; }
+  @keyframes terra-kiln { 0%,100% { box-shadow: inset 0 0 0 3px rgba(255,255,255,.4), inset 0 0 0 4px rgba(47,143,143,.3), 0 4px 12px rgba(120,70,30,.18); } 50% { box-shadow: inset 0 0 0 3px rgba(255,255,255,.5), inset 0 0 0 4px rgba(47,143,143,.5), 0 4px 20px rgba(201,111,74,.4); } }
+  .terracotta .val, .terracotta .line b { color: var(--neg); font-family: 'Fraunces', serif; font-weight: 700; }
+  .terracotta .tension { background: rgba(58,36,24,.12); border: 1px solid rgba(201,111,74,.4); }
+  .terracotta .tension i { background: repeating-linear-gradient(90deg, var(--acc) 0 8px, var(--acc2) 8px 16px); }
+  .terracotta .avatar { border-radius: 6px; background: linear-gradient(135deg, var(--acc2), #1f6a6a); color: #f6ead7; border: 2px solid #f6ead7; box-shadow: 0 0 0 1px var(--acc2); font-family: 'Fraunces', serif; }
+  .terracotta .chip { border-radius: 4px; background: rgba(201,111,74,.14); border: 1px solid var(--acc); color: #8a4a30; }
+  .terracotta .chip.pos { background: rgba(111,143,58,.16); border-color: var(--pos); color: #4f6a24; }
+  .terracotta .chip.neg { background: rgba(181,67,47,.14); border-color: var(--neg); color: var(--neg); }
+
+  /* ============================================================
+     THEME 2 — ROSACE (cathedral stained glass)
+     ============================================================ */
+  .rosace {
+    --acc: #1f6fe0; --acc2: #e0243f;
+    --ink: #eae6ff; --ink2: #9a93c0;
+    --pos: #23c05a; --neg: #e0243f; --warn: #e8a41f; --info: #1f6fe0; --amethyst: #9a4ce0;
+    --s1: rgba(20,18,38,.82); --s2: rgba(12,10,26,.86);
+  }
+  .rosace .frame {
+    background:
+      /* leaded caming lattice */
+      repeating-linear-gradient(60deg, rgba(0,0,0,.5) 0 2px, transparent 2px 40px),
+      repeating-linear-gradient(-60deg, rgba(0,0,0,.5) 0 2px, transparent 2px 40px),
+      radial-gradient(90% 70% at 50% -10%, rgba(31,111,224,.3), transparent 55%),
+      radial-gradient(70% 60% at 80% 110%, rgba(224,36,63,.24), transparent 60%),
+      radial-gradient(60% 50% at 12% 90%, rgba(154,76,224,.24), transparent 62%),
+      linear-gradient(165deg, #14122a, #08060f);
+    border: 3px solid #05040a;
+    box-shadow: inset 0 0 60px rgba(31,111,224,.18), 0 0 0 2px rgba(120,120,140,.25), 0 20px 60px rgba(0,0,0,.7);
+  }
+  /* slow sun moving across the window */
+  .rosace .frame::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(60% 90% at 20% 20%, rgba(255,255,255,.14), transparent 40%);
+    animation: rosace-sun 14s ease-in-out infinite;
+  }
+  @keyframes rosace-sun { 0%,100% { transform: translate(-30%, -10%); opacity: .5; } 50% { transform: translate(60%, 20%); opacity: .95; } }
+  .rosace .frame-bar {
+    background: linear-gradient(90deg, rgba(31,111,224,.4), rgba(224,36,63,.28), rgba(154,76,224,.28));
+    border-bottom: 3px solid #05040a; color: #f0ecff;
+    font-family: 'Marcellus', serif; letter-spacing: 3px; text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(31,111,224,.7);
+  }
+  .rosace .frame-bar .dot { background: var(--acc2); box-shadow: 0 0 8px var(--acc2); }
+  .rosace .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 2.5px solid #05040a; border-radius: 10px 10px 4px 4px; color: var(--ink);
+    box-shadow: inset 0 0 22px rgba(31,111,224,.18);
+  }
+  /* each pane blooms and dims as the "sun" passes */
+  .rosace .card { animation: rosace-bloom 9s ease-in-out infinite; }
+  .rosace .card:nth-child(2) { animation-delay: -1.5s; }
+  .rosace .card:nth-child(3) { animation-delay: -3s; }
+  .rosace .card:nth-child(4) { animation-delay: -4.5s; }
+  .rosace .card:nth-child(5) { animation-delay: -6s; }
+  .rosace .card:nth-child(6) { animation-delay: -7.5s; }
+  @keyframes rosace-bloom { 0%,100% { filter: saturate(.85) brightness(.9); } 50% { filter: saturate(1.35) brightness(1.15); } }
+  .rosace .card h3 { font-family: 'Marcellus', serif; letter-spacing: 1.5px; color: #9fc0ff; text-shadow: 0 0 10px rgba(31,111,224,.6); }
+  .rosace .card.present { border-color: #05040a; background: linear-gradient(168deg, rgba(38,20,50,.82), rgba(20,10,30,.86)); box-shadow: inset 0 0 26px rgba(224,36,63,.2); }
+  .rosace .card.present h3 { color: #ff9fb0; text-shadow: 0 0 10px rgba(224,36,63,.6); }
+  .rosace .val, .rosace .line b { color: var(--warn); font-family: 'Marcellus', serif; text-shadow: 0 0 8px rgba(232,164,31,.5); }
+  .rosace .tension { background: rgba(0,0,0,.4); border: 1px solid rgba(120,120,140,.3); }
+  .rosace .tension i { background: linear-gradient(90deg, var(--acc), var(--amethyst), var(--acc2)); box-shadow: 0 0 12px rgba(31,111,224,.6); }
+  .rosace .avatar { background: radial-gradient(circle at 40% 35%, #3a6ad0, #14122a); border: 2px solid #05040a; color: #ffd98a; box-shadow: 0 0 0 1px rgba(232,164,31,.4), 0 0 14px rgba(31,111,224,.5); clip-path: polygon(50% 0, 90% 25%, 90% 75%, 50% 100%, 10% 75%, 10% 25%); border-radius: 0; }
+  .rosace .chip { background: rgba(31,111,224,.16); border: 1px solid var(--acc); color: #9fc0ff; }
+  .rosace .chip.pos { background: rgba(35,192,90,.16); border-color: var(--pos); color: #7fe0a0; }
+  .rosace .chip.neg { background: rgba(224,36,63,.16); border-color: var(--acc2); color: #ff9fb0; }
+
+  /* ============================================================
+     THEME 3 — ABYSS (bioluminescent deep sea)
+     ============================================================ */
+  .abyss {
+    --acc: #35f0e0; --acc2: #ff4fd8;
+    --ink: #d6f7f4; --ink2: #6f9aa8;
+    --pos: #35f0a0; --neg: #ff3b6b; --warn: #ffb24f; --info: #35f0e0;
+    --s1: rgba(10,22,34,.72); --s2: rgba(6,14,24,.78);
+  }
+  .abyss .frame {
+    background:
+      radial-gradient(100% 70% at 50% -10%, rgba(53,240,224,.14), transparent 55%),
+      radial-gradient(80% 60% at 88% 108%, rgba(255,79,216,.12), transparent 60%),
+      linear-gradient(170deg, #06111e, #030811);
+    border: 1px solid rgba(53,240,224,.4);
+    border-radius: 18px;
+    box-shadow: 0 0 40px rgba(53,240,224,.2), 0 0 80px rgba(255,79,216,.1), 0 20px 60px rgba(0,4,10,.8);
+  }
+  /* caustic light ripple net drifting over everything */
+  .abyss .frame::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
+    background:
+      repeating-linear-gradient(38deg, transparent 0 22px, rgba(53,240,224,.07) 22px 24px),
+      repeating-linear-gradient(-42deg, transparent 0 26px, rgba(53,240,224,.05) 26px 28px);
+    background-size: 180px 180px, 200px 200px;
+    animation: abyss-caustic 12s linear infinite;
+  }
+  @keyframes abyss-caustic { 0% { background-position: 0 0, 0 0; } 100% { background-position: 180px 90px, -200px 100px; } }
+  /* rising plankton motes */
+  .abyss .frame::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+    background-image:
+      radial-gradient(2px 2px at 14% 80%, var(--acc), transparent 60%),
+      radial-gradient(1.5px 1.5px at 34% 92%, var(--acc2), transparent 60%),
+      radial-gradient(2px 2px at 58% 74%, var(--acc), transparent 60%),
+      radial-gradient(1.5px 1.5px at 78% 88%, var(--warn), transparent 60%),
+      radial-gradient(2px 2px at 90% 66%, var(--acc2), transparent 60%);
+    background-repeat: no-repeat; opacity: .85; animation: abyss-plankton 11s ease-in-out infinite;
+  }
+  @keyframes abyss-plankton { 0% { transform: translateY(10px); opacity: .3; } 50% { opacity: .95; } 100% { transform: translateY(-24px); opacity: .3; } }
+  .abyss .frame-bar {
+    background: linear-gradient(90deg, rgba(53,240,224,.2), rgba(255,79,216,.12), transparent);
+    border-bottom: 1px solid rgba(53,240,224,.35); color: #b6fff8;
+    font-family: 'Nunito', sans-serif; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(53,240,224,.7);
+  }
+  .abyss .frame-bar .dot { background: var(--acc); box-shadow: 0 0 10px var(--acc); animation: abyss-lure 2.6s ease-in-out infinite; }
+  @keyframes abyss-lure { 0%,100% { opacity: .4; } 50% { opacity: 1; box-shadow: 0 0 16px var(--acc); } }
+  .abyss .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(53,240,224,.3); border-radius: 16px; color: var(--ink);
+    box-shadow: inset 0 0 24px rgba(53,240,224,.08), 0 6px 20px rgba(0,4,10,.5);
+    backdrop-filter: blur(4px); animation: abyss-sway 8s ease-in-out infinite;
+  }
+  .abyss .card:nth-child(even) { animation-delay: -4s; }
+  @keyframes abyss-sway { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  .abyss .card h3 { font-family: 'Nunito', sans-serif; font-weight: 800; letter-spacing: 1px; color: #6ff5ea; text-shadow: 0 0 10px rgba(53,240,224,.5); }
+  .abyss .card.present { border-color: rgba(255,79,216,.4); box-shadow: inset 0 0 24px rgba(255,79,216,.1), 0 6px 20px rgba(0,4,10,.5); }
+  .abyss .card.present h3 { color: #ff9fe8; text-shadow: 0 0 10px rgba(255,79,216,.5); }
+  .abyss .val, .abyss .line b { color: var(--acc); text-shadow: 0 0 8px rgba(53,240,224,.5); font-family: 'JetBrains Mono', monospace; }
+  .abyss .tension { background: rgba(53,240,224,.12); }
+  .abyss .tension i { background: linear-gradient(90deg, var(--acc), var(--acc2)); box-shadow: 0 0 12px rgba(53,240,224,.6); }
+  .abyss .avatar { border-radius: 50%; background: radial-gradient(circle at 35% 30%, #0f3a44, #061420); border: 1px solid var(--acc); color: #6ff5ea; box-shadow: 0 0 14px rgba(53,240,224,.5), inset 0 0 8px rgba(255,79,216,.2); }
+  .abyss .chip { border-radius: 99px; background: rgba(53,240,224,.12); border: 1px solid var(--acc); color: #6ff5ea; }
+  .abyss .chip.pos { background: rgba(53,240,160,.14); border-color: var(--pos); color: var(--pos); }
+  .abyss .chip.neg { background: rgba(255,59,107,.14); border-color: var(--neg); color: #ff8aa4; }
+
+  /* ============================================================
+     THEME 4 — Y2K (Frutiger Aero — glossy aqua gel)
+     ============================================================ */
+  .y2k {
+    --acc: #00b4ff; --acc2: #7be000;
+    --ink: #06304a; --ink2: #4a7a96;
+    --pos: #3ad13a; --neg: #ff5a5a; --warn: #ffb400; --info: #00b4ff;
+    --s1: rgba(255,255,255,.92); --s2: rgba(224,242,255,.92);
+  }
+  .y2k .frame {
+    background:
+      radial-gradient(80% 60% at 20% 0%, rgba(255,255,255,.9), transparent 55%),
+      radial-gradient(90% 70% at 90% 100%, rgba(123,224,0,.22), transparent 60%),
+      linear-gradient(165deg, #d6efff, #a9dcff 60%, #8fd0ff);
+    border: 1px solid rgba(255,255,255,.8);
+    border-radius: 18px;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,.9), 0 0 0 1px rgba(0,180,255,.3), 0 20px 50px rgba(0,90,150,.4);
+  }
+  /* floating bubbles rising */
+  .y2k .frame::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(circle at 18% 90%, rgba(255,255,255,.7) 0 5px, transparent 6px),
+      radial-gradient(circle at 42% 96%, rgba(255,255,255,.5) 0 8px, transparent 9px),
+      radial-gradient(circle at 70% 88%, rgba(255,255,255,.6) 0 4px, transparent 5px),
+      radial-gradient(circle at 86% 94%, rgba(255,255,255,.5) 0 7px, transparent 8px);
+    background-repeat: no-repeat; opacity: .8; animation: y2k-bubble 9s ease-in-out infinite;
+  }
+  @keyframes y2k-bubble { 0% { transform: translateY(20px); opacity: 0; } 20% { opacity: .8; } 100% { transform: translateY(-40px); opacity: 0; } }
+  .y2k .frame-bar {
+    background: linear-gradient(180deg, #5fd0ff, #00b4ff 55%, #0090dd);
+    border-bottom: 1px solid rgba(255,255,255,.7); color: #fff;
+    font-family: 'Chakra Petch', sans-serif; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(0,60,110,.5);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+  }
+  .y2k .frame-bar .dot { background: radial-gradient(circle at 35% 30%, #fff, #7be000); box-shadow: 0 0 0 1px rgba(0,120,0,.3); }
+  .y2k .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid #fff; border-radius: 16px; color: var(--ink);
+    box-shadow: inset 0 2px 0 rgba(255,255,255,.95), inset 0 -8px 16px rgba(0,150,220,.12), 0 6px 16px rgba(0,90,150,.22);
+  }
+  /* glossy top-half highlight + sweeping shine */
+  .y2k .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 46%;
+    background: linear-gradient(180deg, rgba(255,255,255,.7), transparent);
+    border-radius: 16px 16px 40% 40% / 16px 16px 22px 22px; pointer-events: none;
+  }
+  .y2k .card::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, transparent 44%, rgba(255,255,255,.55) 50%, transparent 56%);
+    background-size: 260% 260%; animation: y2k-shine 6s ease-in-out infinite;
+  }
+  @keyframes y2k-shine { 0% { background-position: 130% 0; } 100% { background-position: -40% 0; } }
+  .y2k .card h3 { font-family: 'Varela Round', sans-serif; letter-spacing: .3px; color: #0090dd; position: relative; z-index: 1; text-transform: none; font-size: 13px; }
+  .y2k .card.present { border-color: #fff; box-shadow: inset 0 2px 0 rgba(255,255,255,.95), inset 0 -8px 16px rgba(123,224,0,.16), 0 6px 16px rgba(0,90,150,.22); }
+  .y2k .card.present h3 { color: #4a9a00; }
+  .y2k .card .line, .y2k .card .cast-row, .y2k .card .tension, .y2k .card .chip { position: relative; z-index: 1; }
+  .y2k .val, .y2k .line b { color: #0090dd; font-family: 'Chakra Petch', sans-serif; font-weight: 700; }
+  .y2k .tension { background: rgba(0,150,220,.14); box-shadow: inset 0 1px 2px rgba(0,90,150,.2); }
+  .y2k .tension i { background: linear-gradient(180deg, #9fe8ff, var(--acc)); box-shadow: inset 0 1px 0 rgba(255,255,255,.8); }
+  .y2k .avatar { border-radius: 50%; background: radial-gradient(circle at 35% 28%, #fff, #00b4ff 70%, #0078b4); color: #fff; border: 1px solid rgba(255,255,255,.8); box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 2px 6px rgba(0,90,150,.4); position: relative; z-index: 1; }
+  .y2k .chip { border-radius: 99px; background: linear-gradient(180deg, #fff, #dff0ff); border: 1px solid rgba(0,180,255,.4); color: #0090dd; box-shadow: inset 0 1px 0 rgba(255,255,255,.9); }
+  .y2k .chip.pos { background: linear-gradient(180deg, #f2ffe0, #dff5c0); border-color: rgba(123,224,0,.5); color: #4a9a00; }
+  .y2k .chip.neg { background: linear-gradient(180deg, #fff0f0, #ffe0e0); border-color: rgba(255,90,90,.5); color: #d43a3a; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>VELLUM · More Chrome Mockups</h1>
+  <p>Four more chrome concepts, each shown as a floating window with the six customizable surfaces (Present, Bonds, Cast, Beats, Factions, Items): <b>Terracotta</b> (sun-baked Mediterranean tile), <b>Rosace</b> (cathedral stained glass), <b>Abyss</b> (bioluminescent deep sea), and <b>Y2K</b> (Frutiger-Aero glossy aqua gel). Built to slot into the existing Chrome + Skin + CHROME_SHAPES architecture; fonts load from Google Fonts on demand. Heavily animated — respects prefers-reduced-motion.</p>
+</div>
+
+<!-- ========================= TERRACOTTA ========================= -->
+<div class="theme-block">
+  <div class="theme-label terracotta">
+    <span class="name" style="color:#c96f4a">Terracotta</span>
+    <span class="blurb">Sun-baked courtyard — fired clay &amp; glazed azulejo teal, talavera tiles, kiln-warm glow.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#c96f4a"></span>
+      <span class="sw" style="background:#2f8f8f"></span>
+      <span class="sw" style="background:#d99a2e"></span>
+      <span class="sw" style="background:#f4e6d2"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'terracotta' · skinDark:'terracotta-kiln' / skinLight:'terracotta-plaster' · new ShapeId:'azulejo' / 'amphora' · texture:'talavera' · serif:F_CLAY (Fraunces) · radius:8 border:1.5 · motion: glaze sheen + kiln pulse</div>
+  <div class="terracotta">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> The Oracle &#10088; Casa del Sol</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#9723; PRESENT</h3>
+          <div class="line">Noon light pools in the courtyard; the fountain tiles are almost too hot to touch.</div>
+          <div class="line muted">Scene: whitewashed patio, cicadas, siesta hour</div>
+        </div>
+        <div class="card">
+          <h3>&#10086; BONDS</h3>
+          <div class="cast-row"><span class="avatar">MA</span><div><div class="line">Mateo <b class="val">+58</b></div><div class="tension"><i style="width:58%"></i></div></div></div>
+          <span class="chip pos">Family</span><span class="chip neg">Feud</span>
+        </div>
+        <div class="card">
+          <h3>&#9635; CAST</h3>
+          <div class="cast-row"><span class="avatar">LU</span><span class="line">Lucia <span class="muted val">Potter</span></span></div>
+          <div class="cast-row"><span class="avatar">DI</span><span class="line">Diego <span class="muted val">Glazier</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#9636; BEATS</h3>
+          <div class="line">1. Fire the kiln <b class="val">DONE</b></div>
+          <div class="line">2. Glaze the commission</div>
+          <div class="line muted">3. The festival unveiling</div>
+        </div>
+        <div class="card">
+          <h3>&#9733; FACTIONS</h3>
+          <div class="line">Potters' Guild <b class="val">74%</b></div>
+          <div class="tension"><i style="width:74%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#9634; ITEMS</h3>
+          <span class="chip">Clay x12</span><span class="chip pos">Cobalt glaze</span><span class="chip neg">Cracked amphora</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= ROSACE ========================= -->
+<div class="theme-block">
+  <div class="theme-label rosace">
+    <span class="name" style="color:#1f6fe0">Rosace</span>
+    <span class="blurb">Light through leaded glass — cobalt, ruby &amp; amber panes, gothic tracery, a slow-moving sun.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#1f6fe0"></span>
+      <span class="sw" style="background:#e0243f"></span>
+      <span class="sw" style="background:#e8a41f"></span>
+      <span class="sw" style="background:#9a4ce0"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'rosace' · skinDark:'rosace-leaded' / skinLight:'rosace-nave' · new ShapeId:'rose-window' / 'lancet' · texture:'leadwork' · serif:F_LEADED (Marcellus) · radius:10 border:3 · motion: sun-sweep bloom + shimmer</div>
+  <div class="rosace">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE &#10013; NAVE</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#10013; PRESENT</h3>
+          <div class="line">Dusk pours through the west rose; the whole nave floods with moving color.</div>
+          <div class="line muted">Scene: the cathedral, last light, incense</div>
+        </div>
+        <div class="card">
+          <h3>&#9672; BONDS</h3>
+          <div class="cast-row"><span class="avatar">AG</span><div><div class="line">Agnes <b class="val">+66</b></div><div class="tension"><i style="width:66%"></i></div></div></div>
+          <span class="chip pos">Devoted</span><span class="chip neg">Heretic</span>
+        </div>
+        <div class="card">
+          <h3>&#9673; CAST</h3>
+          <div class="cast-row"><span class="avatar">TH</span><span class="line">Thomas <span class="muted val">Glazier</span></span></div>
+          <div class="cast-row"><span class="avatar">CL</span><span class="line">Clare <span class="muted val">Cantor</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#9635; BEATS</h3>
+          <div class="line">1. Set the last pane <b class="val">DONE</b></div>
+          <div class="line">2. Light the vigil</div>
+          <div class="line muted">3. The consecration</div>
+        </div>
+        <div class="card">
+          <h3>&#10039; FACTIONS</h3>
+          <div class="line">The Chapter <b class="val">81%</b></div>
+          <div class="tension"><i style="width:81%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#9670; ITEMS</h3>
+          <span class="chip">Lead came x9</span><span class="chip pos">Ruby glass</span><span class="chip neg">Shattered lancet</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= ABYSS ========================= -->
+<div class="theme-block">
+  <div class="theme-label abyss">
+    <span class="name" style="color:#35f0e0">Abyss</span>
+    <span class="blurb">Four thousand meters down — bioluminescent cyan &amp; jelly-magenta, caustic light, drifting plankton.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#35f0e0"></span>
+      <span class="sw" style="background:#ff4fd8"></span>
+      <span class="sw" style="background:#ffb24f"></span>
+      <span class="sw" style="background:#04080f"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'abyss' · skinDark:'abyss-trench' / skinLight:'abyss-tidepool' · new ShapeId:'porthole' / 'bubble' · texture:'caustics' · serif:F_ABYSS (Nunito) · radius:16 border:1 · motion: plankton drift + caustic ripple + lure blink</div>
+  <div class="abyss">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE &#8776; TRENCH STATION</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#9673; PRESENT</h3>
+          <div class="line">The sonar returns something too large to be a whale, rising slowly from below.</div>
+          <div class="line muted">Scene: the trench, 3,880 m, lights failing</div>
+        </div>
+        <div class="card">
+          <h3>&#10087; BONDS</h3>
+          <div class="cast-row"><span class="avatar">NE</span><div><div class="line">Nerin <b class="val">+52</b></div><div class="tension"><i style="width:52%"></i></div></div></div>
+          <span class="chip pos">Crewmate</span><span class="chip neg">Mutineer</span>
+        </div>
+        <div class="card">
+          <h3>&#9678; CAST</h3>
+          <div class="cast-row"><span class="avatar">TA</span><span class="line">Tala <span class="muted val">Pilot</span></span></div>
+          <div class="cast-row"><span class="avatar">OS</span><span class="line">Osei <span class="muted val">Sonar</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#9636; BEATS</h3>
+          <div class="line">1. Seal the breach <b class="val">DONE</b></div>
+          <div class="line">2. Trace the signal</div>
+          <div class="line muted">3. Surface — if it lets you</div>
+        </div>
+        <div class="card">
+          <h3>&#10057; FACTIONS</h3>
+          <div class="line">Deep Survey Co. <b class="val">69%</b></div>
+          <div class="tension"><i style="width:69%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#9673; ITEMS</h3>
+          <span class="chip">O&#8322; cells x4</span><span class="chip pos">Lumen flare</span><span class="chip neg">Flooded relay</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= Y2K ========================= -->
+<div class="theme-block">
+  <div class="theme-label y2k">
+    <span class="name" style="color:#00b4ff">Y2K</span>
+    <span class="blurb">Frutiger-Aero desktop — glossy aqua &amp; lime gel, rising bubbles, wet-glass buttons.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#00b4ff"></span>
+      <span class="sw" style="background:#7be000"></span>
+      <span class="sw" style="background:#ffb400"></span>
+      <span class="sw" style="background:#d6efff"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'y2k' · skinDark:'y2k-midnight' / skinLight:'y2k-aqua' · new ShapeId:'gel-pill' / 'aqua-orb' · texture:'bubbles' · serif:F_AERO (Varela Round / Chakra Petch) · radius:16 border:1 · motion: bubble rise + gloss shine</div>
+  <div class="y2k">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE // AQUA.OS</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#9673; Present</h3>
+          <div class="line">A new window blooms open with a wet little chime; everything is impossibly shiny.</div>
+          <div class="line muted">Scene: the sky desktop, 3:00 PM, no clouds</div>
+        </div>
+        <div class="card">
+          <h3>&#9829; Bonds</h3>
+          <div class="cast-row"><span class="avatar">KY</span><div><div class="line">Kyo <b class="val">+61</b></div><div class="tension"><i style="width:61%"></i></div></div></div>
+          <span class="chip pos">Buddy</span><span class="chip neg">Blocked</span>
+        </div>
+        <div class="card">
+          <h3>&#9678; Cast</h3>
+          <div class="cast-row"><span class="avatar">MI</span><span class="line">Mika <span class="muted val">Online</span></span></div>
+          <div class="cast-row"><span class="avatar">RI</span><span class="line">Rin <span class="muted val">Away</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#9636; Beats</h3>
+          <div class="line">1. Boot the OS <b class="val">DONE</b></div>
+          <div class="line">2. Sync the buddy list</div>
+          <div class="line muted">3. Defrag the drive</div>
+        </div>
+        <div class="card">
+          <h3>&#9733; Factions</h3>
+          <div class="line">The Webring <b class="val">88%</b></div>
+          <div class="tension"><i style="width:88%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#9679; Items</h3>
+          <span class="chip">Mixtape x3</span><span class="chip pos">Gel pen</span><span class="chip neg">Dead Tamagotchi</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

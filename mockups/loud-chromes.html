@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VELLUM — Loud Chrome Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:wght@400;700&family=Anton&family=Archivo+Black&family=Bebas+Neue&family=Baloo+2:wght@500;700;800&family=Fredoka:wght@500;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   VELLUM — Loud Chrome Mockups
+   Three proposed chromes: ARCADE · RIOT · CARNIVAL
+   Each panel mimics the dashboard's six surfaces:
+   Present(thoughts) · Bonds · Cast · Beats · Factions · Items
+   Standalone visual mockup — not wired to the engine.
+   ============================================================ */
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0c;color:#e8e8ea;font-family:'Inter',system-ui,sans-serif;padding:32px 20px 80px;line-height:1.4}
+.wrap{max-width:1380px;margin:0 auto}
+.page-h{text-align:center;margin-bottom:8px;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#8a8a90}
+.page-sub{text-align:center;margin-bottom:40px;font-size:12px;color:#66666c}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:26px}
+@media(max-width:1180px){.grid3{grid-template-columns:1fr}}
+
+/* --- shared window frame (mimics .vlf-frame) --- */
+.win{border-radius:8px;overflow:hidden;position:relative;min-height:600px;display:flex;flex-direction:column}
+.win-bar{display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:13px}
+.win-body{padding:16px 15px 22px;flex:1;overflow:hidden}
+.mark{font-weight:800;letter-spacing:1px}
+.blurb{font-size:11px;line-height:1.5;padding:10px 15px;opacity:.85}
+.statbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;font-size:11px}
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat b{font-size:15px}
+.stat span{opacity:.6;font-size:9px;letter-spacing:1px;text-transform:uppercase}
+.sec-h{font-size:11px;letter-spacing:2px;text-transform:uppercase;margin:16px 0 8px;display:flex;align-items:center;gap:6px}
+.card{position:relative;padding:11px 13px;margin-bottom:9px;font-size:12px}
+.card .who{font-weight:700;font-size:12px}
+.card .txt{opacity:.82;font-size:11.5px;margin-top:3px;line-height:1.45}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pill{font-size:9px;padding:2px 7px;border-radius:99px;letter-spacing:.5px}
+.bar{height:6px;border-radius:99px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{font-size:9.5px;padding:2px 7px;border-radius:4px}
+.dot{width:8px;height:8px;border-radius:99px;display:inline-block}
+.tag{font-size:8px;letter-spacing:1px;text-transform:uppercase;opacity:.6}
+
+/* =====================================================================
+   1) ARCADE  — 80s CRT / vaporwave arcade cabinet
+   hot magenta + electric cyan on near-black, scanlines, bevel buttons
+   ===================================================================== */
+.arcade{
+  --vg:#ff2ea6; --vg2:#2ef0ff; --ink:#f4f0ff; --ink2:#b6a8d8;
+  --pos:#2bff88; --neg:#ff3b5c; --warn:#ffd23b; --info:#2ef0ff;
+  --surf:#160a20; --surf2:#0e0616;
+  background:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),
+    radial-gradient(120% 80% at 50% -10%,rgba(255,46,166,.22),transparent 60%),
+    linear-gradient(160deg,#170826,#08040e);
+  color:var(--ink);
+  border:2px solid var(--vg);
+  box-shadow:0 0 0 1px rgba(46,240,255,.4),0 0 34px rgba(255,46,166,.35),0 0 60px rgba(46,240,255,.18);
+  font-family:'Space Mono',ui-monospace,monospace;
+}
+.arcade .win-bar{
+  background:linear-gradient(90deg,rgba(255,46,166,.28),rgba(46,240,255,.14),transparent);
+  border-bottom:2px solid var(--vg);
+}
+.arcade .mark{font-family:'Press Start 2P',monospace;font-size:11px;color:var(--vg);
+  text-shadow:2px 0 var(--vg2),-1px 0 rgba(255,255,255,.4);letter-spacing:0}
+.arcade .win-bar .tag{color:var(--vg2)}
+.arcade .sec-h{color:var(--vg2);text-shadow:0 0 8px rgba(46,240,255,.5)}
+.arcade .sec-h::before{content:'\25B8';color:var(--vg)}
+.arcade .stat b{color:var(--vg2);text-shadow:0 0 10px rgba(46,240,255,.6);font-family:'Press Start 2P';font-size:11px}
+/* bevel "arcade button" card */
+.arcade .card{
+  background:linear-gradient(180deg,rgba(255,46,166,.12),rgba(14,6,22,.9));
+  border:2px solid var(--vg);border-radius:0;
+  box-shadow:4px 4px 0 rgba(46,240,255,.55),inset 0 1px 0 rgba(255,255,255,.15);
+}
+.arcade .card.c2{border-color:var(--vg2);box-shadow:4px 4px 0 rgba(255,46,166,.5)}
+.arcade .who{color:var(--vg)}
+.arcade .card.c2 .who{color:var(--vg2)}
+.arcade .pill{background:var(--vg);color:#150018;font-weight:700}
+.arcade .bar{background:rgba(255,255,255,.1);border-radius:0}
+.arcade .bar i{background:linear-gradient(90deg,var(--vg),var(--vg2));box-shadow:0 0 10px var(--vg)}
+.arcade .chip{background:rgba(46,240,255,.14);border:1px solid var(--vg2);color:var(--vg2);border-radius:0}
+.arcade .blurb{color:var(--ink2)}
+.arcade .cast-av{width:34px;height:34px;border-radius:0;border:2px solid var(--vg2);
+  background:linear-gradient(135deg,var(--vg),var(--vg2));display:flex;align-items:center;justify-content:center;
+  font-family:'Press Start 2P';font-size:10px;color:#100018;box-shadow:2px 2px 0 var(--vg)}
+
+/* =====================================================================
+   2) RIOT — DIY punk zine collage
+   acid yellow + violet, halftone, taped/torn corners, off-grid
+   ===================================================================== */
+.riot{
+  --vg:#e8ff2e; --vg2:#c400ff; --ink:#f7f7f2; --ink2:#a8a8a0;
+  --pos:#6bff3b; --neg:#ff2e2e; --warn:#ffab00; --info:#00e5ff;
+  background:
+    radial-gradient(rgba(255,255,255,.05) 1.2px,transparent 1.3px) 0 0/7px 7px,
+    linear-gradient(180deg,#141410,#0b0b08);
+  color:var(--ink);
+  border:3px solid var(--ink);
+  box-shadow:6px 6px 0 var(--vg2),12px 12px 0 rgba(232,255,46,.5);
+  font-family:'Space Mono',monospace;
+}
+.riot .win-bar{background:var(--vg);border-bottom:3px solid var(--ink)}
+.riot .mark{font-family:'Anton',sans-serif;font-size:20px;letter-spacing:1px;color:#111;text-transform:uppercase}
+.riot .win-bar .tag{color:#333;font-weight:700}
+.riot .sec-h{font-family:'Archivo Black',sans-serif;font-size:12px;letter-spacing:1px;
+  color:#111;background:var(--vg);display:inline-flex;padding:2px 8px;transform:rotate(-1.5deg)}
+.riot .stat b{font-family:'Anton';color:var(--vg);font-size:18px}
+.riot .card{
+  background:#f7f7f2;color:#141410;border:2.5px solid #141410;border-radius:0;
+}
+.riot .card:nth-child(odd){transform:rotate(-.8deg)}
+.riot .card:nth-child(even){transform:rotate(.9deg)}
+/* taped corner */
+.riot .card::before{content:'';position:absolute;top:-8px;left:16px;width:46px;height:17px;
+  background:rgba(196,0,255,.55);border:1px dashed rgba(0,0,0,.4);transform:rotate(-6deg);
+  box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.riot .card.tape-r::before{left:auto;right:16px;transform:rotate(5deg);background:rgba(232,255,46,.85)}
+.riot .who{font-family:'Archivo Black';color:#141410;text-transform:uppercase;font-size:11px}
+.riot .txt{color:#333}
+.riot .pill{background:#141410;color:var(--vg);font-family:'Space Mono';font-weight:700;border-radius:0}
+.riot .bar{background:rgba(0,0,0,.15);border:1.5px solid #141410;border-radius:0;height:9px}
+.riot .bar i{background:var(--vg2)}
+.riot .chip{background:#141410;color:#f7f7f2;border-radius:0;font-weight:700}
+.riot .sec-wrap{margin-bottom:6px}
+.riot .blurb{color:var(--ink2)}
+.riot .cast-av{width:34px;height:34px;border-radius:0;border:2.5px solid #141410;
+  background:var(--vg2);color:var(--vg);display:flex;align-items:center;justify-content:center;
+  font-family:'Anton';font-size:16px;filter:grayscale(.2) contrast(1.2)}
+
+/* =====================================================================
+   3) CARNIVAL — maximalist circus / boardwalk
+   candy orange + hot pink, marquee bulbs, scalloped tent cards, rounded
+   ===================================================================== */
+.carnival{
+  --vg:#ff7a1a; --vg2:#ff2e8f; --ink:#fff6ec; --ink2:#e8c4b0;
+  --pos:#12d6b8; --neg:#ff4d4d; --warn:#b06bff; --info:#3bb0ff;
+  --surf:#3a1136; --surf2:#2a0c2a;
+  background:
+    radial-gradient(90% 60% at 50% 0%,rgba(255,46,143,.32),transparent 60%),
+    repeating-linear-gradient(90deg,rgba(255,122,26,.16) 0 22px,rgba(255,46,143,.16) 22px 44px),
+    linear-gradient(170deg,#4a1240,#25081f);
+  color:var(--ink);
+  border:3px solid var(--vg);
+  box-shadow:0 0 0 4px rgba(255,46,143,.35),0 18px 60px rgba(255,46,143,.3);
+}
+/* marquee bulbs along the top */
+.carnival .win-bar{
+  background:linear-gradient(90deg,var(--vg),var(--vg2));
+  border-bottom:3px solid rgba(255,255,255,.4);position:relative;
+}
+.carnival .win-bar::after{content:'';position:absolute;left:0;right:0;bottom:-9px;height:12px;
+  background:radial-gradient(circle at 8px 3px,#ffe27a 0 3px,transparent 3.5px) 0 0/22px 12px repeat-x;
+  filter:drop-shadow(0 0 3px #ffe27a)}
+.carnival .mark{font-family:'Baloo 2',cursive;font-weight:800;font-size:19px;color:#fff;
+  text-shadow:0 2px 0 rgba(0,0,0,.25)}
+.carnival .win-bar .tag{color:rgba(255,255,255,.85)}
+.carnival .sec-h{font-family:'Fredoka';font-weight:700;color:#fff;letter-spacing:.5px}
+.carnival .sec-h::before{content:'\2726';color:#ffe27a}
+.carnival .stat b{font-family:'Baloo 2';font-weight:800;color:#ffe27a;font-size:17px}
+/* scalloped tent-flap card */
+.carnival .card{
+  background:linear-gradient(180deg,rgba(255,122,26,.2),rgba(42,12,42,.85));
+  border:2px solid var(--vg2);border-radius:16px 16px 4px 4px;
+  box-shadow:0 4px 0 rgba(255,46,143,.4),inset 0 1px 0 rgba(255,255,255,.15);
+}
+.carnival .card::after{content:'';position:absolute;left:0;right:0;bottom:0;height:9px;
+  background:radial-gradient(circle at 7px -2px,var(--vg2) 0 6px,transparent 6.5px) 0 bottom/14px 9px repeat-x;
+  border-radius:0 0 4px 4px}
+.carnival .who{font-family:'Fredoka';font-weight:600;color:#ffe27a}
+.carnival .card.c2 .who{color:#fff}
+.carnival .pill{background:#ffe27a;color:#5a1030;font-weight:700}
+.carnival .bar{background:rgba(255,255,255,.14);height:8px}
+.carnival .bar i{background:linear-gradient(90deg,var(--vg),var(--vg2))}
+.carnival .chip{background:rgba(255,226,122,.18);border:1px solid #ffe27a;color:#ffe27a;border-radius:99px}
+.carnival .blurb{color:var(--ink2)}
+.carnival .cast-av{width:34px;height:34px;border-radius:50%;border:3px solid #ffe27a;
+  background:linear-gradient(135deg,var(--vg),var(--vg2));display:flex;align-items:center;justify-content:center;
+  font-family:'Baloo 2';font-weight:800;font-size:15px;color:#fff;box-shadow:0 3px 0 rgba(0,0,0,.3)}
+
+/* semantic helpers reused across themes via vars */
+.p-pos{background:color-mix(in srgb,var(--pos) 22%,transparent);color:var(--pos)}
+.p-neg{background:color-mix(in srgb,var(--neg) 22%,transparent);color:var(--neg)}
+.p-warn{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
+.i-pos{background:var(--pos)}
+.i-neg{background:var(--neg)}
+.i-warn{background:var(--warn)}
+.cast-row{display:flex;align-items:center;gap:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-h">VELLUM · New Chrome Mockups</div>
+  <div class="page-sub">Three "maximalist / neon / loud / bright" proposals shown as dashboard windows — surfaces: Present · Bonds · Cast · Beats · Factions · Items</div>
+
+  <div class="grid3">
+
+    <!-- ============ ARCADE ============ -->
+    <div class="win arcade">
+      <div class="win-bar"><span class="mark">ARCADE</span><span class="tag">P1 · READY</span></div>
+      <div class="blurb">Insert coin — hot pink &amp; cyan on black, CRT scanlines, arcade-button cards, pixel display type.</div>
+      <div class="win-body">
+        <div class="statbar">
+          <div class="stat"><b>07</b><span>Turn</span></div>
+          <div class="stat"><b>1CC</b><span>Arc</span></div>
+          <div class="stat"><b>x3</b><span>Threads</span></div>
+        </div>
+
+        <div class="sec-h">Present</div>
+        <div class="card"><div class="who">// thought</div><div class="txt">She counts the exits again. Muscle memory. The neon hums like it knows.</div></div>
+
+        <div class="sec-h">Bonds</div>
+        <div class="card c2"><div class="row"><span class="who">KAI</span><span class="pill p-pos">TRUST +2</span></div>
+          <div class="bar"><i class="i-pos" style="width:72%"></i></div></div>
+
+        <div class="sec-h">Cast</div>
+        <div class="card"><div class="cast-row"><div class="cast-av">JX</div>
+          <div><div class="who">JINX</div><div class="txt">Fixer · owes you one</div></div></div></div>
+
+        <div class="sec-h">Beats</div>
+        <div class="card c2"><div class="txt">Deal goes sideways at the pier.</div>
+          <div class="chips"><span class="chip">STAKES ↑</span><span class="chip">CLOCK 2/4</span></div></div>
+
+        <div class="sec-h">Factions</div>
+        <div class="card"><div class="row"><span class="who">NEON SYNDICATE</span><span class="pill p-neg">HOSTILE</span></div></div>
+
+        <div class="sec-h">Items</div>
+        <div class="card c2"><div class="chips"><span class="chip">plasma coin</span><span class="chip">keycard</span><span class="chip">burner</span></div></div>
+      </div>
+    </div>
+
+    <!-- ============ RIOT ============ -->
+    <div class="win riot">
+      <div class="win-bar"><span class="mark">RIOT</span><span class="tag">// zine #4</span></div>
+      <div class="blurb">Cut-and-paste chaos — acid yellow &amp; violet, halftone dots, taped-corner cards, off-grid tilt.</div>
+      <div class="win-body">
+        <div class="statbar">
+          <div class="stat"><b>07</b><span>Turn</span></div>
+          <div class="stat"><b>II</b><span>Arc</span></div>
+          <div class="stat"><b>3</b><span>Threads</span></div>
+        </div>
+
+        <div class="sec-wrap"><span class="sec-h">Present</span></div>
+        <div class="card"><div class="who">thought</div><div class="txt">Everything is on fire and nobody in charge. Good.</div></div>
+
+        <div class="sec-wrap"><span class="sec-h">Bonds</span></div>
+        <div class="card tape-r"><div class="row"><span class="who">Mara</span><span class="pill p-warn">SHIFTING</span></div>
+          <div class="bar"><i class="i-warn" style="width:55%"></i></div></div>
+
+        <div class="sec-wrap"><span class="sec-h">Cast</span></div>
+        <div class="card"><div class="cast-row"><div class="cast-av">DZ</div>
+          <div><div class="who">DOZER</div><div class="txt">Muscle · true believer</div></div></div></div>
+
+        <div class="sec-wrap"><span class="sec-h">Beats</span></div>
+        <div class="card tape-r"><div class="txt">The broadcast cuts out mid-speech.</div>
+          <div class="chips"><span class="chip">RISING</span><span class="chip">2/3</span></div></div>
+
+        <div class="sec-wrap"><span class="sec-h">Factions</span></div>
+        <div class="card"><div class="row"><span class="who">THE COMMITTEE</span><span class="pill p-neg">ENEMY</span></div></div>
+
+        <div class="sec-wrap"><span class="sec-h">Items</span></div>
+        <div class="card tape-r"><div class="chips"><span class="chip">spray can</span><span class="chip">flyer stack</span><span class="chip">bolt cutters</span></div></div>
+      </div>
+    </div>
+
+    <!-- ============ CARNIVAL ============ -->
+    <div class="win carnival">
+      <div class="win-bar"><span class="mark">CARNIVAL</span><span class="tag">step right up</span></div>
+      <div class="blurb">Big-top boardwalk — candy orange &amp; hot pink, marquee lights, scalloped tent cards, bouncy rounded type.</div>
+      <div class="win-body">
+        <div class="statbar">
+          <div class="stat"><b>07</b><span>Turn</span></div>
+          <div class="stat"><b>II</b><span>Arc</span></div>
+          <div class="stat"><b>3</b><span>Threads</span></div>
+        </div>
+
+        <div class="sec-h">Present</div>
+        <div class="card"><div class="who">a thought</div><div class="txt">The lights spin faster. Somewhere a barker calls her name.</div></div>
+
+        <div class="sec-h">Bonds</div>
+        <div class="card c2"><div class="row"><span class="who">Rosa</span><span class="pill p-pos">CLOSE +3</span></div>
+          <div class="bar"><i class="i-pos" style="width:84%"></i></div></div>
+
+        <div class="sec-h">Cast</div>
+        <div class="card"><div class="cast-row"><div class="cast-av">FL</div>
+          <div><div class="who">FELIX</div><div class="txt">Ringmaster · charming</div></div></div></div>
+
+        <div class="sec-h">Beats</div>
+        <div class="card c2"><div class="txt">The tent goes dark between acts.</div>
+          <div class="chips"><span class="chip">WONDER ↑</span><span class="chip">ACT 2/3</span></div></div>
+
+        <div class="sec-h">Factions</div>
+        <div class="card"><div class="row"><span class="who">THE TROUPE</span><span class="pill p-pos">ALLIED</span></div></div>
+
+        <div class="sec-h">Items</div>
+        <div class="card c2"><div class="chips"><span class="chip">golden ticket</span><span class="chip">mask</span><span class="chip">candied apple</span></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

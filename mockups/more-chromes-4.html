@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM — More Chrome Mockups IV: Four-Color · Kintsugi · Patina · Cyanotype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Anton&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Noto+Serif+JP:wght@500;700&family=Cinzel:wght@500;600&family=Special+Elite&family=Archivo:wght@500;700;800&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --gap: 18px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0a0a0c;
+    color: #e8e8ea;
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  .page-head { max-width: 1200px; margin: 0 auto 40px; }
+  .page-head h1 {
+    font-family: 'Anton', sans-serif;
+    font-size: 34px; letter-spacing: 1px; margin: 0 0 6px;
+    background: linear-gradient(90deg, #ec1c24, #d9a441, #6fae9a, #2f6fb0);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .page-head p { margin: 0; color: #8a8a92; font-size: 14px; max-width: 780px; }
+
+  .theme-block { max-width: 1200px; margin: 0 auto 56px; }
+  .theme-label {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    margin: 0 0 4px; padding-bottom: 10px; border-bottom: 1px solid #26262c;
+  }
+  .theme-label .name { font-family: 'Anton', sans-serif; font-size: 24px; letter-spacing: .5px; }
+  .theme-label .blurb { color: #8a8a92; font-size: 13px; font-style: italic; }
+  .theme-label .swatches { display: flex; gap: 6px; margin-left: auto; }
+  .theme-label .sw { width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); }
+  .theme-meta { color: #6a6a72; font-size: 11.5px; font-family: 'JetBrains Mono', monospace; margin: 12px 0 18px; }
+
+  .frame { border-radius: 14px; overflow: hidden; position: relative; }
+  .frame-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 12px; letter-spacing: 1px; position: relative; z-index: 2; }
+  .frame-bar .dot { width: 9px; height: 9px; border-radius: 50%; opacity: .6; }
+  .frame-body { padding: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); position: relative; z-index: 1; }
+  .card { position: relative; padding: 16px 16px 15px; overflow: hidden; }
+  .card h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .card .line { font-size: 13px; margin: 4px 0; }
+  .card .muted { opacity: .68; }
+  .tension { height: 7px; border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
+  .tension i { display: block; height: 100%; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; margin: 3px 4px 0 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .cast-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .val { font-family: 'JetBrains Mono', monospace; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+  /* ============================================================
+     THEME 1 — FOUR-COLOR (comic-book halftone / offset print pop)
+     ============================================================ */
+  .fourcolor {
+    --acc: #ec1c24; --acc2: #1a63c4;
+    --ink: #14141a; --ink2: #5a5a66;
+    --pos: #009e60; --neg: #ec1c24; --warn: #f9c22b; --info: #1a63c4;
+    --s1: #fffdf2; --s2: #fbf6e2;
+  }
+  .fourcolor .frame {
+    background:
+      /* ben-day dot screen over cream newsprint */
+      radial-gradient(circle at 1px 1px, rgba(26,99,196,.14) 1.4px, transparent 1.8px),
+      linear-gradient(160deg, #fffdf2, #f4ecd4);
+    background-size: 7px 7px, 100% 100%;
+    border: 4px solid #14141a; border-radius: 4px;
+    box-shadow: 8px 8px 0 #14141a;
+  }
+  .fourcolor .frame-bar {
+    background: #f9c22b; color: #14141a;
+    border-bottom: 4px solid #14141a;
+    font-family: 'Bangers', cursive; letter-spacing: 2px; font-size: 17px;
+  }
+  .fourcolor .frame-bar .dot { border-radius: 50%; opacity: 1; border: 2px solid #14141a; }
+  .fourcolor .frame-bar .dot:nth-of-type(1) { background: #ec1c24; }
+  .fourcolor .frame-bar .dot:nth-of-type(2) { background: #1a63c4; }
+  .fourcolor .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 3px solid #14141a; border-radius: 3px; color: var(--ink);
+    box-shadow: 5px 5px 0 #14141a;
+  }
+  /* halftone shading corner + inky knockout */
+  .fourcolor .card::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background: radial-gradient(circle at 1px 1px, rgba(236,28,36,.16) 1.2px, transparent 1.6px);
+    background-size: 6px 6px; opacity: .55;
+    animation: fc-halftone 5s steps(6) infinite;
+  }
+  @keyframes fc-halftone { 0% { background-position: 0 0; } 100% { background-position: 12px 6px; } }
+  .fourcolor .card h3 { font-family: 'Bangers', cursive; letter-spacing: 1.5px; font-size: 16px; color: var(--acc); text-transform: uppercase; -webkit-text-stroke: .4px #14141a; }
+  .fourcolor .card.present { border-color: #14141a; box-shadow: 5px 5px 0 #ec1c24; }
+  .fourcolor .card.present h3 { color: var(--acc2); }
+  /* POW-style burst pulse on the present card */
+  .fourcolor .card.present::after {
+    content: 'POW!'; position: absolute; top: -8px; right: -6px; z-index: 3;
+    font-family: 'Bangers', cursive; font-size: 12px; color: #fff; background: #ec1c24;
+    padding: 4px 8px; border: 2px solid #14141a; letter-spacing: 1px;
+    clip-path: polygon(0 20%, 15% 0, 35% 18%, 50% 0, 68% 16%, 85% 2%, 100% 22%, 88% 40%, 100% 60%, 84% 78%, 96% 100%, 66% 84%, 50% 100%, 34% 84%, 12% 98%, 4% 74%, 0 55%, 10% 38%);
+    animation: fc-burst 1.4s ease-in-out infinite;
+  }
+  @keyframes fc-burst { 0%,100% { transform: scale(1) rotate(-6deg); } 50% { transform: scale(1.12) rotate(-2deg); } }
+  .fourcolor .card .line { font-family: 'Archivo', sans-serif; }
+  .fourcolor .val, .fourcolor .line b { color: var(--acc2); font-family: 'Bangers', cursive; letter-spacing: 1px; font-weight: 400; }
+  .fourcolor .tension { background: #efe6c8; border-radius: 0; border: 2.5px solid #14141a; height: 11px; }
+  .fourcolor .tension i { background: repeating-linear-gradient(90deg, #ec1c24 0 6px, #f9c22b 6px 12px); }
+  .fourcolor .avatar { border-radius: 50%; background: #f9c22b; color: #14141a; border: 3px solid #14141a; font-family: 'Bangers', cursive; box-shadow: 2px 2px 0 #14141a; }
+  .fourcolor .chip { border-radius: 99px; background: #fff; border: 2.5px solid #14141a; color: #14141a; font-family: 'Archivo', sans-serif; font-weight: 700; }
+  .fourcolor .chip.pos { background: #009e60; color: #fff; }
+  .fourcolor .chip.neg { background: #ec1c24; color: #fff; }
+
+  /* ============================================================
+     THEME 2 — KINTSUGI (raku ceramic mended with gold)
+     ============================================================ */
+  .kintsugi {
+    --acc: #d9a441; --acc2: #7fa88f;
+    --ink: #e8e2d2; --ink2: #9a9384;
+    --pos: #7fa88f; --neg: #c06a52; --warn: #d9a441; --info: #6f8faa;
+    --s1: rgba(22,20,17,.94); --s2: rgba(14,13,11,.96);
+  }
+  .kintsugi .frame {
+    background:
+      radial-gradient(120% 80% at 30% -10%, rgba(217,164,65,.1), transparent 55%),
+      radial-gradient(80% 60% at 85% 108%, rgba(127,168,143,.08), transparent 60%),
+      linear-gradient(165deg, #1a1714, #100e0c);
+    border: 1px solid rgba(217,164,65,.34); border-radius: 10px;
+    box-shadow: 0 0 0 3px rgba(217,164,65,.1), 0 20px 50px rgba(0,0,0,.6);
+  }
+  /* faint craquelure glaze net + a gold seam travelling the frame */
+  .kintsugi .frame::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cg stroke='%23d9a441' stroke-opacity='0.14' stroke-width='0.6' fill='none'%3E%3Cpath d='M20 60 L70 90 L60 140 L120 160 L180 130'/%3E%3Cpath d='M40 200 L90 170 L140 200 L200 180'/%3E%3Cpath d='M160 30 L190 80 L230 70'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  .kintsugi .frame::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background: linear-gradient(115deg, transparent 46%, rgba(240,210,130,.16) 50%, transparent 54%);
+    background-size: 300% 100%; animation: kin-seam 9s ease-in-out infinite;
+  }
+  @keyframes kin-seam { 0% { background-position: 130% 0; } 100% { background-position: -40% 0; } }
+  .kintsugi .frame-bar {
+    background: linear-gradient(90deg, rgba(217,164,65,.26), transparent);
+    border-bottom: 1px solid rgba(217,164,65,.4); color: #e6dcc0;
+    font-family: 'Noto Serif JP', serif; font-weight: 700; letter-spacing: 3px; font-size: 14px;
+    text-shadow: 0 0 12px rgba(217,164,65,.4);
+  }
+  .kintsugi .frame-bar .dot { background: var(--acc); box-shadow: 0 0 6px rgba(217,164,65,.6); }
+  .kintsugi .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(217,164,65,.24); color: var(--ink);
+    border-radius: 14px 4px 12px 6px; /* asymmetric shard */
+    box-shadow: inset 0 0 26px rgba(0,0,0,.4);
+  }
+  /* the gold mend seam crossing each shard, shimmering */
+  .kintsugi .card::before {
+    content: ''; position: absolute; top: -2px; left: 30%; width: 2px; height: 130%; pointer-events: none;
+    background: linear-gradient(180deg, transparent, #f0d282 20%, #d9a441 50%, #f0d282 80%, transparent);
+    transform: rotate(18deg); transform-origin: top;
+    box-shadow: 0 0 6px rgba(217,164,65,.7);
+    animation: kin-shimmer 4s ease-in-out infinite;
+  }
+  @keyframes kin-shimmer { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+  .kintsugi .card.present { border-color: rgba(127,168,143,.4); border-radius: 6px 14px 4px 12px; }
+  .kintsugi .card h3 { font-family: 'Noto Serif JP', serif; font-weight: 700; letter-spacing: 1.5px; color: #dabf78; }
+  .kintsugi .card.present h3 { color: #9cc0aa; }
+  .kintsugi .card .line { font-family: 'Fraunces', serif; }
+  .kintsugi .val, .kintsugi .line b { color: var(--acc); font-family: 'Fraunces', serif; font-weight: 600; }
+  .kintsugi .tension { background: rgba(217,164,65,.12); border-radius: 99px; }
+  .kintsugi .tension i { background: linear-gradient(90deg, #8a6a2e, var(--acc), #f0d282); box-shadow: 0 0 8px rgba(217,164,65,.5); }
+  .kintsugi .avatar { border-radius: 55% 45% 50% 50% / 50% 55% 45% 50%; background: radial-gradient(circle at 38% 32%, #2a251d, #14120e); border: 1px solid var(--acc); color: #dabf78; font-family: 'Noto Serif JP', serif; box-shadow: 0 0 0 1px rgba(217,164,65,.3); }
+  .kintsugi .chip { background: rgba(217,164,65,.12); border: 1px solid rgba(217,164,65,.4); color: #dabf78; }
+  .kintsugi .chip.pos { background: rgba(127,168,143,.14); border-color: rgba(127,168,143,.5); color: #9cc0aa; }
+  .kintsugi .chip.neg { background: rgba(192,106,82,.14); border-color: rgba(192,106,82,.5); color: #d09080; }
+
+  /* ============================================================
+     THEME 3 — PATINA (oxidized copper / verdigris & rust)
+     ============================================================ */
+  .patina {
+    --acc: #3a9e8c; --acc2: #b5643a;
+    --ink: #e6ece4; --ink2: #8fa89c;
+    --pos: #6fae7a; --neg: #c05a3a; --warn: #d0a24a; --info: #4a8f9a;
+    --s1: rgba(22,34,32,.92); --s2: rgba(14,24,22,.95);
+  }
+  .patina .frame {
+    background:
+      /* verdigris bloom creeping across weathered bronze */
+      radial-gradient(45% 40% at 18% 22%, rgba(58,158,140,.28), transparent 70%),
+      radial-gradient(38% 34% at 84% 78%, rgba(58,158,140,.22), transparent 72%),
+      radial-gradient(30% 26% at 70% 14%, rgba(181,100,58,.2), transparent 72%),
+      linear-gradient(160deg, #26302a, #171f1b);
+    border: 2px solid #4a6058;
+    box-shadow: inset 0 0 60px rgba(0,0,0,.4), 0 0 0 4px rgba(58,158,140,.1), 0 20px 50px rgba(0,0,0,.55);
+  }
+  /* corrosion mottle that slowly spreads */
+  .patina .frame::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: .4; mix-blend-mode: screen;
+    background:
+      radial-gradient(20% 18% at 40% 50%, rgba(58,158,140,.4), transparent 70%),
+      radial-gradient(16% 14% at 62% 34%, rgba(90,180,150,.3), transparent 72%),
+      radial-gradient(18% 16% at 30% 74%, rgba(181,100,58,.3), transparent 72%);
+    animation: pat-oxidize 14s ease-in-out infinite;
+  }
+  @keyframes pat-oxidize { 0%,100% { transform: scale(1); opacity: .35; } 50% { transform: scale(1.15); opacity: .6; } }
+  .patina .frame-bar {
+    background: linear-gradient(90deg, rgba(58,158,140,.3), rgba(181,100,58,.16), transparent);
+    border-bottom: 2px solid #4a6058; color: #d4e2d6;
+    font-family: 'Cinzel', serif; letter-spacing: 2px; text-transform: uppercase; font-size: 13px;
+    text-shadow: 0 1px 2px rgba(0,0,0,.5);
+  }
+  .patina .frame-bar .dot { background: var(--acc); box-shadow: inset 0 0 0 1px rgba(0,0,0,.3); }
+  .patina .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1.5px solid #3e544c; border-radius: 5px; color: var(--ink);
+    box-shadow: inset 0 0 0 1px rgba(58,158,140,.12), inset 0 0 24px rgba(0,0,0,.4);
+  }
+  /* riveted plate corners */
+  .patina .card::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background:
+      radial-gradient(circle at 8px 8px, rgba(180,190,180,.4) 0 2px, transparent 2.5px),
+      radial-gradient(circle at calc(100% - 8px) 8px, rgba(180,190,180,.4) 0 2px, transparent 2.5px),
+      radial-gradient(circle at 8px calc(100% - 8px), rgba(180,190,180,.4) 0 2px, transparent 2.5px),
+      radial-gradient(circle at calc(100% - 8px) calc(100% - 8px), rgba(180,190,180,.4) 0 2px, transparent 2.5px);
+    background-repeat: no-repeat;
+  }
+  /* verdigris creeps in on the present card */
+  .patina .card.present { border-color: rgba(58,158,140,.5); }
+  .patina .card.present::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40%; pointer-events: none; border-radius: 0 0 5px 5px;
+    background: radial-gradient(60% 100% at 20% 100%, rgba(58,158,140,.24), transparent 70%), radial-gradient(50% 100% at 80% 100%, rgba(58,158,140,.18), transparent 72%);
+    animation: pat-creep 8s ease-in-out infinite;
+  }
+  @keyframes pat-creep { 0%,100% { opacity: .5; transform: translateY(2px); } 50% { opacity: .9; transform: translateY(0); } }
+  .patina .card h3 { font-family: 'Cinzel', serif; letter-spacing: 1px; color: #6fc4b0; }
+  .patina .card.present h3 { color: #8fd0be; }
+  .patina .card .line { font-family: 'Fraunces', serif; }
+  .patina .val, .patina .line b { color: var(--acc2); font-family: 'Cinzel', serif; font-weight: 600; }
+  .patina .tension { background: rgba(0,0,0,.35); border-radius: 2px; border: 1px solid #3e544c; }
+  .patina .tension i { background: linear-gradient(90deg, #b5643a, #3a9e8c); box-shadow: inset 0 1px 0 rgba(255,255,255,.15); }
+  .patina .avatar { border-radius: 5px; background: radial-gradient(circle at 38% 32%, #2a4038, #16241f); border: 2px solid #4a6058; color: #6fc4b0; font-family: 'Cinzel', serif; box-shadow: inset 0 0 8px rgba(58,158,140,.2); }
+  .patina .chip { border-radius: 3px; background: rgba(58,158,140,.12); border: 1px solid #3e544c; color: #6fc4b0; }
+  .patina .chip.pos { background: rgba(111,174,122,.14); border-color: rgba(111,174,122,.5); color: #8fc49a; }
+  .patina .chip.neg { background: rgba(192,90,58,.16); border-color: rgba(181,100,58,.6); color: #d08a68; }
+
+  /* ============================================================
+     THEME 4 — CYANOTYPE (blueprint / sun-print drafting)
+     ============================================================ */
+  .cyanotype {
+    --acc: #eaf2ff; --acc2: #9fc4e8;
+    --ink: #dbe8fa; --ink2: #7fa0c4;
+    --pos: #8fd0c0; --neg: #f0a0a0; --warn: #e8d08a; --info: #a8cdf0;
+    --s1: rgba(18,52,98,.62); --s2: rgba(12,40,80,.7);
+  }
+  .cyanotype .frame {
+    background:
+      /* drafting grid on process-blue */
+      linear-gradient(rgba(220,235,255,.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(220,235,255,.09) 1px, transparent 1px),
+      radial-gradient(120% 90% at 30% 0%, #1f4d8a, transparent 60%),
+      linear-gradient(160deg, #14417e, #0a2c5e);
+    background-size: 22px 22px, 22px 22px, 100% 100%, 100% 100%;
+    border: 1px solid rgba(220,235,255,.3);
+    box-shadow: inset 0 0 80px rgba(4,20,48,.5), 0 20px 50px rgba(4,20,48,.6);
+  }
+  /* sun-print vignette + a slow exposure wash */
+  .cyanotype .frame::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(120% 100% at 50% 40%, transparent 55%, rgba(4,20,48,.55) 100%);
+    animation: cyan-expose 10s ease-in-out infinite;
+  }
+  @keyframes cyan-expose { 0%,100% { opacity: .6; } 50% { opacity: .95; } }
+  .cyanotype .frame-bar {
+    background: linear-gradient(90deg, rgba(220,235,255,.18), transparent);
+    border-bottom: 1px solid rgba(220,235,255,.3); color: #eaf2ff;
+    font-family: 'Special Elite', monospace; letter-spacing: 2px; font-size: 12px;
+  }
+  .cyanotype .frame-bar .dot { background: #eaf2ff; opacity: .8; }
+  .cyanotype .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(220,235,255,.34); border-radius: 2px; color: var(--ink);
+    box-shadow: inset 0 0 0 1px rgba(220,235,255,.08);
+  }
+  /* white dimension-line brackets on the corners */
+  .cyanotype .card::before {
+    content: ''; position: absolute; inset: 5px; pointer-events: none;
+    background:
+      linear-gradient(#eaf2ff,#eaf2ff) 0 0/10px 1px no-repeat,
+      linear-gradient(#eaf2ff,#eaf2ff) 0 0/1px 10px no-repeat,
+      linear-gradient(#eaf2ff,#eaf2ff) 100% 100%/10px 1px no-repeat,
+      linear-gradient(#eaf2ff,#eaf2ff) 100% 100%/1px 10px no-repeat;
+    opacity: .5;
+  }
+  /* a drafting cursor sweeping the present card */
+  .cyanotype .card.present { border-color: rgba(220,235,255,.6); }
+  .cyanotype .card.present::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 1px; pointer-events: none;
+    background: rgba(234,242,255,.8); box-shadow: 0 0 8px rgba(234,242,255,.6);
+    animation: cyan-cursor 4s linear infinite;
+  }
+  @keyframes cyan-cursor { 0% { left: 4%; opacity: 0; } 15% { opacity: .9; } 85% { opacity: .9; } 100% { left: 96%; opacity: 0; } }
+  .cyanotype .card h3 { font-family: 'Special Elite', monospace; letter-spacing: 1px; color: #eaf2ff; }
+  .cyanotype .card.present h3 { color: #fff; }
+  .cyanotype .card .line { font-family: 'Special Elite', monospace; font-size: 12.5px; }
+  .cyanotype .val, .cyanotype .line b { color: #fff; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+  .cyanotype .tension { background: rgba(4,20,48,.5); border-radius: 0; border: 1px solid rgba(220,235,255,.3); }
+  .cyanotype .tension i { background: repeating-linear-gradient(90deg, rgba(234,242,255,.9) 0 2px, transparent 2px 5px); }
+  .cyanotype .avatar { border-radius: 2px; background: rgba(8,32,66,.8); border: 1px solid rgba(220,235,255,.5); color: #eaf2ff; font-family: 'Special Elite', monospace; box-shadow: inset 0 0 0 1px rgba(220,235,255,.15); }
+  .cyanotype .chip { border-radius: 2px; background: rgba(220,235,255,.08); border: 1px dashed rgba(220,235,255,.5); color: #dbe8fa; font-family: 'Special Elite', monospace; }
+  .cyanotype .chip.pos { background: rgba(143,208,192,.12); border-color: rgba(143,208,192,.6); color: #a8e0d2; }
+  .cyanotype .chip.neg { background: rgba(240,160,160,.12); border-color: rgba(240,160,160,.6); color: #f0b0b0; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>VELLUM · More Chrome Mockups IV</h1>
+  <p>Four more chrome concepts in registers the set hasn't touched, each a floating window with the six customizable surfaces (Present, Bonds, Cast, Beats, Factions, Items): <b>Four-Color</b> (comic-book halftone pop), <b>Kintsugi</b> (raku ceramic mended in gold), <b>Patina</b> (oxidized copper &amp; verdigris), and <b>Cyanotype</b> (blueprint sun-print). Built to slot into the existing Chrome + Skin + CHROME_SHAPES architecture; fonts load from Google Fonts on demand. Animated — respects prefers-reduced-motion.</p>
+</div>
+
+<!-- ========================= FOUR-COLOR ========================= -->
+<div class="theme-block">
+  <div class="theme-label fourcolor">
+    <span class="name" style="color:#ec1c24">Four-Color</span>
+    <span class="blurb">Straight off the newsstand — CMYK dots, ink outlines &amp; starburst captions, panel by panel.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#ec1c24"></span>
+      <span class="sw" style="background:#1a63c4"></span>
+      <span class="sw" style="background:#f9c22b"></span>
+      <span class="sw" style="background:#14141a"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'fourcolor' · skinLight:'fourcolor-newsstand' / skinDark:'fourcolor-midnight' · new ShapeId:'panel' / 'action-burst' · texture:'benday' · serif:F_COMIC (Bangers) · radius:3 border:3 · motion: halftone drift + POW burst</div>
+  <div class="fourcolor">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE &#9733; ISSUE #12</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">She kicks the door clean off its hinges — and the whole panel goes yellow with the noise.</div>
+          <div class="line muted">Scene: the rooftop, storm rolling in</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">JX</span><div><div class="line">Jax <b class="val">+70</b></div><div class="tension"><i style="width:70%"></i></div></div></div>
+          <span class="chip pos">Sidekick</span><span class="chip neg">Nemesis</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">VI</span><span class="line">Vex <span class="muted val">Rogue</span></span></div>
+          <div class="cast-row"><span class="avatar">DR</span><span class="line">Dr. Cog <span class="muted val">Genius</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Foil the heist <b class="val">DONE</b></div>
+          <div class="line">2. Chase to the docks</div>
+          <div class="line muted">3. The rooftop showdown</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Syndicate <b class="val">80%</b></div>
+          <div class="tension"><i style="width:80%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Grapple x3</span><span class="chip pos">Power cell</span><span class="chip neg">Cracked mask</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= KINTSUGI ========================= -->
+<div class="theme-block">
+  <div class="theme-label kintsugi">
+    <span class="name" style="color:#d9a441">Kintsugi</span>
+    <span class="blurb">Broken and mended in gold — raku glaze, celadon &amp; molten seams, every crack a repair.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#d9a441"></span>
+      <span class="sw" style="background:#7fa88f"></span>
+      <span class="sw" style="background:#c06a52"></span>
+      <span class="sw" style="background:#14120e"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'kintsugi' · skinDark:'kintsugi-raku' / skinLight:'kintsugi-shino' · new ShapeId:'shard' / 'seam' · texture:'crackle' · serif:F_RAKU (Noto Serif JP / Fraunces) · radius:asym border:1 · motion: gold-seam shimmer + glaze sheen</div>
+  <div class="kintsugi">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> &#37329;&#32154; The Oracle</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">The bowl she thought ruined comes back gold-veined — more itself than before it broke.</div>
+          <div class="line muted">Scene: the pottery, kiln cooling, dusk</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">HA</span><div><div class="line">Haru <b class="val">+61</b></div><div class="tension"><i style="width:61%"></i></div></div></div>
+          <span class="chip pos">Mended</span><span class="chip neg">Fractured</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">RE</span><span class="line">Ren <span class="muted val">Master</span></span></div>
+          <div class="cast-row"><span class="avatar">MI</span><span class="line">Mei <span class="muted val">Apprentice</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Gather the shards <b class="val">DONE</b></div>
+          <div class="line">2. Lay the gold lacquer</div>
+          <div class="line muted">3. The unveiling</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Kiln House <b class="val">77%</b></div>
+          <div class="tension"><i style="width:77%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Gold lacquer x4</span><span class="chip pos">Celadon glaze</span><span class="chip neg">Shattered lid</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= PATINA ========================= -->
+<div class="theme-block">
+  <div class="theme-label patina">
+    <span class="name" style="color:#3a9e8c">Patina</span>
+    <span class="blurb">Oxidized bronze — verdigris &amp; rust bloom, riveted plates, weathered metal creeping green.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#3a9e8c"></span>
+      <span class="sw" style="background:#b5643a"></span>
+      <span class="sw" style="background:#d0a24a"></span>
+      <span class="sw" style="background:#171f1b"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'patina' · skinDark:'patina-bronze' / skinLight:'patina-oxide' · new ShapeId:'rivet-plate' / 'verdigris' · texture:'corrosion' · serif:F_FORGE (Cinzel) · radius:5 border:2 · motion: oxidize spread + verdigris creep</div>
+  <div class="patina">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE &#9881; THE FOUNDRY</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">Green creeps across the old statue's shoulders; the city has forgotten whose it was.</div>
+          <div class="line muted">Scene: the drowned plaza, low tide</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">GR</span><div><div class="line">Greaves <b class="val">+55</b></div><div class="tension"><i style="width:55%"></i></div></div></div>
+          <span class="chip pos">Ally</span><span class="chip neg">Corroded</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">CU</span><span class="line">Cuprit <span class="muted val">Founder</span></span></div>
+          <div class="cast-row"><span class="avatar">FE</span><span class="line">Ferra <span class="muted val">Smith</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Cast the bell <b class="val">DONE</b></div>
+          <div class="line">2. Raise the monument</div>
+          <div class="line muted">3. Let it weather</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Bronzewrights <b class="val">72%</b></div>
+          <div class="tension"><i style="width:72%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Copper ingot x9</span><span class="chip pos">Wax seal</span><span class="chip neg">Rusted hinge</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= CYANOTYPE ========================= -->
+<div class="theme-block">
+  <div class="theme-label cyanotype">
+    <span class="name" style="color:#9fc4e8">Cyanotype</span>
+    <span class="blurb">Blueprint sun-print — white dimension-lines &amp; hatching on process-blue, drafting cursor.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#0a2c5e"></span>
+      <span class="sw" style="background:#eaf2ff"></span>
+      <span class="sw" style="background:#9fc4e8"></span>
+      <span class="sw" style="background:#14417e"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'cyanotype' · skinDark:'cyanotype-blueprint' / skinLight:'cyanotype-vellum' · new ShapeId:'dimension' / 'hatch-box' · texture:'draftgrid' · serif:F_DRAFT (Special Elite) · radius:2 border:1 · motion: exposure wash + drafting cursor</div>
+  <div class="cyanotype">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE / SHEET 04</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">Every joint is dimensioned twice; the plan leaves nothing to chance but the weather.</div>
+          <div class="line muted">Scene: the drafting hall, north light</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">EL</span><div><div class="line">Ellis <b class="val">+58</b></div><div class="tension"><i style="width:58%"></i></div></div></div>
+          <span class="chip pos">Partner</span><span class="chip neg">Undercut</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">MA</span><span class="line">Mara <span class="muted val">Engineer</span></span></div>
+          <div class="cast-row"><span class="avatar">TO</span><span class="line">Tomás <span class="muted val">Surveyor</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Draw the elevation <b class="val">DONE</b></div>
+          <div class="line">2. Stress the trusses</div>
+          <div class="line muted">3. Break ground</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Drafting Board <b class="val">75%</b></div>
+          <div class="tension"><i style="width:75%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Compass set</span><span class="chip pos">Clean print</span><span class="chip neg">Torn blueprint</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

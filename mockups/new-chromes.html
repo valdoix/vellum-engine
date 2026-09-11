@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM — New Chrome Mockups: Arcade · Riot · Carnival · Grimoire · Prism · Bestiary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Oswald:wght@500;700&family=Anton&family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;700&family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=MedievalSharp&family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gap: 18px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0a0a0c;
+    color: #e8e8ea;
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  .page-head {
+    max-width: 1200px; margin: 0 auto 40px;
+  }
+  .page-head h1 {
+    font-family: 'Anton', sans-serif;
+    font-size: 34px; letter-spacing: 1px; margin: 0 0 6px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #ff2ea6, #2ef0ff, #e8ff2e, #ff7a1a);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .page-head p { margin: 0; color: #8a8a92; font-size: 14px; max-width: 720px; }
+
+  .theme-block { max-width: 1200px; margin: 0 auto 56px; }
+  .theme-label {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    margin: 0 0 4px; padding-bottom: 10px;
+    border-bottom: 1px solid #26262c;
+  }
+  .theme-label .name { font-family: 'Anton', sans-serif; font-size: 24px; letter-spacing: .5px; text-transform: uppercase; }
+  .theme-label .blurb { color: #8a8a92; font-size: 13px; font-style: italic; }
+  .theme-label .swatches { display: flex; gap: 6px; margin-left: auto; }
+  .theme-label .sw { width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); }
+  .theme-meta { color: #6a6a72; font-size: 11.5px; font-family: 'JetBrains Mono', monospace; margin: 12px 0 18px; }
+
+  /* frame simulates the floating window each chrome renders inside */
+  .frame {
+    border-radius: 14px; overflow: hidden;
+    position: relative;
+  }
+  .frame-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; font-size: 12px; letter-spacing: 1px;
+  }
+  .frame-bar .dot { width: 9px; height: 9px; border-radius: 50%; opacity: .6; }
+  .frame-body {
+    padding: 20px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap);
+  }
+  .card { position: relative; padding: 16px 16px 15px; overflow: hidden; }
+  .card h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .card .line { font-size: 13px; margin: 4px 0; }
+  .card .muted { opacity: .68; }
+  .tension { height: 7px; border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
+  .tension i { display: block; height: 100%; }
+  .chip { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; margin: 3px 4px 0 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .cast-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .val { font-family: 'JetBrains Mono', monospace; }
+  .full { grid-column: 1 / -1; }
+
+  /* ============================================================
+     THEME 1 — ARCADE (80s CRT / vaporwave arcade cabinet)
+     ============================================================ */
+  .arcade {
+    --acc: #ff2ea6; --acc2: #2ef0ff;
+    --ink: #f4eaff; --ink2: #b79fd0;
+    --pos: #2bff88; --neg: #ff2e5e; --warn: #ffe23a; --info: #2ef0ff;
+    --s1: #17101f; --s2: #0e0916;
+  }
+  .arcade .frame {
+    background:
+      repeating-linear-gradient(0deg, rgba(255,46,166,.05) 0 2px, transparent 2px 4px),
+      linear-gradient(160deg, #170f22, #0a0710);
+    border: 2px solid var(--acc);
+    box-shadow: 0 0 0 1px rgba(46,240,255,.4), 0 0 34px rgba(255,46,166,.35), 0 0 64px rgba(46,240,255,.18);
+  }
+  .arcade .frame-bar {
+    background: linear-gradient(90deg, rgba(255,46,166,.22), rgba(46,240,255,.14), transparent);
+    border-bottom: 2px solid var(--acc);
+    color: var(--acc2);
+    font-family: 'Press Start 2P', monospace; font-size: 9px;
+    text-shadow: 0 0 8px rgba(46,240,255,.7);
+  }
+  .arcade .frame-bar .dot { background: var(--acc); box-shadow: 0 0 8px var(--acc); }
+  .arcade .card {
+    background: linear-gradient(180deg, var(--s1), var(--s2));
+    border: 2px solid var(--acc2);
+    border-radius: 3px;
+    box-shadow: 4px 4px 0 rgba(255,46,166,.55), inset 0 0 18px rgba(46,240,255,.08);
+    color: var(--ink);
+  }
+  .arcade .card h3 {
+    font-family: 'Press Start 2P', monospace; font-size: 9px; line-height: 1.6;
+    color: var(--acc2); text-shadow: 0 0 8px rgba(46,240,255,.8);
+  }
+  .arcade .card.present { border-color: var(--acc); box-shadow: 4px 4px 0 rgba(46,240,255,.55), inset 0 0 18px rgba(255,46,166,.1); }
+  .arcade .card.present h3 { color: var(--acc); text-shadow: 0 0 8px rgba(255,46,166,.8); }
+  .arcade .val, .arcade .frame-body .line b { color: var(--acc2); }
+  .arcade .tension { background: rgba(46,240,255,.12); border-radius: 0; }
+  .arcade .tension i { background: linear-gradient(90deg, var(--acc), var(--acc2)); box-shadow: 0 0 10px var(--acc); }
+  .arcade .avatar { border-radius: 3px; background: #0a0710; border: 2px solid var(--acc); color: var(--acc2); font-family: 'Press Start 2P', monospace; font-size: 10px; box-shadow: 0 0 10px rgba(255,46,166,.5); }
+  .arcade .chip { border-radius: 2px; background: rgba(46,240,255,.12); border: 1px solid var(--acc2); color: var(--acc2); }
+  .arcade .chip.neg { background: rgba(255,46,94,.14); border-color: var(--neg); color: var(--neg); }
+  .arcade .chip.pos { background: rgba(43,255,136,.12); border-color: var(--pos); color: var(--pos); }
+
+  /* ============================================================
+     THEME 2 — RIOT (DIY punk zine collage)
+     ============================================================ */
+  .riot {
+    --acc: #e8ff2e; --acc2: #c400ff;
+    --ink: #101014; --ink2: #4a4a52;
+    --pos: #00c853; --neg: #ff1744; --warn: #ff9100; --info: #2979ff;
+    --paper: #ececdf;
+  }
+  .riot .frame {
+    background:
+      radial-gradient(circle at 1px 1px, rgba(0,0,0,.14) 1px, transparent 1.4px) 0 0 / 7px 7px,
+      var(--paper);
+    border: 3px solid #101014;
+    box-shadow: 8px 8px 0 #c400ff, 16px 16px 0 rgba(232,255,46,.9);
+  }
+  .riot .frame-bar {
+    background: #101014; color: var(--acc);
+    border-bottom: 3px solid var(--acc2);
+    font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; font-size: 13px;
+  }
+  .riot .frame-bar .dot { background: var(--acc); }
+  .riot .card {
+    background: #fff;
+    border: 3px solid #101014;
+    color: var(--ink);
+    box-shadow: 4px 4px 0 #101014;
+  }
+  .riot .card::before {
+    content: ''; position: absolute; top: -8px; left: 22px; width: 56px; height: 22px;
+    background: rgba(232,255,46,.85); border: 1px solid rgba(0,0,0,.35);
+    transform: rotate(-6deg); box-shadow: 0 1px 2px rgba(0,0,0,.25);
+  }
+  .riot .card:nth-child(even)::before { left: auto; right: 20px; background: rgba(196,0,255,.28); transform: rotate(5deg); }
+  .riot .card h3 {
+    font-family: 'Anton', sans-serif; font-size: 17px; letter-spacing: .5px;
+    background: #101014; color: var(--acc); display: inline-block; padding: 2px 8px; transform: rotate(-1.5deg);
+  }
+  .riot .card.present h3 { background: var(--acc2); color: #fff; }
+  .riot .card .val { font-family: 'Oswald', sans-serif; font-weight: 700; }
+  .riot .tension { background: repeating-linear-gradient(45deg, #ddd 0 4px, #ccc 4px 8px); border-radius: 0; border: 1.5px solid #101014; height: 10px; }
+  .riot .tension i { background: repeating-linear-gradient(45deg, var(--acc2) 0 5px, #101014 5px 10px); }
+  .riot .avatar { border-radius: 0; background: var(--acc); border: 2.5px solid #101014; color: #101014; transform: rotate(-3deg); font-family: 'Anton', sans-serif; }
+  .riot .chip { border-radius: 0; background: var(--acc); border: 2px solid #101014; color: #101014; transform: rotate(-1deg); font-family: 'Oswald', sans-serif; text-transform: uppercase; }
+  .riot .chip.neg { background: var(--neg); color: #fff; }
+  .riot .chip.pos { background: var(--pos); color: #fff; }
+  .riot .muted { opacity: 1; color: #55555c; }
+
+  /* ============================================================
+     THEME 3 — CARNIVAL (maximalist circus / boardwalk)
+     ============================================================ */
+  .carnival {
+    --acc: #ff7a1a; --acc2: #ff2e8f;
+    --ink: #2a1436; --ink2: #7a5a86;
+    --pos: #16c79a; --neg: #ff3b5c; --warn: #a24cff; --info: #2ec5ff;
+    --cream: #fff6ee;
+  }
+  .carnival .frame {
+    background:
+      radial-gradient(60% 45% at 50% 0%, rgba(255,46,143,.16), transparent 70%),
+      linear-gradient(170deg, #fff6ee, #ffe9d6);
+    border: 3px solid var(--acc2);
+    border-radius: 22px;
+    box-shadow: 0 0 0 6px rgba(255,122,26,.18), 0 14px 44px rgba(255,46,143,.3);
+  }
+  .carnival .frame-bar {
+    background:
+      radial-gradient(circle at 14px 50%, #ffe23a 0 5px, transparent 6px) repeat-x,
+      linear-gradient(90deg, var(--acc), var(--acc2));
+    background-size: 28px 100%, 100% 100%;
+    color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.25);
+    border-bottom: 0;
+    font-family: 'Fredoka', sans-serif; font-weight: 700; letter-spacing: 1px; font-size: 15px;
+    border-radius: 22px 22px 0 0;
+  }
+  .carnival .frame-bar .dot { background: #fff; box-shadow: 0 0 8px #ffe23a; }
+  .carnival .card {
+    background: var(--cream);
+    border: 2.5px solid var(--acc);
+    border-radius: 18px;
+    color: var(--ink);
+    box-shadow: 0 6px 0 rgba(255,122,26,.35), 0 8px 20px rgba(255,46,143,.15);
+  }
+  .carnival .card::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 12px;
+    background: radial-gradient(circle at 8px -2px, var(--acc2) 0 7px, transparent 8px) repeat-x;
+    background-size: 16px 12px; opacity: .5;
+  }
+  .carnival .card h3 { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; color: var(--acc2); letter-spacing: .3px; text-transform: none; }
+  .carnival .card.present { border-color: var(--acc2); }
+  .carnival .card.present h3 { color: var(--acc); }
+  .carnival .val { font-family: 'Baloo 2', monospace; font-weight: 700; color: var(--acc); }
+  .carnival .tension { background: rgba(255,122,26,.16); height: 9px; }
+  .carnival .tension i { background: repeating-linear-gradient(90deg, var(--acc) 0 8px, var(--acc2) 8px 16px); }
+  .carnival .avatar { background: linear-gradient(135deg, var(--acc), var(--acc2)); color: #fff; font-family: 'Baloo 2', sans-serif; box-shadow: 0 3px 8px rgba(255,46,143,.4); }
+  .carnival .chip { background: #fff; border: 2px solid var(--acc); color: var(--acc); font-family: 'Fredoka', sans-serif; }
+  .carnival .chip.pos { border-color: var(--pos); color: var(--pos); }
+  .carnival .chip.neg { border-color: var(--neg); color: var(--neg); }
+  .carnival .muted { color: var(--ink2); opacity: 1; }
+
+  /* ============================================================
+     THEME 4 — GRIMOIRE (the living spellbook)
+     ============================================================ */
+  .grimoire {
+    --acc: #a24cff; --acc2: #2fd48f;
+    --ink: #ece2ff; --ink2: #a98fd0;
+    --pos: #2fd48f; --neg: #ff5c6a; --warn: #ffcf5a; --info: #6ab8ff;
+    --s1: rgba(38,26,58,.72); --s2: rgba(24,16,40,.72);
+  }
+  .grimoire .frame {
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(162,76,255,.18), transparent 60%),
+      radial-gradient(80% 60% at 90% 110%, rgba(47,212,143,.12), transparent 60%),
+      linear-gradient(165deg, #1a1230, #0d0819);
+    border: 1px solid rgba(162,76,255,.5);
+    border-radius: 18px;
+    box-shadow: 0 0 0 1px rgba(47,212,143,.15), 0 0 40px rgba(162,76,255,.28), 0 20px 60px rgba(8,4,20,.7);
+  }
+  .grimoire .frame-bar {
+    background: linear-gradient(90deg, rgba(162,76,255,.24), rgba(47,212,143,.1), transparent);
+    border-bottom: 1px solid rgba(162,76,255,.4);
+    color: #e7d6ff;
+    font-family: 'Cinzel Decorative', serif; font-weight: 700; letter-spacing: 2px; font-size: 13px;
+    text-shadow: 0 0 12px rgba(162,76,255,.6);
+  }
+  .grimoire .frame-bar .dot { background: var(--acc2); box-shadow: 0 0 8px var(--acc2); }
+  .grimoire .card {
+    background: linear-gradient(168deg, var(--s1), var(--s2));
+    border: 1px solid rgba(162,76,255,.3);
+    border-radius: 12px;
+    color: var(--ink);
+    box-shadow: inset 0 0 24px rgba(162,76,255,.1), 0 6px 20px rgba(8,4,20,.5);
+    backdrop-filter: blur(4px);
+  }
+  .grimoire .card h3 {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; letter-spacing: 1.5px;
+    color: #d9b6ff; text-shadow: 0 0 10px rgba(162,76,255,.5);
+  }
+  /* illuminated drop-cap on the present card */
+  .grimoire .card.present { border-color: rgba(47,212,143,.4); }
+  .grimoire .card.present .line:first-of-type::first-letter {
+    font-family: 'Cinzel Decorative', serif; font-weight: 900; font-size: 40px; line-height: .8;
+    float: left; margin: 4px 8px 0 0; padding: 4px 8px;
+    color: #ffcf5a;
+    background: radial-gradient(circle, rgba(162,76,255,.25), transparent 70%);
+    text-shadow: 0 0 14px rgba(255,207,90,.7);
+  }
+  .grimoire .val, .grimoire .line b { color: var(--acc2); text-shadow: 0 0 8px rgba(47,212,143,.5); }
+  .grimoire .tension { background: rgba(162,76,255,.16); }
+  .grimoire .tension i { background: linear-gradient(90deg, var(--acc), var(--acc2)); box-shadow: 0 0 12px rgba(162,76,255,.6); }
+  .grimoire .avatar {
+    border-radius: 50%; background: radial-gradient(circle at 30% 30%, #2a1a44, #120a24);
+    border: 1px solid var(--acc); color: #ffcf5a; font-family: 'Cinzel', serif;
+    box-shadow: 0 0 14px rgba(162,76,255,.5), inset 0 0 8px rgba(47,212,143,.2);
+  }
+  .grimoire .chip { border-radius: 99px; background: rgba(162,76,255,.14); border: 1px solid var(--acc); color: #d9b6ff; }
+  .grimoire .chip.pos { background: rgba(47,212,143,.14); border-color: var(--acc2); color: var(--acc2); }
+  .grimoire .chip.neg { background: rgba(255,92,106,.14); border-color: var(--neg); color: var(--neg); }
+  .grimoire .muted { color: var(--ink2); opacity: 1; }
+
+  /* ============================================================
+     THEME 5 — PRISM (high-fantasy crystal / gemstone)
+     ============================================================ */
+  .prism {
+    --acc: #ff4ecb; --acc2: #4ee0ff;
+    --ink: #eef2ff; --ink2: #9fb0d0;
+    --pos: #3ff0a0; --neg: #ff4d6d; --warn: #b478ff; --info: #4ea8ff;
+    --s1: rgba(28,32,54,.66); --s2: rgba(18,20,38,.72);
+  }
+  .prism .frame {
+    background:
+      conic-gradient(from 200deg at 30% 0%, rgba(78,224,255,.16), rgba(255,78,203,.14), rgba(180,120,255,.14), rgba(63,240,160,.12), rgba(78,224,255,.16)),
+      linear-gradient(165deg, #141830, #0a0c1c);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px rgba(78,224,255,.4), 0 0 30px rgba(255,78,203,.22), 0 0 60px rgba(78,224,255,.16), 0 20px 60px rgba(4,6,20,.7);
+  }
+  .prism .frame-bar {
+    background: linear-gradient(90deg, rgba(78,224,255,.2), rgba(255,78,203,.16), rgba(180,120,255,.14));
+    border-bottom: 1px solid rgba(78,224,255,.4);
+    color: #dfe8ff;
+    font-family: 'Cinzel', serif; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; font-size: 12px;
+    text-shadow: 0 0 10px rgba(78,224,255,.6);
+  }
+  .prism .frame-bar .dot { background: linear-gradient(135deg, var(--acc), var(--acc2)); }
+  /* gem-cut faceted cards via clip-path */
+  .prism .card {
+    background: linear-gradient(150deg, var(--s1), var(--s2));
+    border: 1px solid rgba(78,224,255,.32);
+    color: var(--ink);
+    clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+    box-shadow: inset 0 0 22px rgba(78,224,255,.08);
+  }
+  .prism .card h3 {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; letter-spacing: 1.5px;
+    color: #a9e6ff; text-shadow: 0 0 10px rgba(78,224,255,.5);
+  }
+  .prism .card.present { border-color: rgba(255,78,203,.4); }
+  .prism .card.present h3 { color: #ffb6e8; text-shadow: 0 0 10px rgba(255,78,203,.5); }
+  .prism .val, .prism .line b {
+    font-family: 'JetBrains Mono', monospace;
+    background: linear-gradient(90deg, var(--acc2), var(--acc)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .prism .tension { background: rgba(78,224,255,.14); border-radius: 0; }
+  .prism .tension i { background: linear-gradient(90deg, var(--acc2), var(--warn), var(--acc)); box-shadow: 0 0 12px rgba(180,120,255,.6); }
+  .prism .avatar {
+    border-radius: 0; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+    background: linear-gradient(135deg, #1c2340, #0e1226); border: 1px solid var(--acc2); color: #a9e6ff;
+    font-family: 'Cinzel', serif; box-shadow: 0 0 12px rgba(78,224,255,.5);
+  }
+  .prism .chip { border-radius: 0; clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); background: rgba(78,224,255,.12); border: 1px solid var(--acc2); color: #a9e6ff; }
+  .prism .chip.pos { background: rgba(63,240,160,.12); border-color: var(--pos); color: var(--pos); }
+  .prism .chip.neg { background: rgba(255,77,109,.14); border-color: var(--neg); color: var(--neg); }
+  .prism .muted { color: var(--ink2); opacity: 1; }
+
+  /* ============================================================
+     THEME 6 — BESTIARY (maximalist illuminated menagerie)
+     ============================================================ */
+  .bestiary {
+    --acc: #b0902e; --acc2: #a3243a;
+    --ink: #2a1c0e; --ink2: #6a5638;
+    --pos: #3f7a3a; --neg: #a3243a; --warn: #5a3a8a; --info: #2f5a8a;
+    --royal: #2f4a9a; --gilt: #c8a24e;
+    --vellum: #f3e6c4;
+  }
+  .bestiary .frame {
+    background:
+      radial-gradient(circle at 14px 14px, rgba(176,144,46,.12) 2px, transparent 3px) 0 0 / 40px 40px,
+      linear-gradient(165deg, #f6ecd0, #ecdcb0);
+    border: 3px double var(--acc);
+    border-radius: 6px;
+    box-shadow: 0 0 0 4px rgba(163,36,58,.5), 0 0 0 5px var(--gilt), 0 20px 50px rgba(40,20,8,.5);
+  }
+  .bestiary .frame-bar {
+    background: linear-gradient(90deg, var(--acc2), #7a1a2c);
+    border-bottom: 3px solid var(--gilt);
+    color: var(--vellum);
+    font-family: 'UnifrakturCook', 'MedievalSharp', serif; font-weight: 700; letter-spacing: 1px; font-size: 18px;
+    text-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  .bestiary .frame-bar .dot { background: var(--gilt); box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+  .bestiary .card {
+    background: var(--vellum);
+    border: 2px solid var(--acc);
+    border-radius: 4px;
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px rgba(176,144,46,.4), inset 0 0 0 3px var(--vellum), inset 0 0 0 4px rgba(163,36,58,.3), 0 4px 12px rgba(40,20,8,.25);
+  }
+  /* vine-corner marginalia */
+  .bestiary .card::before {
+    content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
+    border-top: 2px solid var(--acc2); border-left: 2px solid var(--acc2);
+    border-top-left-radius: 10px; opacity: .6;
+  }
+  .bestiary .card::after {
+    content: ''; position: absolute; bottom: 3px; right: 3px; width: 26px; height: 26px;
+    border-bottom: 2px solid var(--royal); border-right: 2px solid var(--royal);
+    border-bottom-right-radius: 10px; opacity: .55;
+  }
+  .bestiary .card h3 {
+    font-family: 'MedievalSharp', serif; font-size: 15px; letter-spacing: .5px; text-transform: none;
+    color: var(--acc2);
+  }
+  .bestiary .card.present h3 { color: var(--royal); }
+  .bestiary .card.present .line:first-of-type::first-letter {
+    font-family: 'UnifrakturCook', serif; font-weight: 700; font-size: 34px; line-height: .8;
+    float: left; margin: 2px 8px 0 0; padding: 2px 8px;
+    color: var(--vellum); background: var(--acc2);
+    box-shadow: 0 0 0 2px var(--gilt);
+  }
+  .bestiary .val, .bestiary .line b { font-family: 'MedievalSharp', serif; color: var(--acc2); }
+  .bestiary .tension { background: rgba(176,144,46,.2); border: 1px solid var(--acc); height: 9px; }
+  .bestiary .tension i { background: repeating-linear-gradient(90deg, var(--royal) 0 6px, var(--acc2) 6px 12px); }
+  .bestiary .avatar {
+    border-radius: 50%; background: var(--royal); color: var(--gilt);
+    border: 2px solid var(--gilt); font-family: 'MedievalSharp', serif;
+    box-shadow: 0 0 0 1px var(--acc2);
+  }
+  .bestiary .chip { background: var(--vellum); border: 1.5px solid var(--acc); color: var(--acc2); font-family: 'MedievalSharp', serif; }
+  .bestiary .chip.pos { border-color: var(--pos); color: var(--pos); }
+  .bestiary .chip.neg { border-color: var(--acc2); background: rgba(163,36,58,.1); color: var(--acc2); }
+  .bestiary .muted { color: var(--ink2); opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>VELLUM · New Chrome Mockups</h1>
+  <p>Six chrome concepts, each shown as a floating window with the six customizable surfaces (Present, Bonds, Cast, Beats, Factions, Items). The first three are maximalist / neon / loud / bright (Arcade, Riot, Carnival); the last three are maximalist / fantasy / colorful (Grimoire, Prism, Bestiary). All built to slot into the existing Chrome + Skin + CHROME_SHAPES architecture. Fonts load from Google Fonts, matching how gatsby/sumi already pull display faces on demand.</p>
+</div>
+
+<!-- ========================= ARCADE ========================= -->
+<div class="theme-block">
+  <div class="theme-label arcade">
+    <span class="name" style="color:#ff2ea6">Arcade</span>
+    <span class="blurb">Insert coin — hot pink &amp; cyan on black, CRT scanlines, arcade-button cards.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#ff2ea6"></span>
+      <span class="sw" style="background:#2ef0ff"></span>
+      <span class="sw" style="background:#2bff88"></span>
+      <span class="sw" style="background:#0a0710"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'arcade' · skinDark:'arcade-crt' / skinLight:'arcade-day' · new ShapeId:'bezel' · texture:'scanline' · serif:F_ARCADE (Press Start 2P) · radius:3 border:2 · motion: pulse glow</div>
+  <div class="arcade">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> PLAYER-1 // ORACLE.EXE</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#9658; PRESENT</h3>
+          <div class="line">She counts the exits again. Three. Not enough.</div>
+          <div class="line muted">Scene: neon alley, rain, 02:14</div>
+        </div>
+        <div class="card">
+          <h3>&#9829; BONDS</h3>
+          <div class="cast-row"><span class="avatar">JX</span><div><div class="line">Jax <b class="val">+62</b></div><div class="tension"><i style="width:62%"></i></div></div></div>
+          <span class="chip pos">ALLY</span><span class="chip neg">RIVAL</span>
+        </div>
+        <div class="card">
+          <h3>&#9733; CAST</h3>
+          <div class="cast-row"><span class="avatar">MI</span><span class="line">Mira <span class="muted val">LV.7</span></span></div>
+          <div class="cast-row"><span class="avatar">RN</span><span class="line">Ren <span class="muted val">LV.4</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#9636; BEATS</h3>
+          <div class="line">1. Deal goes bad <b class="val">DONE</b></div>
+          <div class="line">2. Escape the block</div>
+          <div class="line muted">3. ??? locked</div>
+        </div>
+        <div class="card">
+          <h3>&#9873; FACTIONS</h3>
+          <div class="line">Neon Syndicate <b class="val">85%</b></div>
+          <div class="tension"><i style="width:85%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#9670; ITEMS</h3>
+          <span class="chip">Cred-stick x3</span><span class="chip">Blade</span><span class="chip neg">Cracked visor</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= RIOT ========================= -->
+<div class="theme-block">
+  <div class="theme-label riot">
+    <span class="name" style="color:#c400ff">Riot</span>
+    <span class="blurb">Cut-and-paste chaos — acid yellow &amp; violet, halftone, taped-corner cards.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#e8ff2e"></span>
+      <span class="sw" style="background:#c400ff"></span>
+      <span class="sw" style="background:#ff1744"></span>
+      <span class="sw" style="background:#101014"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'riot' · skinDark:'riot-black' / skinLight:'riot-paper' · new ShapeId:'taped' / 'sticker-tab' · texture:'halftone' · serif:F_ZINE (Oswald/Anton) · radius:0 border:3 · motion: jitter</div>
+  <div class="riot">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span> ORACLE // ZINE #04</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>PRESENT</h3>
+          <div class="line">He rips the flyer down. Too late. They've all seen it.</div>
+          <div class="line muted">Scene: squat basement, dawn</div>
+        </div>
+        <div class="card">
+          <h3>BONDS</h3>
+          <div class="cast-row"><span class="avatar">SP</span><div><div class="line">Spike <span class="val">+41</span></div><div class="tension"><i style="width:41%"></i></div></div></div>
+          <span class="chip pos">CREW</span><span class="chip neg">SNITCH</span>
+        </div>
+        <div class="card">
+          <h3>CAST</h3>
+          <div class="cast-row"><span class="avatar">VX</span><span class="line">Vix</span></div>
+          <div class="cast-row"><span class="avatar">DZ</span><span class="line">Doze</span></div>
+        </div>
+        <div class="card">
+          <h3>BEATS</h3>
+          <div class="line">1. Print the run <span class="val">DONE</span></div>
+          <div class="line">2. Paper the district</div>
+          <div class="line muted">3. Dodge the sweep</div>
+        </div>
+        <div class="card">
+          <h3>FACTIONS</h3>
+          <div class="line">The Collective <span class="val">67%</span></div>
+          <div class="tension"><i style="width:67%"></i></div>
+        </div>
+        <div class="card">
+          <h3>ITEMS</h3>
+          <span class="chip">Spray x2</span><span class="chip">Staple gun</span><span class="chip neg">Torn jacket</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= CARNIVAL ========================= -->
+<div class="theme-block">
+  <div class="theme-label carnival">
+    <span class="name" style="color:#ff7a1a">Carnival</span>
+    <span class="blurb">Big-top boardwalk — candy orange &amp; hot pink, marquee lights, scalloped tent cards.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#ff7a1a"></span>
+      <span class="sw" style="background:#ff2e8f"></span>
+      <span class="sw" style="background:#a24cff"></span>
+      <span class="sw" style="background:#ffe23a"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'carnival' · skinDark:'carnival-night' / skinLight:'carnival-day' · new ShapeId:'tent-flap' / 'ticket-stub' · texture:'marquee-bulbs' · serif:F_BIGTOP (Fredoka/Baloo) · radius:22 border:2.5 · motion: bounce lights</div>
+  <div class="carnival">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span> The Oracle · Step Right Up</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">The wheel turns. Everyone's watching her booth now.</div>
+          <div class="line muted">Scene: boardwalk, sunset, ferris wheel lit</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">PB</span><div><div class="line">Pippa <span class="val">+78</span></div><div class="tension"><i style="width:78%"></i></div></div></div>
+          <span class="chip pos">Sweetheart</span><span class="chip neg">Grifter</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">TO</span><span class="line">Toto</span></div>
+          <div class="cast-row"><span class="avatar">MA</span><span class="line">Madame V</span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Win the ring toss <span class="val">DONE</span></div>
+          <div class="line">2. Find the missing act</div>
+          <div class="line muted">3. Midnight show</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">The Troupe <span class="val">92%</span></div>
+          <div class="tension"><i style="width:92%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Tickets x9</span><span class="chip">Plush bear</span><span class="chip pos">Golden token</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= GRIMOIRE ========================= -->
+<div class="theme-block">
+  <div class="theme-label grimoire">
+    <span class="name" style="color:#a24cff">Grimoire</span>
+    <span class="blurb">A living spellbook — arcane violet &amp; emerald, glowing runes, illuminated drop-caps.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#a24cff"></span>
+      <span class="sw" style="background:#2fd48f"></span>
+      <span class="sw" style="background:#ffcf5a"></span>
+      <span class="sw" style="background:#0d0819"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'grimoire' · skinDark:'grimoire-arcane' / skinLight:'grimoire-parchment' · new ShapeId:'dropcap' / 'sigil' · texture:'constellation' · serif:F_ARCANE (Cinzel Decorative) · radius:12 border:1 · motion: rune shimmer + motes</div>
+  <div class="grimoire">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> The Oracle &#10022; Liber Arcanum</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#10022; PRESENT</h3>
+          <div class="line">Threads of the ward unravel as she speaks the ninth name aloud.</div>
+          <div class="line muted">Scene: candlelit scriptorium, the sigils breathing</div>
+        </div>
+        <div class="card">
+          <h3>&#10070; BONDS</h3>
+          <div class="cast-row"><span class="avatar">EL</span><div><div class="line">Elias <b class="val">+70</b></div><div class="tension"><i style="width:70%"></i></div></div></div>
+          <span class="chip pos">Sworn</span><span class="chip neg">Cursed</span>
+        </div>
+        <div class="card">
+          <h3>&#10038; CAST</h3>
+          <div class="cast-row"><span class="avatar">SE</span><span class="line">Seraphine <span class="muted val">Adept</span></span></div>
+          <div class="cast-row"><span class="avatar">TH</span><span class="line">Thorn <span class="muted val">Familiar</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#10039; BEATS</h3>
+          <div class="line">1. Bind the wraith <b class="val">DONE</b></div>
+          <div class="line">2. Decode the grimoire</div>
+          <div class="line muted">3. The eclipse rite</div>
+        </div>
+        <div class="card">
+          <h3>&#10035; FACTIONS</h3>
+          <div class="line">Violet Circle <b class="val">88%</b></div>
+          <div class="tension"><i style="width:88%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#10050; ITEMS</h3>
+          <span class="chip">Rune stones x5</span><span class="chip pos">Phial of light</span><span class="chip neg">Fractured wand</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= PRISM ========================= -->
+<div class="theme-block">
+  <div class="theme-label prism">
+    <span class="name" style="color:#4ee0ff">Prism</span>
+    <span class="blurb">A faceted crystal realm — iridescent rainbow light, gem-cut cards, refracted borders.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#ff4ecb"></span>
+      <span class="sw" style="background:#4ee0ff"></span>
+      <span class="sw" style="background:#b478ff"></span>
+      <span class="sw" style="background:#3ff0a0"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'prism' · skinDark:'prism-facet' / skinLight:'prism-dawn' · new ShapeId:'facet' / 'geode' · texture:'refraction' · serif:F_CRYSTAL (Cinzel) · radius:6 border:1 · motion: prismatic hue-shift</div>
+  <div class="prism">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span><span class="dot"></span> THE ORACLE // FACET</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>&#9670; PRESENT</h3>
+          <div class="line">Light splits through the shard and every future glints at once.</div>
+          <div class="line muted">Scene: the geode hollow, humming softly</div>
+        </div>
+        <div class="card">
+          <h3>&#9671; BONDS</h3>
+          <div class="cast-row"><span class="avatar">LY</span><div><div class="line">Lyra <b class="val">+55</b></div><div class="tension"><i style="width:55%"></i></div></div></div>
+          <span class="chip pos">Bonded</span><span class="chip neg">Fractured</span>
+        </div>
+        <div class="card">
+          <h3>&#9672; CAST</h3>
+          <div class="cast-row"><span class="avatar">KA</span><span class="line">Kai <span class="muted val">Seer</span></span></div>
+          <div class="cast-row"><span class="avatar">VE</span><span class="line">Vesna <span class="muted val">Cutter</span></span></div>
+        </div>
+        <div class="card">
+          <h3>&#9673; BEATS</h3>
+          <div class="line">1. Mine the vein <b class="val">DONE</b></div>
+          <div class="line">2. Cut the true facet</div>
+          <div class="line muted">3. Refract the prophecy</div>
+        </div>
+        <div class="card">
+          <h3>&#9674; FACTIONS</h3>
+          <div class="line">The Lapidary <b class="val">73%</b></div>
+          <div class="tension"><i style="width:73%"></i></div>
+        </div>
+        <div class="card">
+          <h3>&#9675; ITEMS</h3>
+          <span class="chip">Shards x7</span><span class="chip pos">Clear geode</span><span class="chip neg">Clouded gem</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= BESTIARY ========================= -->
+<div class="theme-block">
+  <div class="theme-label bestiary">
+    <span class="name" style="color:#a3243a">Bestiary</span>
+    <span class="blurb">An illuminated bestiary — crimson, royal blue &amp; gilt, vine borders, heraldic shields.</span>
+    <span class="swatches">
+      <span class="sw" style="background:#a3243a"></span>
+      <span class="sw" style="background:#2f4a9a"></span>
+      <span class="sw" style="background:#c8a24e"></span>
+      <span class="sw" style="background:#f3e6c4"></span>
+    </span>
+  </div>
+  <div class="theme-meta">chrome:'bestiary' · skinDark:'bestiary-candlelit' / skinLight:'bestiary-vellum' · new ShapeId:'vine-frame' / 'heraldic-shield' · texture:'marginalia' · serif:F_UNCIAL (MedievalSharp/UnifrakturCook) · radius:4 border:2 · motion: minimal</div>
+  <div class="bestiary">
+    <div class="frame">
+      <div class="frame-bar"><span class="dot"></span> The Oracle &#8212; Liber Bestiarum</div>
+      <div class="frame-body">
+        <div class="card present">
+          <h3>Present</h3>
+          <div class="line">Margins swarm with painted beasts the moment the abbot turns the page.</div>
+          <div class="line muted">Scene: the illuminator's bench, gold leaf drying</div>
+        </div>
+        <div class="card">
+          <h3>Bonds</h3>
+          <div class="cast-row"><span class="avatar">GO</span><div><div class="line">Godwin <b class="val">+64</b></div><div class="tension"><i style="width:64%"></i></div></div></div>
+          <span class="chip pos">Liege</span><span class="chip neg">Heretic</span>
+        </div>
+        <div class="card">
+          <h3>Cast</h3>
+          <div class="cast-row"><span class="avatar">AL</span><span class="line">Aldith <span class="muted val">Scribe</span></span></div>
+          <div class="cast-row"><span class="avatar">CO</span><span class="line">Corvin <span class="muted val">Herald</span></span></div>
+        </div>
+        <div class="card">
+          <h3>Beats</h3>
+          <div class="line">1. Gild the frontispiece <b class="val">DONE</b></div>
+          <div class="line">2. Catalogue the griffin</div>
+          <div class="line muted">3. Present to the court</div>
+        </div>
+        <div class="card">
+          <h3>Factions</h3>
+          <div class="line">House Aldermere <b class="val">80%</b></div>
+          <div class="tension"><i style="width:80%"></i></div>
+        </div>
+        <div class="card">
+          <h3>Items</h3>
+          <span class="chip">Gold leaf x4</span><span class="chip pos">Signet ring</span><span class="chip neg">Torn folio</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

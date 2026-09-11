@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II — New Chrome Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0c0f;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --sans:'Quicksand',-apple-system,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:#0a0c0f;
+  color:#d0dce8;
+  font-family:var(--serif);
+  font-size:17px;
+  line-height:1.5;
+  min-height:100vh;
+  padding-bottom:6rem;
+}
+.wrap{max-width:1280px;margin:0 auto;padding:0 1.5rem}
+
+/* ---- masthead ---- */
+.masthead{
+  text-align:center;padding:4rem 1.5rem 2rem;
+  background:radial-gradient(800px 400px at 50% 0%,rgba(40,224,216,0.08),transparent);
+}
+.masthead .seal{
+  width:64px;height:64px;margin:0 auto 1.2rem;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#28e0d8,#1a9892);
+  box-shadow:0 0 0 1px rgba(40,224,216,0.4),0 8px 30px rgba(40,224,216,0.25);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--serif);font-size:1.8rem;color:#0a2826;font-weight:700;
+}
+.masthead h1{font-size:2.8rem;color:#28e0d8;letter-spacing:0.04em}
+.masthead .sub{color:#8fa6b8;font-style:italic;font-size:1.15rem;margin-top:0.3rem}
+
+/* ---- nav ---- */
+.gallery-nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(10,12,15,0.92);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(40,224,216,0.2);
+  padding:0.8rem 0;
+}
+.gallery-nav .wrap{display:flex;gap:0.8rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.gallery-nav a{
+  color:#8fa6b8;text-decoration:none;font-family:var(--mono);
+  font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;
+  padding:0.4rem 0.8rem;border:1px solid transparent;border-radius:3px;
+  transition:all .2s;
+}
+.gallery-nav a:hover{color:#28e0d8;border-color:rgba(40,224,216,0.3)}
+
+/* ---- chrome section ---- */
+.chrome-section{padding:4rem 0}
+.chrome-header{margin-bottom:2rem;text-align:center}
+.chrome-header h2{font-size:2.4rem;margin-bottom:0.5rem}
+.chrome-header .tagline{font-style:italic;color:#8fa6b8;font-size:1.1rem;margin-bottom:1rem}
+.chrome-header .palette{display:flex;gap:0.5rem;justify-content:center;margin-top:1rem}
+.chrome-header .swatch{
+  width:48px;height:48px;border-radius:8px;
+  border:2px solid rgba(255,255,255,0.15);
+  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+}
+
+.demo-grid{display:grid;gap:2rem;margin-top:2rem}
+
+/* ============================================================
+   ABYSSAL / FATHOM CHROME
+   ============================================================ */
+.chrome-abyssal{
+  background:
+    radial-gradient(600px 400px at 30% 20%,rgba(0,180,160,0.08),transparent 60%),
+    radial-gradient(500px 350px at 80% 70%,rgba(122,92,255,0.06),transparent 55%),
+    linear-gradient(180deg,#050a0f,#0a1418);
+}
+.chrome-abyssal h2{color:#00b4a0}
+.abyssal-panel{
+  background:linear-gradient(168deg,rgba(12,28,32,0.85),rgba(8,18,22,0.9));
+  border:1px solid rgba(0,180,160,0.25);
+  border-radius:18px;
+  box-shadow:
+    0 0 30px rgba(0,180,160,0.12),
+    0 8px 40px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  overflow:hidden;
+  position:relative;
+}
+.abyssal-panel::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:
+    radial-gradient(2px 2px at 15% 25%,rgba(0,180,160,0.5),transparent),
+    radial-gradient(1.5px 1.5px at 68% 18%,rgba(122,92,255,0.4),transparent),
+    radial-gradient(1px 1px at 42% 78%,rgba(80,220,200,0.45),transparent),
+    radial-gradient(2.5px 2.5px at 88% 52%,rgba(0,180,160,0.35),transparent);
+  background-repeat:no-repeat;
+  opacity:0.7;
+}
+.abyssal-header{
+  background:linear-gradient(135deg,rgba(0,180,160,0.15),rgba(8,18,22,0.4));
+  padding:2rem;
+  border-bottom:1px solid rgba(0,180,160,0.25);
+  position:relative;z-index:1;
+}
+.abyssal-kicker{
+  font-family:var(--mono);font-size:0.62rem;letter-spacing:0.2em;
+  text-transform:uppercase;color:#50dcc8;margin-bottom:0.6rem;
+  text-shadow:0 0 8px rgba(80,220,200,0.4);
+}
+.abyssal-title{
+  font-size:1.9rem;color:#d0e8f0;margin-bottom:0.5rem;
+  text-shadow:0 0 12px rgba(0,180,160,0.3);
+}
+.abyssal-meta{
+  color:#789ca8;font-size:0.92rem;display:flex;gap:1.5rem;flex-wrap:wrap;
+  margin-top:1rem;
+}
+.abyssal-body{padding:1.5rem;position:relative;z-index:1}
+.abyssal-card{
+  background:rgba(12,28,32,0.6);
+  border:1px solid rgba(0,180,160,0.22);
+  border-left:3px solid #00b4a0;
+  border-radius:12px;
+  padding:1.2rem;
+  margin-bottom:1rem;
+  box-shadow:0 0 20px rgba(0,180,160,0.08);
+}
+.abyssal-card-title{
+  font-weight:600;color:#d0e8f0;font-size:1.05rem;margin-bottom:0.4rem;
+}
+.abyssal-card-label{
+  font-family:var(--mono);font-size:0.64rem;color:#50dcc8;
+  letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.5rem;
+}
+.abyssal-card-text{color:#8fa8b8;line-height:1.6;font-size:0.94rem}
+.abyssal-avatar{
+  width:48px;height:48px;border-radius:50%;
+  background:radial-gradient(60% 55% at 40% 35%,rgba(0,180,160,0.3),rgba(122,92,255,0.2));
+  border:2px solid rgba(0,180,160,0.5);
+  box-shadow:0 0 16px rgba(0,180,160,0.3);
+  display:flex;align-items:center;justify-content:center;
+  color:#d0e8f0;font-family:var(--mono);font-size:0.8rem;
+}
+.abyssal-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#00b4a0,rgba(0,180,160,0.5));
+  box-shadow:0 0 10px rgba(0,180,160,0.6);
+}
+
+/* ============================================================
+   SOLARPUNK / VERDANCE CHROME
+   ============================================================ */
+.chrome-solarpunk{
+  background:
+    radial-gradient(700px 450px at 25% 10%,rgba(180,220,100,0.12),transparent 55%),
+    radial-gradient(600px 400px at 85% 85%,rgba(240,180,60,0.08),transparent 50%),
+    linear-gradient(160deg,#f8faf5,#eef4e8);
+}
+.chrome-solarpunk h2{color:#6a9a3f}
+.solarpunk-panel{
+  background:linear-gradient(168deg,rgba(250,254,248,0.95),rgba(240,248,235,0.92));
+  border:1px solid rgba(106,154,63,0.3);
+  border-radius:20px;
+  box-shadow:
+    0 0 24px rgba(180,220,100,0.15),
+    0 8px 36px rgba(0,0,0,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.6);
+  overflow:hidden;
+  position:relative;
+}
+.solarpunk-panel::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 18% 22%,rgba(240,200,100,0.4),transparent),
+    radial-gradient(2px 2px at 72% 15%,rgba(180,220,100,0.35),transparent),
+    radial-gradient(1px 1px at 45% 82%,rgba(240,180,60,0.3),transparent),
+    radial-gradient(1.5px 1.5px at 88% 68%,rgba(160,200,80,0.4),transparent);
+  background-repeat:no-repeat;
+  opacity:0.5;
+}
+.solarpunk-header{
+  background:linear-gradient(135deg,rgba(180,220,100,0.18),rgba(240,248,235,0.4));
+  padding:2rem;
+  border-bottom:1.5px dashed rgba(106,154,63,0.35);
+  position:relative;z-index:1;
+}
+.solarpunk-kicker{
+  font-family:var(--sans);font-size:0.64rem;letter-spacing:0.18em;
+  text-transform:uppercase;color:#6a9a3f;margin-bottom:0.6rem;
+  font-weight:600;
+}
+.solarpunk-title{
+  font-family:var(--sans);font-size:2rem;color:#3a5a28;margin-bottom:0.5rem;
+  font-weight:700;
+}
+.solarpunk-meta{
+  color:#6a8050;font-size:0.92rem;display:flex;gap:1.5rem;flex-wrap:wrap;
+  margin-top:1rem;font-family:var(--sans);
+}
+.solarpunk-body{padding:1.5rem;position:relative;z-index:1}
+.solarpunk-card{
+  background:rgba(255,255,255,0.7);
+  border:1px solid rgba(106,154,63,0.25);
+  border-radius:18px;
+  padding:1.2rem;
+  margin-bottom:1rem;
+  box-shadow:0 4px 16px rgba(180,220,100,0.12);
+  position:relative;
+}
+.solarpunk-card::before{
+  content:'🌱';position:absolute;left:1rem;top:1rem;
+  font-size:1.2rem;opacity:0.3;
+}
+.solarpunk-card-title{
+  font-family:var(--sans);font-weight:600;color:#3a5a28;font-size:1.05rem;
+  margin-bottom:0.4rem;margin-left:2rem;
+}
+.solarpunk-card-label{
+  font-family:var(--sans);font-size:0.68rem;color:#6a9a3f;
+  letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.5rem;
+  font-weight:600;margin-left:2rem;
+}
+.solarpunk-card-text{
+  color:#5a7048;line-height:1.6;font-size:0.94rem;margin-left:2rem;
+}
+.solarpunk-avatar{
+  width:48px;height:48px;border-radius:50%;
+  background:radial-gradient(60% 55% at 40% 35%,rgba(180,220,100,0.35),rgba(240,180,60,0.25));
+  border:2px solid rgba(106,154,63,0.5);
+  box-shadow:0 0 12px rgba(180,220,100,0.25);
+  display:flex;align-items:center;justify-content:center;
+  color:#3a5a28;font-family:var(--sans);font-size:0.8rem;font-weight:700;
+}
+.solarpunk-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#a0d050,rgba(180,220,100,0.6));
+  box-shadow:0 0 8px rgba(180,220,100,0.5);
+}
+
+.spec-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin-top:2rem;
+}
+.spec-card{
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px;
+  padding:1.2rem;
+}
+.spec-card h4{color:#28e0d8;font-size:0.95rem;margin-bottom:0.8rem;letter-spacing:0.05em}
+.spec-card ul{list-style:none;padding:0}
+.spec-card li{
+  color:#8fa6b8;font-size:0.88rem;padding:0.3rem 0;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+}
+.spec-card li:last-child{border-bottom:none}
+.spec-card code{
+  font-family:var(--mono);font-size:0.82rem;color:#50dcc8;
+  background:rgba(40,224,216,0.1);padding:0.1rem 0.4rem;border-radius:3px;
+}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">New Chrome Mockups — Abyssal · Solarpunk · Art Deco · Ukiyo-e</div>
+</div>
+
+<nav class="gallery-nav">
+  <div class="wrap">
+    <a href="#abyssal">Abyssal / Fathom</a>
+    <a href="#solarpunk">Solarpunk / Verdance</a>
+    <a href="#artdeco">Art Deco / Gatsby</a>
+    <a href="#ukiyoe">Ukiyo-e / Sumi</a>
+  </div>
+</nav>
+
+<!-- ============================================================
+     ABYSSAL / FATHOM
+     ============================================================ -->
+<section id="abyssal" class="chrome-section chrome-abyssal">
+  <div class="wrap">
+    <div class="chrome-header">
+      <h2>Abyssal / "Fathom"</h2>
+      <div class="tagline">Bioluminescent deep sea — teal, indigo, phosphorescent glow</div>
+      <div class="palette">
+        <div class="swatch" style="background:#00b4a0"></div>
+        <div class="swatch" style="background:#7a5cff"></div>
+        <div class="swatch" style="background:#50dcc8"></div>
+        <div class="swatch" style="background:#0c1c20"></div>
+        <div class="swatch" style="background:#d0e8f0"></div>
+      </div>
+    </div>
+
+    <div class="demo-grid">
+      <!-- Panel demo -->
+      <div class="abyssal-panel">
+        <div class="abyssal-header">
+          <div class="abyssal-kicker">Now · Day 14 · Deep Night</div>
+          <h3 class="abyssal-title">The Sunken Archive</h3>
+          <div style="color:#789ca8;font-style:italic">Beneath the Archives — The Drowned Quarter</div>
+          <div class="abyssal-meta">
+            <div><span style="color:#5a7a88">Present:</span> <span style="color:#d0e8f0">Kael, Mira, The Archivist</span></div>
+            <div><span style="color:#5a7a88">Tension:</span> <span style="color:#00b4a0">7</span></div>
+          </div>
+        </div>
+
+        <div class="abyssal-body">
+          <div class="abyssal-card">
+            <div class="abyssal-card-label">Active Thread</div>
+            <div class="abyssal-card-title">The Forbidden Manuscript</div>
+            <div class="abyssal-card-text">
+              Kael's fingers traced the phosphorescent runes. Each glyph pulsed with an eerie light—
+              warnings from the deep, or promises?
+            </div>
+          </div>
+
+          <div class="abyssal-card">
+            <div class="abyssal-card-label">Secret Knowledge</div>
+            <div class="abyssal-card-title">Mira suspects the truth</div>
+            <div class="abyssal-card-text">
+              She glimpsed the octopus sigil on his wrist. The Order of the Depths—here, in the Archive.
+            </div>
+          </div>
+
+          <div style="display:flex;gap:1rem;align-items:center;margin-top:1.5rem">
+            <div class="abyssal-avatar">K</div>
+            <div class="abyssal-avatar">M</div>
+            <div class="abyssal-avatar">A</div>
+            <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center">
+              <span style="color:#789ca8;font-size:0.88rem">Pressure:</span>
+              <div class="abyssal-dot"></div>
+              <div class="abyssal-dot"></div>
+              <div class="abyssal-dot"></div>
+              <div class="abyssal-dot" style="opacity:0.4"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Specs -->
+      <div class="spec-grid">
+        <div class="spec-card">
+          <h4>Palette</h4>
+          <ul>
+            <li>Dark: <code>abyssal-depths</code> — deep teal-black field</li>
+            <li>Light: <code>shallow-reef</code> — pale cyan-white</li>
+            <li>Accent: <code>#00b4a0</code> (biolum teal)</li>
+            <li>Accent 2: <code>#7a5cff</code> (deep violet)</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Shapes</h4>
+          <ul>
+            <li>Present: <code>scalloped</code> (coral/shell dome)</li>
+            <li>Bonds: <code>aperture</code> (porthole)</li>
+            <li>Cast: <code>notched</code> (nautical corners)</li>
+            <li>Beats: <code>deckle</code> (water-torn edge)</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Motion</h4>
+          <ul>
+            <li>Drifting plankton motes (reuse ember drift)</li>
+            <li>Rising bubbles (reuse ember rise)</li>
+            <li>Soft biolum pulse on active cards</li>
+            <li>Respects motion kill-switch</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Ornament</h4>
+          <ul>
+            <li>Section mark: <code>◉</code> (sonar ping)</li>
+            <li>Record dot: <code>∿</code> (wave)</li>
+            <li>Avatars: porthole frame + crosshair</li>
+            <li>Text shadow: biolum glow</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SOLARPUNK / VERDANCE
+     ============================================================ -->
+<section id="solarpunk" class="chrome-section chrome-solarpunk">
+  <div class="wrap">
+    <div class="chrome-header">
+      <h2>Solarpunk / "Verdance"</h2>
+      <div class="tagline">Sun-dappled eco-optimism — sage green, warm gold, bright hope</div>
+      <div class="palette">
+        <div class="swatch" style="background:#6a9a3f"></div>
+        <div class="swatch" style="background:#f0b43c"></div>
+        <div class="swatch" style="background:#b4dc64"></div>
+        <div class="swatch" style="background:#f8faf5"></div>
+        <div class="swatch" style="background:#3a5a28"></div>
+      </div>
+    </div>
+
+    <div class="demo-grid">
+      <!-- Panel demo -->
+      <div class="solarpunk-panel">
+        <div class="solarpunk-header">
+          <div class="solarpunk-kicker">Now · Day 14 · Golden Hour</div>
+          <h3 class="solarpunk-title">The Rooftop Gardens</h3>
+          <div style="color:#6a8050;font-style:italic;font-family:var(--sans)">The Commons — New Eden District</div>
+          <div class="solarpunk-meta">
+            <div><span style="color:#5a7848">Present:</span> <span style="color:#3a5a28">Lina, Kai, Rowan</span></div>
+            <div><span style="color:#5a7848">Tension:</span> <span style="color:#6a9a3f">3</span></div>
+          </div>
+        </div>
+
+        <div class="solarpunk-body">
+          <div class="solarpunk-card">
+            <div class="solarpunk-card-label">Active Thread</div>
+            <div class="solarpunk-card-title">The Seed Vault Accord</div>
+            <div class="solarpunk-card-text">
+              Lina proposed sharing the heritage seeds with the outer districts. A radical gesture—
+              but trust, once planted, must be tended.
+            </div>
+          </div>
+
+          <div class="solarpunk-card">
+            <div class="solarpunk-card-label">Elsewhere · Blooming</div>
+            <div class="solarpunk-card-title">The Pollinator Network expands</div>
+            <div class="solarpunk-card-text">
+              Word spread through the communes. Three new districts pledged to join the cooperative.
+            </div>
+          </div>
+
+          <div style="display:flex;gap:1rem;align-items:center;margin-top:1.5rem">
+            <div class="solarpunk-avatar">L</div>
+            <div class="solarpunk-avatar">K</div>
+            <div class="solarpunk-avatar">R</div>
+            <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center">
+              <span style="color:#6a8050;font-size:0.88rem;font-family:var(--sans)">Growth:</span>
+              <div class="solarpunk-dot"></div>
+              <div class="solarpunk-dot"></div>
+              <div class="solarpunk-dot" style="opacity:0.4"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Specs -->
+      <div class="spec-grid">
+        <div class="spec-card">
+          <h4>Palette</h4>
+          <ul>
+            <li>Dark: <code>dusk-garden</code> — deep blue-green</li>
+            <li>Light: <code>dawn-field</code> — warm cream-white</li>
+            <li>Accent: <code>#6a9a3f</code> (living green)</li>
+            <li>Accent 2: <code>#f0b43c</code> (sun gold)</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Shapes</h4>
+          <ul>
+            <li>Present: <code>trellis</code> (climbing vine rail)</li>
+            <li>Bonds: <code>bramble</code> (leaf wreath)</li>
+            <li>Cast: <code>stitch</code> (woven border)</li>
+            <li>Beats: <code>trellis</code> (repeats present)</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Motion</h4>
+          <ul>
+            <li>Drifting pollen/seeds (reuse ember drift)</li>
+            <li>Sunbeam sweep (slow opacity shift)</li>
+            <li>Gentle leaf-sway on hover</li>
+            <li>Respects motion kill-switch</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Ornament</h4>
+          <ul>
+            <li>Section mark: <code>🌿</code> (leaf/sprout)</li>
+            <li>Record dot: <code>●</code> (seed)</li>
+            <li>Font: <code>Quicksand</code> (bundled, rounded)</li>
+            <li>Optimistic: no dark shadows</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     ART DECO / GATSBY
+     ============================================================ -->
+<section id="artdeco" class="chrome-section chrome-artdeco">
+  <div class="wrap">
+    <div class="chrome-header">
+      <h2>Art Deco / "Gatsby"</h2>
+      <div class="tagline">Jazz Age geometry — gold, black, symmetric opulence</div>
+      <div class="palette">
+        <div class="swatch" style="background:#d4af37"></div>
+        <div class="swatch" style="background:#0a0a0a"></div>
+        <div class="swatch" style="background:#f8e5a0"></div>
+        <div class="swatch" style="background:#2a1810"></div>
+        <div class="swatch" style="background:#ffe8b8"></div>
+      </div>
+    </div>
+
+    <div class="demo-grid">
+      <!-- Panel demo -->
+      <div class="deco-panel">
+        <div class="deco-header">
+          <div class="deco-sunburst">✦</div>
+          <div class="deco-kicker">ACT II · SCENE XIV · EVENING</div>
+          <h3 class="deco-title">THE GRAND BALLROOM</h3>
+          <div class="deco-subtitle">Plaza Hotel — Fifth Avenue</div>
+          <div class="deco-meta">
+            <div><span>PRESENT:</span> <span>Jay, Daisy, Tom, Jordan</span></div>
+            <div><span>TENSION:</span> <span class="deco-accent">9</span></div>
+          </div>
+        </div>
+
+        <div class="deco-body">
+          <div class="deco-card">
+            <div class="deco-card-header">
+              <div class="deco-card-ornament">◆</div>
+              <div>
+                <div class="deco-card-label">ACTIVE THREAD</div>
+                <div class="deco-card-title">The Confrontation</div>
+              </div>
+            </div>
+            <div class="deco-card-text">
+              Tom's voice cut through the jazz like a knife. "I've had enough of this charade."
+              Gatsby's knuckles whitened around his champagne flute.
+            </div>
+          </div>
+
+          <div class="deco-card">
+            <div class="deco-card-header">
+              <div class="deco-card-ornament">◆</div>
+              <div>
+                <div class="deco-card-label">SECRET KNOWLEDGE</div>
+                <div class="deco-card-title">Jordan knows the truth</div>
+              </div>
+            </div>
+            <div class="deco-card-text">
+              She'd seen the ledger in his study. Bootlegging, bonds—the whole glittering empire
+              built on sand and prohibition gin.
+            </div>
+          </div>
+
+          <div class="deco-footer">
+            <div class="deco-avatar">J</div>
+            <div class="deco-avatar">D</div>
+            <div class="deco-avatar">T</div>
+            <div class="deco-avatar">J</div>
+            <div class="deco-meter">
+              <div class="deco-meter-label">DRAMATIC TENSION</div>
+              <div class="deco-meter-bar">
+                <div class="deco-meter-fill" style="width:90%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Specs -->
+      <div class="spec-grid">
+        <div class="spec-card">
+          <h4>Palette</h4>
+          <ul>
+            <li>Dark: <code>midnight-noir</code> — deep black + gold</li>
+            <li>Light: <code>champagne</code> — cream + sepia</li>
+            <li>Accent: <code>#d4af37</code> (gilt gold)</li>
+            <li>Accent 2: <code>#2a1810</code> (mahogany)</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Shapes</h4>
+          <ul>
+            <li>Present: <code>chevron</code> (new: stepped art deco)</li>
+            <li>Bonds: <code>gilt-edge</code> (thin all-around frame)</li>
+            <li>Cast: <code>tarot</code> (portrait plate)</li>
+            <li>Beats: <code>split</code> (symmetric divide)</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Motion</h4>
+          <ul>
+            <li>Slow radial sunburst pulse</li>
+            <li>Gold shimmer on hover (opacity shift)</li>
+            <li>Symmetric geometric reveals</li>
+            <li>Respects motion kill-switch</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Ornament</h4>
+          <ul>
+            <li>Section mark: <code>◆</code> (diamond)</li>
+            <li>Hero mark: <code>✦</code> (starburst)</li>
+            <li>Font: Needs deco display (Poiret One)</li>
+            <li>Symmetric everything</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     UKIYO-E / SUMI
+     ============================================================ -->
+<section id="ukiyoe" class="chrome-section chrome-ukiyoe">
+  <div class="wrap">
+    <div class="chrome-header">
+      <h2>Ukiyo-e / "Sumi"</h2>
+      <div class="tagline">Ink wash & negative space — black, cream, vermillion seal</div>
+      <div class="palette">
+        <div class="swatch" style="background:#1a1410"></div>
+        <div class="swatch" style="background:#c8371a"></div>
+        <div class="swatch" style="background:#f5ead8"></div>
+        <div class="swatch" style="background:#4a3828"></div>
+        <div class="swatch" style="background:#8a7a68"></div>
+      </div>
+    </div>
+
+    <div class="demo-grid">
+      <!-- Panel demo -->
+      <div class="sumi-panel">
+        <div class="sumi-header">
+          <div class="sumi-seal">印</div>
+          <div class="sumi-kicker">十四日目・夕刻</div>
+          <h3 class="sumi-title">竹林の道</h3>
+          <div class="sumi-subtitle">The Bamboo Path — Arashiyama</div>
+          <div class="sumi-meta">
+            <div><span>Present:</span> Kenji, Yuki, The Wanderer</div>
+            <div><span>Tension:</span> <span style="color:#c8371a">5</span></div>
+          </div>
+        </div>
+
+        <div class="sumi-body">
+          <div class="sumi-card">
+            <div class="sumi-card-label">active thread</div>
+            <div class="sumi-card-title">The Broken Sword</div>
+            <div class="sumi-card-text">
+              Kenji knelt in the fallen leaves. The blade had shattered—not in battle,
+              but by his own hand. A vow, broken cleanly.
+            </div>
+            <div class="sumi-brush"></div>
+          </div>
+
+          <div class="sumi-card">
+            <div class="sumi-card-label">elsewhere・drifting</div>
+            <div class="sumi-card-title">Yuki's letter reaches Kyoto</div>
+            <div class="sumi-card-text">
+              Her words, penned three moons prior, arrived at the temple gate.
+              The abbot read them twice, then burned them in silence.
+            </div>
+            <div class="sumi-brush"></div>
+          </div>
+
+          <div class="sumi-footer">
+            <div class="sumi-hanko">賢</div>
+            <div class="sumi-hanko">雪</div>
+            <div class="sumi-hanko">旅</div>
+            <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end">
+              <div class="sumi-ink-dots">
+                <div class="sumi-dot"></div>
+                <div class="sumi-dot"></div>
+                <div class="sumi-dot"></div>
+                <div class="sumi-dot"></div>
+                <div class="sumi-dot" style="opacity:0.3"></div>
+              </div>
+              <div style="font-size:0.78rem;color:#8a7a68;margin-top:0.3rem">stillness</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Specs -->
+      <div class="spec-grid">
+        <div class="spec-card">
+          <h4>Palette</h4>
+          <ul>
+            <li>Dark: <code>sumi-ink</code> — deep charcoal</li>
+            <li>Light: <code>washi-paper</code> — warm cream</li>
+            <li>Accent: <code>#c8371a</code> (vermillion hanko)</li>
+            <li>Accent 2: <code>#4a3828</code> (aged ink)</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Shapes</h4>
+          <ul>
+            <li>Present: <code>slab</code> (minimal, asymmetric)</li>
+            <li>Bonds: <code>deckle</code> (torn rice-paper edge)</li>
+            <li>Cast: <code>hanko</code> (new: red seal stamp)</li>
+            <li>Beats: <code>slab</code> (repeats, clean)</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Motion</h4>
+          <ul>
+            <li>Slow ink-wash fade-in (opacity)</li>
+            <li>Brush-stroke reveal (clip-path)</li>
+            <li>Minimal, meditative pacing</li>
+            <li>Respects motion kill-switch</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h4>Ornament</h4>
+          <ul>
+            <li>Section mark: <code>〇</code> (enso circle)</li>
+            <li>Record: vertical ink stroke pseudo</li>
+            <li>Font: Needs brush display (Noto Serif JP)</li>
+            <li>Asymmetric negative space</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+/* ============================================================
+   ART DECO / GATSBY STYLES
+   ============================================================ */
+.chrome-artdeco{
+  background:
+    radial-gradient(600px 400px at 50% 0%,rgba(212,175,55,0.15),transparent 60%),
+    linear-gradient(180deg,#0a0a0a,#1a1410);
+}
+.chrome-artdeco h2{color:#d4af37}
+.deco-panel{
+  background:linear-gradient(168deg,rgba(20,16,12,0.95),rgba(10,8,6,0.98));
+  border:2px solid #d4af37;
+  border-radius:0;
+  box-shadow:
+    0 0 40px rgba(212,175,55,0.25),
+    0 12px 50px rgba(0,0,0,0.8),
+    inset 0 2px 0 rgba(212,175,55,0.3),
+    inset 0 -2px 0 rgba(212,175,55,0.3);
+  overflow:hidden;
+  position:relative;
+}
+.deco-panel::before{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:200px;height:200px;
+  background:radial-gradient(circle at 50% 0%,rgba(212,175,55,0.15),transparent 70%);
+  pointer-events:none;
+}
+.deco-panel::after{
+  content:'';position:absolute;inset:8px;
+  border:1px solid rgba(212,175,55,0.4);
+  pointer-events:none;
+}
+.deco-header{
+  background:
+    linear-gradient(180deg,rgba(212,175,55,0.18),transparent 80%),
+    linear-gradient(0deg,rgba(212,175,55,0.08),transparent 50%);
+  padding:2.5rem 2rem 2rem;
+  border-bottom:3px solid #d4af37;
+  position:relative;z-index:1;
+  text-align:center;
+}
+.deco-sunburst{
+  font-size:2.5rem;color:#d4af37;margin-bottom:0.5rem;
+  text-shadow:0 0 20px rgba(212,175,55,0.6);
+}
+.deco-kicker{
+  font-family:var(--mono);font-size:0.58rem;letter-spacing:0.3em;
+  text-transform:uppercase;color:#d4af37;margin-bottom:0.8rem;
+  font-weight:700;
+}
+.deco-title{
+  font-size:2.2rem;color:#f8e5a0;margin-bottom:0.4rem;
+  letter-spacing:0.15em;font-weight:700;
+  text-shadow:0 2px 8px rgba(212,175,55,0.4);
+}
+.deco-subtitle{
+  color:#c8a870;font-style:italic;font-size:1.05rem;
+  margin-bottom:1.2rem;
+}
+.deco-meta{
+  display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;
+  font-size:0.92rem;color:#a89868;
+  font-family:var(--mono);letter-spacing:0.08em;
+}
+.deco-meta span{color:#e8d8b8}
+.deco-accent{color:#d4af37;font-weight:700}
+.deco-body{padding:2rem;position:relative;z-index:1}
+.deco-card{
+  background:rgba(26,20,16,0.6);
+  border:1px solid rgba(212,175,55,0.35);
+  border-top:3px solid #d4af37;
+  border-bottom:3px solid #d4af37;
+  padding:1.5rem;
+  margin-bottom:1.5rem;
+  position:relative;
+}
+.deco-card::before{
+  content:'';position:absolute;top:0;left:0;
+  width:40px;height:3px;background:#d4af37;
+}
+.deco-card::after{
+  content:'';position:absolute;top:0;right:0;
+  width:40px;height:3px;background:#d4af37;
+}
+.deco-card-header{
+  display:flex;gap:1rem;align-items:start;margin-bottom:1rem;
+}
+.deco-card-ornament{
+  font-size:1.5rem;color:#d4af37;flex-shrink:0;
+  text-shadow:0 0 8px rgba(212,175,55,0.5);
+}
+.deco-card-label{
+  font-family:var(--mono);font-size:0.6rem;color:#d4af37;
+  letter-spacing:0.18em;text-transform:uppercase;margin-bottom:0.4rem;
+  font-weight:700;
+}
+.deco-card-title{
+  font-weight:700;color:#f8e5a0;font-size:1.15rem;
+  letter-spacing:0.05em;
+}
+.deco-card-text{
+  color:#c8b89a;line-height:1.7;font-size:0.96rem;
+}
+.deco-footer{
+  display:flex;gap:1rem;align-items:center;margin-top:2rem;
+  padding-top:1.5rem;border-top:2px solid rgba(212,175,55,0.3);
+}
+.deco-avatar{
+  width:52px;height:52px;
+  background:radial-gradient(circle at 35% 30%,#d4af37,#a88f2f);
+  border:2px solid #d4af37;
+  box-shadow:0 0 16px rgba(212,175,55,0.4);
+  display:flex;align-items:center;justify-content:center;
+  color:#1a1410;font-family:var(--mono);font-size:1.1rem;font-weight:700;
+  clip-path:polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+}
+.deco-meter{
+  margin-left:auto;min-width:180px;
+}
+.deco-meter-label{
+  font-family:var(--mono);font-size:0.58rem;color:#d4af37;
+  letter-spacing:0.15em;margin-bottom:0.5rem;text-align:center;
+}
+.deco-meter-bar{
+  height:8px;background:rgba(212,175,55,0.2);
+  border:1px solid rgba(212,175,55,0.4);position:relative;
+}
+.deco-meter-fill{
+  position:absolute;top:0;left:0;bottom:0;
+  background:linear-gradient(90deg,#d4af37,#f8e5a0);
+  box-shadow:0 0 12px rgba(212,175,55,0.6);
+}
+
+/* ============================================================
+   UKIYO-E / SUMI STYLES
+   ============================================================ */
+.chrome-ukiyoe{
+  background:
+    radial-gradient(500px 350px at 85% 15%,rgba(200,55,26,0.08),transparent 60%),
+    linear-gradient(160deg,#f5ead8,#ebe0ca);
+}
+.chrome-ukiyoe h2{color:#1a1410}
+.sumi-panel{
+  background:#faf6ed;
+  border:none;
+  border-radius:0;
+  box-shadow:
+    0 12px 40px rgba(0,0,0,0.15),
+    inset 0 0 0 1px rgba(26,20,16,0.08);
+  overflow:hidden;
+  position:relative;
+}
+.sumi-panel::before{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(0deg,transparent 95%,rgba(138,122,104,0.03) 95%),
+    linear-gradient(90deg,transparent 98%,rgba(138,122,104,0.02) 98%);
+  background-size:20px 20px;
+  pointer-events:none;opacity:0.5;
+}
+.sumi-header{
+  padding:2rem 2rem 1.8rem;
+  border-bottom:1px solid rgba(26,20,16,0.15);
+  position:relative;z-index:1;
+}
+.sumi-seal{
+  position:absolute;top:1.5rem;right:1.5rem;
+  width:52px;height:52px;
+  background:radial-gradient(circle at 45% 40%,#c8371a,#a02814);
+  color:#faf6ed;
+  border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.6rem;font-weight:700;
+  box-shadow:0 3px 10px rgba(200,55,26,0.4);
+  transform:rotate(-3deg);
+}
+.sumi-kicker{
+  font-family:var(--serif);font-size:0.78rem;
+  color:#8a7a68;margin-bottom:0.6rem;font-style:italic;
+}
+.sumi-title{
+  font-size:2rem;color:#1a1410;margin-bottom:0.4rem;
+  font-weight:700;letter-spacing:0.08em;
+}
+.sumi-subtitle{
+  color:#4a3828;font-style:italic;font-size:0.98rem;
+  margin-bottom:1rem;
+}
+.sumi-meta{
+  display:flex;gap:2rem;flex-wrap:wrap;
+  font-size:0.88rem;color:#6a5a48;
+}
+.sumi-meta span{color:#2a2418}
+.sumi-body{padding:2rem;position:relative;z-index:1}
+.sumi-card{
+  background:#fff;
+  border:none;
+  border-left:4px solid #1a1410;
+  padding:1.5rem 1.5rem 1.5rem 2rem;
+  margin-bottom:1.5rem;
+  position:relative;
+  box-shadow:3px 3px 0 rgba(26,20,16,0.08);
+}
+.sumi-brush{
+  position:absolute;top:0;right:0;bottom:0;width:80px;
+  background:linear-gradient(90deg,transparent,rgba(138,122,104,0.06));
+  pointer-events:none;
+}
+.sumi-card-label{
+  font-family:var(--serif);font-size:0.72rem;color:#8a7a68;
+  margin-bottom:0.5rem;font-style:italic;letter-spacing:0.05em;
+}
+.sumi-card-title{
+  font-weight:700;color:#1a1410;font-size:1.1rem;
+  margin-bottom:0.7rem;letter-spacing:0.02em;
+}
+.sumi-card-text{
+  color:#4a3828;line-height:1.8;font-size:0.94rem;
+}
+.sumi-footer{
+  display:flex;gap:1.2rem;align-items:center;margin-top:2rem;
+  padding-top:1.5rem;border-top:1px solid rgba(26,20,16,0.12);
+}
+.sumi-hanko{
+  width:44px;height:44px;
+  background:radial-gradient(circle at 45% 40%,#c8371a,#a02814);
+  color:#faf6ed;
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:700;
+  box-shadow:0 2px 8px rgba(200,55,26,0.35);
+}
+.sumi-ink-dots{
+  display:flex;gap:0.4rem;
+}
+.sumi-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:#1a1410;
+}
+</style>
+
+</body>
+</html>

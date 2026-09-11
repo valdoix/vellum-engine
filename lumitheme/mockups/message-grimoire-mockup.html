@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grimoire — MinimalMessage Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=EB+Garamond:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   GRIMOIRE — "the living spellbook"
+   Chrome: grimoire · Skin: grimoire-arcane (arcane violet & emerald)
+   accent #a24cff (arcane violet)  ·  accent2 #2fd48f (emerald)
+   texture: constellation · font: Cinzel Decorative · radius 12 · border 1
+   Jewel-toned illuminated tome: glowing runes, gilt drop-caps, drifting
+   arcane motes, flowing magic gradients, pulsing sigil seals.
+   -- Heavily animated: mote drift, rune shimmer, gild pulse, sigil spin,
+      flowing tension gradient, constellation twinkle, page-turn fade.
+   ============================================================ */
+:root{
+  --lumiverse-bg:#0d0819;
+  --lumiverse-text:#ece2ff;
+  --lumiverse-text-2:#a98fd0;
+  --lumiverse-accent:#a24cff;          /* arcane violet */
+  --lumiverse-accent-2:#2fd48f;        /* emerald */
+  --gild:#ffcf5a;                      /* gilt gold */
+  --surf-1:rgba(38,26,58,.72);
+  --surf-2:rgba(24,16,40,.72);
+  --glass-border:rgba(162,76,255,.3);
+  --deco:'Cinzel Decorative',Georgia,serif;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --body:'EB Garamond',Georgia,serif;
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--body);
+  color:var(--lumiverse-text);
+  background:
+    radial-gradient(1100px 640px at 50% -10%, rgba(162,76,255,.24), transparent 60%),
+    radial-gradient(900px 680px at 8% 110%, rgba(47,212,143,.14), transparent 62%),
+    radial-gradient(520px 420px at 82% 40%, rgba(120,80,220,.14), transparent 66%),
+    radial-gradient(150% 130% at 50% 46%, transparent 52%, rgba(4,2,12,.74) 100%),
+    linear-gradient(165deg,#1a1230 0%, #0d0819 58%, #060310 100%);
+  min-height:100vh;
+  padding:2.5rem 1.25rem 6rem;
+  overflow-x:hidden;
+}
+/* constellation: sigil lines + scattered gold/violet stars, slow twinkle */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.7;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cg stroke='%23a24cff' stroke-opacity='0.14' stroke-width='1' fill='none'%3E%3Cpath d='M30 40L96 70L150 34L206 78'/%3E%3Cpath d='M40 180L110 150L168 190L214 150'/%3E%3C/g%3E%3Cg fill='%23ffcf5a'%3E%3Ccircle cx='30' cy='40' r='1.4' fill-opacity='0.7'/%3E%3Ccircle cx='150' cy='34' r='1.2' fill-opacity='0.6'/%3E%3Ccircle cx='168' cy='190' r='1.3' fill-opacity='0.6'/%3E%3C/g%3E%3Cg fill='%232fd48f'%3E%3Ccircle cx='96' cy='70' r='1.1' fill-opacity='0.6'/%3E%3Ccircle cx='110' cy='150' r='1' fill-opacity='0.5'/%3E%3Ccircle cx='214' cy='150' r='1.2' fill-opacity='0.55'/%3E%3C/g%3E%3Cg fill='%23c9a0ff'%3E%3Ccircle cx='206' cy='78' r='1' fill-opacity='0.5'/%3E%3Ccircle cx='40' cy='180' r='1' fill-opacity='0.45'/%3E%3C/g%3E%3C/svg%3E");
+  animation:vmConstellation 7s ease-in-out infinite;
+}
+@keyframes vmConstellation{0%,100%{opacity:.55}50%{opacity:.85}}
+/* nebula wash that slowly wheels + breathes */
+body::after{
+  content:"";position:fixed;inset:-25%;pointer-events:none;z-index:0;opacity:.5;mix-blend-mode:screen;
+  background:
+    radial-gradient(60% 50% at 30% 30%, rgba(162,76,255,.28), transparent 60%),
+    radial-gradient(50% 46% at 74% 70%, rgba(47,212,143,.2), transparent 62%);
+  animation:vmNebula 60s ease-in-out infinite;
+}
+@keyframes vmNebula{0%,100%{transform:scale(1.1) rotate(0deg);opacity:.45}50%{transform:scale(1.16) rotate(8deg);opacity:.62}}
+
+.stage{max-width:1080px;margin:0 auto;position:relative;z-index:1}
+.mock-label{text-align:center;font-family:var(--deco);color:var(--lumiverse-accent);letter-spacing:.3em;text-transform:uppercase;font-size:.72rem;margin-bottom:.6rem;opacity:.9;text-shadow:0 0 12px rgba(162,76,255,.6)}
+.mock-title{text-align:center;font-family:var(--deco);font-weight:900;font-size:2.9rem;letter-spacing:.06em;color:var(--lumiverse-text);margin-bottom:.35rem;text-shadow:0 0 20px rgba(162,76,255,.5)}
+.mock-title::after{content:"\2727";display:block;color:var(--lumiverse-accent-2);font-size:1.1rem;margin-top:.35rem;animation:vmRune 4s ease-in-out infinite}
+@keyframes vmRune{0%,100%{opacity:.5;text-shadow:0 0 10px rgba(47,212,143,.5)}50%{opacity:1;text-shadow:0 0 22px rgba(47,212,143,.9),0 0 34px rgba(162,76,255,.5)}}
+.mock-sub{text-align:center;font-style:italic;color:var(--lumiverse-text-2);margin-bottom:2.75rem;font-family:var(--body);letter-spacing:.03em}
+
+.msg{--avatar-w:clamp(150px,18vw,260px);display:grid;grid-template-columns:var(--avatar-w) minmax(0,1fr);column-gap:clamp(14px,1.6vw,26px);align-items:start;margin-bottom:clamp(28px,3.4vw,52px);animation:vmPageTurn .7s ease-out both}
+.msg.user{grid-template-columns:minmax(0,1fr) var(--avatar-w)}
+@keyframes vmPageTurn{0%{opacity:0;transform:translateY(10px) rotateX(6deg)}100%{opacity:1;transform:translateY(0) rotateX(0)}}
+
+.avatar{grid-column:1;grid-row:1/span 2;justify-self:start;position:sticky;top:24px;width:var(--avatar-w);height:clamp(360px,52vh,560px);border-radius:var(--radius);overflow:hidden;isolation:isolate;
+  -webkit-mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to right,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  -webkit-mask-composite:source-in;mask-composite:intersect;}
+.msg.user .avatar{grid-column:2;justify-self:end;
+  -webkit-mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);
+  mask-image:linear-gradient(to left,#000 0,#000 52%,rgba(0,0,0,.86) 68%,rgba(0,0,0,.44) 86%,transparent 100%),linear-gradient(to bottom,#000 0,#000 64%,rgba(0,0,0,.72) 82%,transparent 100%);}
+.avatar .fill{position:absolute;inset:0}
+.portraitA{background:radial-gradient(120% 80% at 46% 6%, rgba(200,160,255,.55), transparent 58%),radial-gradient(60% 50% at 84% 92%, rgba(47,212,143,.4), transparent 70%),radial-gradient(40% 34% at 10% 90%, rgba(120,70,200,.5), transparent 72%),linear-gradient(160deg,#3a2a5c,#241640 48%,#0d0819 100%)}
+.portraitB{background:radial-gradient(120% 80% at 54% 6%, rgba(160,230,200,.46), transparent 58%),radial-gradient(60% 50% at 14% 92%, rgba(162,76,255,.44), transparent 70%),radial-gradient(40% 34% at 90% 88%, rgba(47,212,143,.4), transparent 72%),linear-gradient(160deg,#1c3a30,#16283a 48%,#0d0819 100%)}
+/* arcane mote layer drifting over the portrait */
+.avatar .motes{position:absolute;inset:0;z-index:2;pointer-events:none;
+  background-image:
+    radial-gradient(2px 2px at 22% 72%, var(--gild), transparent 62%),
+    radial-gradient(1.5px 1.5px at 48% 88%, var(--lumiverse-accent-2), transparent 62%),
+    radial-gradient(2px 2px at 72% 58%, var(--lumiverse-accent), transparent 62%),
+    radial-gradient(1.5px 1.5px at 34% 40%, var(--gild), transparent 62%),
+    radial-gradient(2px 2px at 82% 30%, var(--lumiverse-accent-2), transparent 62%);
+  background-repeat:no-repeat;opacity:.85;animation:vmMotes 9s ease-in-out infinite}
+@keyframes vmMotes{0%,100%{transform:translateY(0);opacity:.7}50%{transform:translateY(-16px);opacity:.95}}
+.avatar .fig{position:absolute;inset:0;opacity:.96;z-index:1}
+/* gilt rune-inscribed frame */
+.avatar::after{content:"";position:absolute;inset:6px;border-radius:calc(var(--radius) - 4px);border:1px solid rgba(255,207,90,.5);box-shadow:inset 0 0 26px rgba(162,76,255,.4),inset 0 0 60px rgba(47,212,143,.14);pointer-events:none;z-index:3;animation:vmFrameGlow 5s ease-in-out infinite}
+@keyframes vmFrameGlow{0%,100%{box-shadow:inset 0 0 26px rgba(162,76,255,.34),inset 0 0 60px rgba(47,212,143,.12)}50%{box-shadow:inset 0 0 34px rgba(162,76,255,.6),inset 0 0 80px rgba(47,212,143,.22)}}
+
+.bubble{grid-column:2;min-width:0}
+.msg.user .bubble{grid-column:1}
+.header{display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:8px 16px 16px;position:relative}
+.header::before{content:"\2727";color:var(--lumiverse-accent-2);font-size:1rem;opacity:.9;text-shadow:0 0 12px rgba(47,212,143,.6);animation:vmRune 4s ease-in-out infinite}
+.name{font-family:var(--deco);font-weight:700;font-size:clamp(1.6rem,2.1vw,2.3rem);line-height:1.02;letter-spacing:.02em;background:linear-gradient(92deg,var(--lumiverse-accent),#d9b6ff 55%,var(--lumiverse-accent-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 12px rgba(162,76,255,.4))}
+.msg.user .name{background:linear-gradient(92deg,var(--lumiverse-accent-2),#9ff0cf 55%,var(--lumiverse-accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.pill{font-family:var(--serif);letter-spacing:.14em;text-transform:uppercase;font-size:.72rem;opacity:.7;color:var(--lumiverse-text-2)}
+
+.content{position:relative;isolation:isolate;padding:22px 24px;border-radius:var(--radius);border:1px solid var(--glass-border);
+  background:linear-gradient(168deg,var(--surf-1),var(--surf-2));
+  box-shadow:inset 0 0 24px rgba(162,76,255,.1),0 14px 36px rgba(6,3,16,.55);
+  backdrop-filter:blur(10px) saturate(118%);-webkit-backdrop-filter:blur(10px) saturate(118%)}
+/* gilded inner keyline */
+.content::after{content:"";position:absolute;inset:6px;z-index:0;border-radius:calc(var(--radius) - 4px);border:1px solid rgba(255,207,90,.28);pointer-events:none}
+/* flowing magic gradient bar down the binding edge */
+.content::before{content:"";position:absolute;top:12px;bottom:12px;left:0;width:3px;border-radius:2px;background:linear-gradient(180deg,var(--lumiverse-accent),var(--lumiverse-accent-2),var(--lumiverse-accent));background-size:100% 200%;animation:vmFlow 3s linear infinite;box-shadow:0 0 10px rgba(162,76,255,.6)}
+.msg.user .content::before{left:auto;right:0}
+@keyframes vmFlow{0%{background-position:0 0}100%{background-position:0 200%}}
+.content > .prose,.content > .think-toggle,.content > .think-body{position:relative;z-index:1}
+
+.prose{font-family:var(--body);font-size:1.06rem;line-height:1.76;text-align:justify;hyphens:auto;text-wrap:pretty}
+/* illuminated gilt drop-cap with a soft arcane glow */
+.prose>p:first-of-type::first-letter{font-family:var(--deco);font-weight:900;font-size:3.2em;line-height:.72;float:left;margin:.06em .12em 0 0;padding:.04em .12em;color:var(--gild);background:radial-gradient(circle,rgba(162,76,255,.28),transparent 72%);text-shadow:0 0 16px rgba(255,207,90,.7)}
+.prose p{margin:0 0 .9em}
+.prose p:last-child{margin-bottom:0}
+.prose em{font-style:italic;color:var(--lumiverse-text-2)}
+.prose .say{color:var(--lumiverse-accent-2);text-shadow:0 0 12px rgba(47,212,143,.3)}
+.msg.user .prose .say{color:#c9a0ff}
+.prose strong{color:#fff;font-weight:700}
+
+.think-toggle{display:inline-flex;align-items:center;gap:.5rem;margin:16px 0 0;padding:.35rem .85rem;border-radius:99px;font-family:var(--serif);letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--glass-border);font-size:.72rem;opacity:.85;color:var(--lumiverse-text-2);background:rgba(162,76,255,.12)}
+.think-body{margin:12px 0 0;padding:14px 16px;border-radius:8px;font-style:italic;font-size:.98rem;color:var(--lumiverse-text-2);border-left:3px solid var(--lumiverse-accent);background:linear-gradient(90deg,rgba(162,76,255,.1),transparent 60%),var(--surf-2)}
+blockquote{margin:.2em 0;padding:.1em 0 .1em .9em;border-left:2px solid color-mix(in srgb,var(--lumiverse-accent-2) 60%,transparent);color:var(--lumiverse-text-2);font-style:italic}
+
+@media(max-width:720px){.msg{--avatar-w:clamp(64px,26vw,120px)}.avatar{height:clamp(180px,48vw,300px);top:14px}.name{font-size:1.4rem}.mock-title{font-size:2rem}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="mock-label">Vellum · Grimoire</div>
+  <h1 class="mock-title">A Living Spellbook</h1>
+  <p class="mock-sub">Arcane violet &amp; emerald, glowing runes, illuminated drop-caps — MinimalMessage layout, Grimoire chrome.</p>
+
+  <!-- character message -->
+  <div class="msg character">
+    <div class="avatar"><div class="fill portraitA"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="robeA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#7a4cc4"/><stop offset=".55" stop-color="#3a2260"/><stop offset="1" stop-color="#180f30"/>
+          </linearGradient>
+          <radialGradient id="skinA" cx=".44" cy=".4" r=".7">
+            <stop offset="0" stop-color="#e8d6c0"/><stop offset="1" stop-color="#a8845c"/>
+          </radialGradient>
+          <radialGradient id="orbA" cx=".5" cy=".5" r=".5">
+            <stop offset="0" stop-color="#9ff0cf"/><stop offset=".6" stop-color="#2fd48f"/><stop offset="1" stop-color="#2fd48f" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <!-- hooded sorceress cradling a glowing orb -->
+        <g>
+          <path d="M54 400 C56 288 70 226 88 206 C96 197 104 197 112 206 C130 226 144 288 146 400 Z" fill="url(#robeA)"/>
+          <!-- rune trim down the robe -->
+          <g fill="#ffcf5a" fill-opacity=".7"><circle cx="86" cy="250" r="2"/><circle cx="100" cy="286" r="2"/><circle cx="114" cy="250" r="2"/><circle cx="100" cy="330" r="2"/></g>
+          <!-- sleeves cradling orb -->
+          <path d="M88 236 C64 250 58 286 74 300 C80 276 92 258 104 250 Z" fill="url(#robeA)"/>
+          <path d="M112 236 C136 250 142 286 126 300 C120 276 108 258 96 250 Z" fill="url(#robeA)"/>
+          <!-- glowing orb -->
+          <circle cx="100" cy="286" r="26" fill="url(#orbA)"/>
+          <!-- neck + head -->
+          <rect x="94" y="178" width="12" height="20" rx="5" fill="url(#skinA)"/>
+          <ellipse cx="100" cy="158" rx="23" ry="27" fill="url(#skinA)"/>
+          <!-- hood -->
+          <path d="M72 168 C66 120 134 120 128 168 C128 132 120 120 100 120 C80 120 72 132 72 168 Z" fill="#2a1a48"/>
+          <path d="M74 160 C80 138 120 138 126 160 C112 148 88 148 74 160 Z" fill="#3a2660" opacity=".8"/>
+          <!-- circlet gem -->
+          <circle cx="100" cy="138" r="3.4" fill="#2fd48f"/>
+        </g>
+      </svg>
+      <div class="motes"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">Seraphine</div><div class="pill">the candlelit scriptorium</div></div>
+      <div class="content">
+        <div class="prose">
+          <p>Threads of the ward unravel as she speaks the ninth name aloud, and the sigils along the wall begin, one by one, to breathe.</p>
+          <p><span class="say">"Do not read past the seventh seal,"</span> <em>she murmurs, not looking up from the orb.</em> <span class="say">"The book reads back."</span></p>
+          <blockquote>Every name has a door. Every door, a price. Mind which you speak aloud.</blockquote>
+        </div>
+        <div class="think-toggle">&#129504; reasoning</div>
+        <div class="think-body">Play her as quiet gravity — power that never raises its voice. The magic is old and personal; she treats the grimoire like a living thing she both trusts and fears.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- user message -->
+  <div class="msg user">
+    <div class="avatar"><div class="fill portraitB"></div>
+      <svg class="fig" viewBox="0 0 200 400" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <linearGradient id="coatB" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2f7a5c"/><stop offset=".55" stop-color="#1a4636"/><stop offset="1" stop-color="#0d221a"/>
+          </linearGradient>
+          <radialGradient id="skinB" cx=".56" cy=".4" r=".7">
+            <stop offset="0" stop-color="#eccf9c"/><stop offset="1" stop-color="#9c6f3e"/>
+          </radialGradient>
+        </defs>
+        <!-- apprentice with a floating spell-tome -->
+        <g>
+          <path d="M54 400 C56 292 68 232 86 212 C94 203 106 203 114 212 C132 232 144 292 146 400 Z" fill="url(#coatB)"/>
+          <path d="M90 214 L100 300 L110 214 C106 210 94 210 90 214 Z" fill="#0d221a"/>
+          <rect x="94" y="184" width="12" height="20" rx="5" fill="url(#skinB)"/>
+          <ellipse cx="100" cy="162" rx="23" ry="27" fill="url(#skinB)"/>
+          <path d="M77 160 C76 128 124 128 123 160 C123 142 116 134 100 134 C84 134 77 142 77 160 Z" fill="#241a12"/>
+          <!-- floating open tome held out -->
+          <g transform="translate(150 250) rotate(-10)">
+            <path d="M-22 0 L0 -6 L0 12 L-22 8 Z" fill="#a24cff" fill-opacity=".85"/>
+            <path d="M0 -6 L22 0 L22 8 L0 12 Z" fill="#7a2ed0" fill-opacity=".85"/>
+            <path d="M0 -6 L0 12" stroke="#ffcf5a" stroke-width="1.4"/>
+            <circle cx="0" cy="-14" r="3" fill="#2fd48f"/>
+          </g>
+        </g>
+      </svg>
+      <div class="motes"></div>
+    </div>
+    <div class="bubble">
+      <div class="header"><div class="name">You</div><div class="pill">at the reading desk</div></div>
+      <div class="content">
+        <div class="prose">
+          <p><em>I hold the smaller tome open across both palms; its pages turn themselves, pausing at a diagram that keeps rearranging when I blink.</em></p>
+          <p><span class="say">"The book reads back,"</span> <em>I repeat, mouth dry.</em> <span class="say">"Then let's give it something worth reading. Which name opens the seventh seal?"</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

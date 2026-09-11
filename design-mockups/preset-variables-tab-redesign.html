@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II &mdash; Preset Variables Tab · Redesign Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@300;400;500;600;700&family=Cinzel:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e0b07; --bg2:#15100a;
+  --surf:rgba(28,20,12,.78); --surf2:rgba(40,29,16,.62); --surf3:rgba(52,38,22,.5);
+  --kl:rgba(205,168,78,.22); --kl2:rgba(205,168,78,.44);
+  --g:#cda84e; --gb:#e6c56b; --gd:#8a7238; --gf:rgba(205,168,78,.1);
+  --ink:#e7d6ad; --id:#a99a76; --if:#6f6448;
+  --neg:#9c3b32; --negi:#c85a4e;
+  --sage:#6f8a5f; --sagei:#9ab88a;
+  --info:#4a6e9c; --infoi:#7aaad8;
+  --warn:#c4882a; --warni:#e0a84a;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --display:'Cinzel',serif;
+  --play:'Playfair Display',Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(1400px 700px at 15% -10%,rgba(205,168,78,.07),transparent 58%),radial-gradient(900px 500px at 95% 5%,rgba(156,59,50,.05),transparent 52%),radial-gradient(600px 400px at 50% 100%,rgba(111,138,95,.04),transparent 60%),linear-gradient(165deg,var(--bg),var(--bg2));background-attachment:fixed;color:var(--ink);font-family:var(--serif);font-size:16px;line-height:1.55;min-height:100vh;padding-bottom:8rem}
+.mast{text-align:center;padding:4.5rem 1.5rem 2.5rem;position:relative}
+.mast-seal{width:72px;height:72px;margin:0 auto 1.5rem;border-radius:50%;background:radial-gradient(circle at 32% 28%,var(--gb),var(--gd));box-shadow:0 0 0 1px var(--kl2),0 0 0 8px rgba(205,168,78,.08),0 12px 40px rgba(205,168,78,.22);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:2rem;color:#1e1408;font-weight:700}
+.mast h1{font-family:var(--display);font-size:2.8rem;color:var(--gb);letter-spacing:.12em;text-transform:uppercase}
+.mast .sub{color:var(--id);font-style:italic;font-size:1.15rem;margin-top:.4rem;font-family:var(--play)}
+.mast .ctx{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--g);margin-top:1rem}
+.nav{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,rgba(14,11,7,.97),rgba(14,11,7,.84));backdrop-filter:blur(16px);border-bottom:1px solid var(--kl);padding:.7rem 0}
+.nav-inner{max-width:1360px;margin:0 auto;padding:0 1.5rem;display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.nav a{color:var(--id);text-decoration:none;font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;padding:.35rem .75rem;border:1px solid transparent;border-radius:3px;transition:all .18s}
+.nav a:hover{color:var(--gb);border-color:var(--kl)}
+.nav .tag{color:var(--g);font-weight:700;font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;margin-right:.4rem}
+.concept{padding:3.5rem 1.5rem 1rem;max-width:1360px;margin:0 auto}
+.concept-head{margin-bottom:2rem}
+.concept-head .kicker{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--g);margin-bottom:.5rem}
+.concept-head h2{font-family:var(--display);font-size:2rem;color:var(--ink);letter-spacing:.08em}
+.concept-head .desc{color:var(--id);font-style:italic;max-width:70ch;margin-top:.5rem;font-size:.98rem;font-family:var(--play)}
+.concept-head .notes{margin-top:.9rem;display:flex;gap:.5rem;flex-wrap:wrap}
+.hr{height:1px;background:linear-gradient(90deg,transparent,var(--kl),transparent);margin:3.5rem 0}
+.stage{display:flex;justify-content:center;padding:1rem 0}
+.pill{display:inline-block;font-family:var(--mono);font-size:.54rem;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid transparent}
+.pill.gold{color:var(--gb);border-color:rgba(205,168,78,.35);background:rgba(205,168,78,.1)}
+.pill.sage{color:var(--sagei);border-color:rgba(111,138,95,.35);background:rgba(111,138,95,.1)}
+.pill.info{color:var(--infoi);border-color:rgba(74,110,156,.35);background:rgba(74,110,156,.1)}
+.pill.warn{color:var(--warni);border-color:rgba(196,136,42,.35);background:rgba(196,136,42,.1)}
+.caption{max-width:340px;margin:1.2rem auto 0;text-align:center;font-size:.82rem;color:var(--if);font-style:italic;font-family:var(--play)}
+
+/* ---- shared narrow-panel frame: the real tab is ~300-340px wide ---- */
+.panel{width:340px;background:var(--surf);border:1px solid var(--kl);border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.panel-scroll{max-height:760px;overflow-y:auto}
+.panel-scroll::-webkit-scrollbar{width:6px}
+.panel-scroll::-webkit-scrollbar-thumb{background:var(--kl);border-radius:3px}
+
+/* generic control atoms reused across concepts */
+.tog{display:inline-flex;width:34px;height:19px;border-radius:10px;border:1px solid var(--kl);background:rgba(205,168,78,.06);position:relative;cursor:pointer;flex-shrink:0}
+.tog::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--if);transition:all .2s}
+.tog.on{border-color:rgba(205,168,78,.6);background:rgba(205,168,78,.18)}
+.tog.on::after{left:17px;background:var(--g)}
+.sel{width:100%;font-family:var(--mono);font-size:.72rem;color:var(--ink);background:rgba(0,0,0,.28);border:1px solid var(--kl);border-radius:5px;padding:.42rem .6rem;appearance:none;cursor:pointer;position:relative;background-image:linear-gradient(45deg,transparent 50%,var(--gd) 50%),linear-gradient(135deg,var(--gd) 50%,transparent 50%);background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.range{-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--g) 0 60%,var(--kl) 60% 100%);width:100%;cursor:pointer}
+.range::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gb);border:2px solid var(--bg);box-shadow:0 0 6px rgba(205,168,78,.5)}
+.chips{display:flex;flex-wrap:wrap;gap:.3rem}
+.chip{font-family:var(--mono);font-size:.58rem;padding:.22rem .5rem;border-radius:999px;border:1px solid var(--kl);color:var(--id);cursor:pointer;transition:all .15s}
+.chip.on{border-color:var(--g);background:rgba(205,168,78,.16);color:var(--gb)}
+.txt{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--kl);border-radius:5px;padding:.42rem .6rem;color:var(--ink);font-family:var(--serif);font-size:.9rem}
+
+/* =========================================================================
+   I · THE LOOM — variables as warp threads on a manuscript loom
+   ========================================================================= */
+.loom-head{padding:1.15rem 1.2rem 1rem;border-bottom:1px solid var(--kl);background:linear-gradient(180deg,var(--surf2),transparent)}
+.loom-eyebrow{font-family:var(--mono);font-size:.55rem;letter-spacing:.22em;text-transform:uppercase;color:var(--g);display:flex;align-items:center;gap:.5rem}
+.loom-eyebrow .lk{display:inline-flex;align-items:center;gap:.3rem;color:var(--sagei)}
+.loom-eyebrow .lk .d{width:6px;height:6px;border-radius:50%;background:var(--sagei);box-shadow:0 0 7px var(--sage)}
+.loom-title{font-family:var(--display);font-size:1.35rem;color:var(--gb);letter-spacing:.05em;margin-top:.5rem}
+.loom-note{font-size:.8rem;color:var(--id);font-style:italic;font-family:var(--play);margin-top:.15rem}
+.loom-body{padding:.5rem 0 1rem}
+.loom-grp{margin:.9rem 1rem;border-radius:9px;border:1px solid var(--kl);overflow:hidden;background:rgba(0,0,0,.14)}
+.loom-grptop{display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem;background:linear-gradient(90deg,rgba(205,168,78,.14),rgba(205,168,78,.03));border-bottom:1px solid var(--kl);cursor:pointer}
+.loom-grptop .spool{width:14px;height:14px;border-radius:50%;border:2px solid var(--g);position:relative}
+.loom-grptop .spool::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--gb)}
+.loom-grptop .gt{flex:1;font-family:var(--mono);font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gb)}
+.loom-grptop .gc{font-family:var(--mono);font-size:.55rem;color:var(--gd)}
+.loom-grpbody{padding:.8rem}
+.loom-var{display:grid;grid-template-columns:1fr;gap:.35rem;padding:.55rem 0;position:relative;padding-left:1rem}
+.loom-var + .loom-var{border-top:1px dashed var(--kl)}
+.loom-var::before{content:"";position:absolute;left:0;top:.85rem;bottom:.85rem;width:2px;background:linear-gradient(180deg,var(--g),transparent);border-radius:1px}
+.loom-var .vl{font-size:.92rem;color:var(--ink);font-weight:500;display:flex;justify-content:space-between;align-items:center}
+.loom-var .vl .vt{font-family:var(--mono);font-size:.5rem;letter-spacing:.1em;text-transform:uppercase;color:var(--if);border:1px solid var(--kl);border-radius:3px;padding:1px 5px}
+.loom-var .vd{font-size:.76rem;color:var(--id);font-style:italic;font-family:var(--play);margin-bottom:.15rem}
+.loom-sliderrow{display:flex;align-items:center;gap:.6rem}
+.loom-sliderrow .sv{font-family:var(--mono);font-size:.62rem;color:var(--gb);min-width:2.2rem;text-align:right}
+.loom-diag{margin-top:.4rem;border-top:1px solid var(--kl)}
+.loom-diagsum{display:flex;align-items:center;gap:.5rem;padding:.7rem 1rem;cursor:pointer;font-family:var(--mono);font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--if)}
+.loom-diagsum::before{content:"\25B8";color:var(--gd)}
+.loom-diagsum:hover{color:var(--id)}
+
+/* =========================================================================
+   II · CONTROL DESK — instrument console; dials + gauges, engine aesthetic
+   ========================================================================= */
+.desk{background:linear-gradient(180deg,#120d08,#0c0906)}
+.desk-head{padding:1rem 1.1rem;border-bottom:1px solid var(--kl);display:flex;align-items:center;gap:.7rem}
+.desk-head .logo{width:34px;height:34px;border-radius:7px;background:radial-gradient(circle at 34% 30%,var(--gb),var(--gd));display:flex;align-items:center;justify-content:center;font-family:var(--display);color:#180f06;font-weight:700;font-size:1rem}
+.desk-head .ht{flex:1}
+.desk-head .ht .t{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+.desk-head .ht .s{font-family:var(--mono);font-size:.52rem;letter-spacing:.1em;color:var(--sagei);display:flex;align-items:center;gap:.3rem;margin-top:.15rem}
+.desk-head .ht .s .d{width:5px;height:5px;border-radius:50%;background:var(--sagei);box-shadow:0 0 6px var(--sage)}
+.desk-strip{display:flex;gap:1px;background:var(--kl);border-bottom:1px solid var(--kl)}
+.desk-stat{flex:1;background:#0e0a06;padding:.6rem .5rem;text-align:center}
+.desk-stat .v{font-family:var(--mono);font-size:1rem;color:var(--gb);font-weight:600}
+.desk-stat .k{font-family:var(--mono);font-size:.46rem;letter-spacing:.14em;text-transform:uppercase;color:var(--if);margin-top:.15rem}
+.desk-sect{padding:.5rem .9rem .2rem;font-family:var(--mono);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--g);display:flex;align-items:center;gap:.5rem}
+.desk-sect::after{content:"";flex:1;height:1px;background:var(--kl)}
+.desk-mod{margin:.55rem .9rem;padding:.7rem .8rem;border:1px solid var(--kl);border-radius:6px;background:rgba(205,168,78,.03);position:relative}
+.desk-mod .mtop{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.4rem}
+.desk-mod .mn{font-family:var(--mono);font-size:.66rem;color:var(--ink);letter-spacing:.04em}
+.desk-mod .mv{font-family:var(--mono);font-size:.62rem;color:var(--gb)}
+.desk-gauge{height:26px;display:flex;align-items:flex-end;gap:2px}
+.desk-gauge i{flex:1;height:60%;background:var(--kl);border-radius:1px;transition:all .2s}
+.desk-gauge i.hot{height:100%;background:linear-gradient(180deg,var(--gb),var(--gd));box-shadow:0 0 6px rgba(205,168,78,.35)}
+.desk-led{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.desk-led button{border:1px solid var(--kl);background:rgba(0,0,0,.3);border-radius:3px;padding:.32rem 0;font-family:var(--mono);font-size:.56rem;color:var(--id);cursor:pointer;text-align:center}
+.desk-led button.on{border-color:var(--g);background:rgba(205,168,78,.18);color:var(--gb);box-shadow:inset 0 0 8px rgba(205,168,78,.2)}
+.desk-toggle{display:flex;align-items:center;justify-content:space-between}
+
+/* =========================================================================
+   III · MARGINALIA — an illuminated page; variables in the margin as glosses
+   ========================================================================= */
+.marg{background:linear-gradient(175deg,rgba(231,214,173,.045),rgba(0,0,0,.14))}
+.marg-head{padding:1.3rem 1.3rem .9rem;text-align:center;border-bottom:1px solid var(--kl);position:relative}
+.marg-head::after{content:"";position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);width:60px;height:1px;background:var(--g)}
+.marg-head .drop{font-family:var(--display);font-size:2.4rem;color:var(--gb);line-height:1;text-shadow:0 2px 12px rgba(205,168,78,.35)}
+.marg-head .t{font-family:var(--play);font-style:italic;font-size:1.05rem;color:var(--id);margin-top:.2rem}
+.marg-head .lk{margin-top:.6rem;font-family:var(--mono);font-size:.52rem;letter-spacing:.16em;text-transform:uppercase;color:var(--sagei);display:inline-flex;align-items:center;gap:.35rem}
+.marg-head .lk .d{width:5px;height:5px;border-radius:50%;background:var(--sagei);box-shadow:0 0 6px var(--sage)}
+.marg-sect{padding:1rem 1.2rem .2rem}
+.marg-sect .rubric{font-family:var(--display);font-size:.95rem;color:var(--g);letter-spacing:.05em;display:flex;align-items:center;gap:.5rem;margin-bottom:.7rem}
+.marg-sect .rubric::before{content:"\00A7";color:var(--gd);font-size:1.1rem}
+.marg-gloss{display:flex;gap:.75rem;padding:.6rem 0}
+.marg-gloss + .marg-gloss{border-top:1px solid var(--kl)}
+.marg-gloss .initial{font-family:var(--display);font-size:1.1rem;color:var(--gd);width:1.4rem;text-align:center;flex-shrink:0;line-height:1.4}
+.marg-gloss .body{flex:1;min-width:0}
+.marg-gloss .gname{font-family:var(--play);font-size:.95rem;color:var(--ink);font-style:italic}
+.marg-gloss .gctl{margin-top:.35rem}
+.marg-val{font-family:var(--serif);font-size:.95rem;color:var(--gb);border-bottom:1px dotted var(--kl2);display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;padding-bottom:1px}
+.marg-val::after{content:"\25BE";font-size:.6rem;color:var(--gd)}
+.marg-diag{margin:.6rem 1.2rem 1.2rem;padding:.7rem .9rem;border:1px solid var(--kl);border-radius:8px;background:rgba(0,0,0,.18)}
+.marg-diag .dh{font-family:var(--mono);font-size:.55rem;letter-spacing:.16em;text-transform:uppercase;color:var(--if);display:flex;align-items:center;justify-content:space-between}
+.marg-diag .drow{display:flex;justify-content:space-between;font-size:.82rem;padding:.35rem 0;color:var(--id)}
+.marg-diag .drow + .drow{border-top:1px dashed var(--kl)}
+.marg-diag .drow b{color:var(--ink);font-weight:600}
+.mini{font-family:var(--mono);font-size:.5rem;letter-spacing:.14em;text-transform:uppercase;color:var(--if)}
+</style>
+</head>
+<body>
+<div class="mast">
+  <div class="mast-seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Preset Tab &mdash; &ldquo;Configure Prompt Variables&rdquo; Redesigns</div>
+  <div class="ctx">Three concepts &middot; narrow-panel (~340px) &middot; 2026</div>
+</div>
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="tag">Mockups</span>
+    <a href="#c-loom">I &middot; The Loom</a>
+    <a href="#c-desk">II &middot; Control Desk</a>
+    <a href="#c-marg">III &middot; Marginalia</a>
+  </div>
+</nav>
+
+<!-- ============================ I · THE LOOM ============================ -->
+<section class="concept" id="c-loom">
+  <div class="concept-head">
+    <div class="kicker">Concept I</div>
+    <h2>The Loom</h2>
+    <p class="desc">Variables are warp threads on a manuscript loom. Each block is a spool; its variables hang beneath on a gilt thread. Warm, editorial, unmistakably VELLUM &mdash; the primary content is the variable grid, with diagnostics tucked into a hairline drawer at the foot.</p>
+    <div class="notes">
+      <span class="pill gold">Grouped by block</span>
+      <span class="pill sage">Linked state in header</span>
+      <span class="pill info">Diagnostics collapsed</span>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="panel">
+      <div class="panel-scroll">
+        <div class="loom-head">
+          <div class="loom-eyebrow">
+            <span>Companion Preset</span>
+            <span class="lk"><span class="d"></span> Linked</span>
+          </div>
+          <div class="loom-title">Configure Variables</div>
+          <div class="loom-note">Choices save to this preset. Live macro previews live in the native editor.</div>
+        </div>
+        <div class="loom-body">
+
+          <div class="loom-grp">
+            <div class="loom-grptop"><span class="spool"></span><span class="gt">VELLUM II &mdash; Core</span><span class="gc">4 vars</span></div>
+            <div class="loom-grpbody">
+              <div class="loom-var">
+                <div class="vl">Point of View <span class="vt">select</span></div>
+                <div class="vd">Narration perspective</div>
+                <select class="sel"><option>Third Limited</option><option>First</option><option>Third Omniscient</option></select>
+              </div>
+              <div class="loom-var">
+                <div class="vl">Prose Length <span class="vt">select</span></div>
+                <select class="sel"><option>Standard (3&ndash;4 &para;)</option><option>Brief</option><option>Lavish</option></select>
+              </div>
+              <div class="loom-var">
+                <div class="vl">Narrative Stakes <span class="vt">slider</span></div>
+                <div class="vd">How much tension colors each scene</div>
+                <div class="loom-sliderrow"><input class="range" type="range" min="0" max="10" value="6"><span class="sv">6/10</span></div>
+              </div>
+              <div class="loom-var">
+                <div class="vl">Sensory Detail <span class="vt">switch</span></div>
+                <div class="loom-sliderrow" style="justify-content:space-between"><span class="vd">Foreground the five senses</span><span class="tog on"></span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="loom-grp">
+            <div class="loom-grptop"><span class="spool"></span><span class="gt">Tone &amp; Genre</span><span class="gc">3 vars</span></div>
+            <div class="loom-grpbody">
+              <div class="loom-var">
+                <div class="vl">Genre <span class="vt">select</span></div>
+                <select class="sel"><option>Literary Fantasy</option><option>Noir</option><option>Romance</option></select>
+              </div>
+              <div class="loom-var">
+                <div class="vl">Content Filters <span class="vt">multiselect</span></div>
+                <div class="vd">Which softeners to strip</div>
+                <div class="chips"><span class="chip on">filter-words</span><span class="chip">euphemism</span><span class="chip on">purple prose</span><span class="chip">cliché</span></div>
+              </div>
+              <div class="loom-var">
+                <div class="vl">Romance Heat <span class="vt">slider</span></div>
+                <div class="loom-sliderrow"><input class="range" type="range" min="0" max="10" value="3" style="background:linear-gradient(90deg,var(--g) 0 30%,var(--kl) 30% 100%)"><span class="sv">3/10</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="loom-diag">
+            <div class="loom-diagsum">Diagnostics &middot; health, injection, budget</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">The gilt thread down each variable's left edge ties it to its spool. Diagnostics stay one hairline row away &mdash; present, never competing.</p>
+</section>
+
+<div class="hr"></div>
+
+<!-- ============================ II · CONTROL DESK ============================ -->
+<section class="concept" id="c-desk">
+  <div class="concept-head">
+    <div class="kicker">Concept II</div>
+    <h2>Control Desk</h2>
+    <p class="desc">The engine-room read. Variables become instrument modules &mdash; sliders render as bar gauges, selects as LED banks, switches as console toggles. A stat strip up top surfaces token budget and link/health at a glance. For the power user who thinks of a preset as a machine to tune.</p>
+    <div class="notes">
+      <span class="pill gold">Gauge sliders</span>
+      <span class="pill info">Stat strip header</span>
+      <span class="pill warn">LED selects</span>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="panel desk">
+      <div class="panel-scroll">
+        <div class="desk-head">
+          <div class="logo">V</div>
+          <div class="ht">
+            <div class="t">Variable Console</div>
+            <div class="s"><span class="d"></span> Linked &middot; block state OK</div>
+          </div>
+        </div>
+        <div class="desk-strip">
+          <div class="desk-stat"><div class="v">7</div><div class="k">variables</div></div>
+          <div class="desk-stat"><div class="v">1.2k</div><div class="k">std tokens</div></div>
+          <div class="desk-stat"><div class="v">4/4</div><div class="k">extract</div></div>
+        </div>
+
+        <div class="desk-sect">Core</div>
+        <div class="desk-mod">
+          <div class="mtop"><span class="mn">point_of_view</span><span class="mv">THIRD_LIM</span></div>
+          <div class="desk-led">
+            <button>1st</button><button class="on">3&nbsp;Lim</button><button>3&nbsp;Omn</button><button>2nd</button><button>Epis</button><button>Mixed</button>
+          </div>
+        </div>
+        <div class="desk-mod">
+          <div class="mtop"><span class="mn">narrative_stakes</span><span class="mv">6.0</span></div>
+          <div class="desk-gauge"><i></i><i></i><i></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i class="hot"></i><i></i><i></i><i></i></div>
+        </div>
+        <div class="desk-mod">
+          <div class="desk-toggle"><span class="mn">sensory_detail</span><span class="tog on"></span></div>
+        </div>
+
+        <div class="desk-sect">Tone &amp; Genre</div>
+        <div class="desk-mod">
+          <div class="mtop"><span class="mn">genre</span><span class="mv">LIT_FANTASY</span></div>
+          <div class="desk-led">
+            <button class="on">Fant</button><button>Noir</button><button>Rom</button><button>SciFi</button><button>Horror</button><button>Slice</button>
+          </div>
+        </div>
+        <div class="desk-mod">
+          <div class="mtop"><span class="mn">romance_heat</span><span class="mv">3.0</span></div>
+          <div class="desk-gauge"><i class="hot"></i><i class="hot"></i><i class="hot"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+
+        <div class="desk-sect">Diagnostics</div>
+        <div class="desk-mod" style="opacity:.85">
+          <div class="mtop"><span class="mn">companion.link</span><span class="mv" style="color:var(--sagei)">ACTIVE</span></div>
+          <div class="mtop" style="margin:.3rem 0 0"><span class="mn">state_block</span><span class="mv" style="color:var(--sagei)">PRESENT</span></div>
+          <div class="mtop" style="margin:.3rem 0 0"><span class="mn">last_inject</span><span class="mv">t47 &middot; 1240c</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">Monospace labels use the real <code style="font-family:var(--mono);font-size:.72em;color:var(--gb)">var::name</code> keys, so what you tune maps 1:1 to the prompt. The stat strip answers &ldquo;is it working?&rdquo; before you scroll.</p>
+</section>
+
+<div class="hr"></div>
+
+<!-- ============================ III · MARGINALIA ============================ -->
+<section class="concept" id="c-marg">
+  <div class="concept-head">
+    <div class="kicker">Concept III</div>
+    <h2>Marginalia</h2>
+    <p class="desc">The tab reads as an illuminated page. A drop-cap crowns it; each variable is a margin gloss &mdash; an initial, an italic name, and an inline editable value underlined like an annotator's ink. The most beautiful, most restrained option: it hides the machinery and lets the values feel hand-set.</p>
+    <div class="notes">
+      <span class="pill gold">Drop-cap masthead</span>
+      <span class="pill sage">Inline editable values</span>
+      <span class="pill info">Quietest chrome</span>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="panel marg">
+      <div class="panel-scroll">
+        <div class="marg-head">
+          <div class="drop">C</div>
+          <div class="t">Configure the companion's voice</div>
+          <div class="lk"><span class="d"></span> Linked to VELLUM</div>
+        </div>
+
+        <div class="marg-sect">
+          <div class="rubric">VELLUM II &mdash; Core</div>
+          <div class="marg-gloss">
+            <div class="initial">P</div>
+            <div class="body">
+              <div class="gname">Point of view</div>
+              <div class="gctl"><span class="marg-val">third limited</span></div>
+            </div>
+          </div>
+          <div class="marg-gloss">
+            <div class="initial">L</div>
+            <div class="body">
+              <div class="gname">Prose length</div>
+              <div class="gctl"><span class="marg-val">standard &mdash; three to four paragraphs</span></div>
+            </div>
+          </div>
+          <div class="marg-gloss">
+            <div class="initial">S</div>
+            <div class="body">
+              <div class="gname">Narrative stakes</div>
+              <div class="gctl"><input class="range" type="range" min="0" max="10" value="6"></div>
+            </div>
+          </div>
+          <div class="marg-gloss">
+            <div class="initial">D</div>
+            <div class="body">
+              <div class="gname" style="display:flex;justify-content:space-between;align-items:center">Sensory detail <span class="tog on"></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="marg-sect">
+          <div class="rubric">Tone &amp; Genre</div>
+          <div class="marg-gloss">
+            <div class="initial">G</div>
+            <div class="body">
+              <div class="gname">Genre</div>
+              <div class="gctl"><span class="marg-val">literary fantasy</span></div>
+            </div>
+          </div>
+          <div class="marg-gloss">
+            <div class="initial">F</div>
+            <div class="body">
+              <div class="gname">Content filters</div>
+              <div class="gctl chips" style="margin-top:.4rem"><span class="chip on">filter-words</span><span class="chip on">purple prose</span><span class="chip">cliché</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="marg-diag">
+          <div class="dh"><span>Diagnostics</span><span class="mini">tap to expand</span></div>
+          <div class="drow"><span>Companion link</span><b style="color:var(--sagei)">Linked</b></div>
+          <div class="drow"><span>State block</span><b style="color:var(--sagei)">Present</b></div>
+          <div class="drow"><span>Standing prompt</span><b>&asymp; 1,240 tok</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">Select values render as annotator's ink &mdash; underlined, dotted, click to change. It trades density for grace; best when a preset has few, meaningful dials.</p>
+</section>
+
+</body>
+</html>

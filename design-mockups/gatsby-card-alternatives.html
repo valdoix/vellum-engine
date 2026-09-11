@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gatsby Card Shape Alternatives</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poiret+One&family=Cormorant+Garamond:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gold:#d4af37;
+  --gold-dim:#9a7a2e;
+  --black:#0a0a0a;
+  --cream:#faf6ea;
+  --ink:#2a1810;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:linear-gradient(180deg,#0a0a0a,#1a1410);
+  color:#e8d8c8;
+  font-family:'Cormorant Garamond',Georgia,serif;
+  padding:3rem 1.5rem;
+  min-height:100vh;
+}
+.wrap{max-width:1400px;margin:0 auto}
+h1{
+  text-align:center;font-size:2.5rem;color:var(--gold);
+  letter-spacing:0.15em;margin-bottom:0.5rem;
+  font-family:'Poiret One',serif;font-weight:400;
+}
+.subtitle{
+  text-align:center;color:#a89868;font-style:italic;
+  margin-bottom:3rem;font-size:1.1rem;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(380px,1fr));
+  gap:2.5rem;
+  margin-bottom:3rem;
+}
+
+.option{
+  background:rgba(20,16,12,0.6);
+  border:1px solid rgba(212,175,55,0.3);
+  padding:2rem;
+  border-radius:4px;
+}
+.option-name{
+  font-family:'Poiret One',serif;
+  font-size:1.5rem;
+  color:var(--gold);
+  letter-spacing:0.1em;
+  margin-bottom:0.5rem;
+  text-align:center;
+}
+.option-desc{
+  color:#a89868;
+  font-size:0.92rem;
+  text-align:center;
+  margin-bottom:2rem;
+  font-style:italic;
+}
+
+/* Card container */
+.card{
+  background:linear-gradient(168deg,rgba(20,16,12,0.95),rgba(10,8,6,0.98));
+  padding:1.5rem;
+  margin-bottom:1.5rem;
+  position:relative;
+}
+
+/* OPTION 1: FAN CORNERS */
+.card-fan{
+  clip-path:polygon(
+    12px 0, calc(100% - 12px) 0,
+    100% 0, 100% 12px,
+    100% calc(100% - 12px), 100% 100%,
+    calc(100% - 12px) 100%, 12px 100%,
+    0 100%, 0 calc(100% - 12px),
+    0 12px, 0 0
+  );
+}
+.card-fan::before{
+  content:'';position:absolute;
+  top:0;left:0;width:12px;height:12px;
+  background:
+    linear-gradient(135deg, var(--gold) 0%, var(--gold) 50%, transparent 50%);
+}
+.card-fan::after{
+  content:'';position:absolute;
+  top:0;right:0;width:12px;height:12px;
+  background:
+    linear-gradient(225deg, var(--gold) 0%, var(--gold) 50%, transparent 50%);
+}
+
+/* OPTION 2: SUNBURST HEADER */
+.card-sunburst{
+  border:2px solid var(--gold);
+  border-top:5px solid var(--gold);
+  position:relative;
+}
+.card-sunburst::before{
+  content:'';position:absolute;
+  top:-5px;left:50%;transform:translateX(-50%);
+  width:0;height:0;
+  border-left:20px solid transparent;
+  border-right:20px solid transparent;
+  border-top:12px solid var(--gold);
+}
+.card-sunburst::after{
+  content:'✦';position:absolute;
+  top:-2px;left:50%;transform:translateX(-50%);
+  color:var(--gold);font-size:1.2rem;
+  text-shadow:0 0 12px rgba(212,175,55,0.8);
+}
+
+/* OPTION 3: DECO KEYSTONE */
+.card-keystone{
+  border:2px solid var(--gold);
+  border-top:none;
+  padding-top:2rem;
+}
+.card-keystone::before{
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:18px;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      transparent calc(50% - 40px),
+      var(--gold) calc(50% - 40px),
+      var(--gold) calc(50% - 38px),
+      transparent calc(50% - 38px),
+      transparent calc(50% - 20px),
+      var(--gold) calc(50% - 20px),
+      var(--gold) calc(50% + 20px),
+      transparent calc(50% + 20px),
+      transparent calc(50% + 38px),
+      var(--gold) calc(50% + 38px),
+      var(--gold) calc(50% + 40px),
+      transparent calc(50% + 40px)
+    );
+}
+.card-keystone::after{
+  content:'';position:absolute;
+  top:8px;left:50%;transform:translateX(-50%);
+  width:16px;height:16px;
+  background:var(--gold);
+  clip-path:polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+/* OPTION 4: STEPPED FRAME */
+.card-stepped{
+  border:none;
+  padding:2rem;
+}
+.card-stepped::before{
+  content:'';position:absolute;
+  inset:0;
+  border:2px solid var(--gold);
+  clip-path:polygon(
+    0 8px, 8px 8px, 8px 0,
+    calc(100% - 8px) 0, calc(100% - 8px) 8px, 100% 8px,
+    100% calc(100% - 8px), calc(100% - 8px) calc(100% - 8px),
+    calc(100% - 8px) 100%, 8px 100%,
+    8px calc(100% - 8px), 0 calc(100% - 8px)
+  );
+  pointer-events:none;
+}
+
+/* OPTION 5: MARQUEE LIGHTS */
+.card-marquee{
+  border:2px solid var(--gold);
+  border-top:3px solid var(--gold);
+  border-bottom:3px solid var(--gold);
+}
+.card-marquee::before{
+  content:'';position:absolute;
+  top:-3px;left:0;right:0;height:3px;
+  background:
+    repeating-linear-gradient(90deg,
+      var(--gold) 0px, var(--gold) 8px,
+      transparent 8px, transparent 16px
+    );
+}
+.card-marquee::after{
+  content:'';position:absolute;
+  bottom:-3px;left:0;right:0;height:3px;
+  background:
+    repeating-linear-gradient(90deg,
+      transparent 0px, transparent 8px,
+      var(--gold) 8px, var(--gold) 16px
+    );
+}
+
+/* OPTION 6: SCALLOPED DECO */
+.card-scallop{
+  border:2px solid var(--gold);
+  position:relative;
+  -webkit-mask:
+    radial-gradient(circle 8px at 8px 0, transparent 7px, #000 8px) 0 0 / 16px 100%,
+    radial-gradient(circle 8px at 8px 100%, transparent 7px, #000 8px) 0 0 / 16px 100%;
+  -webkit-mask-composite:destination-in;
+  mask:
+    radial-gradient(circle 8px at 8px 0, transparent 7px, #000 8px) 0 0 / 16px 100%,
+    radial-gradient(circle 8px at 8px 100%, transparent 7px, #000 8px) 0 0 / 16px 100%;
+  mask-composite:intersect;
+  padding:1.8rem 1.5rem;
+}
+
+/* OPTION 7: OCTAGON CLIP */
+.card-octagon{
+  clip-path:polygon(
+    20px 0, calc(100% - 20px) 0,
+    100% 20px, 100% calc(100% - 20px),
+    calc(100% - 20px) 100%, 20px 100%,
+    0 calc(100% - 20px), 0 20px
+  );
+  border:2px solid var(--gold);
+}
+.card-octagon::before{
+  content:'';position:absolute;
+  top:2px;left:2px;right:2px;bottom:2px;
+  border:1px solid rgba(212,175,55,0.3);
+  clip-path:polygon(
+    18px 0, calc(100% - 18px) 0,
+    100% 18px, 100% calc(100% - 18px),
+    calc(100% - 18px) 100%, 18px 100%,
+    0 calc(100% - 18px), 0 18px
+  );
+  pointer-events:none;
+}
+
+/* OPTION 8: ZIGGURAT (layered steps) */
+.card-ziggurat{
+  border:none;
+  padding:2rem 1.5rem 1.5rem;
+}
+.card-ziggurat::before{
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:24px;
+  background:
+    linear-gradient(180deg,
+      var(--gold) 0, var(--gold) 4px,
+      transparent 4px, transparent 8px,
+      rgba(212,175,55,0.6) 8px, rgba(212,175,55,0.6) 10px,
+      transparent 10px, transparent 14px,
+      rgba(212,175,55,0.3) 14px, rgba(212,175,55,0.3) 15px,
+      transparent 15px
+    );
+}
+.card-ziggurat::after{
+  content:'';position:absolute;
+  top:4px;left:50%;transform:translateX(-50%);
+  width:80px;height:2px;
+  background:var(--gold);
+}
+
+.card-content{
+  position:relative;
+  z-index:1;
+}
+.card-label{
+  font-family:'Poiret One',serif;
+  font-size:0.7rem;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin-bottom:0.5rem;
+}
+.card-title{
+  font-size:1.15rem;
+  font-weight:700;
+  color:#f8e5a0;
+  margin-bottom:0.6rem;
+  letter-spacing:0.05em;
+}
+.card-text{
+  color:#c8b89a;
+  line-height:1.6;
+  font-size:0.95rem;
+}
+
+.notes{
+  margin-top:1rem;
+  padding-top:1rem;
+  border-top:1px solid rgba(212,175,55,0.2);
+  font-size:0.88rem;
+  color:#8a7a68;
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>GATSBY CARD ALTERNATIVES</h1>
+  <div class="subtitle">Art Deco card shape explorations — replacing chevron</div>
+
+  <div class="grid">
+    
+    <!-- OPTION 1 -->
+    <div class="option">
+      <div class="option-name">1. FAN CORNERS</div>
+      <div class="option-desc">Diagonal gold corner fills, subtle clip</div>
+      
+      <div class="card card-fan">
+        <div class="card-content">
+          <div class="card-label">ACTIVE THREAD</div>
+          <div class="card-title">The Gatsby Affair</div>
+          <div class="card-text">
+            The champagne flowed as freely as the lies. Tom's eyes narrowed across
+            the ballroom, watching Gatsby with barely concealed contempt.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Clean, geometric, distinctive corners<br>
+        <strong>Cons:</strong> Subtle, may not read strongly<br>
+        <strong>CSS:</strong> clip-path + ::before/::after corner fills
+      </div>
+    </div>
+
+    <!-- OPTION 2 -->
+    <div class="option">
+      <div class="option-name">2. SUNBURST HEADER</div>
+      <div class="option-desc">Triangle keystone with starburst mark</div>
+      
+      <div class="card card-sunburst">
+        <div class="card-content">
+          <div class="card-label">ACTIVE THREAD</div>
+          <div class="card-title">The Gatsby Affair</div>
+          <div class="card-text">
+            The champagne flowed as freely as the lies. Tom's eyes narrowed across
+            the ballroom, watching Gatsby with barely concealed contempt.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Strong identity, centered ornament<br>
+        <strong>Cons:</strong> Busy top edge<br>
+        <strong>CSS:</strong> Border + triangle ::before + glyph ::after
+      </div>
+    </div>
+
+    <!-- OPTION 3 -->
+    <div class="option">
+      <option-name">3. DECO KEYSTONE</div>
+      <div class="option-desc">Stepped header bar with diamond center</div>
+      
+      <div class="card card-keystone">
+        <div class="card-content">
+          <div class="card-label">ACTIVE THREAD</div>
+          <div class="card-title">The Gatsby Affair</div>
+          <div class="card-text">
+            The champagne flowed as freely as the lies. Tom's eyes narrowed across
+            the ballroom, watching Gatsby with barely concealed contempt.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Elegant, architectural, iconic<br>
+        <strong>Cons:</strong> Complex gradient pattern<br>
+        <strong>CSS:</strong> Linear gradient bars + diamond clip-path
+      </div>
+    </div>
+
+    <!-- OPTION 4 -->
+    <div class="option">
+      <div class="option-name">4. STEPPED FRAME</div>
+      <div class="option-desc">Inset corners creating stepped border</div>
+      
+      <div class="card card-stepped">
+        <div class="card-content">
+          <div class="card-label">ACTIVE THREAD</div>
+          <div class="card-title">The Gatsby Affair</div>
+          <div class="card-text">
+            The champagne flowed as freely as the lies. Tom's eyes narrowed across
+            the ballroom, watching Gatsby with barely concealed contempt.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Clean, modern deco, strong frame<br>
+        <strong>Cons:</strong> Less ornamental<br>
+        <strong>CSS:</strong> Clipped border via ::before pseudo
+      </div>
+    </div>
+
+    <!-- OPTION 5 -->
+    <div class="option">
+      <div class="option-name">5. MARQUEE LIGHTS</div>
+      <div class="option-desc">Broadway-style dotted top/bottom borders</div>
+      
+      <div class="card card-marquee">
+        <div class="card-content">
+          <div class="card-label">ACTIVE THREAD</div>
+          <div class="card-title">The Gatsby Affair</div>
+          <div class="card-text">
+            The champagne flowed as freely as the lies. Tom's eyes narrowed across
+            the ballroom, watching Gatsby with barely concealed contempt.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Theater/cinema vibe, very 1920s<br>
+        <strong>Cons:</strong> Busy, may clash with content<br>
+        <strong>CSS:</strong> Repeating gradient borders
+      </div>
+    </div>
+
+    <!-- OPTION 6 -->
+    <div class="option">
+      <div class="option-name">6. SCALLOPED DECO</div>
+      <div class="option-desc">Fan-scalloped top/bottom edges</div>
+      
+      <div class="card card-scallop">
+        <div class="card-content">
+          <div class="card-label">ACTIVE THREAD</div>
+          <div class="card-title">The Gatsby Affair</div>
+          <div class="card-text">
+            The champagne flowed as freely as the lies. Tom's eyes narrowed across
+            the ballroom, watching Gatsby with barely concealed contempt.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Ornate, unique silhouette<br>
+        <strong>Cons:</strong> Complex mask, browser support<br>
+        <strong>CSS:</strong> Radial gradient mask (may degrade)
+      </div>
+    </div>
+
+    <!-- OPTION 7 -->
+    <div class="option">
+      <div class="option-name">7. OCTAGON CLIP</div>
+      <div class="option-desc">Eight-sided polygon with double frame</div>
+      
+      <div class="card card-octagon">
+        <div class="card-content">
+          <div class="card-label">ACTIVE THREAD</div>
+          <div class="card-title">The Gatsby Affair</div>
+          <div class="card-text">
+            The champagne flowed as freely as the lies. Tom's eyes narrowed across
+            the ballroom, watching Gatsby with barely concealed contempt.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Strong geometric identity, symmetric<br>
+        <strong>Cons:</strong> Large corner cuts<br>
+        <strong>CSS:</strong> Octagon clip-path + inset border
+      </div>
+    </div>
+
+    <!-- OPTION 8 -->
+    <div class="option">
+      <div class="option-name">8. ZIGGURAT</div>
+      <div class="option-desc">Layered horizontal steps at top</div>
+      
+      <div class="card card-ziggurat">
+        <div class="card-content">
+          <div class="card-label">ACTIVE THREAD</div>
+          <div class="card-title">The Gatsby Affair</div>
+          <div class="card-text">
+            The champagne flowed as freely as the lies. Tom's eyes narrowed across
+            the ballroom, watching Gatsby with barely concealed contempt.
+          </div>
+        </div>
+      </div>
+      
+      <div class="notes">
+        <strong>Pros:</strong> Architectural, subtle elegance<br>
+        <strong>Cons:</strong> May be too subtle<br>
+        <strong>CSS:</strong> Layered gradient bands + center bar
+      </div>
+    </div>
+
+  </div>
+
+  <div style="text-align:center;color:#8a7a68;margin-top:3rem;padding-top:2rem;border-top:1px solid rgba(212,175,55,0.2)">
+    <p style="margin-bottom:0.5rem">VELLUM II — Gatsby Chrome Card Explorations</p>
+    <p style="font-style:italic;font-size:0.9rem">Recommendations: <strong style="color:var(--gold)">Keystone (#3)</strong> for elegance, <strong style="color:var(--gold)">Stepped Frame (#4)</strong> for clean geometry</p>
+  </div>
+</div>
+
+</body>
+</html>

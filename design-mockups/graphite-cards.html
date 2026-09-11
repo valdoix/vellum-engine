@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VELLUM II — Graphite Card Designs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@400;500;600;700&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --grotesk:'Archivo',-apple-system,sans-serif;
+  --cond:'Oswald','Archivo',sans-serif;
+  /* graphite palette */
+  --acc:#5b8fb0;        /* steel-blue */
+  --acc-rgb:91,143,176;
+  --s1:#30353a;         /* panel */
+  --s2:#262a2f;         /* deeper */
+  --s3:#1c2024;         /* recess */
+  --ink:#d4dce4;
+  --ink2:#8a9eb2;
+  --ink3:#6a7684;
+  --line:rgba(150,170,190,0.16);
+  --line2:rgba(150,170,190,0.10);
+  --pos:#6a9a72;
+  --neg:#b06a5e;
+  --warn:#b0995e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:#0c0d0f;color:var(--ink);font-family:var(--grotesk);font-size:16px;line-height:1.5;min-height:100vh;padding-bottom:6rem}
+.wrap{max-width:1180px;margin:0 auto;padding:0 1.5rem}
+
+/* masthead */
+.masthead{text-align:center;padding:4rem 1.5rem 2rem;background:radial-gradient(800px 400px at 50% 0%,rgba(91,143,176,0.08),transparent)}
+.masthead .seal{width:60px;height:60px;margin:0 auto 1.2rem;border-radius:8px;background:linear-gradient(145deg,#3a4048,#20242a);box-shadow:0 0 0 1px rgba(150,170,190,0.25),0 8px 30px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--ink);font-weight:800}
+.masthead h1{font-size:2.4rem;color:#aeb8c2;letter-spacing:0.04em;font-weight:700}
+.masthead .sub{color:var(--ink3);font-size:1rem;margin-top:0.3rem;font-family:var(--mono);letter-spacing:0.06em}
+
+/* nav */
+.gallery-nav{position:sticky;top:0;z-index:50;background:rgba(12,13,15,0.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:0.8rem 0}
+.gallery-nav .wrap{display:flex;gap:0.7rem;flex-wrap:wrap;align-items:center;justify-content:center}
+.gallery-nav .tag{color:var(--ink2);font-weight:700;font-family:var(--mono);font-size:0.64rem;letter-spacing:0.14em;text-transform:uppercase;margin-right:0.3rem}
+.gallery-nav a{color:var(--ink3);text-decoration:none;font-family:var(--mono);font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.35rem 0.7rem;border:1px solid transparent;border-radius:3px;transition:all .2s}
+.gallery-nav a:hover{color:var(--acc);border-color:rgba(var(--acc-rgb),0.35)}
+
+/* section */
+.card-section{padding:3.5rem 0;border-bottom:1px solid var(--line2)}
+.card-header{margin-bottom:1.8rem}
+.card-header .sht{font-family:var(--mono);font-size:0.66rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--acc);margin-bottom:0.5rem}
+.card-header h2{font-family:var(--cond);font-size:1.9rem;color:var(--ink);font-weight:600;letter-spacing:0.01em;text-transform:uppercase}
+.card-header .desc{color:var(--ink2);font-size:0.92rem;margin-top:0.6rem;max-width:70ch;line-height:1.6}
+.card-row{display:flex;gap:1.4rem;flex-wrap:wrap;margin-top:1.6rem;align-items:flex-start}
+
+/* ============ shared graphite card shell ============ */
+.g{
+  background:linear-gradient(168deg,var(--s1),var(--s2));
+  border:1px solid var(--line);
+  border-radius:4px;
+  position:relative;
+  overflow:hidden;
+  box-shadow:0 1px 0 rgba(150,170,190,0.08) inset,0 6px 18px rgba(0,0,0,0.4);
+  width:340px;flex:0 0 auto;
+}
+.g::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--acc)}
+.g.wide{width:100%;max-width:720px}
+.g-head{padding:1rem 1.1rem 0.9rem 1.3rem;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:0.9rem}
+.g-kicker{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:0.35rem}
+.g-title{font-family:var(--cond);font-size:1.3rem;color:var(--ink);font-weight:500;letter-spacing:0.01em;line-height:1.1}
+.g-sub{font-family:var(--mono);font-size:0.68rem;color:var(--ink2);margin-top:0.3rem}
+.g-ref{margin-left:auto;font-family:var(--mono);font-size:0.58rem;color:var(--ink3);letter-spacing:0.08em;padding:0.2rem 0.4rem;border:1px solid var(--line);border-radius:2px;white-space:nowrap}
+.g-body{padding:1rem 1.1rem 1rem 1.3rem}
+.g-foot{padding:0.7rem 1.1rem 0.7rem 1.3rem;background:rgba(0,0,0,0.22);border-top:1px solid var(--line2);display:flex;align-items:center;gap:0.7rem;font-family:var(--mono);font-size:0.62rem;color:var(--ink3);letter-spacing:0.05em}
+.g-foot .acts{margin-left:auto;display:flex;gap:0.5rem}
+.g-btn{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink2);background:transparent;border:1px solid var(--line);padding:0.28rem 0.6rem;border-radius:2px;cursor:pointer;transition:all .15s}
+.g-btn:hover{color:var(--ink);border-color:var(--acc);background:rgba(var(--acc-rgb),0.08)}
+.g-btn.pri{background:var(--acc);color:#12161a;border-color:var(--acc);font-weight:700}
+
+/* reticle avatar — machined square, no rounding */
+.g-av{width:44px;height:44px;flex:0 0 auto;background:var(--s3);border:1px solid rgba(var(--acc-rgb),0.4);border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:var(--cond);font-size:1.2rem;color:var(--acc);position:relative}
+.g-av::after{content:'';position:absolute;inset:3px;border:1px solid rgba(var(--acc-rgb),0.18)}
+
+/* segmented stat meter — the graphite signature (not blueprint dimension lines) */
+.g-stat{margin:0.7rem 0}
+.g-stat-top{display:flex;justify-content:space-between;font-family:var(--mono);font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink2);margin-bottom:0.32rem}
+.g-stat-top .val{color:var(--ink)}
+.g-seg{display:flex;gap:2px;height:8px}
+.g-seg span{flex:1;background:var(--s3);border-radius:1px}
+.g-seg span.on{background:var(--acc)}
+.g-seg span.neg{background:var(--neg)}
+.g-seg span.warn{background:var(--warn)}
+
+/* spec callout / data row */
+.g-row{display:flex;justify-content:space-between;align-items:baseline;padding:0.4rem 0;border-bottom:1px solid var(--line2);font-size:0.85rem}
+.g-row:last-child{border-bottom:none}
+.g-row .k{font-family:var(--mono);font-size:0.62rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink3)}
+.g-row .v{color:var(--ink);font-size:0.86rem}
+.g-row .v.adv{color:var(--acc)}
+
+.g-prose{color:var(--ink2);font-size:0.88rem;line-height:1.6;margin:0.3rem 0 0.6rem}
+
+/* chips */
+.g-chips{display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.8rem}
+.g-chip{font-family:var(--mono);font-size:0.6rem;letter-spacing:0.05em;color:var(--ink2);background:rgba(var(--acc-rgb),0.08);border:1px solid rgba(var(--acc-rgb),0.22);padding:0.22rem 0.5rem;border-radius:2px}
+.g-chip.name{color:var(--ink);border-color:var(--line)}
+
+/* status tag */
+.g-tag{display:inline-flex;align-items:center;gap:0.35rem;font-family:var(--mono);font-size:0.58rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.2rem 0.5rem;border-radius:2px;border:1px solid var(--line)}
+.g-tag .led{width:6px;height:6px;border-radius:1px;background:var(--acc)}
+.g-tag.pos .led{background:var(--pos)} .g-tag.pos{color:var(--pos);border-color:rgba(106,154,114,0.4)}
+.g-tag.neg .led{background:var(--neg)} .g-tag.neg{color:var(--neg);border-color:rgba(176,106,94,0.4)}
+.g-tag.warn .led{background:var(--warn)} .g-tag.warn{color:var(--warn);border-color:rgba(176,153,94,0.4)}
+
+/* reliability glyph rows (knowledge) */
+.g-fact{display:flex;gap:0.6rem;align-items:baseline;padding:0.42rem 0;border-bottom:1px solid var(--line2)}
+.g-fact:last-child{border-bottom:none}
+.g-fact .rel{font-family:var(--mono);font-size:0.78rem;width:1rem;text-align:center;flex:0 0 auto;color:var(--ink2)}
+.g-fact.false{background:rgba(176,106,94,0.08);margin:0 -0.5rem;padding-left:0.5rem;padding-right:0.5rem;border-left:2px solid var(--neg)}
+.g-fact.false .rel{color:var(--neg)}
+.g-fact .txt{font-size:0.85rem;color:var(--ink)}
+.g-fact .txt small{color:var(--ink3);font-family:var(--mono);font-size:0.62rem}
+
+/* danger rail variants (secret) */
+.g.dng-minor::before{background:var(--acc)}
+.g.dng-major::before{background:var(--warn)}
+.g.dng-explosive::before{background:var(--neg)}
+.g.revealed{opacity:0.55}
+.g.revealed .g-stamp{position:absolute;top:1rem;right:-2.2rem;transform:rotate(35deg);font-family:var(--mono);font-size:0.62rem;letter-spacing:0.2em;color:var(--neg);border:1px solid var(--neg);padding:0.15rem 2.4rem;opacity:0.7}
+
+/* location breadcrumb + here */
+.g-crumb{font-family:var(--mono);font-size:0.62rem;color:var(--ink3);margin-bottom:0.4rem;letter-spacing:0.04em}
+.g-crumb .sep{color:var(--acc);margin:0 0.3rem}
+.g-crumb .cur{color:var(--ink2)}
+.g.here::before{background:linear-gradient(180deg,var(--acc),#7fb0d0);width:4px}
+.g-here{display:inline-flex;align-items:center;gap:0.35rem;font-family:var(--mono);font-size:0.56rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--acc);border:1px solid rgba(var(--acc-rgb),0.5);padding:0.15rem 0.45rem;border-radius:2px}
+
+/* memory tiers */
+.g.arc{border-left:0}
+.g.arc::before{width:4px;background:linear-gradient(180deg,var(--acc),#3a6f90)}
+.g-span{font-family:var(--mono);font-size:0.6rem;color:var(--acc);letter-spacing:0.06em;margin-left:auto;border:1px solid rgba(var(--acc-rgb),0.3);padding:0.15rem 0.45rem;border-radius:2px;white-space:nowrap}
+.g-turnline{display:flex;gap:0.6rem;align-items:baseline;padding:0.4rem 1.1rem 0.4rem 1.3rem;border-top:1px solid var(--line2);font-size:0.82rem}
+.g-turnline .marker{color:var(--acc);font-family:var(--mono);font-size:0.7rem}
+.g-turnline .tn{font-family:var(--mono);font-size:0.58rem;color:var(--ink3);margin-left:auto}
+
+/* progress track (thread) */
+.g-track{display:flex;gap:2px;height:6px;margin:0.6rem 0}
+.g-track span{flex:1;background:var(--s3);border-radius:1px}
+.g-track span.done{background:var(--acc)}
+.g-anno{font-family:var(--mono);font-size:0.64rem;color:var(--ink2);border-left:2px solid var(--line);padding-left:0.6rem;margin-top:0.6rem;line-height:1.5}
+
+/* spec footer grid */
+.spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.3rem;margin-top:2.5rem}
+.spec-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);border-radius:6px;padding:1.1rem}
+.spec-card h4{font-size:0.74rem;margin-bottom:0.7rem;letter-spacing:0.1em;text-transform:uppercase;font-family:var(--mono);color:var(--acc)}
+.spec-card ul{list-style:none;padding:0}
+.spec-card li{color:var(--ink2);font-size:0.82rem;padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+.spec-card li:last-child{border-bottom:none}
+.spec-card code{font-family:var(--mono);font-size:0.76rem;color:var(--acc);background:rgba(var(--acc-rgb),0.1);padding:0.08rem 0.35rem;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="seal">V</div>
+  <h1>VELLUM II</h1>
+  <div class="sub">Graphite — Card Designs · "Engineer's Desk"</div>
+</div>
+
+<nav class="gallery-nav">
+  <div class="wrap">
+    <span class="tag">Sheets:</span>
+    <a href="#cast">Cast</a>
+    <a href="#bond">Bond</a>
+    <a href="#memory">Memory</a>
+    <a href="#secret">Secret</a>
+    <a href="#knowledge">Knowledge</a>
+    <a href="#location">Location</a>
+    <a href="#thread">Thread</a>
+    <a href="#plant">Plant</a>
+  </div>
+</nav>
+
+<!-- ============ CAST ============ -->
+<section id="cast" class="card-section">
+  <div class="wrap">
+    <div class="card-header">
+      <div class="sht">Sheet 01</div>
+      <h2>Cast Module</h2>
+      <div class="desc">The character as an instrument module. Machined square avatar, standing &amp; trust as segmented meters (not bars that fake precision — discrete notches you can read at a glance), traits as a spec table with a &rarr; marker on evolving ones. No portrait romance, just a readout.</div>
+    </div>
+    <div class="card-row">
+      <div class="g">
+        <div class="g-head">
+          <div class="g-av">C</div>
+          <div>
+            <div class="g-kicker">Cast · Present</div>
+            <div class="g-title">Cersei Lannister</div>
+            <div class="g-sub">Queen Regent · Red Keep</div>
+          </div>
+          <div class="g-ref">C-01</div>
+        </div>
+        <div class="g-body">
+          <div class="g-stat">
+            <div class="g-stat-top"><span>Standing</span><span class="val">HIGH · 8</span></div>
+            <div class="g-seg"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+          </div>
+          <div class="g-stat">
+            <div class="g-stat-top"><span>Composure</span><span class="val">FRAYED · 3</span></div>
+            <div class="g-seg"><span class="warn"></span><span class="warn"></span><span class="warn"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          </div>
+          <div style="margin-top:0.9rem">
+            <div class="g-row"><span class="k">Trait</span><span class="v adv">&rarr; Ruthless (rising)</span></div>
+            <div class="g-row"><span class="k">Trait</span><span class="v">Proud</span></div>
+            <div class="g-row"><span class="k">Trait</span><span class="v adv">&rarr; Paranoid (new)</span></div>
+            <div class="g-row"><span class="k">Want</span><span class="v">Protect her children</span></div>
+          </div>
+        </div>
+        <div class="g-foot">REV 14 · T142<div class="acts"><button class="g-btn">Edit</button><button class="g-btn pri">Open</button></div></div>
+      </div>
+
+      <div class="g">
+        <div class="g-head">
+          <div class="g-av">J</div>
+          <div>
+            <div class="g-kicker">Cast · Mentioned</div>
+            <div class="g-title">Jaime Lannister</div>
+            <div class="g-sub">Lord Commander · off-screen</div>
+          </div>
+          <div class="g-ref">C-02</div>
+        </div>
+        <div class="g-body">
+          <div class="g-stat">
+            <div class="g-stat-top"><span>Standing</span><span class="val">MID · 5</span></div>
+            <div class="g-seg"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span><span></span><span></span><span></span></div>
+          </div>
+          <div class="g-prose">Last seen riding west three turns ago. Whereabouts inferred, not confirmed.</div>
+          <div class="g-chips"><span class="g-chip">oathkeeper</span><span class="g-chip">conflicted</span></div>
+        </div>
+        <div class="g-foot">REV 6 · T139<div class="acts"><button class="g-btn">Edit</button><button class="g-btn pri">Open</button></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BOND ============ -->
+<section id="bond" class="card-section">
+  <div class="wrap">
+    <div class="card-header">
+      <div class="sht">Sheet 02</div>
+      <h2>Bond Assembly</h2>
+      <div class="desc">A relationship as a two-node assembly: paired reticles joined by a labelled connector carrying the bond category, affection &amp; trust as parallel segmented meters below. Reads like a wiring diagram between two modules.</div>
+    </div>
+    <div class="card-row">
+      <div class="g wide">
+        <div class="g-head">
+          <div class="g-kicker">Bond · Assembly</div>
+          <div class="g-title" style="font-size:1.15rem">Cersei &nbsp;<span style="color:var(--acc);font-family:var(--mono);font-size:0.8rem">&mdash;[ TWIN / FORBIDDEN ]&mdash;</span>&nbsp; Jaime</div>
+          <div class="g-ref">B-04</div>
+        </div>
+        <div class="g-body">
+          <div style="display:flex;gap:1.5rem;align-items:center">
+            <div class="g-av">C</div>
+            <div style="flex:1">
+              <div class="g-stat">
+                <div class="g-stat-top"><span>Affection</span><span class="val">+9</span></div>
+                <div class="g-seg"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+              </div>
+              <div class="g-stat">
+                <div class="g-stat-top"><span>Trust</span><span class="val">+6</span></div>
+                <div class="g-seg"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span><span></span><span></span></div>
+              </div>
+            </div>
+            <div class="g-av">J</div>
+          </div>
+          <div class="g-anno">Bound since childhood. Trust dipped after the trial — she suspects he judges her now.</div>
+        </div>
+        <div class="g-foot">T142<div class="acts"><button class="g-btn">Edit</button></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MEMORY ============ -->
+<section id="memory" class="card-section">
+  <div class="wrap">
+    <div class="card-header">
+      <div class="sht">Sheet 03</div>
+      <h2>Memory — Compression Tiers</h2>
+      <div class="desc">The three memory tiers as three module weights. Arc = wide module with a turn-span readout tag. Chapter = standard module. Turn = a compact log line docked to the module base with a notch marker — the raw layer under the compression.</div>
+    </div>
+    <div class="card-row">
+      <div class="g wide arc">
+        <div class="g-head">
+          <div class="g-kicker">Memory · Arc</div>
+          <div class="g-title">The Fall of the Lannisters</div>
+          <div class="g-span">T1—T47 · SPAN 46</div>
+        </div>
+        <div class="g-body">
+          <div class="g-prose">A dynasty's slow collapse: from the height of Cersei's regency through the loss of three children, the burning of the Sept, and the siege that left the Red Keep in ash. Contains 4 chapters.</div>
+        </div>
+        <div class="g-turnline"><span class="marker">&#9642;</span><span>Chapter 3 · The Wildfire Cache</span><span class="tn">T18—T24</span></div>
+        <div class="g-turnline"><span class="marker">&#9642;</span><span>Chapter 4 · The Trial</span><span class="tn">T25—T31</span></div>
+      </div>
+    </div>
+    <div class="card-row">
+      <div class="g">
+        <div class="g-head">
+          <div class="g-kicker">Memory · Chapter</div>
+          <div class="g-title" style="font-size:1.15rem">The Wildfire Cache</div>
+          <div class="g-span" style="margin-left:0">T18—T24</div>
+        </div>
+        <div class="g-body"><div class="g-prose">Cersei's discovery of the caches beneath the city, and the plan that formed in the ruin of her trial.</div></div>
+        <div class="g-turnline"><span class="marker">&#9642;</span><span>T18 · Found the ledger</span></div>
+        <div class="g-turnline"><span class="marker">&#9642;</span><span>T22 · Met the pyromancer</span></div>
+      </div>
+      <div class="g">
+        <div class="g-head">
+          <div class="g-kicker">Memory · Turn (uncovered)</div>
+          <div class="g-title" style="font-size:1.05rem">Recent raw turns</div>
+        </div>
+        <div class="g-turnline" style="border-top:none"><span class="marker">&#9642;</span><span>Cersei ordered the gates sealed.</span><span class="tn">T140</span></div>
+        <div class="g-turnline"><span class="marker">&#9642;</span><span>Qyburn reported the fleet's position.</span><span class="tn">T141</span></div>
+        <div class="g-turnline"><span class="marker">&#9642;</span><span>She refused the parley.</span><span class="tn">T142</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECRET ============ -->
+<section id="secret" class="card-section">
+  <div class="wrap">
+    <div class="card-header">
+      <div class="sht">Sheet 04</div>
+      <h2>Secret — Classification</h2>
+      <div class="desc">Danger encoded as a classification rail: steel-blue (minor), amber (major), red (explosive). Keeper and "withheld from" parties as name modules in the head. A revealed secret is stamped DECLASSIFIED and dimmed.</div>
+    </div>
+    <div class="card-row">
+      <div class="g dng-explosive">
+        <div class="g-head">
+          <div>
+            <div class="g-kicker">Secret · Explosive</div>
+            <div class="g-title" style="font-size:1.1rem">The wildfire caches</div>
+          </div>
+          <div class="g-ref">S-07</div>
+        </div>
+        <div class="g-body">
+          <div class="g-prose">Cersei has enough wildfire beneath the city to level it. She will use it before she surrenders.</div>
+          <div class="g-row"><span class="k">Keeper</span><span class="v">Cersei</span></div>
+          <div style="margin-top:0.6rem"><span class="k" style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink3)">Withheld from</span>
+            <div class="g-chips"><span class="g-chip name">Tyrion</span><span class="g-chip name">Jaime</span></div>
+          </div>
+        </div>
+        <div class="g-foot"><span class="g-tag neg"><span class="led"></span>Active</span><div class="acts"><button class="g-btn">Reveal</button><button class="g-btn">Edit</button></div></div>
+      </div>
+
+      <div class="g dng-major revealed">
+        <div class="g-stamp">DECLASSIFIED</div>
+        <div class="g-head">
+          <div>
+            <div class="g-kicker">Secret · Major</div>
+            <div class="g-title" style="font-size:1.1rem">Jaime killed the Mad King</div>
+          </div>
+          <div class="g-ref">S-03</div>
+        </div>
+        <div class="g-body">
+          <div class="g-prose">He stabbed Aerys to stop the wildfire plot — not for glory. Now known to the court.</div>
+          <div class="g-row"><span class="k">Was kept by</span><span class="v">Jaime</span></div>
+        </div>
+        <div class="g-foot"><span class="g-tag"><span class="led"></span>Revealed T118</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ KNOWLEDGE ============ -->
+<section id="knowledge" class="card-section">
+  <div class="wrap">
+    <div class="card-header">
+      <div class="sht">Sheet 05</div>
+      <h2>Knowledge — Belief Table</h2>
+      <div class="desc">Grouped by character as a belief table. Each fact carries a reliability glyph — <code>&#9675;</code> knows, <code>&#9680;</code> believes, <code>&#10007;</code> false. A false belief (dramatic irony) is red-railed and tinted: the single row you want to spot instantly.</div>
+    </div>
+    <div class="card-row">
+      <div class="g wide">
+        <div class="g-head">
+          <div class="g-av">T</div>
+          <div>
+            <div class="g-kicker">Knowledge · By character</div>
+            <div class="g-title" style="font-size:1.2rem">Tyrion Lannister</div>
+          </div>
+          <div class="g-ref">3 FACTS</div>
+        </div>
+        <div class="g-body">
+          <div class="g-fact"><span class="rel">&#9675;</span><span class="txt">Cersei controls the Crownlands army. <small>knows · witnessed</small></span></div>
+          <div class="g-fact"><span class="rel">&#9680;</span><span class="txt">The Greyjoys will hold the bay. <small>believes · inferred</small></span></div>
+          <div class="g-fact false"><span class="rel">&#10007;</span><span class="txt">Cersei has no wildfire left. <small>FALSE · dramatic irony — she has caches</small></span></div>
+        </div>
+        <div class="g-foot">T142<div class="acts"><button class="g-btn">Add fact</button></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LOCATION ============ -->
+<section id="location" class="card-section">
+  <div class="wrap">
+    <div class="card-header">
+      <div class="sht">Sheet 06</div>
+      <h2>Location Module (Atlas)</h2>
+      <div class="desc">A gazetteer plate as a facility module. Breadcrumb shows containment; a <code>&#9873;</code> pinned (always injected) or <code>&#9675;</code> auto chip marks provenance; the live scene gets a bright rail and a "YOU ARE HERE" tag; a recency notch shows how fresh it is.</div>
+    </div>
+    <div class="card-row">
+      <div class="g here">
+        <div class="g-head">
+          <div style="flex:1">
+            <div class="g-crumb">King's Landing <span class="sep">&#9656;</span> <span class="cur">Red Keep</span></div>
+            <div class="g-title" style="font-size:1.2rem">The Map Room</div>
+          </div>
+          <span class="g-here">&#9670; Here</span>
+        </div>
+        <div class="g-body">
+          <div class="g-prose">War table, charts of the Crownlands, a locked cabinet of ravens' messages.</div>
+          <div class="g-foot" style="padding:0.6rem 0 0;background:none;border-top:1px solid var(--line2)"><span class="g-tag"><span class="led"></span>Current scene</span></div>
+        </div>
+      </div>
+
+      <div class="g">
+        <div class="g-head">
+          <div style="flex:1">
+            <div class="g-crumb">King's Landing <span class="sep">&#9656;</span> <span class="cur">Red Keep</span></div>
+            <div class="g-title" style="font-size:1.2rem">The Black Cells</div>
+          </div>
+          <span class="g-tag"><span class="led"></span>&#9873; Pinned</span>
+        </div>
+        <div class="g-body">
+          <div class="g-prose">Dungeons beneath the keep. Damp, lightless, forgotten prisoners.</div>
+          <div class="g-foot" style="padding:0.6rem 0 0;background:none;border-top:1px solid var(--line2)">Last seen T96 · always injected</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THREAD ============ -->
+<section id="thread" class="card-section">
+  <div class="wrap">
+    <div class="card-header">
+      <div class="sht">Sheet 07</div>
+      <h2>Thread — Progress Track</h2>
+      <div class="desc">A plot thread as a progress track: status tag, a segmented completion track showing how far it has advanced, and the latest beat as an annotation docked to a rail.</div>
+    </div>
+    <div class="card-row">
+      <div class="g">
+        <div class="g-head">
+          <div><div class="g-kicker">Thread · Active</div><div class="g-title" style="font-size:1.15rem">The Siege of King's Landing</div></div>
+          <div class="g-ref">A-02</div>
+        </div>
+        <div class="g-body">
+          <div class="g-stat-top"><span style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink2)">Progress</span><span style="font-family:var(--mono);font-size:0.62rem;color:var(--ink)">65%</span></div>
+          <div class="g-track"><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span></span><span></span><span></span></div>
+          <div class="g-anno">Latest: Daenerys's fleet entered the bay. Cersei sealed the gates.</div>
+        </div>
+        <div class="g-foot"><span class="g-tag pos"><span class="led"></span>Advancing</span><span style="margin-left:auto">T142</span></div>
+      </div>
+
+      <div class="g">
+        <div class="g-head">
+          <div><div class="g-kicker">Thread · Stalled</div><div class="g-title" style="font-size:1.15rem">Tyrion's negotiation</div></div>
+          <div class="g-ref">A-05</div>
+        </div>
+        <div class="g-body">
+          <div class="g-stat-top"><span style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink2)">Progress</span><span style="font-family:var(--mono);font-size:0.62rem;color:var(--ink)">30%</span></div>
+          <div class="g-track"><span class="done"></span><span class="done"></span><span class="done"></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="g-anno">Latest: Cersei refused the parley. No path forward found yet.</div>
+        </div>
+        <div class="g-foot"><span class="g-tag warn"><span class="led"></span>Stalled</span><span style="margin-left:auto">T142</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PLANT ============ -->
+<section id="plant" class="card-section">
+  <div class="wrap">
+    <div class="card-header">
+      <div class="sht">Sheet 08</div>
+      <h2>Plant — Component Flag</h2>
+      <div class="desc">A Chekhov plant as a flagged component: planted / paid-off / abandoned status LED, subject noted like a parts reference, and an overdue flag when a plant has waited too long without payoff.</div>
+    </div>
+    <div class="card-row">
+      <div class="g">
+        <div class="g-head">
+          <div><div class="g-kicker">Plant · Overdue</div><div class="g-title" style="font-size:1.15rem">The wildfire caches</div></div>
+          <div class="g-ref">P-01</div>
+        </div>
+        <div class="g-body">
+          <div class="g-row"><span class="k">Subject</span><span class="v">Cersei</span></div>
+          <div class="g-row"><span class="k">Planted</span><span class="v">T18</span></div>
+          <div class="g-row"><span class="k">Age</span><span class="v" style="color:var(--warn)">124 turns · overdue</span></div>
+        </div>
+        <div class="g-foot"><span class="g-tag warn"><span class="led"></span>Planted · unpaid</span><div class="acts"><button class="g-btn">Pay off</button></div></div>
+      </div>
+
+      <div class="g">
+        <div class="g-head">
+          <div><div class="g-kicker">Plant · Paid</div><div class="g-title" style="font-size:1.15rem">Arya's kill list</div></div>
+          <div class="g-ref">P-04</div>
+        </div>
+        <div class="g-body">
+          <div class="g-row"><span class="k">Subject</span><span class="v">Arya</span></div>
+          <div class="g-row"><span class="k">Planted</span><span class="v">T31</span></div>
+          <div class="g-row"><span class="k">Paid off</span><span class="v adv">T119</span></div>
+        </div>
+        <div class="g-foot"><span class="g-tag pos"><span class="led"></span>Paid off</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="spec-grid">
+    <div class="spec-card">
+      <h4>Palette</h4>
+      <ul>
+        <li>Accent: <code>#5b8fb0</code> steel-blue</li>
+        <li>Panel: <code>#30353a</code> → <code>#262a2f</code></li>
+        <li>Recess: <code>#1c2024</code></li>
+        <li>Ink: <code>#d4dce4</code> / <code>#8a9eb2</code></li>
+        <li>No gold, no warm tones</li>
+      </ul>
+    </div>
+    <div class="spec-card">
+      <h4>Signature</h4>
+      <ul>
+        <li>Segmented meters, not bars</li>
+        <li>Machined square avatars</li>
+        <li>Mono spec tables + REF codes</li>
+        <li>3px steel rail on every module</li>
+      </ul>
+    </div>
+    <div class="spec-card">
+      <h4>Type</h4>
+      <ul>
+        <li>Display: <code>Oswald</code> condensed caps</li>
+        <li>Body: <code>Archivo</code> grotesk</li>
+        <li>Labels/data: <code>JetBrains Mono</code></li>
+      </ul>
+    </div>
+    <div class="spec-card">
+      <h4>vs. Blueprint</h4>
+      <ul>
+        <li>Instrument, not drafting</li>
+        <li>Meters, not dimension lines</li>
+        <li>Flat modules, no grid paper</li>
+        <li>Cool neutral, no cyanotype</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
