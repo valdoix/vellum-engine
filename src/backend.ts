@@ -65,7 +65,6 @@ import { assessVellumStateContract, VELLUM_STATE_BLOCK_CONTENT } from './domain/
 import { formatDryRunMessages, visiblePreviewContent } from './domain/preset-preview.js';
 import { reduce } from './core/reduce.js';
 import { dialogueMarkupGuidance, repairDialogueSpeakerTags, type DialogueIdentity } from './domain/dialogue-colors.js';
-import { timelineRepairConflict } from './domain/timeline-days.js';
 import { selectLorebookCanon, type LorebookCanonEntry } from './domain/lorebook-canon.js';
 import { TASK_ROLES, sanitizeModelRoutes, resolveTaskRoute, generationReasoning, type ModelRouteConfig, type TaskRole, type TaskRoute } from './domain/task-routing.js';
 import { auditChronicle } from './domain/workbench-health.js';
@@ -4094,11 +4093,6 @@ const dispatch: Record<string, Handler> = {
     }
     if (day !== null && (!Number.isFinite(day) || day < 0)) {
       spindle.sendToFrontend?.({ type: 'vellum_timeline_day_set_done', ok: false, reason: 'bad_day' }, uid);
-      return;
-    }
-    const conflict = timelineRepairConflict(state, fromTurn, toTurn, day);
-    if (conflict) {
-      spindle.sendToFrontend?.({ type: 'vellum_timeline_day_set_done', ok: false, reason: 'time_backward', conflict }, uid);
       return;
     }
     const evs = cmdEvents('timeline_day_set', { fromTurn, toTurn, ...(clear ? { clear: true } : { day }) }, state, { turn: state.turns || 0, day: state.day || 0 });

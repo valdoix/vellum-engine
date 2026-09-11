@@ -3,7 +3,7 @@ import { VellumEvent as VellumEventSchema, type VellumEvent } from '../src/core/
 import { reduce } from '../src/core/reduce.js';
 import { cmdEvents } from '../src/domain/commands.js';
 import { freshState } from '../src/domain/types.js';
-import { canonicalTurnDay, timelineDay, timelineRepairConflict } from '../src/domain/timeline-days.js';
+import { canonicalTurnDay, timelineDay } from '../src/domain/timeline-days.js';
 
 const fold = (seq: number, turn: number, day: number): VellumEvent => ({
   seq, turn, day, src: 'system', kind: 'turn.fold', sig: `turn-${turn}`,
@@ -38,11 +38,17 @@ describe('Timeline day repair', () => {
     expect([1, 2, 3, 4].map((turn) => canonicalTurnDay(reset, turn))).toEqual([1, 17, 17, 2]);
   });
 
-  it('detects a repair that would make narrative time run backward', () => {
-    const state = reduce([fold(1, 1, 2), fold(2, 2, 2), fold(3, 3, 3)]);
-    expect(timelineRepairConflict(state, 2, 2, 1)).toEqual({ earlierTurn: 1, earlierDay: 2, laterTurn: 2, laterDay: 1 });
-    expect(timelineRepairConflict(state, 2, 2, 4)).toEqual({ earlierTurn: 2, earlierDay: 4, laterTurn: 3, laterDay: 3 });
-    expect(timelineRepairConflict(state, 2, 2, 2)).toBeNull();
+  it('allows a historical record to be corrected to an earlier narrative day', () => {
+    const state = reduce([
+      fold(1, 1, 2),
+      fold(2, 2, 2),
+      { seq: 3, turn: 2, day: 2, src: 'model', kind: 'journal.entry', id: 'j1', who: 'alice', memory: 'I arrived yesterday', jkind: 'observation', weight: 'minor', sentiment: 'neutral' },
+      { seq: 4, turn: 2, day: 2, src: 'user', kind: 'timeline.day.set', fromTurn: 2, toTurn: 2, narrativeDay: 1 },
+    ]);
+    expect(state.journal[0]?.day).toBe(2); // immutable authored stamp remains auditable
+    expect(timelineDay(state, state.journal[0]!.turn, state.journal[0]!.day)).toBe(1);
+    expect(canonicalTurnDay(state, 1)).toBe(2); // backward chronology is allowed
+    expect(canonicalTurnDay(state, 2)).toBe(1);
   });
 
   it('creates schema-valid set and clear events through the command boundary', () => {

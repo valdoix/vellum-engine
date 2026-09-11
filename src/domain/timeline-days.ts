@@ -42,30 +42,3 @@ export function adjacentTimelineDays(
     ...(afterTurn !== undefined && afterDay !== undefined ? { after: { turn: afterTurn, day: afterDay } } : {}),
   };
 }
-
-/** Return the first backward step a proposed repair would create. */
-export function timelineRepairConflict(
-  state: ChronicleState,
-  fromTurn: number,
-  toTurn: number,
-  narrativeDay: number | null,
-): { earlierTurn: number; earlierDay: number; laterTurn: number; laterDay: number } | null {
-  const turns = new Set<number>([fromTurn, toTurn]);
-  for (const key of Object.keys(state.turnDays ?? {})) turns.add(Number(key));
-  for (const key of Object.keys(state.timelineDayOverrides ?? {})) turns.add(Number(key));
-  const ordered = Array.from(turns).filter((turn) => Number.isInteger(turn) && turn >= 0).sort((a, b) => a - b);
-  let previous: { turn: number; day: number } | undefined;
-  for (const turn of ordered) {
-    let day: number | undefined;
-    if (turn >= fromTurn && turn <= toTurn) {
-      day = narrativeDay === null ? state.turnDays?.[String(turn)] : narrativeDay;
-    } else day = canonicalTurnDay(state, turn);
-    if (!Number.isFinite(day) || day! < 0) continue;
-    const current = { turn, day: Math.floor(day!) };
-    if (previous && current.day < previous.day) {
-      return { earlierTurn: previous.turn, earlierDay: previous.day, laterTurn: current.turn, laterDay: current.day };
-    }
-    previous = current;
-  }
-  return null;
-}
