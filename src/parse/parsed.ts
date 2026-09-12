@@ -59,6 +59,10 @@ export const ParsedThread = z.object({
   id: z.string().optional().catch(undefined),
   name: z.string(),
   note: z.string().optional().catch(undefined),
+  // Optional T0 anchor emitted by several older preset grammars. It is never
+  // persisted as a beat; the extractor may use it only to prove that a renamed
+  // or differently-worded T1 event belongs to the existing track.
+  prior: z.string().optional().catch(undefined),
   // Optional parent arc reference (stable id or exact title). The ordinary
   // extractor ignores it; the parallel-command transaction resolves it.
   arc: z.string().optional().catch(undefined),

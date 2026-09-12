@@ -42,7 +42,7 @@ function inlinePlotTokens(value: string, state: ExtractCtx['state']): Set<string
  * but legacy model-written blocks still pass here. Refuse title drift, bare
  * status echoes, repeated beats, and notes with no concrete support in prose. */
 function inlinePlotChange(
-  row: { op: string; name: string; note?: string },
+  row: { op: string; name: string; note?: string; prior?: string },
   prior: Array<{ name: string; status: string; beats: string[] }>,
   state: ExtractCtx['state'],
   prose?: string,
@@ -61,7 +61,14 @@ function inlinePlotChange(
     if (plotTitleKey(before) === plotTitleKey(note) || similarFact(before, note)) return false;
     const anchors = inlinePlotTokens([target.name, ...target.beats.slice(-3), target.status].join(' '), state);
     const after = inlinePlotTokens(note, state);
-    if (!anchors.size || ![...anchors].some(token => after.has(token))) return false;
+    const beatContinuesTrack = anchors.size > 0 && [...anchors].some(token => after.has(token));
+    // Some compatible grammars separate the T0 anchor (`prior`) from the T1
+    // event (`note`). Accept that shape only when the claimed T0 actually
+    // overlaps canonical track history; it cannot bootstrap or rename a track.
+    const claimedPrior = inlinePlotTokens(String(row.prior ?? ''), state);
+    const priorAnchored = claimedPrior.size > 0 && anchors.size > 0
+      && [...claimedPrior].some(token => anchors.has(token));
+    if (!beatContinuesTrack && !priorAnchored) return false;
   }
   if (prose === undefined) return true;
   const noteTokens = factTokens(note);
@@ -464,7 +471,7 @@ export const coreFeature: Feature = {
         activity: String(p.activity || '').trim(),
         ...(p.note ? { note: p.note } : {}),
       })).filter((p) => p.activity);
-      const reconciled = reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '');
+      const reconciled = reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '', { npcAutonomy: tone.social });
       out.push({
         ...base(), kind: 'parallel.set',
         items: reconciled,
@@ -488,7 +495,7 @@ export const coreFeature: Feature = {
       timeline?: Array<{ event?: string; day?: number; time?: string; location?: string; participants?: string[]; importance?: string }>;
       intent?: Array<{ who?: string; goal?: string; nextStep?: string; constraints?: string[]; destination?: string; deadlineDay?: number; deadlineClock?: number; status?: 'active' | 'blocked' | 'complete' }>;
       affect?: Array<{ who?: string; valence?: number; arousal?: number; control?: number; direction?: string; cause?: string }>;
-      introduction?: Array<{ who?: string; role?: string; want?: string; constraint?: string; counterTrait?: string; voiceTell?: string; culturalAnchor?: string; physicalDetail?: string }>;
+      introduction?: Array<{ who?: string; role?: string; want?: string; constraint?: string; counterTrait?: string; voiceTell?: string; culturalAnchor?: string; physicalDetail?: string; summary?: string }>;
       plant?: Array<{ what?: string; subject?: string; maturity?: number; minMaturity?: number; dependsOn?: string[]; blockedBy?: string[]; dueDay?: number; dueClock?: number; expiryDay?: number } | string>;
       payoff?: Array<{ what?: string } | string>;
     };
@@ -536,7 +543,19 @@ export const coreFeature: Feature = {
         role: String(row.role ?? '').trim(), want: String(row.want ?? '').trim(), constraint: String(row.constraint ?? '').trim(),
         counterTrait: String(row.counterTrait ?? '').trim(), voiceTell: String(row.voiceTell ?? '').trim(), culturalAnchor: String(row.culturalAnchor ?? '').trim(), physicalDetail: String(row.physicalDetail ?? '').trim(),
       };
-      if (Object.values(packet).some(value => !value)) continue;
+      if (Object.values(packet).some(value => !value)) {
+        // Older presets emit one grounded prose packet instead of the seven
+        // structured identity fields. Do not fabricate a structure by guessing;
+        // retain the supplied packet as a cast note so it remains durable and
+        // editable instead of disappearing.
+        const summary = String(row.summary ?? '').trim();
+        if (!summary) continue;
+        const priorNote = String(actor?.note ?? '').trim();
+        if (!priorNote.toLocaleLowerCase().includes(summary.toLocaleLowerCase())) {
+          out.push({ ...base(), kind: 'cast.edit', id, patch: { note: priorNote ? `${priorNote}\nIntroduction: ${summary}` : summary } } as VellumEvent);
+        }
+        continue;
+      }
       const signature = `${packet.want.toLocaleLowerCase()}\u0000${packet.voiceTell.toLocaleLowerCase()}`;
       if (introSignatures.has(signature)) continue;
       introSignatures.add(signature);

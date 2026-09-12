@@ -137,4 +137,45 @@ describe('parallel T1 synchronization', () => {
     const row = (events.find(event => event.kind === 'parallel.set') as any).items;
     expect(row).toEqual([{ where: 'Harbor', activity: 'Ferries depart through the reopened channel' }]);
   });
+
+  it('accepts ordinary off-screen NPC acts when social autonomy is autonomous', () => {
+    const prior = freshState();
+    prior.cast.willow = { id: 'willow', name: 'Willow', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false } as any;
+    prior.cast.spike = { id: 'spike', name: 'Spike', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false } as any;
+    let nextSeq = 0;
+    const parsed = {
+      scene: { loc: 'Living Room' }, present: [],
+      delta: { parallel: [
+        { who: 'Willow', where: "Spike's crypt", activity: 'sitting quietly; has told Spike the resurrection news' },
+        { who: 'Spike', where: "Spike's crypt", activity: 'processing that Buffy is alive' },
+      ] },
+    } as never;
+
+    const strict = coreFeature.extract!(parsed, { turn: 2, day: 1, state: prior, prose: 'The living room is quiet.', seq: () => ++nextSeq } as never);
+    expect((strict.find(event => event.kind === 'parallel.set') as any).items).toEqual([]);
+
+    const autonomous = coreFeature.extract!(parsed, {
+      turn: 2, day: 1, state: prior, prose: 'The living room is quiet.',
+      tone: { social: 'autonomous' }, seq: () => ++nextSeq,
+    } as never);
+    expect((autonomous.find(event => event.kind === 'parallel.set') as any).items).toEqual([
+      { who: 'willow', where: "Spike's crypt", activity: 'sitting quietly; has told Spike the resurrection news' },
+      { who: 'spike', where: "Spike's crypt", activity: 'processing that Buffy is alive' },
+    ]);
+  });
+
+  it('autonomous NPCs still cannot teleport or assert irreversible outcomes without grounding', () => {
+    const prior = freshState();
+    prior.cast.ada = { id: 'ada', name: 'Ada', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, lastLocation: 'Courtyard', lastLocationTurn: 1, userEdited: false } as any;
+    let nextSeq = 0;
+    const events = coreFeature.extract!({
+      scene: { loc: 'Archive' }, present: [], delta: { parallel: [
+        { who: 'Ada', where: 'East Gate', activity: 'kills the king' },
+      ] },
+    } as never, {
+      turn: 2, day: 1, state: prior, prose: 'The archive remains quiet.',
+      tone: { social: 'autonomous' }, seq: () => ++nextSeq,
+    } as never);
+    expect((events.find(event => event.kind === 'parallel.set') as any).items).toEqual([]);
+  });
 });

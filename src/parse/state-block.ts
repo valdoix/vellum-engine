@@ -667,15 +667,64 @@ function normalizeBlockAliases(obj: Record<string, unknown>): void {
  * `cat` directly, so only this path was affected). Also tolerate `removeCat`.
  */
 function normalizeBlock(obj: Record<string, unknown>): void {
-  const delta = obj.delta as Record<string, unknown> | undefined;
-  if (!delta) return;
   const str = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
   const adopt = (row: Record<string, unknown>, canonical: string, alternatives: string[]): void => {
     if (row[canonical] !== undefined) return;
     for (const key of alternatives) {
       if (row[key] !== undefined) { row[canonical] = row[key]; delete row[key]; return; }
     }
   };
+  const list = (value: unknown, split = false): string[] | undefined => {
+    const raw = Array.isArray(value) ? value : (typeof value === 'string' ? (split ? value.split(/[,;|]/) : [value]) : []);
+    const out = [...new Set(raw.map(item => String(item).trim()).filter(Boolean))];
+    return out.length ? out : undefined;
+  };
+  const numeric = (container: Record<string, unknown>, key: string, min?: number, max?: number): void => {
+    const raw = container[key];
+    if (raw === undefined || raw === null || raw === '') return;
+    const value = typeof raw === 'number' ? raw : Number(String(raw).trim());
+    if (!Number.isFinite(value)) return;
+    // Range violations remain violations: leave them in place so the field's
+    // tolerant Zod `.catch(undefined)` drops them. Clamping bad authored state
+    // would turn an invalid value into a false canonical fact.
+    if ((min !== undefined && value < min) || (max !== undefined && value > max)) return;
+    container[key] = value;
+  };
+  const rows = (container: Record<string, unknown>, key: string): Record<string, unknown>[] => {
+    if (record(container[key])) container[key] = [container[key]];
+    if (!Array.isArray(container[key])) return [];
+    const clean = (container[key] as unknown[]).filter(record);
+    container[key] = clean;
+    return clean;
+  };
+
+  // Scalar coercion is deliberately narrow: only canonical numeric slots are
+  // converted, and unparseable authored values are left for Zod to discard.
+  numeric(obj, 'v', 0); numeric(obj, 'turn', 0); numeric(obj, 'day', 0);
+  if (record(obj.scene)) {
+    adopt(obj.scene, 'loc', ['location', 'place']);
+    numeric(obj.scene, 'clock', 0, 1439);
+    numeric(obj.scene, 'tension', 0, 10);
+  }
+
+  // Present-character data has appeared as both arrays and singleton objects,
+  // with `who`/`character` standing in for id and comma-separated trait text.
+  for (const row of rows(obj, 'present')) {
+    adopt(row, 'id', ['who', 'character']);
+    adopt(row, 'doing', ['activity', 'action']);
+    if (typeof row.traits === 'string') {
+      const traits = list(row.traits, true);
+      if (traits) row.traits = traits; else delete row.traits;
+    }
+  }
+
+  const delta = record(obj.delta) ? obj.delta : {};
+  if (!record(obj.delta)) obj.delta = delta;
+
+  // A single object is a common model shorthand. Canonicalize it before the
+  // element schemas run so one shape mismatch cannot erase the whole section.
+  for (const key of ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations', 'parallel', 'offscreen']) rows(delta, key);
   const plotOp = (raw: unknown, arc: boolean): 'new' | 'advance' | 'stall' | 'resolve' => {
     const value = str(raw).toLowerCase();
     if (['new', 'start', 'started', 'open', 'opened', 'seed'].includes(value)) return 'new';
@@ -691,6 +740,10 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       adopt(row, 'name', ['title', key === 'threads' ? 'thread' : 'arc']);
       adopt(row, 'note', ['beat', 'gist', 'development', 'event']);
       adopt(row, 'op', ['action', 'operation', 'status']);
+      // Legacy rows often put the actual T1 beat in `event` and a status gloss
+      // ("advance — ...") in `note`. The event is the durable plot fact.
+      const event = str(row.event);
+      if (event && (!str(row.note) || /^(?:new|advance|advanced|stall|stalled|resolve|resolved|active|complete|completed)\b\s*(?:[-:\u2013\u2014]|$)/i.test(str(row.note)))) row.note = event;
       const name = str(row.name);
       if (!name) return [];
       row.name = name;
@@ -702,6 +755,46 @@ function normalizeBlock(obj: Record<string, unknown>): void {
   plotRows('threads');
   plotRows('arcs');
 
+  const journalKinds: Record<string, string> = {
+    scar: 'wound', injury: 'wound', hurt: 'wound', knowledge: 'observation', fact: 'observation', learned: 'observation', memory: 'interaction', shared_memory: 'shared', sharedmemory: 'shared',
+  };
+  if (delta.journal !== undefined) delta.journal = rows(delta, 'journal').flatMap((row) => {
+    adopt(row, 'who', ['character', 'actor', 'name']);
+    adopt(row, 'memory', ['entry', 'text', 'event', 'fact']);
+    adopt(row, 'kind', ['type', 'category']);
+    adopt(row, 'about', ['subject']);
+    const who = str(row.who), memory = str(row.memory);
+    if (!who || !memory) return [];
+    row.who = who; row.memory = memory;
+    const kind = str(row.kind).toLowerCase().replace(/[ -]+/g, '_');
+    const canonicalKind = journalKinds[kind] ?? kind;
+    if (['interaction', 'promise', 'betrayal', 'gift', 'shared', 'wound', 'observation'].includes(canonicalKind)) row.kind = canonicalKind;
+    else delete row.kind;
+    const weight = str(row.weight).toLowerCase();
+    if (['trivial', 'minor', 'significant', 'defining'].includes(weight)) row.weight = weight; else delete row.weight;
+    return [row];
+  });
+
+  if (delta.knowledge !== undefined) delta.knowledge = rows(delta, 'knowledge').flatMap((row) => {
+    adopt(row, 'who', ['character', 'actor', 'name']);
+    adopt(row, 'fact', ['knowledge', 'entry', 'memory', 'text']);
+    adopt(row, 'about', ['subject']);
+    const who = str(row.who), fact = str(row.fact);
+    if (!who || !fact) return [];
+    row.who = who; row.fact = fact;
+    return [row];
+  });
+
+  if (delta.secrets !== undefined) delta.secrets = rows(delta, 'secrets').flatMap((row) => {
+    adopt(row, 'keeper', ['who', 'character', 'actor']);
+    adopt(row, 'secret', ['entry', 'fact', 'memory']);
+    const keeper = str(row.keeper), secret = str(row.secret ?? row.text);
+    if (!keeper || !secret) return [];
+    row.keeper = keeper;
+    if (!str(row.secret)) row.secret = secret;
+    return [row];
+  });
+
   if (Array.isArray(delta.parallel)) {
     delta.parallel = (delta.parallel as unknown[]).flatMap((value) => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
@@ -712,6 +805,9 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       const activity = str(row.activity);
       if (!activity) return [];
       row.activity = activity;
+      if (row.who !== undefined) { const who = str(row.who); if (who) row.who = who; else delete row.who; }
+      if (row.where !== undefined) { const where = str(row.where); if (where) row.where = where; else delete row.where; }
+      if (row.note !== undefined) { const note = str(row.note); if (note) row.note = note; else delete row.note; }
       return [row];
     });
   }
@@ -739,8 +835,36 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     });
   }
 
-  const bonds = Array.isArray(delta.bonds) ? delta.bonds : null;
-  if (!bonds) return;
+  if (delta.factions !== undefined) delta.factions = rows(delta, 'factions').flatMap((row) => {
+    adopt(row, 'name', ['title', 'faction', 'group']);
+    adopt(row, 'members', ['actors', 'characters']);
+    const name = str(row.name);
+    if (!name) return [];
+    row.name = name;
+    if (typeof row.members === 'string') row.members = list(row.members, true);
+    numeric(row, 'standing', -100, 100); numeric(row, 'trust', -100, 100);
+    return [row];
+  });
+  if (delta.factionRelations !== undefined) delta.factionRelations = rows(delta, 'factionRelations').flatMap((row) => {
+    adopt(row, 'a', ['from', 'factionA', 'source']);
+    adopt(row, 'b', ['to', 'factionB', 'target']);
+    const a = str(row.a), b = str(row.b);
+    if (!a || !b) return [];
+    row.a = a; row.b = b;
+    numeric(row, 'standing', -100, 100);
+    return [row];
+  });
+  if (delta.secretReveals !== undefined) delta.secretReveals = rows(delta, 'secretReveals').flatMap((row) => {
+    adopt(row, 'id', ['secretId', 'secret_id']);
+    adopt(row, 'to', ['audience', 'revealedTo', 'revealed_to']);
+    const id = str(row.id);
+    if (!id) return [];
+    row.id = id;
+    if (typeof row.to === 'string') row.to = list(row.to, true);
+    return [row];
+  });
+
+  const bonds = Array.isArray(delta.bonds) ? delta.bonds : [];
   // valid relationship categories — anything else (e.g. the model inventing
   // "physical") is FILTERED, not left to fail the whole block's validation.
   const VALID = new Set(['familial', 'romantic', 'alliance', 'rivalry', 'social', 'neutral']);
@@ -749,14 +873,85 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     const out = v.map((x) => String(x).toLowerCase().trim()).filter((x) => VALID.has(x));
     return out.length ? Array.from(new Set(out)) : undefined;
   };
-  for (const b of bonds) {
-    if (!b || typeof b !== 'object') continue;
+  if (delta.bonds !== undefined) delta.bonds = bonds.flatMap((b) => {
+    if (!b || typeof b !== 'object') return [];
     const bond = b as Record<string, unknown>;
+    adopt(bond, 'a', ['from', 'who', 'character']);
+    adopt(bond, 'b', ['to', 'about', 'target']);
+    adopt(bond, 'aff', ['affection']);
     if (bond.addCats === undefined && bond.cat !== undefined) { bond.addCats = bond.cat; delete bond.cat; }
+    if (bond.addCats === undefined && bond.categories !== undefined) { bond.addCats = bond.categories; delete bond.categories; }
     if (bond.removeCats === undefined && bond.removeCat !== undefined) { bond.removeCats = bond.removeCat; delete bond.removeCat; }
+    if (typeof bond.addCats === 'string') bond.addCats = list(bond.addCats, true);
+    if (typeof bond.removeCats === 'string') bond.removeCats = list(bond.removeCats, true);
+    numeric(bond, 'aff'); numeric(bond, 'trust');
+    const a = str(bond.a), bName = str(bond.b);
+    if (!a || !bName) return [];
+    bond.a = a; bond.b = bName;
     // drop unknown categories so one invented value can't nuke the whole turn
     if (bond.addCats !== undefined) { const c = clean(bond.addCats); if (c) bond.addCats = c; else delete bond.addCats; }
     if (bond.removeCats !== undefined) { const c = clean(bond.removeCats); if (c) bond.removeCats = c; else delete bond.removeCats; }
+    return [bond];
+  });
+
+  // Engine-reserved extension records are intentionally open-schema, so they
+  // need the same compatibility seam rather than being silently ignored later.
+  if (!record(obj.ext)) obj.ext = {};
+  const ext = obj.ext as Record<string, unknown>;
+  for (const key of ['intent', 'affect', 'introduction', 'scars', 'codex', 'inventory', 'timeline', 'plant', 'payoff']) {
+    if (obj[key] !== undefined && ext[key] === undefined) { ext[key] = obj[key]; delete obj[key]; }
+  }
+  for (const key of ['intent', 'affect', 'introduction', 'scars', 'inventory', 'timeline']) rows(ext, key);
+  for (const key of ['codex', 'plant', 'payoff']) {
+    if (record(ext[key]) || typeof ext[key] === 'string') ext[key] = [ext[key]];
+  }
+  for (const row of rows(ext, 'intent')) {
+    adopt(row, 'who', ['character', 'actor', 'name']);
+    adopt(row, 'nextStep', ['next', 'action', 'plan']);
+    if (typeof row.constraints === 'string') row.constraints = list(row.constraints);
+  }
+  const affectLevel = (value: unknown, kind: 'valence' | 'arousal' | 'control'): number | undefined => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const text = str(value).toLowerCase();
+    if (!text) return undefined;
+    if (kind === 'arousal') return /very high|extreme|overwhelm|shak|panic|furious/.test(text) ? 2 : /low|calm|quiet|settled/.test(text) ? 0 : 1;
+    if (kind === 'control') return /controlled|suppressed|contained|mask|restrained/.test(text) ? 2 : /overwhelm|breaking|shattered|uncontrolled/.test(text) ? -1 : 0;
+    const positive = /relief|hope|joy|love|warm|pleas|happy|affection/.test(text);
+    const negative = /fear|fury|anger|grief|pain|shatter|sad|dread|hate/.test(text);
+    return positive === negative ? 0 : positive ? 1 : -1;
+  };
+  for (const row of rows(ext, 'affect')) {
+    adopt(row, 'who', ['character', 'actor', 'name']);
+    const originalValence = row.valence;
+    const originalArousal = row.arousal;
+    for (const key of ['valence', 'arousal', 'control'] as const) {
+      const source = key === 'control' && row.control === undefined ? `${str(originalValence)} ${str(originalArousal)}` : row[key];
+      const value = affectLevel(source, key);
+      if (value === undefined) delete row[key]; else row[key] = value;
+    }
+    if (!str(row.direction)) row.direction = str(row.cause) || str(originalValence) || 'current situation';
+  }
+  for (const row of rows(ext, 'introduction')) {
+    adopt(row, 'who', ['character', 'actor', 'name']);
+    adopt(row, 'summary', ['packet', 'description']);
+  }
+  for (const row of rows(ext, 'scars')) {
+    adopt(row, 'who', ['character', 'actor', 'name']);
+    adopt(row, 'was', ['belief', 'entry', 'memory']);
+    adopt(row, 'about', ['subject']);
+  }
+  for (const row of rows(ext, 'inventory')) {
+    adopt(row, 'who', ['character', 'actor', 'owner']);
+    adopt(row, 'item', ['name', 'object']);
+    adopt(row, 'op', ['action', 'operation']);
+    adopt(row, 'to', ['recipient', 'target']);
+  }
+  for (const row of rows(ext, 'timeline')) {
+    adopt(row, 'event', ['entry', 'text', 'description', 'beat']);
+    adopt(row, 'location', ['where', 'loc']);
+    adopt(row, 'participants', ['characters', 'actors', 'who']);
+    if (typeof row.participants === 'string') row.participants = list(row.participants, true);
+    numeric(row, 'day', 0);
   }
 }
 
