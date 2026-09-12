@@ -113,7 +113,10 @@ describe('inline VELLUM compatibility normalization', () => {
       state: freshState(),
       prose: 'Buffy wakes alone beneath disturbed earth.',
       tone: { ...DEFAULT_TONE, social: 'autonomous' },
-      parallelCanonLabels: rows.map(row => row.id),
+      parallelCanonLabels: [
+        'Willow Rosenberg', 'Tara Maclay', 'Xander Harris', 'Anya Jenkins',
+        'Dawn Summers', 'Spike', 'Hellion bikers',
+      ],
       seq: () => ++sequence,
     } as ExtractCtx);
     const parallel = events.find(event => event.kind === 'parallel.set');

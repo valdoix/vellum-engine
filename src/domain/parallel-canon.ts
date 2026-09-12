@@ -32,6 +32,27 @@ export interface ParallelReconcileOptions {
   establishedEntities?: readonly string[];
 }
 
+/** Match an authored entity label to an attached-lore title/key without turning
+ * a generic one-word overlap into identity proof. Exact canonical labels win;
+ * otherwise require either two shared meaningful tokens ("Hellion biker gang"
+ * ↔ "Hellion bikers") or one distinctive token when one side is itself a
+ * single-token canonical name/alias. */
+function establishedEntity(raw: string, labels: readonly string[], exact: ReadonlySet<string>): boolean {
+  const id = canonId(raw);
+  if (!id) return false;
+  if (exact.has(id)) return true;
+  const wanted = factTokens(raw);
+  if (!wanted.size) return false;
+  for (const label of labels) {
+    const known = factTokens(label);
+    if (!known.size) continue;
+    const shared = [...wanted].filter(token => known.has(token));
+    if (shared.length >= 2 && shared.length === Math.min(wanted.size, known.size)) return true;
+    if (shared.length === 1 && shared[0]!.length >= 5 && (wanted.size === 1 || known.size === 1)) return true;
+  }
+  return false;
+}
+
 export function locationKey(value?: string): string {
   return String(value ?? '').normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
@@ -146,7 +167,8 @@ export function reconcileParallelSnapshot(
   const priorActors = new Map(state.parallel.filter(row => row.who).map(row => [canonId(row.who!), row]));
   const resultActors = new Map<string, ParallelDraft>();
   const incomingActors = new Map<string, ParallelDraft>();
-  const established = new Set((options.establishedEntities ?? []).map(canonId).filter(Boolean));
+  const establishedLabels = (options.establishedEntities ?? []).map(label => String(label).trim()).filter(Boolean);
+  const established = new Set(establishedLabels.map(canonId).filter(Boolean));
   const priorWorld = state.parallel.filter(row => !row.who).map(row => ({ ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}) }));
   const incomingWorld: ParallelDraft[] = [];
   for (const row of incoming) {
@@ -160,7 +182,7 @@ export function reconcileParallelSnapshot(
     if (!id || here.has(id) || !row.where?.trim()) continue;
     const old = priorActors.get(id);
     const actor = state.cast[id];
-    const canonEstablished = established.has(id);
+    const canonEstablished = establishedEntity(row.who!, establishedLabels, established);
     if (!actor && !canonEstablished && !evidenceMentionsActor(state, row.who!, prose)) continue;
     const known = canonicalActorLocation(state, id);
     const moved = !!known && !sameLocation(known.where, row.where);
