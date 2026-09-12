@@ -177,7 +177,7 @@ const GROUP_HEAD = new Set([
   'staff', 'court', 'household', 'guards', 'guard', 'kingsguard', 'watch', 'council',
   'order', 'guild', 'house', 'faction', 'conspiracy', 'family', 'clan', 'company',
   'garrison', 'retinue', 'entourage', 'servants', 'soldiers', 'guardsmen', 'men',
-  'army', 'crew', 'band', 'pack', 'circle', 'cabal', 'alliance', 'coalition', 'staffs',
+  'army', 'crew', 'band', 'gang', 'gangs', 'pack', 'circle', 'cabal', 'alliance', 'coalition', 'staffs',
 ]);
 
 // RELATIONSHIP / ABSTRACTION nouns: a name built around one of these describes a

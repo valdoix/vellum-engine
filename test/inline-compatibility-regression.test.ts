@@ -3,6 +3,8 @@ import { parseState } from '../src/parse/state-block.js';
 import { coreFeature } from '../src/domain/core-feature.js';
 import { freshState } from '../src/domain/types.js';
 import type { ExtractCtx } from '../src/bus/registry.js';
+import { reduce } from '../src/core/reduce.js';
+import { DEFAULT_TONE } from '../src/domain/tone.js';
 
 const wrap = (value: unknown): string => `<vellum>${JSON.stringify(value)}</vellum>`;
 
@@ -81,5 +83,51 @@ describe('inline VELLUM compatibility normalization', () => {
     expect(events).toContainEqual(expect.objectContaining({ kind: 'cast.edit', id: 'jonathan_winters', patch: expect.objectContaining({ intent: expect.objectContaining({ nextStep: 'ask for the full account' }) }) }));
     expect(events).toContainEqual(expect.objectContaining({ kind: 'cast.edit', id: 'jonathan_winters', patch: expect.objectContaining({ affect: expect.objectContaining({ arousal: 1, direction: 'his son is injured' }) }) }));
     expect(events).toContainEqual(expect.objectContaining({ kind: 'cast.edit', id: 'jonathan_winters', patch: { note: 'Silver-templed attorney with an even voice and a protective reserve.' } }));
+  });
+
+  it('files id-shaped autonomous parallel rows from attached canon on a fresh Chronicle', () => {
+    const rows = [
+      { id: 'Willow Rosenberg', where: 'fleeing cemetery area', activity: 'retreating with Tara, Xander, and Anya after the interrupted ritual; believes resurrection failed' },
+      { id: 'Tara Maclay', where: 'fleeing with Willow', activity: 'retreating after ritual interruption' },
+      { id: 'Xander Harris', where: 'fleeing with Willow', activity: 'retreating after ritual interruption' },
+      { id: 'Anya Jenkins', where: 'fleeing with Willow', activity: 'retreating after ritual interruption' },
+      { id: 'Dawn Summers', where: 'Summers home or with Spike', activity: 'unaware of resurrection attempt' },
+      { id: 'Spike', where: 'Sunnydale, protecting Dawn', activity: 'unaware of resurrection attempt; Buffybot being destroyed by Hellions' },
+      { id: 'Hellion biker gang', where: 'downtown Sunnydale', activity: 'rampaging through town, destroying the Buffybot' },
+    ];
+    // The reported block used parallel at the root as well as `id` rather than
+    // `who`; both are common model drift and must survive normalization.
+    const parsedResult = parseState(wrap({
+      scene: { loc: 'cemetery', time: '02:10', clock: 130 },
+      present: [{ id: 'Buffy Summers' }],
+      parallel: rows,
+    }));
+    expect(parsedResult.source).toBe('json');
+    expect(parsedResult.state?.delta?.parallel).toHaveLength(7);
+    expect(parsedResult.state?.delta?.parallel?.map(row => row.who)).toEqual(rows.map(row => row.id));
+
+    let sequence = 0;
+    const events = coreFeature.extract!(parsedResult.state!, {
+      turn: 1,
+      day: 1,
+      state: freshState(),
+      prose: 'Buffy wakes alone beneath disturbed earth.',
+      tone: { ...DEFAULT_TONE, social: 'autonomous' },
+      parallelCanonLabels: rows.map(row => row.id),
+      seq: () => ++sequence,
+    } as ExtractCtx);
+    const parallel = events.find(event => event.kind === 'parallel.set');
+    expect(parallel).toMatchObject({ kind: 'parallel.set', items: expect.arrayContaining([
+      expect.objectContaining({ who: 'willow_rosenberg', activity: expect.stringContaining('resurrection failed') }),
+      expect.objectContaining({ who: 'spike', activity: expect.stringContaining('Buffybot being destroyed') }),
+      expect.objectContaining({ who: 'hellion_biker_gang', activity: expect.stringContaining('destroying the Buffybot') }),
+    ]) });
+    expect((parallel as any).items).toHaveLength(7);
+
+    const state = reduce(events);
+    expect(state.parallel).toHaveLength(7);
+    expect(state.cast.willow_rosenberg?.status).toBe('active');
+    expect(state.cast.spike?.status).toBe('active');
+    expect(state.cast.hellion_biker_gang).toBeUndefined();
   });
 });

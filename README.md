@@ -31,7 +31,7 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **Extension 2.1.0-beta.18 (testing)** — ARGENT LOOM’s living world supports canon-grounded `((parallel))` batches, durable causally scheduled subplots, richer NPC autonomy, and Workbench controls. Inline VELLUM parsing now normalizes common compatible field shapes without weakening causality, NPC autonomy, or time-continuity guards.
+> **Extension 2.1.0-beta.19 (testing)** — ARGENT LOOM’s living world supports canon-grounded `((parallel))` batches, durable causally scheduled subplots, richer NPC autonomy, and Workbench controls. Inline parallel snapshots now accept compatible `id` actor fields and can recognize fresh-chat entities from attached lorebook titles and keys without treating lore as proof of location, activity, travel, or knowledge.
 
 > **VELLUM II — COMPACT 1.0.0** — a separate small-preset option capped at 5,000 standing-prompt tokens. It retains per-turn agency, knowledge isolation, monotonic time, causal plot rules, NPC autonomy, dialogue colors, and VELLUM Engine Second Pass with 15 focused controls. Import `presets/vellum-compact.json`; it does not replace VELLUM II or ARGENT LOOM. See `presets/VELLUM-COMPACT-README.md`.
 

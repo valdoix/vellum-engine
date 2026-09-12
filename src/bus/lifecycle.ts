@@ -27,7 +27,7 @@ export interface FoldResult {
   dropped?: Record<string, number>;
 }
 
-export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number; personaState?: boolean; userInput?: string; agency?: import('../domain/preset-runtime.js').AgencyMode }): FoldResult {
+export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number; personaState?: boolean; userInput?: string; agency?: import('../domain/preset-runtime.js').AgencyMode; parallelCanonLabels?: readonly string[] }): FoldResult {
   // Hash the complete active content. The state block lives at the end of the
   // message, so a prefix-only signature misses precisely the edits/swipes that
   // must invalidate canonical state on long replies.
@@ -93,7 +93,7 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
     const reportedBeyondCap = parsed.day !== undefined && parsed.day > opts.dayCap;
     if (reportedBeyondCap || day > opts.dayCap) day = Math.max(prior.day ?? 0, opts.dayCap);
   }
-  const ctx: ExtractCtx = { turn, day, state: prior, prose, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}), ...(opts?.personaState ? { personaState: true } : {}), ...(opts?.userInput ? { userInput: opts.userInput } : {}), ...(opts?.agency ? { agency: opts.agency } : {}) };
+  const ctx: ExtractCtx = { turn, day, state: prior, prose, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}), ...(opts?.personaState ? { personaState: true } : {}), ...(opts?.userInput ? { userInput: opts.userInput } : {}), ...(opts?.agency ? { agency: opts.agency } : {}), ...(opts?.parallelCanonLabels?.length ? { parallelCanonLabels: opts.parallelCanonLabels } : {}) };
 
   const events: VellumEvent[] = [
     { seq: nextSeq(), turn, day, src: 'system', kind: 'turn.fold', sig },

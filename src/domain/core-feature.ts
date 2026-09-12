@@ -471,7 +471,25 @@ export const coreFeature: Feature = {
         activity: String(p.activity || '').trim(),
         ...(p.note ? { note: p.note } : {}),
       })).filter((p) => p.activity);
-      const reconciled = reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '', { npcAutonomy: tone.social });
+      const reconciled = reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '', {
+        npcAutonomy: tone.social,
+        establishedEntities: ctx.parallelCanonLabels,
+      });
+      // A named actor accepted from visible evidence or attached canon on the
+      // first Chronicle turn must become a durable cast identity. Otherwise the
+      // row displays once but loses autonomous status on its next update. Group
+      // labels remain parallel entities rather than bogus individual cast cards.
+      const rawNameById = new Map<string, string>();
+      for (const row of proposed) if (row.who) rawNameById.set(rid(row.who), row.who);
+      const seeded = new Set<string>();
+      for (const row of reconciled) {
+        if (!row.who) continue;
+        const id = rid(row.who);
+        const name = rawNameById.get(id);
+        if (!id || !name || ctx.state.cast[id] || turnIds.has(id) || seeded.has(id) || badName(name)) continue;
+        seeded.add(id);
+        out.push({ ...base(), kind: 'cast.seen', id, name, status: 'active' } as VellumEvent);
+      }
       out.push({
         ...base(), kind: 'parallel.set',
         items: reconciled,

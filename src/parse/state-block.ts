@@ -799,7 +799,12 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     delta.parallel = (delta.parallel as unknown[]).flatMap((value) => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
       const row = value as Record<string, unknown>;
-      adopt(row, 'who', ['actor', 'character', 'name']);
+      // `id` is the canonical identity key everywhere else in the inline
+      // grammar (notably present[]), so models regularly carry it into the
+      // parallel snapshot. Treat it as an identity alias here instead of
+      // stripping it and accidentally turning the row into an anonymous world
+      // event during Zod validation.
+      adopt(row, 'who', ['id', 'actor', 'character', 'name']);
       adopt(row, 'where', ['location', 'loc']);
       adopt(row, 'activity', ['gist', 'event', 'action', 'doing']);
       const activity = str(row.activity);

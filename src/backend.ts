@@ -84,6 +84,14 @@ function lorebookCanonEntries(entries: readonly LiteEntry[]): LorebookCanonEntry
   }));
 }
 
+/** Exact entity labels exposed by attached lorebooks. These are deliberately
+ * limited to entry titles and activation keys: body-text mentions are context,
+ * not a closed-roster declaration. */
+function lorebookParallelLabels(entries: readonly LorebookCanonEntry[]): string[] {
+  return [...new Set(entries.flatMap(entry => [entry.title, ...(entry.keys ?? [])])
+    .map(value => String(value ?? '').trim()).filter(Boolean))];
+}
+
 function dialogueIdentities(state: ChronicleState, names: { user: string; char: string }): DialogueIdentity[] {
   const ordered: DialogueIdentity[] = [];
   const seen = new Set<string>();
@@ -525,11 +533,12 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     chatNames(chatId, userId, boundPersonaId),
     readLocks(chatId),
     readPersonaStateEnabled(chatId),
-    engineCompiler ? attachedLoreEntries(chatId, userId).catch(() => []) : Promise.resolve([]),
+    structuredStateEnabled ? attachedLoreEntries(chatId, userId).catch(() => []) : Promise.resolve([]),
   ]);
   // Read attached lore once for this fold. It is objective world canon for the
   // compiler, while actor knowledge remains governed by the Chronicle ledger.
   let lorebookCanon = lorebookCanonEntries(attached);
+  let parallelCanonLabels = lorebookParallelLabels(lorebookCanon);
   const userCanon = names.user ? canonId(names.user) : '';
   // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
   // message count, so the forward-only fold below would never revisit it and the
@@ -601,6 +610,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         personaState: personaStateOn,
         userInput: auditParts?.userInput ?? '',
         agency: auditAgency,
+        parallelCanonLabels,
       });
       const expected = reduce(expectedFold.events, structuredClone(before));
       const expectedClock = expected.scene.clock ?? parseClock(expected.scene.time);
@@ -675,6 +685,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       if (parsedBatch && batchRows.length >= 3 && batchRows.length <= 7) {
         if (!lorebookCanon.length) {
           try { lorebookCanon = lorebookCanonEntries(await attachedLoreEntries(chatId, userId)); } catch { /* no attached lore */ }
+          parallelCanonLabels = lorebookParallelLabels(lorebookCanon);
         }
         const batch = materializeParallelBatch(parsedBatch, prior, turnNo, prior.day || 0, () => nextSeqLocal(), {
           locks, worldCanon: lorebookCanon, social: tone.social, politics: tone.politics, userId: userCanon,
@@ -829,7 +840,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     const folded = parallelFoldEvents !== null
       ? { events: parallelFoldEvents, source: 'json' as const, sig: sigOf(content), dropped: undefined }
       : structuredStateEnabled
-      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, ...(dayCap !== undefined ? { dayCap } : {}) })
+      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, ...(dayCap !== undefined ? { dayCap } : {}) })
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     const { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {
@@ -2746,6 +2757,7 @@ const dispatch: Record<string, Handler> = {
       const route = await taskRoute(chatId, uid, 'reconstruction');
       const tuning = routedParams(route, { maxTokens: 20000, timeoutMs: 180000, temperature: 0 });
       const lorebookCanon = lorebookCanonEntries(attached);
+      const parallelCanonLabels = lorebookParallelLabels(lorebookCanon);
       report('Reading evidence', startAt - 1, turns.length, startAt > 1 ? `Resuming verified checkpoint at turn ${startAt}.` : 'Transcript and canonical sources loaded.');
       for (let turnNo = startAt; turnNo <= turns.length; turnNo++) {
         if (abort.signal.aborted) break;
@@ -2765,7 +2777,7 @@ const dispatch: Record<string, Handler> = {
             if (compiled.ok) { foldContent = prose + '\n' + compiled.block; compiledOk = true; break; }
           }
         }
-        const folded = foldTurn(foldContent, prior, turnNo, { tone, userCanon: names.user ? canonId(names.user) : '', locks, personaState: personaStateOn, userInput, agency });
+        const folded = foldTurn(foldContent, prior, turnNo, { tone, userCanon: names.user ? canonId(names.user) : '', locks, personaState: personaStateOn, userInput, agency, parallelCanonLabels });
         const evs = [...folded.events];
         if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: hashStr(content) } as VellumEvent);
         const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;
@@ -2936,6 +2948,9 @@ const dispatch: Record<string, Handler> = {
       const personaStateOn = await readPersonaStateEnabled(chatId);
       const rebuildContract = await activeTurnContract(chatId, uid);
       const rebuildAgencyLedger = await activeTurnAgencyLedger(chatId, uid);
+      const rebuildParallelCanonLabels = messagesOnly
+        ? []
+        : lorebookParallelLabels(lorebookCanonEntries(await attachedLoreEntries(chatId, uid).catch(() => [])));
       const rebuildExtractorRoute = await taskRoute(chatId, uid, 'reconstruction');
       const rebuildExtractorTuning = routedParams(rebuildExtractorRoute, { maxTokens: 1800, timeoutMs: 90000, temperature: 0.1 });
       // ids of turn-memories that already exist (messagesOnly: only backfill gaps)
@@ -2961,7 +2976,7 @@ const dispatch: Record<string, Handler> = {
           if (!gist) continue;
           evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: memId, tier: 'turn', text: gist, keys: [] } as VellumEvent);
         } else {
-          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: rebuiltParts?.userInput ?? '', agency: rebuildAgency });
+          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: rebuiltParts?.userInput ?? '', agency: rebuildAgency, parallelCanonLabels: rebuildParallelCanonLabels });
           evs.push(...events);
           if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
           const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;

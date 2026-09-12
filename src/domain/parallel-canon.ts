@@ -1,5 +1,6 @@
 import { canonId } from '../core/ids.js';
 import { factTokens } from './fact-match.js';
+import { resolveCastId } from './identity.js';
 import type { ChronicleState, ParallelEvent } from './types.js';
 
 export interface ActorLocation {
@@ -9,17 +10,26 @@ export interface ActorLocation {
 
 export type ParallelDraft = Pick<ParallelEvent, 'who' | 'where' | 'activity' | 'note'>;
 
-const MOVE = /\b(?:arriv(?:e|es|ed|ing)|depart(?:s|ed|ing)?|enter(?:s|ed|ing)?|exit(?:s|ed|ing)?|go(?:es|ing)?|head(?:s|ed|ing)?|journey(?:s|ed|ing)?|leave(?:s|ing)?|left|mov(?:e|es|ed|ing)|reach(?:es|ed|ing)?|return(?:s|ed|ing)?|ride(?:s|ing)?|rode|run(?:s|ning)?|ran|sail(?:s|ed|ing)?|teleport(?:s|ed|ing)?|travel(?:s|ed|ing)?|walk(?:s|ed|ing)?|went)\b/i;
+const MOVE = /\b(?:arriv(?:e|es|ed|ing)|depart(?:s|ed|ing)?|enter(?:s|ed|ing)?|exit(?:s|ed|ing)?|flee|flees|fleeing|fled|go(?:es|ing)?|head(?:s|ed|ing)?|journey(?:s|ed|ing)?|leave(?:s|ing)?|left|mov(?:e|es|ed|ing)|reach(?:es|ed|ing)?|retreat(?:s|ed|ing)?|return(?:s|ed|ing)?|ride(?:s|ing)?|rode|run(?:s|ning)?|ran|sail(?:s|ed|ing)?|teleport(?:s|ed|ing)?|travel(?:s|ed|ing)?|walk(?:s|ed|ing)?|went)\b/i;
 const ACCESS = /\b(?:announce(?:s|d)?|broadcast(?:s|ed|ing)?|call(?:s|ed|ing)?|courier|deliver(?:s|ed|ing)?|discover(?:s|ed|ing)?|hear(?:s|d|ing)?|heard|inform(?:s|ed|ing)?|learn(?:s|ed|ing)?|letter|message|messenger|notice(?:s|d|ing)?|observe(?:s|d|ing)?|overhear(?:s|d|ing)?|phone|radio|read(?:s|ing)?|receive(?:s|d|ing)?|report(?:s|ed|ing)?|see(?:s|ing)?|saw|signal(?:s|ed|ing)?|tell(?:s|ing)?|told|telegram|text(?:s|ed|ing)?|witness(?:es|ed|ing)?)\b/i;
 const EPISTEMIC_ACTIVITY = /\b(?:aware|discovers?|finds out|hears? (?:about|that|news)|is (?:informed|told)|knows?|learns?|process(?:es|ing) (?:that|the news)|reads? (?:a |the )?(?:letter|message|report)|receives? (?:a |the )?(?:call|letter|message|news|report|signal|telegram)|realizes?|unaware)\b/i;
 const RESOLVE = /\b(?:abandon(?:s|ed|ing)?|arriv(?:e|es|ed|ing)|cancel(?:s|led|ed|ing)?|ceas(?:e|es|ed|ing)|clos(?:e|es|ed|ing)|complet(?:e|es|ed|ing)|conclud(?:e|es|ed|ing)|depart(?:s|ed|ing)?|dissolv(?:e|es|ed|ing)|end(?:s|ed|ing)?|finish(?:es|ed|ing)?|lift(?:s|ed|ing)?|open(?:s|ed|ing)?|reopen(?:s|ed|ing)?|resolv(?:e|es|ed|ing)|settle(?:s|d|ing)?|stop(?:s|ped|ping)?)\b/i;
 const NEGATIVE_KNOWLEDGE = /\b(?:does not|doesn't|did not|didn't|cannot|can't|unaware|unknown to|has no (?:idea|knowledge)|last knows?)\b/i;
-const HIGH_IMPACT = /\b(?:abduct(?:s|ed|ing)?|assassinat(?:e|es|ed|ing)|coup|declar(?:e|es|ed|ing) war|destroy(?:s|ed|ing)?|divorc(?:e|es|ed|ing)|kidnap(?:s|ped|ping)?|kill(?:s|ed|ing)?|marr(?:y|ies|ied|ying)|murder(?:s|ed|ing)?|overthrow(?:s|ing)?|suicid(?:e|al)|wedding)\b/i;
+// Autonomous simulation still cannot mint irreversible changes to a person or
+// polity from nowhere. Ordinary material damage is intentionally not in this
+// list: destruction of an object/vehicle/construct is a valid off-screen act
+// when an established autonomous entity has motive and time, and its durable
+// consequence remains subject to the normal subplot/foreground pipeline.
+const HIGH_IMPACT = /\b(?:abduct(?:s|ed|ing)?|assassinat(?:e|es|ed|ing)|coup|declar(?:e|es|ed|ing) war|divorc(?:e|es|ed|ing)|kidnap(?:s|ped|ping)?|kill(?:s|ed|ing)?|marr(?:y|ies|ied|ying)|murder(?:s|ed|ing)?|overthrow(?:s|ing)?|suicid(?:e|al)|wedding)\b/i;
 
 export interface ParallelReconcileOptions {
   /** Selected NPC social autonomy. Only the highest level authorizes new
    * low-risk actor activity without visible-scene evidence. */
   npcAutonomy?: 'off' | 'reactive' | 'living' | 'autonomous';
+  /** Exact canonical entity labels supplied by attached lorebooks. Recognition
+   * only: a label cannot prove where the entity is, what it knows, or what it
+   * has done. */
+  establishedEntities?: readonly string[];
 }
 
 export function locationKey(value?: string): string {
@@ -136,12 +146,13 @@ export function reconcileParallelSnapshot(
   const priorActors = new Map(state.parallel.filter(row => row.who).map(row => [canonId(row.who!), row]));
   const resultActors = new Map<string, ParallelDraft>();
   const incomingActors = new Map<string, ParallelDraft>();
+  const established = new Set((options.establishedEntities ?? []).map(canonId).filter(Boolean));
   const priorWorld = state.parallel.filter(row => !row.who).map(row => ({ ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}) }));
   const incomingWorld: ParallelDraft[] = [];
   for (const row of incoming) {
     if (!row.activity?.trim()) continue;
     if (!row.who) { incomingWorld.push(row); continue; }
-    incomingActors.set(canonId(row.who), row); // last T1 row wins
+    incomingActors.set(resolveCastId(state, row.who), row); // last T1 row wins
   }
 
   for (const [id, old] of priorActors) if (!here.has(id)) resultActors.set(id, { who: id, ...(old.where ? { where: old.where } : {}), activity: old.activity, ...(old.note ? { note: old.note } : {}) });
@@ -149,10 +160,11 @@ export function reconcileParallelSnapshot(
     if (!id || here.has(id) || !row.where?.trim()) continue;
     const old = priorActors.get(id);
     const actor = state.cast[id];
-    if (!actor && !evidenceMentionsActor(state, row.who!, prose)) continue;
+    const canonEstablished = established.has(id);
+    if (!actor && !canonEstablished && !evidenceMentionsActor(state, row.who!, prose)) continue;
     const known = canonicalActorLocation(state, id);
     const moved = !!known && !sameLocation(known.where, row.where);
-    const autonomous = options.npcAutonomy === 'autonomous' && !!actor;
+    const autonomous = options.npcAutonomy === 'autonomous' && (!!actor || canonEstablished);
     if (moved && !evidenceGroundsMove(state, id, row.where, prose) && !(autonomous && MOVE.test(row.activity))) continue;
     const unchanged = !!old && sameLocation(old.where, row.where) && sameActivity(old.activity, row.activity);
     const peerDeliveredAccess = [...incomingActors.entries()].some(([peerId, peer]) => peerId !== id

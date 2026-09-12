@@ -37,6 +37,11 @@ export interface ExtractCtx {
   /** latest player-authored turn input and its resolved per-turn agency mode */
   userInput?: string;
   agency?: import('../domain/preset-runtime.js').AgencyMode;
+  /** Exact titles/keys from lorebooks attached to this chat. Inline parallel
+   * reconciliation may use these labels to recognize an established off-stage
+   * entity on a fresh Chronicle, but never as proof of current knowledge,
+   * location, travel, or activity. */
+  parallelCanonLabels?: readonly string[];
 }
 
 export interface InjectCtx {
