@@ -10,6 +10,7 @@ import { clockTime, parseClock } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 import { reconcileParallelSnapshot } from './parallel-canon.js';
 import { normalizeSecretAudience } from './secret-audience.js';
+import { simEvents, threadOffscreenLink } from './offscreen.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -196,16 +197,18 @@ export const coreFeature: Feature = {
           return { id };
         }
         const prior = id === uCanon && ctx.personaState ? priorPersonaDetail : undefined;
+        const presence = p.presence || prior?.presence;
         const mood = p.mood || prior?.mood;
         const doing = p.doing || prior?.doing;
         const condition = p.condition || prior?.condition;
         const thought = p.thought || prior?.thought;
-        return id ? { id, ...(mood ? { mood } : {}), ...(doing ? { doing } : {}), ...(condition ? { condition } : {}), ...(thought ? { thought } : {}) } : null;
+        return id ? { id, ...(presence ? { presence } : {}), ...(mood ? { mood } : {}), ...(doing ? { doing } : {}), ...(condition ? { condition } : {}), ...(thought ? { thought } : {}) } : null;
       }).filter(Boolean);
       if (userInScene) {
         const prior = ctx.personaState ? priorPersonaDetail : undefined;
-        (detail as Array<{ id: string; mood?: string; doing?: string; condition?: string; thought?: string }>).unshift({
+        (detail as Array<{ id: string; presence?: 'spotlight' | 'periphery'; mood?: string; doing?: string; condition?: string; thought?: string }>).unshift({
           id: uCanon,
+          ...(prior?.presence ? { presence: prior.presence } : {}),
           ...(prior?.mood ? { mood: prior.mood } : {}),
           ...(prior?.doing ? { doing: prior.doing } : {}),
           ...(prior?.condition ? { condition: prior.condition } : {}),
@@ -326,11 +329,25 @@ export const coreFeature: Feature = {
     // threads + arcs
     for (const t of parsed.delta?.threads ?? []) {
       if (!inlinePlotChange(t, ctx.state.threads, ctx.state, ctx.prose)) continue;
-      out.push({ ...base(), kind: 'thread.op', op: t.op, name: t.name, ...(t.note ? { note: t.note } : {}) } as VellumEvent);
+      out.push({ ...base(), kind: 'thread.op', op: t.op, name: t.name, ...(t.note ? { note: t.note } : {}), ...(t.milestone ? { milestone: t.milestone } : {}), ...(t.dependsOn !== undefined ? { dependsOn: t.dependsOn } : {}), ...(t.blockedBy !== undefined ? { blockedBy: t.blockedBy } : {}), ...(t.deadlineDay !== undefined ? { deadlineDay: t.deadlineDay } : {}), ...(t.deadlineClock !== undefined ? { deadlineClock: t.deadlineClock } : {}) } as VellumEvent);
+      // Close the subplot -> thread -> foreground loop. A grounded on-screen
+      // change to an exact tracked thread is also the newest beat of every
+      // explicitly linked off-screen subplot; resolution retires it. This stops
+      // mature parallel events from lingering forever after their consequence
+      // has already reached the visible story.
+      const tracked = ctx.state.threads.find(row => row.id === t.id || plotTitleKey(row.name) === plotTitleKey(t.name));
+      if (tracked && t.note) {
+        for (const subplot of ctx.state.offscreen.filter(row => row.status === 'active' && threadOffscreenLink(tracked.name, row, tracked.id))) {
+          out.push({
+            ...base(), kind: 'offscreen.op', op: t.op === 'resolve' ? 'resolve' : 'advance', id: subplot.id,
+            gist: t.note, thread: tracked.id,
+          } as VellumEvent);
+        }
+      }
     }
     for (const a of parsed.delta?.arcs ?? []) {
       if (a.op === 'stall' || !inlinePlotChange(a, ctx.state.arcs, ctx.state, ctx.prose)) continue; // arcs have no stall
-      out.push({ ...base(), kind: 'arc.op', op: a.op, name: a.name, ...(a.note ? { note: a.note } : {}) } as VellumEvent);
+      out.push({ ...base(), kind: 'arc.op', op: a.op, name: a.name, ...(a.note ? { note: a.note } : {}), ...(a.milestone ? { milestone: a.milestone } : {}), ...(a.dependsOn !== undefined ? { dependsOn: a.dependsOn } : {}), ...(a.blockedBy !== undefined ? { blockedBy: a.blockedBy } : {}), ...(a.deadlineDay !== undefined ? { deadlineDay: a.deadlineDay } : {}), ...(a.deadlineClock !== undefined ? { deadlineClock: a.deadlineClock } : {}) } as VellumEvent);
     }
 
     // per-character memory journal entries
@@ -454,8 +471,77 @@ export const coreFeature: Feature = {
       } as VellumEvent);
     }
 
+    // ARGENT can originate durable parallel subplots during an ordinary Engine
+    // Second Pass, not only through the manual ((parallel)) transaction. Reuse
+    // the exact same closed-cast, location, social and faction autonomy gates.
+    if (parsed.delta?.offscreen?.length) {
+      out.push(...simEvents({ offscreen: parsed.delta.offscreen }, ctx.state, ctx.turn, ctx.day, ctx.seq, {
+        locks: ctx.locks, social: ctx.tone?.social, politics: ctx.tone?.politics, userId: ctx.userCanon,
+      }));
+    }
+
     // ext: engine-reserved blocks the preset emits outside `delta`.
-    const ext = (parsed.ext ?? {}) as { scars?: Array<{ who?: string; was?: string; about?: string }>; codex?: Array<{ id?: string; op?: string; fact?: string; tag?: string } | string>; inventory?: Array<{ who?: string; item?: string; op?: string; to?: string; note?: string }>; timeline?: Array<{ event?: string; day?: number; time?: string; location?: string; participants?: string[]; importance?: string }>; plant?: Array<{ what?: string } | string>; payoff?: Array<{ what?: string } | string> };
+    const ext = (parsed.ext ?? {}) as {
+      scars?: Array<{ who?: string; was?: string; about?: string }>;
+      codex?: Array<{ id?: string; op?: string; fact?: string; tag?: string } | string>;
+      inventory?: Array<{ who?: string; item?: string; op?: string; to?: string; note?: string }>;
+      timeline?: Array<{ event?: string; day?: number; time?: string; location?: string; participants?: string[]; importance?: string }>;
+      intent?: Array<{ who?: string; goal?: string; nextStep?: string; constraints?: string[]; destination?: string; deadlineDay?: number; deadlineClock?: number; status?: 'active' | 'blocked' | 'complete' }>;
+      affect?: Array<{ who?: string; valence?: number; arousal?: number; control?: number; direction?: string; cause?: string }>;
+      introduction?: Array<{ who?: string; role?: string; want?: string; constraint?: string; counterTrait?: string; voiceTell?: string; culturalAnchor?: string; physicalDetail?: string }>;
+      plant?: Array<{ what?: string; subject?: string; maturity?: number; minMaturity?: number; dependsOn?: string[]; blockedBy?: string[]; dueDay?: number; dueClock?: number; expiryDay?: number } | string>;
+      payoff?: Array<{ what?: string } | string>;
+    };
+
+    // Compact NPC continuity: intent is executable and knowledge-bounded;
+    // affect alters expression and tactics without rewriting stable traits.
+    for (const row of Array.isArray(ext.intent) ? ext.intent : []) {
+      const rawWho = String(row?.who ?? '').trim();
+      const goal = String(row?.goal ?? '').trim();
+      const nextStep = String(row?.nextStep ?? '').trim();
+      if (!rawWho || badName(rawWho) || !goal || !nextStep) continue;
+      const id = rid(rawWho);
+      if (!id || id === uCanon || (!ctx.state.cast[id] && !turnIds.has(id))) continue;
+      const constraints = [...new Set((row.constraints ?? []).map(String).map(v => v.trim()).filter(Boolean))].slice(0, 8);
+      out.push({ ...base(), kind: 'cast.edit', id, patch: { intent: {
+        goal, nextStep, constraints,
+        ...(row.destination ? { destination: String(row.destination).trim() } : {}),
+        ...(Number.isInteger(row.deadlineDay) ? { deadlineDay: row.deadlineDay } : {}),
+        ...(Number.isInteger(row.deadlineClock) ? { deadlineClock: row.deadlineClock } : {}),
+        status: row.status ?? 'active', updatedTurn: ctx.turn,
+      } } } as VellumEvent);
+    }
+    for (const row of Array.isArray(ext.affect) ? ext.affect : []) {
+      const rawWho = String(row?.who ?? '').trim();
+      const direction = String(row?.direction ?? '').trim();
+      if (!rawWho || badName(rawWho) || !direction) continue;
+      const id = rid(rawWho);
+      if (!id || id === uCanon || (!ctx.state.cast[id] && !turnIds.has(id))) continue;
+      const clamp = (value: unknown, lo: number, hi: number): number => Math.max(lo, Math.min(hi, Math.round(Number(value) || 0)));
+      out.push({ ...base(), kind: 'cast.edit', id, patch: { affect: {
+        valence: clamp(row.valence, -2, 2) as -2 | -1 | 0 | 1 | 2,
+        arousal: clamp(row.arousal, 0, 2) as 0 | 1 | 2,
+        control: clamp(row.control, -2, 2) as -2 | -1 | 0 | 1 | 2,
+        direction, ...(row.cause ? { cause: String(row.cause).trim() } : {}), turn: ctx.turn,
+      } } } as VellumEvent);
+    }
+    const introSignatures = new Set(Object.values(ctx.state.cast).map(actor => actor.introduction)
+      .filter(Boolean).map(packet => `${packet!.want.toLocaleLowerCase()}\u0000${packet!.voiceTell.toLocaleLowerCase()}`));
+    for (const row of Array.isArray(ext.introduction) ? ext.introduction : []) {
+      const rawWho = String(row?.who ?? '').trim();
+      if (!rawWho || badName(rawWho)) continue;
+      const id = rid(rawWho); const actor = ctx.state.cast[id];
+      if (!id || id === uCanon || (!actor && !turnIds.has(id)) || actor?.introduction) continue;
+      const packet = {
+        role: String(row.role ?? '').trim(), want: String(row.want ?? '').trim(), constraint: String(row.constraint ?? '').trim(),
+        counterTrait: String(row.counterTrait ?? '').trim(), voiceTell: String(row.voiceTell ?? '').trim(), culturalAnchor: String(row.culturalAnchor ?? '').trim(), physicalDetail: String(row.physicalDetail ?? '').trim(),
+      };
+      if (Object.values(packet).some(value => !value)) continue;
+      const signature = `${packet.want.toLocaleLowerCase()}\u0000${packet.voiceTell.toLocaleLowerCase()}`;
+      if (introSignatures.has(signature)) continue;
+      introSignatures.add(signature);
+      out.push({ ...base(), kind: 'cast.edit', id, patch: { introduction: packet } } as VellumEvent);
+    }
     // Palimpsest scars — a belief proven wrong, held by a real character. Same
     // rid()/notAName gate as everything else, so scar attribution inherits the
     // same-surname misattribution protection.
@@ -521,7 +607,16 @@ export const coreFeature: Feature = {
     let pi = 0;
     for (const pl of Array.isArray(ext.plant) ? ext.plant : []) {
       const what = String((typeof pl === 'string' ? pl : pl?.what) || '').trim();
-      if (what) out.push({ ...base(), kind: 'plant.set', id: 'plant_' + ctx.turn + '_' + (pi++), what } as VellumEvent);
+      if (what) out.push({ ...base(), kind: 'plant.set', id: 'plant_' + ctx.turn + '_' + (pi++), what,
+        ...(typeof pl !== 'string' && pl?.subject ? { subject: String(pl.subject).trim() } : {}),
+        ...(typeof pl !== 'string' && Number.isInteger(pl?.maturity) ? { maturity: Math.max(0, Math.min(5, Number(pl.maturity))) } : {}),
+        ...(typeof pl !== 'string' && Number.isInteger(pl?.minMaturity) ? { minMaturity: Math.max(0, Math.min(5, Number(pl.minMaturity))) } : {}),
+        ...(typeof pl !== 'string' && pl?.dependsOn !== undefined ? { dependsOn: pl.dependsOn } : {}),
+        ...(typeof pl !== 'string' && pl?.blockedBy !== undefined ? { blockedBy: pl.blockedBy } : {}),
+        ...(typeof pl !== 'string' && Number.isInteger(pl?.dueDay) ? { dueDay: pl.dueDay } : {}),
+        ...(typeof pl !== 'string' && Number.isInteger(pl?.dueClock) ? { dueClock: pl.dueClock } : {}),
+        ...(typeof pl !== 'string' && Number.isInteger(pl?.expiryDay) ? { expiryDay: pl.expiryDay } : {}),
+      } as VellumEvent);
     }
     for (const po of Array.isArray(ext.payoff) ? ext.payoff : []) {
       const what = String((typeof po === 'string' ? po : po?.what) || '').trim();

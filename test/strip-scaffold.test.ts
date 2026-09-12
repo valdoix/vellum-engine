@@ -11,6 +11,11 @@ describe('stripScaffold — happy path', () => {
     const raw = 'Just a plain line of prose with no tags.';
     expect(stripScaffold(raw)).toBe('Just a plain line of prose with no tags.');
   });
+
+  it('flattens a VTK CODEX wrapper while retaining the interlude text', () => {
+    const raw = '[CODEX|Meanwhile, Elsewhere|1. Ada keeps watch.\n2. Ivo checks the seal.]\n<vellum>{"delta":{"offscreen":[]}}</vellum>';
+    expect(stripScaffold(raw)).toBe('Meanwhile, Elsewhere\n1. Ada keeps watch.\n2. Ivo checks the seal.');
+  });
 });
 
 describe('stripScaffold — assembled beat (keeps player action)', () => {

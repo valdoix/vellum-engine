@@ -177,7 +177,7 @@ const QOL = [
   // settings = persistent configuration
   { id: 'boundaries', label: '\u26D4 Boundaries', title: 'Hard limits: content this story will never depict (outranks every other setting)', group: 'settings' },
   { id: 'calendar', label: '\u2637 Calendar', title: 'Name the current epoch/season so "Day 47" reads as an occasion', group: 'settings' },
-  { id: 'budget', label: '\u2696 Context budget', title: 'How much VELLUM injects per turn: master dial + per-injector caps + off-screen/summary cadence', group: 'settings' },
+  { id: 'budget', label: '\u2696 Context budget', title: 'How much VELLUM injects per turn: master dial, per-injector caps, and summary cadence', group: 'settings' },
   { id: 'tone', label: '\u2665 Tone', title: 'Romance pace + world bias: steers how fast bonds form and how the world leans toward you', group: 'settings' },
   { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc/book prompts', group: 'settings' },
   // toggles = persistent on/off state
@@ -219,8 +219,7 @@ function openBudgetModal(ctx: Ctx): void {
       { value: 'rich', label: 'Rich (large-context models)' },
       { value: 'custom', label: 'Custom (advanced fields below)' },
     ], hint: 'Lean/Balanced/Rich scale every injector together. Custom uses the caps below (0 = disable an injector).' },
-    { key: '_s1', label: 'Cadence', type: 'section', adv: true },
-    { key: 'simInterval', label: 'Off-screen sim interval (turns; 0 = never)', type: 'number', min: 0, max: 20, step: 1, value: n('simInterval', 4), adv: true },
+    { key: '_s1', label: 'Automation', type: 'section', adv: true },
     { key: 'autoSummaryAt', label: 'Auto-summarize after N turn-memories', type: 'number', min: 4, max: 100, step: 1, value: n('autoSummaryAt', 16), adv: true },
     { key: '_s2', label: 'Retrieval', type: 'section', adv: true },
     { key: 'recallDepth', label: 'recall depth (memories injected)', type: 'number', min: 0, max: 40, step: 1, value: n('recallDepth', 12), adv: true },
@@ -236,7 +235,7 @@ function openBudgetModal(ctx: Ctx): void {
     const num = (v: string | undefined, d: number): number => { const s = (v ?? '').trim(); const x = Number(s); return s !== '' && isFinite(x) ? x : d; };
     const budget: Record<string, unknown> = {
       preset: out.preset || 'balanced',
-      simInterval: num(out.simInterval, 4), autoSummaryAt: num(out.autoSummaryAt, 16),
+      autoSummaryAt: num(out.autoSummaryAt, 16),
       spine: num(out.spine, 14), locations: num(out.locations, 12), drift: num(out.drift, 6), mood: num(out.mood, 5),
       locks: num(out.locks, 6), plants: num(out.plants, 6), offscreen: num(out.offscreen, 3), recallDepth: num(out.recallDepth, 12),
       injectDrift: num(out.drift, 6) > 0, injectMood: num(out.mood, 5) > 0, injectPlants: num(out.plants, 6) > 0,
@@ -491,8 +490,8 @@ function presetPanelInner(d: PresetPanelData): string {
       <div class="vle-pt-badge">Preset: <strong>&nbsp;${e(String(d.chatBudget.preset ?? 'balanced'))}</strong></div>
       <div class="vle-pt-subhead">Injector caps</div>
       ${injRows}
-      <div class="vle-pt-subhead">Cadence</div>
-      <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Off-screen sim</span><span class="vle-pt-tok">every ${resolved.simInterval || '\u2014'} turns</span></div>
+      <div class="vle-pt-subhead">Automation</div>
+      <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Off-screen sim</span><span class="vle-pt-tok">adaptive per subplot</span></div>
       <div class="vle-pt-line"><span class="vle-pt-cat" style="flex:1">Auto-summarize</span><span class="vle-pt-tok">after ${resolved.autoSummaryAt} turns</span></div>
       <div class="vle-pt-note" style="margin-top:8px;opacity:0.65;font-size:10px">Edit via <b>Actions \u2192 Context budget</b></div>
     </div>`;
@@ -2268,7 +2267,7 @@ export function setup(ctx: Ctx): () => void {
         handleSummarizerStream(p, () => ctx.sendToBackend({ type: 'vellum_summarize_cancel' }));
       } else if (p?.type === 'vellum_summarize_start') {
         // a summarize pass actually STARTED. The manual button already toasts on
-        // click; this is the signal for the AUTOMATIC cadence (which runs off the
+        // click; this is the signal for the AUTOMATIC scheduler (which runs off the
         // response path, so the user otherwise had no indication it kicked off).
         if (p.auto) notify(ctx, 'info', 'Summarizing older turns\u2026');
       } else if (p?.type === 'vellum_summarize_progress') {
@@ -2485,7 +2484,7 @@ export function setup(ctx: Ctx): () => void {
       } else if (p?.type === 'vellum_offscreen_set_done') {
         _offscreenOn = !!p.enabled;
         if (p.enabled && !p.available) notify(ctx, 'warning', 'Off-screen sim needs the generation permission to run.');
-        else notify(ctx, 'success', p.enabled ? 'Off-screen simulation on \u2014 the world ticks every few turns.' : 'Off-screen simulation off.');
+        else notify(ctx, 'success', p.enabled ? 'Off-screen simulation on \u2014 each subplot advances when causally due.' : 'Off-screen simulation off.');
       } else if (p?.type === 'vellum_autoretry_set_done') {
         _autoRetryOn = !!p.enabled;
         document.querySelectorAll('[data-qol=\'autoretry\']').forEach((b) => b.classList.toggle('on', _autoRetryOn));
@@ -2502,6 +2501,11 @@ export function setup(ctx: Ctx): () => void {
         else if (p.reason === 'no_cast') notify(ctx, 'info', 'Nobody off-screen to simulate right now.');
         else if (p.reason === 'empty_reply') notify(ctx, 'warning', 'The model returned no off-screen beat \u2014 try again.');
         else if (p.advanced) notify(ctx, 'success', 'Advanced the off-screen world.');
+      } else if (p?.type === 'vellum_parallel_done') {
+        if (p.started) notify(ctx, 'info', 'Grounding 3-7 parallel events in story canon\u2026');
+        else if (p.ok) notify(ctx, 'success', `Filed ${Number(p.count) || 0} parallel event${Number(p.count) === 1 ? '' : 's'} as persistent subplot beats.`);
+        else if (p.reason === 'validation') notify(ctx, 'warning', 'Parallel batch made no canon changes: at least one event failed canon, place, plot-link, or autonomy validation.');
+        else notify(ctx, 'warning', 'Parallel batch made no canon changes: the reply lacked one valid VELLUM block with 3-7 durable subplot rows. Regenerate to try again.');
       } else if (p?.type === 'vellum_thread_catchup_done') {
         // catch-up = day-stamp + AUTHORED beats filling each gap (canon-locked).
         // Announce what actually happened: real beats written, only the day moved

@@ -14,15 +14,20 @@ describe('Workbench integration contract', () => {
     expect(backend).toContain('vellum_reconstruct_rollback');
   });
 
-  it('grounds Cartographer in all requested canonical sources', () => {
-    expect(backend).toContain('[PERSONA CARD]');
-    expect(backend).toContain('[CHARACTER CARD]');
-    expect(backend).toContain('[ATTACHED LOREBOOK CANON]');
-    expect(backend).toContain('[CURRENT CHRONICLE]');
-    expect(backend).toContain('[CHAT HISTORY INDEX — COMPLETE TURN RANGE]');
+  it('does not expose the removed Cartographer intervention', () => {
+    expect(backend).not.toContain("op === 'worldgen-now'");
+    expect(ui).not.toContain("actionCard('worldgen-now'");
+    expect(ui).not.toContain('((worldgen))');
   });
 
   it('exposes model, intervention, reconstruction, and health pages', () => {
     for (const label of ['Models', 'Interventions', 'Reconstruction', 'Health']) expect(ui).toContain(label);
+  });
+
+  it('exposes the canon-grounded parallel command from Workbench', () => {
+    const source = readFileSync(new URL('../src/ui/tabs/workbench.ts', import.meta.url), 'utf8');
+    expect(source).toContain("actionCard('parallel-now'");
+    expect(source).toContain('((parallel))');
+    expect(source).toContain("op === 'parallel-now'");
   });
 });

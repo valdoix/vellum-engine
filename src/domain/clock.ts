@@ -245,20 +245,32 @@ export function supportsDayAdvance(
   priorClock: number | undefined,
   newClock: number | undefined,
   dayDelta = 1,
+  proposedDay?: number,
 ): boolean {
   if (!text || dayDelta < 1) return false;
+  // Evidence must come from narration, not dialogue about plans, deadlines, or
+  // remembered dates. Keep this local even though the duration parser also
+  // strips quotes: qualitative day cues take a separate path below.
+  const narrative = String(text).normalize('NFKC').replace(/["“][^"”\n]*["”]/g, ' ');
   // An explicit narrative count is authoritative. Other qualitative cues such
   // as "next morning" or a weekday transition establish one boundary only;
   // they cannot justify copying October 17 into state.day or a similarly large
   // unexplained jump. Multi-day changes need quantified elapsed duration.
-  if (/\b(?:story|narrative)\s+day\s+\d+\b/i.test(text)) return true;
+  const namedDays = [...narrative.matchAll(/\b(?:story|narrative)\s+day\s+(\d+)\b/gi)]
+    .map((match) => Number(match[1]));
+  if (namedDays.length && (proposedDay === undefined || namedDays.includes(Math.floor(proposedDay)))) return true;
   // A bare "Day N" label is ambiguous (calendar day-of-month, chapter label,
   // quoted recollection, etc.). It can corroborate one nearby boundary, but it
   // cannot by itself authorize a multi-day leap such as Day 2 -> Day 11.
-  if (/\bday\s+\d+\b/i.test(text) && dayDelta === 1) return true;
-  if (hasDayAdvanceCue(text) && dayDelta === 1) return true;
-  if (!hasElapsedPassageSyntax(text)) return false;
-  const elapsed = explicitElapsedMinutes(text);
+  const bareDays = [...narrative.matchAll(/\bday\s+(\d+)\b/gi)].map((match) => Number(match[1]));
+  if (dayDelta === 1 && bareDays.length
+    && (proposedDay === undefined || bareDays.includes(Math.floor(proposedDay)))) return true;
+  // Remove explicit counters before testing qualitative language so a mismatched
+  // "Narrative Day N" cannot fall through and authorize some other target day.
+  const withoutCounters = narrative.replace(/\b(?:(?:story|narrative)\s+)?day\s+\d+\b/gi, ' ');
+  if (hasDayAdvanceCue(withoutCounters) && dayDelta === 1) return true;
+  if (!hasElapsedPassageSyntax(narrative)) return false;
+  const elapsed = explicitElapsedMinutes(narrative);
   if (elapsed === undefined) return false;
   // Whole-day quantified skips remain valid for legacy/coarse scenes without an
   // exact clock. A bare calendar label never reaches this path because it states

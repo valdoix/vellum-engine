@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 23 as const;
+export const SCHEMA_VERSION = 25 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -54,7 +54,7 @@ export const ToneDisposition = z.enum(['kind', 'warm', 'fair', 'harsh', 'brutal'
 export const ToneSocial = z.enum(['off', 'reactive', 'living', 'autonomous']);
 export const TonePolitics = z.enum(['off', 'living', 'autonomous']);
 export const EvToneSet = z.object({ ...base, kind: z.literal('tone.set'), romance: ToneRomance.optional(), disposition: ToneDisposition.optional(), social: ToneSocial.optional(), politics: TonePolitics.optional() });
-export const PresentDetail = z.object({ id: z.string(), name: z.string().optional(), mood: z.string().optional(), doing: z.string().optional(), condition: z.string().optional(), thought: z.string().optional() });
+export const PresentDetail = z.object({ id: z.string(), name: z.string().optional(), presence: z.enum(['spotlight', 'periphery']).optional(), mood: z.string().optional(), doing: z.string().optional(), condition: z.string().optional(), thought: z.string().optional() });
 // `mergeDetail` = a NON-authoritative scene event (from the prose extractor): it
 // only FILLS GAPS in the current scene's present list + per-character detail
 // (mood/doing/condition/thought) and never demotes cast or replaces the block's
@@ -139,7 +139,7 @@ export const EvTraitDrift = z.object({ ...base, kind: z.literal('trait.drift'), 
 // --- Foreshadow / Chekhov plants: a detail seeded now that should pay off later
 // (a locked drawer, an omen, a stranger's ring). Stays 'planted' until resolved;
 // surfaced in the Director so it never quietly vanishes. Model emits via ext.plant.
-export const EvPlantSet = z.object({ ...base, kind: z.literal('plant.set'), id: z.string(), what: z.string(), subject: z.string().optional() });
+export const EvPlantSet = z.object({ ...base, kind: z.literal('plant.set'), id: z.string(), what: z.string(), subject: z.string().optional(), maturity: z.number().int().min(0).max(5).optional(), minMaturity: z.number().int().min(0).max(5).optional(), dependsOn: z.array(z.string()).max(12).optional(), blockedBy: z.array(z.string()).max(12).optional(), dueDay: z.number().int().nonnegative().optional(), dueClock: z.number().int().min(0).max(1439).optional(), expiryDay: z.number().int().nonnegative().optional() });
 // NOTE: EvPlantSet's narrative day is carried on the base `day` field (stamped at
 // the fold); the reducer records it as Plant.plantedDay for the living-clock aging.
 export const EvPlantPay = z.object({ ...base, kind: z.literal('plant.pay'), id: z.string(), note: z.string().optional() });
@@ -149,7 +149,10 @@ export const EvPlantAbandon = z.object({ ...base, kind: z.literal('plant.abandon
 export const EvPlantDrop = z.object({ ...base, kind: z.literal('plant.drop'), id: z.string() });
 
 export const EvCastSeen = z.object({ ...base, kind: z.literal('cast.seen'), id: z.string(), name: z.string(), status: CastStatus });
-export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional(), dialogueColor: z.string().optional(), imageUrl: z.string().optional(), deceased: z.boolean().optional() });
+const NpcIntentPatch = z.object({ goal: z.string(), nextStep: z.string(), constraints: z.array(z.string()).max(8).default([]), destination: z.string().optional(), deadlineDay: z.number().int().nonnegative().optional(), deadlineClock: z.number().int().min(0).max(1439).optional(), status: z.enum(['active', 'blocked', 'complete']), updatedTurn: z.number().int().nonnegative() });
+const AffectPatch = z.object({ valence: z.union([z.literal(-2), z.literal(-1), z.literal(0), z.literal(1), z.literal(2)]), arousal: z.union([z.literal(0), z.literal(1), z.literal(2)]), control: z.union([z.literal(-2), z.literal(-1), z.literal(0), z.literal(1), z.literal(2)]), direction: z.string(), cause: z.string().optional(), turn: z.number().int().nonnegative() });
+const IntroductionPatch = z.object({ role: z.string(), want: z.string(), constraint: z.string(), counterTrait: z.string(), voiceTell: z.string(), culturalAnchor: z.string(), physicalDetail: z.string() });
+export const CastPatch = z.object({ name: z.string().optional(), role: z.string().optional(), age: z.union([z.string(), z.number()]).optional(), appearance: z.string().optional(), note: z.string().optional(), disposition: z.string().optional(), traits: z.array(z.string()).optional(), aka: z.array(z.string()).optional(), status: CastStatus.optional(), color: z.string().optional(), colorTo: z.string().optional(), dialogueColor: z.string().optional(), imageUrl: z.string().optional(), deceased: z.boolean().optional(), intent: NpcIntentPatch.optional(), affect: AffectPatch.optional(), introduction: IntroductionPatch.optional() });
 export const EvCastEdit = z.object({ ...base, kind: z.literal('cast.edit'), id: z.string(), patch: CastPatch });
 export const EvCastDrop = z.object({ ...base, kind: z.literal('cast.drop'), id: z.string() });
 
@@ -209,8 +212,9 @@ export const EvMemoryDrop = z.object({ ...base, kind: z.literal('memory.drop'), 
 // User edit of a memory's gist text and/or detail (the vault-mirrored body).
 export const EvMemoryEdit = z.object({ ...base, kind: z.literal('memory.edit'), id: z.string(), text: z.string().optional(), detail: z.string().optional() });
 
-export const EvThread = z.object({ ...base, kind: z.literal('thread.op'), op: z.enum(['new', 'advance', 'stall', 'resolve']), name: z.string(), note: z.string().optional() });
-export const EvArc = z.object({ ...base, kind: z.literal('arc.op'), op: z.enum(['new', 'advance', 'resolve']), name: z.string(), note: z.string().optional() });
+const TrackGates = { milestone: z.string().optional(), dependsOn: z.array(z.string()).max(20).optional(), blockedBy: z.array(z.string()).max(20).optional(), deadlineDay: z.number().int().nonnegative().optional(), deadlineClock: z.number().int().min(0).max(1439).optional() };
+export const EvThread = z.object({ ...base, kind: z.literal('thread.op'), op: z.enum(['new', 'advance', 'stall', 'resolve']), name: z.string(), note: z.string().optional(), ...TrackGates });
+export const EvArc = z.object({ ...base, kind: z.literal('arc.op'), op: z.enum(['new', 'advance', 'resolve']), name: z.string(), note: z.string().optional(), ...TrackGates });
 // user CRUD on plot threads/arcs — targets the STABLE id when known (edit), else
 // creates by name. Distinct from the model's thread.op so a user intent is clear.
 // `fill: true` marks a Time Sync catch-up beat that should REPLACE a trailing
@@ -228,7 +232,7 @@ export const EvArcMerge = z.object({ ...base, kind: z.literal('arc.merge'), from
 // accumulates beats, can resolve, round-trips to the prompt like a plot thread.
 // `fill: true` marks a Time Sync catch-up beat that should REPLACE a trailing
 // "caught up: Day X → Day Y" placeholder gist rather than stack on top of it.
-export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), op: z.enum(['new', 'advance', 'resolve']), id: z.string(), name: z.string().optional(), who: z.string().optional(), where: z.string().optional(), gist: z.string().optional(), thread: z.string().optional(), fill: z.boolean().optional() });
+export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), op: z.enum(['new', 'advance', 'resolve']), id: z.string(), name: z.string().optional(), who: z.string().optional(), where: z.string().optional(), gist: z.string().optional(), thread: z.string().optional(), fill: z.boolean().optional(), pressure: z.number().int().min(0).max(5).optional(), hooks: z.array(z.string()).max(6).optional(), stakes: z.string().optional(), autonomy: z.enum(['personal', 'social', 'faction', 'environment', 'mixed']).optional(), nextTurn: z.number().int().nonnegative().optional(), nextDay: z.number().int().nonnegative().optional(), nextClock: z.number().int().min(0).max(1439).optional(), deadlineDay: z.number().int().nonnegative().optional(), deadlineClock: z.number().int().min(0).max(1439).optional(), dependsOn: z.array(z.string()).max(20).optional(), blockedBy: z.array(z.string()).max(20).optional(), trigger: z.string().optional() });
 // user link/unlink of an off-screen subplot to a plot Track id ('' clears).
 export const EvOffscreenLink = z.object({ ...base, kind: z.literal('offscreen.link'), id: z.string(), thread: z.string() });
 export const EvOffscreenDrop = z.object({ ...base, kind: z.literal('offscreen.drop'), id: z.string() });

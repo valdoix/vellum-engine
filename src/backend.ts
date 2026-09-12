@@ -16,11 +16,13 @@ import { beatSpine, beatEvent, beatEditEvents, beatReorderEvents, suggestBeats }
 import { locationList } from './domain/locations.js';
 import { driftInjection } from './domain/drift.js';
 import { formatDate } from './domain/date-format.js';
+import { parseClock } from './domain/clock.js';
 import { turnLog } from './domain/turnlog.js';
 import { internalGenerate } from './host/generation.js';
 import { toMarkdown } from './domain/markdown.js';
 import { moodInjectionCached, invalidateMood } from './domain/mood.js';
 import { plantsInjection } from './domain/plants.js';
+import { npcContinuityInjection } from './domain/npc-continuity.js';
 import { agingInjection } from './domain/aging.js';
 import { sanitizeBudget, resolveBudget, DEFAULT_BUDGET, type ContextBudget, type ResolvedCaps } from './domain/context-budget.js';
 import { sanitizeSummarizerCfg, DEFAULT_CFG, DEFAULT_CHAPTER_PROMPT, DEFAULT_ARC_PROMPT, DEFAULT_BOOK_PROMPT, DEFAULT_GIST_PROMPT, type SummarizerCfg } from './domain/summarizer-config.js';
@@ -50,12 +52,13 @@ import { parseTone, isDefaultTone, DEFAULT_TONE, type Tone } from './domain/tone
 import { sanitizeLocks, lockKey, lockInjection, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
 import { checkContinuity, checkThreadOffscreenSync } from './domain/continuity.js';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenInjection, readyToIntersect } from './domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenInjection, readyToIntersect, planSubplotTick, type SubplotTickPlan } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOffscreenCatchupPrompt, parseCatchupReply, validateCatchupBeats, catchupTargets, offscreenCatchupTargets, threadsAwaitingCatchup, offscreensAwaitingCatchup } from './domain/thread-catchup.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
+import { embedParallelCommand, hasParallelCommand, materializeParallelBatch, parallelCommandInjection, scrubParallelCommands, stripParallelCommand } from './domain/parallel-command.js';
 import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
@@ -225,6 +228,10 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
 const _foldChain = new Map<string, Promise<void>>();
+// Historical inline-time authority is expensive to verify, so audit the full
+// folded transcript once per chat session. Later folds only need to inspect the
+// newest already-folded turn; edits/regenerations remain covered by signatures.
+const _timeAuthorityAudited = new Set<string>();
 const _generationSnapshotByChat = new Map<string, AssistantSnapshot>();
 const _retryingEngine = new Set<string>();
 const _engineRepairTargetByChat = new Map<string, number>();
@@ -323,7 +330,7 @@ function turnGist(content: string, names?: { user: string; char: string }): stri
   // position-aware and fence-tolerant — as robust as the parser, so mangled/
   // truncated/tag-drifted blocks no longer leak into turn memory (and thus not
   // into chapter summaries or PASS-2 prose extraction, both built on this gist).
-  let s = stripProseRefreshCommand(stripScaffold(content))
+  let s = stripParallelCommand(stripProseRefreshCommand(stripScaffold(content)))
     .replace(/\[Player action\]\s*(?=\[Scene\])/gi, '')
     .replace(/\s+/g, ' ').trim();
   if (names?.user) s = s.replace(/\{\{\s*user\s*\}\}/gi, names.user);
@@ -438,7 +445,8 @@ async function writeDirectives(chatId: string, d: Directive[]): Promise<void> {
 }
 
 // --- Context budget: how much VELLUM injects per turn (per-chat). One chat var
-// resolved to concrete caps read by every injector + the sim/summary cadence.
+// resolved to concrete caps read by every injector + summary cadence. Legacy
+// simInterval values remain loadable but off-screen scheduling is now per subplot.
 async function budgetCaps(chatId: string): Promise<ResolvedCaps> {
   try { const raw = await getChatVar(chatId, 'vellum_budget'); return resolveBudget(raw ? sanitizeBudget(JSON.parse(raw)) : DEFAULT_BUDGET); }
   catch (e) { spindle.log?.warn?.('[vellum_engine] budget parse failed, using default: ' + ((e as Error)?.message ?? e)); return resolveBudget(DEFAULT_BUDGET); }
@@ -521,7 +529,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   ]);
   // Read attached lore once for this fold. It is objective world canon for the
   // compiler, while actor knowledge remains governed by the Chronicle ledger.
-  const lorebookCanon = lorebookCanonEntries(attached);
+  let lorebookCanon = lorebookCanonEntries(attached);
   const userCanon = names.user ? canonId(names.user) : '';
   // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
   // message count, so the forward-only fold below would never revisit it and the
@@ -534,6 +542,82 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   let rollbackTo = await divergedTurn(chatId, msgs, prior.turns ?? 0, () => allAssistantContents(chatId));
   if (forceRollbackTo !== undefined && forceRollbackTo < (prior.turns ?? 0)) {
     rollbackTo = rollbackTo === null ? forceRollbackTo : Math.min(rollbackTo, forceRollbackTo);
+  }
+  let completeTimeAuthorityAuditAfterFold = false;
+  // LEGACY TIME-DRIFT SELF-HEAL. Earlier parser/reducer versions could file a
+  // different fenced draft than the final valid <vellum> declaration, while the
+  // stored turn signature still matched the unchanged message. Signature-only
+  // reconciliation could therefore never revisit the bad event tail: every new
+  // turn inherited its wrong day/clock and the monotonic guards made it sticky.
+  //
+  // On the first fold for a chat this session, audit the whole folded transcript
+  // from oldest to newest and stop at the first canonical mismatch. Thereafter,
+  // only the newest already-folded turn needs checking. This finds corruption
+  // that entered several turns ago: checking only the latest turn would replay it
+  // against an already-corrupted baseline and incorrectly conclude it was sound.
+  // This is not a broad "trust the model" rewind: Engine Pass documents and
+  // user-authored time corrections are excluded, and unsupported backward/jump
+  // reports are still normalized by foldTurn before they are compared.
+  if (rollbackTo === null && structuredStateEnabled && !engineCompiler && (prior.turns ?? 0) > 0) {
+    const lastFoldedTurn = Math.min(prior.turns, msgs.length);
+    const fullAudit = !_timeAuthorityAudited.has(chatId);
+    const auditTurns = fullAudit
+      ? Array.from({ length: lastFoldedTurn }, (_, index) => index + 1)
+      : [lastFoldedTurn];
+    const log = await loadLog(chatId);
+    for (const auditTurn of auditTurns) {
+      const auditContent = (msgs[auditTurn - 1] ?? '').trim();
+      if (!auditContent) continue;
+      const parsedAudit = parseState(auditContent);
+      if (!parsedAudit.state || (parsedAudit.source !== 'json' && parsedAudit.source !== 'json-partial')) continue;
+
+      const reportedClock = parsedAudit.state.scene
+        ? (parseClock(parsedAudit.state.scene.time)
+          ?? (typeof parsedAudit.state.scene.clock === 'number' ? parsedAudit.state.scene.clock : undefined))
+        : undefined;
+      const stored = projectEvents(log.events.filter((event) => event.turn <= auditTurn));
+      const storedClock = stored.scene.clock ?? parseClock(stored.scene.time);
+      const rawTupleDiffers = (parsedAudit.state.day !== undefined && Math.floor(parsedAudit.state.day) !== stored.day)
+        || (reportedClock !== undefined && reportedClock !== storedClock);
+      if (!rawTupleDiffers) continue;
+
+      // A deliberate user correction at or after this point supersedes the old
+      // inline declaration. Engine-compiled turns have their own validated
+      // repair path and must not be reinterpreted as inline-owned state.
+      const timeWasUserCorrected = log.events.some((event) => event.turn >= auditTurn && event.src === 'user'
+        && (event.kind === 'day.set' || event.kind === 'scene.set' || event.kind === 'timeline.day.set'));
+      const engineOwnedTurn = log.events.some((event) => event.turn === auditTurn && event.kind === 'state.compiled');
+      if (timeWasUserCorrected || engineOwnedTurn) continue;
+
+      const before = projectEvents(log.events.filter((event) => event.turn < auditTurn));
+      const auditParts = messagePartsAtTurn(transcript.raw, auditTurn, transcript.snapshotFallback ? transcript.snapshot : undefined);
+      const auditAgency = auditTurn <= turnAgencyLedger.through
+        ? agencyAtTurn(turnAgencyLedger, auditTurn)
+        : turnContract?.agency ?? 'protected';
+      const expectedFold = foldTurn(auditContent, before, auditTurn, {
+        tone,
+        userCanon,
+        locks,
+        personaState: personaStateOn,
+        userInput: auditParts?.userInput ?? '',
+        agency: auditAgency,
+      });
+      const expected = reduce(expectedFold.events, structuredClone(before));
+      const expectedClock = expected.scene.clock ?? parseClock(expected.scene.time);
+      const canonicalTupleDiffers = expected.day !== stored.day
+        || (expectedClock !== undefined && expectedClock !== storedClock);
+      if (!canonicalTupleDiffers) continue;
+
+      rollbackTo = auditTurn - 1;
+      spindle.log?.warn?.(`[vellum_engine] canonical NOW drift first appears on turn ${auditTurn}; re-folding the unchanged event tail from the preceding good state.`);
+      break;
+    }
+    if (fullAudit) {
+      // If drift was found, only mark the audit complete after the repaired tail
+      // commits successfully. A failed append must be retryable on the next fold.
+      if (rollbackTo === null) _timeAuthorityAudited.add(chatId);
+      else completeTimeAuthorityAuditAfterFold = true;
+    }
   }
   // regenerate day-stability: remember the days the re-folded turns previously
   // held, so the re-fold can't ratchet the calendar forward past them (the NOW
@@ -581,12 +665,38 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     const agency = turnNo <= turnAgencyLedger.through
       ? agencyAtTurn(turnAgencyLedger, turnNo)
       : turnContract?.agency ?? 'protected';
+    const parallelCommandTurn = hasParallelCommand(playerInput);
+    let parallelFoldEvents: VellumEvent[] | null = null;
+    let parallelFoldCount = 0;
+    if (parallelCommandTurn) {
+      parallelFoldEvents = [];
+      const parsedBatch = parseState(parts?.assistant ?? content).state;
+      const batchRows = parsedBatch?.delta?.offscreen ?? [];
+      if (parsedBatch && batchRows.length >= 3 && batchRows.length <= 7) {
+        if (!lorebookCanon.length) {
+          try { lorebookCanon = lorebookCanonEntries(await attachedLoreEntries(chatId, userId)); } catch { /* no attached lore */ }
+        }
+        const batch = materializeParallelBatch(parsedBatch, prior, turnNo, prior.day || 0, () => nextSeqLocal(), {
+          locks, worldCanon: lorebookCanon, social: tone.social, politics: tone.politics, userId: userCanon,
+        });
+        if (batch) {
+          parallelFoldEvents = batch.events;
+          parallelFoldCount = batch.count;
+        } else {
+          spindle.sendToFrontend?.({ type: 'vellum_parallel_done', ok: false, reason: 'validation', count: 0 }, userId ?? undefined);
+          spindle.log?.warn?.(`[vellum_engine] parallel batch rejected atomically: at least one of ${batchRows.length} events failed canon, thread, place, or autonomy validation`);
+        }
+      } else {
+        spindle.sendToFrontend?.({ type: 'vellum_parallel_done', ok: false, reason: parsedBatch ? 'count' : 'missing_block', count: batchRows.length }, userId ?? undefined);
+        spindle.log?.warn?.('[vellum_engine] parallel batch rejected atomically: missing canonical VELLUM block or invalid 3-7 delta.offscreen rows');
+      }
+    }
     let compiled: Awaited<ReturnType<typeof compileState>> | null = null;
     let engineRun: ReturnType<typeof beginEngineRun> | null = null;
     let engineFallback = false;
     let expectedRevision: number | undefined;
     let foldContent = content;
-    if (engineCompiler) {
+    if (engineCompiler && !parallelCommandTurn) {
       expectedRevision = stagedExpectedRevision ?? logRevision(chatId);
       if (pendingRollback !== null && stagedExpectedRevision === undefined) stagedExpectedRevision = expectedRevision;
       const baseline = structuredClone(prior);
@@ -716,7 +826,9 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         foldContent = prose + '\n' + compiled.block;
       }
     }
-    const folded = structuredStateEnabled
+    const folded = parallelFoldEvents !== null
+      ? { events: parallelFoldEvents, source: 'json' as const, sig: sigOf(content), dropped: undefined }
+      : structuredStateEnabled
       ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, ...(dayCap !== undefined ? { dayCap } : {}) })
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     const { events, source, dropped } = folded;
@@ -737,13 +849,14 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     // deliberately strips that scaffold before appending its generated state
     // block; validating `foldContent` therefore erased a real <reverie> and
     // produced the false "no reverie" warning on every successful engine pass.
-    if (turnNo === msgs.length) { _latestContent = content; _latestSource = source; _latestEngineFallback = engineFallback; }
+    if (turnNo === msgs.length && !parallelCommandTurn) { _latestContent = content; _latestSource = source; _latestEngineFallback = engineFallback; }
     const evs: VellumEvent[] = [...events];
     // Reuse foldTurn's already-computed complete-content signature instead of
     // recomputing sigOf(content) here.
     if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
+    const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;
     const gist = turnGist(content, names);
-    if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
+    if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: committedDay, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
     foldedEvents.push(...evs);
     try {
       if (pendingRollback !== null && expectedRevision !== undefined) {
@@ -759,6 +872,9 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       finishStagedEngineRuns(false, { reason: 'commit_error', message, errors: [message] });
       engineRun?.finish(false, { reason: 'commit_error', message, errors: [message] });
       throw e;
+    }
+    if (parallelCommandTurn && parallelFoldCount > 0 && pendingRollback === null) {
+      spindle.sendToFrontend?.({ type: 'vellum_parallel_done', ok: true, count: parallelFoldCount }, userId ?? undefined);
     }
     if (compiled?.ok && !compilerFailure) {
       await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
@@ -776,7 +892,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     // `json-partial` means element salvage recovered the block by dropping corrupt
     // member(s) — the block WAS parsed, so treat it as a real block (the safety-net
     // prose extractor still runs, but the PASS-2 log isn't mislabeled "no block").
-    if (gist && structuredStateEnabled && (!engineCompiler || engineFallback)) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' || source === 'json-partial', userInput: playerInput, agency });
+    if (gist && !parallelCommandTurn && structuredStateEnabled && (!engineCompiler || engineFallback)) extractQueue.push({ turnNo, gist, day: prior.day || 0, hadBlock: source === 'json' || source === 'json-partial', userInput: playerInput, agency });
     spindle.log?.info?.(`[vellum_engine] folded turn ${turnNo} via ${source}: +${evs.length} events`);
     // salvage discards data — surface WHAT was dropped so recurring model
     // malformations are visible and quantifiable, not silent.
@@ -789,6 +905,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       spindle.log?.warn?.('[vellum_engine] <vellum> present but UNPARSED. Inner head: ' + ((m?.[1] ?? '').trim().slice(0, 200)));
     }
   }
+  if (completeTimeAuthorityAuditAfterFold) _timeAuthorityAudited.add(chatId);
   if (!added) return;
   // GREETING SEED — a first-message greeting almost never carries a <vellum>
   // block, so the character the card is about never enters the cast until the
@@ -1062,7 +1179,7 @@ function storedTurnContract(raw: unknown, expectedPresetId?: string): TurnContra
     const agency = c.agency === 'continuity' || c.agency === 'director' || c.agency === 'protected'
       ? c.agency
       : 'protected';
-    return { ...c, livingWorld, agency } as TurnContract;
+    return { ...c, vtkCards: typeof c.vtkCards === 'boolean' ? c.vtkCards : false, livingWorld, agency } as TurnContract;
   } catch { return null; }
 }
 async function activeTurnContract(chatId: string, userId: string | null): Promise<TurnContract | null> {
@@ -1241,11 +1358,10 @@ async function maybeTidyThreads(chatId: string, userId: string | null): Promise<
 }
 
 const _simulating = new Set<string>();
-const SIM_CADENCE = 3; // tick the off-screen world every Nth turn (cost control)
 
 /**
  * Off-screen simulation tick — advance characters who aren't in the scene. Opt-in
- * (chat var) + generation-permission-gated + cadence-throttled + serialized per
+ * (chat var or ARGENT mode) + generation-permission-gated + serialized per
  * chat, exactly like tidyThreads. One bounded controller call; respects locks,
  * armed directives, and tone. Fail/timeout/empty → no-op. Beats are tagged
  * src:'sim' so the UI distinguishes them; the append-only log makes them undoable.
@@ -1254,7 +1370,7 @@ const SIM_CADENCE = 3; // tick the off-screen world every Nth turn (cost control
  * produced nothing instead of silently claiming success. */
 type SimResult = { beats: number; reason?: 'no_generation' | 'no_cast' | 'empty_reply' };
 
-async function simulateOffscreen(chatId: string, userId: string | null, focusId?: string, skipDays?: number): Promise<SimResult> {
+async function simulateOffscreen(chatId: string, userId: string | null, focusId?: string, skipDays?: number, schedule?: SubplotTickPlan, livingWorld: 'off' | 'minimal' | 'active' | 'sandbox' = 'active'): Promise<SimResult> {
   if (_simulating.has(chatId)) return { beats: 0, reason: 'empty_reply' };
   if (!(await has('generation'))) return { beats: 0, reason: 'no_generation' };
   _simulating.add(chatId);
@@ -1263,7 +1379,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     const cast = offscreenCast(state);
     // Existing anonymous/group subplots can advance without a named cast member.
     // Only skip generation when there is literally no safe simulation target.
-    const hasActiveSubplot = state.offscreen.some(row => row.status === 'active');
+    const hasActiveSubplot = state.offscreen.some(row => row.status === 'active' && (!schedule || schedule.dueIds.includes(row.id)));
     if (!focusId && cast.length < 1 && !hasActiveSubplot) return { beats: 0, reason: 'no_cast' };
     const [tone, locks, directives, attached] = await Promise.all([
       readTone(chatId, userId),
@@ -1280,7 +1396,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     // Do not expose live plot-thread updates here. They are author knowledge and
     // previously caused absent actors to react to events that never reached them.
     // Each actor instead receives only their own knowledge/memories and subplot.
-    const prompt = buildSimPrompt(state, cast, { locks, directives, worldCanon, tone: { disposition: tone.disposition, social: tone.social }, ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}) });
+    const prompt = buildSimPrompt(state, cast, { locks, directives, worldCanon, tone: { disposition: tone.disposition, social: tone.social }, livingWorld, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew } : {}), ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}) });
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
     // 30s timeout: this runs detached (background tick or manual button), NOT on
@@ -1315,7 +1431,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     }
     const simNames = await chatNames(chatId, userId);
     const simUserCanon = simNames.user ? canonId(simNames.user) : '';
-    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, worldCanon, social: tone.social, politics: tone.politics, userId: simUserCanon, ...(skipDays ? { skipDays } : {}) });
+    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, worldCanon, social: tone.social, politics: tone.politics, userId: simUserCanon, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew } : {}), ...(skipDays ? { skipDays } : {}) });
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
     invalidateIndex(chatId);
@@ -1330,7 +1446,9 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
 }
 
 /**
- * Auto off-screen sim: opt-in chat var, throttled to every SIM_CADENCE-th turn.
+ * Auto off-screen sim: ARGENT's Living World selection (or the legacy opt-in
+ * variable) enables it. Each subplot decides its own next eligible time; there
+ * is no shared every-N-turn cadence.
  *
  * A TIME-SKIP catch-up (skipDays >= 2) is AWAITED here so its beats are appended
  * to the log before this fold returns — and therefore before the next turn's
@@ -1339,27 +1457,28 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
  * fit inside). Previously the whole tick was fire-and-forget (`void maybeSimulate`
  * at fold end), so on a skip the catch-up beats raced the next generation and
  * usually landed a turn LATE — the on-screen scene jumped days ahead while the
- * off-screen world it referenced was still pre-skip. An ordinary cadence tick has
+ * off-screen world it referenced was still pre-skip. An ordinary eligible tick has
  * no such ordering constraint, so it stays detached to keep the fold tail quick.
  *
  * Returns true when a skip catch-up was run (so the caller can await it).
  */
 async function maybeSimulate(chatId: string, userId: string | null): Promise<boolean> {
-  let on = false;
-  try { on = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
-  if (!on) return false;
+  const contract = await activeTurnContract(chatId, userId);
+  let legacyOn = false;
+  try { legacyOn = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
+  const livingWorld = contract?.argent ? contract.livingWorld : (legacyOn ? 'active' : 'off');
+  if (livingWorld === 'off' || livingWorld === 'minimal') return false;
   const state = await loadState(chatId);
   // narrative days elapsed since the last sim tick (or since the chat's first day
   // if the sim has never run). A jump of >=2 days is a TIME-SKIP: the off-screen
   // world should move with it, so force a catch-up tick NOW and tell the sim how
-  // much time to cover — regardless of the turn cadence below.
+  // much time to cover, while still honoring each subplot's causal gates.
   let lastSimDay: number | null = null;
   try { const raw = await getChatVar(chatId, 'vellum_sim_day'); if (raw !== '' && raw != null) { const n = Number(raw); if (Number.isFinite(n)) lastSimDay = n; } } catch { /* best effort */ }
   const skipDays = lastSimDay === null ? 0 : Math.max(0, (state.day || 0) - lastSimDay);
-  const interval = (await budgetCaps(chatId)).simInterval || SIM_CADENCE; // 0 → treat as default
-  const cadenceHit = interval > 0 && (state.turns || 0) % interval === 0;
+  const schedule = planSubplotTick(state, livingWorld);
   const isSkip = skipDays >= 2;
-  if (!cadenceHit && !isSkip) return false; // no cadence tick and no time-skip → nothing to do
+  if (!schedule.dueIds.length && !schedule.allowNew) return false;
   // Stamp only a SUCCESSFUL tick. The previous implementation advanced this
   // marker before generation, so one timeout permanently swallowed a time skip
   // and prevented the missed off-screen interval from being retried.
@@ -1372,12 +1491,12 @@ async function maybeSimulate(chatId: string, userId: string | null): Promise<boo
   };
   if (isSkip) {
     // AWAITED catch-up: beats must land before the next prompt build.
-    const result = await simulateOffscreen(chatId, userId, undefined, skipDays);
+    const result = await simulateOffscreen(chatId, userId, undefined, skipDays, schedule, livingWorld);
     if (result.beats > 0) await stamp();
     return true;
   }
-  // ordinary cadence tick: no ordering constraint, keep the fold tail quick.
-  void simulateOffscreen(chatId, userId, undefined, undefined).then(async result => {
+  // Ordinary causally-due tick: no ordering constraint, keep the fold tail quick.
+  void simulateOffscreen(chatId, userId, undefined, undefined, schedule, livingWorld).then(async result => {
     if (result.beats > 0) await stamp();
   });
   return false;
@@ -1887,10 +2006,11 @@ async function wireCapabilitiesInner(): Promise<void> {
         // Stateless one-turn command. It is computed outside the timed build so
         // a slow recall path can still fall back to the refresh governor.
         const refreshText = proseRefreshInjection(rawOut, stripScaffold);
-        let worldgenText = '';
+        let parallelText = '';
+        let parallelCommandText = '';
         // Consume current and historical command lines from this transient
         // prompt copy. The saved conversation remains untouched.
-        let out = scrubProseRefreshCommands(rawOut);
+        let out = scrubParallelCommands(scrubProseRefreshCommands(rawOut));
         // Race the entire injection build against a hard deadline. If the build
         // (host warm + up to 4 controller calls) stalls, we return the untouched
         // messages so a slow host API can never hang the chat or eat the budget.
@@ -1903,11 +2023,6 @@ async function wireCapabilitiesInner(): Promise<void> {
           rememberUser(uid);
           const chatId = context.chatId;
           if (!chatId) return out;
-          // The Cartographer button stages a grounded evidence packet for one
-          // normal chat generation. Consume it atomically from the prompt path;
-          // the visible transcript receives only the explicit ((worldgen)) command.
-          worldgenText = await getChatVar(chatId, 'vellum_worldgen_grounding');
-          if (worldgenText && !context.isDryRun) await setChatVar(chatId, 'vellum_worldgen_grounding', '');
           const contractKey = userChatKey(uid, chatId);
           let activePreset: any = null;
           if (context.presetId && (await has('presets')) && spindle.presets?.get) {
@@ -1940,6 +2055,8 @@ async function wireCapabilitiesInner(): Promise<void> {
             }
           }
           const state = await loadState(chatId);
+          parallelCommandText = parallelCommandInjection(rawOut, state, turnContract?.vtkCards ? (turnContract.argent ? 'artifact' : 'vtk') : 'plain');
+          parallelText = parallelCommandText;
           const personaStateOn = await readPersonaStateEnabled(chatId);
           const personaNames = personaStateOn || turnContract?.dialogueColor
             ? await chatNames(chatId, uid, context.personaId)
@@ -1954,17 +2071,12 @@ async function wireCapabilitiesInner(): Promise<void> {
           const personaStateHead = turnContract?.argent ? personaStateText : '';
           let personaStateTail = turnContract?.argent ? '' : personaStateText;
           let personaStateEmbeddedAt = -1;
+          let parallelEmbeddedAt = -1;
           if (turnContract?.argent) {
-            let lead = '';
-            const newest = [...rawOut].reverse().find(m => m.__isChatHistory && m.role === 'user');
-            const explicit = typeof newest?.content === 'string' && /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(newest.content);
-            if (turnContract.worldgen && turnContract.state && (!state.genesisTurn || explicit)) {
-              lead = 'Genesis is eligible this turn: establish a bounded world frame in completed prose. Facts remain provisional until confirmed.';
-            }
             // Collapse the host-expanded source regions themselves. This keeps
             // every active profile override intact. If an older host stripped
             // the comments first, the expanded instructions remain in place.
-            out = collapseAssembledArgentPolicy(out, lead);
+            out = collapseAssembledArgentPolicy(out, '');
             // The compiler follows the actual main connection, not an unrelated default.
             if (!context.isDryRun) await setChatVar(chatId, 'vellum_compiler_connection', context.mainDispatch?.descriptor?.connectionId ?? '');
           }
@@ -1983,19 +2095,33 @@ async function wireCapabilitiesInner(): Promise<void> {
               break;
             }
           }
+          // The command changes the reply shape even for Engine Second Pass
+          // (which ordinarily forbids model-written state). Put it inside the
+          // preset's own last output block so that ordinary final contract cannot
+          // override the required canonical delta. If no compatible block exists,
+          // retain the leading runtime injection as a safe fallback.
+          if (parallelText) {
+            const embedded = embedParallelCommand(out, parallelText);
+            if (embedded.embeddedAt >= 0) {
+              out = embedded.messages as typeof out;
+              parallelEmbeddedAt = embedded.embeddedAt;
+              parallelText = '';
+            }
+          }
           if (!state.turns && !Object.keys(state.cast).length) {
-            const initialText = [personaStateText, dialogueText, refreshText, worldgenText].filter(Boolean).join('\n\n');
+            const initialText = [personaStateText, dialogueText, refreshText, parallelCommandText].filter(Boolean).join('\n\n');
             if (!initialText) return out;
             const rec = recordInjection(chatId, 0, initialText, [], { source: refreshText ? 'prose-refresh' : 'persona-state' });
             try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
             const initialMessages = [
-              ...((refreshText || worldgenText || personaStateHead || dialogueText) ? [{ role: 'system', content: [refreshText, worldgenText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
+              ...((refreshText || parallelText || personaStateHead || dialogueText) ? [{ role: 'system', content: [refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
               ...out,
               ...(personaStateTail ? [{ role: 'system', content: personaStateTail }] : []),
             ];
             const initialBreakdown = [
-              ...((refreshText || worldgenText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: worldgenText ? 'VELLUM Cartographer Grounding' : refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
-              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((refreshText || worldgenText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+              ...((refreshText || parallelText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: parallelText ? 'VELLUM Parallel Events' : refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
+              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+              ...(parallelEmbeddedAt >= 0 ? [{ messageIndex: parallelEmbeddedAt + ((refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Parallel Events' }] : []),
               ...(personaStateTail ? [{ messageIndex: initialMessages.length - 1, name: 'VELLUM Persona State' }] : []),
             ];
             return { messages: initialMessages, breakdown: initialBreakdown };
@@ -2031,7 +2157,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           // The refresh command should be immediate and reliable. Use the normal
           // deterministic recall path for this one turn instead of spending the
           // interceptor deadline on optional controller traversal.
-          const controller = refreshText ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
+          const controller = (refreshText || parallelCommandText) ? undefined : await traversalController(chatId, uid, tmode === 'tree' ? 800 : 1500);
           // EXPERIMENTAL: Interceptor "halt generation momentarily" (Item 6). Gated
           // behind a per-chat opt-in var (vellum_halt_on_warm, default off) AND a
           // short cap (1500ms) to avoid user-perceived stalls. When disabled, this
@@ -2059,6 +2185,9 @@ async function wireCapabilitiesInner(): Promise<void> {
           const driftText = caps.drift ? driftInjection(state, present, caps.drift) : '';
           // Mood recency — persistent emotional weather for present characters.
           const moodText = caps.mood ? moodInjectionCached(chatId, logEvents, version, present, nameOf, caps.mood) : '';
+          // NPC autonomy — stable identity + situational affect + executable
+          // intent, kept distinct so goals create pressure without guarantees.
+          const npcText = npcContinuityInjection(state, present);
           // Foreshadow plants — unresolved seeded details that still hang.
           const plantText = caps.plants ? plantsInjection(state, state.turns || 0, caps.plants) : '';
           // Off-screen convergence — threads ripe to walk back into the scene.
@@ -2100,9 +2229,9 @@ async function wireCapabilitiesInner(): Promise<void> {
           // Refresh goes last inside VELLUM's system injection so it is the
           // freshest style instruction while every continuity/output contract
           // above it remains binding.
-          const injText = [limitsText, inj.text, locText, driftText, moodText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, worldgenText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, locText, driftText, moodText, npcText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
           if (!injText && !personaStateText) return out;
-          const loggedText = [injText, personaStateTail, personaStateEmbeddedAt >= 0 ? personaStateText : ''].filter(Boolean).join('\n\n');
+          const loggedText = [injText, parallelEmbeddedAt >= 0 ? parallelCommandText : '', personaStateTail, personaStateEmbeddedAt >= 0 ? personaStateText : ''].filter(Boolean).join('\n\n');
           const rec = recordInjection(chatId, state.turns || 0, loggedText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
           // streams in real time instead of only on manual Refresh.
@@ -2115,6 +2244,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           const breakdown = [
             ...(injText ? [{ messageIndex: 0, name: 'VELLUM Recall' }] : []),
             ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + (injText ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+            ...(parallelEmbeddedAt >= 0 ? [{ messageIndex: parallelEmbeddedAt + (injText ? 1 : 0), name: 'VELLUM Parallel Events' }] : []),
             ...(personaStateTail ? [{ messageIndex: messages.length - 1, name: 'VELLUM Persona State' }] : []),
           ];
           const result: any = { messages, breakdown };
@@ -2149,7 +2279,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           // prose refresh still gets its lightweight governor even if recall
           // failed; otherwise ship messages byte-for-byte untouched.
           spindle.log?.warn?.('[vellum_engine] interceptor: ' + ((e as Error)?.message ?? e));
-          if (refreshText || worldgenText) return { messages: [{ role: 'system', content: [refreshText, worldgenText].filter(Boolean).join('\n\n') }, ...out], breakdown: [{ messageIndex: 0, name: worldgenText ? 'VELLUM Cartographer Grounding' : 'VELLUM Prose Refresh' }] };
+          if (refreshText || parallelText) return { messages: [{ role: 'system', content: [refreshText, parallelText].filter(Boolean).join('\n\n') }, ...out], breakdown: [{ messageIndex: 0, name: parallelText ? 'VELLUM Parallel Events' : 'VELLUM Prose Refresh' }] };
           return out;
         }
       }, 120);
@@ -2225,6 +2355,7 @@ function pruneChatState(chatId: string): void {
   lastSigByChat.delete(chatId);
   injectionLog.delete(chatId);
   _foldChain.delete(chatId);
+  _timeAuthorityAudited.delete(chatId);
   _generationSnapshotByChat.delete(chatId);
   _retryingEngine.delete(chatId);
   _engineRepairTargetByChat.delete(chatId);
@@ -2508,71 +2639,6 @@ async function sendWorkbenchState(chatId: string | null, uid: string): Promise<v
   spindle.sendToFrontend?.({ type: 'vellum_workbench_state', chatId, connections, personal, chat, resolved, health, candidate: candidateSummary(candidate), rollbackAvailable, job: _reconstructionAbort.has(chatId) ? { status: 'running', phase: 'Reconstructing', message: 'A reconstruction job is active.' } : null }, uid);
 }
 
-function capSection(text: string, cap: number): string {
-  const s = String(text || '').trim();
-  return s.length <= cap ? s : s.slice(0, cap) + '\n[…section capped by VELLUM…]';
-}
-function capBoth(text: string, cap: number): string {
-  const s = String(text || '').trim();
-  if (s.length <= cap) return s;
-  const head = Math.floor(cap * 0.38);
-  return s.slice(0, head) + '\n[…middle omitted; Chronicle archive supplies compressed coverage…]\n' + s.slice(-(cap - head));
-}
-
-async function worldgenGrounding(chatId: string, uid: string): Promise<string> {
-  const [state, lore, turns, names] = await Promise.all([
-    loadState(chatId), attachedLoreEntries(chatId, uid), allTurnContents(chatId), chatNames(chatId, uid),
-  ]);
-  let chat: any = null;
-  let persona: any = null;
-  let character: any = null;
-  try { chat = await spindle.chats?.get?.(chatId, uid); } catch { /* optional */ }
-  const personaId = String(chat?.metadata?.persona_id ?? chat?.metadata?.personaId ?? '');
-  try { persona = personaId ? await spindle.personas?.get?.(personaId, uid) : await spindle.personas?.getActive?.(uid); } catch { /* optional */ }
-  try { if (chat?.character_id) character = await spindle.characters?.get?.(chat.character_id, uid); } catch { /* optional */ }
-  const characterCard = {
-    name: character?.name ?? names.char,
-    characterId: chat?.character_id ?? null,
-    description: character?.description ?? null,
-    personality: character?.personality ?? null,
-    scenario: character?.scenario ?? null,
-    greeting: character?.first_mes ?? null,
-    examples: character?.mes_example ?? null,
-    systemPrompt: character?.system_prompt ?? null,
-    postHistoryInstructions: character?.post_history_instructions ?? null,
-  };
-  const personaCard = { name: names.user, description: persona?.description ?? persona?.persona ?? persona?.metadata?.description ?? null };
-  const chronicle = {
-    day: state.day, turns: state.turns, scene: state.scene,
-    cast: Object.values(state.cast).map((c) => ({ id: c.id, name: c.name, role: c.role, note: c.note, traits: c.traits, status: c.status })),
-    factions: Object.values(state.factions), locations: state.locations, lore: state.lore,
-    threads: state.threads, arcs: state.arcs, knowledge: state.knowledge, secrets: state.secrets,
-    items: state.items, scars: state.scars, parallel: state.parallel, offscreen: state.offscreen,
-    journal: state.journal, memories: state.memories,
-  };
-  const loreText = lore.map((e) => `### ${e.comment || e.key.join(', ') || e.id}\n${e.content}`).join('\n\n');
-  const history = turns.map((t, i) => `[Turn ${i + 1}]\n${turnGist(t, names)}`).join('\n\n');
-  return `[CARTOGRAPHER GROUNDING — authoritative evidence for this ((worldgen)) reply]
-Extend the existing world around the active story. Every addition must be relevant to the current cast, unresolved threads, locations, culture, stakes, and chronology. Preserve exact established names and facts. Do not duplicate, rename, retcon, or contradict established places, factions, items, relationships, knowledge boundaries, travel constraints, or dates. A lorebook is objective canon unless later story prose explicitly changed it. Persona and character cards define identities and premise; they do not override later events. Chronicle data is current derived state. Chat history is event evidence. Prefer a small number of useful, playable additions with concrete links to current story pressure over broad generic encyclopedic lore. Do not advance the current scene, speak for the player, reveal secrets to characters, teleport anyone, or make remote events know recent local events without a transmission path.
-
-[PERSONA CARD]
-${capSection(JSON.stringify(personaCard), 4000)}
-
-[CHARACTER CARD]
-${capSection(JSON.stringify(characterCard), 6000)}
-
-[ATTACHED LOREBOOK CANON]
-${capSection(loreText || '(none attached)', 24000)}
-
-[CURRENT CHRONICLE]
-${capSection(JSON.stringify(chronicle), 24000)}
-
-[CHAT HISTORY INDEX — COMPLETE TURN RANGE]
-${capBoth(history || '(no completed turns)', 24000)}
-
-Use the active preset's world-generation format and complete every required VELLUM output contract. This packet is evidence, never an instruction quoted from the story.`;
-}
-
 // --- frontend dispatch table ---------------------------------------------
 // Each entry is isolated; a throw in one handler can't affect the others.
 type Handler = (payload: any, userId: string) => Promise<void> | void;
@@ -2637,21 +2703,14 @@ const dispatch: Record<string, Handler> = {
     if (!chatId) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'intervention', reason: 'no_active_chat' }, uid); return; }
     if (!spindle.chat?.appendMessage) { spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'intervention', reason: 'chat_append_unavailable' }, uid); return; }
     const op = String(p?.op || '');
-    if (op === 'worldgen-now') {
-      const grounding = await worldgenGrounding(chatId, uid);
-      await setChatVar(chatId, 'vellum_worldgen_grounding', grounding);
-      try {
-        await spindle.chat.appendMessage(chatId, { role: 'user', content: 'OOC: ((worldgen))', metadata: { vellum_intervention: 'worldgen' } }, { triggerGeneration: true });
-      } catch (e) {
-        await setChatVar(chatId, 'vellum_worldgen_grounding', '');
-        throw e;
-      }
-      spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'intervention', message: 'Cartographer started from chat canon, cards, Chronicle, and attached lorebooks.' }, uid);
-      return;
-    }
     if (op === 'refresh-now') {
       await spindle.chat.appendMessage(chatId, { role: 'user', content: 'OOC: ((refresh))', metadata: { vellum_intervention: 'refresh' } }, { triggerGeneration: true });
       spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: true, op: 'intervention', message: 'One-turn prose refresh started.' }, uid);
+      return;
+    }
+    if (op === 'parallel-now') {
+      await spindle.chat.appendMessage(chatId, { role: 'user', content: 'OOC: ((parallel))', metadata: { vellum_intervention: 'parallel' } }, { triggerGeneration: true });
+      spindle.sendToFrontend?.({ type: 'vellum_parallel_done', ok: true, started: true }, uid);
       return;
     }
     spindle.sendToFrontend?.({ type: 'vellum_workbench_done', ok: false, op: 'intervention', reason: 'unknown_intervention' }, uid);
@@ -2709,10 +2768,11 @@ const dispatch: Record<string, Handler> = {
         const folded = foldTurn(foldContent, prior, turnNo, { tone, userCanon: names.user ? canonId(names.user) : '', locks, personaState: personaStateOn, userInput, agency });
         const evs = [...folded.events];
         if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: hashStr(content) } as VellumEvent);
+        const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;
         const gist = turnGist(content, names);
-        if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
+        if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: committedDay, src: 'system', kind: 'memory.record', id: 'turn_' + chatId.slice(0, 6) + '_' + turnNo, tier: 'turn', text: gist, keys: [] } as VellumEvent);
         if (!compiledOk && gist && !abort.signal.aborted && await has('generation')) {
-          const extracted = await extractFromProse(gist, turnNo, prior.day || 0, names, uid, prior, tone, personaStateOn, userInput, agency, { connectionId: route.resolvedConnectionId, fallbackIds: route.fallbackIds, retries: tuning.retries, maxTokens: Math.min(4000, tuning.maxTokens), timeoutMs: tuning.timeoutMs, temperature: 0.1, reasoning: tuning.reasoning, schema: tuning.schema });
+          const extracted = await extractFromProse(gist, turnNo, committedDay, names, uid, prior, tone, personaStateOn, userInput, agency, { connectionId: route.resolvedConnectionId, fallbackIds: route.fallbackIds, retries: tuning.retries, maxTokens: Math.min(4000, tuning.maxTokens), timeoutMs: tuning.timeoutMs, temperature: 0.1, reasoning: tuning.reasoning, schema: tuning.schema });
           evs.push(...extracted);
         }
         events.push(...evs);
@@ -2904,8 +2964,9 @@ const dispatch: Record<string, Handler> = {
           const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: rebuiltParts?.userInput ?? '', agency: rebuildAgency });
           evs.push(...events);
           if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
+          const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;
           const gist = turnGist(content, names);
-          if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: memId, tier: 'turn', text: gist, keys: [] } as VellumEvent);
+          if (gist) evs.push({ seq: nextSeqLocal(), turn: turnNo, day: committedDay, src: 'system', kind: 'memory.record', id: memId, tier: 'turn', text: gist, keys: [] } as VellumEvent);
         }
         if (!evs.length) continue;
         prior = await append(chatId, evs);
@@ -4025,15 +4086,14 @@ const dispatch: Record<string, Handler> = {
     spindle.sendToFrontend?.({ type: 'vellum_tidy_set_done', ok: true, enabled, available: await has('generation') }, uid);
   },
   vellum_set_offscreen: async (p, uid) => {
-    // toggle off-screen simulation; persist in a chat var. Costs a generation per
-    // tick (cadence-throttled), so it's opt-in and gated on the generation perm.
+    // toggle legacy off-screen simulation; persist in a chat var. Generation is
+    // attempted only when a subplot is causally due (or on this initial request).
     const chatId = p?.chatId || (await activeChatId(uid));
     if (!chatId) return;
     const enabled = !!p?.enabled;
     try { await setChatVar(chatId, 'vellum_offscreen', enabled ? '1' : ''); } catch { /* best effort */ }
     spindle.sendToFrontend?.({ type: 'vellum_offscreen_set_done', ok: true, enabled, available: await has('generation') }, uid);
-    // run once immediately on enable so the user sees subplots without waiting
-    // for the cadence gate (every Nth turn). Off the response path.
+    // run once immediately on enable so the user can seed off-screen life now.
     if (enabled) void simulateOffscreen(chatId, uid);
   },
   vellum_set_autoretry: async (p, uid) => {

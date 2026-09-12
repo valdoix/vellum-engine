@@ -4,7 +4,7 @@ import { coreFeature } from '../src/domain/core-feature.js';
 import { freshState } from '../src/domain/types.js';
 import { migrate } from '../src/core/migrate.js';
 import { SCHEMA_VERSION } from '../src/core/events.js';
-import { openPlants, plantsInjection } from '../src/domain/plants.js';
+import { openPlants, plantEligible, plantsInjection } from '../src/domain/plants.js';
 import type { ExtractCtx } from '../src/bus/registry.js';
 import type { VellumEvent } from '../src/core/events.js';
 
@@ -49,7 +49,7 @@ describe('plants — core-feature ext.plant / ext.payoff', () => {
 });
 
 describe('plants — injection + views', () => {
-  it('openPlants returns only planted, oldest first; injection nudges overdue', () => {
+  it('openPlants returns only planted, oldest first; injection reports causal eligibility', () => {
     const s = freshState(); s.turns = 40;
     s.plants.push({ id: 'a', what: 'old plant', status: 'planted', plantedTurn: 2 });
     s.plants.push({ id: 'b', what: 'paid plant', status: 'paid', plantedTurn: 5, paidTurn: 10 });
@@ -58,12 +58,23 @@ describe('plants — injection + views', () => {
     const inj = plantsInjection(s, 40);
     expect(inj).toContain('UNRESOLVED THREADS');
     expect(inj).toContain('old plant');
-    expect(inj).toContain('wants to pay off'); // overdue nudge on the 38-turn-old plant
+    expect(inj).toContain('eligible: may pay off');
     expect(inj).not.toContain('paid plant');
   });
 
   it('empty when nothing planted', () => {
     expect(plantsInjection(freshState(), 5)).toBe('');
+  });
+
+  it('requires maturity, dependencies, blockers, and due time rather than turn age', () => {
+    const s = freshState(); s.day = 5; s.scene.clock = 600;
+    s.plants.push({ id: 'seed', what: 'the sealed warrant', status: 'planted', plantedTurn: 1, maturity: 1, minMaturity: 2, dependsOn: ['permit'], blockedBy: ['storm'], dueDay: 5, dueClock: 540 });
+    s.threads.push({ id: 'permit', name: 'Permit', status: 'resolved', beats: ['issued'], firstTurn: 1, lastTurn: 2 });
+    s.offscreen.push({ id: 'storm', name: 'Storm', status: 'active', gist: 'roads closed', beats: ['roads closed'], firstTurn: 1, lastTurn: 2 });
+    expect(plantEligible(s, s.plants[0]!)).toBe(false);
+    s.plants[0]!.maturity = 2;
+    s.offscreen[0]!.status = 'resolved';
+    expect(plantEligible(s, s.plants[0]!)).toBe(true);
   });
 });
 

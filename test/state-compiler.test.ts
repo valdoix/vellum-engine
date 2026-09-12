@@ -21,6 +21,36 @@ function candidate(): StateCandidate {
   return { state: { turn: 2, day: 2, scene: { loc: 'Archive', time: '00:03', clock: 3 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {}, ext: {} }, parallelReviewed: ['Ada'], parallelOps: [], parallelWorldOps: [], evidence: [{ path: 'scene.time', quote: 'five minutes' }], trackEvidence: [], genesis: false };
 }
 describe('strict pre-commit state compiler', () => {
+  it('accepts and files a prose-grounded durable subplot when Living World is active', () => {
+    const i = input();
+    i.livingWorld = 'active';
+    i.prose = 'Mara waits five minutes. Elsewhere, Ada waits in the Courtyard for the bell. Player stays quiet.';
+    const c = candidate();
+    c.state.delta.offscreen = [{ op: 'new', id: 'courtyard_watch', name: 'Courtyard watch', who: 'Ada', where: 'Courtyard', gist: 'waits in the Courtyard for the bell', nextTurn: 3, thread: 'bell_watch' }];
+    c.state.ext.intent = [{ who: 'Ada', goal: 'hear the bell signal', nextStep: 'wait in the Courtyard', status: 'active' }];
+    c.evidence.push({ path: 'delta.offscreen.0', quote: 'Ada waits in the Courtyard for the bell' });
+    c.evidence.push({ path: 'ext.intent.0', quote: 'Ada waits in the Courtyard for the bell' });
+    const accepted = validateCompilation(c, i);
+    expect(accepted.ok).toBe(true);
+    if (!accepted.ok) return;
+    const folded = foldTurn(accepted.block, structuredClone(i.prior), i.turn, { userCanon: 'player' });
+    const next = reduce(folded.events, i.prior);
+    expect(next.offscreen).toEqual([expect.objectContaining({ id: 'courtyard_watch', who: 'ada', nextTurn: 3 })]);
+  });
+
+  it('rejects durable subplots when Living World autonomy is disabled', () => {
+    const i = input(); i.livingWorld = 'minimal';
+    i.prose = 'Mara waits five minutes. Elsewhere, Ada waits in the Courtyard for the bell. Player stays quiet.';
+    const c = candidate();
+    c.state.delta.offscreen = [{ op: 'new', id: 'courtyard_watch', name: 'Courtyard watch', who: 'Ada', where: 'Courtyard', gist: 'waits in the Courtyard for the bell' }];
+    c.state.ext.intent = [{ who: 'Ada', goal: 'hear the bell signal', nextStep: 'wait in the Courtyard', status: 'active' }];
+    c.evidence.push({ path: 'delta.offscreen.0', quote: 'Ada waits in the Courtyard for the bell' });
+    c.evidence.push({ path: 'ext.intent.0', quote: 'Ada waits in the Courtyard for the bell' });
+    const rejected = validateCompilation(c, i);
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) expect(rejected.errors).toContain('offscreen deltas require Living World active or sandbox');
+  });
+
   it('preserves unmodified off-stage actors and emits the canonical contract across midnight', () => {
     const r = validateCompilation(candidate(), input());
     expect(r.ok).toBe(true);

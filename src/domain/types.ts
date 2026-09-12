@@ -32,6 +32,44 @@ export interface CastCard {
   lastLocationTurn?: number;
   deceased?: boolean; // life-state; ORTHOGONAL to presence status (a dead character can still be
                       // mentioned/present as a corpse/flashback). Excludes from off-screen life.
+  /** Current self-directed plan. This belongs to the NPC, not to the narrator or
+   * player, and is advanced only when time, access and prerequisites permit. */
+  intent?: NpcIntent;
+  /** Compact situational affect. It changes tactics and expression without
+   * replacing the character's stable personality or deciding consent. */
+  affect?: AffectState;
+  /** Grounded identity packet captured on introduction and then kept stable. */
+  introduction?: IntroductionPacket;
+}
+
+export interface NpcIntent {
+  goal: string;
+  nextStep: string;
+  constraints: string[];
+  destination?: string;
+  deadlineDay?: number;
+  deadlineClock?: number;
+  status: 'active' | 'blocked' | 'complete';
+  updatedTurn: number;
+}
+
+export interface AffectState {
+  valence: -2 | -1 | 0 | 1 | 2;
+  arousal: 0 | 1 | 2;
+  control: -2 | -1 | 0 | 1 | 2;
+  direction: string;
+  cause?: string;
+  turn: number;
+}
+
+export interface IntroductionPacket {
+  role: string;
+  want: string;
+  constraint: string;
+  counterTrait: string;
+  voiceTell: string;
+  culturalAnchor: string;
+  physicalDetail: string;
 }
 
 /** A group/organization — "cast for groups". Standing is the group's regard
@@ -179,10 +217,16 @@ export interface Track {
                         // so pre-day-stamp logs & existing callers stay valid)
   lastDay?: number;    // narrative day of the thread's latest step — the anchor for
                         // skip-desync detection against off-screen threads
+  milestone?: string;  // current concrete structural step, never a predicted scene
+  dependsOn?: string[]; // exact track/plant/subplot ids that must close first
+  blockedBy?: string[]; // exact active ids currently preventing the milestone
+  deadlineDay?: number;
+  deadlineClock?: number;
 }
 
 export interface PresentChar {
   id: string;
+  presence?: 'spotlight' | 'periphery';
   mood?: string;
   doing?: string;
   condition?: string;
@@ -287,6 +331,13 @@ export interface Plant {
   plantedDay?: number; // narrative day seeded (for living-clock aging; optional/derived)
   paidTurn?: number;
   payNote?: string;
+  maturity?: number; // 0..5, raised only by relevant evidence or elapsed conditions
+  minMaturity?: number;
+  dependsOn?: string[];
+  blockedBy?: string[];
+  dueDay?: number;
+  dueClock?: number;
+  expiryDay?: number;
 }
 
 /** A persisted continuity-alarm finding (advisory; shown in the Director Log). */
@@ -371,6 +422,9 @@ export interface ChronicleState {
   // Optional/derived; absent on pre-clock logs and set lazily on the next fold.
   sceneDay?: number;      // day the current scene was set
   prevSceneDay?: number;  // day the scene before it was set
+  /** An absolute day repair changed the current NOW tuple. The next authored
+   * scene snapshot may replace the old clock even when it is numerically earlier. */
+  sceneTimeRepairPending?: boolean;
   // User tone dials (romance/disposition/social/politics), derived from tone.set
   // events so they persist in the log and never revert to default on reload/
   // chat-switch. Defaults to DEFAULT_TONE when no tone.set has ever been written.
@@ -395,6 +449,14 @@ export interface OffscreenThread {
   status: 'active' | 'resolved';
   gist: string;   // latest one-line state
   beats: string[]; // running history of what happened off-screen (newest last, capped)
+  /** Long-tail pressure created by accumulated off-screen beats. Higher pressure
+   * makes the subplot eligible to intersect the foreground sooner. */
+  pressure?: number; // 0..5
+  /** Concrete, canon-safe ways this subplot may later touch an on-screen scene.
+   * These are invitations for recall, never permission to force the player. */
+  hooks?: string[];
+  stakes?: string;
+  autonomy?: 'personal' | 'social' | 'faction' | 'environment' | 'mixed';
   thread?: string; // OPTIONAL explicit link to a plot Track id — the user-set
                    // bridge that overrides the soft text match; rewritten on merge
   firstTurn: number;
@@ -403,6 +465,17 @@ export interface OffscreenThread {
                      // pre-day-stamp logs & existing callers)
   lastDay?: number;  // narrative day of the latest off-screen step — paired with
                      // Track.lastDay to detect on/off-screen skip desync
+  /** Absolute eligibility gates chosen from the actual action being attempted.
+   * Absence means eligible on the next turn; there is no global N-turn cadence. */
+  nextTurn?: number;
+  nextDay?: number;
+  nextClock?: number;
+  deadlineDay?: number;
+  deadlineClock?: number;
+  dependsOn?: string[];
+  blockedBy?: string[];
+  trigger?: string;
+  lastClock?: number;
 }
 
 export function freshState(): ChronicleState {

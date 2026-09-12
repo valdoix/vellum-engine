@@ -68,7 +68,8 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
     }
   }
   const reportedGap = Math.max(1, Math.floor(parsed.day ?? prior.day ?? 0) - (prior.day ?? 0));
-  const dayAdvanceEvidence = supportsDayAdvance(timeSource, priorClock, newClock, reportedGap);
+  const proposedDay = Math.floor(parsed.day ?? prior.day ?? 0);
+  const dayAdvanceEvidence = supportsDayAdvance(timeSource, priorClock, newClock, reportedGap, proposedDay);
   const rec = reconcileDay(parsed.day, prior.day ?? 0, dayAdvanceEvidence, {
     ...(priorClock !== undefined ? { priorClock } : {}),
     ...(newClock !== undefined ? { newClock } : {}),

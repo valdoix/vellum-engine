@@ -51,9 +51,15 @@ function expandedBlock(id: string, overrides: Record<string, unknown> = {}): str
 
 describe('ARGENT strengthened invariants', () => {
   it('ships the 1.3 control surface without Guided Choices', () => {
-    expect(preset.presetVersion).toBe('1.3.1');
+    expect(preset.presetVersion).toBe('1.4.0');
     expect(() => variable('guided_choices')).toThrow();
     expect(preset.blocks.some((entry) => entry.content.includes('<argent-choices>'))).toBe(false);
+  });
+
+  it('ships without the removed Cartographer surface', () => {
+    expect(preset.blocks.some((entry) => entry.id === 'arg-cartographer')).toBe(false);
+    for (const name of ['worldgen', 'world_premise', 'world_scale']) expect(() => variable(name)).toThrow();
+    expect(JSON.stringify(preset)).not.toMatch(/Cartographer|\(\(worldgen\)\)/i);
   });
 
   it('makes the protected player boundary explicit at the main and final layers', () => {

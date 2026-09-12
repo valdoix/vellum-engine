@@ -2,7 +2,7 @@
 
 ARGENT LOOM is a VELLUM-native roleplay preset for long-running, causally coherent fiction. It combines strict player agency, limited character knowledge, physical and temporal continuity, durable relationships, living-world simulation, configurable prose craft, and an engine-owned state compiler that folds completed prose into the Chronicle only after validation.
 
-This guide covers all 62 user-facing controls in ARGENT LOOM 1.3.1, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
+This guide covers all 59 user-facing controls in ARGENT LOOM 1.4.0, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
 
 ## Included files
 
@@ -43,7 +43,6 @@ For most capable models, begin with the shipped defaults:
 - `state_compiler`: **Engine Second Pass**
 - `state_verbosity`: **Lean**
 - `living_world`: **Active**
-- `worldgen`: **On**
 - `dialogue_color`: **On**
 - `craft_anchor`: **On**
 - `agency_reminder`: **On**
@@ -76,8 +75,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 | `antislop` | On | Active cliché, repetition, and machine-tell suppression | A highly stylized character voice is being flattened |
 | `slop_proofreader` | Off | Display marks on phrases the model still flags as weak | You want clean display with no editorial marks |
 | `time_continuity` | On | Exact `HH:MM` clock, elapsed-time, and time-skip discipline | Almost never; disable only for deliberately dreamlike time |
-| `worldgen` | On | One-time world genesis at a new chat's opening | The supplied card/scenario already defines everything needed |
-| `world_broadsheet` | Off | A public-events broadsheet during genesis or insistent world texture | You want pure prose or do not use VTK cards |
+| `world_broadsheet` | Off | A public-events broadsheet when insistent world texture surfaces established news | You want pure prose or do not use VTK cards |
 | `codex` | On | Small missing world facts minted as reviewable provisional lore | The model must never invent setting details |
 | `inventory` | On | Named possessions and scene objects tracked across turns | Objects are irrelevant or state budget is extremely tight |
 | `state_on` | On | VELLUM Chronicle updates | Running without VELLUM and wanting prose only |
@@ -151,13 +149,10 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 | Control | Default | Options and effect |
 |---|---|---|
 | `epistemic` — Dramatic Irony | **Alongside** | **Behind:** reader knows less than characters. **Alongside:** reader discovers with the focal character. **Ahead:** reader knows more and the gap creates tension. **Dark:** neither character, narrator, nor reader is granted the answer yet. This never gives a character knowledge they lack. |
-| `living_world` — Living World | **Active** | **Off:** render only on-page life. **Minimal:** off-screen time leaves small evidence but no independent subplot engine. **Active:** absent characters and threads pursue goals and later intersect the scene. **Sandbox:** the world advances autonomously and opportunities can expire. Under Engine Second Pass, the extractor emits `start`, `advance`, `move`, and `resolve` operations. VELLUM reviews every prior row, preserves unchanged actors, removes arrivals, and computes the final T1 snapshot. |
+| `living_world` — Living World | **Active** | **Off:** render only on-page life. **Minimal:** off-screen time leaves evidence but no independent subplot engine. **Active/Sandbox:** established NPC intent can seed durable subplots from turn one. Each subplot chooses its own next turn, day/clock, trigger, dependencies, blockers, and deadline; there is no shared cadence. Active advances at most two eligible rows per pulse and Sandbox four. Social/Politics autonomy, canonical location, and limited knowledge remain hard gates. |
 | `time_continuity` — Time Continuity | **On** | Stores `day` as an elapsed story-day count, separate from the selected calendar display: story Day 2 may render as October 17 but remains `day:2`. VELLUM converts that count for display. Every active scene also uses zero-padded 24-hour `scene.time` such as `07:45` plus matching `scene.clock` (`465`). The preset compares `day × 1440 + clock`; an earlier wall clock requires a narrated midnight crossing and a one-day count increase. Unsupported date-number copies are repaired to the prior count. |
-| `worldgen` — Cartographer | **On** | Runs during the opening and creates a bounded world frame: a few provisional facts, powers, currents, and adjacent places. Type `((worldgen))` later to request another pass. Genesis is marked consumed only in the same atomic event commit as a validated state candidate; failure, rejection, and regeneration cannot consume it. Existing scenario and lore always outrank it. |
-| `world_premise` — Premise | **Blank** | Optional text seed such as “a drowned merchant city ruled by feuding houses.” Leave blank to infer the frame from the character card and scenario. It constrains genesis; it is not repeated as exposition. |
-| `world_scale` — Scale | **Locale** | **Chamber:** one building/site. **Locale:** town, quarter, or holdfast. **Realm:** region, province, or city-state. **World:** civilization, kingdom, or planet. **Cosmos:** multiple worlds, realms, or eras. Larger scale establishes reach, not instant encyclopedic detail. |
 | `world_texture` — Ambient Pressure | **Living** | **Backdrop:** world remains scenery. **Living:** occasional news, weather, prices, and distant motion. **Insistent:** the wider world regularly intrudes and demands response. |
-| `world_broadsheet` — Broadsheet | **Off** | Allows one public-events broadsheet artifact during genesis and when world texture is insistent. Requires VTK Card Library. It presents already-established public events; it does not create canon by itself. |
+| `world_broadsheet` — Broadsheet | **Off** | Allows one public-events broadsheet artifact when Insistent world texture surfaces established news. Requires VTK Card Library. It presents already-established public events; it does not create canon by itself. |
 | `codex` — Codex Minting | **On** | Allows a few missing but useful world facts to be proposed. VELLUM stores every model-minted Codex note as **provisional**; it cannot outrank user, scenario, worldbook, or confirmed canon. Chronicle → Codex can confirm, correct with revision history, reject, restore, or delete it. Turn off for a closed-canon setting. |
 | `inventory` — Possession Tracker | **On** | Tracks named, continuity-relevant possessions and scene objects through `ext.inventory`. It is not a quantity, encumbrance, or loot system. Disable for object-light stories or the smallest possible state block. |
 | `disposition` — World Disposition | **Fair** | **Kind, Warm, Fair, Harsh, Brutal.** Sets the prior stance of newly introduced, otherwise unmodeled people and factions. It does not overwrite established personalities or relationships. |
@@ -171,7 +166,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 
 ### Off-scene conversation privacy
 
-ARGENT 1.3.1 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
+ARGENT 1.4.0 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
 
 A can learn afterward only through a concrete bridge established in the fiction: B or C tells A, A plausibly overhears, a delivered message or readable record reaches A, a public announcement occurs, or observable evidence supports a limited inference. Evidence does not reveal more than it contains; suspicious aftermath may justify `suspects`, but not knowledge of the hidden transcript. The same audit applies to prose, dialogue, thoughts, reactions, interruptions, `present.thought`, and `delta.knowledge`.
 
@@ -275,7 +270,6 @@ The mature controls are ceilings, not quotas. A high level allows detail when th
 - `world_texture`: Insistent
 - `antagonist_pressure`: Adaptive or Relentless
 - `time_continuity`: On
-- `world_scale`: Realm or larger
 - `state_on`: On
 
 This configuration consumes more state and can move the world beyond the player. Use Active/Living instead if you want the wider world to breathe without competing for narrative focus.
@@ -330,7 +324,7 @@ The preset editor adds seven one-click profiles, setting search, per-section def
 - `bun run build:argent` regenerates the preset, regex export, and control catalog from repository-relative sources.
 - `bun run check:argent` fails if any generated artifact differs. CI runs it before tests.
 - Generated preset metadata includes SHA-256 hashes for the generator source and inherited VELLUM preset.
-- `bun run eval:argent` runs protected-agency, absent-knowledge, midnight, named-group, off-screen preservation/movement, color-on/off, state-off, and atomic-genesis scenarios against an OpenAI-compatible endpoint. Set `ARGENT_EVAL_URL`, `ARGENT_EVAL_MODEL`, and optionally `ARGENT_EVAL_KEY`; use comma-separated `ARGENT_EVAL_MODELS` for a provider matrix. Results are written under `eval/results/` and the command fails if any deterministic prose or compiled-state check fails.
+- `bun run eval:argent` runs protected-agency, absent-knowledge, midnight, named-group, off-screen preservation/movement, color-on/off, and state-off scenarios against an OpenAI-compatible endpoint. Set `ARGENT_EVAL_URL`, `ARGENT_EVAL_MODEL`, and optionally `ARGENT_EVAL_KEY`; use comma-separated `ARGENT_EVAL_MODELS` for a provider matrix. Results are written under `eval/results/` and the command fails if any deterministic prose or compiled-state check fails.
 
 ## Troubleshooting
 
@@ -353,7 +347,7 @@ The embedded and standalone regex packs were both imported. Keep one copy of eac
 
 ### Parallel events show an earlier location
 
-ARGENT 1.3.1 compiles off-screen changes as operations against the prior T1 state. Every prior actor must be reviewed; unchanged rows survive, `move` changes the destination, `resolve` removes a row, and an actor entering `scene.present` is removed automatically. The resulting `delta.parallel` snapshot is computed by VELLUM at the final day and clock.
+ARGENT 1.4.0 compiles off-screen changes as operations against prior T1 state and durable subplot state. Every prior actor is reviewed; unchanged rows survive, `move` requires travel, `resolve` retires a row, and an actor entering `scene.present` is removed automatically. Each durable subplot schedules its own next eligibility and remains linked to plot consequences.
 
 An `advance` keeps the actor at their established location. A `move` needs prose that depicts departure, travel, or arrival at the destination. Facts from the visible scene reach an absent actor only through a depicted witness, message, report, call, arrival, or consequence. Lorebooks attached to the chat are objective world canon for geography, institutions, history, objects, and physical rules; they do not tell VELLUM what an actor is doing now and do not grant that actor knowledge.
 
@@ -362,7 +356,7 @@ If a contradiction remains, inspect the raw final `<vellum>` block. Every charac
 ### State compilation is held
 
 1. Confirm `state_on` is on, State Compilation is **Engine Second Pass**, and VELLUM has generation permission.
-2. Read the warning. VELLUM rejects unknown keys, malformed identities, time/clock disagreement, backward time, player inner-state fields, missing NPC thoughts, unsupported deltas, missing evidence, unsafe knowledge transmission, incomplete off-screen review, and ineligible genesis.
+2. Read the warning. VELLUM rejects unknown keys, malformed identities, time/clock disagreement, backward time, player inner-state fields, missing NPC thoughts, unsupported deltas, missing evidence, unsafe knowledge transmission, and incomplete off-screen review.
 3. Correct the prose or provider behavior, then use Rescan. A bounded second extraction attempt already receives the first candidate's validation errors.
 4. Use Full when a capable model omits supported state families. Return to Lean when it extracts reliably.
 

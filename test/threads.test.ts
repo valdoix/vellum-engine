@@ -121,6 +121,24 @@ describe('Inline Compatibility plot gate', () => {
       threads: [{ op: 'new', name: 'The Missing Heir', note: 'A blackmail letter demands the royal seal' }],
     })).toEqual([]);
   });
+
+  it('propagates a grounded on-screen thread payoff into its linked off-screen subplot', () => {
+    const s = freshState();
+    s.threads = [trk({ id: 'thr_forged_letter', name: 'The Forged Letter', status: 'hidden', beats: ['Mara hid the forged letter beneath the ledger'], firstTurn: 1, lastTurn: 5 })];
+    s.offscreen = [{ id: 'mara_letter', name: 'Mara and the Letter', status: 'active', gist: 'Mara waits', beats: ['Mara waits'], thread: 'thr_forged_letter', firstTurn: 2, lastTurn: 5 }];
+    const advance = extractPlot(s, 'Ada finds the forged letter beneath the ledger.', {
+      threads: [{ op: 'advance', name: 'The Forged Letter', note: 'Ada finds the forged letter beneath the ledger' }],
+    });
+    expect(advance).toContainEqual(expect.objectContaining({ kind: 'offscreen.op', id: 'mara_letter', op: 'advance' }));
+    const next = reduce(advance, s);
+    expect(next.offscreen[0]).toMatchObject({ gist: 'Ada finds the forged letter beneath the ledger', pressure: 1 });
+
+    const resolved = extractPlot(next, 'Ada burns the forged letter, ending its threat.', {
+      threads: [{ op: 'resolve', name: 'The Forged Letter', note: 'Ada burns the forged letter, ending its threat' }],
+    });
+    expect(resolved).toContainEqual(expect.objectContaining({ kind: 'offscreen.op', id: 'mara_letter', op: 'resolve' }));
+    expect(reduce(resolved, next).offscreen[0]?.status).toBe('resolved');
+  });
 });
 
 describe('Layer 3 — planThreadMerges validation + reduce', () => {

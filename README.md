@@ -31,9 +31,11 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
+> **Extension 2.1.0-beta.17 (testing)** — ARGENT LOOM’s living world now supports canon-grounded `((parallel))` batches, durable causally scheduled subplots, richer NPC autonomy, and Workbench controls. Time continuity now repairs stale inline state safely: final valid VELLUM declarations win, unsupported calendar jumps are rejected, and legacy clock/day drift is detected and rebuilt from the first bad turn.
+
 > **VELLUM II — COMPACT 1.0.0** — a separate small-preset option capped at 5,000 standing-prompt tokens. It retains per-turn agency, knowledge isolation, monotonic time, causal plot rules, NPC autonomy, dialogue colors, and VELLUM Engine Second Pass with 15 focused controls. Import `presets/vellum-compact.json`; it does not replace VELLUM II or ARGENT LOOM. See `presets/VELLUM-COMPACT-README.md`.
 
-> **ARGENT LOOM 1.3.1** — Native Private Reasoning now runs the full robust eight-section ARGENT Reverie privately, while visible output still begins directly with prose. Engine Second Pass remains strictly prose-only, and Forbidden/Minor Continuity/Director agency is resolved independently for every turn. See `presets/ARGENT-LOOM-README.md`.
+> **ARGENT LOOM 1.4.0** — Active/Sandbox now run causally scheduled durable subplots from NPC intent, with dependency-aware arcs/plants, compact affect and presence tiers, while preserving the full agency and knowledge firewalls. See `presets/ARGENT-LOOM-README.md`.
 
 > **Extension 2.1.0-beta.9 (testing)** — adds streamed summarization progress, safe cancellation, configurable summary token limits, completion-driven retries, verified archival coverage, refreshed knowledge/secret propagation, and stronger long-session retrieval.
 
@@ -357,11 +359,8 @@ The voice of the whole story.
 - **Living World** — Off ({{user}}-centric) / Minimal (protagonist) / **Active** *(default)* / Sandbox (autonomous, opportunities can expire). How much the world moves on its own.
 - **Time Continuity** — *on by default.* Treats time as a T0 + elapsed = T1 ledger; distinguishes serial/concurrent action, protects the live clock across flashbacks, advances day at midnight, and synchronizes travel, healing, deadlines, off-screen activity, and information speed.
 - **Causal Momentum** — *always on.* Moves one smallest meaningful change per response and requires motive, knowledge, access, resources, route, and elapsed time before major events. Failure follows an actual attempt; pressure never becomes predestination.
-- **The Cartographer (world genesis)** — *on by default.* Fires once at a new chat's opening (or on demand via `((worldgen))`) to establish a coherent world frame. Sub-settings:
-  - **World Premise (optional)** — free text; seed the world with a one-line premise.
-  - **World Scale** — Chamber (one place) / **Locale (a town)** *(default)* / Realm (a region) / World (a civilization) / Cosmos (many worlds).
-  - **World Texture** — Backdrop (scenery) / **Living** *(default)* / Insistent (intrudes).
-  - **World Broadsheet card** *(off by default)* — renders opening world news as an illuminated card.
+- **World Texture** — Backdrop (scenery) / **Living** *(default)* / Insistent (intrudes). It controls how established wider-world pressure reaches ordinary scenes without generating an opening world frame.
+- **World Broadsheet card** *(off by default)* — renders already-established public news as an illuminated card when Insistent world texture brings it into the scene.
 - **Ambient Breath (living setting)** — *on by default.* The setting itself presses on the scene's edges as texture, not plot — weather from a front moving across the map, distant news or rumor, a price or shortage reflecting events elsewhere, a festival on the calendar. Draws on established Codex facts and offscreen currents rather than inventing fresh each turn. Deploys lightly, only when it fits; intensity controlled by World Texture setting.
 - **The Codex (mint provisional canon)** — *on by default.* Invents small consistent facts on demand and binds them as canon (shows in the Codex tab).
 - **Possession Tracker** *(off by default)* — tracks who carries/owns what.
@@ -526,7 +525,9 @@ A per-character memory book. The engine extracts genuine turning points — a co
 
 ### Off-screen life & parallel threads
 
-The chronicle tracks subplots happening away from you. With the optional **off-screen simulation** turned on, the extension will, every few turns, quietly generate what absent characters are doing elsewhere — and let those threads eventually walk back into your scene.
+The chronicle tracks subplots happening away from you. With **off-screen simulation** enabled—or ARGENT Living World set to Active/Sandbox—each subplot advances only when its own time, trigger, dependencies, blockers, or deadline makes a real next action possible. A beat can happen next turn, on consecutive turns, days later, or remain dormant. These durable subplot beats link to plot threads and can later return through a message, clue, arrival, absence, faction move, or material consequence.
+
+Send `OOC: ((parallel))` on its own line—or use **Generate parallel events** in Director → Off-screen or Workbench → Interventions—to deliberately create a canon-grounded interlude of 3–7 simultaneous events. The engine reads the assembled chat, attached lorebooks, cards, Chronicle, locks, directives, knowledge boundaries, and autonomy settings. The reply records one canonical `<vellum>` transaction; it commits only when every visible event survives validation. Every accepted event becomes a persistent off-screen subplot with pressure, stakes, and future bridges, links to a plot thread, can feed a shared long arc, and appears in the replace-all current `parallel` snapshot. Later grounded changes to the linked thread advance or resolve that subplot, while mature pressure is reinjected until a causal bridge reaches the foreground. If the active preset's safe VTK/card renderer is enabled, the visible interlude is rendered as one card; otherwise it remains readable prose.
 
 ### Hierarchical memory & smart recall
 
@@ -566,6 +567,7 @@ Open the VELLUM drawer to find these. There's also a compact floating **"Now"** 
 - **Traverse** — smarter, AI-guided recall (cycles through off / one-shot / deep tree drill).
 - **Tone** — quick access to romance pace + world disposition.
 - **Off-screen** — toggle the off-screen life simulation.
+- **Generate parallel events** — run `((parallel))` from Director or Workbench; creates a validated 3–7-event interlude and persists it through off-screen subplots.
 - **Export / Import / Recover** — back up, restore, or move a chronicle.
 - **Clear** — erase this chat's chronicle (quarantined as a destructive action).
 

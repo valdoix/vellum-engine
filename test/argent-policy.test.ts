@@ -83,7 +83,7 @@ describe('effective policy compilation and profiles', () => {
     expect(capsule).not.toContain('visual HTML');
   });
   it('explains dependency gates and respects state-off', () => {
-    expect(dependencyIssues({ state_on: 0, vtk_cards: 0, antislop: 0 })).toHaveProperty('worldgen');
+    expect(dependencyIssues({ state_on: 0, vtk_cards: 0, antislop: 0 })).not.toHaveProperty('worldgen');
     expect(dependencyIssues({ state_on: 1, vtk_cards: 1, antislop: 1 })).not.toHaveProperty('vtk_spectacle');
   });
 });

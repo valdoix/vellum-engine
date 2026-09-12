@@ -171,6 +171,21 @@ describe('parseState', () => {
     expect(r.state?.delta?.bonds?.[0]?.addCats).toContain('romantic');
     expect(r.state?.delta?.journal?.[0]?.who).toBe('Cersei');
   });
+
+  it('normalizes plot/parallel aliases and keeps valid rows beside malformed siblings', () => {
+    const block = '<vellum>' + JSON.stringify({
+      plot_threads: [null, { status: 'open', title: 'The Blackmail Letter', development: 'A blackmail letter demands the royal seal' }],
+      story_arcs: [{ action: 'start', title: 'The Seal Conspiracy', beat: 'The seal conspiracy gains a blackmail branch' }],
+      parallel_events: [null, { actor: 'Ada', location: 'East Gate', event: 'waits for the courier' }],
+      subplots: [{ action: 'start', subplot_id: 'courier_wait', title: 'Courier Wait', actor: 'Ada', location: 'East Gate', activity: 'Ada waits for the courier', plot_thread: 'The Blackmail Letter' }],
+    }) + '</vellum>';
+    const r = parseState(block);
+    expect(r.source).toBe('json');
+    expect(r.state?.delta?.threads).toEqual([expect.objectContaining({ op: 'new', name: 'The Blackmail Letter', note: 'A blackmail letter demands the royal seal' })]);
+    expect(r.state?.delta?.arcs).toEqual([expect.objectContaining({ op: 'new', name: 'The Seal Conspiracy' })]);
+    expect(r.state?.delta?.parallel).toEqual([expect.objectContaining({ who: 'Ada', where: 'East Gate', activity: 'waits for the courier' })]);
+    expect(r.state?.delta?.offscreen).toEqual([expect.objectContaining({ op: 'new', id: 'courier_wait', gist: 'Ada waits for the courier', thread: 'The Blackmail Letter' })]);
+  });
 });
 
 describe('foldTurn → events → reduce', () => {

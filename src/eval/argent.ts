@@ -3,7 +3,7 @@ import { compileArgentPolicy, applyProfile, policyValues, type PolicyBlock } fro
 import { compileState } from '../bus/state-compiler.js';
 import { internalGenerate } from '../host/generation.js';
 
-export interface Scenario { id: string; prompt: string; prior: ChronicleState; forbidden: RegExp[]; required?: RegExp[]; expectedClock?: number; offstage?: string; controls?: Record<string, unknown>; genesis?: boolean }
+export interface Scenario { id: string; prompt: string; prior: ChronicleState; forbidden: RegExp[]; required?: RegExp[]; expectedClock?: number; offstage?: string; controls?: Record<string, unknown> }
 function world(clock = 600): ChronicleState {
   const s = freshState();
   s.day = 1; s.turns = 1;
@@ -24,7 +24,6 @@ export function argentScenarios(): Scenario[] {
     { id: 'color-on', prior: world(), prompt: 'Mara says "Good morning" to Ivo. He answers in character. Keep it brief.', controls: { dialogue_color: 1 }, forbidden: [], required: [/\[spk=Mara\][\s\S]*?\[\/spk\]/i, /\[spk=Ivo\][\s\S]*?\[\/spk\]/i] },
     { id: 'color-off', prior: world(), prompt: 'Mara says "Good morning" to Ivo. He answers in character. Keep it brief.', controls: { dialogue_color: 0 }, forbidden: [/\[spk=/i] },
     { id: 'state-off', prior: world(), prompt: 'Write one short exchange between Mara and Ivo.', controls: { state_on: 0, reasoning_route: 'silent' }, forbidden: [/<\/?vellum>/i, /<\/?reverie>/i] },
-    { id: 'worldgen-genesis', prior: freshState(), prompt: 'Open a scene at 08:00 on day 1 in the Lantern Market. Establish in prose one nearby place and one public faction fact as a bounded initial world frame. Do not write a state block.', controls: { worldgen: 1, codex: 1, state_verbosity: 'full' }, genesis: true, forbidden: [/<\/?vellum>/i] },
   ];
 }
 export interface EvalResult { id: string; pass: boolean; violations: string[]; prose: string; compilerErrors?: string[]; durationMs: number }
@@ -44,7 +43,7 @@ export async function evaluateArgent(blocks: PolicyBlock[], generate: typeof int
     if (narrative.ok && scenario.controls?.state_on !== 0) {
       const livingWorld = resolved.living_world === 'off' || resolved.living_world === 'minimal' || resolved.living_world === 'sandbox' ? resolved.living_world : 'active';
       const agency = resolved.agency === 'director' ? 'director' : resolved.agency === 'continuity' ? 'continuity' : 'protected';
-      const compiled = await compileState({ prior: scenario.prior, turn: (scenario.prior.turns || 0) + 1, prose, userInput: scenario.prompt, userName: 'Player', genesisAllowed: !!scenario.genesis, verbosity: resolved.state_verbosity === 'full' ? 'full' : 'lean', codexAllowed: resolved.codex !== 0, inventoryAllowed: resolved.inventory !== 0, livingWorld, agency }, null, undefined, generate);
+      const compiled = await compileState({ prior: scenario.prior, turn: (scenario.prior.turns || 0) + 1, prose, userInput: scenario.prompt, userName: 'Player', genesisAllowed: false, verbosity: resolved.state_verbosity === 'full' ? 'full' : 'lean', codexAllowed: resolved.codex !== 0, inventoryAllowed: resolved.inventory !== 0, livingWorld, agency }, null, undefined, generate);
       if (!compiled.ok) { compilerErrors = compiled.errors; violations.push('State compilation rejected'); }
       else {
         const s = compiled.candidate.state;
@@ -54,7 +53,6 @@ export async function evaluateArgent(blocks: PolicyBlock[], generate: typeof int
         const p = JSON.parse(compiled.block.slice(9, -9)).delta.parallel;
         if (scenario.id === 'parallel-preservation' && !p.some((r: any) => /ada/i.test(r.who) && /courtyard/i.test(r.where))) violations.push('Unchanged off-stage actor lost');
         if (scenario.id === 'parallel-movement' && !p.some((r: any) => /ada/i.test(r.who) && /gate/i.test(r.where))) violations.push('Off-stage movement not reconciled');
-        if (scenario.genesis && (!compiled.candidate.genesis || !compiled.candidate.state.ext.codex?.length)) violations.push('Eligible genesis was not atomically represented');
       }
     }
     const result = { id: scenario.id, pass: !violations.length, violations, prose, ...(compilerErrors ? { compilerErrors } : {}), durationMs: Date.now() - start };

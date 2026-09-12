@@ -133,7 +133,7 @@ function interventions(): string {
   return `<section class="vlw-panel" aria-labelledby="vlw-interventions-title"><header class="vlw-panel-head"><div><span class="vlw-label">Active chat</span><h2 id="vlw-interventions-title">Interventions</h2><p>Run a deliberate one-off operation. Every action says what it changes.</p></div><span class="vlw-pill good"><i></i>Chronicle ready</span></header>
     <article class="vlw-hero"><span class="vlw-hero-seal">\u21bb</span><div><span class="vlw-label">Story reply</span><h3>Refresh prose now</h3><p>Ask the active preset for one fresh continuation. Chronicle data stays unchanged until the new reply is folded.</p></div><button class="primary" data-wb="refresh-now">Refresh reply</button></article>
     <div class="vlw-action-grid">
-      ${actionCard('worldgen-now', 'World-building', 'Generate world', 'Create one grounded living-world event from lorebooks, cards, chat history, and Chronicle evidence.', '((worldgen))', 'ready')}
+      ${actionCard('parallel-now', 'Living world', 'Generate parallel events', 'Create 3-7 simultaneous canon-grounded events; every accepted beat persists as a subplot, links to a plot thread, and may feed a shared arc.', '((parallel))', 'ready')}
       ${actionCard('rescan', 'Latest turn', 'Rescan prose', 'Fold the latest saved reply again and refresh its derived Chronicle data.', 'Derived data only')}
       ${actionCard('repair', 'State block', 'Repair latest block', 'Reconstruct a malformed or missing VELLUM block from the saved prose.', 'Uses repair route')}
       ${actionCard('retry-engine', 'Engine candidate', 'Repair held draft', 'Patch only the invalid or missing parts of the held Engine candidate with the configured repair route.', 'Held draft', 'attention')}
@@ -210,7 +210,7 @@ export const workbenchTab: Component<ChronicleState> = {
       if (op === 'save-routes') send({ type: 'vellum_workbench_routes_set', scope, config: { version: 1, routes: activeRoutes() } });
       else if (op === 'reset-routes') { draft = {}; send({ type: 'vellum_workbench_routes_set', scope, config: { version: 1, routes: {} } }); }
       else if (op === 'test') send({ type: 'vellum_workbench_test_routes' });
-      else if (op === 'refresh-now' || op === 'worldgen-now') send({ type: 'vellum_intervention', op });
+      else if (op === 'refresh-now' || op === 'parallel-now') send({ type: 'vellum_intervention', op });
       else if (op === 'rescan') send({ type: 'vellum_rescan' });
       else if (op === 'repair') send({ type: 'vellum_repair_block' });
       else if (op === 'retry-engine') send({ type: 'vellum_retry_engine' });

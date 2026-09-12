@@ -216,7 +216,7 @@ const SLIDES = [
           <li><strong>Engine pass</strong> — Toggle the preset-requested Engine Second Pass for this chat</li>
           <li><strong>Hide filed</strong> — Toggle: hide summarized turns from the prompt to save tokens</li>
           <li><strong>Traverse</strong> — Cycle through retrieval modes: off → flat one-shot → tree drill (book→arc→chapter→leaf)</li>
-          <li><strong>Off-screen</strong> — Toggle: simulate off-screen life (characters act elsewhere every few turns)</li>
+          <li><strong>Off-screen</strong> — Toggle: simulate off-screen life (each subplot advances when its own time, trigger, and dependencies allow)</li>
         </ul>
       </div>
       <div class="vle-ob-section">

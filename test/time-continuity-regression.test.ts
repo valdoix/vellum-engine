@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { registerFeature } from '../src/bus/registry.js';
 import { compileState } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
+import type { VellumEvent } from '../src/core/events.js';
+import { reduce } from '../src/core/reduce.js';
 import { coreFeature } from '../src/domain/core-feature.js';
 import { validateCompilation, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
@@ -77,5 +79,42 @@ describe('time continuity candidate precedence', () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors).toContain('scene.time evidence disagrees with compiled clock');
+  });
+
+  it('keeps an absolute day repair and the scene clock in one canonical timeline', () => {
+    const corrupted: VellumEvent[] = [
+      { seq: 1, turn: 8, day: 11, src: 'system', kind: 'turn.fold', sig: 'bad-turn' },
+      { seq: 2, turn: 8, day: 11, src: 'model', kind: 'scene.set', location: 'Hall', time: '22:00', clock: 1320, present: [], detail: [] },
+      { seq: 3, turn: 8, day: 2, src: 'user', kind: 'day.set', absolute: true },
+    ];
+    const repaired = reduce(corrupted);
+    expect(repaired).toMatchObject({ day: 2, sceneDay: 2, scene: { clock: 1320 } });
+
+    const next = foldTurn(currentInline, repaired, 9);
+    const final = reduce([...corrupted, ...next.events]);
+    expect(final).toMatchObject({ day: 2, sceneDay: 2, scene: { time: '09:00', clock: 540 } });
+  });
+
+  it('drops only an impossible future previous-scene anchor during repair', () => {
+    const state = freshState();
+    state.day = 17;
+    state.sceneDay = 17;
+    state.prevSceneDay = 16;
+    const repaired = reduce([
+      { seq: 1, turn: 4, day: 3, src: 'user', kind: 'day.set', absolute: true },
+    ], state);
+    expect(repaired.day).toBe(3);
+    expect(repaired.sceneDay).toBe(3);
+    expect(repaired.prevSceneDay).toBeUndefined();
+  });
+
+  it('does not open a clock-repair window when an absolute day set is a no-op', () => {
+    const events: VellumEvent[] = [
+      { seq: 1, turn: 3, day: 3, src: 'system', kind: 'turn.fold', sig: 'turn-3' },
+      { seq: 2, turn: 3, day: 3, src: 'model', kind: 'scene.set', time: '22:00', clock: 1320, present: [], detail: [] },
+      { seq: 3, turn: 3, day: 3, src: 'user', kind: 'day.set', absolute: true },
+      { seq: 4, turn: 4, day: 3, src: 'model', kind: 'scene.set', time: '09:00', clock: 540, present: [], detail: [] },
+    ];
+    expect(reduce(events).scene).toMatchObject({ time: '22:00', clock: 1320 });
   });
 });

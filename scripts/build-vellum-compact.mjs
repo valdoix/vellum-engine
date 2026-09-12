@@ -119,7 +119,7 @@ const variables = [
 
 const blocks = [
   category('compact-cat-core', 'VELLUM COMPACT — Core', '#7f8fb3'),
-  block('arg-control', 'Compact Controls', `<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"lean","reasoning":"{{var::reasoning_route}}","agency":"{{var::agency}}","dialogueColor":{{var::dialogue_color}},"codex":{{var::codex}},"inventory":{{var::inventory}},"worldgen":0,"livingWorld":"{{var::living_world}}"}-->
+  block('arg-control', 'Compact Controls', `<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"lean","reasoning":"{{var::reasoning_route}}","agency":"{{var::agency}}","dialogueColor":{{var::dialogue_color}},"vtkCards":0,"codex":{{var::codex}},"inventory":{{var::inventory}},"worldgen":0,"livingWorld":"{{var::living_world}}"}-->
 [VELLUM COMPACT 1.0]
 Continue the roleplay directly. The newest user message is story input even when it contains no question. Never answer with an instruction summary or ask what to do unless the user explicitly speaks OOC and requests it.
 

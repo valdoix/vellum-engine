@@ -1,6 +1,6 @@
 # ARGENT control reference (generated)
 
-Version 1.3.1; 62 controls; 18 regex scripts.
+Version 1.4.0; 59 controls; 18 regex scripts.
 
 | Section | Control | Default | Options | Description |
 |---|---|---|---|---|
@@ -32,13 +32,10 @@ Version 1.3.1; 62 controls; 18 regex scripts.
 | Voice & Craft Controls | Slop Proofreader (display marks) | 0 |  | Show a faint marginal mark on surviving clichés in the rendered message (display-only; needs the matching regex script enabled) |
 | Voice & Craft Controls | Interiority Mode | "adaptive" | adaptive: Adaptive; embedded: Embedded; filtered: Filtered; defensive: Defensive; sensory: Sensory-first | How consciousness enters the prose. This shapes narration only; every on-stage NPC still receives a private present.thought in the hidden state block. |
 | World & Simulation Controls | Epistemic Mode (dramatic irony dial) | "alongside" | behind: Behind; alongside: Alongside; ahead: Ahead (irony); dark: Dark | How much the reader knows vs the characters |
-| World & Simulation Controls | Living World | "active" | off: Off ({{user}}-centric); minimal: Minimal (protagonist); active: Active (default); sandbox: Sandbox (autonomous) | Controls off-screen activity. Active and Sandbox preserve each absent actor's canonical location and knowledge at the visible scene's T1 clock. Attached chat lorebooks constrain world canon but grant no actor knowledge. Structured parallel snapshots require state output. |
+| World & Simulation Controls | Living World | "active" | off: Off ({{user}}-centric); minimal: Minimal (protagonist); active: Active (default); sandbox: Sandbox (autonomous) | Active/Sandbox run intent-led durable subplots from turn one. Each ticks only when its own time, dependency, trigger, or deadline is due; location, knowledge, Social, and Politics remain hard gates. |
 | World & Simulation Controls | Time Continuity | 1 |  | Track an internal elapsed story-day count separately from the displayed calendar date, plus exact zero-padded 24-hour scene.time (07:45) and matching scene.clock; change the count only for proven elapsed days. |
-| World & Simulation Controls | The Cartographer (world genesis) | 1 |  | Establish a bounded living-world frame during the opening, or on explicit ((worldgen)) / OOC: worldgen requests later. Prompt assembly never consumes a one-shot latch, so failed or rejected openings can regenerate safely. |
-| World & Simulation Controls | World Premise (optional) | "" |  | One line the genesis expands into a world (e.g. 'a drowned merchant city ruled by feuding houses'). Leave blank to infer the world from the character card and scenario. |
-| World & Simulation Controls | World Scale | "locale" | chamber: Chamber (one place); locale: Locale (a town); realm: Realm (a region); world: World (a civilization); cosmos: Cosmos (many worlds) | How far the genesis reaches out from the opening scene, and how hard off-screen life presses in. |
-| World & Simulation Controls | World Texture | "living" | backdrop: Backdrop (scenery); living: Living (default); insistent: Insistent (intrudes) | How hard the established world presses on ordinary scenes after genesis (drives Ambient Breath). |
-| World & Simulation Controls | World Broadsheet card (opt-in) | 0 |  | Let genesis (and Insistent texture) render the world's current events as an illuminated [BROADSHEET] news-sheet. Requires VTK Card Library on; off = genesis stays pure prose + state. Independent of the core feature. |
+| World & Simulation Controls | World Texture | "living" | backdrop: Backdrop (scenery); living: Living (default); insistent: Insistent (intrudes) | How strongly established wider-world pressure reaches ordinary scenes. This does not generate an opening world frame. |
+| World & Simulation Controls | World Broadsheet card (opt-in) | 0 |  | Render established public news as a [BROADSHEET] card when Insistent world texture brings it into the scene. Requires VTK Card Library; never creates canon by itself. |
 | World & Simulation Controls | The Codex (mint provisional canon) | 1 |  | Let the model propose small missing world facts. VELLUM stores model-minted Codex notes as provisional until you confirm or delete them. |
 | World & Simulation Controls | Possession Tracker | 1 |  | Track named, notable possessions (who holds what) + scene objects as ext.inventory deltas. Narrative continuity, not a game inventory - no quantities/weight. Off by default; surfaces in Chronicle > Items and on present cards. |
 | World & Simulation Controls | Romance Pace | "slow_burn" | off: Off; slow_burn: Slow Burn; medium: Measured; fast: Fast; erotic: Desire-Forward | The mechanical and narrative pace of romantic movement. |

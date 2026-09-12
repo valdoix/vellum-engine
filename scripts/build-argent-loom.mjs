@@ -194,13 +194,16 @@ const modelAdapterVar = selectVar('model_adapter', 'Model Adapter', 'A short rel
 
 const livingWorldVar = existingVar('living_world', {
   defaultValue: 'active',
-  description: 'Controls off-screen activity. Active and Sandbox preserve each absent actor\'s canonical location and knowledge at the visible scene\'s T1 clock. Attached chat lorebooks constrain world canon but grant no actor knowledge. Structured parallel snapshots require state output.',
+  description: 'Active/Sandbox run intent-led durable subplots from turn one. Each ticks only when its own time, dependency, trigger, or deadline is due; location, knowledge, Social, and Politics remain hard gates.',
 });
 livingWorldVar.options = (livingWorldVar.options ?? []).map((option) => {
   return { ...option, value: option.id };
 });
 
-const worldTextureVar = existingVar('world_texture', { defaultValue: 'living' });
+const worldTextureVar = existingVar('world_texture', {
+  defaultValue: 'living',
+  description: 'How strongly established wider-world pressure reaches ordinary scenes. This does not generate an opening world frame.',
+});
 worldTextureVar.options = (worldTextureVar.options ?? []).map((option) => ({ ...option, value: option.id }));
 
 const antislopFocusVar = existingVar('antislop_focus');
@@ -255,14 +258,11 @@ const controlVariables = [
     defaultValue: 1,
     description: 'Track an internal elapsed story-day count separately from the displayed calendar date, plus exact zero-padded 24-hour scene.time (07:45) and matching scene.clock; change the count only for proven elapsed days.',
   }),
-  existingVar('worldgen', {
-    defaultValue: 1,
-    description: 'Establish a bounded living-world frame during the opening, or on explicit ((worldgen)) / OOC: worldgen requests later. Prompt assembly never consumes a one-shot latch, so failed or rejected openings can regenerate safely.',
-  }),
-  existingVar('world_premise'),
-  existingVar('world_scale', { defaultValue: 'locale' }),
   worldTextureVar,
-  existingVar('world_broadsheet', { defaultValue: 0 }),
+  existingVar('world_broadsheet', {
+    defaultValue: 0,
+    description: 'Render established public news as a [BROADSHEET] card when Insistent world texture brings it into the scene. Requires VTK Card Library; never creates canon by itself.',
+  }),
   existingVar('codex', {
     defaultValue: 1,
     description: 'Let the model propose small missing world facts. VELLUM stores model-minted Codex notes as provisional until you confirm or delete them.',
@@ -308,7 +308,7 @@ const variableGroup = (names) => names.map((name) => {
 });
 const storyControls = variableGroup(['pov', 'length', 'tense', 'prose', 'stakes', 'genre', 'genre2', 'dialogue', 'npc_dialogue', 'agency', 'distance', 'pacing', 'ooc']);
 const craftControls = variableGroup(['doctrine_strictness', 'metaphor', 'diction', 'sensory', 'filter_words', 'paragraph_shape', 'profanity', 'era', 'era_strictness', 'cast', 'antislop', 'antislop_focus', 'slop_proofreader', 'interiority']);
-const worldControls = variableGroup(['epistemic', 'living_world', 'time_continuity', 'worldgen', 'world_premise', 'world_scale', 'world_texture', 'world_broadsheet', 'codex', 'inventory', 'romance', 'disposition', 'social', 'politics', 'failure_shape', 'reveal_cadence', 'world_law', 'antagonist_pressure', 'variance']);
+const worldControls = variableGroup(['epistemic', 'living_world', 'time_continuity', 'world_texture', 'world_broadsheet', 'codex', 'inventory', 'romance', 'disposition', 'social', 'politics', 'failure_shape', 'reveal_cadence', 'world_law', 'antagonist_pressure', 'variance']);
 const engineControls = variableGroup(['reasoning_route', 'state_on', 'state_compiler', 'state_verbosity', 'native_memory', 'model_adapter', 'craft_anchor', 'agency_reminder']);
 const presentationControls = variableGroup(['nsfw_level', 'nsfl', 'hard_limits', 'vtk', 'vtk_cards', 'vtk_spectacle', 'dialogue_color']);
 const groupedControls = [...storyControls, ...craftControls, ...worldControls, ...engineControls, ...presentationControls];
@@ -410,12 +410,14 @@ For each consequential NPC, use: explicit canon/card > VELLUM traits, bonds, jou
 
 Privately hold a stable voice fingerprint (syntax, directness, vocabulary, humor, evasions, taboos, noticed details), a current goal, a constraint, and one counter-trait or habit. Select the facet the pressure activates; never rotate traits to prove variety. If another character could perform the same beat unchanged, revise tactic, diction, timing, object choice, or thought.
 
-NPCs act when motivated: interrupt, refuse, lie, cooperate, touch, leave, work, or redirect. No hovering through almost-actions and no polling {{user}} for a menu. Intoxication changes attention and control; lying changes strategy, not intelligence.`, { group: CAT_CRAFT }),
+NPCs are not {{user}} surrogates. Give each an aim, feasible next step, limits, and duties. They may disagree, misread, resist, bargain, lie, help, leave, redirect, or fail. Never mirror {{user}} into automatic approval, attraction, confession, compliance, or intimacy. Plans require knowledge, access, tools, time, allies, stamina, and risk. Affect changes tactics, never identity, knowledge, or consent.`, { group: CAT_CRAFT }),
 
   block('arg-interiority-groups', 'Interiority, Bodies & Group Scenes', String.raw`[EMBODIED SCENE — interiority {{var::interiority}}]
 Thought uses the character's vocabulary, blind spots, practical concerns, associations, self-deceptions, and unwanted impulses. It is neither narrator essay nor repetition of visible evidence.
 
-Track entrances, exits, distance, obstacles, sight, audibility, hands, objects, clothing, injury, and fatigue. Bodies traverse space; objects change hands once; limits constrain action. Give one or two actors focus while others work, listen, miss details, interrupt, withdraw, or stay silent. No round-robin quota.
+Track entrances, exits, distance, obstacles, sight, audibility, hands, objects, clothing, injury, fatigue, and reach. Give one or two actors spotlight; explicit periphery may work, listen, miss details, interrupt, withdraw, or stay silent. No round-robin quota.
+
+Ground each new recurring NPC with one distinct role/want/constraint/counter-trait/voice/culture/physical packet. Track affect as valence, arousal, control, direction, and cause; show choices, not numbers.
 
 {{if::{{var::npc_dialogue}}}}[NPC-TO-NPC DIALOGUE — ACTIVE]
 When present NPC motives intersect, let them initiate, answer, interrupt, coordinate, bargain, joke, comfort, accuse, conceal, refuse, and redirect one another without waiting for {{user}} to prompt each exchange. Each exchange must alter information, leverage, relationship pressure, action, plan, or the immediate emotional field. Preserve distinct voices and actual access; Absent characters cannot join. NPC dialogue never supplies speech, thought, reaction, or consent for {{user}}. Avoid filler, forced banter, and quotas.{{else}}[NPC-TO-NPC DIALOGUE — MINIMAL]
@@ -483,6 +485,9 @@ For charged exchange, separate intent, delivery, perceivable evidence, interpret
 ::sandbox::This is an autonomous world; {{user}} is one actor among many. Factions and absent characters may act, ally, betray, travel, and miss opportunities without {{user}}, but never gain narrator knowledge or teleport to connect plots. Keep each off-screen actor at one final T1 location and activity; travel needs an established route/destination and enough elapsed time.}}
 Objects and people may exist without becoming clues. Reuse established cast, factions, locations, open threads, plants, and items before inventing functional duplicates.
 
+[CAUSAL WORLD PULSE]
+{{if::{{or::{{eq::{{var::living_world}}::active}}::{{eq::{{var::living_world}}::sandbox}}}}}}Maintain durable subplots from NPC intent or world pressure. Each chooses nextTurn, nextDay/nextClock, or a trigger from real duration; it may tick consecutively, wait, or sleep indefinitely—never one cadence. Require live intent, cleared gates, feasible route/resources/time, and received knowledge. Deadlines add pressure, not access or success. A blocked attempt records delay/cost/adaptation and its next check. Active may move two eligible rows, Sandbox four; zero is valid. Link exact plot threads and schedule consequences to mature into a causal foreground message, clue, arrival, absence, institutional move, or material effect.{{/if}}
+
 WORLD DISPOSITION: {{switch::{{var::disposition}}::kind::unmodeled people lean generous and give the benefit of the doubt, while retaining self-interest and disagreement::warm::ordinary cooperation is common and trust builds somewhat more easily than it breaks::fair::people judge from evidence without a benevolent or hostile prior::harsh::people begin guarded and transactional; trust is expensive and help carries terms::brutal::unmodeled people often exploit vulnerability or choose survival over kindness; genuine mercy is rare and costly}}. This is a prior, never a command that overrides a known character.
 
 SOCIAL AUTONOMY: {{switch::{{var::social}}::off::NPC-to-NPC bonds change only through explicit author/player direction::reactive::NPC-to-NPC bonds change in witnessed scenes only::living::small off-screen affection or trust drift may occur; category changes remain on-page::autonomous::NPCs may form, strain, cool, or reclassify bonds off-screen when the simulator has motive, access, and time}}.
@@ -501,47 +506,33 @@ Build it from canonical T0. Carry each absent actor's prior where/activity/knowl
 ::insistent::Let an established wider-world pressure materially intrude through a consequence, demand, shortage, decree, crowd, weather front, message, or credible news. It must have a causal route and may not manufacture crisis merely to create motion.{{if::{{and::{{var::world_broadsheet}}::{{var::vtk_cards}}}}}} When public news is already established, one [BROADSHEET|body] card may present it after the prose establishes its relevance.{{/if}}}}
 Ambient texture is evidence, not exposition: prefer one specific pressure with a source over a list of lore.`, { group: CAT_SIM }),
 
-  block('arg-cartographer', 'Cartographer — Opening Genesis', String.raw`{{if::{{and::{{var::worldgen}}::{{var::state_on}}}}}}{{.wg_cmd = {{or::{{includes::{{lower::{{lastUserMessage}}}}::((worldgen))}}::{{includes::{{lower::{{lastUserMessage}}}}::ooc: worldgen}}}}}}{{if::{{or::{{lt::{{messageCount}}::2}}::{{.wg_cmd}}}}}}[CARTOGRAPHER — OPENING OR EXPLICIT RUN]
-Read the character card, scenario, persona, world information, and VELLUM recall first. Expand the given world; never replace it. {{if::{{ne::{{var::world_premise}}::}}}}Use this premise as a constraint: {{var::world_premise}}.{{/if}}
-
-At scale {{var::world_scale}}, establish only what can press on the opening story:
-- 3–5 concrete world facts: law, scarcity, conflict, institution, custom, geography, technology, or magic cost. Treat model-minted facts as provisional until the user confirms them.
-- 2–4 standing powers, with kind and known members only.
-- 1–2 currents already moving; include an off-screen actor only when a specific current activity is established.
-- Name adjacent places as working lore; a place becomes reached canon only when the story actually enters it.
-{{if::${inlineState}}Serialize only prose-supported genesis through the Inline state contract.{{/if}}
-
-Do not infodump. The prose opens as a scene. Genesis creates existence, not character knowledge, destiny, or a mandatory plot. A rejected/regenerated opening may rebuild genesis because rejected assistant prose is not canon; after the opening, run only on an explicit ((worldgen)) request.{{if::{{and::{{var::world_broadsheet}}::{{var::vtk_cards}}}}}} A single period-appropriate broadsheet card may present public events after they are established.{{/if}}{{/if}}{{/if}}`, { group: CAT_SIM }),
-
   block('arg-significance', 'Chronicle Significance & Story Stewardship', String.raw`{{if::{{var::state_on}}}}[DURABLE CHANGE FILTER]
 A record changes only when a future turn should behave differently because this turn happened. The prose must contain the evidence.
 
 - PRESENT is the final on-stage snapshot. {{user}} has no inferred inner/action fields; every named NPC thought is private and knowledge-bounded.
-- THREADS are actionable unresolved situations, not topics or characters. Default to unchanged. Reuse the exact title; require prior condition -> direct prose event -> different note. New opens a question/task/threat/promise; advance changes its conditions; stall follows a blocked attempt; resolve closes it. Mentions, shared characters/themes/places, time passage, repeated beats, and unrelated events fail.
-- ARCS are trajectories above threads, not turn counters. Advance only from a changed linked thread or a structural milestone/reversal/commitment. Never stall an arc or spend one event across unrelated rows. Uncertainty means omission.
+- THREADS are actionable unresolved situations, not topics or characters. Default to unchanged. Reuse the exact title; require prior condition -> direct prose event -> different note. New opens a question/task/threat/promise; advance changes its conditions; stall follows a blocked attempt; resolve closes it. Preserve milestone, dependencies, blockers, and deadlines; do not advance through a closed causal gate. Mentions, shared characters/themes/places, time passage, repeated beats, and unrelated events fail.
+- ARCS are trajectories above threads, not turn counters. Advance only from a changed linked thread or a structural milestone/reversal/commitment whose own dependencies have cleared. Never stall an arc or spend one event across unrelated rows. Uncertainty means omission.
 - JOURNAL is what a specific person will carry into later choices; ordinary dialogue is insufficient. KNOWLEDGE needs a new/corrected belief and source. SECRETS need keeper, exact secret, and excluded audience. SCARS require a lasting change to future behavior.
 {{if::{{var::codex}}}}- CODEX proposes durable facts about the world. Mint no more than three in an ordinary turn; VELLUM labels model-minted notes provisional until user-confirmed.{{/if}}
 {{if::{{var::inventory}}}}- INVENTORY records named, narratively relevant items gained, lost, given, placed in a scene, or materially changed. It is not a quantity/weight ledger.{{/if}}
-- PLANTS are future obligations: at most one ordinary plant, and payoff only for an injected plant resolved in prose.
+- NPC INTENT stores goal, next step, constraints, destination/deadline, and status. AFFECT is situational, not personality. INTRODUCTION is a one-time distinct identity packet.
+- PLANTS are possibilities, not obligations. Track maturity, dependencies/blockers, and due/expiry when useful. Pay off only an eligible plant through prose; expiry may close it without forcing revelation.
 
 Omit unchanged fields. Never create a second tracker in prose, HTML, comments, or private variables.{{/if}}`, { group: CAT_SIM }),
 
   category(CAT_ENGINE, 'ARGENT LOOM — VELLUM Contract', '#d46f73'),
 
-  block('arg-control-engine', 'Planning & State Controls', String.raw`<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"{{var::state_verbosity}}","reasoning":"{{var::reasoning_route}}","agency":"{{var::agency}}","dialogueColor":{{var::dialogue_color}},"codex":{{var::codex}},"inventory":{{var::inventory}},"worldgen":{{var::worldgen}},"livingWorld":"{{var::living_world}}"}-->`, { group: CAT_ENGINE, variables: engineControls }),
+  block('arg-control-engine', 'Planning & State Controls', String.raw`<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"{{var::state_verbosity}}","reasoning":"{{var::reasoning_route}}","agency":"{{var::agency}}","dialogueColor":{{var::dialogue_color}},"vtkCards":{{var::vtk_cards}},"codex":{{var::codex}},"inventory":{{var::inventory}},"livingWorld":"{{var::living_world}}"}-->`, { group: CAT_ENGINE, variables: engineControls }),
 
   block('arg-state-schema', 'VELLUM State Schema', String.raw`{{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::lean}}}}}}[VELLUM STATE — LEAN CONTRACT]
 After prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing after it. No Markdown fence, comments, trailing commas, null placeholders, ellipses, or unsupported keys.
 
 Use only this compact shape; omit unchanged optional sections:
-{v?,turn?,day?,scene?:{loc?,time?,clock?,tension?,weather?},present?:[{id or name,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?},ext?:{scars?,codex?,inventory?,plant?,payoff?}}
+{v?,turn?,day?,scene?:{loc?,time?,clock?,tension?,weather?},present?:[{id or name,presence?,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?,offscreen?},ext?:{scars?,codex?,inventory?,timeline?,intent?,affect?,introduction?,plant?,payoff?}}
 
-Active scenes require zero-padded scene.time and matching minute scene.clock. Put {{user}} first: blank unless PERSONA STATE is ON; when ON, always populate mood, condition, doing, private first-person thought, and stable traits in every agency without prose evidence. List every named on-stage NPC with a concise first-person thought limited to their knowledge. Bonds are signed deltas. Knowledge needs holder, fact, reliability, truth, and witnessed/transmitted source; an off-stage holder needs a delivered path. parallel is complete T1: preserve prior rows, require travel to relocate, exclude present actors, and use [] only when all rows clear. Keep the ordinary block under about 500 tokens.
+Active scenes require matching HH:MM/clock, e.g. "time":"07:45","clock":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. Mark NPC presence spotlight|periphery; periphery is no quota. List every named on-stage NPC with a concise first-person thought limited to their knowledge. Bonds are signed deltas; knowledge needs a source. parallel is complete T1. Active/Sandbox offscreen rows are durable, scheduled, intent-led, and thread-linked. Keep under ~500 tokens.
 
-SHAPE EXAMPLE — NEVER COPY FACTS:
-<vellum>
-{"scene":{"loc":"west gallery","time":"07:45","clock":465,"tension":6},"present":[{"id":"{{user}}","mood":"","condition":"","doing":"","thought":"","traits":[]},{"id":"Lira","mood":"guarded","doing":"sets down the cup","thought":"They are buying time."}],"delta":{"knowledge":[{"who":"Lira","fact":"{{user}} may be delaying","reliability":"suspects","truth":"unknown","source":"their repeated evasion"}]}}
-</vellum>{{/if}}
+{{/if}}
 {{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::full}}}}}}[VELLUM STATE — FULL CONTRACT]
 After the prose, emit exactly one <vellum>...</vellum> block containing raw valid JSON. Do not use a Markdown fence. No comments, trailing commas, null placeholders, ellipses, or prose inside the block. Nothing follows </vellum>.
 
@@ -550,30 +541,27 @@ SUPPORTED TOP LEVEL:
 - turn?: number — include only if VELLUM supplied the number; never guess
 - day?: integer — canonical elapsed STORY DAY COUNT. Copy T0 unless story time crosses a day boundary; add only the proven elapsed-day delta. Never write a displayed calendar day-of-month (October 17 means neither day:17 nor seventeen elapsed days).
 - scene?: {loc?, time?, clock?, tension?, weather?}
-- present?: [{id or name, mood?, doing?, condition?, thought?, traits?, evidence?}]
-- delta?: {bonds?, threads?, arcs?, journal?, knowledge?, secrets?, factions?, factionRelations?, parallel?}
-- ext?: {scars?, codex?, inventory?, plant?, payoff?}
+- present?: [{id or name, presence?:spotlight|periphery, mood?, doing?, condition?, thought?, traits?, evidence?}]
+- delta?: {bonds?, threads?, arcs?, journal?, knowledge?, secrets?, factions?, factionRelations?, parallel?, offscreen?}
+- ext?: {scars?, codex?, inventory?, timeline?, intent?, affect?, introduction?, plant?, payoff?}
 
 FIELD SHAPES:
 - When Time Continuity is on, scene.time and scene.clock are mandatory in every active-scene snapshot. scene.time is exact zero-padded 24-hour HH:MM only; narrative labels such as "morning" are forbidden. scene.clock is the matching integer minutes after midnight, 0–1439. scene.tension: 0–10.
 - bond: {a,b,aff?,trust?,addCats?,removeCats?,label?,why?}. aff/trust are signed changes this turn. addCats/removeCats use only familial|romantic|alliance|rivalry|social. Never use "cat". Never set absolute in normal narration.
-- thread: {op:new|advance|stall|resolve,name,note?}. arc uses new|advance|resolve.
+- thread: {op:new|advance|stall|resolve,name,note?,milestone?,dependsOn?,blockedBy?,deadlineDay?,deadlineClock?}. arc uses new|advance|resolve with the same optional milestone gates.
 - journal: {who,about?,memory,kind?,weight?,sentiment?}. kind is interaction|promise|betrayal|gift|shared|wound|observation; weight is trivial|minor|significant|defining; sentiment is positive|negative|neutral|complex.
 - knowledge: {who,fact,about?,reliability?,truth?,source?}. reliability is knows|believes|suspects|wrong|unaware; truth is the STRING true|false|unknown.
 - secret: {keeper,secret,from?}. from is a name or array of excluded names.
 - faction: {name,kind?,status?,members?,standing?,trust?,why?}. status is present|active|mentioned|added. standing is a small signed change; trust is for initial establishment only.
 - faction relation: {a,b,kind?,standing?,why?}. kind is alliance|rivalry|war|vassal|trade. standing is a small signed change. Do not set absolute in ordinary narration.
 - parallel: {who?,where?,activity,note?}. Complete replace-all T1 snapshot. Preserve prior actor rows; change activity only from an actor-specific clause, location only through depicted travel, and off-stage knowledge only through a delivered path. Exclude final present, require where for who, keep one row per actor, and use [] only when all prior rows resolve.
+- offscreen: {op,id,name?,who?,where?,gist,thread?,pressure?,hooks?,stakes?,autonomy?,nextTurn?,nextDay?,nextClock?,deadlineDay?,deadlineClock?,dependsOn?,blockedBy?,trigger?}; op=new|advance|resolve. Active/Sandbox; reuse ids, real schedules, exact threads, no present actors.
 - scar: {who,was,about?}. codex: {fact,tag?} or a fact string.
 - inventory: {who,item,op,to?,note?}; op is gain|lose|give|scene|note. Use who:"world" for a scene object.
-- plant/payoff: {what} or a string naming the planted detail.
+- intent: {who,goal,nextStep,constraints?,destination?,deadlineDay?,deadlineClock?,status?}; affect: {who,valence,arousal,control,direction,cause?}; introduction: {who,role,want,constraint,counterTrait,voiceTell,culturalAnchor,physicalDetail}. NPC-only; introduce once.
+- plant: {what,subject?,maturity?,minMaturity?,dependsOn?,blockedBy?,dueDay?,dueClock?,expiryDay?}. payoff: {what}|string; requires cleared gates in prose.
 
 PRESENT RULES: list {{user}} first. Blank when PERSONA STATE is OFF. When ON, always populate mood, condition, doing, concise first-person thought, and 2–4 stable traits through tracker-only inference from the turn, prior state, and characterization in every agency mode; evidence is optional. This metadata never authorizes player behavior in prose. List every named on-stage NPC with a knowledge-limited first-person thought.
-
-LEAN EXAMPLE — SHAPE ONLY; NEVER COPY ITS FACTS:
-<vellum>
-{"scene":{"loc":"west gallery","time":"07:45","clock":465,"tension":6},"present":[{"id":"{{user}}","mood":"","condition":"","doing":"","thought":"","traits":[]},{"id":"Lira","mood":"guarded","doing":"sets down the untouched cup","thought":"They are buying time."}],"delta":{"bonds":[{"a":"Lira","b":"{{user}}","trust":-2,"addCats":["social"],"why":"the repeated evasion"}],"knowledge":[{"who":"Lira","fact":"{{user}} is delaying an answer","about":"{{user}}","reliability":"suspects","truth":"unknown","source":"their repeated evasion"}]}}
-</vellum>
 
 Omit empty delta sections except delta.parallel: when Living World requests a parallel snapshot, emit the full reconciled array even when it is [] so earlier positions are replaced rather than retained. Even when nothing durable changes, emit scene/present if available and omit other delta sections. On complex turns, include every supported change that the prose clearly establishes, but do not exceed the schema.{{/if}}`, { group: CAT_ENGINE }),
 
@@ -743,6 +731,9 @@ Start with zero plot rows. Admit the exact title only when prior condition -> di
 
 {{if::{{or::{{eq::{{var::living_world}}::active}}::{{eq::{{var::living_world}}::sandbox}}}}}}[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]
 Carry every prior parallel row into final T1. Change it only from actor-specific proof: ADVANCE keeps location, MOVE needs travel and time, and main-scene facts need a delivered bridge. Exclude present actors; keep one final where/activity each; emit [] only when all rows resolve.{{/if}}{{/if}}
+
+{{if::{{or::{{eq::{{var::living_world}}::active}}::{{eq::{{var::living_world}}::sandbox}}}}}}[DURABLE SUBPLOT AUTONOMY — ACTIVE FROM TURN ONE]
+The engine may originate off-screen subplots from established NPC intent without ((parallel)). Move a row only when its own time, trigger, dependencies, blockers, or deadline permits; link consequences to threads and use a causal foreground bridge. Zero is valid. Social/Politics remain hard ceilings; never author player bonds, choices, consent, or acts off-screen.{{/if}}
 
 {{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]
 In both Inline Compatibility and Engine Second Pass, every named or certain live speaker uses [spk=Exact Cast Name]"complete passage"[/spk]. Open it before the quote; keep narration outside; use one speaker per wrapper. Do not tag thought, documents, memory, signs, roles, pronouns, or uncertain speech. Before sending, scan every opening dialogue quote and repair bare eligible speech.{{/if}}
@@ -1041,7 +1032,7 @@ const preset = {
   id: 'vellum-ii-argent-loom',
   name: 'VELLUM II — ARGENT LOOM',
   description: 'A VELLUM-native causal chronicle preset for high-fidelity literary roleplay. ARGENT protects player agency, physical and epistemic continuity, character-specific behavior, earned directional relationships, living off-screen worlds, factions, items, plants, and exact event deltas. With VELLUM 2.1 it compiles completed prose through a separate validated state pass and commits atomically; Inline Compatibility retains model-written <vellum> output. Includes a compact effective-policy compiler, grouped controls, native Lumiverse routing, optional Reverie, typed artifacts, and a scoped prompt/display/memory pipeline.',
-  presetVersion: '1.3.1',
+  presetVersion: '1.4.0',
   schemaVersion: 2,
   samplerOverrides: {
     enabled: true,
@@ -1139,11 +1130,11 @@ for (const requiredMarker of [
 }
 
 const schemaBlock = blocks.find((entry) => entry.id === 'arg-state-schema')?.content ?? '';
-for (const requiredTerm of ['addCats', 'removeCats', 'arcs?', 'factionRelations?', 'inventory?', 'plant?', 'payoff?']) {
+for (const requiredTerm of ['addCats', 'removeCats', 'arcs?', 'factionRelations?', 'offscreen?', 'inventory?', 'intent?', 'affect?', 'introduction?', 'plant?', 'payoff?']) {
   assert(schemaBlock.includes(requiredTerm), `State schema missing ${requiredTerm}`);
 }
 assert(!/\bcat:\s*\[/.test(schemaBlock), 'Obsolete cat field leaked into schema');
-assert(schemaBlock.includes('zero-padded 24-hour HH:MM') && schemaBlock.includes('"time":"07:45","clock":465'), 'State schema lacks the exact-clock contract');
+assert(schemaBlock.includes('zero-padded 24-hour HH:MM') && schemaBlock.includes('matching integer minutes after midnight'), 'State schema lacks the exact-clock contract');
 
 const agencyBlock = blocks.find((entry) => entry.id === 'arg-channel-agency')?.content ?? '';
 const finalAnchorBlock = blocks.find((entry) => entry.id === 'arg-final-anchor')?.content ?? '';
@@ -1170,11 +1161,14 @@ assert(knowledgeBlock.includes('[SCENE-PRESENCE FIREWALL — PER CHARACTER, PER 
 assert(stateFinalBlock.includes('KNOWLEDGE PARTITION') && stateFinalBlock.includes('remains unaware until an explicit bridge reaches them'), 'Final state compiler lacks per-character knowledge partitioning');
 assert(outputContractBlock.includes('[OFF-SCENE KNOWLEDGE — NON-NEGOTIABLE FINAL GATE]') && outputContractBlock.includes('Later entry never grants retroactive hearing'), 'Last-instruction off-scene knowledge gate missing');
 assert(worldBlock.includes('[PARALLEL T1 RECONCILIATION]') && worldBlock.includes('MUST NOT appear in parallel'), 'Parallel T1 reconciliation contract missing');
+assert(worldBlock.includes('[CAUSAL WORLD PULSE]') && worldBlock.includes('never one cadence') && worldBlock.includes('Active may move two eligible rows, Sandbox four'), 'Adaptive subplot scheduler contract missing');
 assert(stateFinalBlock.includes('PARALLEL RECONCILIATION') && stateFinalBlock.includes('emit [] rather than stale or guessed content'), 'Final state compiler lacks parallel reconciliation');
 assert(outputContractBlock.includes('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]'), 'Last-instruction parallel snapshot gate missing');
+assert(outputContractBlock.includes('[DURABLE SUBPLOT AUTONOMY — ACTIVE FROM TURN ONE]') && outputContractBlock.includes('without ((parallel))'), 'Native parallel infrastructure gate missing');
 assert(engineControlBlock.includes('"livingWorld":"{{var::living_world}}"'), 'Effective engine marker must expose Living World mode');
 assert(engineControlBlock.includes('"agency":"{{var::agency}}"'), 'Effective engine marker must expose the exact per-turn agency mode');
 assert(significanceBlock.includes('Default to unchanged') && significanceBlock.includes('prior condition -> direct prose event -> different note'), 'Plot significance gate missing');
+assert(significanceBlock.includes('NPC INTENT') && significanceBlock.includes('maturity') && significanceBlock.includes('dependencies/blockers'), 'NPC and plant continuity additions missing');
 assert(outputContractBlock.includes('[PLOT LEDGER — DIRECT CHANGE FINAL GATE]') && outputContractBlock.includes('One event cannot advance unrelated rows'), 'Last-instruction plot gate missing');
 assert(variables.find((entry) => entry.name === 'dialogue_color')?.defaultValue === 1, 'Colored dialogue must default on');
 assert(!definedVariableNames.has('guided_choices'), 'Guided Choices must not exist in ARGENT');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys, threadOffscreenLink, linkedOffscreen } from '../src/domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys, threadOffscreenLink, linkedOffscreen, subplotEligible, planSubplotTick } from '../src/domain/offscreen.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
@@ -82,12 +82,12 @@ describe('buildSimPrompt', () => {
     expect(p).not.toContain('KNOWS: The Moon Gate');
   });
 
-  it('authorizes at least one bounded beat and supplies stable characterization', () => {
+  it('permits an empty result when nothing changes and supplies stable characterization', () => {
     const s = state();
     s.cast.jaime!.role = 'sworn guard';
     s.cast.jaime!.traits = ['dutiful', 'guarded'];
     const p = buildSimPrompt(s, offscreenCast(s));
-    expect(simSys()).toContain('return at least one offscreen beat');
+    expect(simSys()).toContain('Empty output is correct');
     expect(p).toContain('(sworn guard)');
     expect(p).toContain('TRAITS: dutiful, guarded');
   });
@@ -161,6 +161,42 @@ describe('parseSim', () => {
     expect(parseSim('not json')).toBeNull();
     expect(parseSim('{"offscreen":[]}')).toBeNull();
   });
+  it('parses action-specific schedules and causal gates', () => {
+    const row = parseSim('{"offscreen":[{"op":"advance","id":"x","gist":"the courier reaches the toll road","nextTurn":13,"nextDay":4,"nextClock":600,"dependsOn":["permit"],"blockedBy":["storm"],"trigger":"the gate opens"}]}')!.offscreen[0]!;
+    expect(row).toMatchObject({ nextTurn: 13, nextDay: 4, nextClock: 600, dependsOn: ['permit'], blockedBy: ['storm'], trigger: 'the gate opens' });
+  });
+});
+
+describe('adaptive subplot scheduler', () => {
+  it('can tick on consecutive turns when each attempted action is due', () => {
+    const s = state();
+    s.offscreen = [{ id: 'courier', name: 'Courier run', status: 'active', gist: 'leaves the yard', beats: ['leaves the yard'], firstTurn: 12, lastTurn: 12, nextTurn: 13 }] as any;
+    s.turns = 13;
+    expect(subplotEligible(s, s.offscreen[0]!)).toBe(true);
+    s.offscreen[0]!.lastTurn = 13; s.offscreen[0]!.nextTurn = 14; s.turns = 14;
+    expect(subplotEligible(s, s.offscreen[0]!)).toBe(true);
+  });
+
+  it('waits for future time and dependencies, while active blockers remain hard gates', () => {
+    const s = state(); s.turns = 20; s.day = 3; s.scene.clock = 600;
+    s.offscreen = [
+      { id: 'permit', name: 'Permit', status: 'resolved', gist: 'issued', beats: ['issued'], firstTurn: 1, lastTurn: 10 },
+      { id: 'storm', name: 'Storm', status: 'active', gist: 'road closed', beats: ['road closed'], firstTurn: 1, lastTurn: 19 },
+      { id: 'journey', name: 'Journey', status: 'active', gist: 'waiting', beats: ['waiting'], firstTurn: 1, lastTurn: 19, nextDay: 4, nextClock: 480, dependsOn: ['permit'], blockedBy: ['storm'] },
+    ] as any;
+    expect(subplotEligible(s, s.offscreen[2]!)).toBe(false);
+    s.day = 4; s.scene.clock = 500;
+    expect(subplotEligible(s, s.offscreen[2]!)).toBe(false);
+    s.offscreen[1]!.status = 'resolved';
+    expect(subplotEligible(s, s.offscreen[2]!)).toBe(true);
+  });
+
+  it('opens a bounded new subplot from an unoccupied NPC intent, not a cadence counter', () => {
+    const s = state();
+    s.cast.jaime!.intent = { goal: 'deliver the warrant', nextStep: 'find a horse', constraints: ['the gate is watched'], status: 'active', updatedTurn: 12 };
+    expect(planSubplotTick(s, 'active')).toMatchObject({ allowNew: true });
+    expect(planSubplotTick(s, 'minimal')).toEqual({ dueIds: [], allowNew: false, reason: 'living world is not autonomous' });
+  });
 });
 
 describe('simEvents + reduce round-trip', () => {
@@ -168,11 +204,12 @@ describe('simEvents + reduce round-trip', () => {
     let s = state();
     const seq = (() => { let n = 0; return () => ++n; })();
     // turn 1: new
-    let evs = simEvents({ offscreen: [{ op: 'new', id: 'siege', name: 'The Siege', who: 'Jaime', gist: 'walls hold' }] }, s, 12, 1, seq);
+    let evs = simEvents({ offscreen: [{ op: 'new', id: 'siege', name: 'The Siege', who: 'Jaime', gist: 'walls hold', nextTurn: 13, dependsOn: ['watch_order'] }] }, s, 12, 1, seq);
     s = reduce(evs, s);
     expect(s.offscreen).toHaveLength(1);
     expect(s.offscreen[0]!.who).toBe('jaime'); // resolved to cast id
     expect(s.offscreen[0]!.beats).toEqual(['walls hold']);
+    expect(s.offscreen[0]).toMatchObject({ nextTurn: 13, dependsOn: ['watch_order'] });
     expect(s.parallel).toEqual([expect.objectContaining({ who: 'jaime', where: 'The Yard', activity: 'walls hold', src: 'sim', turn: 12, day: 1 })]);
     // turn 2: advance same id
     evs = simEvents({ offscreen: [{ op: 'advance', id: 'siege', gist: 'a breach opens' }] }, s, 13, 1, seq);

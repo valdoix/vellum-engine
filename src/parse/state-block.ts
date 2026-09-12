@@ -17,7 +17,7 @@ const FENCES: Array<[string, string]> = [
   ['[VELLUM]', '[/VELLUM]'],
 ];
 
-const SCHEMA_KEY = /"(?:delta|scene|present|turn|day)"/;
+const SCHEMA_KEY = /"(?:delta|scene|present|turn|day|threads|plotThreads|plot_threads|arcs|storyArcs|story_arcs|parallel|parallelEvents|parallel_events|offscreen|offscreenEvents|offscreen_events|subplots)"/;
 
 function extractFenced(content: string): string | null {
   const candidates: Array<{ body: string; at: number }> = [];
@@ -80,6 +80,11 @@ const SCENE_MARKER_RE = /\[\s*scene\s*\]/gi;
 // prose in turns memory reads naturally without the speaker markup — regardless of
 // whether the context-strip regex is enabled host-side.
 const SPK_TAG_RE = /\[\s*\/?\s*spk\b(?:\s*=\s*["']?[^"'\]\r\n]{0,40}["']?)?\s*\]/gi;
+// VTK CODEX presentation is display syntax, not semantic prose. Preserve its
+// title/body for memory and evidence while dropping the raw bracket wrapper.
+// The command contract forbids a closing bracket inside BODY, so this bounded
+// form agrees with the enabled VELLUM card regex without swallowing later text.
+const CODEX_CARD_RE = /\[CODEX\|([^|\]\r\n]{1,120})\|([\s\S]*?)\](?=[ \t]*(?:\r?\n|$))/gi;
 
 // Preset planning fingerprints (Part C): the reverie's own terse note lines and
 // the bracketed directive headers the preset injects. A leading block matching
@@ -164,6 +169,7 @@ export function stripScaffold(content: string): string {
   // A4 — strip colored-dialogue tags but keep the quoted line, so the prose reads
   // cleanly in turns memory even when the host context-strip regex is off.
   s = s.replace(SPK_TAG_RE, '');
+  s = s.replace(CODEX_CARD_RE, (_whole, title: string, body: string) => `${title}\n${body}`);
 
   // leak-not-eat: if stripping emptied a turn that HAD prose, return the original.
   const stripped = s.trim();
@@ -579,6 +585,7 @@ export function parseState(content: string): ParseResult {
     const report: LenientReport = { partial: false, stats: null };
     const obj = lenientParse(raw, report);
     if (obj && typeof obj === 'object') {
+      normalizeBlockAliases(obj as Record<string, unknown>); // tolerate common model naming drift
       hoistDeltaFields(obj as Record<string, unknown>); // tolerate misplaced delta fields
       normalizeBlock(obj as Record<string, unknown>); // map preset grammar (cat) → schema (addCats)
       const validated = ParsedState.safeParse(obj);
@@ -618,13 +625,38 @@ function hoistDeltaFields(obj: Record<string, unknown>): void {
   while (obj.delta && typeof obj.delta === 'object' && (obj.delta as Record<string, unknown>).delta && typeof (obj.delta as Record<string, unknown>).delta === 'object' && guard++ < 4) {
     obj.delta = (obj.delta as Record<string, unknown>).delta;
   }
-  const keys = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'parallel'];
+  const keys = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations', 'parallel', 'offscreen'];
   const delta = (obj.delta && typeof obj.delta === 'object') ? obj.delta as Record<string, unknown> : {};
   let moved = false;
   for (const k of keys) {
     if (Array.isArray(obj[k]) && delta[k] === undefined) { delta[k] = obj[k]; delete obj[k]; moved = true; }
   }
   if (moved || obj.delta === undefined) obj.delta = delta;
+}
+
+/** Normalize conservative, unambiguous aliases before Zod validation. Without
+ * this seam one common title/activity spelling can make z.array reject an
+ * entire threads/arcs/parallel section, which looks like the block parsed while
+ * every plot row silently vanished. Canonical names always win. */
+function normalizeBlockAliases(obj: Record<string, unknown>): void {
+  const alias = (container: Record<string, unknown>, canonical: string, alternatives: string[]): void => {
+    if (container[canonical] !== undefined) return;
+    for (const key of alternatives) {
+      if (container[key] !== undefined) { container[canonical] = container[key]; delete container[key]; return; }
+    }
+  };
+  const normalizeSections = (container: Record<string, unknown>): void => {
+    alias(container, 'threads', ['plotThreads', 'plot_threads']);
+    alias(container, 'arcs', ['storyArcs', 'story_arcs']);
+    alias(container, 'parallel', ['parallelEvents', 'parallel_events']);
+    alias(container, 'offscreen', ['offscreenEvents', 'offscreen_events', 'subplots']);
+    alias(container, 'factionRelations', ['faction_relations']);
+  };
+  normalizeSections(obj);
+  const delta = obj.delta && typeof obj.delta === 'object' && !Array.isArray(obj.delta)
+    ? obj.delta as Record<string, unknown>
+    : undefined;
+  if (delta) normalizeSections(delta);
 }
 
 /**
@@ -636,7 +668,78 @@ function hoistDeltaFields(obj: Record<string, unknown>): void {
  */
 function normalizeBlock(obj: Record<string, unknown>): void {
   const delta = obj.delta as Record<string, unknown> | undefined;
-  const bonds = delta && Array.isArray(delta.bonds) ? delta.bonds : null;
+  if (!delta) return;
+  const str = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+  const adopt = (row: Record<string, unknown>, canonical: string, alternatives: string[]): void => {
+    if (row[canonical] !== undefined) return;
+    for (const key of alternatives) {
+      if (row[key] !== undefined) { row[canonical] = row[key]; delete row[key]; return; }
+    }
+  };
+  const plotOp = (raw: unknown, arc: boolean): 'new' | 'advance' | 'stall' | 'resolve' => {
+    const value = str(raw).toLowerCase();
+    if (['new', 'start', 'started', 'open', 'opened', 'seed'].includes(value)) return 'new';
+    if (['resolve', 'resolved', 'complete', 'completed', 'close', 'closed', 'done'].includes(value)) return 'resolve';
+    if (!arc && ['stall', 'stalled', 'blocked', 'paused'].includes(value)) return 'stall';
+    return 'advance';
+  };
+  const plotRows = (key: 'threads' | 'arcs'): void => {
+    if (!Array.isArray(delta[key])) return;
+    delta[key] = (delta[key] as unknown[]).flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const row = value as Record<string, unknown>;
+      adopt(row, 'name', ['title', key === 'threads' ? 'thread' : 'arc']);
+      adopt(row, 'note', ['beat', 'gist', 'development', 'event']);
+      adopt(row, 'op', ['action', 'operation', 'status']);
+      const name = str(row.name);
+      if (!name) return [];
+      row.name = name;
+      row.op = plotOp(row.op, key === 'arcs');
+      if (row.note !== undefined) { const note = str(row.note); if (note) row.note = note; else delete row.note; }
+      return [row];
+    });
+  };
+  plotRows('threads');
+  plotRows('arcs');
+
+  if (Array.isArray(delta.parallel)) {
+    delta.parallel = (delta.parallel as unknown[]).flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const row = value as Record<string, unknown>;
+      adopt(row, 'who', ['actor', 'character', 'name']);
+      adopt(row, 'where', ['location', 'loc']);
+      adopt(row, 'activity', ['gist', 'event', 'action', 'doing']);
+      const activity = str(row.activity);
+      if (!activity) return [];
+      row.activity = activity;
+      return [row];
+    });
+  }
+
+  if (Array.isArray(delta.offscreen)) {
+    delta.offscreen = (delta.offscreen as unknown[]).flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const row = value as Record<string, unknown>;
+      adopt(row, 'id', ['subplotId', 'subplot_id', 'key']);
+      adopt(row, 'name', ['title']);
+      adopt(row, 'who', ['actor', 'character']);
+      adopt(row, 'where', ['location', 'loc']);
+      adopt(row, 'gist', ['activity', 'event', 'development', 'beat']);
+      adopt(row, 'thread', ['plotThread', 'plot_thread']);
+      adopt(row, 'arc', ['storyArc', 'story_arc']);
+      adopt(row, 'op', ['action', 'operation', 'status']);
+      const id = str(row.id); const gist = str(row.gist);
+      if (!id || !gist) return [];
+      row.id = id; row.gist = gist;
+      const op = str(row.op).toLowerCase();
+      row.op = ['resolve', 'resolved', 'complete', 'completed', 'closed'].includes(op)
+        ? 'resolve'
+        : ['new', 'start', 'started', 'open', 'opened', 'seed'].includes(op) ? 'new' : 'advance';
+      return [row];
+    });
+  }
+
+  const bonds = Array.isArray(delta.bonds) ? delta.bonds : null;
   if (!bonds) return;
   // valid relationship categories — anything else (e.g. the model inventing
   // "physical") is FILTERED, not left to fail the whole block's validation.

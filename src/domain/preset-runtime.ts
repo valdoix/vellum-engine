@@ -6,6 +6,9 @@ export interface TurnContract {
   state: boolean;
   reverie: boolean;
   dialogueColor: boolean;
+  /** A safe visual-card renderer is active for this turn. ARGENT uses typed
+   * artifacts; legacy VELLUM uses its enabled CODEX VTK regex. */
+  vtkCards: boolean;
   reasoningRoute: string;
   stateCompiler: 'engine' | 'inline';
   stateVerbosity: 'lean' | 'full';
@@ -108,6 +111,7 @@ interface EffectiveMarker {
   verbosity?: unknown;
   reasoning?: unknown;
   dialogueColor?: unknown;
+  vtkCards?: unknown;
   codex?: unknown;
   inventory?: unknown;
   worldgen?: unknown;
@@ -220,6 +224,7 @@ function embeddedArgentContract(marker: EffectiveMarker | null, prompt: string):
     state: true,
     reverie: true,
     dialogueColor: true,
+    vtkCards: false,
     reasoningRoute: 'compact',
     stateCompiler: 'engine',
     stateVerbosity: 'lean',
@@ -244,12 +249,15 @@ export function resolveTurnContract(preset: PresetLike | null | undefined): Turn
   if (!linked) return null;
 
   const reasoningRoute = String(variableValue(preset, 'reasoning_route') ?? (on(variableValue(preset, 'reverie'), false) ? 'compact' : 'silent'));
+  const scripts = Array.isArray((preset as any).extensions?.regex_scripts) ? (preset as any).extensions.regex_scripts as Array<Record<string, unknown>> : [];
+  const vtkRegex = scripts.some(script => script.script_id === 'vellum2-card-codex' && script.disabled !== true);
   return {
     active: true,
     argent,
     state: on(variableValue(preset, 'state_on'), true),
     reverie: reasoningRoute === 'compact' || reasoningRoute === 'verbose',
     dialogueColor: argent && on(variableValue(preset, 'dialogue_color'), true),
+    vtkCards: argent ? on(variableValue(preset, 'vtk_cards'), false) : vtkRegex,
     reasoningRoute,
     stateCompiler: argent && variableValue(preset, 'state_compiler') === 'engine' ? 'engine' : 'inline',
     stateVerbosity: variableValue(preset, 'state_verbosity') === 'full' ? 'full' : 'lean',
@@ -281,6 +289,7 @@ export function resolveTurnContractFromMessages(
   if (marker) {
     next.state = on(marker.state, base.state);
     next.dialogueColor = base.argent && on(marker.dialogueColor, base.dialogueColor);
+    next.vtkCards = on(marker.vtkCards, base.vtkCards);
     next.reasoningRoute = typeof marker.reasoning === 'string' ? marker.reasoning : base.reasoningRoute;
     next.reverie = next.reasoningRoute === 'compact' || next.reasoningRoute === 'verbose';
     next.stateCompiler = marker.compiler === 'engine' ? 'engine' : marker.compiler === 'inline' ? 'inline' : base.stateCompiler;
@@ -308,6 +317,7 @@ export function resolveTurnContractFromMessages(
       const engineSecondPass = /\[ENGINE SECOND PASS\][^\n]*engine compiles and validates state separately/i.test(prompt);
       next.state = engineSecondPass || /\[VELLUM STATE[^\n]*CONTRACT\]|\[STATE SERIALIZATION[^\n]*FINAL GATE\]|one complete <vellum>|ends with <\/vellum>/i.test(prompt);
       next.dialogueColor = /\[COLORED DIALOGUE[^\n]*(?:CONTRACT|MARKUP)\]/i.test(prompt);
+      next.vtkCards = /<artifact>\{\"type\":\"letter\|codex\|text/i.test(prompt) || /\[CODEX\|/.test(prompt);
       if (next.state) {
         const inlineSchema = /\[VELLUM STATE — (?:LEAN|FULL) CONTRACT\]|\[STATE COMPILER — FINAL\]/i.test(prompt);
         next.stateCompiler = engineSecondPass || !inlineSchema ? 'engine' : 'inline';

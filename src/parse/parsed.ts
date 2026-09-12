@@ -34,6 +34,7 @@ export type ParsedBond = z.infer<typeof ParsedBond>;
 export const ParsedPresent = z.object({
   id: z.string().optional().catch(undefined),
   name: z.string().optional().catch(undefined),
+  presence: z.enum(['spotlight', 'periphery']).optional().catch(undefined),
   mood: z.string().optional().catch(undefined),
   doing: z.string().optional().catch(undefined),
   condition: z.string().optional().catch(undefined), // physical state e.g. "wounded", "exhausted"
@@ -53,8 +54,46 @@ export const ParsedThread = z.object({
   // `.catch` keeps one invented op from failing the whole block — default to the
   // benign 'advance' (upsertTrack treats it as "exists/active").
   op: z.enum(['new', 'advance', 'stall', 'resolve']).catch('advance'),
+  // Stable ids are optional on ordinary inline blocks, but command-generated
+  // subplot rows may echo one so the engine can link without title guessing.
+  id: z.string().optional().catch(undefined),
   name: z.string(),
   note: z.string().optional().catch(undefined),
+  // Optional parent arc reference (stable id or exact title). The ordinary
+  // extractor ignores it; the parallel-command transaction resolves it.
+  arc: z.string().optional().catch(undefined),
+  milestone: z.string().optional().catch(undefined),
+  dependsOn: z.array(z.string()).max(20).optional().catch(undefined),
+  blockedBy: z.array(z.string()).max(20).optional().catch(undefined),
+  deadlineDay: z.number().int().nonnegative().optional().catch(undefined),
+  deadlineClock: z.number().int().min(0).max(1439).optional().catch(undefined),
+});
+
+/** Durable off-screen subplot mutation. Unlike delta.parallel (a replace-all
+ * view of what is happening NOW), these rows accrue beats, pressure and future
+ * bridges across turns. The ((parallel)) command serializes them inside the
+ * canonical VELLUM block so they use the same parser/reconciliation lifecycle. */
+export const ParsedOffscreen = z.object({
+  op: z.enum(['new', 'advance', 'resolve']).catch('advance'),
+  id: z.string(),
+  name: z.string().optional().catch(undefined),
+  who: z.string().optional().catch(undefined),
+  where: z.string().optional().catch(undefined),
+  gist: z.string(),
+  thread: z.string().optional().catch(undefined),
+  arc: z.string().optional().catch(undefined),
+  pressure: z.number().int().min(0).max(5).optional().catch(undefined),
+  hooks: z.array(z.string()).max(6).optional().catch(undefined),
+  stakes: z.string().optional().catch(undefined),
+  autonomy: z.enum(['personal', 'social', 'faction', 'environment', 'mixed']).optional().catch(undefined),
+  nextTurn: z.number().int().nonnegative().optional().catch(undefined),
+  nextDay: z.number().int().nonnegative().optional().catch(undefined),
+  nextClock: z.number().int().min(0).max(1439).optional().catch(undefined),
+  deadlineDay: z.number().int().nonnegative().optional().catch(undefined),
+  deadlineClock: z.number().int().min(0).max(1439).optional().catch(undefined),
+  dependsOn: z.array(z.string()).max(20).optional().catch(undefined),
+  blockedBy: z.array(z.string()).max(20).optional().catch(undefined),
+  trigger: z.string().optional().catch(undefined),
 });
 
 export const ParsedJournal = z.object({
@@ -134,6 +173,7 @@ export const ParsedState = z.object({
     factions: z.array(ParsedFaction).optional().catch(undefined),
     factionRelations: z.array(ParsedFactionRel).optional().catch(undefined),
     parallel: z.array(ParsedParallel).optional().catch(undefined),
+    offscreen: z.array(ParsedOffscreen).optional().catch(undefined),
   }).optional().catch(undefined),
   // Open extension point: future blocks (e.g. inventory, factions) can land here
   // and be picked up by a registered extractor without schema churn elsewhere.

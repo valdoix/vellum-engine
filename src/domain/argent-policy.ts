@@ -37,7 +37,7 @@ export function dependencyIssues(v: Record<string, unknown>): Record<string, str
   issues.vtk = 'Deprecated in ARGENT 1.3; use Card Library for typed artifacts.';
   if (!enabled(v.vtk_cards)) { issues.vtk_spectacle = 'Requires Card Library.'; issues.world_broadsheet = 'Requires Card Library.'; }
   if (!enabled(v.antislop)) issues.slop_proofreader = 'Requires Anti-Slop.';
-  if (!enabled(v.state_on)) { issues.state_verbosity = 'State output is disabled.'; issues.state_compiler = 'State output is disabled.'; issues.worldgen = 'Genesis requires state output.'; }
+  if (!enabled(v.state_on)) { issues.state_verbosity = 'State output is disabled.'; issues.state_compiler = 'State output is disabled.'; }
   if (v.prose === 'loom') issues.prose = 'Loom Style Only requires an active host Loom style.';
   return issues;
 }
@@ -57,7 +57,7 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
   const compactGroups: Array<[string, string[]]> = [
     ['Voice', ['pov', 'tense', 'distance', 'length', 'pacing', 'dialogue', 'prose', 'stakes', 'genre', 'genre2']],
     ['Craft', ['doctrine_strictness', 'metaphor', 'diction', 'sensory', 'filter_words', 'paragraph_shape', 'profanity', 'era', 'era_strictness', 'cast', 'interiority']],
-    ['World', ['epistemic', 'living_world', 'world_scale', 'world_texture', 'romance', 'disposition', 'social', 'politics', 'failure_shape', 'reveal_cadence', 'world_law', 'antagonist_pressure', 'variance']],
+    ['World', ['epistemic', 'living_world', 'world_texture', 'romance', 'disposition', 'social', 'politics', 'failure_shape', 'reveal_cadence', 'world_law', 'antagonist_pressure', 'variance']],
     ['Output', ['npc_dialogue', 'time_continuity', 'codex', 'inventory', 'nsfw_level', 'nsfl', 'vtk_cards', 'vtk_spectacle', 'dialogue_color']],
   ];
   const settings = compactGroups.map(([label, names]) => {

@@ -4,6 +4,7 @@ import { esc, nameOf, emptyState, sectionHeader } from '../format.js';
 import { send, refreshUI } from '../bridge.js';
 import { formModal, confirmModal } from '../modal.js';
 import { readyToIntersect } from '../../domain/offscreen.js';
+import { plantEligible } from '../../domain/plants.js';
 import { formatDate } from '../../domain/date-format.js';
 
 /**
@@ -155,6 +156,7 @@ export const directorTab: Component<ChronicleState> = {
       if (pd) { confirmModal('Delete this plant?', () => send({ type: 'vellum_plant_drop', id: pd.getAttribute('data-id') })); return; }
 
       // --- off-screen threads (re-homed from Chronicle→World) ---
+      if (t.closest('[data-off-generate]')) { send({ type: 'vellum_intervention', op: 'parallel-now' }); return; }
       if (t.closest('[data-off-simall]')) { send({ type: 'vellum_offthread_advance' }); return; } // whole-world AI tick
       if (t.closest('[data-off-add]')) {
         formModal('New Off-screen Thread', [
@@ -362,12 +364,12 @@ function plantsView(s: ChronicleState): string {
   const head = sectionHeader('\u2698 Planted', { sub: true, count: list.filter((p) => p.status === 'planted').length, action: '<button class="vle-add sm" data-plant-add>+</button>' });
   const intro = '<div class="vle-cz-note">Details seeded to pay off later (a locked drawer, an omen). Open plants are injected so they never quietly vanish; mark one paid when it lands.</div>';
   if (!list.length) return head + intro + emptyState('Nothing planted.', 'Seed a Chekhov detail here (or let the story plant one via ext.plant); it stays on the board until it pays off.');
-  const now = s.turns || 0;
   const subjName = (id: string): string => s.cast[id]?.name ?? (s.locations ?? []).find((l) => l.id === id)?.name ?? id;
   const rows = list.map((p) => {
     const done = p.status !== 'planted';
-    const age = Math.max(0, now - p.plantedTurn);
-    const meta = p.status === 'paid' ? `paid t${p.paidTurn ?? '?'}` : p.status === 'abandoned' ? 'abandoned' : `planted t${p.plantedTurn}${age >= 15 ? ' \u00b7 overdue' : ''}`;
+    const eligible = plantEligible(s, p);
+    const maturity = p.maturity !== undefined || p.minMaturity !== undefined ? ` \u00b7 maturity ${p.maturity ?? 0}/${p.minMaturity ?? 0}` : '';
+    const meta = p.status === 'paid' ? `paid t${p.paidTurn ?? '?'}` : p.status === 'abandoned' ? 'abandoned' : `${eligible ? 'eligible' : 'gated'}${maturity}`;
     const mark = p.status === 'paid' ? '\u2713' : p.status === 'abandoned' ? '\u2717' : '\u2698';
     const subj = p.subject ? `<span class="vle-plant-meta">${esc(subjName(p.subject))}</span>` : '';
     const payBtn = done ? '' : `<button class="vle-mini" data-plant-pay data-id="${esc(p.id)}" title="Mark paid off">\u2713</button>`;
@@ -384,9 +386,9 @@ function offscreenView(s: ChronicleState): string {
   const active = all.filter((o) => o.status === 'active').sort(byRecentOff);
   const resolved = all.filter((o) => o.status === 'resolved').sort(byRecentOff);
   const par = (s.parallel ?? []).slice();
-  const head = sectionHeader('\u2748 Elsewhere Feed', { sub: true, count: active.length, action: '<button class="vle-add sm" data-off-simall title="Advance the whole off-screen world one AI tick (needs generation)">\u2748 simulate all</button><button class="vle-add sm" data-off-add>+</button>' });
-  const intro = '<div class="vle-cz-note">A timeline of "meanwhile" moments. Each subplot shows its latest beat, status, and cast. Expand a card to see full history and controls.</div>';
-  if (!all.length && !par.length) return head + intro + emptyState('No off-screen threads.', 'Add one by hand, or enable Off-screen in Actions to let subplots auto-simulate every few turns.');
+  const head = sectionHeader('\u2748 Elsewhere Feed', { sub: true, count: active.length, action: '<button class="vle-add sm" data-off-generate title="Create 3-7 canon-grounded parallel events; persist each as a subplot linked to a plot thread">\u2726 generate events</button><button class="vle-add sm" data-off-simall title="Advance the whole off-screen world one small AI tick (needs generation)">\u2748 simulate all</button><button class="vle-add sm" data-off-add>+</button>' });
+  const intro = '<div class="vle-cz-note">Generate events creates a 3-7 moment interlude grounded in chat, lorebooks and Chronicle canon; each accepted event becomes a persistent subplot linked to a plot thread and, when warranted, a shared arc. Simulate all is the smaller incremental tick.</div>';
+  if (!all.length && !par.length) return head + intro + emptyState('No off-screen threads.', 'Add one by hand, or enable Off-screen in Actions to let causally eligible subplots advance automatically.');
   
   const now = s.turns || 0;
   const A = (x: unknown): string => esc(x);
@@ -438,7 +440,14 @@ function offscreenView(s: ChronicleState): string {
       const castLine = who ? `<div class="vle-feed-detail"><span class="vle-feed-label">Cast:</span> <span class="vle-feed-val">${who}</span></div>` : '';
       const linkedName = o.thread ? (s.threads.find((th) => th.id === o.thread)?.name ?? '') : '';
       const linkedLine = linkedName ? `<div class="vle-feed-detail"><span class="vle-feed-label">Linked thread:</span> <span class="vle-feed-val vle-feed-linked">${esc(linkedName)}</span></div>` : '';
-      const details = (castLine || linkedLine) ? `<div class="vle-feed-details">${castLine}${linkedLine}</div>` : '';
+      const pressureLine = `<div class="vle-feed-detail"><span class="vle-feed-label">Pressure:</span> <span class="vle-feed-val">${o.pressure ?? Math.min(5, o.beats.length)} / 5${o.autonomy ? ` \u00b7 ${esc(o.autonomy)}` : ''}</span></div>`;
+      const stakesLine = o.stakes ? `<div class="vle-feed-detail"><span class="vle-feed-label">Stakes:</span> <span class="vle-feed-val">${esc(o.stakes)}</span></div>` : '';
+      const hooksLine = o.hooks?.length ? `<div class="vle-feed-detail"><span class="vle-feed-label">Future bridges:</span> <span class="vle-feed-val">${o.hooks.map(esc).join(' \u00b7 ')}</span></div>` : '';
+      const nextBits = [o.nextTurn !== undefined ? `turn ${o.nextTurn}` : '', o.nextDay !== undefined ? `day ${o.nextDay}${o.nextClock !== undefined ? ` @ ${String(Math.floor(o.nextClock / 60)).padStart(2, '0')}:${String(o.nextClock % 60).padStart(2, '0')}` : ''}` : '', o.trigger ? `trigger: ${o.trigger}` : ''].filter(Boolean);
+      const scheduleLine = nextBits.length ? `<div class="vle-feed-detail"><span class="vle-feed-label">Next eligible:</span> <span class="vle-feed-val">${nextBits.map(esc).join(' \u00b7 ')}</span></div>` : '';
+      const gateBits = [...(o.dependsOn?.length ? [`after ${o.dependsOn.join(', ')}`] : []), ...(o.blockedBy?.length ? [`blocked by ${o.blockedBy.join(', ')}`] : [])];
+      const gatesLine = gateBits.length ? `<div class="vle-feed-detail"><span class="vle-feed-label">Causal gates:</span> <span class="vle-feed-val">${gateBits.map(esc).join(' \u00b7 ')}</span></div>` : '';
+      const details = `<div class="vle-feed-details">${castLine}${linkedLine}${pressureLine}${stakesLine}${hooksLine}${scheduleLine}${gatesLine}</div>`;
       
       // Actions
       const advBtn = done ? '' : `<button class="vle-btn vle-btn--primary" data-off-adv data-id="${A(o.id)}" title="Advance this thread one AI beat">ADVANCE</button>`;

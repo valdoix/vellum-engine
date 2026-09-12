@@ -36,14 +36,20 @@ const Delta = strict(ParsedState.shape.delta.removeCatch().unwrap()) as z.ZodObj
 export const CompilerState = z.object({
   turn: z.number().int().nonnegative(), day: z.number().int().nonnegative(),
   scene: z.object({ loc: text, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), clock: z.number().int().min(0).max(1439), tension: z.number().min(0).max(10).optional(), weather: z.string().max(500).optional() }).strict(),
-  present: item({ id: name, mood: z.string().max(500).optional(), doing: z.string().max(500).optional(), condition: z.string().max(500).optional(), thought: z.string().max(1200), traits: z.array(name).max(12).optional() }),
+  present: item({ id: name, presence: z.enum(['spotlight', 'periphery']).optional(), mood: z.string().max(500).optional(), doing: z.string().max(500).optional(), condition: z.string().max(500).optional(), thought: z.string().max(1200), traits: z.array(name).max(12).optional() }),
+  // `parallel` remains engine-reconciled from operation ledgers. Durable
+  // offscreen rows are permitted when Living World autonomy is active and are
+  // validated against the same closed cast/location firewall as ((parallel)).
   delta: Delta.omit({ parallel: true }),
   ext: z.object({
     scars: item({ who: name, was: text, about: name.optional() }).optional(),
     codex: item({ id: name.optional(), op: z.enum(['add', 'refresh']).optional(), fact: text, tag: name.optional() }).optional(),
     inventory: item({ who: name, item: text, op: z.enum(['gain', 'lose', 'give', 'scene', 'note']), to: name.optional(), note: text.optional() }).optional(),
     timeline: item({ event: text, day: z.number().int().nonnegative().optional(), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(), location: name.optional(), participants: z.array(name).max(20).optional(), importance: z.enum(['minor', 'major', 'critical']).optional() }).optional(),
-    plant: item({ what: text }).optional(), payoff: item({ what: text }).optional(),
+    intent: item({ who: name, goal: text, nextStep: text, constraints: z.array(text).max(8).optional(), destination: name.optional(), deadlineDay: z.number().int().nonnegative().optional(), deadlineClock: z.number().int().min(0).max(1439).optional(), status: z.enum(['active', 'blocked', 'complete']).optional() }).optional(),
+    affect: item({ who: name, valence: z.number().int().min(-2).max(2), arousal: z.number().int().min(0).max(2), control: z.number().int().min(-2).max(2), direction: text, cause: text.optional() }).optional(),
+    introduction: item({ who: name, role: text, want: text, constraint: text, counterTrait: text, voiceTell: text, culturalAnchor: text, physicalDetail: text }).optional(),
+    plant: item({ what: text, subject: name.optional(), maturity: z.number().int().min(0).max(5).optional(), minMaturity: z.number().int().min(0).max(5).optional(), dependsOn: z.array(name).max(20).optional(), blockedBy: z.array(name).max(20).optional(), dueDay: z.number().int().nonnegative().optional(), dueClock: z.number().int().min(0).max(1439).optional(), expiryDay: z.number().int().nonnegative().optional() }).optional(), payoff: item({ what: text }).optional(),
   }).strict(),
 }).strict();
 export const CompilerCandidate = z.object({
@@ -266,7 +272,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     ? currentTurnSource.slice(Math.max(0, proofAt - 80), Math.min(currentTurnSource.length, proofAt + timeProof!.quote.length + 80))
     : (flooredClock.inferred ? currentTurnSource : undefined);
   const dayAdvanceEvidence = s.day > input.prior.day
-    && supportsDayAdvance(proofContext, priorClock, s.scene.clock, s.day - input.prior.day);
+    && supportsDayAdvance(proofContext, priorClock, s.scene.clock, s.day - input.prior.day, s.day);
   const dayReconcile = reconcileDay(s.day, input.prior.day, dayAdvanceEvidence, { priorClock, newClock: s.scene.clock });
   s.day = dayReconcile.day;
   const recoveredDayCount = s.day !== reportedDay;
@@ -356,6 +362,34 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
         // evidence and a witnessed/delivered access channel in that same quote.
         if (!onStageThisTurn && (!quote || !evidenceMentionsActor(input.prior, row.who, quote) || !evidenceHasAccessPath(quote))) {
           errors.push(`off-stage knowledge lacks a delivered access path: ${row.who}`);
+        }
+      }
+      if (section === 'offscreen') {
+        const path = `delta.offscreen.${index}`;
+        const quote = evidence.get(path) ?? '';
+        if (input.livingWorld !== 'active' && input.livingWorld !== 'sandbox') errors.push('offscreen deltas require Living World active or sandbox');
+        const prior = input.prior.offscreen.find(item => item.id === row.id);
+        if (row.op === 'new' && prior) errors.push(`offscreen new id already exists: ${row.id}`);
+        if (row.op !== 'new' && !prior) errors.push(`offscreen mutation requires an existing id: ${row.id}`);
+        const actorId = row.who ? canonId(row.who) : prior?.who ? canonId(prior.who) : '';
+        if (actorId) {
+          if (!input.prior.cast[actorId] || actorId === player) errors.push(`offscreen actor must be a known NPC: ${row.who ?? prior?.who}`);
+          if (present.has(actorId)) errors.push(`present actor cannot also be offscreen: ${row.who ?? prior?.who}`);
+          const candidateIntent = s.ext.intent?.find(item => canonId(item.who) === actorId && (item.status ?? 'active') === 'active');
+          if (row.op === 'new' && input.prior.cast[actorId]?.intent?.status !== 'active' && !candidateIntent) errors.push(`new NPC subplot requires an active intent: ${row.who}`);
+          const actorName = input.prior.cast[actorId]?.name ?? String(row.who ?? prior?.who ?? '');
+          if (row.op === 'resolve') {
+            if (!quote || !evidenceGroundsActorResolution(input.prior, actorName, quote)) errors.push(`offscreen resolution is not grounded: ${row.id}`);
+          } else if (!row.where || !quote || !evidenceGroundsActorActivity(input.prior, actorName, row.where, row.gist, quote)) {
+            errors.push(`offscreen beat is not grounded to its NPC, place, and activity: ${row.id}`);
+          }
+        } else if (row.op === 'resolve') {
+          if (!quote || !evidenceGroundsWorldResolution(prior?.where, quote)) errors.push(`offscreen world resolution is not grounded: ${row.id}`);
+        } else if (!quote || !evidenceGroundsWorldActivity(row.where ?? prior?.where, row.gist, quote)) {
+          errors.push(`offscreen world beat is not grounded to place and activity: ${row.id}`);
+        }
+        if (row.op !== 'resolve' && row.gist && activityNeedsAccessPath(row.gist) && !evidenceHasAccessPath(quote)) {
+          errors.push(`offscreen knowledge/reaction lacks a delivered access path: ${row.id}`);
         }
       }
       if (section === 'secrets') {
@@ -474,6 +508,13 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       if (section === 'timeline') {
         if (row.location && !literalName(row.location) && row.location !== input.prior.scene.location && !(input.prior.locations ?? []).some(x => x.name === row.location)) errors.push(`unknown timeline location: ${row.location}`);
         for (const participant of row.participants ?? []) if (!known(participant)) errors.push(`unknown timeline participant: ${participant}`);
+      }
+      if ((section === 'intent' || section === 'affect' || section === 'introduction') && canonId(row.who) === player) errors.push(`${section} is NPC-only`);
+      if (section === 'introduction') {
+        const actor = input.prior.cast[canonId(row.who)];
+        if (actor?.introduction) errors.push(`introduction packet already exists: ${row.who}`);
+        const signature = `${String(row.want).toLocaleLowerCase()}\u0000${String(row.voiceTell).toLocaleLowerCase()}`;
+        if (Object.values(input.prior.cast).some(other => other.introduction && `${other.introduction.want.toLocaleLowerCase()}\u0000${other.introduction.voiceTell.toLocaleLowerCase()}` === signature)) errors.push(`introduction packet is not distinct: ${row.who}`);
       }
     });
   }
@@ -607,6 +648,7 @@ export function compilerRepairBase(input: CompilerInput): StateCandidate {
         const isPlayer = canonId(id) === player;
         return {
           id: actor?.name ?? id,
+          ...(detail?.presence ? { presence: detail.presence } : {}),
           ...(detail?.mood && (!isPlayer || input.personaState) ? { mood: detail.mood } : {}),
           ...(detail?.doing && (!isPlayer || input.personaState) ? { doing: detail.doing } : {}),
           ...(detail?.condition && (!isPlayer || input.personaState) ? { condition: detail.condition } : {}),
@@ -673,7 +715,7 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
   const priorRows = input.prior.scene.present.map(id => {
     const actor = input.prior.cast[id];
     const detail = input.prior.scene.detail.find(row => canonId(row.id) === id);
-    return { id: actor?.name ?? id, ...(detail?.mood ? { mood: detail.mood } : {}), ...(detail?.doing ? { doing: detail.doing } : {}), ...(detail?.condition ? { condition: detail.condition } : {}), thought: detail?.thought ?? '', ...(actor?.traits?.length ? { traits: actor.traits } : {}) };
+    return { id: actor?.name ?? id, ...(detail?.presence ? { presence: detail.presence } : {}), ...(detail?.mood ? { mood: detail.mood } : {}), ...(detail?.doing ? { doing: detail.doing } : {}), ...(detail?.condition ? { condition: detail.condition } : {}), thought: detail?.thought ?? '', ...(actor?.traits?.length ? { traits: actor.traits } : {}) };
   });
   root.state = {
     ...state,
@@ -803,6 +845,7 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     const old = priorDetail.get(id);
     if (!actor || (id !== player && !old?.thought?.trim())) continue;
     const restored: StateCandidate['state']['present'][number] = { id: actor.name, thought: old?.thought ?? '' };
+    if (old?.presence) restored.presence = old.presence;
     if (old?.mood) restored.mood = old.mood;
     if (old?.doing) restored.doing = old.doing;
     if (old?.condition) restored.condition = old.condition;

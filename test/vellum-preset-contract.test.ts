@@ -70,6 +70,12 @@ describe('VELLUM II preset 2.3 contract', () => {
     }
   });
 
+  it('ships without the removed Cartographer controls or prompt block', () => {
+    expect(preset.blocks.some((candidate) => candidate.id === 'v2-cartographer')).toBe(false);
+    const names = preset.blocks.flatMap((candidate) => candidate.variables ?? []).map((variable) => variable.name);
+    for (const name of ['worldgen', 'world_premise', 'world_scale']) expect(names).not.toContain(name);
+  });
+
   it('makes Augury presentational and removes message-count plot phases', () => {
     const reverie = block('v2-reverie').content;
     expect(reverie).toContain('[REVERIE — ONE BOUNDED PASS]');

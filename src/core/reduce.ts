@@ -154,11 +154,12 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       const priorClock = s.scene.clock ?? parseClock(s.scene.time);
       const incomingClock = e.clock ?? (e.time ? parseClock(e.time) : undefined);
       const priorSceneDay = s.sceneDay ?? e.day;
+      const repairingTime = s.sceneTimeRepairPending === true;
       // Derived state owns the canonical NOW clock. An inline/model-authored
       // scene.set may be wrong, so enforce monotonic absolute time here as the
       // final chokepoint too: same-day and older-day clock regressions retain T0.
       // A later narrative day is allowed to wrap through midnight.
-      const clockRegressed = !e.absolute && priorClock !== undefined && incomingClock !== undefined
+      const clockRegressed = !e.absolute && !repairingTime && priorClock !== undefined && incomingClock !== undefined
         && e.day <= priorSceneDay && incomingClock < priorClock;
       const priorExactTime = priorClock !== undefined
         ? `${String(Math.floor(priorClock / 60)).padStart(2, '0')}:${String(priorClock % 60).padStart(2, '0')}`
@@ -176,8 +177,11 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         tension: e.tension ?? s.scene.tension,
         weather: e.weather ?? s.scene.weather,
         present: e.present,
-        detail: e.detail ? e.detail.map((d) => ({ id: d.id, ...(d.mood ? { mood: d.mood } : {}), ...(d.doing ? { doing: d.doing } : {}), ...(d.condition ? { condition: d.condition } : {}), ...(d.thought ? { thought: d.thought } : {}) })) : (e.present.length ? s.scene.detail.filter((d) => e.present.includes(d.id)) : s.scene.detail),
+        detail: e.detail ? e.detail.map((d) => ({ id: d.id, ...(d.presence ? { presence: d.presence } : {}), ...(d.mood ? { mood: d.mood } : {}), ...(d.doing ? { doing: d.doing } : {}), ...(d.condition ? { condition: d.condition } : {}), ...(d.thought ? { thought: d.thought } : {}) })) : (e.present.length ? s.scene.detail.filter((d) => e.present.includes(d.id)) : s.scene.detail),
       };
+      // Consume the repair grant only on a full authored scene snapshot. Merge
+      // recovery events merely fill missing detail and must not close the window.
+      if (repairingTime) delete s.sceneTimeRepairPending;
       // `parallel` is a replace-all NOW snapshot, not history. Every
       // authoritative scene snapshot invalidates the previous turn's feed; a
       // following parallel.set in the same fold repopulates it with T1 data.
@@ -529,11 +533,11 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       break;
     }
     case 'thread.op': {
-      upsertTrack(s.threads, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op, e.day);
+      upsertTrack(s.threads, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op, e.day, e);
       break;
     }
     case 'arc.op': {
-      upsertTrack(s.arcs, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op, e.day);
+      upsertTrack(s.arcs, e.name, e.op === 'resolve' ? 'resolved' : (e.note ?? e.op), e.turn, e.note, e.op, e.day, e);
       break;
     }
     case 'thread.merge': {
@@ -604,6 +608,19 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.who) ot.who = e.who;
       if (e.where) ot.where = e.where;
       if (e.thread !== undefined) { if (e.thread) ot.thread = e.thread; else delete ot.thread; }
+      if (e.pressure !== undefined) ot.pressure = Math.max(0, Math.min(5, e.pressure));
+      else if (e.gist && e.op !== 'resolve') ot.pressure = Math.min(5, Math.max(1, (ot.pressure ?? 0) + 1));
+      if (e.stakes) ot.stakes = e.stakes;
+      if (e.autonomy) ot.autonomy = e.autonomy;
+      if (e.hooks?.length) ot.hooks = [...new Set([...(ot.hooks ?? []), ...e.hooks.map(h => h.trim()).filter(Boolean)])].slice(-6);
+      if (e.nextTurn !== undefined) ot.nextTurn = e.nextTurn;
+      if (e.nextDay !== undefined) ot.nextDay = e.nextDay;
+      if (e.nextClock !== undefined) ot.nextClock = e.nextClock;
+      if (e.deadlineDay !== undefined) ot.deadlineDay = e.deadlineDay;
+      if (e.deadlineClock !== undefined) ot.deadlineClock = e.deadlineClock;
+      if (e.dependsOn !== undefined) ot.dependsOn = cleanRefs(e.dependsOn);
+      if (e.blockedBy !== undefined) ot.blockedBy = cleanRefs(e.blockedBy);
+      if (e.trigger !== undefined) { if (e.trigger.trim()) ot.trigger = e.trigger.trim(); else delete ot.trigger; }
       // `fill`: an authored Time Sync beat REPLACES a trailing "caught up: …"
       // placeholder gist in place. The gist is also the newest beat (beats mirrors
       // gist accumulation), so pop both when replacing. Falls back to normal append.
@@ -614,7 +631,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       ot.lastTurn = Math.max(ot.lastTurn, e.turn);
       if (ot.firstDay === undefined) ot.firstDay = e.day;
       ot.lastDay = ot.lastDay === undefined ? e.day : Math.max(ot.lastDay, e.day);
-      if (e.op === 'resolve') ot.status = 'resolved';
+      if (s.scene.clock !== undefined) ot.lastClock = s.scene.clock;
+      if (e.op === 'resolve') { ot.status = 'resolved'; ot.pressure = 0; }
       // Off-screen subplots are canonical T1 activity. Mirror their latest
       // actor-addressed beat into the replace-all parallel snapshot immediately
       // so Engine Pass results appear in Elsewhere on this turn, not one compiler
@@ -816,7 +834,20 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'day.set': {
       // the SINGLE sanctioned override of the monotonic day rule: absolute SETS
       // (can lower a spurious high day), otherwise it advances like a report.
-      s.day = e.absolute ? e.day : Math.max(s.day, e.day);
+      // Keep the scene's day anchor in the same canonical frame. Before this,
+      // lowering `state.day` left `sceneDay` at the rejected future day; the next
+      // correct scene could then look like a same/older-day clock regression and
+      // the reducer would preserve the corrupted night clock indefinitely.
+      if (e.absolute) {
+        const dayChanged = s.day !== e.day || (s.sceneDay !== undefined && s.sceneDay !== e.day);
+        s.day = e.day;
+        s.sceneDay = e.day;
+        if (s.prevSceneDay !== undefined && s.prevSceneDay > e.day) delete s.prevSceneDay;
+        if (dayChanged) s.sceneTimeRepairPending = true;
+        else delete s.sceneTimeRepairPending;
+      } else {
+        s.day = Math.max(s.day, e.day);
+      }
       break;
     }
     case 'timeline.day.set': {
@@ -836,8 +867,18 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'plant.set': {
       const norm = (x: string): string => x.trim().toLowerCase();
-      if (!s.plants.find((p) => p.id === e.id) && !s.plants.find((p) => norm(p.what) === norm(e.what) && p.status === 'planted')) {
-        s.plants.push({ id: e.id, what: e.what, status: 'planted', ...(e.subject ? { subject: e.subject } : {}), plantedTurn: e.turn, ...(e.day > 0 ? { plantedDay: e.day } : {}) });
+      const existing = s.plants.find((p) => p.id === e.id) ?? s.plants.find((p) => norm(p.what) === norm(e.what) && p.status === 'planted');
+      if (!existing) {
+        s.plants.push({ id: e.id, what: e.what, status: 'planted', ...(e.subject ? { subject: e.subject } : {}), plantedTurn: e.turn, ...(e.day > 0 ? { plantedDay: e.day } : {}), ...(e.maturity !== undefined ? { maturity: e.maturity } : {}), ...(e.minMaturity !== undefined ? { minMaturity: e.minMaturity } : {}), ...(e.dependsOn !== undefined ? { dependsOn: cleanRefs(e.dependsOn) } : {}), ...(e.blockedBy !== undefined ? { blockedBy: cleanRefs(e.blockedBy) } : {}), ...(e.dueDay !== undefined ? { dueDay: e.dueDay } : {}), ...(e.dueClock !== undefined ? { dueClock: e.dueClock } : {}), ...(e.expiryDay !== undefined ? { expiryDay: e.expiryDay } : {}) });
+      } else {
+        if (e.subject) existing.subject = e.subject;
+        if (e.maturity !== undefined) existing.maturity = Math.max(existing.maturity ?? 0, e.maturity);
+        if (e.minMaturity !== undefined) existing.minMaturity = e.minMaturity;
+        if (e.dependsOn !== undefined) existing.dependsOn = cleanRefs(e.dependsOn);
+        if (e.blockedBy !== undefined) existing.blockedBy = cleanRefs(e.blockedBy);
+        if (e.dueDay !== undefined) existing.dueDay = e.dueDay;
+        if (e.dueClock !== undefined) existing.dueClock = e.dueClock;
+        if (e.expiryDay !== undefined) existing.expiryDay = e.expiryDay;
       }
       break;
     }
@@ -884,7 +925,7 @@ function subset(a: Set<string>, b: Set<string>): boolean {
  * containment where the shorter has >=2 significant tokens. Deliberately does
  * NOT merge on a single shared token ("Jaime" vs "Jaime at Harrenhal") — that
  * semantic case is the LLM reconcile sweep's (Layer 3) job, not a blind merge. */
-function sameTrack(existing: string, incoming: string): boolean {
+export function sameTrack(existing: string, incoming: string): boolean {
   if (existing.toLowerCase() === incoming.toLowerCase()) return true;
   const a = trackTokens(existing), b = trackTokens(incoming);
   if (!a.size || !b.size) return false;
@@ -906,6 +947,32 @@ function pushTrackBeat(t: Track, beat: string): void {
   t.beats = [...t.beats, b].slice(-6);
 }
 
+function cleanRefs(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const value = String(raw).trim();
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key); out.push(value);
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+type TrackGatePatch = Pick<Track, 'milestone' | 'dependsOn' | 'blockedBy' | 'deadlineDay' | 'deadlineClock'>;
+function applyTrackGates(track: Track, patch?: Partial<TrackGatePatch>): void {
+  if (!patch) return;
+  if (patch.milestone !== undefined) {
+    const value = patch.milestone.trim();
+    if (value) track.milestone = value; else delete track.milestone;
+  }
+  if (patch.dependsOn !== undefined) track.dependsOn = cleanRefs(patch.dependsOn);
+  if (patch.blockedBy !== undefined) track.blockedBy = cleanRefs(patch.blockedBy);
+  if (patch.deadlineDay !== undefined) track.deadlineDay = patch.deadlineDay;
+  if (patch.deadlineClock !== undefined) track.deadlineClock = patch.deadlineClock;
+}
+
 /** Stamp a track's narrative-day anchors. firstDay is set once (earliest seen);
  * lastDay only advances (monotonic, mirrors s.day) so a thread's day never runs
  * backward. A `day` of 0/undefined (pre-day-stamp fold) leaves anchors untouched
@@ -920,7 +987,7 @@ function stampTrackDay(t: Track, day?: number): void {
  * FIRST sight (slug of the first title) and never changes as the model's title
  * drifts — the model speaks in titles, the engine owns the id. A `note` (or the
  * op, for a genuine step) accrues onto beats[]. */
-function upsertTrack(list: Track[], name: string, status: string, turn: number, note?: string, op?: string, day?: number): void {
+function upsertTrack(list: Track[], name: string, status: string, turn: number, note?: string, op?: string, day?: number, gates?: Partial<TrackGatePatch>): void {
   const t = list.find((x) => sameTrack(x.name, name));
   if (t) {
     t.status = status; t.lastTurn = Math.max(t.lastTurn, turn); // keep existing (canonical) id + name
@@ -932,6 +999,7 @@ function upsertTrack(list: Track[], name: string, status: string, turn: number, 
   }
   const cur = list.find((x) => sameTrack(x.name, name));
   if (cur) stampTrackDay(cur, day);
+  if (cur) applyTrackGates(cur, gates);
   // record a beat only for a real story step (a note, or a new/advance/resolve),
   // never for a bare status echo that carries no information.
   if (cur && note) pushTrackBeat(cur, note);

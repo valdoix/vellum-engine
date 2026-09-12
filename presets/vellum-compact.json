@@ -63,7 +63,7 @@
       "depth": 0,
       "group": null,
       "marker": null,
-      "content": "<!--ARGENT-SOURCE:arg-control-->\n<!--VELLUM-EFFECTIVE {\"state\":{{var::state_on}},\"compiler\":\"{{var::state_compiler}}\",\"verbosity\":\"lean\",\"reasoning\":\"{{var::reasoning_route}}\",\"agency\":\"{{var::agency}}\",\"dialogueColor\":{{var::dialogue_color}},\"codex\":{{var::codex}},\"inventory\":{{var::inventory}},\"worldgen\":0,\"livingWorld\":\"{{var::living_world}}\"}-->\n[VELLUM COMPACT 1.0]\nContinue the roleplay directly. The newest user message is story input even when it contains no question. Never answer with an instruction summary or ask what to do unless the user explicitly speaks OOC and requests it.\n\nVOICE: {{var::prose}}\nLENGTH: {{var::length}}\nVIEWPOINT: {{var::pov}}\nTENSE: {{var::tense}}\nPACING: {{var::pacing}}\n<!--/ARGENT-SOURCE-->",
+      "content": "<!--ARGENT-SOURCE:arg-control-->\n<!--VELLUM-EFFECTIVE {\"state\":{{var::state_on}},\"compiler\":\"{{var::state_compiler}}\",\"verbosity\":\"lean\",\"reasoning\":\"{{var::reasoning_route}}\",\"agency\":\"{{var::agency}}\",\"dialogueColor\":{{var::dialogue_color}},\"vtkCards\":0,\"codex\":{{var::codex}},\"inventory\":{{var::inventory}},\"worldgen\":0,\"livingWorld\":\"{{var::living_world}}\"}-->\n[VELLUM COMPACT 1.0]\nContinue the roleplay directly. The newest user message is story input even when it contains no question. Never answer with an instruction summary or ask what to do unless the user explicitly speaks OOC and requests it.\n\nVOICE: {{var::prose}}\nLENGTH: {{var::length}}\nVIEWPOINT: {{var::pov}}\nTENSE: {{var::tense}}\nPACING: {{var::pacing}}\n<!--/ARGENT-SOURCE-->",
       "enabled": true,
       "isLocked": false,
       "position": "pre_history",
@@ -1063,8 +1063,8 @@
       "policyCompiler": 1,
       "compactPreset": true,
       "promptTokenCeiling": 5000,
-      "sourceHash": "2a9217cc085513e19779288203d64f73f87864b81222a5dc97fa3543567371db",
-      "dependencyHash": "18da3c0c63e4781d1c11ec100d83808abadad3ab0c2a3a552e7d0a922a454069"
+      "sourceHash": "5eb0e76f3477e0b53682534dc577abbe5e34118d99322e539e7870811f08066d",
+      "dependencyHash": "330fa408769c289c9970213fe7f53b86eff5d56cbca866d8ef3b1531d54384da"
     }
   }
 }
