@@ -11,7 +11,8 @@ import { factTokens, similarFact } from './fact-match.js';
 import { durableParallelSnapshot, reconcileParallelSnapshot } from './parallel-canon.js';
 import { normalizeSecretAudience } from './secret-audience.js';
 import { simEvents, threadOffscreenLink } from './offscreen.js';
-import { sameTrack } from '../core/reduce.js';
+import { reduce, sameTrack } from '../core/reduce.js';
+import { resolvePlotRef } from './plot-refs.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -200,20 +201,21 @@ export const coreFeature: Feature = {
     const presentId = (p: { id?: string; name?: string }): string => {
       const n = presentName(p);
       const rawId = canonId(n);
+      if (ctx.personaState && uCanon && ['vellum_persona', 'player', 'user', 'persona'].includes(rawId)) return uCanon;
       // The configured persona is an established identity even when its display
       // name is a generic label (for example "Player" or "Protagonist"). Keep
       // that one exact identity without weakening the junk-name gate for NPCs.
       if (n && uCanon && rawId === uCanon) return uCanon;
       return n && !badName(n) ? rid(n) : '';
     };
-    const present = (parsed.present ?? [])
+    const present = [...new Set((parsed.present ?? [])
       .map(presentId)
-      .filter(Boolean);
+      .filter(Boolean))];
     // {{user}} must be in `present` whenever the scene is active. The optional
     // persona-state mode retains the private current snapshot; its default remains
     // presence-only so existing chats keep the strict authorship boundary.
     const sceneActive = !!(parsed.scene || present.length);
-    const userExplicitlyPresent = (parsed.present ?? []).some((p) => canonId(presentName(p)) === uCanon);
+    const userExplicitlyPresent = (parsed.present ?? []).some((p) => presentId(p) === uCanon);
     const userInScene = sceneActive && uCanon && !userExplicitlyPresent;
     // The setting itself authorizes tracker metadata in every agency mode.
     // Agency still governs prose and is deliberately not consulted here.
@@ -221,24 +223,32 @@ export const coreFeature: Feature = {
     const priorPersonaDetail = uCanon
       ? ctx.state.scene.detail.find((d) => canonId(d.id) === uCanon)
       : undefined;
-    if (userInScene) present.unshift(uCanon); // player leads the present list
+    if (sceneActive && uCanon) {
+      // The player leads the roster even when a model supplied both an ordinary
+      // row and a dedicated personaState row that normalize to the same id.
+      const existingPlayer = present.indexOf(uCanon);
+      if (existingPlayer >= 0) present.splice(existingPlayer, 1);
+      present.unshift(uCanon);
+    }
     if (parsed.scene || present.length) {
-      const detail = (parsed.present ?? []).map((p) => {
+      type SceneDetail = { id: string; presence?: 'spotlight' | 'periphery'; mood?: string; doing?: string; condition?: string; thought?: string };
+      const detailById = new Map<string, SceneDetail>();
+      for (const p of parsed.present ?? []) {
         const id = presentId(p);
-        if (id && id === uCanon && !personaGrounded(p)) {
-          return { id };
-        }
+        if (!id) continue;
+        const current = detailById.get(id);
+        if (id === uCanon && !personaGrounded(p)) { detailById.set(id, current ?? { id }); continue; }
         const prior = id === uCanon && ctx.personaState ? priorPersonaDetail : undefined;
-        const presence = p.presence || prior?.presence;
-        const mood = p.mood || prior?.mood;
-        const doing = p.doing || prior?.doing;
-        const condition = p.condition || prior?.condition;
-        const thought = p.thought || prior?.thought;
-        return id ? { id, ...(presence ? { presence } : {}), ...(mood ? { mood } : {}), ...(doing ? { doing } : {}), ...(condition ? { condition } : {}), ...(thought ? { thought } : {}) } : null;
-      }).filter(Boolean);
+        const presence = p.presence || current?.presence || prior?.presence;
+        const mood = p.mood || current?.mood || prior?.mood;
+        const doing = p.doing || current?.doing || prior?.doing;
+        const condition = p.condition || current?.condition || prior?.condition;
+        const thought = p.thought || current?.thought || prior?.thought;
+        detailById.set(id, { id, ...(presence ? { presence } : {}), ...(mood ? { mood } : {}), ...(doing ? { doing } : {}), ...(condition ? { condition } : {}), ...(thought ? { thought } : {}) });
+      }
       if (userInScene) {
         const prior = ctx.personaState ? priorPersonaDetail : undefined;
-        (detail as Array<{ id: string; presence?: 'spotlight' | 'periphery'; mood?: string; doing?: string; condition?: string; thought?: string }>).unshift({
+        detailById.set(uCanon, {
           id: uCanon,
           ...(prior?.presence ? { presence: prior.presence } : {}),
           ...(prior?.mood ? { mood: prior.mood } : {}),
@@ -246,6 +256,12 @@ export const coreFeature: Feature = {
           ...(prior?.condition ? { condition: prior.condition } : {}),
           ...(prior?.thought ? { thought: prior.thought } : {}),
         });
+      }
+      const detail = [...detailById.values()];
+      const playerDetail = detail.find(row => row.id === uCanon);
+      if (playerDetail) {
+        detail.splice(detail.indexOf(playerDetail), 1);
+        detail.unshift(playerDetail);
       }
       // The human time string wins when parseable: it is the visible contract and
       // therefore the only safe tie-breaker when a model emits contradictory
@@ -286,11 +302,15 @@ export const coreFeature: Feature = {
       }
     }
     // mark present characters as cast (present status); names seed cards
+    const seenPresentCast = new Set<string>();
     for (const p of parsed.present ?? []) {
-      const name = p.name ?? p.id;
-      const rawId = canonId(name ?? '');
-      if (!name || (badName(name) && (!uCanon || rawId !== uCanon))) continue; // never seed a card from a pronoun/generic/mash
-      const id = uCanon && rawId === uCanon ? uCanon : rid(name);
+      const rawName = p.name ?? p.id;
+      const id = presentId(p);
+      if (!rawName || !id || seenPresentCast.has(id)) continue; // never seed a card from a pronoun/generic/mash or duplicate persona alias
+      seenPresentCast.add(id);
+      const name = id === uCanon && canonId(rawName) === 'vellum_persona'
+        ? (ctx.state.cast[id]?.name ?? id)
+        : rawName;
       out.push({ ...base(), kind: 'cast.seen', id, name, status: 'present' } as VellumEvent);
       // STABLE personality tags the model surfaced — fold into the card as a
       // cast.edit (src 'model', so user edits still win in the reducer). Trim,
@@ -364,18 +384,36 @@ export const coreFeature: Feature = {
     // before/evidence/after proof gate, so it must not be silently rejected by
     // the older token-overlap backstop used for untrusted inline blocks.
     const threadRows = parsed.delta?.threads ?? [];
-    const arcRows = parsed.delta?.arcs ?? [];
-    const threadRefs = plannedTrackRefs(ctx.state.threads, threadRows);
-    const arcRefs = plannedTrackRefs(ctx.state.arcs, arcRows);
+    const acceptedThreads = ctx.validatedCompiler
+      ? threadRows
+      : threadRows.filter(row => inlinePlotChange(row, ctx.state.threads, ctx.state, ctx.prose));
+    const explicitArcRows = parsed.delta?.arcs ?? [];
+    // A thread's explicit human-readable parent is enough to mint that parent
+    // when the model omitted the redundant arc row. Never synthesize from an
+    // id-like reference, and inherit only the already-grounded child condition.
+    const implicitArcRows: typeof explicitArcRows = acceptedThreads.flatMap(thread => {
+      const parent = String(thread.arc ?? '').trim();
+      if (!parent || /^(?:thr|thread|arc|plot)_/i.test(parent)
+        || resolvePlotRef(ctx.state.arcs, parent)
+        || explicitArcRows.some(arc => plotTitleKey(arc.name) === plotTitleKey(parent))) return [];
+      return [{ op: 'new' as const, name: parent, ...(thread.note ? { note: thread.note } : {}) }];
+    });
+    const candidateArcRows = [...explicitArcRows, ...implicitArcRows];
+    const acceptedArcs = ctx.validatedCompiler ? candidateArcRows : candidateArcRows.filter(arc => {
+      if (arc.op === 'stall') return false;
+      if (inlinePlotChange(arc, ctx.state.arcs, ctx.state, ctx.prose)) return true;
+      if (arc.op !== 'new' || resolvePlotRef(ctx.state.arcs, arc.name)) return false;
+      return acceptedThreads.some(thread => thread.arc && plotTitleKey(thread.arc) === plotTitleKey(arc.name));
+    });
+    const threadRefs = plannedTrackRefs(ctx.state.threads, acceptedThreads);
+    const arcRefs = plannedTrackRefs(ctx.state.arcs, acceptedArcs);
     const resolveRef = (refs: ReadonlyMap<string, string>, raw?: string): string | undefined => raw ? refs.get(raw.trim().toLocaleLowerCase()) : undefined;
     // Parent arcs are emitted first; subsequent thread.set events can then link
     // both existing and same-pass threads to a real canonical arc id.
-    for (const a of arcRows) {
-      if (a.op === 'stall' || (!ctx.validatedCompiler && !inlinePlotChange(a, ctx.state.arcs, ctx.state, ctx.prose))) continue; // arcs have no stall
+    for (const a of acceptedArcs) {
       out.push({ ...base(), kind: 'arc.op', op: a.op, name: a.name, ...(a.note ? { note: a.note } : {}), ...(a.milestone ? { milestone: a.milestone } : {}), ...(a.dependsOn !== undefined ? { dependsOn: a.dependsOn } : {}), ...(a.blockedBy !== undefined ? { blockedBy: a.blockedBy } : {}), ...(a.deadlineDay !== undefined ? { deadlineDay: a.deadlineDay } : {}), ...(a.deadlineClock !== undefined ? { deadlineClock: a.deadlineClock } : {}) } as VellumEvent);
     }
-    for (const t of threadRows) {
-      if (!ctx.validatedCompiler && !inlinePlotChange(t, ctx.state.threads, ctx.state, ctx.prose)) continue;
+    for (const t of acceptedThreads) {
       out.push({ ...base(), kind: 'thread.op', op: t.op, name: t.name, ...(t.note ? { note: t.note } : {}), ...(t.milestone ? { milestone: t.milestone } : {}), ...(t.dependsOn !== undefined ? { dependsOn: t.dependsOn } : {}), ...(t.blockedBy !== undefined ? { blockedBy: t.blockedBy } : {}), ...(t.deadlineDay !== undefined ? { deadlineDay: t.deadlineDay } : {}), ...(t.deadlineClock !== undefined ? { deadlineClock: t.deadlineClock } : {}) } as VellumEvent);
       const parentArc = resolveRef(arcRefs, t.arc);
       const stableThread = resolveRef(threadRefs, t.id ?? t.name);
@@ -401,7 +439,7 @@ export const coreFeature: Feature = {
       const stableThread = resolveRef(threadRefs, subplot.thread);
       const parentArc = resolveRef(arcRefs, subplot.arc);
       if (!stableThread || !parentArc) continue;
-      const thread = threadRows.find(row => resolveRef(threadRefs, row.id ?? row.name) === stableThread)
+      const thread = acceptedThreads.find(row => resolveRef(threadRefs, row.id ?? row.name) === stableThread)
         ?? ctx.state.threads.find(row => row.id === stableThread);
       if (thread) out.push({ ...base(), kind: 'thread.set', id: stableThread, name: thread.name, arc: parentArc } as VellumEvent);
     }
@@ -555,7 +593,11 @@ export const coreFeature: Feature = {
     // Second Pass, not only through the manual ((parallel)) transaction. Reuse
     // the exact same closed-cast, location, social and faction autonomy gates.
     if (parsed.delta?.offscreen?.length) {
-      out.push(...simEvents({ offscreen: parsed.delta.offscreen }, ctx.state, ctx.turn, ctx.day, ctx.seq, {
+      // Validate against the same-pass graph/cast snapshot. Inline rows often
+      // create an arc, thread, parallel actor, and subplot in one transaction;
+      // checking only T0 made the final subplot look orphaned and dropped it.
+      const samePassState = reduce(out, structuredClone(ctx.state));
+      out.push(...simEvents({ offscreen: parsed.delta.offscreen }, samePassState, ctx.turn, ctx.day, ctx.seq, {
         locks: ctx.locks, social: ctx.tone?.social, politics: ctx.tone?.politics, livingWorld: ctx.livingWorld, userId: ctx.userCanon,
         ...(ctx.validatedCompiler ? { validatedCompiler: true, compilerThreadIds: threadRefs } : {}),
       }));

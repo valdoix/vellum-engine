@@ -9,6 +9,43 @@ import { DEFAULT_TONE } from '../src/domain/tone.js';
 const wrap = (value: unknown): string => `<vellum>${JSON.stringify(value)}</vellum>`;
 
 describe('inline VELLUM compatibility normalization', () => {
+  it('merges a dedicated persona tracker object into the canonical present roster', () => {
+    const parsed = parseState(wrap({
+      scene: { loc: 'Library', time: '20:10', clock: 1210 },
+      present: [{ id: 'Mara', thought: 'I should close the shutters.' }],
+      personaState: { mood: 'wary', condition: 'tired', doing: 'guarding the door', thought: 'I do not trust the seal.', traits: ['stubborn'] },
+    })).state!;
+    let sequence = 0;
+    const state = freshState();
+    state.scene = { location: 'Library', time: '20:09', clock: 1209, tension: 1, weather: '', present: [], detail: [] };
+    const events = coreFeature.extract!(parsed, {
+      turn: 2, day: 0, state, userCanon: 'gabriel_winters', personaState: true,
+      prose: 'Mara closes the shutters while Gabriel remains by the door.', seq: () => ++sequence,
+    } as ExtractCtx);
+    const scene = events.find(event => event.kind === 'scene.set') as any;
+    expect(scene.detail.find((row: any) => row.id === 'gabriel_winters')).toMatchObject({
+      mood: 'wary', condition: 'tired', doing: 'guarding the door', thought: 'I do not trust the seal.',
+    });
+    expect(events).toContainEqual(expect.objectContaining({ kind: 'cast.edit', id: 'gabriel_winters', patch: { traits: ['stubborn'] } }));
+  });
+
+  it('coalesces a normal player row and dedicated persona tracker without duplicating the roster', () => {
+    const parsed = parseState(wrap({
+      scene: { loc: 'Library', time: '20:10', clock: 1210 },
+      present: [{ id: 'Mara', thought: 'I should close the shutters.' }, { id: 'Gabriel Winters' }],
+      personaState: { mood: 'wary', condition: 'tired', doing: 'guarding the door', thought: 'I do not trust the seal.', traits: ['stubborn'] },
+    })).state!;
+    let sequence = 0;
+    const events = coreFeature.extract!(parsed, {
+      turn: 2, day: 0, state: freshState(), userCanon: 'gabriel_winters', personaState: true,
+      prose: 'Mara closes the shutters while Gabriel remains by the door.', seq: () => ++sequence,
+    } as ExtractCtx);
+    const scene = events.find(event => event.kind === 'scene.set') as any;
+    expect(scene.present).toEqual(['gabriel_winters', 'mara']);
+    expect(scene.detail.filter((row: any) => row.id === 'gabriel_winters')).toHaveLength(1);
+    expect(scene.detail[0]).toMatchObject({ id: 'gabriel_winters', mood: 'wary', thought: 'I do not trust the seal.' });
+  });
+
   it('retains alternate field names, singleton rows, trait text, and descriptive NPC state', () => {
     const parsed = parseState(wrap({
       v: '1', turn: '17', day: '2',
@@ -146,5 +183,42 @@ describe('inline VELLUM compatibility normalization', () => {
     expect(parsed.state?.delta?.offscreen).toEqual([
       expect.objectContaining({ id: 'gate_watch', name: 'Gate Watch', who: 'Ada', where: 'East Gate', gist: 'checks each arriving courier', nextTurn: 4 }),
     ]);
+  });
+
+  it('materializes an inline arc, child thread, parallel row, and linked subplot in one pass', () => {
+    const state = freshState();
+    state.scene = { location: 'Archive', time: '10:00', clock: 600, tension: 1, weather: '', present: ['mara'], detail: [] };
+    state.cast.mara = { id: 'mara', name: 'Mara', aka: [], status: 'present', source: 'auto', firstTurn: 1, lastTurn: 1, traits: [], userEdited: false } as any;
+    state.cast.ada = { id: 'ada', name: 'Ada', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, traits: [], userEdited: false, lastLocation: 'East Gate', lastLocationTurn: 1 } as any;
+    const prose = 'At the East Gate, Ada searches the arriving courier and finds the royal seal missing.';
+    const parsed = parseState(wrap({
+      scene: { loc: 'Archive', time: '10:01', clock: 601 },
+      present: [{ id: 'Mara', thought: 'The courier should be here.' }],
+      delta: {
+        arcs: [{ op: 'new', name: 'The City Conspiracy', note: 'The royal seal is missing at the East Gate.' }],
+        threads: [{ op: 'new', name: 'The Missing Royal Seal', note: 'Ada finds the royal seal missing at the East Gate.', arc: 'The City Conspiracy' }],
+        parallel: [{ who: 'Ada', where: 'East Gate', activity: 'searching for the missing royal seal' }],
+        offscreen: [{ op: 'new', id: 'east_gate_search', name: 'East Gate Search', who: 'Ada', where: 'East Gate', gist: 'searching for the missing royal seal', thread: 'The Missing Royal Seal', arc: 'The City Conspiracy', nextTurn: 3 }],
+      },
+    })).state!;
+    let sequence = 0;
+    const events = coreFeature.extract!(parsed, { turn: 2, day: 0, state, prose, livingWorld: 'active', seq: () => ++sequence } as ExtractCtx);
+    const next = reduce(events, structuredClone(state));
+    const arc = next.arcs.find(row => row.name === 'The City Conspiracy')!;
+    const thread = next.threads.find(row => row.name === 'The Missing Royal Seal')!;
+    expect(arc).toBeTruthy();
+    expect(thread.arc).toBe(arc.id);
+    expect(next.parallel).toEqual([expect.objectContaining({ who: 'ada', where: 'East Gate' })]);
+    expect(next.offscreen).toEqual([expect.objectContaining({ id: 'east_gate_search', thread: thread.id })]);
+  });
+
+  it('creates an explicitly named parent arc when an inline child omits the redundant arc row', () => {
+    const state = freshState();
+    const prose = 'The sealed letter orders Mara to choose an heir before dawn.';
+    const parsed = parseState(wrap({ delta: { threads: [{ op: 'new', name: 'Choose an Heir', note: prose, arc: 'The Succession Crisis' }] } })).state!;
+    let sequence = 0;
+    const next = reduce(coreFeature.extract!(parsed, { turn: 1, day: 0, state, prose, seq: () => ++sequence } as ExtractCtx), state);
+    const arc = next.arcs.find(row => row.name === 'The Succession Crisis')!;
+    expect(next.threads.find(row => row.name === 'Choose an Heir')?.arc).toBe(arc.id);
   });
 });

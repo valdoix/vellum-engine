@@ -536,7 +536,7 @@ After prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing af
 Use only this compact shape; omit unchanged optional sections:
 {v?,turn?,day?,scene?:{title?,transition?:continue|scene|time_skip,loc?,time?,clock?,tension?,weather?},present?:[{id or name,presence?,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?,offscreen?},ext?:{scars?,codex?,inventory?,timeline?,intent?,affect?,introduction?,plant?,payoff?}}
 
-Active scenes require matching HH:MM/clock, e.g. "time":"07:45","clock":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. Mark NPC presence spotlight|periphery. List every named on-stage NPC with a concise first-person thought limited to their knowledge. Bonds are signed deltas; knowledge needs a source. With Living World Active/Sandbox or Social/Politics Living/Autonomous, parallel is the preserved T1 snapshot. Offscreen rows are scheduled, purpose-led, and thread-linked. Keep under ~500 tokens.
+Active scenes require matching HH:MM/clock, e.g. "time":"07:45","clock":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. List every named on-stage NPC with a concise first-person thought limited to their knowledge. On turn 1 or an empty ledger, create one supported actionable unresolved thread and a clear parent arc; set thread.arc to the exact arc title. Active Living World emits full delta.parallel plus scheduled delta.offscreen changes linked to exact threads. Bonds are signed deltas; knowledge needs a source. Keep under ~750 tokens.
 
 {{/if}}
 {{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::full}}}}}}[VELLUM STATE — FULL CONTRACT]
@@ -554,7 +554,7 @@ SUPPORTED TOP LEVEL:
 FIELD SHAPES:
 - When Time Continuity is on, scene.time and scene.clock are mandatory in every active-scene snapshot. scene.time is exact zero-padded 24-hour HH:MM only; narrative labels such as "morning" are forbidden. scene.clock is the matching integer minutes after midnight, 0–1439. scene.tension: 0–10.
 - bond: {a,b,aff?,trust?,addCats?,removeCats?,label?,why?}. aff/trust are signed changes this turn. addCats/removeCats use only familial|romantic|alliance|rivalry|social. Never use "cat". Never set absolute in normal narration.
-- thread: {op:new|advance|stall|resolve,name,note?,milestone?,dependsOn?,blockedBy?,deadlineDay?,deadlineClock?}. arc uses new|advance|resolve with the same optional milestone gates.
+- thread: {op:new|advance|stall|resolve,name,note,arc?,milestone?,dependsOn?,blockedBy?,deadlineDay?,deadlineClock?}; arc is its exact parent title/id. Arc rows use new|advance|resolve. On an empty ledger, create one supported thread and clear parent.
 - journal: {who,about?,memory,kind?,weight?,sentiment?}. kind is interaction|promise|betrayal|gift|shared|wound|observation; weight is trivial|minor|significant|defining; sentiment is positive|negative|neutral|complex.
 - knowledge: {who,fact,about?,reliability?,truth?,source?}. reliability is knows|believes|suspects|wrong|unaware; truth is the STRING true|false|unknown.
 - secret: {keeper,secret,from?}. from is a name or array of excluded names.
@@ -567,7 +567,7 @@ FIELD SHAPES:
 - intent: {who,goal,nextStep,constraints?,destination?,deadlineDay?,deadlineClock?,status?}; affect: {who,valence,arousal,control,direction,cause?}; introduction: {who,role,want,constraint,counterTrait,voiceTell,culturalAnchor,physicalDetail}. NPC-only; introduce once.
 - plant: {what,subject?,maturity?,minMaturity?,dependsOn?,blockedBy?,dueDay?,dueClock?,expiryDay?}. payoff: {what}|string; requires cleared gates in prose.
 
-PRESENT RULES: list {{user}} first. Blank when PERSONA STATE is OFF. When ON, always populate mood, condition, doing, concise first-person thought, and 2–4 stable traits through tracker-only inference from the turn, prior state, and characterization in every agency mode; evidence is optional. This metadata never authorizes player behavior in prose. List every named on-stage NPC with a knowledge-limited first-person thought.
+PRESENT RULES: list {{user}} first. Blank when PERSONA STATE is OFF. When ON, always populate mood, condition, doing, private first-person thought, and stable traits through tracker-only inference from the turn, prior state, and characterization in every agency mode; use 2–4 stable traits and include evidence when available. This metadata never authorizes player behavior in prose. List every named on-stage NPC with a concise first-person thought limited to their knowledge.
 
 CANONICAL EXAMPLE (adapt):
 <vellum>
@@ -698,7 +698,7 @@ X — Final checks: state agency stop, time arithmetic, knowledge partition, dia
 Silently check agency, current reality, knowledge access, character motive, causal movement, and final deltas. Do not emit <reverie>.{{/if}}{{/if}}`, { group: CAT_FINAL, position: 'post_history' }),
 
   block('arg-state-final', 'State Compiler — Final', String.raw`{{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::lean}}}}}}[FINAL STATE COMPILER — LEAN, ATOMIC AND MANDATORY]
-Reserve ~700 output tokens and shorten prose before risking state. Compile established changes; PERSONA STATE alone permits tracker-only inference. Emit scene/present plus supported changes; omit empty sections except required parallel:[]. Put {{user}} first, blank when PERSONA STATE is OFF and fully populated in every agency mode when ON. Give each on-stage NPC a knowledge-limited first-person thought. Reconcile final T1 parallel: no present actor or stale origin, one final where/activity per actor. Require matching HH:MM/clock and reject day × 1440 + clock below T0. Here day is only the elapsed story-day count; a displayed calendar date is never serialized into it. Precompose the object; once <vellum> opens, finish valid JSON, </vellum>, and nothing after.
+Reserve ~700 output tokens and shorten prose before risking state. Compile established changes; PERSONA STATE permits tracker inference. Emit scene/present plus supported changes; omit empty sections except required parallel:[]. Put {{user}} first, blank when OFF and fully populated in every agency when ON. Give each on-stage NPC a knowledge-limited first-person thought. On turn 1/empty state, open one grounded thread plus a clear parent arc and set thread.arc to that exact title. Active Living World emits reconciled parallel plus scheduled offscreen changes. Require matching HH:MM/clock and A1≥A0; day is elapsed story days, never a calendar date. Precompose valid JSON, close </vellum>, and write nothing after.
 {{/if}}
 {{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::full}}}}}}[FINAL STATE COMPILER — FULL, ATOMIC AND MANDATORY]
 Before drafting prose, reserve the final ~900 output tokens for one complete state block. If the response budget becomes tight, shorten the prose; never abbreviate, omit, or truncate <vellum>. A Reverie T line, prose summary, planned JSON, empty object, or opening tag without the literal closing </vellum> does not satisfy this contract. The turn is incomplete until </vellum> has been emitted, with nothing after it.
@@ -738,13 +738,13 @@ When present NPC motives intersect, let them address and respond to one another 
 Preserve T0 only for OOC, static description, flashback, or an instant. Completed live speech/action that takes time advances at least one minute; never freeze active beats. Keep the elapsed story-day count unchanged unless prose establishes a time skip or crosses midnight. A displayed date such as October 17 is presentation, never permission to write day:17; add only proven elapsed days to T0. Compute A0/A1 as day × 1440 + clock; A1 < A0 is forbidden. An earlier wall clock alone is not proof of midnight; never manufacture a day advance to conceal a rollback.{{if::${inlineState}}} scene.time must be HH:MM and scene.clock the matching minutes.{{/if}}{{/if}}
 
 {{if::${inlineState}}}[PLOT LEDGER — DIRECT CHANGE FINAL GATE]
-Start with zero plot rows. Admit the exact title only when prior condition -> direct event in this prose -> changed condition. Mentions, shared people/themes/places, elapsed time, repetition, and unrelated beats fail. Stall needs a blocked attempt; resolve needs closure; arc advance needs a changed linked thread or structural milestone. One event cannot advance unrelated rows. Uncertain means omit and preserve prior state.
+Audit from turn 1. If empty, create one supported actionable thread and a clear parent arc; set thread.arc to the exact arc title. Otherwise use an exact existing title only for prior condition -> direct prose event -> changed condition. Mentions, shared people/themes/places, time, repetition, and unrelated beats fail. Stall needs a blocked attempt; resolve needs closure; arc advance needs a changed child or structural milestone. One event cannot advance unrelated rows. Uncertain means omit and preserve prior state.
 
 {{if::${parallelOn}}}[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]
 Carry every prior parallel row into final T1. Change it only from actor-specific proof: ADVANCE keeps location, MOVE needs travel and time, and main-scene facts need a delivered bridge. Exclude present actors; keep one final where/activity each; emit [] only when all rows resolve.{{/if}}{{/if}}
 
 {{if::${parallelOn}}}[DURABLE SUBPLOT AUTONOMY — ACTIVE FROM TURN ONE]
-The engine may originate grounded off-screen subplots without ((parallel)). Move one only when due. Living/Active handles two due rows and one new reversible line; Autonomous/Sandbox may handle four due rows and two independent lines. The current snapshot must remain visible when nothing is due. Social/Politics are hard ceilings; never author player choices, consent, or acts.{{/if}}
+The engine may originate grounded off-screen subplots without ((parallel)). In Inline Compatibility serialize them in delta.offscreen and mirror current activity in delta.parallel; in Engine Second Pass compile them separately. Move one only when due. Living/Active may handle two due rows and one new reversible line; Autonomous/Sandbox may handle four due rows and two independent lines. The current snapshot must remain visible when nothing is due. Social/Politics are ceilings; never author player choices, consent, or acts.{{/if}}
 
 {{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]
 In both Inline Compatibility and Engine Second Pass, every named or certain live speaker uses [spk=Exact Cast Name]"complete passage"[/spk]. Open it before the quote; keep narration outside; use one speaker per wrapper. Do not tag thought, documents, memory, signs, roles, pronouns, or uncertain speech. Before sending, scan every opening dialogue quote and repair bare eligible speech.{{/if}}
@@ -1218,7 +1218,8 @@ const enabledChars = blocks.filter((entry) => entry.enabled).reduce((total, entr
 // Raw storage contains both mutually-exclusive Lean and Full contracts. The
 // assembled default includes only Lean, so cap the serialized graph separately
 // from the runtime budget reported by VELLUM's macro-aware estimator.
-assert(Math.ceil(enabledChars / 4) <= 13800, `Serialized prompt graph too large: ${Math.ceil(enabledChars / 4)} estimated tokens`);
+const serializedPromptTokenLimit = 16_000;
+assert(Math.ceil(enabledChars / 4) <= serializedPromptTokenLimit, `Serialized prompt graph too large: ${Math.ceil(enabledChars / 4)} estimated tokens (limit ${serializedPromptTokenLimit})`);
 
 assert(new Set(regexScripts.map((entry) => entry.script_id)).size === regexScripts.length, 'Duplicate regex script id');
 assert(regexScripts.every((entry) => !entry.script_id.startsWith('vellum2-')), 'Inherited VELLUM II regex leaked into ARGENT');

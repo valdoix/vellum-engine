@@ -700,6 +700,20 @@ ${JSON.stringify(c.state)}
     expect(r.suggestions).toEqual([expect.objectContaining({ kind: 'thread', row: expect.objectContaining({ name: 'The Forged Letter' }) })]);
     expect(r.suggestions?.[0]?.reason).toContain('plot proof');
   });
+  it('accepts typographic evidence variants and derives redundant plot proof bookkeeping', () => {
+    const i = input();
+    i.prose = 'Mara says, “The forged letter is in the east-wing vault.”';
+    i.prior.threads = [{ id: 'thr_forged_letter', name: 'The Forged Letter', status: 'hidden', beats: ['Mara concealed the forged letter'], firstTurn: 1, lastTurn: 1 }];
+    const c: any = candidate();
+    c.state.delta.threads = [{ op: 'advance', name: 'The Forged Letter', note: 'The forged letter is in the east-wing vault.', evidence: '“The forged letter is in the east-wing vault.”' }];
+    c.evidence = [];
+    c.trackEvidence = [];
+    const r = salvageCompilation(c, i);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.candidate.trackEvidence).toEqual([expect.objectContaining({ targetId: 'thr_forged_letter', basis: 'direct_development' })]);
+    expect(r.candidate.evidence).toEqual([expect.objectContaining({ path: 'delta.threads.0' })]);
+  });
   it('fills omitted boilerplate and strips unsupported shape keys locally', () => {
     const c: any = candidate();
     delete c.parallelOps; delete c.parallelReviewed; delete c.evidence; delete c.trackEvidence; delete c.genesis;

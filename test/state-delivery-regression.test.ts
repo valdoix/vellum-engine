@@ -56,6 +56,12 @@ describe('repaired Chronicle state delivery', () => {
     expect(html).toContain('data-cview="world">World <span class="vle-n">1</span>');
   });
 
+  it('accepts suggested parent dependencies in the same transaction and resolves id aliases', () => {
+    expect(backend).toContain("acceptSuggestedTrack('arc', row.arc)");
+    expect(backend).toContain("kind: 'plot.suggest.drop', id: pending.id");
+    expect(backend).toContain('resolvePlotRef(rows, raw)');
+  });
+
   it('continues opening the plot ledger when an existing Chronicle has no tracks', () => {
     expect(STATE_COMPILER_SYSTEM).toContain('If prior has zero open threads');
     expect(STATE_COMPILER_SYSTEM).toContain('If prior has zero open arcs');

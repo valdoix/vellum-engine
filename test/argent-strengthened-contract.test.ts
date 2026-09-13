@@ -285,7 +285,7 @@ describe('ARGENT strengthened invariants', () => {
     expect(expanded).not.toContain('<vellum>');
     expect(expanded).not.toContain('through ext.codex');
     expect(expanded).not.toContain('through delta.factions');
-    expect(calculatePresetBudget(preset.blocks as any).totalTokens).toBeLessThanOrEqual(7500);
+    expect(calculatePresetBudget(preset.blocks as any).totalTokens).toBeLessThanOrEqual(8000);
   });
 
   it('enables causal NPC-to-NPC dialogue without weakening agency or knowledge', () => {

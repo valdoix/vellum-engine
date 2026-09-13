@@ -121,10 +121,30 @@ function compilerLorebookCanon(input: CompilerInput): LorebookCanonEntry[] {
 function lorebookQuoteEntry(entries: readonly LorebookCanonEntry[], quote: string): LorebookCanonEntry | undefined {
   const exact = String(quote ?? '').trim();
   if (!exact) return undefined;
-  return entries.find(entry => entry.content.includes(exact)
-    || entry.title?.includes(exact)
-    || entry.keys?.some(key => key.includes(exact))
-    || entry.secondaryKeys?.some(key => key.includes(exact)));
+  return entries.find(entry => sourceContainsEvidence(entry.content, exact)
+    || (entry.title ? sourceContainsEvidence(entry.title, exact) : false)
+    || entry.keys?.some(key => sourceContainsEvidence(key, exact))
+    || entry.secondaryKeys?.some(key => sourceContainsEvidence(key, exact)));
+}
+
+/** Evidence is authored text, not a byte protocol. Providers routinely preserve
+ * the exact words while changing curly quotes, dash width, non-breaking spaces,
+ * or line wrapping. Canonicalize only those presentation differences; word order
+ * and content still have to occur contiguously in the allowed source. */
+function evidenceText(value: unknown): string {
+  return String(value ?? '').normalize('NFKC')
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase();
+}
+
+function sourceContainsEvidence(source: unknown, quote: unknown): boolean {
+  const needle = evidenceText(quote);
+  return !!needle && evidenceText(source).includes(needle);
 }
 
 /** Final event-contract check for a strict compiler candidate. Validation says
@@ -357,7 +377,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   // (October 17 -> day:17) is repaired to the prior count rather than either
   // corrupting the Chronicle or discarding every other valid state update.
   const reportedDay = s.day;
-  const timeProof = c.evidence.find(e => e.path === 'scene.time' && (currentTurnSource.includes(e.quote) || !!lorebookEvidence(e.quote)));
+  const timeProof = c.evidence.find(e => e.path === 'scene.time' && (sourceContainsEvidence(currentTurnSource, e.quote) || !!lorebookEvidence(e.quote)));
   const proofAt = timeProof ? currentTurnSource.indexOf(timeProof.quote) : -1;
   const proofContext = proofAt >= 0
     ? currentTurnSource.slice(Math.max(0, proofAt - 80), Math.min(currentTurnSource.length, proofAt + timeProof!.quote.length + 80))
@@ -376,7 +396,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   if (h! * 60 + m! !== s.scene.clock) errors.push('time and clock disagree');
   if (s.day * 1440 + s.scene.clock < input.prior.day * 1440 + priorClock) errors.push('clock moves backward');
   const currentTurnEvidencePath = (path: string): boolean => path === 'scene.loc' || path === 'scene.time' || path.startsWith('present.add.') || path.startsWith('present.remove.');
-  const quoteAllowed = (path: string, quote: string): boolean => (currentTurnEvidencePath(path) ? currentTurnSource : input.prose).includes(quote)
+  const quoteAllowed = (path: string, quote: string): boolean => sourceContainsEvidence(currentTurnEvidencePath(path) ? currentTurnSource : input.prose, quote)
     || !!lorebookEvidence(quote);
   const needsEvidence = (path: string, changed: boolean, derived = false) => {
     if (changed && !derived && !c.evidence.some(e => e.path === path && quoteAllowed(path, e.quote))) errors.push(`missing evidence: ${path}`);
@@ -427,7 +447,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     if (input.personaState && e.path.startsWith('present.persona.')) {
       // Evidence is optional for tracker-only inference. If a compiler includes
       // it, still reject fabricated quotations.
-      const allowed = (input.userInput ?? '').includes(e.quote) || input.prose.includes(e.quote);
+      const allowed = sourceContainsEvidence(input.userInput ?? '', e.quote) || sourceContainsEvidence(input.prose, e.quote);
       if (!allowed) errors.push(`persona evidence is not a current-turn source quote: ${e.path}`);
     } else if (!quoteAllowed(e.path, e.quote)) errors.push(`evidence is not an allowed source quote: ${e.path}`);
     else {
@@ -563,11 +583,11 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     const proof = proofs.get(path);
     if (!proof) { errors.push(`missing plot proof: ${path}`); continue; }
     const quote = evidence.get(path);
-    if (!quote || proof.quote !== quote || !(input.prose.includes(proof.quote) || !!lorebookEvidence(proof.quote))) errors.push(`plot proof must reuse exact prose or lorebook evidence: ${path}`);
+    if (!quote || evidenceText(proof.quote) !== evidenceText(quote) || !(sourceContainsEvidence(input.prose, proof.quote) || !!lorebookEvidence(proof.quote))) errors.push(`plot proof must reuse prose or lorebook evidence: ${path}`);
     if (lorebookEvidence(proof.quote) && row.op !== 'new') errors.push(`lorebook baseline cannot advance or resolve an existing plot row: ${path}`);
     const note = String(row.note ?? '').trim();
     if (!note) errors.push(`plot change requires a concrete resulting condition: ${path}`);
-    else if (trackTitleKey(proof.after) !== trackTitleKey(note)) errors.push(`plot proof after must equal the plot note: ${path}`);
+    else if (evidenceText(proof.after) !== evidenceText(note)) errors.push(`plot proof after must equal the plot note: ${path}`);
     if (!allowedBasis(section, String(row.op)).has(proof.basis)) errors.push(`plot proof basis does not match ${section}.${row.op}: ${path}`);
 
     const priorList = section === 'threads' ? input.prior.threads : input.prior.arcs;
@@ -580,7 +600,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       else {
         if (proof.targetId !== target.id) errors.push(`plot proof target id mismatch: ${path}`);
         const before = trackBefore(target);
-        if (trackTitleKey(proof.before) !== trackTitleKey(before)) errors.push(`plot proof before does not match prior state: ${path}`);
+        const priorConditions = [before, target.status, ...target.beats.slice(-3)];
+        if (!priorConditions.some(condition => sameTransitionText(proof.before, condition))) errors.push(`plot proof before does not match prior state: ${path}`);
         if (note && row.op !== 'resolve' && sameTransitionText(before, note)) errors.push(`plot change does not alter the prior condition: ${path}`);
       }
     }
@@ -652,7 +673,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     if (operated.has(id)) errors.push(`duplicate parallel operation: ${id}`);
     operated.add(id);
     const previous = rows.get(id);
-    const proseQuote = input.prose.includes(op.evidence) ? op.evidence : '';
+    const proseQuote = sourceContainsEvidence(input.prose, op.evidence) ? op.evidence : '';
     const priorBacked = !proseQuote && op.op === 'start'
       && autonomousSupport.some(row => row.evidence === op.evidence
         && !!op.where && !!op.activity
@@ -694,7 +715,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   }
   const operatedWorld = new Set<string>();
   for (const op of c.parallelWorldOps ?? []) {
-    const proseQuote = input.prose.includes(op.evidence) ? op.evidence : '';
+    const proseQuote = sourceContainsEvidence(input.prose, op.evidence) ? op.evidence : '';
     if (!proseQuote) errors.push('parallel world operation lacks prose evidence');
     if (op.op === 'start') {
       if (op.priorActivity || op.priorWhere) errors.push('parallel world start cannot target a prior row');
@@ -873,6 +894,17 @@ function exactCompilerQuote(quote: string, source: string): string {
   return match?.[0] ?? quote;
 }
 
+/** Find an unambiguous provider-supplied field that is itself a contiguous
+ * current-turn excerpt. This fills bookkeeping the model omitted; it never
+ * manufactures a quotation or accepts a paraphrase as evidence. */
+function inferredRowEvidence(row: Record<string, any>, source: string): string {
+  for (const key of ['note', 'gist', 'memory', 'fact', 'event', 'why', 'was', 'activity', 'secret', 'nextStep', 'goal', 'what']) {
+    const value = typeof row[key] === 'string' ? row[key].trim() : '';
+    if (value && sourceContainsEvidence(source, value)) return value;
+  }
+  return '';
+}
+
 function compilerArray(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   return value === undefined || value === null ? [] : [value];
@@ -924,10 +956,26 @@ function normalizePlotProofRows(root: Record<string, any>, input: CompilerInput,
     rows.forEach((row: Record<string, any>, index: number) => {
       const path = `delta.${section}.${index}`;
       const target = prior.find(track => trackTitleKey(track.name) === trackTitleKey(String(row.name ?? '')));
-      const proof = root.trackEvidence.find((item: Record<string, any>) => item.path === path);
+      let proof = root.trackEvidence.find((item: Record<string, any>) => item.path === path);
       // `status:"open"` is a common snapshot spelling. The shared block
       // normalizer maps it to `new`; retarget it when that title already exists.
       if (target && row.op === 'new') row.op = 'advance';
+      const evidence = root.evidence?.find((item: Record<string, any>) => item.path === path);
+      if (!proof && evidence?.quote && row.note) {
+        const op = String(row.op ?? 'advance');
+        proof = {
+          path,
+          targetId: target ? target.id : 'new',
+          before: target ? trackBefore(target) : 'absent',
+          after: String(row.note),
+          quote: evidence.quote,
+          basis: op === 'new' ? 'new_open_question'
+            : op === 'resolve' ? 'closed_question'
+              : section === 'threads' && op === 'stall' ? 'blocked_attempt'
+                : section === 'threads' ? 'direct_development' : 'structural_milestone',
+        };
+        root.trackEvidence.push(proof);
+      }
       if (!proof) return;
       if (target) {
         if (!proof.targetId || proof.targetId === 'new' || proof.targetId === row.id) proof.targetId = target.id;
@@ -954,6 +1002,13 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
   const source = `${input.userInput ?? ''}\n${input.prose}`;
   const state = compilerRecord(root.state) ? root.state : {};
   normalizeStateBlockObject(state);
+  if (input.personaState && input.userName && Array.isArray(state.present)) {
+    for (const row of state.present) {
+      if (!compilerRecord(row)) continue;
+      const id = canonId(String(row.id ?? row.name ?? ''));
+      if (['vellum_persona', 'player', 'user', 'persona'].includes(id)) row.id = input.userName;
+    }
+  }
   root.state = state;
 
   const embeddedEvidence: Array<Record<string, unknown>> = [];
@@ -975,7 +1030,26 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
     compilerArray(rows).forEach((row, index) => remember(`ext.${section}.${index}`, row));
   }
   const explicitEvidence = normalizeEvidenceRows(root.evidence, source);
-  root.evidence = normalizeEvidenceRows([...explicitEvidence, ...embeddedEvidence], source);
+  const inferredEvidence: Array<Record<string, unknown>> = [];
+  if (compilerRecord(state.delta)) for (const [section, rows] of Object.entries(state.delta)) {
+    compilerArray(rows).forEach((row, index) => {
+      if (!compilerRecord(row)) return;
+      const path = `delta.${section}.${index}`;
+      if (explicitEvidence.some(entry => entry.path === path) || embeddedEvidence.some(entry => entry.path === path)) return;
+      const quote = inferredRowEvidence(row, source);
+      if (quote) inferredEvidence.push({ path, quote });
+    });
+  }
+  if (compilerRecord(state.ext)) for (const [section, rows] of Object.entries(state.ext)) {
+    compilerArray(rows).forEach((row, index) => {
+      if (!compilerRecord(row)) return;
+      const path = `ext.${section}.${index}`;
+      if (explicitEvidence.some(entry => entry.path === path) || embeddedEvidence.some(entry => entry.path === path)) return;
+      const quote = inferredRowEvidence(row, source);
+      if (quote) inferredEvidence.push({ path, quote });
+    });
+  }
+  root.evidence = normalizeEvidenceRows([...explicitEvidence, ...embeddedEvidence, ...inferredEvidence], source);
 
   for (const key of ['parallelOps', 'parallelWorldOps'] as const) {
     root[key] = compilerArray(root[key]).flatMap(value => {
@@ -990,10 +1064,16 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
   }
   root.parallelReviewed = compilerArray(root.parallelReviewed).map(value => String(value).trim()).filter(Boolean);
   normalizePlotProofRows(root, input, source);
+  // A valid trackEvidence quote is also the evidence for that same plot path.
+  // Providers need not duplicate it byte-for-byte in two sibling arrays.
+  root.evidence = normalizeEvidenceRows([
+    ...root.evidence,
+    ...root.trackEvidence.map((proof: Record<string, any>) => ({ path: proof.path, quote: proof.quote })),
+  ], source);
 }
 
 const COMPILER_STATE_KEYS = [
-  'v', 'turn', 'day', 'scene', 'currentScene', 'current_scene', 'present', 'charactersPresent', 'characters_present', 'roster',
+  'v', 'turn', 'day', 'scene', 'currentScene', 'current_scene', 'present', 'charactersPresent', 'characters_present', 'roster', 'persona', 'personaState', 'persona_state', 'playerState', 'player_state',
   'delta', 'ext', 'extensions', 'extension', 'bonds', 'relations', 'relationships', 'threads', 'plotThreads', 'plot_threads',
   'arcs', 'storyArcs', 'story_arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations',
   'faction_relations', 'parallel', 'parallelEvents', 'parallel_events', 'offscreen', 'offscreenEvents', 'offscreen_events', 'subplots',
@@ -1117,7 +1197,7 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     const source = entry.path === 'scene.loc' || entry.path === 'scene.time'
       || entry.path.startsWith('present.add.') || entry.path.startsWith('present.remove.')
       ? currentSource : input.prose;
-    return (source.includes(entry.quote) || !!lorebookQuoteEntry(selectedLorebook, entry.quote))
+    return (sourceContainsEvidence(source, entry.quote) || !!lorebookQuoteEntry(selectedLorebook, entry.quote))
       && rows.findIndex(other => other.path === entry.path) === index;
   });
   const evidenceFor = (path: string) => validEvidence.find(entry => entry.path === path);

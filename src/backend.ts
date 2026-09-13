@@ -74,6 +74,7 @@ import { scanOpeningLorebook, selectLorebookCanon, type LorebookCanonEntry } fro
 import { buildLorebookRecall, type LorebookRecallResult } from './retrieval/lorebook.js';
 import { TASK_ROLES, sanitizeModelRoutes, resolveTaskRoute, generationReasoning, type ModelRouteConfig, type TaskRole, type TaskRoute } from './domain/task-routing.js';
 import { auditChronicle } from './domain/workbench-health.js';
+import { plotRefMatches, resolvePlotRef } from './domain/plot-refs.js';
 
 function lorebookCanonEntries(entries: readonly LiteEntry[]): LorebookCanonEntry[] {
   return entries.map(entry => ({
@@ -3550,20 +3551,45 @@ const dispatch: Record<string, Handler> = {
     const day = state.day || 0;
     const base = () => ({ seq: nextSeqLocal(), turn, day, src: 'user' as const });
     const events: VellumEvent[] = [];
-    const resolveTrack = (rows: ChronicleState['threads'], raw: unknown) => {
-      const key = String(raw ?? '').trim().toLocaleLowerCase();
-      return key ? rows.find(item => item.id.toLocaleLowerCase() === key || item.name.toLocaleLowerCase() === key) : undefined;
+    let working = structuredClone(state);
+    const push = (event: VellumEvent): void => {
+      events.push(event);
+      working = reduce([event], working);
+    };
+    const resolveTrack = (rows: ChronicleState['threads'], raw: unknown) => resolvePlotRef(rows, raw);
+    // Accepting a child should be one durable transaction. If its exact parent
+    // is still in Suggested plots, materialize that dependency first; if the
+    // user already accepted it, the canonical resolver recognizes its title,
+    // reducer id, or common arc_/thread_ alias.
+    const acceptSuggestedTrack = (kind: 'thread' | 'arc', raw: unknown): ChronicleState['threads'][number] | undefined => {
+      const rows = kind === 'arc' ? working.arcs : working.threads;
+      const existing = resolveTrack(rows, raw);
+      if (existing) return existing;
+      const pending = (working.plotSuggestions ?? []).find(item => item.kind === kind && plotRefMatches(item.row, raw));
+      if (!pending) return undefined;
+      const pendingRow = pending.row as Record<string, any>;
+      const name = String(pendingRow.name ?? '').trim();
+      if (!name) return undefined;
+      const parent = kind === 'thread' && pendingRow.arc ? acceptSuggestedTrack('arc', pendingRow.arc) : undefined;
+      if (kind === 'thread' && pendingRow.arc && !parent) return undefined;
+      push({ ...base(), kind: 'thread.set', name,
+        status: pendingRow.op === 'resolve' ? 'resolved' : String(pendingRow.note ?? pendingRow.op ?? 'active'),
+        ...(pendingRow.note ? { note: String(pendingRow.note).slice(0, 500) } : {}),
+        ...(kind === 'arc' ? { kindArc: true } : {}), ...(parent ? { arc: parent.id } : {}),
+      } as VellumEvent);
+      push({ ...base(), kind: 'plot.suggest.drop', id: pending.id } as VellumEvent);
+      return resolveTrack(kind === 'arc' ? working.arcs : working.threads, name);
     };
     if (suggestion.kind === 'thread' || suggestion.kind === 'arc') {
       const name = String(row.name ?? '').trim();
       if (!name) return;
       const kindArc = suggestion.kind === 'arc';
-      const existing = resolveTrack(kindArc ? state.arcs : state.threads, row.id) ?? resolveTrack(kindArc ? state.arcs : state.threads, name);
-      const parent = !kindArc && row.arc ? resolveTrack(state.arcs, row.arc) : undefined;
+      const existing = resolveTrack(kindArc ? working.arcs : working.threads, row.id) ?? resolveTrack(kindArc ? working.arcs : working.threads, name);
+      const parent = !kindArc && row.arc ? acceptSuggestedTrack('arc', row.arc) : undefined;
       if (!kindArc && row.arc && !parent) {
         spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: false, reason: 'Accept the suggested parent arc first.' }, uid); return;
       }
-      events.push({ ...base(), kind: 'thread.set', ...(existing ? { id: existing.id } : {}), name,
+      push({ ...base(), kind: 'thread.set', ...(existing ? { id: existing.id } : {}), name,
         status: row.op === 'resolve' ? 'resolved' : String(row.note ?? row.op ?? 'active'),
         ...(row.note ? { note: String(row.note).slice(0, 500) } : {}), ...(kindArc ? { kindArc: true } : {}),
         ...(parent ? { arc: parent.id } : {}),
@@ -3574,13 +3600,13 @@ const dispatch: Record<string, Handler> = {
     } else {
       const id = String(row.id ?? '').trim(); const gist = String(row.gist ?? '').trim();
       if (!id || (!gist && row.op !== 'resolve')) return;
-      const linkedThread = row.thread ? resolveTrack(state.threads, row.thread) : undefined;
-      const linkedArc = row.arc ? resolveTrack(state.arcs, row.arc) : undefined;
+      const linkedArc = row.arc ? acceptSuggestedTrack('arc', row.arc) : undefined;
+      const linkedThread = row.thread ? acceptSuggestedTrack('thread', row.thread) : undefined;
       if (row.thread && !linkedThread) { spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: false, reason: 'Accept the suggested plot thread first.' }, uid); return; }
       if (row.arc && !linkedArc) { spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: false, reason: 'Accept the suggested parent arc first.' }, uid); return; }
       const whoName = String(row.who ?? '').trim(); const who = whoName ? canonId(whoName) : '';
-      if (who && !state.cast[who]) events.push({ ...base(), kind: 'cast.seen', id: who, name: whoName, status: 'active' } as VellumEvent);
-      events.push({ ...base(), kind: 'offscreen.op', op: row.op === 'resolve' ? 'resolve' : (state.offscreen.some(item => item.id === id) ? 'advance' : 'new'), id,
+      if (who && !working.cast[who]) push({ ...base(), kind: 'cast.seen', id: who, name: whoName, status: 'active' } as VellumEvent);
+      push({ ...base(), kind: 'offscreen.op', op: row.op === 'resolve' ? 'resolve' : (working.offscreen.some(item => item.id === id) ? 'advance' : 'new'), id,
         ...(row.name ? { name: String(row.name) } : {}), ...(who ? { who } : {}), ...(row.where ? { where: String(row.where) } : {}), ...(gist ? { gist } : {}),
         ...(linkedThread ? { thread: linkedThread.id } : {}), ...(row.pressure !== undefined ? { pressure: Number(row.pressure) } : {}),
         ...(Array.isArray(row.hooks) ? { hooks: row.hooks.map(String).slice(0, 6) } : {}), ...(row.stakes ? { stakes: String(row.stakes) } : {}),
@@ -3590,9 +3616,9 @@ const dispatch: Record<string, Handler> = {
         ...(Array.isArray(row.dependsOn) ? { dependsOn: row.dependsOn.map(String) } : {}), ...(Array.isArray(row.blockedBy) ? { blockedBy: row.blockedBy.map(String) } : {}),
         ...(row.trigger ? { trigger: String(row.trigger) } : {}),
       } as VellumEvent);
-      if (linkedThread && linkedArc) events.push({ ...base(), kind: 'thread.set', id: linkedThread.id, name: linkedThread.name, arc: linkedArc.id } as VellumEvent);
+      if (linkedThread && linkedArc) push({ ...base(), kind: 'thread.set', id: linkedThread.id, name: linkedThread.name, arc: linkedArc.id } as VellumEvent);
     }
-    events.push({ ...base(), kind: 'plot.suggest.drop', id: suggestion.id } as VellumEvent);
+    if (working.plotSuggestions.some(item => item.id === suggestion.id)) push({ ...base(), kind: 'plot.suggest.drop', id: suggestion.id } as VellumEvent);
     await append(chatId, events);
     invalidateIndex(chatId); await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: true, action: 'accepted' }, uid);

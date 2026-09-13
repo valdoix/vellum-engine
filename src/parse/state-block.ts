@@ -18,7 +18,7 @@ const FENCES: Array<[string, string]> = [
   ['[VELLUM]', '[/VELLUM]'],
 ];
 
-const SCHEMA_KEY = /"(?:delta|scene|present|turn|day|threads|plotThreads|plot_threads|arcs|storyArcs|story_arcs|parallel|parallelEvents|parallel_events|offscreen|offscreenEvents|offscreen_events|subplots)"/;
+const SCHEMA_KEY = /"(?:delta|scene|present|persona|personaState|persona_state|playerState|player_state|turn|day|threads|plotThreads|plot_threads|arcs|storyArcs|story_arcs|parallel|parallelEvents|parallel_events|offscreen|offscreenEvents|offscreen_events|subplots)"/;
 
 function extractFenced(content: string): string | null {
   const candidates: Array<{ body: string; at: number }> = [];
@@ -700,6 +700,20 @@ function normalizeBlockAliases(obj: Record<string, unknown>): void {
   alias(obj, 'scene', ['currentScene', 'current_scene']);
   alias(obj, 'present', ['charactersPresent', 'characters_present', 'roster']);
   alias(obj, 'ext', ['extensions', 'extension']);
+  // Some Inline Compatibility models correctly produce the opted-in private
+  // tracker but place it in a dedicated persona/player object. Merge that row
+  // into the canonical present roster instead of silently stripping it.
+  const personaKey = ['personaState', 'persona_state', 'playerState', 'player_state', 'persona']
+    .find(key => obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key]));
+  if (personaKey) {
+    const persona = obj[personaKey] as Record<string, unknown>;
+    if (persona.id === undefined && persona.name === undefined && persona.who === undefined && persona.character === undefined) persona.id = '__vellum_persona__';
+    const present = Array.isArray(obj.present) ? obj.present : obj.present && typeof obj.present === 'object' ? [obj.present] : [];
+    const personaId = String(persona.id ?? persona.name ?? persona.who ?? persona.character ?? '').trim().toLocaleLowerCase();
+    if (!present.some(value => value && typeof value === 'object' && String((value as Record<string, unknown>).id ?? (value as Record<string, unknown>).name ?? '').trim().toLocaleLowerCase() === personaId)) present.unshift(persona);
+    obj.present = present;
+    delete obj[personaKey];
+  }
   const delta = obj.delta && typeof obj.delta === 'object' && !Array.isArray(obj.delta)
     ? obj.delta as Record<string, unknown>
     : undefined;
