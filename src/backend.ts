@@ -70,7 +70,7 @@ import { assessVellumStateContract, VELLUM_STATE_BLOCK_CONTENT } from './domain/
 import { formatDryRunMessages, visiblePreviewContent } from './domain/preset-preview.js';
 import { reduce } from './core/reduce.js';
 import { dialogueMarkupGuidance, repairDialogueSpeakerTags, type DialogueIdentity } from './domain/dialogue-colors.js';
-import { selectLorebookCanon, type LorebookCanonEntry } from './domain/lorebook-canon.js';
+import { scanOpeningLorebook, selectLorebookCanon, type LorebookCanonEntry } from './domain/lorebook-canon.js';
 import { buildLorebookRecall, type LorebookRecallResult } from './retrieval/lorebook.js';
 import { TASK_ROLES, sanitizeModelRoutes, resolveTaskRoute, generationReasoning, type ModelRouteConfig, type TaskRole, type TaskRoute } from './domain/task-routing.js';
 import { auditChronicle } from './domain/workbench-health.js';
@@ -533,8 +533,48 @@ async function ensureOpeningScene(chatId: string): Promise<void> {
   if (log.events.some(event => event.kind === 'scene.open')) return;
   const messages = await getRawMessages(chatId).catch(() => []);
   const hasAssistant = Array.isArray(messages) && messages.some((message: any) => String(message?.role ?? '').toLowerCase() === 'assistant' && String(message?.content ?? '').trim());
-  if (hasAssistant || log.events.length) return;
+  // Turn-zero configuration or lorebook scan events are not a started story.
+  // Only an assistant response/turn fold should suppress the pending opener.
+  if (hasAssistant || log.events.some(event => event.kind === 'turn.fold')) return;
   await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'system', kind: 'scene.open', id: 'scn_0_' + hashStr(chatId).slice(0, 8), reason: 'new_chat', pending: true } as VellumEvent]);
+}
+
+function mergeLoreEntries(...groups: readonly LiteEntry[][]): LiteEntry[] {
+  const rows = new Map<string, LiteEntry>();
+  for (const group of groups) for (const entry of group) {
+    const key = `${entry.bookId}\u0000${entry.id}`;
+    if (!rows.has(key)) rows.set(key, entry);
+  }
+  return [...rows.values()];
+}
+
+/** Before the first response, turn explicitly current lorebook situations into
+ * confirmed world canon and register relevant named characters as mentioned.
+ * The scan is deterministic and idempotent; it never treats lore text as an
+ * instruction or places a character on stage. */
+async function seedOpeningLorebook(chatId: string, entries: readonly LiteEntry[], messages: readonly any[]): Promise<number> {
+  if (!entries.length) return 0;
+  const state = await loadState(chatId);
+  if (state.turns) return 0;
+  const scan = scanOpeningLorebook(lorebookCanonEntries(entries), sceneFocusQuery(messages));
+  if (!scan.situations.length && !scan.characters.length) return 0;
+  const log = await loadLog(chatId);
+  const loreIds = new Set(log.events.filter(event => event.kind === 'lore.note').map(event => event.id));
+  const castIds = new Set(Object.keys(state.cast));
+  const events: VellumEvent[] = [];
+  for (const row of scan.situations) {
+    if (loreIds.has(row.id)) continue;
+    loreIds.add(row.id);
+    events.push({ seq: nextSeqLocal(), turn: 0, day: state.day || 0, src: 'scan', kind: 'lore.note', id: row.id, fact: row.fact, tag: row.tag, source: 'auto', status: 'confirmed' } as VellumEvent);
+  }
+  for (const row of scan.characters) {
+    const id = canonId(row.name);
+    if (!id || castIds.has(id)) continue;
+    castIds.add(id);
+    events.push({ seq: nextSeqLocal(), turn: 0, day: state.day || 0, src: 'scan', kind: 'cast.seen', id, name: row.name, status: 'mentioned' } as VellumEvent);
+  }
+  if (events.length) await append(chatId, events);
+  return events.length;
 }
 
 async function openForkScene(chatId: string): Promise<void> {
@@ -570,7 +610,8 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   ]);
   // Read attached lore once for this fold. It is objective world canon for the
   // compiler, while actor knowledge remains governed by the Chronicle ledger.
-  let lorebookCanon = lorebookCanonEntries(attached);
+  const activeLore = _activeLoreByUserChat.get(userChatKey(userId, chatId)) ?? [];
+  let lorebookCanon = lorebookCanonEntries(mergeLoreEntries(attached, activeLore));
   let parallelCanonLabels = lorebookParallelLabels(lorebookCanon);
   const userCanon = names.user ? canonId(names.user) : '';
   // Social and Politics autonomy are independent user-facing ways to turn on
@@ -1237,6 +1278,10 @@ const _presetByUserChat = new Map<string, string>();
 const _turnContractByUserChat = new Map<string, TurnContract>();
 const _turnAgencyByUserChat = new Map<string, TurnAgencyLedger>();
 const _personaIdByUserChat = new Map<string, string>();
+/** Exact active lore scope captured by the interceptor for the generation that
+ * Engine Pass will compile. This includes character/persona/global lorebooks,
+ * not only books attached directly to the chat. */
+const _activeLoreByUserChat = new Map<string, LiteEntry[]>();
 const TURN_CONTRACT_CHAT_VAR = 'vellum_active_turn_contract_v1';
 const TURN_AGENCY_CHAT_VAR = 'vellum_turn_agency_v1';
 const PRESET_STAMP_THROTTLE = 5 * 60 * 1000; // stamp at most once per 5 minutes per chat
@@ -2201,7 +2246,16 @@ async function wireCapabilitiesInner(): Promise<void> {
               await setChatVar(chatId, TURN_CONTRACT_CHAT_VAR, '');
             }
           }
-          const state = await loadState(chatId);
+          let state = await loadState(chatId);
+          if (!context.isDryRun && !state.turns) {
+            // Establish the pending scene before scan events so turn-zero canon
+            // can never make ensureOpeningScene mistake the chat for a started one.
+            await ensureOpeningScene(chatId);
+            const openingLore = await activeLorePromise;
+            _activeLoreByUserChat.set(contractKey, openingLore.slice());
+            await seedOpeningLorebook(chatId, openingLore, out);
+            state = await loadState(chatId);
+          }
           const sceneCommandText = sceneIntentInjection(sceneCommandIntent, state);
           parallelCommandText = parallelCommandInjection(rawOut, state, turnContract?.vtkCards ? (turnContract.argent ? 'artifact' : 'vtk') : 'plain');
           parallelText = parallelCommandText;
@@ -2301,6 +2355,7 @@ async function wireCapabilitiesInner(): Promise<void> {
             getChatVar(chatId, 'vellum_block_example').catch(() => ''),
             activeLorePromise,
           ]);
+          if (!context.isDryRun) _activeLoreByUserChat.set(contractKey, activeLore.slice());
           const tmode = tmodeRaw === 'tree' ? 'tree' : 'flat';
           // Controller-guided traversal (variant A), opt-in per chat. Builds a
           // CallModel backed by a cheap, timeout-bounded controller generation;
@@ -2532,6 +2587,7 @@ function pruneChatState(chatId: string): void {
   for (const key of _turnContractByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _turnContractByUserChat.delete(key);
   for (const key of _turnAgencyByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _turnAgencyByUserChat.delete(key);
   for (const key of _personaIdByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _personaIdByUserChat.delete(key);
+  for (const key of _activeLoreByUserChat.keys()) if (key.endsWith('\u0000' + chatId)) _activeLoreByUserChat.delete(key);
   // clear this chat's block-repair attempt keys (keyed by chatId\0messageId)
   const rp = chatId + '\u0000';
   for (const k of _blockRepairAttempts) if (k.startsWith(rp)) _blockRepairAttempts.delete(k);

@@ -93,6 +93,51 @@ describe('strict pre-commit state compiler', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors).toContain('new scene requires scene.title');
   });
+  it('accepts current opening-scene and Codex evidence copied from an active lorebook', () => {
+    const prior = freshState();
+    prior.scene = { id: 'scn_pending', reason: 'new_chat', pending: true, location: '', time: '', tension: 0, weather: '', present: [], detail: [] };
+    const lore = 'At present, the resurrection site is the Sunnydale cemetery, and it is still night.';
+    const i: CompilerInput = {
+      prior, turn: 1, prose: 'Smoke drifts between the headstones.', userName: 'Player', genesisAllowed: false,
+      lorebookCanon: [{ id: 'opening', bookId: 'buffy', title: 'Current Situation', category: 'scenario', content: lore }],
+    };
+    const c: StateCandidate = {
+      state: {
+        turn: 1, day: 0,
+        scene: { title: 'Ash Among the Headstones', transition: 'scene', loc: 'Sunnydale cemetery', time: '03:05', clock: 185 },
+        present: [], delta: {}, ext: { codex: [{ op: 'add', fact: 'The resurrection site is the Sunnydale cemetery.', tag: 'opening situation' }] },
+      },
+      parallelOps: [], parallelWorldOps: [], parallelReviewed: [],
+      evidence: [
+        { path: 'scene.loc', quote: 'Sunnydale cemetery' },
+        { path: 'scene.time', quote: 'still night' },
+        { path: 'ext.codex.0', quote: 'the resurrection site is the Sunnydale cemetery' },
+      ],
+      trackEvidence: [], genesis: false,
+    };
+    const result = validateCompilation(c, i);
+    expect(result.ok).toBe(true);
+  });
+  it('accepts a new plot baseline from lorebook canon but never treats it as later progress', () => {
+    const i = input();
+    const quote = 'At present, the sealed Moon Gate cannot open until Mara finds the silver key.';
+    i.lorebookCanon = [{ id: 'moon-plot', bookId: 'world', title: 'Current Plot', category: 'plot', content: quote }];
+    const c = candidate();
+    c.state.delta.threads = [{ op: 'new', name: 'Open the Moon Gate', note: 'The sealed Moon Gate remains closed until Mara finds the silver key.' }];
+    c.evidence.push({ path: 'delta.threads.0', quote });
+    c.trackEvidence.push({
+      path: 'delta.threads.0', targetId: 'new', before: 'absent', after: 'The sealed Moon Gate remains closed until Mara finds the silver key.',
+      quote, basis: 'new_open_question',
+    });
+    expect(validateCompilation(c, i).ok).toBe(true);
+
+    i.prior.threads = [{ id: 'thr_moon', name: 'Open the Moon Gate', status: 'open', beats: ['The gate is sealed.'], firstTurn: 1, lastTurn: 1 }];
+    c.state.delta.threads = [{ op: 'advance', name: 'Open the Moon Gate', note: 'The sealed Moon Gate remains closed until Mara finds the silver key.' }];
+    c.trackEvidence[0] = { ...c.trackEvidence[0]!, targetId: 'thr_moon', before: 'The gate is sealed.', basis: 'direct_development' };
+    const rejected = validateCompilation(c, i);
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) expect(rejected.errors).toContain('lorebook baseline cannot advance or resolve an existing plot row: delta.threads.0');
+  });
   it('requires and accepts a complete opted-in persona snapshot in every agency mode without evidence', () => {
     const i = input();
     i.personaState = true;

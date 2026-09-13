@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { selectLorebookCanon } from '../src/domain/lorebook-canon.js';
+import { scanOpeningLorebook, selectLorebookCanon } from '../src/domain/lorebook-canon.js';
 
 describe('attached lorebook canon selection', () => {
   it('keeps constant canon and ranks keyed live-story matches ahead of unrelated entries', () => {
@@ -18,5 +18,20 @@ describe('attached lorebook canon selection', () => {
     expect(selected.length).toBeLessThanOrEqual(3);
     expect(selected.every(entry => entry.content.length <= 2400)).toBe(true);
     expect(selected.reduce((sum, entry) => sum + entry.content.length + 32, 0)).toBeLessThanOrEqual(3000);
+  });
+});
+
+describe('opening lorebook scan', () => {
+  it('records explicitly current situations and only their relevant characters', () => {
+    const scan = scanOpeningLorebook([
+      { id: 'opening', bookId: 'buffy', title: 'Current Situation', category: 'scenario', content: 'At present, Buffy Summers has just climbed from her grave while Willow Rosenberg flees the cemetery.' },
+      { id: 'buffy', bookId: 'buffy', title: 'Buffy Summers', category: 'characters', keys: ['Buffy Summers'], content: 'She is the Slayer and recently returned from death.' },
+      { id: 'willow', bookId: 'buffy', title: 'Willow Rosenberg', category: 'characters', keys: ['Willow Rosenberg'], content: 'She is a powerful witch.' },
+      { id: 'giles', bookId: 'buffy', title: 'Rupert Giles', category: 'characters', keys: ['Rupert Giles'], content: 'He is a Watcher living abroad.' },
+      { id: 'old', bookId: 'buffy', title: 'Ancient History', content: 'A battle happened centuries ago.' },
+    ], 'Open at the Sunnydale cemetery with Buffy Summers.');
+    expect(scan.situations).toEqual([expect.objectContaining({ fact: expect.stringContaining('has just climbed') })]);
+    expect(scan.characters.map(row => row.name)).toEqual(['Buffy Summers', 'Willow Rosenberg']);
+    expect(scan.characters.map(row => row.name)).not.toContain('Rupert Giles');
   });
 });

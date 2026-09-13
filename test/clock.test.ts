@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseClock, clockLabel, clockTime, completedElapsedMinutes, elapsedClockFloor, hasImplicitLivePassage, liveTurnClockFloor, detectBackwardClock, explicitElapsedMinutes, hasDayAdvanceCue, rollover,
+  parseClock, clockEvidenceAgrees, clockLabel, clockTime, completedElapsedMinutes, elapsedClockFloor, hasImplicitLivePassage, liveTurnClockFloor, detectBackwardClock, explicitElapsedMinutes, hasDayAdvanceCue, rollover,
   supportsDayAdvance,
   reconcileDay, CLOCK_SLOTS, DAY_JUMP_LIMIT,
 } from '../src/domain/clock.js';
@@ -26,6 +26,20 @@ describe('parseClock', () => {
     expect(parseClock('')).toBeUndefined();
     expect(parseClock(undefined)).toBeUndefined();
     expect(parseClock('a while later')).toBeUndefined();
+  });
+});
+
+describe('clock evidence periods', () => {
+  it('treats night as a wrapping period rather than the single point 22:00', () => {
+    expect(clockEvidenceAgrees('It is still night.', 3 * 60 + 5)).toBe(true);
+    expect(clockEvidenceAgrees('It is still night.', 14 * 60)).toBe(false);
+  });
+
+  it('keeps explicit clocks precise enough to catch a contradictory endpoint', () => {
+    expect(clockEvidenceAgrees('At 2:47 AM', 3 * 60 + 5)).toBe(true);
+    expect(clockEvidenceAgrees('It was three in the morning.', 3 * 60 + 5)).toBe(true);
+    expect(clockEvidenceAgrees('It was 3 a.m.', 3 * 60 + 5)).toBe(true);
+    expect(clockEvidenceAgrees('At 2:47 AM', 12 * 60)).toBe(false);
   });
 });
 

@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { ParsedState } from '../parse/parsed.js';
 import { canonId, hashStr } from '../core/ids.js';
-import { clockTime, elapsedClockFloor, liveTurnClockFloor, parseClock, reconcileDay, supportsDayAdvance } from './clock.js';
+import { clockEvidenceAgrees, clockTime, elapsedClockFloor, liveTurnClockFloor, parseClock, reconcileDay, supportsDayAdvance } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 import type { ChronicleState } from './types.js';
 import type { VellumEvent } from '../core/events.js';
-import type { LorebookCanonEntry } from './lorebook-canon.js';
+import { isCurrentSituationLore, selectLorebookCanon, type LorebookCanonEntry } from './lorebook-canon.js';
 import { normalizeSecretAudience } from './secret-audience.js';
 import { cleanSceneTitle, proseSceneHeader } from './scene-transition.js';
 import {
@@ -110,6 +110,21 @@ export type CompilerInput = {
 export interface CompilationSuggestion { id: string; kind: 'thread' | 'arc' | 'offscreen'; row: Record<string, unknown>; reason: string }
 export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[]; suggestions?: CompilationSuggestion[] } | { ok: false; errors: string[]; draft?: unknown; fragment?: string };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
+
+function compilerLorebookCanon(input: CompilerInput): LorebookCanonEntry[] {
+  const p = input.prior;
+  const focus = `${input.userInput ?? ''}\n${input.prose}\n${p.scene.location}\n${p.scene.present.map(id => p.cast[id]?.name ?? id).join(' ')}`.toLocaleLowerCase();
+  return selectLorebookCanon(input.lorebookCanon ?? [], focus);
+}
+
+function lorebookQuoteEntry(entries: readonly LorebookCanonEntry[], quote: string): LorebookCanonEntry | undefined {
+  const exact = String(quote ?? '').trim();
+  if (!exact) return undefined;
+  return entries.find(entry => entry.content.includes(exact)
+    || entry.title?.includes(exact)
+    || entry.keys?.some(key => key.includes(exact))
+    || entry.secondaryKeys?.some(key => key.includes(exact)));
+}
 
 /** Final event-contract check for a strict compiler candidate. Validation says
  * a row is true; this check says extraction actually represented it. It runs
@@ -303,12 +318,27 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   if (s.turn !== input.turn) errors.push('turn must equal the engine turn');
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
   const currentTurnSource = `${input.userInput ?? ''}\n${input.prose}`;
+  const lorebookCanon = compilerLorebookCanon(input);
+  const lorebookEvidence = (quote: string): LorebookCanonEntry | undefined => lorebookQuoteEntry(lorebookCanon, quote);
   const visibleHeader = proseSceneHeader(input.prose);
   // Legacy Chronicles can lack a scene id even after many turns. Do not turn
   // that migration gap into a permanent title-validation failure; only the
   // actual first compiler turn or an explicit pending opener is mandatory.
   const openingScene = input.prior.scene.pending === true || (input.turn <= 1 && !input.prior.scene.id);
   const opensBoundary = openingScene || s.scene.transition === 'scene' || s.scene.transition === 'time_skip';
+  const lorebookPathAllowed = (path: string, entry: LorebookCanonEntry): boolean => {
+    if ((path === 'scene.loc' || path === 'scene.time') && openingScene) return isCurrentSituationLore(entry);
+    const match = path.match(/^delta\.(threads|arcs|offscreen)\.(\d+)$/);
+    if (match) {
+      const row = (s.delta as Record<string, Array<Record<string, unknown>> | undefined>)[match[1]!]?.[Number(match[2])];
+      if (row?.op !== 'new') return false;
+      return match[1] !== 'offscreen' || isCurrentSituationLore(entry);
+    }
+    if (/^delta\.(factions|factionRelations)\.\d+$/.test(path)) return true;
+    if (/^ext\.(codex|timeline|introduction|plant)\.\d+$/.test(path)) return true;
+    if (/^ext\.(intent|affect|inventory)\.\d+$/.test(path)) return isCurrentSituationLore(entry);
+    return false;
+  };
   if (opensBoundary && !cleanSceneTitle(s.scene.title)) errors.push('new scene requires scene.title');
   if (visibleHeader && cleanSceneTitle(s.scene.title) !== visibleHeader.title) errors.push('scene.title must match the visible scene header');
   // A time cut in the latest player input is part of this turn even when the
@@ -326,7 +356,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   // (October 17 -> day:17) is repaired to the prior count rather than either
   // corrupting the Chronicle or discarding every other valid state update.
   const reportedDay = s.day;
-  const timeProof = c.evidence.find(e => e.path === 'scene.time' && currentTurnSource.includes(e.quote));
+  const timeProof = c.evidence.find(e => e.path === 'scene.time' && (currentTurnSource.includes(e.quote) || !!lorebookEvidence(e.quote)));
   const proofAt = timeProof ? currentTurnSource.indexOf(timeProof.quote) : -1;
   const proofContext = proofAt >= 0
     ? currentTurnSource.slice(Math.max(0, proofAt - 80), Math.min(currentTurnSource.length, proofAt + timeProof!.quote.length + 80))
@@ -337,22 +367,18 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   s.day = dayReconcile.day;
   const recoveredDayCount = s.day !== reportedDay;
   // A quote that names a recognizable time of day must support the compiled
-  // endpoint, not merely exist somewhere in the turn. The old presence-only
-  // check accepted `quote: "Morning"` for a 22:00/night candidate. Keep a wide
-  // four-hour tolerance for coarse prose labels (dawn/early morning), while
-  // rejecting a contradictory part of day.
-  const proofClock = timeProof ? parseClock(timeProof.quote) : undefined;
-  if (proofClock !== undefined) {
-    const clockDistance = Math.min(Math.abs(proofClock - s.scene.clock), 1440 - Math.abs(proofClock - s.scene.clock));
-    if (clockDistance > 240) errors.push('scene.time evidence disagrees with compiled clock');
-  }
+  // endpoint, not merely exist somewhere in the turn. Coarse labels use broad,
+  // wrapping periods (03:05 is night); explicit HH:MM remains precise enough to
+  // reject a genuinely contradictory endpoint.
+  if (timeProof && !clockEvidenceAgrees(timeProof.quote, s.scene.clock)) errors.push('scene.time evidence disagrees with compiled clock');
   const [h, m] = s.scene.time.split(':').map(Number);
   if (h! * 60 + m! !== s.scene.clock) errors.push('time and clock disagree');
   if (s.day * 1440 + s.scene.clock < input.prior.day * 1440 + priorClock) errors.push('clock moves backward');
   const currentTurnEvidencePath = (path: string): boolean => path === 'scene.loc' || path === 'scene.time' || path.startsWith('present.add.') || path.startsWith('present.remove.');
-  const evidenceSource = (path: string): string => currentTurnEvidencePath(path) ? currentTurnSource : input.prose;
+  const quoteAllowed = (path: string, quote: string): boolean => (currentTurnEvidencePath(path) ? currentTurnSource : input.prose).includes(quote)
+    || !!lorebookEvidence(quote);
   const needsEvidence = (path: string, changed: boolean, derived = false) => {
-    if (changed && !derived && !c.evidence.some(e => e.path === path && evidenceSource(path).includes(e.quote))) errors.push(`missing evidence: ${path}`);
+    if (changed && !derived && !c.evidence.some(e => e.path === path && quoteAllowed(path, e.quote))) errors.push(`missing evidence: ${path}`);
   };
   needsEvidence('scene.loc', s.scene.loc !== input.prior.scene.location);
   needsEvidence('scene.time', s.day !== input.prior.day || s.scene.clock !== input.prior.scene.clock, flooredClock.inferred);
@@ -402,7 +428,13 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       // it, still reject fabricated quotations.
       const allowed = (input.userInput ?? '').includes(e.quote) || input.prose.includes(e.quote);
       if (!allowed) errors.push(`persona evidence is not a current-turn source quote: ${e.path}`);
-    } else if (!evidenceSource(e.path).includes(e.quote)) errors.push(`evidence is not an allowed source quote: ${e.path}`);
+    } else if (!quoteAllowed(e.path, e.quote)) errors.push(`evidence is not an allowed source quote: ${e.path}`);
+    else {
+      const lore = lorebookEvidence(e.quote);
+      if (lore && !(currentTurnEvidencePath(e.path) ? currentTurnSource : input.prose).includes(e.quote) && !lorebookPathAllowed(e.path, lore)) {
+        errors.push(`lorebook evidence cannot establish this kind of change: ${e.path}`);
+      }
+    }
   }
   for (const [section, rows] of Object.entries(s.delta)) {
     if (!Array.isArray(rows)) continue;
@@ -530,7 +562,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     const proof = proofs.get(path);
     if (!proof) { errors.push(`missing plot proof: ${path}`); continue; }
     const quote = evidence.get(path);
-    if (!quote || proof.quote !== quote || !input.prose.includes(proof.quote)) errors.push(`plot proof must reuse exact prose evidence: ${path}`);
+    if (!quote || proof.quote !== quote || !(input.prose.includes(proof.quote) || !!lorebookEvidence(proof.quote))) errors.push(`plot proof must reuse exact prose or lorebook evidence: ${path}`);
+    if (lorebookEvidence(proof.quote) && row.op !== 'new') errors.push(`lorebook baseline cannot advance or resolve an existing plot row: ${path}`);
     const note = String(row.note ?? '').trim();
     if (!note) errors.push(`plot change requires a concrete resulting condition: ${path}`);
     else if (trackTitleKey(proof.after) !== trackTitleKey(note)) errors.push(`plot proof after must equal the plot note: ${path}`);
@@ -879,11 +912,13 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
   if (direct.ok) return shapeRecovered ? { ...direct, recovered: ['candidate shape'] } : direct;
 
   const currentSource = `${input.userInput ?? ''}\n${input.prose}`;
+  const selectedLorebook = compilerLorebookCanon(input);
   const validEvidence = original.evidence.filter((entry, index, rows) => {
     const source = entry.path === 'scene.loc' || entry.path === 'scene.time'
       || entry.path.startsWith('present.add.') || entry.path.startsWith('present.remove.')
       ? currentSource : input.prose;
-    return source.includes(entry.quote) && rows.findIndex(other => other.path === entry.path) === index;
+    return (source.includes(entry.quote) || !!lorebookQuoteEntry(selectedLorebook, entry.quote))
+      && rows.findIndex(other => other.path === entry.path) === index;
   });
   const evidenceFor = (path: string) => validEvidence.find(entry => entry.path === path);
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;

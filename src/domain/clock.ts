@@ -68,6 +68,57 @@ export function parseClock(time: string | undefined): number | undefined {
   return undefined;
 }
 
+/** Whether a time-bearing evidence excerpt is compatible with a compiled
+ * endpoint. Exact clocks use a generous tolerance because a scene can continue
+ * after the quoted instant. Coarse prose labels are spans, not point estimates:
+ * 03:05 is still "night" although the legacy display centre is 22:00. */
+export function clockEvidenceAgrees(evidence: string | undefined, minutes: number, exactTolerance = 240): boolean {
+  if (!evidence || !Number.isFinite(minutes)) return true;
+  const raw = String(evidence).normalize('NFKC').toLocaleLowerCase();
+  const exact = raw.match(/\b(\d{1,2})(?::(\d{2}))\s*(a\.?m\.?|p\.?m\.?)?\b|\b(\d{1,2})\s*(a\.?m\.?|p\.?m\.?)\b/);
+  if (exact) {
+    let hour = Number(exact[1] ?? exact[4]);
+    const minute = Number(exact[2] ?? 0);
+    const meridiem = String(exact[3] ?? exact[5] ?? '').replace(/\./g, '');
+    if (hour <= 24 && minute < 60) {
+      if (meridiem === 'pm' && hour < 12) hour += 12;
+      else if (meridiem === 'am' && hour === 12) hour = 0;
+      const proof = (hour % 24) * 60 + minute;
+      const distance = Math.min(Math.abs(proof - minutes), 1440 - Math.abs(proof - minutes));
+      return distance <= exactTolerance;
+    }
+  }
+
+  const hourWords: Readonly<Record<string, number>> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+    seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  };
+  const natural = raw.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})\s*(?:o['’]?clock\s*)?(?:in\s+the\s+|at\s+)?(morning|afternoon|evening|night)\b/);
+  if (natural) {
+    let hour = /^\d+$/.test(natural[1]!) ? Number(natural[1]) : hourWords[natural[1]!]!;
+    const period = natural[2]!;
+    if (period === 'morning') hour = hour === 12 ? 0 : hour;
+    else if (period === 'night') hour = hour >= 1 && hour <= 5 ? hour : hour === 12 ? 0 : hour + 12;
+    else if (hour < 12) hour += 12;
+    const proof = (hour % 24) * 60;
+    const distance = Math.min(Math.abs(proof - minutes), 1440 - Math.abs(proof - minutes));
+    return distance <= exactTolerance;
+  }
+
+  const norm = raw.replace(/[_\s]+/g, '-');
+  const inSpan = (start: number, end: number): boolean => start <= end
+    ? minutes >= start && minutes <= end
+    : minutes >= start || minutes <= end;
+  const spans: ReadonlyArray<[string, number, number]> = [
+    ['late-night', 0, 240], ['predawn', 180, 330], ['sunrise', 270, 420],
+    ['midnight', 1410, 30], ['twilight', 1080, 1290], ['morning', 300, 719],
+    ['afternoon', 720, 1080], ['evening', 1080, 1439], ['night', 1200, 300],
+    ['dawn', 240, 390], ['dusk', 1020, 1230], ['midday', 660, 810], ['noon', 660, 810],
+  ];
+  for (const [label, start, end] of spans) if (norm.includes(label)) return inSpan(start, end);
+  return true;
+}
+
 /** Inverse of parseClock for display: nearest coarse slot label for minutes. */
 export function clockLabel(minutes: number | undefined): string {
   if (minutes === undefined || !Number.isFinite(minutes)) return '';
