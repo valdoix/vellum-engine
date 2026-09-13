@@ -151,7 +151,7 @@ describe('parallel T1 synchronization', () => {
       ] },
     } as never;
 
-    const strict = coreFeature.extract!(parsed, { turn: 2, day: 1, state: prior, prose: 'The living room is quiet.', seq: () => ++nextSeq } as never);
+    const strict = coreFeature.extract!(parsed, { turn: 2, day: 1, state: prior, prose: 'The living room is quiet.', tone: { social: 'off' }, seq: () => ++nextSeq } as never);
     expect((strict.find(event => event.kind === 'parallel.set') as any).items).toEqual([]);
 
     const autonomous = coreFeature.extract!(parsed, {
@@ -162,6 +162,25 @@ describe('parallel T1 synchronization', () => {
       { who: 'willow', where: "Spike's crypt", activity: 'sitting quietly; has told Spike the resurrection news' },
       { who: 'spike', where: "Spike's crypt", activity: 'processing that Buffy is alive' },
     ]);
+  });
+
+  it('keeps the canonical parallel snapshot visible when an enabled turn omits delta.parallel', () => {
+    const prior = freshState();
+    prior.cast.ada = { id: 'ada', name: 'Ada', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, lastLocation: 'Courtyard', lastLocationTurn: 1, userEdited: false } as any;
+    prior.parallel = [{ who: 'ada', where: 'Courtyard', activity: 'waits for the courier', turn: 1, day: 1 }];
+    let nextSeq = 0;
+    const events = coreFeature.extract!({ scene: { loc: 'Archive', time: '09:01', clock: 541 }, present: [] } as never, {
+      turn: 2, day: 1, state: prior, prose: 'Mara closes a ledger.', livingWorld: 'active', tone: { social: 'off', politics: 'off' }, seq: () => ++nextSeq,
+    } as never);
+    const next = reduce(events, structuredClone(prior));
+    expect(next.parallel).toEqual([expect.objectContaining({ who: 'ada', where: 'Courtyard', activity: 'waits for the courier' })]);
+  });
+
+  it('mirrors anonymous durable subplot beats into Parallel instead of hiding them in Subplots', () => {
+    const state = reduce([ev({ kind: 'offscreen.op', op: 'new', id: 'harbor_storm', name: 'Harbor storm', where: 'Harbor', gist: 'the channel closes' } as any)]);
+    expect(state.parallel).toEqual([expect.objectContaining({ where: 'Harbor', activity: 'the channel closes' })]);
+    const resolved = reduce([ev({ kind: 'offscreen.op', op: 'resolve', id: 'harbor_storm' } as any)], state);
+    expect(resolved.parallel).toEqual([]);
   });
 
   it('autonomous NPCs still cannot teleport or assert irreversible outcomes without grounding', () => {

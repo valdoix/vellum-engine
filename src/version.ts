@@ -4,4 +4,4 @@
  * can't drift. Keep this in sync with the `version` field in `spindle.json` and
  * `package.json` when cutting a release.
  */
-export const VELLUM_VERSION = '2.1.0-beta.19';
+export const VELLUM_VERSION = '2.1.0-beta.20';

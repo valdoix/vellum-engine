@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseClock, clockLabel, clockTime, completedElapsedMinutes, elapsedClockFloor, detectBackwardClock, explicitElapsedMinutes, hasDayAdvanceCue, rollover,
+  parseClock, clockLabel, clockTime, completedElapsedMinutes, elapsedClockFloor, hasImplicitLivePassage, liveTurnClockFloor, detectBackwardClock, explicitElapsedMinutes, hasDayAdvanceCue, rollover,
   supportsDayAdvance,
   reconcileDay, CLOCK_SLOTS, DAY_JUMP_LIMIT,
 } from '../src/domain/clock.js';
@@ -26,6 +26,27 @@ describe('parseClock', () => {
     expect(parseClock('')).toBeUndefined();
     expect(parseClock(undefined)).toBeUndefined();
     expect(parseClock('a while later')).toBeUndefined();
+  });
+});
+
+describe('live turn clock floor', () => {
+  it('moves a frozen active scene by one minute without inventing a larger duration', () => {
+    expect(hasImplicitLivePassage('Mara closes the ledger and asks Ada a question.')).toBe(true);
+    expect(liveTurnClockFloor(2, 540, 2, 540, 'Mara closes the ledger and asks Ada a question.'))
+      .toMatchObject({ day: 2, clock: 541, inferred: true, elapsed: 1 });
+  });
+
+  it('keeps OOC, static, simultaneous, and already-forward endpoints unchanged', () => {
+    expect(hasImplicitLivePassage('OOC: ((refresh))')).toBe(false);
+    expect(hasImplicitLivePassage('Continue.')).toBe(false);
+    expect(hasImplicitLivePassage('The room is blue and very old.')).toBe(false);
+    expect(hasImplicitLivePassage('At the same instant, Mara nods.')).toBe(false);
+    expect(liveTurnClockFloor(2, 540, 2, 545, 'Mara nods.').inferred).toBe(false);
+  });
+
+  it('does not conceal a backward report, but can roll a frozen 23:59 turn across midnight', () => {
+    expect(liveTurnClockFloor(2, 540, 2, 539, 'Mara nods.').inferred).toBe(false);
+    expect(liveTurnClockFloor(2, 1439, 2, 1439, 'Mara nods.')).toMatchObject({ day: 3, clock: 0, inferred: true });
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys, threadOffscreenLink, linkedOffscreen, subplotEligible, planSubplotTick } from '../src/domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys, threadOffscreenLink, linkedOffscreen, subplotEligible, planSubplotTick, effectiveSubplotMode } from '../src/domain/offscreen.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
@@ -165,6 +165,11 @@ describe('parseSim', () => {
     const row = parseSim('{"offscreen":[{"op":"advance","id":"x","gist":"the courier reaches the toll road","nextTurn":13,"nextDay":4,"nextClock":600,"dependsOn":["permit"],"blockedBy":["storm"],"trigger":"the gate opens"}]}')!.offscreen[0]!;
     expect(row).toMatchObject({ nextTurn: 13, nextDay: 4, nextClock: 600, dependsOn: ['permit'], blockedBy: ['storm'], trigger: 'the gate opens' });
   });
+  it('accepts VELLUM delta envelopes and parallel-shaped aliases', () => {
+    const r = parseSim('<vellum>{"delta":{"parallel":[{"id":"Jaime","location":"The Yard","activity":"checks the gate"}]}}</vellum>')!;
+    expect(r.offscreen).toEqual([expect.objectContaining({ who: 'Jaime', where: 'The Yard', gist: 'checks the gate' })]);
+    expect(r.offscreen[0]!.id).toContain('jaime');
+  });
 });
 
 describe('adaptive subplot scheduler', () => {
@@ -195,7 +200,24 @@ describe('adaptive subplot scheduler', () => {
     const s = state();
     s.cast.jaime!.intent = { goal: 'deliver the warrant', nextStep: 'find a horse', constraints: ['the gate is watched'], status: 'active', updatedTurn: 12 };
     expect(planSubplotTick(s, 'active')).toMatchObject({ allowNew: true });
-    expect(planSubplotTick(s, 'minimal')).toEqual({ dueIds: [], allowNew: false, reason: 'living world is not autonomous' });
+    expect(planSubplotTick(s, 'minimal')).toEqual({ dueIds: [], allowNew: false, newCap: 0, reason: 'living world is not autonomous' });
+  });
+
+  it('promotes Living controls to Active and Autonomous controls to Sandbox depth', () => {
+    expect(effectiveSubplotMode('off', 'living', 'off')).toBe('active');
+    expect(effectiveSubplotMode('minimal', 'off', 'living')).toBe('active');
+    expect(effectiveSubplotMode('active', 'autonomous', 'off')).toBe('sandbox');
+    expect(effectiveSubplotMode('off', 'off', 'autonomous')).toBe('sandbox');
+  });
+
+  it('gives sandbox a larger due/new budget than active', () => {
+    const s = state();
+    s.cast.jaime!.role = 'sworn guard';
+    s.cast.tyrion!.role = 'envoy';
+    expect(planSubplotTick(s, 'active')).toMatchObject({ allowNew: true, newCap: 1 });
+    expect(planSubplotTick(s, 'sandbox')).toMatchObject({ allowNew: true, newCap: 2 });
+    expect(simSys('living', 'living', 'active')).toContain('LIVING/ACTIVE DEPTH');
+    expect(simSys('autonomous', 'autonomous', 'sandbox')).toContain('AUTONOMOUS/SANDBOX DEPTH');
   });
 });
 

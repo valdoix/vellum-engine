@@ -60,11 +60,23 @@ export interface SimCtx {
   eligibleIds?: readonly string[];
   /** Whether this tick may originate a new subplot for an unoccupied actor. */
   allowNew?: boolean;
+  /** Maximum number of new subplot rows this tick may originate. */
+  newCap?: number;
   livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox';
 }
 
-type SubplotMode = 'off' | 'minimal' | 'active' | 'sandbox';
-export interface SubplotTickPlan { dueIds: string[]; allowNew: boolean; reason: string }
+export type SubplotMode = 'off' | 'minimal' | 'active' | 'sandbox';
+export interface SubplotTickPlan { dueIds: string[]; allowNew: boolean; newCap: number; reason: string }
+
+/** Combine the three independent autonomy controls into one simulation depth.
+ * Living/Active is the bounded continuity tier; Autonomous/Sandbox is the
+ * richer independent-world tier. Raising Social or Politics autonomy must not
+ * leave the actual parallel-event pipeline switched off by Living World. */
+export function effectiveSubplotMode(world: SubplotMode, social: Social = 'off', politics: Politics = 'off'): SubplotMode {
+  if (world === 'sandbox' || social === 'autonomous' || politics === 'autonomous') return 'sandbox';
+  if (world === 'active' || social === 'living' || politics === 'living') return 'active';
+  return world;
+}
 
 function reached(day: number, clock: number | undefined, gateDay: number, gateClock?: number): boolean {
   if (day !== gateDay) return day > gateDay;
@@ -120,17 +132,29 @@ export function subplotEligible(state: ChronicleState, row: ChronicleState['offs
  * say they can move. Creation is bounded by mode and by NPCs with a concrete
  * intent that are not already carrying an active subplot. */
 export function planSubplotTick(state: ChronicleState, mode: SubplotMode): SubplotTickPlan {
-  if (mode === 'off' || mode === 'minimal') return { dueIds: [], allowNew: false, reason: 'living world is not autonomous' };
+  if (mode === 'off' || mode === 'minimal') return { dueIds: [], allowNew: false, newCap: 0, reason: 'living world is not autonomous' };
   const cap = mode === 'sandbox' ? 4 : 2;
   const dueIds = state.offscreen.filter(row => subplotEligible(state, row))
     .sort((a, b) => Number((b.deadlineDay ?? Infinity) <= state.day) - Number((a.deadlineDay ?? Infinity) <= state.day)
       || (b.pressure ?? 0) - (a.pressure ?? 0) || a.lastTurn - b.lastTurn)
     .slice(0, cap).map(row => row.id);
   const occupied = new Set(state.offscreen.filter(row => row.status === 'active' && row.who).map(row => canonId(row.who!)));
-  const intentReady = offscreenCast(state).some(actor => actor.intent?.status === 'active' && actor.intent.nextStep && !occupied.has(actor.id));
+  const candidateReady = offscreenCast(state).some(actor => {
+    if (occupied.has(actor.id)) return false;
+    const anchor = canonicalActorLocation(state, actor.id);
+    if (!anchor?.where) return false;
+    const explicitIntent = actor.intent?.status === 'active' && !!actor.intent.nextStep;
+    // A stable role/character packet can support a reversible routine beat even
+    // before the intent ledger has been populated. Sandbox may also use stable
+    // traits because it is explicitly the deeper autonomy tier.
+    const roleBacked = !!actor.role || !!actor.introduction?.want;
+    const sandboxBacked = mode === 'sandbox' && !!actor.traits?.length;
+    return explicitIntent || roleBacked || sandboxBacked;
+  });
   const activeCount = state.offscreen.filter(row => row.status === 'active').length;
-  const allowNew = intentReady && activeCount < cap;
-  return { dueIds, allowNew, reason: dueIds.length ? 'subplot schedule reached' : allowNew ? 'unoccupied NPC intent is actionable' : 'nothing causally due' };
+  const newCap = candidateReady ? Math.max(0, Math.min(mode === 'sandbox' ? 2 : 1, cap - activeCount)) : 0;
+  const allowNew = newCap > 0;
+  return { dueIds, allowNew, newCap, reason: dueIds.length ? 'subplot schedule reached' : allowNew ? 'an unoccupied grounded NPC purpose is actionable' : 'nothing causally due' };
 }
 
 // Title/gist token overlap for the soft thread<->offscreen bridge. Deliberately
@@ -194,7 +218,7 @@ const SIM_SOCIAL_RULE: Record<Social, string> = {
 };
 const SIM_JSON_BONDS = ' You MAY also include a "bonds" array of NPC↔NPC relationship shifts: [{"a":"Name","b":"Name","aff":small +/- int,"trust":small +/- int,"cat":"social|rivalry|alliance or omit","why":"one clause"}]. Never involve the player in a bond.';
 const SIM_JSON_FACTIONS = ' You MAY also include a "factions" array of FACTION↔FACTION shifts: [{"a":"Faction","b":"Faction","kind":"alliance|rivalry|war|vassal|trade or omit","standing":small +/- int,"why":"one clause"}]. Never involve the player.';
-const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened","thread":"OPTIONAL exact existing plot-thread id","pressure":"OPTIONAL int 0..5","stakes":"OPTIONAL one clause","hooks":["OPTIONAL concrete future contact, clue, absence, message, consequence"],"autonomy":"personal|social|faction|environment|mixed","nextTurn":"OPTIONAL absolute turn","nextDay":"OPTIONAL absolute narrative day","nextClock":"OPTIONAL minutes after midnight","deadlineDay":"OPTIONAL absolute day","deadlineClock":"OPTIONAL minutes after midnight","dependsOn":["OPTIONAL exact subplot/thread/arc/plant ids"],"blockedBy":["OPTIONAL exact ids"],"trigger":"OPTIONAL concrete event condition","day":"OPTIONAL narrative day reached under a time skip"}]BONDSFACTIONS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most 4 offscreen entries.';
+const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"one clause of what just happened","thread":"OPTIONAL exact existing plot-thread id","pressure":"OPTIONAL int 0..5","stakes":"OPTIONAL one clause","hooks":["OPTIONAL concrete future contact, clue, absence, message, consequence"],"autonomy":"personal|social|faction|environment|mixed","nextTurn":"OPTIONAL absolute turn","nextDay":"OPTIONAL absolute narrative day","nextClock":"OPTIONAL minutes after midnight","deadlineDay":"OPTIONAL absolute day","deadlineClock":"OPTIONAL minutes after midnight","dependsOn":["OPTIONAL exact subplot/thread/arc/plant ids"],"blockedBy":["OPTIONAL exact ids"],"trigger":"OPTIONAL concrete event condition","day":"OPTIONAL narrative day reached under a time skip"}]BONDSFACTIONS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most MODECAP offscreen entries.';
 // what the sim may do to FACTION↔FACTION relations, by Politics autonomy level.
 const SIM_POLITICS_RULE: Record<Politics, string> = {
   off: '',
@@ -205,15 +229,19 @@ const SIM_POLITICS_RULE: Record<Politics, string> = {
 /** Build the sim system prompt for a given Social level. `off`/`reactive` keep the
  * historical blanket "no relationship changes" ban; `living`/`autonomous` open a
  * bounded, lock-respecting NPC↔NPC bond channel. */
-export function simSys(social: Social = 'off', politics: Politics = 'off'): string {
+export function simSys(social: Social = 'off', politics: Politics = 'off', livingWorld: SubplotMode = 'active'): string {
   const rule = SIM_SOCIAL_RULE[social] ?? SIM_SOCIAL_RULE.off;
   const wantsBonds = offscreenBondPolicy(social).enabled;
   const wantsFactions = factionPolicy(politics).enabled;
   const json = SIM_JSON
     .replace('BONDS', wantsBonds ? SIM_JSON_BONDS : '')
-    .replace('FACTIONS', wantsFactions ? SIM_JSON_FACTIONS : '');
+    .replace('FACTIONS', wantsFactions ? SIM_JSON_FACTIONS : '')
+    .replace('MODECAP', livingWorld === 'sandbox' ? '4' : '2');
   const politicsRule = wantsFactions ? (SIM_POLITICS_RULE[politics] ?? '') : '';
-  return [...SIM_SYS_BASE, rule + politicsRule, json].join(' ');
+  const depthRule = livingWorld === 'sandbox'
+    ? 'AUTONOMOUS/SANDBOX DEPTH: you may move up to four independently due lines and originate up to two grounded new lines. They may create medium-term political, social, logistical, or material consequences, but irreversible major outcomes still require a visible causal chain and must remain interruptible before completion.'
+    : 'LIVING/ACTIVE DEPTH: move at most two due lines and originate at most one grounded new line. Prefer reversible routine, preparation, delay, contact, and small consequence beats; do not escalate merely to keep the feed busy.';
+  return [...SIM_SYS_BASE, depthRule, rule + politicsRule, json].join(' ');
 }
 
 /** Back-compat default (off = today's behavior) for callers/tests that want the
@@ -225,6 +253,7 @@ export const SIM_SYS = simSys('off');
 export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name: string; role?: string; traits?: string[]; intent?: ChronicleState['cast'][string]['intent']; affect?: ChronicleState['cast'][string]['affect'] }>, ctx: SimCtx = {}): string {
   const lines: string[] = [];
   const mayCreate = ctx.allowNew !== false;
+  const newCap = mayCreate ? Math.max(0, Math.floor(ctx.newCap ?? 1)) : 0;
   const pushWorldCanon = (): void => {
     if (!ctx.worldCanon?.length) return;
     lines.push('', 'ATTACHED LOREBOOK WORLD CANON (objective setting constraints; NOT automatic character knowledge):');
@@ -276,7 +305,7 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
     lines.push('', 'CURRENT OFF-SCREEN SUBPLOTS (advance with the same id, or resolve):');
     for (const o of open) lines.push(`- [${o.id}] ${o.name}${o.who ? ` (${state.cast[canonId(o.who)]?.name ?? o.who})` : ''}${o.where ? ` @${o.where}` : ''}: ${o.gist || o.beats[o.beats.length - 1] || ''}`);
   } else {
-    lines.push('', mayCreate ? 'No existing subplot is due. You may open ONE new subplot for an actor with a supplied active intent.' : 'No existing subplot is causally due. Return an empty offscreen array.');
+    lines.push('', mayCreate ? `No existing subplot is due. You may open up to ${newCap || 1} new grounded subplot${(newCap || 1) === 1 ? '' : 's'} for supplied actors with an active intent or established role/purpose at a canonical place.` : 'No existing subplot is causally due. Return an empty offscreen array.');
   }
   if (!mayCreate) lines.push('', 'Do not create a new subplot in this tick.');
   const skip = timeSkipNote(ctx.skipDays);
@@ -345,11 +374,22 @@ function simReplyObjects(text: string): Record<string, unknown>[] {
 /** Tolerant parse of the controller reply. Returns null on garbage / nothing. */
 export function parseSim(text: string, cap = 4): ParsedSim | null {
   if (!text) return null;
-  const o = simReplyObjects(text).find(candidate => Array.isArray(candidate.offscreen)
-    || Array.isArray(candidate.events) || Array.isArray(candidate.parallel)
-    || Array.isArray(candidate.bonds) || Array.isArray(candidate.factions));
-  if (!o) return null;
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+  const root = simReplyObjects(text).find(candidate => {
+    const delta = record(candidate.delta) ? candidate.delta : {};
+    return Array.isArray(candidate.offscreen) || Array.isArray(candidate.events) || Array.isArray(candidate.parallel)
+      || Array.isArray(candidate.bonds) || Array.isArray(candidate.factions)
+      || Array.isArray(delta.offscreen) || Array.isArray(delta.events) || Array.isArray(delta.parallel)
+      || Array.isArray(delta.bonds) || Array.isArray(delta.factions) || Array.isArray(delta.factionRelations);
+  });
+  if (!root) return null;
+  // Accept both the controller's compact root object and a VELLUM-shaped
+  // {delta:{...}} envelope. This makes a harmless provider echo of the state
+  // grammar parse identically instead of becoming an empty simulation tick.
+  const nested = record(root.delta) ? root.delta : {};
+  const o = { ...nested, ...root };
   const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+  const parallelShape = !Array.isArray(o.offscreen) && !Array.isArray(o.events) && Array.isArray(o.parallel);
   const rawOffscreen = Array.isArray(o.offscreen) ? o.offscreen : Array.isArray(o.events) ? o.events : Array.isArray(o.parallel) ? o.parallel : [];
   const offscreen = rawOffscreen
     .map((p) => (p && typeof p === 'object') ? p as Record<string, unknown> : {})
@@ -357,9 +397,11 @@ export function parseSim(text: string, cap = 4): ParsedSim | null {
       const rawOp = String(p.op ?? p.action ?? '').toLocaleLowerCase();
       const op = (['resolve', 'close', 'complete', 'end'].includes(rawOp) ? 'resolve'
         : ['new', 'start', 'open', 'create'].includes(rawOp) ? 'new' : 'advance') as 'new' | 'advance' | 'resolve';
-      const name = p.name ? String(p.name).trim() : '';
-      const id = p.id ? slug(String(p.id)) : slug(name);
-      const gist = String(p.gist ?? p.activity ?? p.beat ?? '').trim();
+      const rawWho = String(p.who ?? p.actor ?? p.character ?? (parallelShape ? p.id ?? '' : '')).trim();
+      const name = String(p.name ?? p.title ?? '').trim();
+      const gist = String(p.gist ?? p.activity ?? p.beat ?? p.event ?? p.actionText ?? '').trim();
+      const explicitId = parallelShape ? '' : String(p.id ?? p.subplotId ?? p.subplot_id ?? p.key ?? '').trim();
+      const id = slug(explicitId || name || [rawWho, gist].filter(Boolean).join(' '));
       // optional per-subplot narrative day: under a time-skip catch-up the model
       // may report how far THIS subplot advanced (day/onDay/lastDay), so only the
       // subplots it actually moved get their lastDay bumped — the rest stay stale
@@ -379,7 +421,8 @@ export function parseSim(text: string, cap = 4): ParsedSim | null {
       const nextTurn = int(p.nextTurn); const nextDay = int(p.nextDay); const nextClock = int(p.nextClock, 0, 1439);
       const deadlineDay = int(p.deadlineDay); const deadlineClock = int(p.deadlineClock, 0, 1439);
       const dependsOn = refs(p.dependsOn); const blockedBy = refs(p.blockedBy); const trigger = String(p.trigger ?? '').trim();
-      return { op, id, ...(name ? { name } : {}), ...(p.who ? { who: String(p.who).trim() } : {}), ...(p.where ? { where: String(p.where).trim() } : {}), ...(gist ? { gist } : {}), ...(Number.isFinite(day) && day > 0 ? { day: Math.floor(day) } : {}), ...(thread ? { thread } : {}), ...(arc ? { arc } : {}), ...(Number.isFinite(pressure) ? { pressure: Math.max(0, Math.min(5, Math.round(pressure))) } : {}), ...(hooks.length ? { hooks } : {}), ...(stakes ? { stakes } : {}), ...(autonomy ? { autonomy } : {}), ...(nextTurn !== undefined ? { nextTurn } : {}), ...(nextDay !== undefined ? { nextDay } : {}), ...(nextClock !== undefined ? { nextClock } : {}), ...(deadlineDay !== undefined ? { deadlineDay } : {}), ...(deadlineClock !== undefined ? { deadlineClock } : {}), ...(dependsOn.length ? { dependsOn } : {}), ...(blockedBy.length ? { blockedBy } : {}), ...(trigger ? { trigger } : {}) };
+      const where = String(p.where ?? p.location ?? p.loc ?? '').trim();
+      return { op, id, ...(name ? { name } : {}), ...(rawWho ? { who: rawWho } : {}), ...(where ? { where } : {}), ...(gist ? { gist } : {}), ...(Number.isFinite(day) && day > 0 ? { day: Math.floor(day) } : {}), ...(thread ? { thread } : {}), ...(arc ? { arc } : {}), ...(Number.isFinite(pressure) ? { pressure: Math.max(0, Math.min(5, Math.round(pressure))) } : {}), ...(hooks.length ? { hooks } : {}), ...(stakes ? { stakes } : {}), ...(autonomy ? { autonomy } : {}), ...(nextTurn !== undefined ? { nextTurn } : {}), ...(nextDay !== undefined ? { nextDay } : {}), ...(nextClock !== undefined ? { nextClock } : {}), ...(deadlineDay !== undefined ? { deadlineDay } : {}), ...(deadlineClock !== undefined ? { deadlineClock } : {}), ...(dependsOn.length ? { dependsOn } : {}), ...(blockedBy.length ? { blockedBy } : {}), ...(trigger ? { trigger } : {}) };
     })
     .filter((p) => p.id && (p.gist || p.op === 'resolve'))
     .filter((p, index, all) => all.findIndex(other => other.id === p.id) === index)
@@ -395,7 +438,7 @@ export function parseSim(text: string, cap = 4): ParsedSim | null {
     })
     .filter((p) => p.a && p.b && p.a.toLowerCase() !== p.b.toLowerCase() && (p.aff !== undefined || p.trust !== undefined || p.cat))
     .slice(0, 4);
-  const factions = (Array.isArray(o.factions) ? o.factions : [])
+  const factions = (Array.isArray(o.factions) ? o.factions : Array.isArray(o.factionRelations) ? o.factionRelations : [])
     .map((p) => (p && typeof p === 'object') ? p as Record<string, unknown> : {})
     .map((p) => {
       const a = String(p.a ?? '').trim(); const b = String(p.b ?? '').trim();
@@ -423,6 +466,9 @@ export interface SimEventsOpts {
   social?: Social;
   /** Politics autonomy level — gates & clamps the off-screen faction-relation channel */
   politics?: Politics;
+  /** Effective Living World depth and bounded creation allowance. */
+  livingWorld?: SubplotMode;
+  newCap?: number;
   /** Elapsed narrative days available for a generated travel beat. */
   skipDays?: number;
   /** Attached lorebook setting canon. Used only to recognize established
@@ -471,12 +517,16 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
   };
   const events: VellumEvent[] = [];
   const eligible = opts.eligibleIds ? new Set(opts.eligibleIds) : undefined;
+  const mode = opts.livingWorld ?? 'active';
+  let newRows = 0;
+  const newCap = Math.max(0, Math.floor(opts.newCap ?? (opts.allowNew ? (mode === 'sandbox' ? 2 : 1) : Number.MAX_SAFE_INTEGER)));
   for (const p of parsed.offscreen) {
     // a "new" that collides with a known id becomes an advance; an "advance" on
     // an unknown id becomes a new — so the model can't fork or orphan a subplot.
     const op = p.op === 'resolve' ? 'resolve' : (known.has(p.id) ? 'advance' : 'new');
     if (eligible && known.has(p.id) && !eligible.has(p.id)) continue;
     if (eligible && !known.has(p.id) && opts.allowNew !== true) continue;
+    if (!known.has(p.id) && newRows >= newCap) continue;
     const prior = state.offscreen.find(row => row.id === p.id);
     const requestedActor = resolve(p.who);
     if (p.who && !requestedActor) continue; // closed cast: no simulator-minted people
@@ -487,7 +537,12 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     if (eligible && !prior) {
       const intent = who ? state.cast[who]?.intent : undefined;
       const alreadyOccupied = who ? state.offscreen.some(row => row.status === 'active' && row.who && canonId(row.who) === who) : true;
-      if (!who || !intent || intent.status !== 'active' || !intent.nextStep || alreadyOccupied) continue;
+      const actor = who ? state.cast[who] : undefined;
+      const anchored = who ? canonicalActorLocation(state, who) : undefined;
+      const explicitIntent = intent?.status === 'active' && !!intent.nextStep;
+      const roleBacked = !!actor?.role || !!actor?.introduction?.want;
+      const sandboxBacked = mode === 'sandbox' && !!actor?.traits?.length;
+      if (!who || !anchored?.where || (!explicitIntent && !roleBacked && !sandboxBacked) || alreadyOccupied) continue;
     }
     const anchor = who ? canonicalActorLocation(state, who) : undefined;
     let where = p.where?.trim() || prior?.where || anchor?.where;
@@ -505,6 +560,7 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     const evDay = (p.day !== undefined && day > 0) ? Math.min(p.day, day) : day;
     const linkedThread = threadId(p.thread) ?? prior?.thread;
     events.push({ seq: seq(), turn, day: evDay, src: 'system', kind: 'offscreen.op', op, id: p.id, ...(!prior && p.name ? { name: p.name } : {}), ...(who ? { who } : {}), ...(where ? { where } : {}), ...(p.gist ? { gist: p.gist } : {}), ...(linkedThread ? { thread: linkedThread } : {}), ...(p.pressure !== undefined ? { pressure: p.pressure } : {}), ...(p.hooks?.length ? { hooks: p.hooks } : {}), ...(p.stakes ? { stakes: p.stakes } : {}), ...(p.autonomy ? { autonomy: p.autonomy } : {}), ...(p.nextTurn !== undefined ? { nextTurn: p.nextTurn } : {}), ...(p.nextDay !== undefined ? { nextDay: p.nextDay } : {}), ...(p.nextClock !== undefined ? { nextClock: p.nextClock } : {}), ...(p.deadlineDay !== undefined ? { deadlineDay: p.deadlineDay } : {}), ...(p.deadlineClock !== undefined ? { deadlineClock: p.deadlineClock } : {}), ...(p.dependsOn !== undefined ? { dependsOn: p.dependsOn } : {}), ...(p.blockedBy !== undefined ? { blockedBy: p.blockedBy } : {}), ...(p.trigger !== undefined ? { trigger: p.trigger } : {}) } as VellumEvent);
+    if (!prior && op !== 'resolve') newRows += 1;
   }
 
   // Off-screen NPC↔NPC bond channel (Social autonomy). Gated by level, clamped by

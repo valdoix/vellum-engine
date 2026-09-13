@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ParsedState } from '../parse/parsed.js';
 import { canonId, hashStr } from '../core/ids.js';
-import { clockTime, elapsedClockFloor, parseClock, reconcileDay, supportsDayAdvance } from './clock.js';
+import { clockTime, elapsedClockFloor, liveTurnClockFloor, parseClock, reconcileDay, supportsDayAdvance } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 import type { ChronicleState } from './types.js';
 import type { LorebookCanonEntry } from './lorebook-canon.js';
@@ -255,7 +255,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   // A time cut in the latest player input is part of this turn even when the
   // generated prose does not repeat it. Deterministically repair a candidate
   // that left the clock frozen or advanced it by less than the stated duration.
-  const flooredClock = elapsedClockFloor(input.prior.day, priorClock, s.day, s.scene.clock, currentTurnSource);
+  let flooredClock = elapsedClockFloor(input.prior.day, priorClock, s.day, s.scene.clock, currentTurnSource);
+  if (!flooredClock.inferred) flooredClock = liveTurnClockFloor(input.prior.day, priorClock, flooredClock.day, flooredClock.clock, currentTurnSource);
   if (flooredClock.inferred) {
     s.day = flooredClock.day;
     s.scene.clock = flooredClock.clock;
@@ -272,7 +273,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     ? currentTurnSource.slice(Math.max(0, proofAt - 80), Math.min(currentTurnSource.length, proofAt + timeProof!.quote.length + 80))
     : (flooredClock.inferred ? currentTurnSource : undefined);
   const dayAdvanceEvidence = s.day > input.prior.day
-    && supportsDayAdvance(proofContext, priorClock, s.scene.clock, s.day - input.prior.day, s.day);
+    && (flooredClock.inferred || supportsDayAdvance(proofContext, priorClock, s.scene.clock, s.day - input.prior.day, s.day));
   const dayReconcile = reconcileDay(s.day, input.prior.day, dayAdvanceEvidence, { priorClock, newClock: s.scene.clock });
   s.day = dayReconcile.day;
   const recoveredDayCount = s.day !== reportedDay;

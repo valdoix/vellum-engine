@@ -17,7 +17,7 @@ function splitArgs(value: string): string[] {
 
 function resolveLeafExpressions(input: string): string {
   let out = input;
-  const leaf = /\{\{(eq|ne|and|or|not|includes|lt|gt|lower)::([^{}]*)\}\}/g;
+  const leaf = /\{\{(eq|ne|and|or|not|includes|matches|lt|gt|lower)::([^{}]*)\}\}/g;
   for (let pass = 0; pass < 20; pass++) {
     let changed = false;
     out = out.replace(leaf, (_whole, op: string, raw: string) => {
@@ -29,6 +29,10 @@ function resolveLeafExpressions(input: string): string {
       if (op === 'or') return args.some(truthy) ? '1' : '';
       if (op === 'not') return truthy(args[0] ?? '') ? '' : '1';
       if (op === 'includes') return (args[0] ?? '').includes(args[1] ?? '') ? '1' : '';
+      if (op === 'matches') {
+        try { return new RegExp(args[1] ?? '', args[2] ?? '').test(args[0] ?? '') ? '1' : ''; }
+        catch { return ''; }
+      }
       if (op === 'lt') return Number(args[0]) < Number(args[1]) ? '1' : '';
       if (op === 'gt') return Number(args[0]) > Number(args[1]) ? '1' : '';
       return (args[0] ?? '').toLowerCase();

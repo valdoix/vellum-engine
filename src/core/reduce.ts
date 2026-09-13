@@ -599,6 +599,9 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     case 'offscreen.op': {
       const list = s.offscreen;
       let ot = list.find((o) => o.id === e.id);
+      // Capture the prior anonymous projection before mutation so an advance or
+      // resolution can replace/remove exactly that Elsewhere row.
+      const priorAnon = ot && !ot.who ? { where: ot.where, activity: ot.gist } : undefined;
       if (!ot) {
         if (e.op === 'resolve') break; // nothing to resolve
         ot = { id: e.id, name: e.name || e.id, status: 'active', gist: e.gist ?? '', beats: [], firstTurn: e.turn, lastTurn: e.turn, ...(e.who ? { who: e.who } : {}), ...(e.where ? { where: e.where } : {}), ...(e.thread ? { thread: e.thread } : {}) };
@@ -636,7 +639,9 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       // Off-screen subplots are canonical T1 activity. Mirror their latest
       // actor-addressed beat into the replace-all parallel snapshot immediately
       // so Engine Pass results appear in Elsewhere on this turn, not one compiler
-      // pass later. Anonymous subplots stay in their first-class feed only.
+      // pass later. Anonymous world/faction lines are mirrored too; otherwise
+      // valid simulator output existed in Subplots but the Parallel panel stayed
+      // empty, which looked like a parse failure.
       const offWho = ot.who ? canonId(ot.who) : '';
       if (offWho) {
         s.parallel = s.parallel.filter(row => !row.who || canonId(row.who) !== offWho);
@@ -646,6 +651,17 @@ function apply(s: ChronicleState, e: VellumEvent): void {
           s.parallel.push({ who: offWho, where: current.where, activity: current.gist, ...(e.src === 'system' ? { src: 'sim' as const } : {}), turn: e.turn, day: e.day });
           const actor = s.cast[offWho];
           if (actor) { actor.lastLocation = current.where; actor.lastLocationTurn = e.turn; }
+        }
+      } else {
+        if (priorAnon) {
+          s.parallel = s.parallel.filter(row => row.who
+            || row.activity !== priorAnon.activity
+            || String(row.where ?? '') !== String(priorAnon.where ?? ''));
+        }
+        if (ot.status === 'active' && ot.gist) {
+          const duplicate = s.parallel.some(row => !row.who && row.activity === ot!.gist
+            && String(row.where ?? '') === String(ot!.where ?? ''));
+          if (!duplicate) s.parallel.push({ ...(ot.where ? { where: ot.where } : {}), activity: ot.gist, ...(e.src === 'system' ? { src: 'sim' as const } : {}), turn: e.turn, day: e.day });
         }
       }
       break;

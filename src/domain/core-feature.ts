@@ -8,7 +8,7 @@ import { findLock, applyLockToBond } from './relation-lock.js';
 import { inferLocationParent } from './locations.js';
 import { clockTime, parseClock } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
-import { reconcileParallelSnapshot } from './parallel-canon.js';
+import { durableParallelSnapshot, reconcileParallelSnapshot } from './parallel-canon.js';
 import { normalizeSecretAudience } from './secret-audience.js';
 import { simEvents, threadOffscreenLink } from './offscreen.js';
 
@@ -462,17 +462,21 @@ export const coreFeature: Feature = {
 
     // off-screen parallel events
     const par = parsed.delta?.parallel;
+    const parallelEnabled = ctx.livingWorld === 'active' || ctx.livingWorld === 'sandbox'
+      || ctx.tone?.social === 'living' || ctx.tone?.social === 'autonomous'
+      || ctx.tone?.politics === 'living' || ctx.tone?.politics === 'autonomous';
     // An explicitly empty array is meaningful: parallel is a replace-all T1
     // snapshot, so [] clears stale "meanwhile" rows from the prior turn.
-    if (par !== undefined) {
-      const proposed = par.map((p) => ({
+    if (par !== undefined || parallelEnabled) {
+      const proposed = par !== undefined ? par.map((p) => ({
         ...(p.who ? { who: p.who } : {}),
         ...(p.where ? { where: p.where } : {}),
         activity: String(p.activity || '').trim(),
         ...(p.note ? { note: p.note } : {}),
-      })).filter((p) => p.activity);
+      })).filter((p) => p.activity) : durableParallelSnapshot(ctx.state, present);
       const reconciled = reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '', {
         npcAutonomy: tone.social,
+        livingWorld: ctx.livingWorld,
         establishedEntities: ctx.parallelCanonLabels,
       });
       // A named actor accepted from visible evidence or attached canon on the
@@ -501,7 +505,7 @@ export const coreFeature: Feature = {
     // the exact same closed-cast, location, social and faction autonomy gates.
     if (parsed.delta?.offscreen?.length) {
       out.push(...simEvents({ offscreen: parsed.delta.offscreen }, ctx.state, ctx.turn, ctx.day, ctx.seq, {
-        locks: ctx.locks, social: ctx.tone?.social, politics: ctx.tone?.politics, userId: ctx.userCanon,
+        locks: ctx.locks, social: ctx.tone?.social, politics: ctx.tone?.politics, livingWorld: ctx.livingWorld, userId: ctx.userCanon,
       }));
     }
 

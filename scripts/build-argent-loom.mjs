@@ -128,14 +128,14 @@ const dispositionVar = selectVar('disposition', 'World Disposition', 'The prior 
   ['brutal', 'Brutal'],
 ]);
 
-const socialVar = selectVar('social', 'NPC Social Autonomy', 'How much NPC-to-NPC relationships may evolve away from the player.', 'living', [
+const socialVar = selectVar('social', 'NPC Social Autonomy', 'Living starts bounded parallel life; Autonomous uses the deeper tier and may evolve NPC-to-NPC bonds through grounded off-screen events.', 'living', [
   ['off', 'Off'],
   ['reactive', 'On-Screen Only'],
   ['living', 'Living'],
   ['autonomous', 'Autonomous'],
 ]);
 
-const politicsVar = selectVar('politics', 'Faction Politics', 'How much factions may maneuver off-screen.', 'living', [
+const politicsVar = selectVar('politics', 'Faction Politics', 'Living starts bounded parallel political life; Autonomous uses the deeper tier for plausible faction maneuvers.', 'living', [
   ['off', 'Off'],
   ['living', 'Living'],
   ['autonomous', 'Autonomous'],
@@ -194,7 +194,7 @@ const modelAdapterVar = selectVar('model_adapter', 'Model Adapter', 'A short rel
 
 const livingWorldVar = existingVar('living_world', {
   defaultValue: 'active',
-  description: 'Active/Sandbox run intent-led durable subplots from turn one. Each ticks only when its own time, dependency, trigger, or deadline is due; location, knowledge, Social, and Politics remain hard gates.',
+  description: 'Active runs bounded parallel life; Sandbox uses the deeper tier. Social Living/Autonomous or Politics Living/Autonomous can also activate the same pipeline. Each subplot ticks only when causally due.',
 });
 livingWorldVar.options = (livingWorldVar.options ?? []).map((option) => {
   return { ...option, value: option.id };
@@ -324,6 +324,8 @@ const CAT_NATIVE = 'arg-cat-native';
 const CAT_CONTEXT = 'arg-cat-context';
 const CAT_FINAL = 'arg-cat-final';
 const inlineState = '{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}';
+// Any qualifying world/social/politics autonomy axis starts parallel life.
+const parallelOn = '{{matches::{{var::living_world}} {{var::social}} {{var::politics}}::(?:^| )(?:active|sandbox|living|autonomous)(?: |$)}}';
 const engineState = '{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::engine}}}}';
 
 const blocks = [
@@ -486,7 +488,7 @@ For charged exchange, separate intent, delivery, perceivable evidence, interpret
 Objects and people may exist without becoming clues. Reuse established cast, factions, locations, open threads, plants, and items before inventing functional duplicates.
 
 [CAUSAL WORLD PULSE]
-{{if::{{or::{{eq::{{var::living_world}}::active}}::{{eq::{{var::living_world}}::sandbox}}}}}}Maintain durable subplots from NPC intent or world pressure. Each chooses nextTurn, nextDay/nextClock, or a trigger from real duration; it may tick consecutively, wait, or sleep indefinitely—never one cadence. Require live intent, cleared gates, feasible route/resources/time, and received knowledge. Deadlines add pressure, not access or success. A blocked attempt records delay/cost/adaptation and its next check. Active may move two eligible rows, Sandbox four; zero is valid. Link exact plot threads and schedule consequences to mature into a causal foreground message, clue, arrival, absence, institutional move, or material effect.{{/if}}
+{{if::${parallelOn}}}Maintain durable subplots from intent, purpose, or world pressure. Set a realistic nextTurn, day/clock, or trigger; a line may tick consecutively or sleep—never one cadence. Require logistics and knowledge; blocked attempts pay a cost and reschedule. Living/Active may move two eligible rows and open one reversible line; Autonomous/Sandbox may move four and open two independent lines. Major outcomes need an interruptible chain. Zero new beats is valid; always preserve the current parallel snapshot. Mature exact threads through a message, clue, arrival, absence, faction move, or material effect.{{/if}}
 
 WORLD DISPOSITION: {{switch::{{var::disposition}}::kind::unmodeled people lean generous and give the benefit of the doubt, while retaining self-interest and disagreement::warm::ordinary cooperation is common and trust builds somewhat more easily than it breaks::fair::people judge from evidence without a benevolent or hostile prior::harsh::people begin guarded and transactional; trust is expensive and help carries terms::brutal::unmodeled people often exploit vulnerability or choose survival over kindness; genuine mercy is rare and costly}}. This is a prior, never a command that overrides a known character.
 
@@ -494,7 +496,7 @@ SOCIAL AUTONOMY: {{switch::{{var::social}}::off::NPC-to-NPC bonds change only th
 
 FACTION POLITICS: {{switch::{{var::politics}}::off::faction relations change only through on-page events or explicit direction::living::off-screen faction standing may drift in small steps; relation kinds do not flip off-screen::autonomous::factions may form or break alliances, rivalries, wars, vassalage, or trade off-screen through plausible maneuvers}}.
 
-{{if::${inlineState}}}[PARALLEL T1 RECONCILIATION]
+{{if::{{and::${inlineState}::${parallelOn}}}}}[PARALLEL T1 RECONCILIATION]
 Main-turn delta.parallel is a replace-all snapshot of what is happening concurrently at the FINAL instant T1. It is not a recap and must never preserve an injected T0 position merely because it appeared in recall.
 
 Build it from canonical T0. Carry each absent actor's prior where/activity/knowledge into T1 unless an actor-specific clause changes it. ADVANCE keeps where; MOVE needs depicted travel, an established destination, and enough time. A distant fact needs a depicted message, report, call, witness, arrival, or consequence before it can affect that actor. Final present MUST NOT appear in parallel; require where for who; keep one concurrent row per actor at the scene's final day/clock. Preserve uncertain rows and use [] only when none remains. Never invent a beat to fill parallel.{{/if}}`, { group: CAT_SIM }),
@@ -530,7 +532,7 @@ After prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing af
 Use only this compact shape; omit unchanged optional sections:
 {v?,turn?,day?,scene?:{loc?,time?,clock?,tension?,weather?},present?:[{id or name,presence?,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?,offscreen?},ext?:{scars?,codex?,inventory?,timeline?,intent?,affect?,introduction?,plant?,payoff?}}
 
-Active scenes require matching HH:MM/clock, e.g. "time":"07:45","clock":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. Mark NPC presence spotlight|periphery; periphery is no quota. List every named on-stage NPC with a concise first-person thought limited to their knowledge. Bonds are signed deltas; knowledge needs a source. parallel is complete T1. Active/Sandbox offscreen rows are durable, scheduled, intent-led, and thread-linked. Keep under ~500 tokens.
+Active scenes require matching HH:MM/clock, e.g. "time":"07:45","clock":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. Mark NPC presence spotlight|periphery. List every named on-stage NPC with a concise first-person thought limited to their knowledge. Bonds are signed deltas; knowledge needs a source. With Living World Active/Sandbox or Social/Politics Living/Autonomous, parallel is the preserved T1 snapshot. Offscreen rows are scheduled, purpose-led, and thread-linked. Keep under ~500 tokens.
 
 {{/if}}
 {{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::full}}}}}}[VELLUM STATE — FULL CONTRACT]
@@ -555,7 +557,7 @@ FIELD SHAPES:
 - faction: {name,kind?,status?,members?,standing?,trust?,why?}. status is present|active|mentioned|added. standing is a small signed change; trust is for initial establishment only.
 - faction relation: {a,b,kind?,standing?,why?}. kind is alliance|rivalry|war|vassal|trade. standing is a small signed change. Do not set absolute in ordinary narration.
 - parallel: {who?,where?,activity,note?}. Complete replace-all T1 snapshot. Preserve prior actor rows; change activity only from an actor-specific clause, location only through depicted travel, and off-stage knowledge only through a delivered path. Exclude final present, require where for who, keep one row per actor, and use [] only when all prior rows resolve.
-- offscreen: {op,id,name?,who?,where?,gist,thread?,pressure?,hooks?,stakes?,autonomy?,nextTurn?,nextDay?,nextClock?,deadlineDay?,deadlineClock?,dependsOn?,blockedBy?,trigger?}; op=new|advance|resolve. Active/Sandbox; reuse ids, real schedules, exact threads, no present actors.
+- offscreen: {op,id,name?,who?,where?,gist,thread?,pressure?,hooks?,stakes?,autonomy?,nextTurn?,nextDay?,nextClock?,deadlineDay?,deadlineClock?,dependsOn?,blockedBy?,trigger?}; op=new|advance|resolve. Active/Sandbox or Living/Autonomous; reuse ids, real schedules, exact threads, no present actors.
 - scar: {who,was,about?}. codex: {fact,tag?} or a fact string.
 - inventory: {who,item,op,to?,note?}; op is gain|lose|give|scene|note. Use who:"world" for a scene object.
 - intent: {who,goal,nextStep,constraints?,destination?,deadlineDay?,deadlineClock?,status?}; affect: {who,valence,arousal,control,direction,cause?}; introduction: {who,role,want,constraint,counterTrait,voiceTell,culturalAnchor,physicalDetail}. NPC-only; introduce once.
@@ -729,11 +731,11 @@ Preserve T0 only for OOC, static description, flashback, or an instant. Complete
 {{if::${inlineState}}}[PLOT LEDGER — DIRECT CHANGE FINAL GATE]
 Start with zero plot rows. Admit the exact title only when prior condition -> direct event in this prose -> changed condition. Mentions, shared people/themes/places, elapsed time, repetition, and unrelated beats fail. Stall needs a blocked attempt; resolve needs closure; arc advance needs a changed linked thread or structural milestone. One event cannot advance unrelated rows. Uncertain means omit and preserve prior state.
 
-{{if::{{or::{{eq::{{var::living_world}}::active}}::{{eq::{{var::living_world}}::sandbox}}}}}}[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]
+{{if::${parallelOn}}}[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]
 Carry every prior parallel row into final T1. Change it only from actor-specific proof: ADVANCE keeps location, MOVE needs travel and time, and main-scene facts need a delivered bridge. Exclude present actors; keep one final where/activity each; emit [] only when all rows resolve.{{/if}}{{/if}}
 
-{{if::{{or::{{eq::{{var::living_world}}::active}}::{{eq::{{var::living_world}}::sandbox}}}}}}[DURABLE SUBPLOT AUTONOMY — ACTIVE FROM TURN ONE]
-The engine may originate off-screen subplots from established NPC intent without ((parallel)). Move a row only when its own time, trigger, dependencies, blockers, or deadline permits; link consequences to threads and use a causal foreground bridge. Zero is valid. Social/Politics remain hard ceilings; never author player bonds, choices, consent, or acts off-screen.{{/if}}
+{{if::${parallelOn}}}[DURABLE SUBPLOT AUTONOMY — ACTIVE FROM TURN ONE]
+The engine may originate grounded off-screen subplots without ((parallel)). Move one only when due. Living/Active handles two due rows and one new reversible line; Autonomous/Sandbox may handle four due rows and two independent lines. The current snapshot must remain visible when nothing is due. Social/Politics are hard ceilings; never author player choices, consent, or acts.{{/if}}
 
 {{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]
 In both Inline Compatibility and Engine Second Pass, every named or certain live speaker uses [spk=Exact Cast Name]"complete passage"[/spk]. Open it before the quote; keep narration outside; use one speaker per wrapper. Do not tag thought, documents, memory, signs, roles, pronouns, or uncertain speech. Before sending, scan every opening dialogue quote and repair bare eligible speech.{{/if}}
@@ -1161,7 +1163,7 @@ assert(knowledgeBlock.includes('[SCENE-PRESENCE FIREWALL — PER CHARACTER, PER 
 assert(stateFinalBlock.includes('KNOWLEDGE PARTITION') && stateFinalBlock.includes('remains unaware until an explicit bridge reaches them'), 'Final state compiler lacks per-character knowledge partitioning');
 assert(outputContractBlock.includes('[OFF-SCENE KNOWLEDGE — NON-NEGOTIABLE FINAL GATE]') && outputContractBlock.includes('Later entry never grants retroactive hearing'), 'Last-instruction off-scene knowledge gate missing');
 assert(worldBlock.includes('[PARALLEL T1 RECONCILIATION]') && worldBlock.includes('MUST NOT appear in parallel'), 'Parallel T1 reconciliation contract missing');
-assert(worldBlock.includes('[CAUSAL WORLD PULSE]') && worldBlock.includes('never one cadence') && worldBlock.includes('Active may move two eligible rows, Sandbox four'), 'Adaptive subplot scheduler contract missing');
+assert(worldBlock.includes('[CAUSAL WORLD PULSE]') && worldBlock.includes('never one cadence') && worldBlock.includes('Living/Active may move two eligible rows') && worldBlock.includes('Autonomous/Sandbox may move four'), 'Adaptive subplot scheduler contract missing');
 assert(stateFinalBlock.includes('PARALLEL RECONCILIATION') && stateFinalBlock.includes('emit [] rather than stale or guessed content'), 'Final state compiler lacks parallel reconciliation');
 assert(outputContractBlock.includes('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]'), 'Last-instruction parallel snapshot gate missing');
 assert(outputContractBlock.includes('[DURABLE SUBPLOT AUTONOMY — ACTIVE FROM TURN ONE]') && outputContractBlock.includes('without ((parallel))'), 'Native parallel infrastructure gate missing');

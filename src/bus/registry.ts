@@ -37,6 +37,9 @@ export interface ExtractCtx {
   /** latest player-authored turn input and its resolved per-turn agency mode */
   userInput?: string;
   agency?: import('../domain/preset-runtime.js').AgencyMode;
+  /** Effective off-screen simulation tier after Living World, Social autonomy,
+   * and Politics autonomy are combined for this turn. */
+  livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox';
   /** Exact titles/keys from lorebooks attached to this chat. Inline parallel
    * reconciliation may use these labels to recognize an established off-stage
    * entity on a fresh Chronicle, but never as proof of current knowledge,

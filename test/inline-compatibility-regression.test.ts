@@ -133,4 +133,18 @@ describe('inline VELLUM compatibility normalization', () => {
     expect(state.cast.spike?.status).toBe('active');
     expect(state.cast.hellion_biker_gang).toBeUndefined();
   });
+
+  it('keeps useful off-screen beats when the model omits their ids', () => {
+    const parsed = parseState(wrap({
+      delta: {
+        offscreen_events: [
+          { title: 'Gate Watch', character: 'Ada', location: 'East Gate', activity: 'checks each arriving courier', nextTurn: 4 },
+        ],
+      },
+    }));
+    expect(parsed.source).toBe('json');
+    expect(parsed.state?.delta?.offscreen).toEqual([
+      expect.objectContaining({ id: 'gate_watch', name: 'Gate Watch', who: 'Ada', where: 'East Gate', gist: 'checks each arriving courier', nextTurn: 4 }),
+    ]);
+  });
 });

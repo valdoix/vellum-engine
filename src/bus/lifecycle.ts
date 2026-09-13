@@ -2,7 +2,7 @@ import { parseState, stripScaffold } from '../parse/state-block.js';
 import { runExtractors, type ExtractCtx } from './registry.js';
 import { nextSeq } from '../core/ids.js';
 import { hashStr } from '../core/ids.js';
-import { clockTime, elapsedClockFloor, reconcileDay, parseClock, rollover, supportsDayAdvance } from '../domain/clock.js';
+import { clockTime, elapsedClockFloor, liveTurnClockFloor, reconcileDay, parseClock, rollover, supportsDayAdvance } from '../domain/clock.js';
 import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
 import type { Tone } from '../domain/tone.js';
@@ -27,7 +27,7 @@ export interface FoldResult {
   dropped?: Record<string, number>;
 }
 
-export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number; personaState?: boolean; userInput?: string; agency?: import('../domain/preset-runtime.js').AgencyMode; parallelCanonLabels?: readonly string[] }): FoldResult {
+export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number; personaState?: boolean; userInput?: string; agency?: import('../domain/preset-runtime.js').AgencyMode; parallelCanonLabels?: readonly string[]; livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox' }): FoldResult {
   // Hash the complete active content. The state block lives at the end of the
   // message, so a prefix-only signature misses precisely the edits/swipes that
   // must invalidate canonical state on long replies.
@@ -58,9 +58,12 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // even when the reply does not repeat it. When either current-turn source gives
   // a completed duration, repair a frozen/under-advanced endpoint before folding.
   const timeSource = [opts?.userInput, prose].filter(Boolean).join('\n');
+  let inferredClockRollover = false;
   if (parsed.scene && newClock !== undefined) {
-    const floored = elapsedClockFloor(prior.day ?? 0, priorClock, Math.floor(parsed.day ?? prior.day ?? 0), newClock, timeSource);
+    let floored = elapsedClockFloor(prior.day ?? 0, priorClock, Math.floor(parsed.day ?? prior.day ?? 0), newClock, timeSource);
+    if (!floored.inferred) floored = liveTurnClockFloor(prior.day ?? 0, priorClock, floored.day, floored.clock, timeSource);
     if (floored.inferred) {
+      inferredClockRollover = floored.day > (prior.day ?? 0);
       parsed.day = floored.day;
       parsed.scene.clock = floored.clock;
       parsed.scene.time = clockTime(floored.clock);
@@ -69,7 +72,7 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   }
   const reportedGap = Math.max(1, Math.floor(parsed.day ?? prior.day ?? 0) - (prior.day ?? 0));
   const proposedDay = Math.floor(parsed.day ?? prior.day ?? 0);
-  const dayAdvanceEvidence = supportsDayAdvance(timeSource, priorClock, newClock, reportedGap, proposedDay);
+  const dayAdvanceEvidence = inferredClockRollover || supportsDayAdvance(timeSource, priorClock, newClock, reportedGap, proposedDay);
   const rec = reconcileDay(parsed.day, prior.day ?? 0, dayAdvanceEvidence, {
     ...(priorClock !== undefined ? { priorClock } : {}),
     ...(newClock !== undefined ? { newClock } : {}),
@@ -93,7 +96,7 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
     const reportedBeyondCap = parsed.day !== undefined && parsed.day > opts.dayCap;
     if (reportedBeyondCap || day > opts.dayCap) day = Math.max(prior.day ?? 0, opts.dayCap);
   }
-  const ctx: ExtractCtx = { turn, day, state: prior, prose, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}), ...(opts?.personaState ? { personaState: true } : {}), ...(opts?.userInput ? { userInput: opts.userInput } : {}), ...(opts?.agency ? { agency: opts.agency } : {}), ...(opts?.parallelCanonLabels?.length ? { parallelCanonLabels: opts.parallelCanonLabels } : {}) };
+  const ctx: ExtractCtx = { turn, day, state: prior, prose, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}), ...(opts?.personaState ? { personaState: true } : {}), ...(opts?.userInput ? { userInput: opts.userInput } : {}), ...(opts?.agency ? { agency: opts.agency } : {}), ...(opts?.parallelCanonLabels?.length ? { parallelCanonLabels: opts.parallelCanonLabels } : {}), ...(opts?.livingWorld ? { livingWorld: opts.livingWorld } : {}) };
 
   const events: VellumEvent[] = [
     { seq: nextSeq(), turn, day, src: 'system', kind: 'turn.fold', sig },

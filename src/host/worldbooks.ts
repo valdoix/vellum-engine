@@ -17,7 +17,8 @@ export interface VaultOwnership {
 export interface LiteEntry {
   id: string; bookId: string; key: string[]; keysecondary: string[]; content: string; comment: string;
   position: number; depth: number; order_value: number; roleCode?: number; priority?: number;
-  sticky?: number; cooldown?: number; delay?: number; constant: boolean; disabled: boolean;
+  sticky?: number; cooldown?: number; delay?: number; constant: boolean; disabled: boolean; selective?: boolean;
+  groupName?: string;
   vellum: boolean; category: string; source: string; link: string; pending: boolean; hash: string;
   keyHash?: string; ownerChatId?: string; vaultRole?: VaultRole; canonicalType?: string; canonicalId?: string;
   schemaVersion?: number; overrideFields?: string[]; createdAt?: number; updatedAt?: number;
@@ -45,7 +46,7 @@ function liteEntry(e: any): LiteEntry | null {
     order_value: typeof e.order_value === 'number' ? e.order_value : 100, roleCode: typeof e.role === 'number' ? e.role : 0,
     priority: typeof e.priority === 'number' ? e.priority : 0, sticky: typeof e.sticky === 'number' ? e.sticky : 0,
     cooldown: typeof e.cooldown === 'number' ? e.cooldown : 0, delay: typeof e.delay === 'number' ? e.delay : 0,
-    constant: !!e.constant, disabled: !!e.disabled,
+    constant: !!e.constant, disabled: !!e.disabled, selective: !!e.selective, groupName: String(e.group_name || ''),
     vellum: !!ext.vellum, category: String(ext.vellumCategory || ''), source: String(ext.vellumSource || ''),
     link: String(ext.vellumLink || ''), pending: !!ext.vellumPending, hash: storedHash,
     keyHash: String(ext.vellumKeyHash || ''), ownerChatId: String(ext.vellumOwnerChatId || ''),
@@ -172,6 +173,75 @@ export async function attachedLoreEntries(chatId: string, uid: string | null): P
     return listed.items.map(liteEntry).filter(Boolean) as LiteEntry[];
   }));
   return pages.flat().filter(entry => !entry.disabled && !!entry.content.trim());
+}
+
+export interface ActiveLoreScope {
+  characterId?: string | null;
+  personaId?: string | null;
+  /** Book ids already exposed by the interceptor's activation metadata. This
+   * recovers the source on hosts where a character/persona lookup is unavailable. */
+  knownBookIds?: readonly string[];
+}
+
+/** Read enabled entries from every lorebook that participates in this exact
+ * generation: chat, character, bound persona, and global attachments. The
+ * library is never scanned wholesale and duplicate books are listed once. */
+export async function activeLoreEntries(chatId: string, uid: string | null, scope: ActiveLoreScope = {}): Promise<LiteEntry[]> {
+  const a = api();
+  if (!a || !chatId || !a.entries?.list) return [];
+  const chatIds = spindle.chats?.get ? (async (): Promise<string[]> => {
+    try {
+      const chat = await spindle.chats.get(chatId, uid ?? undefined);
+      return strings(chat?.metadata?.chat_world_book_ids);
+    } catch {
+      try {
+        const chat = await spindle.chats.get(chatId);
+        return strings(chat?.metadata?.chat_world_book_ids);
+      } catch { return []; }
+    }
+  })() : Promise.resolve([]);
+  const characterIds = scope.characterId && spindle.characters?.get ? (async (): Promise<string[]> => {
+    try {
+      const character = await spindle.characters.get(scope.characterId!, uid ?? undefined);
+      return strings(character?.world_book_ids);
+    } catch { return []; }
+  })() : Promise.resolve([]);
+  const personaIds = scope.personaId && spindle.personas ? (async (): Promise<string[]> => {
+    try {
+      if (spindle.personas.getWorldBook) {
+        const book = await spindle.personas.getWorldBook(scope.personaId!, uid ?? undefined);
+        return book?.id ? [String(book.id)] : [];
+      } else if (spindle.personas.get) {
+        const persona = await spindle.personas.get(scope.personaId!, uid ?? undefined);
+        return persona?.attached_world_book_id ? [String(persona.attached_world_book_id)] : [];
+      }
+    } catch { return []; }
+    return [];
+  })() : Promise.resolve([]);
+  const globalIds = a.getGlobal ? (async (): Promise<string[]> => {
+    try {
+      const global = await a.getGlobal(uid ?? undefined);
+      return strings(global);
+    } catch { return []; }
+  })() : Promise.resolve([]);
+  const [chatBooks, characterBooks, personaBooks, globalBooks] = await Promise.all([chatIds, characterIds, personaIds, globalIds]);
+
+  // Stable scope precedence matters when a pathological profile exceeds the
+  // safety cap: observed/chat books lead, then character, persona, and global.
+  const bookIds = [...new Set([
+    ...strings(scope.knownBookIds), ...chatBooks, ...characterBooks, ...personaBooks, ...globalBooks,
+  ].filter(Boolean))].slice(0, 60);
+  const pages = await Promise.all(bookIds.map(async (bookId) => {
+    const listed = await listAll(a.entries.list.bind(a.entries), [bookId], uid, 300);
+    if (!listed.complete) spindle.log?.warn?.(`[vellum_engine] active lorebook ${bookId} returned an incomplete entry list; using the verified page only.`);
+    return listed.items.map(liteEntry).filter(Boolean) as LiteEntry[];
+  }));
+  const byId = new Map<string, LiteEntry>();
+  for (const entry of pages.flat()) {
+    const key = `${entry.bookId}\u0000${entry.id}`;
+    if (!entry.disabled && entry.content.trim() && !byId.has(key)) byId.set(key, entry);
+  }
+  return [...byId.values()];
 }
 
 export function ownedBooks(snap: VaultSnapshot, chatId: string): VaultBook[] { return snap.books.filter((b) => b.vellum && b.ownerChatId === chatId); }

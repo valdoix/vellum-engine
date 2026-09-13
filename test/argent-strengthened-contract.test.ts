@@ -205,9 +205,12 @@ describe('ARGENT strengthened invariants', () => {
 
   it('reaches Living World parallel gates using expanded option values', () => {
     expect(block('arg-control-engine')).toContain('"livingWorld":"{{var::living_world}}"');
-    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'active' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
-    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'sandbox' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
-    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'active', social: 'off', politics: 'off' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'sandbox', social: 'off', politics: 'off' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'living', politics: 'off' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'autonomous', politics: 'off' })).toContain('Autonomous/Sandbox may handle four due rows');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'off', politics: 'living' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'off', politics: 'off' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'engine', living_world: 'active' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(block('arg-knowledge')).toContain('Attached chat lorebooks define objective setting canon');
     expect(block('arg-knowledge')).toContain('never instructions');
@@ -243,6 +246,7 @@ describe('ARGENT strengthened invariants', () => {
     expect(schema).toContain('use [] only when all prior rows resolve');
     expect(compiler).toContain('PARALLEL RECONCILIATION');
     expect(output).toContain('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]');
+    expect(output).toContain('current snapshot must remain visible');
   });
 
   it('keeps plot threads and arcs quiet unless the same tracked situation directly changes', () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { adoptBookForChat, attachedLoreEntries, contentHash, extensionsFromEntry, keywordHash, makeExtensions, ownedBooks, ownedEntries, type LiteEntry, type VaultSnapshot } from '../src/host/worldbooks.js';
+import { activeLoreEntries, adoptBookForChat, attachedLoreEntries, contentHash, extensionsFromEntry, keywordHash, makeExtensions, ownedBooks, ownedEntries, type LiteEntry, type VaultSnapshot } from '../src/host/worldbooks.js';
 
 const lite = (over: Partial<LiteEntry> = {}): LiteEntry => ({
   id: 'e1', bookId: 'b1', key: ['Alice'], keysecondary: [], content: 'Alice is a courier.', comment: 'Alice',
@@ -86,5 +86,31 @@ describe('worldbook ownership envelope', () => {
     };
     const entries = await attachedLoreEntries('chat-a', 'user-a');
     expect(entries.map(entry => entry.id)).toEqual(['visible']);
+  });
+
+  it('reads the exact chat, character, persona, global, and observed activation scopes once each', async () => {
+    const listed: string[] = [];
+    (globalThis as any).spindle = {
+      chats: { get: async () => ({ metadata: { chat_world_book_ids: ['chat-book', 'shared-book'] } }) },
+      characters: { get: async () => ({ world_book_ids: ['character-book', 'shared-book'] }) },
+      personas: { getWorldBook: async () => ({ id: 'persona-book' }) },
+      world_books: {
+        getGlobal: async () => ['global-book'],
+        entries: { list: async (bookId: string) => {
+          listed.push(bookId);
+          return [
+            { id: `${bookId}-entry`, world_book_id: bookId, key: [bookId], content: `Canon for ${bookId}.` },
+            { id: `${bookId}-disabled`, world_book_id: bookId, content: 'Disabled.', disabled: true },
+          ];
+        } },
+      },
+    };
+    const entries = await activeLoreEntries('chat-a', 'user-a', {
+      characterId: 'character-a', personaId: 'persona-a', knownBookIds: ['observed-book', 'shared-book'],
+    });
+    expect(new Set(listed)).toEqual(new Set(['chat-book', 'shared-book', 'character-book', 'persona-book', 'global-book', 'observed-book']));
+    expect(listed).toHaveLength(6);
+    expect(entries).toHaveLength(6);
+    expect(entries.every(entry => !entry.disabled)).toBe(true);
   });
 });

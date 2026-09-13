@@ -42,7 +42,7 @@ import { EventLog as EventLogSchema, SCHEMA_VERSION, type VellumEvent } from './
 import { nextSeq as nextSeqLocal, hashStr, canonId } from './core/ids.js';
 import { syncHideOnFile } from './host/hide.js';
 import type { ChronicleState } from './domain/types.js';
-import { VAULT_SCHEMA_VERSION, vaultSnapshot, attachedLoreEntries, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, adoptBookForChat, hasVault, ownedBooks, ownedEntries, extensionsFromEntry, type LiteEntry, type VaultSnapshot, type VaultRole } from './host/worldbooks.js';
+import { VAULT_SCHEMA_VERSION, vaultSnapshot, attachedLoreEntries, activeLoreEntries, setBookAttached, createBook, updateBook, createEntry, updateEntry, deleteEntry, syncEntry, adoptBookForChat, hasVault, ownedBooks, ownedEntries, extensionsFromEntry, type LiteEntry, type VaultSnapshot, type VaultRole } from './host/worldbooks.js';
 import { loadCategories, upsertCategory, deleteCategory } from './store/vault-categories.js';
 import { resolveCategory, settingsToEntryFields, customCategory, isSyncSource, type EntrySettings, type VaultCategory } from './domain/vault.js';
 import { reconcileChapterEntries, planChapterEntry, type ChapterVaultMode } from './domain/chapter-vault.js';
@@ -52,7 +52,7 @@ import { parseTone, isDefaultTone, DEFAULT_TONE, type Tone } from './domain/tone
 import { sanitizeLocks, lockKey, lockInjection, type RelationLock } from './domain/relation-lock.js';
 import { sanitizeDirectives, directiveInjection, reconcileDirectives, armScheduled, type Directive } from './domain/directive.js';
 import { checkContinuity, checkThreadOffscreenSync } from './domain/continuity.js';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenInjection, readyToIntersect, planSubplotTick, type SubplotTickPlan } from './domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, simSys, offscreenInjection, readyToIntersect, planSubplotTick, effectiveSubplotMode, type SubplotTickPlan } from './domain/offscreen.js';
 import { THREAD_MERGE_SYS, buildMergePrompt, parseMergeReply, validateMerges, openTracks } from './domain/thread-merge.js';
 import { THREAD_CATCHUP_SYS, buildCatchupPrompt, OFFSCREEN_CATCHUP_SYS, buildOffscreenCatchupPrompt, parseCatchupReply, validateCatchupBeats, catchupTargets, offscreenCatchupTargets, threadsAwaitingCatchup, offscreensAwaitingCatchup } from './domain/thread-catchup.js';
 import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFactMerges, mergeCandidates } from './domain/fact-merge.js';
@@ -69,6 +69,7 @@ import { formatDryRunMessages, visiblePreviewContent } from './domain/preset-pre
 import { reduce } from './core/reduce.js';
 import { dialogueMarkupGuidance, repairDialogueSpeakerTags, type DialogueIdentity } from './domain/dialogue-colors.js';
 import { selectLorebookCanon, type LorebookCanonEntry } from './domain/lorebook-canon.js';
+import { buildLorebookRecall, type LorebookRecallResult } from './retrieval/lorebook.js';
 import { TASK_ROLES, sanitizeModelRoutes, resolveTaskRoute, generationReasoning, type ModelRouteConfig, type TaskRole, type TaskRoute } from './domain/task-routing.js';
 import { auditChronicle } from './domain/workbench-health.js';
 
@@ -77,10 +78,13 @@ function lorebookCanonEntries(entries: readonly LiteEntry[]): LorebookCanonEntry
     id: entry.id,
     bookId: entry.bookId,
     title: entry.comment || entry.key[0] || undefined,
-    keys: [...entry.key, ...entry.keysecondary],
+    keys: entry.key,
+    secondaryKeys: entry.keysecondary,
     content: entry.content,
     constant: entry.constant,
     priority: entry.priority,
+    category: entry.category,
+    group: entry.groupName,
   }));
 }
 
@@ -88,7 +92,7 @@ function lorebookCanonEntries(entries: readonly LiteEntry[]): LorebookCanonEntry
  * limited to entry titles and activation keys: body-text mentions are context,
  * not a closed-roster declaration. */
 function lorebookParallelLabels(entries: readonly LorebookCanonEntry[]): string[] {
-  return [...new Set(entries.flatMap(entry => [entry.title, ...(entry.keys ?? [])])
+  return [...new Set(entries.flatMap(entry => [entry.title, ...(entry.keys ?? []), ...(entry.secondaryKeys ?? [])])
     .map(value => String(value ?? '').trim()).filter(Boolean))];
 }
 
@@ -540,6 +544,10 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   let lorebookCanon = lorebookCanonEntries(attached);
   let parallelCanonLabels = lorebookParallelLabels(lorebookCanon);
   const userCanon = names.user ? canonId(names.user) : '';
+  // Social and Politics autonomy are independent user-facing ways to turn on
+  // off-screen life. Fold all three controls into one actual pipeline tier so
+  // Living/Autonomous cannot be selected while parallel simulation stays inert.
+  const parallelMode = effectiveSubplotMode(turnContract?.livingWorld ?? 'off', tone.social, tone.politics);
   // REGENERATION / EDIT RECONCILE: a regenerated or edited turn keeps the same
   // message count, so the forward-only fold below would never revisit it and the
   // chronicle would keep the STALE turn's deltas. Compare each already-folded
@@ -564,10 +572,10 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   // only the newest already-folded turn needs checking. This finds corruption
   // that entered several turns ago: checking only the latest turn would replay it
   // against an already-corrupted baseline and incorrectly conclude it was sound.
-  // This is not a broad "trust the model" rewind: Engine Pass documents and
-  // user-authored time corrections are excluded, and unsupported backward/jump
-  // reports are still normalized by foldTurn before they are compared.
-  if (rollbackTo === null && structuredStateEnabled && !engineCompiler && (prior.turns ?? 0) > 0) {
+  // This is not a broad "trust the model" rewind: Engine Pass turns are audited
+  // from their logged compiler document, user-authored corrections remain
+  // authoritative, and foldTurn still normalizes unsupported rollback/jumps.
+  if (rollbackTo === null && structuredStateEnabled && (prior.turns ?? 0) > 0) {
     const lastFoldedTurn = Math.min(prior.turns, msgs.length);
     const fullAudit = !_timeAuthorityAudited.has(chatId);
     const auditTurns = fullAudit
@@ -577,7 +585,12 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     for (const auditTurn of auditTurns) {
       const auditContent = (msgs[auditTurn - 1] ?? '').trim();
       if (!auditContent) continue;
-      const parsedAudit = parseState(auditContent);
+      // Engine-owned turns keep the validated canonical document in the log.
+      // Audit that document rather than skipping the turn or trusting whatever
+      // inline scaffold the visible response happened to contain.
+      const compiledAuthority = [...log.events].reverse().find((event): event is Extract<VellumEvent, { kind: 'state.compiled' }> => event.turn === auditTurn && event.kind === 'state.compiled');
+      const authorityContent = compiledAuthority?.block ?? auditContent;
+      const parsedAudit = parseState(authorityContent);
       if (!parsedAudit.state || (parsedAudit.source !== 'json' && parsedAudit.source !== 'json-partial')) continue;
 
       const reportedClock = parsedAudit.state.scene
@@ -594,16 +607,16 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       // inline declaration. Engine-compiled turns have their own validated
       // repair path and must not be reinterpreted as inline-owned state.
       const timeWasUserCorrected = log.events.some((event) => event.turn >= auditTurn && event.src === 'user'
-        && (event.kind === 'day.set' || event.kind === 'scene.set' || event.kind === 'timeline.day.set'));
-      const engineOwnedTurn = log.events.some((event) => event.turn === auditTurn && event.kind === 'state.compiled');
-      if (timeWasUserCorrected || engineOwnedTurn) continue;
+        && (event.kind === 'day.set' || event.kind === 'timeline.day.set'
+          || (event.kind === 'scene.set' && (event.time !== undefined || event.clock !== undefined))));
+      if (timeWasUserCorrected) continue;
 
       const before = projectEvents(log.events.filter((event) => event.turn < auditTurn));
       const auditParts = messagePartsAtTurn(transcript.raw, auditTurn, transcript.snapshotFallback ? transcript.snapshot : undefined);
       const auditAgency = auditTurn <= turnAgencyLedger.through
         ? agencyAtTurn(turnAgencyLedger, auditTurn)
         : turnContract?.agency ?? 'protected';
-      const expectedFold = foldTurn(auditContent, before, auditTurn, {
+      const expectedFold = foldTurn(authorityContent, before, auditTurn, {
         tone,
         userCanon,
         locks,
@@ -611,6 +624,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         userInput: auditParts?.userInput ?? '',
         agency: auditAgency,
         parallelCanonLabels,
+        livingWorld: parallelMode,
       });
       const expected = reduce(expectedFold.events, structuredClone(before));
       const expectedClock = expected.scene.clock ?? parseClock(expected.scene.time);
@@ -716,7 +730,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
       const manualRepair = _retryingEngine.has(chatId) && _engineRepairTargetByChat.get(chatId) === turnNo;
-      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: turnContract?.livingWorld ?? 'off', agency, personaState: personaStateOn, lorebookCanon };
+      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: parallelMode, agency, personaState: personaStateOn, lorebookCanon };
       const compilerRoute = await taskRoute(chatId, userId, manualRepair ? 'engineRetry' : 'engine');
       const compilerTuning = routedParams(compilerRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
       const compilerAbort = new AbortController();
@@ -840,7 +854,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     const folded = parallelFoldEvents !== null
       ? { events: parallelFoldEvents, source: 'json' as const, sig: sigOf(content), dropped: undefined }
       : structuredStateEnabled
-      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, ...(dayCap !== undefined ? { dayCap } : {}) })
+      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, livingWorld: parallelMode, ...(dayCap !== undefined ? { dayCap } : {}) })
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     const { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {
@@ -1407,18 +1421,18 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     // Do not expose live plot-thread updates here. They are author knowledge and
     // previously caused absent actors to react to events that never reached them.
     // Each actor instead receives only their own knowledge/memories and subplot.
-    const prompt = buildSimPrompt(state, cast, { locks, directives, worldCanon, tone: { disposition: tone.disposition, social: tone.social }, livingWorld, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew } : {}), ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}) });
+    const prompt = buildSimPrompt(state, cast, { locks, directives, worldCanon, tone: { disposition: tone.disposition, social: tone.social }, livingWorld, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew, newCap: schedule.newCap } : {}), ...(focusId ? { focusId } : {}), ...(skipDays ? { skipDays } : {}) });
     // 600-token budget: the reply is a JSON array of up to 4 subplot objects; 200
     // truncated it (unparseable JSON → silent no-op) on reasoning models.
     // 30s timeout: this runs detached (background tick or manual button), NOT on
     // the prompt-assembly path — a reasoning model needs far more than the old 3s
     // to think + emit JSON, which was aborting every tick ("Generation aborted").
-    const res = await routedControllerGenerate(chatId, userId, 'offscreen', [{ role: 'system', content: simSys(tone.social, tone.politics) }, { role: 'user', content: prompt }], { timeoutMs: 30000, maxTokens: 900 });
+    const res = await routedControllerGenerate(chatId, userId, 'offscreen', [{ role: 'system', content: simSys(tone.social, tone.politics, livingWorld) }, { role: 'user', content: prompt }], { timeoutMs: 30000, maxTokens: livingWorld === 'sandbox' ? 1200 : 900 });
     if (!res.ok) {
       spindle.log?.warn?.(`[vellum_engine] off-screen sim: generation failed (${res.error})`);
       return { beats: 0, reason: 'empty_reply' };
     }
-    const parsed = parseSim(res.value);
+    const parsed = parseSim(res.value, livingWorld === 'sandbox' ? 4 : 2);
     if (!parsed) {
       spindle.log?.warn?.('[vellum_engine] off-screen sim: reply did not parse. Raw reply: ' + JSON.stringify((res.value || '').slice(0, 400)));
       return { beats: 0, reason: 'empty_reply' };
@@ -1442,7 +1456,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     }
     const simNames = await chatNames(chatId, userId);
     const simUserCanon = simNames.user ? canonId(simNames.user) : '';
-    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, worldCanon, social: tone.social, politics: tone.politics, userId: simUserCanon, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew } : {}), ...(skipDays ? { skipDays } : {}) });
+    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, worldCanon, social: tone.social, politics: tone.politics, livingWorld, userId: simUserCanon, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew, newCap: schedule.newCap } : {}), ...(skipDays ? { skipDays } : {}) });
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
     invalidateIndex(chatId);
@@ -1477,7 +1491,9 @@ async function maybeSimulate(chatId: string, userId: string | null): Promise<boo
   const contract = await activeTurnContract(chatId, userId);
   let legacyOn = false;
   try { legacyOn = !!(await getChatVar(chatId, 'vellum_offscreen')); } catch { /* best effort */ }
-  const livingWorld = contract?.argent ? contract.livingWorld : (legacyOn ? 'active' : 'off');
+  const tone = await readTone(chatId, userId);
+  const configuredWorld = contract?.argent ? contract.livingWorld : (legacyOn ? 'active' : 'off');
+  const livingWorld = effectiveSubplotMode(configuredWorld, tone.social, tone.politics);
   if (livingWorld === 'off' || livingWorld === 'minimal') return false;
   const state = await loadState(chatId);
   // narrative days elapsed since the last sim tick (or since the chat's first day
@@ -1953,12 +1969,63 @@ function sceneQuery(messages: readonly any[], ctx?: { activatedWorldInfo?: reado
       ? messages.filter((m) => m?.__isChatHistory === true && !m?.__isWorldInfoEntry)
       : messages.filter((m) => m?.role === 'user' || m?.role === 'assistant');
     const source = history.length ? history : messages;
-    const joined = source.slice(-6).map((m: any) => stripProseRefreshCommand(typeof m?.content === 'string' ? m.content : '')).join(' ');
+    const joined = source.slice(-6).map((m: any) => stripScaffold(stripProseRefreshCommand(typeof m?.content === 'string' ? m.content : ''))).join(' ');
     // Preserve the newest prompt tail. Prefix slicing made an old long message
     // crowd out the latest user action, which is the strongest retrieval signal.
     return joined.length > 2400 ? joined.slice(-2400) : joined;
   } catch { /* ignore */ }
   return '';
+}
+
+/** The newest exchange is a stronger lore-routing signal than names mentioned
+ * several turns ago. Keep it separate so lorebook recall can weight it first. */
+function sceneFocusQuery(messages: readonly any[]): string {
+  try {
+    if (!Array.isArray(messages) || !messages.length) return '';
+    const flagged = messages.some((m) => m && (Object.prototype.hasOwnProperty.call(m, '__isChatHistory') || Object.prototype.hasOwnProperty.call(m, '__isWorldInfoEntry')));
+    const history = flagged
+      ? messages.filter((m) => m?.__isChatHistory === true && !m?.__isWorldInfoEntry)
+      : messages.filter((m) => (m?.role === 'user' || m?.role === 'assistant') && !m?.__isWorldInfoEntry);
+    const clean = (value: unknown): string => stripScaffold(stripProseRefreshCommand(typeof value === 'string' ? value : '')).trim();
+    const latestUser = [...history].reverse().find((m) => m?.role === 'user');
+    const latestAssistant = [...history].reverse().find((m) => m?.role === 'assistant');
+    const joined = [clean(latestAssistant?.content), clean(latestUser?.content)].filter(Boolean).join(' ');
+    return joined.length > 1800 ? joined.slice(-1800) : joined;
+  } catch { return ''; }
+}
+
+function activatedLoreEntryIds(context: InterceptorContextDTO): Set<string> {
+  return new Set([...(context.activatedWorldInfo ?? []), ...(context.capturedWorldInfo ?? [])]
+    .map(entry => {
+      const id = String(entry?.id ?? '').trim();
+      const bookId = String(entry?.bookId ?? '').trim();
+      return id && bookId ? `lorebook:${bookId}:${id}` : id;
+    }).filter(Boolean));
+}
+
+function activatedLoreBookIds(context: InterceptorContextDTO): string[] {
+  return [...new Set([...(context.activatedWorldInfo ?? []), ...(context.capturedWorldInfo ?? [])]
+    .map(entry => String(entry?.bookId ?? '')).filter(Boolean))];
+}
+
+function recallLorebooksForTurn(entries: readonly LiteEntry[], state: ChronicleState, messages: readonly any[], context: InterceptorContextDTO): LorebookRecallResult {
+  const anchors = [
+    state.scene.location,
+    ...state.scene.present.flatMap(id => {
+      const actor = state.cast[id];
+      return actor ? [actor.name, ...(actor.aka ?? [])] : [id];
+    }),
+  ].filter(Boolean);
+  return buildLorebookRecall(lorebookCanonEntries(entries), {
+    focus: sceneFocusQuery(messages),
+    recent: sceneQuery(messages),
+    anchors,
+  }, {
+    activatedIds: activatedLoreEntryIds(context),
+    maxDynamicEntries: 6,
+    maxTotalEntries: 12,
+    maxChars: 4800,
+  });
 }
 
 /**
@@ -2034,6 +2101,14 @@ async function wireCapabilitiesInner(): Promise<void> {
           rememberUser(uid);
           const chatId = context.chatId;
           if (!chatId) return out;
+          // Start the scoped lore read immediately so it overlaps preset/state
+          // work. Failure or a slow host is a clean no-op; Chronicle recall must
+          // never be held hostage by the optional world-book lane.
+          const activeLorePromise = withTimeout(activeLoreEntries(chatId, uid, {
+            characterId: context.characterId,
+            personaId: context.personaId,
+            knownBookIds: activatedLoreBookIds(context),
+          }), 1800, 'lorebook recall').catch(() => [] as LiteEntry[]);
           const contractKey = userChatKey(uid, chatId);
           let activePreset: any = null;
           if (context.presetId && (await has('presets')) && spindle.presets?.get) {
@@ -2120,19 +2195,20 @@ async function wireCapabilitiesInner(): Promise<void> {
             }
           }
           if (!state.turns && !Object.keys(state.cast).length) {
-            const initialText = [personaStateText, dialogueText, refreshText, parallelCommandText].filter(Boolean).join('\n\n');
+            const lorebookRecall = recallLorebooksForTurn(await activeLorePromise, state, out, context);
+            const initialText = [lorebookRecall.text, personaStateText, dialogueText, refreshText, parallelCommandText].filter(Boolean).join('\n\n');
             if (!initialText) return out;
-            const rec = recordInjection(chatId, 0, initialText, [], { source: refreshText ? 'prose-refresh' : 'persona-state' });
+            const rec = recordInjection(chatId, 0, initialText, lorebookRecall.ids, { source: lorebookRecall.text ? 'lorebook' : refreshText ? 'prose-refresh' : 'persona-state' });
             try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
             const initialMessages = [
-              ...((refreshText || parallelText || personaStateHead || dialogueText) ? [{ role: 'system', content: [refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
+              ...((lorebookRecall.text || refreshText || parallelText || personaStateHead || dialogueText) ? [{ role: 'system', content: [lorebookRecall.text, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
               ...out,
               ...(personaStateTail ? [{ role: 'system', content: personaStateTail }] : []),
             ];
             const initialBreakdown = [
-              ...((refreshText || parallelText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: parallelText ? 'VELLUM Parallel Events' : refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
-              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
-              ...(parallelEmbeddedAt >= 0 ? [{ messageIndex: parallelEmbeddedAt + ((refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Parallel Events' }] : []),
+              ...((lorebookRecall.text || refreshText || parallelText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: lorebookRecall.text ? 'VELLUM Lorebook Recall' : parallelText ? 'VELLUM Parallel Events' : refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
+              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((lorebookRecall.text || refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+              ...(parallelEmbeddedAt >= 0 ? [{ messageIndex: parallelEmbeddedAt + ((lorebookRecall.text || refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Parallel Events' }] : []),
               ...(personaStateTail ? [{ messageIndex: initialMessages.length - 1, name: 'VELLUM Persona State' }] : []),
             ];
             return { messages: initialMessages, breakdown: initialBreakdown };
@@ -2144,7 +2220,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           // cached, but this also removes serialized await-chains on the hot
           // pre-response path). The traversal-mode read gates the controller/
           // precompute choice, so it's awaited first; everything else overlaps.
-          const [tmodeRaw, traversalAxis, caps, directives, locks, calText, nextSceneText, limitsText, logEvents, livingRaw, lastSimRaw, blockExampleRaw] = await Promise.all([
+          const [tmodeRaw, traversalAxis, caps, directives, locks, calText, nextSceneText, limitsText, logEvents, livingRaw, lastSimRaw, blockExampleRaw, activeLore] = await Promise.all([
             getChatVar(chatId, 'vellum_traversal_mode').catch(() => ''),
             getChatVar(chatId, 'vellum_traversal_axis').then(readAxis).catch(() => 'temporal' as const),
             budgetCaps(chatId),
@@ -2157,6 +2233,7 @@ async function wireCapabilitiesInner(): Promise<void> {
             getChatVar(chatId, 'vellum_living_clock').catch(() => ''),
             getChatVar(chatId, 'vellum_sim_day').catch(() => ''),
             getChatVar(chatId, 'vellum_block_example').catch(() => ''),
+            activeLorePromise,
           ]);
           const tmode = tmodeRaw === 'tree' ? 'tree' : 'flat';
           // Controller-guided traversal (variant A), opt-in per chat. Builds a
@@ -2185,6 +2262,7 @@ async function wireCapabilitiesInner(): Promise<void> {
             // Ship Items 1–5 first; land Item 6 last, behind its opt-in.
           }
           const inj = await buildInjectionHybrid(chatId, state, sceneQuery(out, { activatedWorldInfo: context?.activatedWorldInfo }), uid, 1, version, controller, tmode, pre, traversalAxis);
+          const lorebookRecall = recallLorebooksForTurn(activeLore, state, out, context);
           // Plot Director: append armed directives as gentle guidance (suggestive,
           // not a hard block — they self-clear at the fold when fulfilled).
           const dirText = directiveInjection(directives);
@@ -2240,10 +2318,10 @@ async function wireCapabilitiesInner(): Promise<void> {
           // Refresh goes last inside VELLUM's system injection so it is the
           // freshest style instruction while every continuity/output contract
           // above it remains binding.
-          const injText = [limitsText, inj.text, locText, driftText, moodText, npcText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, lorebookRecall.text, locText, driftText, moodText, npcText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
           if (!injText && !personaStateText) return out;
           const loggedText = [injText, parallelEmbeddedAt >= 0 ? parallelCommandText : '', personaStateTail, personaStateEmbeddedAt >= 0 ? personaStateText : ''].filter(Boolean).join('\n\n');
-          const rec = recordInjection(chatId, state.turns || 0, loggedText, inj.recallIds, { source: inj.source, trace: inj.trace ?? inj.treeTrace });
+          const rec = recordInjection(chatId, state.turns || 0, loggedText, [...inj.recallIds, ...lorebookRecall.ids], { source: inj.source, trace: inj.trace ?? inj.treeTrace });
           // Fix 11 — live retrieval feed: push the record so the Injection tab
           // streams in real time instead of only on manual Refresh.
           try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
@@ -2758,6 +2836,7 @@ const dispatch: Record<string, Handler> = {
       const tuning = routedParams(route, { maxTokens: 20000, timeoutMs: 180000, temperature: 0 });
       const lorebookCanon = lorebookCanonEntries(attached);
       const parallelCanonLabels = lorebookParallelLabels(lorebookCanon);
+      const reconstructionParallelMode = effectiveSubplotMode(contract?.livingWorld ?? 'active', tone.social, tone.politics);
       report('Reading evidence', startAt - 1, turns.length, startAt > 1 ? `Resuming verified checkpoint at turn ${startAt}.` : 'Transcript and canonical sources loaded.');
       for (let turnNo = startAt; turnNo <= turns.length; turnNo++) {
         if (abort.signal.aborted) break;
@@ -2773,11 +2852,11 @@ const dispatch: Record<string, Handler> = {
           report('Compiling evidence', turnNo - 1, turns.length, `Reconciling turn ${turnNo} against prior state and attached canon.`);
           const routeIds = [route.resolvedConnectionId, ...(route.fallbackIds ?? [])].filter((id): id is string => !!id);
           for (let attempt = 0; attempt < Math.max(1, tuning.retries + 1) && !abort.signal.aborted; attempt++) {
-            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: contract?.livingWorld ?? 'active', agency, personaState: personaStateOn, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
+            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: reconstructionParallelMode, agency, personaState: personaStateOn, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
             if (compiled.ok) { foldContent = prose + '\n' + compiled.block; compiledOk = true; break; }
           }
         }
-        const folded = foldTurn(foldContent, prior, turnNo, { tone, userCanon: names.user ? canonId(names.user) : '', locks, personaState: personaStateOn, userInput, agency, parallelCanonLabels });
+        const folded = foldTurn(foldContent, prior, turnNo, { tone, userCanon: names.user ? canonId(names.user) : '', locks, personaState: personaStateOn, userInput, agency, parallelCanonLabels, livingWorld: reconstructionParallelMode });
         const evs = [...folded.events];
         if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: hashStr(content) } as VellumEvent);
         const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;
@@ -2947,6 +3026,7 @@ const dispatch: Record<string, Handler> = {
       const locks = await readLocks(chatId);
       const personaStateOn = await readPersonaStateEnabled(chatId);
       const rebuildContract = await activeTurnContract(chatId, uid);
+      const rebuildParallelMode = effectiveSubplotMode(rebuildContract?.livingWorld ?? 'off', tone.social, tone.politics);
       const rebuildAgencyLedger = await activeTurnAgencyLedger(chatId, uid);
       const rebuildParallelCanonLabels = messagesOnly
         ? []
@@ -2976,7 +3056,7 @@ const dispatch: Record<string, Handler> = {
           if (!gist) continue;
           evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: memId, tier: 'turn', text: gist, keys: [] } as VellumEvent);
         } else {
-          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: rebuiltParts?.userInput ?? '', agency: rebuildAgency, parallelCanonLabels: rebuildParallelCanonLabels });
+          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: rebuiltParts?.userInput ?? '', agency: rebuildAgency, parallelCanonLabels: rebuildParallelCanonLabels, livingWorld: rebuildParallelMode });
           evs.push(...events);
           if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
           const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;

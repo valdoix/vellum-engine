@@ -338,7 +338,7 @@ const SLIDES = [
         <div class="vle-ob-tip">
           <span class="vle-ob-tip-icon">💡</span>
           <div>
-            <strong>Check the Context tab.</strong> If the AI seems to have forgotten something, open <strong>Context</strong> to see exactly what was injected. It shows characters, relationships, recalled turns, and facts.
+            <strong>Check the Context tab.</strong> If the AI seems to have forgotten something, open <strong>Context</strong> to see exactly what was injected. It shows characters, relationships, recalled turns, facts, and any canon VELLUM selected from active lorebooks.
           </div>
         </div>
         <div class="vle-ob-tip">

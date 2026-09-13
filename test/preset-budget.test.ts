@@ -19,6 +19,12 @@ describe('expandMacros', () => {
     expect(expandMacros('{{if::{{var::enabled}}}}on{{else}}off{{/if}}', { enabled: '0' })).toBe('off');
   });
 
+  it('resolves runtime-style regular-expression predicates', () => {
+    const source = '{{if::{{matches::{{var::modes}}::(?:^| )(?:active|autonomous)(?: |$)}}}}on{{else}}off{{/if}}';
+    expect(expandMacros(source, { modes: 'off autonomous off' })).toBe('on');
+    expect(expandMacros(source, { modes: 'minimal reactive off' })).toBe('off');
+  });
+
   it('resolves a switch from the selected prompt variable', () => {
     expect(expandMacros('{{switch::{{var::mode}}::lean::short::full::long}}', { mode: 'full' })).toBe('long');
   });

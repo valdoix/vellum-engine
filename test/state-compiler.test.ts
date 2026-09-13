@@ -121,6 +121,19 @@ describe('strict pre-commit state compiler', () => {
     expect(r.ok).toBe(true);
     if (r.ok) expect(JSON.parse(r.block.slice(9, -9)).scene).toMatchObject({ time: '19:48', clock: 1188 });
   });
+  it('advances a frozen compiler clock for an unquantified live beat', () => {
+    const i = input();
+    i.prior.scene = { ...i.prior.scene, time: '19:38', clock: 1178 };
+    i.prose = 'Mara closes the ledger, crosses to the door, and asks Ada to follow.';
+    const c = candidate();
+    c.state.day = 1;
+    c.state.scene.time = '19:38';
+    c.state.scene.clock = 1178;
+    c.evidence = [];
+    const r = validateCompilation(c, i);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(JSON.parse(r.block.slice(9, -9)).scene).toMatchObject({ time: '19:39', clock: 1179 });
+  });
   it('preserves anonymous world parallel events during Engine Second Pass', () => {
     const i = input();
     i.prior.parallel.unshift({ where: 'Harbor', activity: 'The storm front is closing the channel', note: 'Ferries remain docked', day: 1, turn: 1 });

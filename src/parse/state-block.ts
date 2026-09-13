@@ -829,13 +829,22 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       adopt(row, 'thread', ['plotThread', 'plot_thread']);
       adopt(row, 'arc', ['storyArc', 'story_arc']);
       adopt(row, 'op', ['action', 'operation', 'status']);
-      const id = str(row.id); const gist = str(row.gist);
-      if (!id || !gist) return [];
-      row.id = id; row.gist = gist;
       const op = str(row.op).toLowerCase();
       row.op = ['resolve', 'resolved', 'complete', 'completed', 'closed'].includes(op)
         ? 'resolve'
         : ['new', 'start', 'started', 'open', 'opened', 'seed'].includes(op) ? 'new' : 'advance';
+      const gist = str(row.gist);
+      // Several providers omit a subplot id while still returning a perfectly
+      // usable name/actor/activity row. Derive a deterministic id rather than
+      // dropping the whole beat; subsequent blocks can echo this stable slug.
+      const seed = str(row.id) || str(row.name) || [str(row.who), gist].filter(Boolean).join(' ');
+      const id = seed.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+      if (!id || (!gist && row.op !== 'resolve')) return [];
+      row.id = id;
+      // ParsedOffscreen keeps one uniform shape. Resolve does not use this text
+      // as a new beat, but a neutral sentinel lets a valid close survive the
+      // schema when the provider omitted a replacement gist.
+      row.gist = gist || 'resolved';
       return [row];
     });
   }

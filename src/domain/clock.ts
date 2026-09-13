@@ -201,6 +201,63 @@ export interface ElapsedClockFloor {
   elapsed?: number;
 }
 
+/** True when the current turn depicts live, time-consuming action but does not
+ * quantify its duration. The model-facing contract already says completed
+ * speech/action advances at least one minute; this is the deterministic engine
+ * backstop for providers that keep copying T0 into several consecutive blocks.
+ *
+ * Deliberately conservative: pure OOC/control turns, static description,
+ * memories/flashbacks, and explicitly simultaneous instants do not move NOW.
+ * We also avoid trying to estimate long durations here. Quantified waits/travel
+ * remain the job of completedElapsedMinutes(); this floor is exactly one minute.
+ */
+export function hasImplicitLivePassage(text: string | undefined): boolean {
+  if (!text) return false;
+  let raw = String(text).normalize('NFKC')
+    .replace(/<reverie>[\s\S]*?<\/reverie>/gi, ' ')
+    .replace(/(?:\u2039|<)vellum(?:\u203a|>)[\s\S]*?(?:\u2039|<)\/vellum(?:\u203a|>)/gi, ' ')
+    .replace(/^\s*OOC\s*:[^\n]*$/gim, ' ')
+    .replace(/^\s*(?:continue|go on|next|proceed|keep going)[.!]?\s*$/gim, ' ')
+    .replace(/\(\([^\n]*?\)\)/g, ' ')
+    .trim();
+  if (!raw || !/[\p{L}\p{N}]/u.test(raw)) return false;
+  if (/\b(?:at|in) the same (?:instant|moment)|\bsimultaneously\b|\bbefore (?:a|one) second (?:passes|passed)|\btime (?:is|was) frozen\b/i.test(raw)) return false;
+
+  // Spoken words consume time even when the exchange is brief. Match ordinary
+  // quotation marks and the extension's speaker wrapper.
+  if (/\[spk=[^\]]+\][\s\S]*?["“][^"”\n]+["”][\s\S]*?\[\/spk\]/i.test(raw)
+    || /["“][^"”\n]{2,}["”]/.test(raw)) return true;
+
+  // Require a concrete live verb so a paragraph that only describes a room,
+  // recollects history, or states world lore cannot advance the clock by itself.
+  return /\b(?:ask(?:s|ed|ing)?|answer(?:s|ed|ing)?|say(?:s|ing)?|said|speak(?:s|ing)?|spoke|tell(?:s|ing)?|told|reply|replies|replied|whisper(?:s|ed|ing)?|shout(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|walk(?:s|ed|ing)?|run(?:s|ning)?|ran|move(?:s|d|ing)?|reach(?:es|ed|ing)?|take(?:s|n|ing)?|took|give(?:s|n|ing)?|gave|open(?:s|ed|ing)?|close(?:s|d|ing)?|look(?:s|ed|ing)?|watch(?:es|ed|ing)?|wait(?:s|ed|ing)?|work(?:s|ed|ing)?|search(?:es|ed|ing)?|eat(?:s|en|ing)?|drink(?:s|ing)?|drank|sleep(?:s|ing)?|slept|travel(?:s|ed|ing)?|ride(?:s|den|ing)?|rode|drive(?:s|n|ing)?|drove|arrive(?:s|d|ing)?|leave(?:s|ing)?|left|begin(?:s|ning)?|began|finish(?:es|ed|ing)?|continue(?:s|d|ing)?|resume(?:s|d|ing)?)\b/i.test(raw);
+}
+
+/** Repair a frozen endpoint for an otherwise unquantified live turn. Unlike
+ * elapsedClockFloor(), this never second-guesses any endpoint that differs from
+ * T0; it replaces only A1 === A0 with A0 + 1 minute. */
+export function liveTurnClockFloor(
+  priorDay: number,
+  priorClock: number | undefined,
+  reportedDay: number,
+  reportedClock: number,
+  currentTurnText: string | undefined,
+): ElapsedClockFloor {
+  if (priorClock === undefined || !hasImplicitLivePassage(currentTurnText)) {
+    return { day: reportedDay, clock: reportedClock, inferred: false };
+  }
+  // This is a frozen-clock repair only. A reported earlier day or wall clock is
+  // contradictory output and must still reach the normal rollback validator.
+  if (Math.floor(reportedDay) !== Math.floor(priorDay) || reportedClock !== priorClock) {
+    return { day: reportedDay, clock: reportedClock, inferred: false };
+  }
+  const priorAbsolute = Math.max(0, Math.floor(priorDay)) * 1440 + priorClock;
+  const reportedAbsolute = Math.max(0, Math.floor(reportedDay)) * 1440 + reportedClock;
+  if (reportedAbsolute > priorAbsolute) return { day: reportedDay, clock: reportedClock, inferred: false };
+  const expected = priorAbsolute + 1;
+  return { day: Math.floor(expected / 1440), clock: expected % 1440, inferred: true, elapsed: 1 };
+}
+
 /** Apply completed, prose-backed duration as a floor beneath a model-reported
  * endpoint. It repairs a frozen or under-advanced clock deterministically, but
  * never rewinds a later reported endpoint and never advances from mere output.

@@ -31,7 +31,7 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 ## What's New in This Version
 
-> **Extension 2.1.0-beta.19 (testing)** — ARGENT LOOM’s living world supports canon-grounded `((parallel))` batches, durable causally scheduled subplots, richer NPC autonomy, and Workbench controls. Inline parallel snapshots now accept compatible `id` actor fields and can recognize fresh-chat entities from attached lorebook titles and keys without treating lore as proof of location, activity, travel, or knowledge.
+> **Extension 2.1.0-beta.20 (testing)** — VELLUM recall now retrieves relevant canon from lorebooks active for the exact chat, character, persona, and global scope, including turn one. The canonical clock also repairs provider-frozen live turns and re-audits older Engine or Inline state so a bad historical day cannot stay sticky. Parallel life now activates from Living World, NPC Social Autonomy, or Faction Politics; current rows survive omitted snapshots, and autonomous/sandbox modes run a deeper but still knowledge- and logistics-bound simulation.
 
 > **VELLUM II — COMPACT 1.0.0** — a separate small-preset option capped at 5,000 standing-prompt tokens. It retains per-turn agency, knowledge isolation, monotonic time, causal plot rules, NPC autonomy, dialogue colors, and VELLUM Engine Second Pass with 15 focused controls. Import `presets/vellum-compact.json`; it does not replace VELLUM II or ARGENT LOOM. See `presets/VELLUM-COMPACT-README.md`.
 
@@ -51,7 +51,7 @@ The Character Engine now reopens established sources, rotates underused characte
 
 ### Time is now a real ledger
 
-Every planned beat starts from the last established day, ending clock, location, and action in progress (T0), estimates the duration of serial and concurrent actions, and derives the new endpoint (T1). Completed live action advances at least one minute at the tracker’s minute resolution, while OOC, static description, and flashbacks preserve T0. Scene cuts and flashbacks cannot overwrite the live clock; midnight rolls the day only when the story proves it; travel, healing, fatigue, opening hours, deadlines, weather, off-screen action, and information travel all inherit the same elapsed interval. Explicit elapsed-time phrases are reconciled by the engine even when a generated state block leaves its clock frozen.
+Every planned beat starts from the last established day, ending clock, location, and action in progress (T0), estimates the duration of serial and concurrent actions, and derives the new endpoint (T1). Completed live action advances at least one minute at the tracker’s minute resolution, while OOC, static description, and flashbacks preserve T0. Scene cuts and flashbacks cannot overwrite the live clock; midnight rolls the day only when the story proves it; travel, healing, fatigue, opening hours, deadlines, weather, off-screen action, and information travel all inherit the same elapsed interval. Explicit elapsed-time phrases are reconciled by the engine even when a generated state block leaves its clock frozen. If an active unquantified turn merely copies T0, VELLUM advances one minute rather than letting the clock remain stuck; it does not use that fallback to conceal an earlier or contradictory time.
 
 ### Relationship landing, not relationship dice
 
@@ -525,13 +525,13 @@ A per-character memory book. The engine extracts genuine turning points — a co
 
 ### Off-screen life & parallel threads
 
-The chronicle tracks subplots happening away from you. With **off-screen simulation** enabled—or ARGENT Living World set to Active/Sandbox—each subplot advances only when its own time, trigger, dependencies, blockers, or deadline makes a real next action possible. A beat can happen next turn, on consecutive turns, days later, or remain dormant. These durable subplot beats link to plot threads and can later return through a message, clue, arrival, absence, faction move, or material consequence.
+The chronicle tracks subplots happening away from you. The pipeline activates when ARGENT Living World is Active/Sandbox, NPC Social Autonomy is Living/Autonomous, Faction Politics is Living/Autonomous, or the legacy off-screen simulation switch is enabled. Each subplot advances only when its own time, trigger, dependencies, blockers, or deadline makes a real next action possible. A beat can happen next turn, on consecutive turns, days later, or remain dormant. Living/Active is the bounded tier (up to two due lines and one new reversible line per pulse); Autonomous/Sandbox is deeper (up to four due lines and two new independent lines). Both remain constrained by canonical location, actual knowledge, feasible logistics, relationship locks, and player autonomy. Current parallel rows persist even when a later state block omits `delta.parallel`, and anonymous faction/world beats appear in Elsewhere rather than disappearing into the subplot ledger.
 
 Send `OOC: ((parallel))` on its own line—or use **Generate parallel events** in Director → Off-screen or Workbench → Interventions—to deliberately create a canon-grounded interlude of 3–7 simultaneous events. The engine reads the assembled chat, attached lorebooks, cards, Chronicle, locks, directives, knowledge boundaries, and autonomy settings. The reply records one canonical `<vellum>` transaction; it commits only when every visible event survives validation. Every accepted event becomes a persistent off-screen subplot with pressure, stakes, and future bridges, links to a plot thread, can feed a shared long arc, and appears in the replace-all current `parallel` snapshot. Later grounded changes to the linked thread advance or resolve that subplot, while mature pressure is reinjected until a causal bridge reaches the foreground. If the active preset's safe VTK/card renderer is enabled, the visible interlude is rendered as one card; otherwise it remains readable prose.
 
 ### Hierarchical memory & smart recall
 
-Old turns don't just scroll out of the AI's context window and vanish. The extension **summarizes** older stretches into "chapter" memories (and chapters into "arcs"), so the deep past compresses but stays *retrievable*. On every turn it performs **scene-aware recall**: it figures out what the current moment is about and injects only the relevant history — combining exact keyword matching, the host's semantic embeddings (if you've enabled them), and its own structured facts. Crucially, hard facts (relationship scores, who-knows-what, the day count) are injected **verbatim and authoritatively** — they're never left to fuzzy similarity search, so continuity is never lost.
+Old turns don't just scroll out of the AI's context window and vanish. The extension **summarizes** older stretches into "chapter" memories (and chapters into "arcs"), so the deep past compresses but stays *retrievable*. On every turn it performs **scene-aware recall**: it figures out what the current moment is about and injects only the relevant Chronicle history and active-lorebook canon — combining exact names and keys, contextual content matching, the host's semantic embeddings for Chronicle memory (if you've enabled them), and its own structured facts. Lorebook recall works before the first Chronicle turn, does not duplicate entries Lumiverse already activated, and labels lore as objective reference rather than character knowledge. Crucially, hard facts (relationship scores, who-knows-what, the day count) are injected **verbatim and authoritatively** — they're never left to fuzzy similarity search, so continuity is never lost.
 
 ### The Vault (world books)
 
@@ -613,10 +613,11 @@ When you install the extension, Lumiverse asks you to grant these. Here's what e
 | `chat_mutation` | Reading raw messages, hiding filed turns | No scanning / no hierarchical memory |
 | `generation` | Auto-summaries, fact extraction, off-screen sim | No auto-extraction or summarizing |
 | `ui_panels` | The drawer and tabs | No UI |
-| `world_books` | The in-app Vault (lorebooks) | No Vault |
+| `world_books` | The in-app Vault and scoped lorebook recall | No Vault or lorebook recall |
 | `memories` | Semantic recall via the host's embeddings | Recall still works, keyword-only |
 | `presets` | The VELLUM tab in the Preset Editor (link status, health check, prompt budget) | No preset editor tab |
 | `personas` | Resolving the exact persona identity used by each generation | Persona state cannot reliably identify the player's cast row |
+| `characters` | Finding lorebooks attached to the active character | Character-attached lore cannot be recalled before native activation exposes it |
 
 Everything runs inside your Lumiverse instance. The only optional outside request is loading a **web font**: the Gatsby and Sumi looks, a few Google-hosted picker fonts, and any Google Fonts URL you paste in **Customize → Type**, fetch from Google's font CDN (`fonts.googleapis.com`). Leave those unset and the extension makes no outside calls at all — your chronicle data and code never leave your instance either way.
 

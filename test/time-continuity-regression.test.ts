@@ -52,6 +52,25 @@ describe('time continuity candidate precedence', () => {
     expect(parseState(`${stale}\n${currentInline}`).state).toMatchObject({ day: 2, scene: { clock: 540 } });
   });
 
+  it('advances a frozen inline clock for completed live action and preserves static instants', () => {
+    const prior = freshState();
+    prior.day = 2;
+    prior.scene = { location: 'Hall', time: '09:00', clock: 540, tension: 0, weather: '', present: [], detail: [] };
+    const active = foldTurn(`Mara closes the ledger and asks Ada a question.\n${currentInline}`, prior, 9);
+    expect(active.events.find(event => event.kind === 'scene.set')).toMatchObject({ day: 2, time: '09:01', clock: 541 });
+    const staticTurn = foldTurn(`The hall is old and cold.\n${currentInline}`, prior, 9);
+    expect(staticTurn.events.find(event => event.kind === 'scene.set')).toMatchObject({ day: 2, time: '09:00', clock: 540 });
+  });
+
+  it('rolls a frozen live minute across midnight in both the clock and story day', () => {
+    const prior = freshState();
+    prior.day = 2;
+    prior.scene = { location: 'Hall', time: '23:59', clock: 1439, tension: 0, weather: '', present: [], detail: [] };
+    const folded = foldTurn('Mara closes the ledger.\n<vellum>{"day":2,"scene":{"loc":"Hall","time":"23:59","clock":1439},"present":[],"delta":{}}</vellum>', prior, 9);
+    expect(folded.events.find(event => event.kind === 'turn.fold')).toMatchObject({ day: 3 });
+    expect(folded.events.find(event => event.kind === 'scene.set')).toMatchObject({ day: 3, time: '00:00', clock: 0 });
+  });
+
   it('commits the final valid Engine Pass object when a stale draft precedes it', async () => {
     const prior = freshState();
     prior.day = 2;

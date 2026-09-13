@@ -26,10 +26,44 @@ export interface ParallelReconcileOptions {
   /** Selected NPC social autonomy. Only the highest level authorizes new
    * low-risk actor activity without visible-scene evidence. */
   npcAutonomy?: 'off' | 'reactive' | 'living' | 'autonomous';
+  /** Effective Living World depth. Active can originate small reversible
+   * continuity beats; Sandbox permits richer independent movement while every
+   * location, knowledge, and irreversible-outcome guard remains binding. */
+  livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox';
   /** Exact canonical entity labels supplied by attached lorebooks. Recognition
    * only: a label cannot prove where the entity is, what it knows, or what it
    * has done. */
   establishedEntities?: readonly string[];
+}
+
+/** Rebuild the volatile Elsewhere view from durable canonical state. A scene
+ * snapshot clears parallel before later fold events run, so relying only on the
+ * model to repeat delta.parallel makes valid subplots disappear for a turn (or
+ * forever in inline mode). This projection preserves prior current rows and
+ * overlays the newest active subplot beat for each actor/world line. */
+export function durableParallelSnapshot(state: ChronicleState, finalPresent: readonly string[] = state.scene.present): ParallelDraft[] {
+  const here = new Set(finalPresent.map(canonId));
+  const actorRows = new Map<string, ParallelDraft>();
+  const worldRows: ParallelDraft[] = [];
+  for (const row of state.parallel) {
+    const who = row.who ? canonId(row.who) : '';
+    if (who) {
+      if (!here.has(who)) actorRows.set(who, { who, ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}) });
+    } else if (row.activity?.trim()) {
+      worldRows.push({ ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}) });
+    }
+  }
+  for (const subplot of state.offscreen) {
+    if (subplot.status !== 'active' || !subplot.gist?.trim()) continue;
+    const who = subplot.who ? canonId(subplot.who) : '';
+    if (who) {
+      if (!here.has(who) && subplot.where?.trim()) actorRows.set(who, { who, where: subplot.where, activity: subplot.gist });
+      continue;
+    }
+    const candidate = { ...(subplot.where ? { where: subplot.where } : {}), activity: subplot.gist };
+    if (!worldRows.some(row => sameLocation(row.where, candidate.where) && sameActivity(row.activity, candidate.activity))) worldRows.push(candidate);
+  }
+  return [...worldRows, ...actorRows.values()];
 }
 
 /** Match an authored entity label to an attached-lore title/key without turning
@@ -186,8 +220,9 @@ export function reconcileParallelSnapshot(
     if (!actor && !canonEstablished && !evidenceMentionsActor(state, row.who!, prose)) continue;
     const known = canonicalActorLocation(state, id);
     const moved = !!known && !sameLocation(known.where, row.where);
-    const autonomous = options.npcAutonomy === 'autonomous' && (!!actor || canonEstablished);
-    if (moved && !evidenceGroundsMove(state, id, row.where, prose) && !(autonomous && MOVE.test(row.activity))) continue;
+    const basicAutonomy = (options.npcAutonomy === 'living' || options.livingWorld === 'active') && (!!actor || canonEstablished);
+    const advancedAutonomy = (options.npcAutonomy === 'autonomous' || options.livingWorld === 'sandbox') && (!!actor || canonEstablished);
+    if (moved && !evidenceGroundsMove(state, id, row.where, prose) && !(advancedAutonomy && MOVE.test(row.activity))) continue;
     const unchanged = !!old && sameLocation(old.where, row.where) && sameActivity(old.activity, row.activity);
     const peerDeliveredAccess = [...incomingActors.entries()].some(([peerId, peer]) => peerId !== id
       && sameLocation(peer.where, row.where)
@@ -200,7 +235,7 @@ export function reconcileParallelSnapshot(
     // At Autonomous, a known absent NPC may originate an ordinary off-screen
     // act. This does not authorize teleportation, high-impact irreversible
     // outcomes, omniscient knowledge, or putting an on-stage actor elsewhere.
-    const autonomySupported = autonomous && !HIGH_IMPACT.test(row.activity) && knowledgeOkay;
+    const autonomySupported = (basicAutonomy || advancedAutonomy) && !HIGH_IMPACT.test(row.activity) && knowledgeOkay;
     const supported = unchanged
       || evidenceGroundsActorActivity(state, id, row.where, row.activity, prose)
       || subplotGroundsActorActivity(state, id, row.where, row.activity)
