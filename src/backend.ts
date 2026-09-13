@@ -61,7 +61,7 @@ import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshComm
 import { embedParallelCommand, hasParallelCommand, materializeParallelBatch, parallelCommandInjection, scrubParallelCommands, stripParallelCommand } from './domain/parallel-command.js';
 import { openingSceneInjection, parseSceneCommand, sceneIntentInjection, scrubSceneCommands, type SceneIntent, type SceneTransitionKind } from './domain/scene-transition.js';
 import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
-import { compileState, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
+import { compileState, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
 import { auditCompiledEvents } from './domain/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
@@ -796,7 +796,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
           parallelCanonLabels = lorebookParallelLabels(lorebookCanon);
         }
         const batch = materializeParallelBatch(parsedBatch, prior, turnNo, prior.day || 0, () => nextSeqLocal(), {
-          locks, worldCanon: lorebookCanon, social: tone.social, politics: tone.politics, userId: userCanon,
+          locks, worldCanon: lorebookCanon, social: tone.social, politics: tone.politics, userId: userCanon, requireProof: true,
         });
         if (batch) {
           parallelFoldEvents = batch.events;
@@ -826,7 +826,8 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const manualRepair = _retryingEngine.has(chatId) && _engineRepairTargetByChat.get(chatId) === turnNo;
       const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', characterName: names.char ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: parallelMode, configuredLivingWorld: turnContract?.livingWorld, social: tone.social, politics: tone.politics, argent: !!turnContract?.argent, agency, personaState: personaStateOn, lorebookCanon };
       const compilerRoute = await taskRoute(chatId, userId, manualRepair ? 'engineRetry' : 'engine');
-      const compilerTuning = routedParams(compilerRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
+      const compilerContract = turnContract?.stateVerbosity === 'full' ? 'full' : 'lean';
+      const compilerTuning = routedParams(compilerRoute, { maxTokens: ENGINE_OUTPUT_TOKENS[compilerContract], timeoutMs: ENGINE_TIMEOUT_MS[compilerContract], temperature: 0 });
       const compilerAbort = new AbortController();
       _engineAbortByChat.set(chatId, compilerAbort);
       if (await readEngineWindowEnabled(chatId)) engineRun = beginEngineRun(chatId, userId, turnNo);
@@ -855,7 +856,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         // is diagnostic only and never becomes repair truth.
         if (!compiled.ok && !compilerAbort.signal.aborted) {
           const repairRoute = manualRepair ? compilerRoute : await taskRoute(chatId, userId, 'engineRetry');
-          const repairTuning = routedParams(repairRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
+          const repairTuning = routedParams(repairRoute, { maxTokens: ENGINE_OUTPUT_TOKENS[compilerContract], timeoutMs: ENGINE_TIMEOUT_MS[compilerContract], temperature: 0 });
           const repairIds = [repairRoute.resolvedConnectionId, ...(repairRoute.fallbackIds ?? [])].filter((id): id is string => !!id);
           let repairDraft = compiled.draft;
           let repairErrors = compiled.errors;
@@ -1582,7 +1583,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
     }
     const simNames = await vellumChatNames(chatId, userId);
     const simUserCanon = simNames.user ? canonId(simNames.user) : '';
-    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, worldCanon, social: tone.social, politics: tone.politics, livingWorld, userId: simUserCanon, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew, newCap: schedule.newCap } : {}), ...(skipDays ? { skipDays } : {}) });
+    const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, worldCanon, social: tone.social, politics: tone.politics, livingWorld, userId: simUserCanon, requireProof: true, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew, newCap: schedule.newCap } : {}), ...(skipDays ? { skipDays } : {}) });
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
     await append(chatId, evs);
     invalidateIndex(chatId);
@@ -3766,6 +3767,11 @@ const dispatch: Record<string, Handler> = {
     const state = await loadState(chatId);
     const names = await vellumChatNames(chatId, uid);
     const existing = p?.id ? state.offscreen.find(row => row.id === String(p.id)) : undefined;
+    const impact = String(p?.impact ?? existing?.impact ?? '').trim();
+    if (!existing && !impact) {
+      spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: false, reason: 'impact_required' }, uid);
+      return;
+    }
     const personaLabels = [names.user, ...(names.user ? (state.cast[canonId(names.user)]?.aka ?? []) : [])]
       .map(value => String(value ?? '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim())
       .filter(value => value.length >= 2);
@@ -3776,9 +3782,66 @@ const dispatch: Record<string, Handler> = {
       return;
     }
     const id = p?.id ? String(p.id) : 'off_u' + nextSeqLocal();
-    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'offscreen.op', op: p?.id ? 'advance' : 'new', id, ...(name ? { name } : {}), ...(p?.who ? { who: canonId(String(p.who)) } : {}), ...(p?.where ? { where: String(p.where) } : {}), ...(p?.gist ? { gist: String(p.gist).slice(0, 200) } : {}) } as VellumEvent]);
+    const gist = p?.gist ? String(p.gist).slice(0, 500) : '';
+    const priorGist = existing?.gist;
+    const bridge = String(p?.bridge ?? '').trim();
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'offscreen.op', op: p?.id ? 'advance' : 'new', id, ...(name ? { name } : {}), ...(p?.who ? { who: canonId(String(p.who)) } : {}), ...(p?.where ? { where: String(p.where) } : {}), ...(gist ? { gist } : {}), ...(impact ? { impact: impact.slice(0, 500) } : {}), ...(bridge ? { hooks: [bridge.slice(0, 500)] } : {}), ...(gist ? { beatKind: 'progress' as const, grounding: { basis: ['manual'] as const, rationale: 'The user explicitly authored this subplot condition and its intended story impact.', ...(priorGist ? { before: priorGist } : {}), after: gist } } : {}) } as VellumEvent]);
     invalidateIndex(chatId); await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true }, uid);
+  },
+  vellum_parallel_promote: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) return;
+    const state = await loadState(chatId);
+    const whoRaw = String(p?.who ?? '').trim();
+    const where = String(p?.where ?? '').trim();
+    const activity = String(p?.activity ?? '').trim();
+    const turn = Number(p?.turn); const day = Number(p?.day);
+    const source = state.parallel.find(row => canonId(row.who ?? '') === canonId(whoRaw)
+      && String(row.where ?? '') === where && row.activity === activity
+      && (!Number.isFinite(turn) || row.turn === turn) && (!Number.isFinite(day) || row.day === day));
+    if (!source) {
+      spindle.sendToFrontend?.({ type: 'vellum_parallel_promote_done', ok: false, reason: 'That parallel snapshot is no longer current.' }, uid);
+      return;
+    }
+    const impact = String(p?.impact ?? '').trim();
+    if (!impact) {
+      spindle.sendToFrontend?.({ type: 'vellum_parallel_promote_done', ok: false, reason: 'Describe why this should matter before promoting it.' }, uid);
+      return;
+    }
+    const names = await vellumChatNames(chatId, uid);
+    const who = source.who ? canonId(source.who) : '';
+    if (who && (who === canonId(names.user) || !state.cast[who] || state.cast[who]?.deceased)) {
+      spindle.sendToFrontend?.({ type: 'vellum_parallel_promote_done', ok: false, reason: 'Only a living established NPC can be promoted.' }, uid);
+      return;
+    }
+    const duplicate = state.offscreen.some(row => row.status === 'active'
+      && ((who && canonId(row.who ?? '') === who) || row.originParallel?.turn === source.turn)
+      && String(row.where ?? '') === String(source.where ?? '') && row.gist === source.activity);
+    if (duplicate) {
+      spindle.sendToFrontend?.({ type: 'vellum_parallel_promote_done', ok: false, reason: 'This parallel event is already a subplot.' }, uid);
+      return;
+    }
+    const requestedThread = String(p?.thread ?? '').trim();
+    const linkedThread = requestedThread ? state.threads.find(row => row.id === requestedThread) : undefined;
+    if (requestedThread && !linkedThread) {
+      spindle.sendToFrontend?.({ type: 'vellum_parallel_promote_done', ok: false, reason: 'The selected plot thread no longer exists.' }, uid);
+      return;
+    }
+    const bridge = String(p?.bridge ?? '').trim();
+    const actorName = who ? (state.cast[who]?.name ?? source.who) : '';
+    const name = String(p?.name ?? '').trim() || (actorName ? `${actorName}: ${source.activity}` : source.activity).slice(0, 120);
+    const id = `off_p_${hashStr(`${source.turn}\u0000${source.day}\u0000${source.who ?? ''}\u0000${source.where ?? ''}\u0000${source.activity}`).slice(0, 12)}`;
+    const basis = [source.who ? 'character' : 'location', source.where ? 'location' : '', 'parallel'].filter(Boolean) as Array<'character' | 'location' | 'parallel'>;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'offscreen.op', op: 'new', id, name,
+      ...(who ? { who } : {}), ...(source.where ? { where: source.where } : {}), gist: source.activity,
+      beatKind: 'progress', impact: impact.slice(0, 500), pressure: 1,
+      grounding: { basis, rationale: `Promoted from the canonical turn ${source.turn} parallel snapshot; its actor, place, and activity are already part of T1 world state.`, refs: [`parallel:turn:${source.turn}`], after: source.activity },
+      originParallel: { turn: source.turn, day: source.day, ...(source.who ? { who: source.who } : {}), ...(source.where ? { where: source.where } : {}), activity: source.activity },
+      ...(bridge ? { hooks: [bridge.slice(0, 500)] } : {}), ...(linkedThread ? { thread: linkedThread.id } : {}),
+    } as VellumEvent]);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_parallel_promote_done', ok: true }, uid);
   },
   vellum_offthread_resolve: async (p, uid) => {
     const chatId = p?.chatId || (await activeChatId(uid));

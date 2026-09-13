@@ -218,7 +218,8 @@ describe('ARGENT state and player-agency final gates', () => {
     expect(compiler.position).toBe('post_history');
     expect(compiler.content).toContain('[FINAL STATE COMPILER — LEAN, ATOMIC AND MANDATORY]');
     expect(compiler.content).toContain('[FINAL STATE COMPILER — FULL, ATOMIC AND MANDATORY]');
-    expect(compiler.content).toContain('Reserve ~700 output tokens');
+    expect(compiler.content).toContain('Reserve enough output for every supported state change');
+    expect(compiler.content).toContain('Lean has the same content coverage as Full');
     expect(compiler.content).toContain('shorten the prose; never abbreviate, omit, or truncate <vellum>');
     expect(compiler.content).toContain('CORE SNAPSHOT');
     expect(compiler.content).toContain('DELTA AUDIT');

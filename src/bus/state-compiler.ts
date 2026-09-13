@@ -31,23 +31,38 @@ export interface CompilerRunOptions {
  * still encouraged to stay compact by the prompt; these are safety ceilings,
  * not output targets.
  */
-export const ENGINE_OUTPUT_TOKENS = { lean: 12000, full: 20000 } as const;
-export const ENGINE_TIMEOUT_MS = { lean: 90_000, full: 120_000 } as const;
+export const ENGINE_OUTPUT_TOKENS = { lean: 20000, full: 20000 } as const;
+export const ENGINE_TIMEOUT_MS = { lean: 120_000, full: 120_000 } as const;
 
-export const STATE_COMPILER_SYSTEM = `Compile VELLUM state after the completed narrative. Return one JSON object and no prose. Never continue the visible story; Autonomous/Sandbox may create private off-screen simulation state for Director.
-Return only changes inside {"state":{...}}. You may omit turn, day, scene, present, delta, ext, and every unchanged field; the engine restores prior state and validates the result. If present changed, include the complete current roster; thoughts are optional. Outside a nonzero preset requirement, prefer an empty state object to a guess.
-For each delta/ext row, put the shortest exact supporting excerpt in that row as "evidence". For private Autonomous/Sandbox rows, evidence may instead be a concise causal rationale grounded in canonical T0. Do not build separate evidence, trackEvidence, or parallelReviewed arrays; the engine derives them.
-Use exact established identities and ids. Never invent facts, actors, places, knowledge, travel, relationships, possessions, or plot movement. Autonomous/Sandbox may originate activity and consequences from canonical motives and world pressure, but not invent the anchors themselves. Lorebook canon may ground a new baseline, but not private knowledge.
-Time is monotonic. day is elapsed story-day count, never a calendar date. For a scene location, time, or roster change, put the short exact excerpt in scene.evidence as loc, time, or present.
-Record durable changes only. Knowledge needs a depicted access path. A secret reveal uses its existing id. Plot rows need a concrete new condition directly caused by this turn; no change is better than generic progress.
-Parallel/off-screen rows describe what is happening elsewhere now. Preserve absent rows by omission. Move or resolve only with direct evidence; absent actors do not learn main-scene facts without delivery or witness. Living World active/sandbox may use prior.parallelSupport as a current baseline.
-ARGENT autonomy remains authoritative: Living World active or Social/Politics living enables the bounded Living/Active tier (up to two due rows and one new reversible line). Living World sandbox or Social/Politics autonomous enables Autonomous/Sandbox: create at least two new durable subplots and at least four parallel event operations on every in-character pass, with no narrative maximum. More are allowed when canon, motive, logistics, time, and knowledge support them. Social living allows only small NPC bond drift and autonomous allows bounded category change. Politics living allows only small standing drift and autonomous may change relation kinds. Never create player bonds, choices, consent, acts, or any subplot/parallel role for the persona character.
-Meet every active preset requirement in the supplied requirements object. For ARGENT, an empty plot ledger requires exactly one strongest grounded foreground actionable thread and, only when no parent arc exists, exactly one clear parent arc linked by its exact title. A new thread referenced by a new offscreen row is that subplot's durable track, not an additional foreground opener. Preserve the current parallel snapshot by omission; emit every grounded due operation and required new subplot for the active tier.
-Respect controls and player agency. The supplied identity.playerPersona is the exact player/persona, even when the focal story character or identity.characterCard ({{char}}) is someone else. Never infer the persona from {{char}}, narrative focus, roster order, or whose interiority is shown. Persona fields are private tracker state only. genesis is true only for an eligible initial Codex baseline.`;
+export const STATE_COMPILER_SYSTEM = `Compile the completed narrative into VELLUM state. Return one JSON object and no prose. Never continue the visible story; Autonomous/Sandbox may create private off-screen simulation state for Director.
+
+WORKFLOW: (1) reconstruct the complete current scene and on-stage roster; (2) audit every supported state family for changes established by this turn; (3) retain every supported durable change once; (4) attach a concise accurate grounding passage or rationale to each changed row; (5) reconcile plot and parallel graphs; (6) serialize. Lean and Full have identical content coverage. Lean only simplifies formatting with shorter notes and fewer optional descriptive fields; it never omits a supported fact, event, state family, character, plot change, or parallel operation. Neither mode may stop after scene or persona state when the completed turn establishes other durable changes.
+
+Return the current scene and complete present roster inside {"state":{...}} on every pass. delta and ext are change sets: omit their unchanged families, but do not omit a real supported change. Root evidence, trackEvidence, and parallelReviewed are engine bookkeeping and may be omitted because the engine derives them. The engine may restore harmless missing boilerplate for compatibility; that fallback is not permission to skip extraction.
+
+SCENE AND ROSTER: Emit the current location, exact HH:MM time and matching minute clock, plus title/transition/tension/weather when supported. day is elapsed story-day count, never a calendar date, and time is monotonic. Include every named on-stage character once. The supplied identity.playerPersona is the exact player/persona, even when the focal character or identity.characterCard ({{char}}) is someone else. Never infer the persona from {{char}}, narrative focus, roster order, or whose interiority is shown. When the persona is on stage, use that exact identity. With controls.personaState on, always populate the persona's mood, condition, doing, concise first-person thought, and stable traits from the current turn or continuing canonical state. With it off, keep persona tracker fields empty. Give each on-stage NPC a concise first-person, knowledge-limited thought when the turn supports one; never fabricate knowledge.
+
+DELTA AUDIT: Check bonds, threads, arcs, journal, knowledge, new secrets, secret reveals, factions, faction relations, and durable off-screen subplots. Then check scars, Codex, inventory, timeline milestones, NPC intent, affect, introductions, plants, and payoffs. Extract concrete changes such as a discovery, disclosure, decision, transfer, injury, arrival/departure, status change, newly opened problem, changed leverage, completed obstacle, or durable commitment. A dramatic physical or plot event must not disappear merely because the scene snapshot captured its immediate pose. Combine redundant facts and omit transient color, but do not turn "concise" into empty delta/ext objects.
+
+EVIDENCE AND CANON: Evidence is semantic support, not a quotation-matching test. For every scene change and delta/ext row ask: "Is this evidence factually correct, and does it materially ground this claim in the current scene or attached canon?" If yes, accept it. The evidence may be an exact excerpt, a faithful paraphrase, or a relevant lorebook passage; it need not repeat the row word for word. Reject evidence that is merely related, contradicts the current scene, reverses who did what, or supports only part of an expanded claim. Lorebook canon may establish objective setting facts and a new baseline, but never grants private character knowledge. Knowledge still needs a depicted access path. Use exact established identities and ids; a secret reveal uses its existing id.
+
+PLOT AUDIT: Audit threads and arcs on every turn. A new thread requires a newly established actionable unresolved question, promise, threat, task, or obstacle. Advance, stall, or resolve an existing row only when this turn directly changes that exact situation's options, knowledge, leverage, deadline, possession, location, commitment, obstacle, or answer. Each plot note states the concrete new condition. Plot rows need a concrete new condition directly caused by this turn; no change is better than generic progress. An arc advances only with a changed linked child thread or an independently depicted structural milestone.
+
+SUBPLOT AUDIT: A subplot is a durable causal commitment, not an ambient meanwhile line. Every new/advanced/resolved delta.offscreen row needs beatKind (progress, obstacle, consequence, bridge, or resolution), a concrete impact explaining which person, relationship, resource, schedule, information path, institution, or future foreground option changes, and grounding with basis[], rationale, optional refs[], and transition fields. For advance/resolve, grounding.before must faithfully identify the prior accepted subplot condition and grounding.after must identify the new condition and match gist (or the stated closure). Rewording the same activity is not progress. Prior accepted subplot history is valid continuity evidence; scale additional evidence to the claim: routine acts need canon compatibility, projects need motive/capability/access/time, travel needs route/time, knowledge needs delivery, social consequences need interaction, and irreversible outcomes need a multi-beat causal chain. A promoted parallel row may establish the initial actor/place/activity, but durability still requires motive, impact, and a foreground bridge.
+
+PARALLEL AND AUTONOMY: Parallel/off-screen rows describe what is happening elsewhere now. Their evidence does not need to come from visible prose. For each proposed actor event ask: Is the character established and alive at T1? Are they absent from present? Is this location compatible with their last canonical location, elapsed travel time, the setting geography, and attached lore? Is the activity in character, feasible, reversible at the selected autonomy tier, and limited to knowledge they could possess? If yes, provide a short plausibility rationale and accept it. Example: Spike may plausibly be at the Bronze in a Sunnydale scene when canon establishes both character and venue; do not place him in Beijing merely to create activity when no route, elapsed time, or lore establishes that move. Hard reject deceased actors, teleportation, arbitrary remote locations, narrator knowledge, and unsupported irreversible outcomes. Preserve absent rows by omission. Living World active/sandbox may use prior.parallelSupport as a current baseline. Living World active or Social/Politics living enables the bounded Living/Active tier (up to two due rows and one new reversible line). Living World sandbox or Social/Politics autonomous enables Autonomous/Sandbox: create at least two new durable subplots and at least four parallel event operations on every in-character pass, with no narrative maximum. More are allowed when canon, motive, logistics, time, and knowledge support them. Social living allows only small NPC bond drift and autonomous allows bounded category change. Politics living allows only small standing drift and autonomous may change relation kinds. Never create player bonds, choices, consent, acts, or any subplot/parallel role for the persona character.
+
+SUBPLOT/PARALLEL CONSISTENCY: The newest active subplot beat is the physical authority for its actor. The final parallel snapshot must use the same actor, place, and activity; it cannot show that actor doing something incompatible elsewhere. If the foreground reaches that place and time, the actor belongs in the prose and present roster unless the turn explicitly establishes an exit, interruption, or concealment. Foreground truth may interrupt or move a subplot, but must update the subplot rather than silently leaving two realities.
+
+ARGENT REQUIREMENTS: Meet every nonzero value in the supplied requirements object. When the plot ledger is empty, create exactly one strongest grounded foreground actionable thread and, only when no parent arc exists, exactly one clear parent arc linked by its exact title. A new thread referenced by a new offscreen row is that subplot's durable track, not an additional foreground opener. Preserve the current parallel snapshot by omission; emit every grounded due operation and required new subplot for the active tier.
+
+Respect controls and player agency. Persona fields are private tracker state only and never license prose behavior. genesis is true only for an eligible initial Codex baseline.`;
 
 export const STATE_COMPILER_REPAIR_SYSTEM = `For this repair call, regenerate a corrected VELLUM compiler candidate as an RFC 7396 JSON Merge Patch against the supplied repairBase. Return only {"patch":{...}}.
 The validationErrors are the repair specification and the supplied source (canonical prior state, completed prose, latest user input, controls, requirements, and canon) is the only source of truth. The failed attempt is intentionally not supplied as repair evidence. Do not preserve, reconstruct, or defend a field merely because it may have appeared in that attempt.
 Create any supported content required to fix every listed error, even when it was absent from the rejected attempt: for example, add a missing persona thought, rebuild the complete present roster, create a required grounded opening thread and parent arc, or regenerate required subplot and parallel operations. You may replace an entire array or branch when that is the clearest repair. Do not continue the visible story or invent unsupported facts.
+When an error concerns evidence, re-evaluate the underlying claim instead of hunting for an exact quotation. A faithful paraphrase or relevant lorebook passage is valid when it materially supports the claim and agrees with the current scene. For parallel simulation, regenerate from the alive cast, canonical locations, elapsed time, motives, lore, and knowledge boundaries; visible-prose support is optional, factual plausibility is mandatory.
+When an error concerns a subplot, regenerate the actual causal beat from prior.offscreen and canon: supply concrete impact, semantic grounding, and an honest before -> after transition. Do not preserve a decorative or unchanged beat. Keep its actor/place/activity identical to the final parallel snapshot, or move/interrupt it through one grounded transition.
 The patch applies to repairBase: a JSON object recursively edits an object, an array replaces that one array, and null deletes that one property. Omit only branches that already match repairBase. The final patched candidate, not the rejected attempt, must satisfy the original compiler contract and every active requirement.`;
 
 export function compilerContext(input: CompilerInput): string {
@@ -83,6 +98,38 @@ export function compilerContext(input: CompilerInput): string {
     // existing diagnostics while making the two identities unambiguous.
     userName: input.userName,
     genesisAllowed: input.genesisAllowed, verbosity: input.verbosity,
+    outputContract: {
+      contentCoverage: 'all_supported_durable_changes',
+      sceneAndPresent: 'complete_current_snapshot',
+      format: input.verbosity === 'full' ? 'expanded_fields' : 'compact_fields',
+      rule: 'format changes representation only; it never reduces facts, events, state families, cast, plot changes, or parallel operations',
+    },
+    evidencePolicy: {
+      question: 'Is the evidence factually correct and materially grounded in the current scene or attached canon?',
+      accepted: ['exact passage', 'faithful paraphrase', 'relevant lorebook passage'],
+      rejected: ['merely related text', 'partial support for a larger claim', 'contradiction', 'reversed actor or subject'],
+    },
+    parallelPolicy: {
+      proseQuoteRequired: false,
+      question: 'Is the actor alive and is this activity/location feasible now under chronology, geography, lore, motive, and limited knowledge?',
+      hardReject: ['deceased actor', 'present actor', 'teleportation', 'arbitrary remote location', 'knowledge leak', 'unsupported irreversible outcome'],
+    },
+    subplotPolicy: {
+      principle: 'a subplot is a durable causal commitment, while parallel is its current-location snapshot',
+      required: ['beatKind', 'impact', 'grounding.basis', 'grounding.rationale'],
+      beatKinds: ['progress', 'obstacle', 'consequence', 'bridge', 'resolution'],
+      transition: 'advance and resolve require grounding.before from the prior accepted condition and grounding.after matching the new condition',
+      evidenceScale: {
+        routine: 'canon compatibility and concise rationale',
+        project: 'motive, capability, access, time, and concrete impact',
+        travel: 'origin, destination, route, and elapsed time',
+        knowledge: 'delivered access path',
+        social: 'interaction or communication',
+        irreversible: 'established multi-beat chain; prefer foreground completion',
+      },
+      continuity: 'the newest active subplot beat is the actor physical authority and parallel must mirror it exactly',
+      intersection: 'when foreground reaches the subplot place/time, show the actor or explicitly establish exit/concealment',
+    },
     controls: {
       codex: input.codexAllowed !== false, inventory: input.inventoryAllowed !== false,
       livingWorld: input.configuredLivingWorld ?? input.livingWorld ?? 'off',
@@ -99,7 +146,7 @@ export function compilerContext(input: CompilerInput): string {
       sandboxMaximum: effectiveWorld === 'sandbox' ? 'none' : undefined,
     } : {},
     prior: {
-      dayCount: p.day, displayedDate: formatDate(p.day, p.dateFormat || 'day', p), scene: p.scene, cast: cast.map(c => ({ id: c.id, name: c.name, aka: c.aka, status: c.status, traits: c.traits, lastLocation: c.lastLocation, lastLocationTurn: c.lastLocationTurn, intent: c.intent, affect: c.affect, introduction: c.introduction })),
+      dayCount: p.day, displayedDate: formatDate(p.day, p.dateFormat || 'day', p), scene: p.scene, cast: cast.map(c => ({ id: c.id, name: c.name, aka: c.aka, status: c.status, deceased: c.deceased === true, traits: c.traits, role: c.role, note: c.note, lastLocation: c.lastLocation, lastLocationTurn: c.lastLocationTurn, intent: c.intent, affect: c.affect, introduction: c.introduction })),
       relations: byRelevant(p.relations, 40), knowledge: byRelevant(p.knowledge, 40),
       // Only the fields needed to correlate a disclosure are sent back. This
       // also guarantees that an audience polluted by an older build cannot be
@@ -111,7 +158,7 @@ export function compilerContext(input: CompilerInput): string {
       })),
       journal: byRelevant(p.journal, 24),
       threads: byRelevant(p.threads.filter(t => !/resolv/i.test(t.status)), 24), arcs: byRelevant(p.arcs.filter(t => !/resolv/i.test(t.status)), 16),
-      parallel: p.parallel, parallelSupport: parallelGrounding(input), factions: byRelevant(Object.values(p.factions), 24), factionRelations: byRelevant(p.factionRelations, 30),
+      parallel: p.parallel, parallelSupport: parallelGrounding(input), offscreen: byRelevant(p.offscreen.filter(row => row.status === 'active'), 24), factions: byRelevant(Object.values(p.factions), 24), factionRelations: byRelevant(p.factionRelations, 30),
       lore: byRelevant(p.lore.filter(l => l.status !== 'rejected'), 32), items: byRelevant(p.items, 40), plants: byRelevant(p.plants.filter(x => x.status === 'planted'), 24),
       locations: byRelevant(p.locations ?? [], 20),
       lorebookCanon: lorebookCanon.map(entry => ({ id: entry.id, bookId: entry.bookId, title: entry.title, keys: entry.keys, secondaryKeys: entry.secondaryKeys, content: entry.content, constant: entry.constant, priority: entry.priority, category: entry.category, group: entry.group })),
@@ -203,8 +250,8 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   const schema = compilerProviderSchema();
   const context = compilerContext(input);
   const mode = input.verbosity === 'full'
-    ? 'FULL: check every state family, but still emit only supported changes.'
-    : 'LEAN: emit only the few material changes.';
+    ? 'FULL: audit every listed state family and emit every supported durable change with all supported optional metadata.'
+    : 'LEAN: audit every listed state family and emit the same supported durable changes as Full. Simplify only the JSON formatting: use shorter notes and omit optional descriptive metadata that carries no additional fact. Never reduce content coverage.';
   const attemptNo = Math.max(1, Math.round(run?.attempt ?? 1));
   try { run?.onProgress?.({ status: 'start', attempt: attemptNo }); } catch { /* a progress UI must never interrupt compilation */ }
   let streamed = '';
@@ -214,7 +261,7 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   // phase so a slow first token is never misdiagnosed as a stuck state compiler.
   try { run?.onProgress?.({ status: 'requesting', attempt: attemptNo, message: 'Compiler request sent; waiting for the first output token.' }); } catch { /* best effort */ }
   const result = await generate([
-    { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + '\nThe only mandatory root key is "state"; all nonzero preset requirements still apply.' },
+    { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + '\nThe provider schema permits omitted bookkeeping for compatibility, but the requested payload always includes state.scene and state.present. All nonzero preset requirements still apply.' },
     { role: 'user', content: context },
   ], { temperature: run?.generation?.temperature ?? 0, max_tokens: maxTokens }, userId,
   {

@@ -22,6 +22,20 @@ const NEGATIVE_KNOWLEDGE = /\b(?:does not|doesn't|did not|didn't|cannot|can't|un
 // consequence remains subject to the normal subplot/foreground pipeline.
 const HIGH_IMPACT = /\b(?:abduct(?:s|ed|ing)?|assassinat(?:e|es|ed|ing)|coup|declar(?:e|es|ed|ing) war|divorc(?:e|es|ed|ing)|kidnap(?:s|ped|ping)?|kill(?:s|ed|ing)?|marr(?:y|ies|ied|ying)|murder(?:s|ed|ing)?|overthrow(?:s|ing)?|suicid(?:e|al)|wedding)\b/i;
 
+/** Hard life-state gate shared by inline reconciliation and Engine Pass. A
+ * character can remain in history, lore, or even an on-stage corpse row while
+ * being ineligible for autonomous present-tense activity. */
+export function actorCanActInParallel(state: ChronicleState, who: string): boolean {
+  const actor = state.cast[canonId(who)];
+  return !!actor && actor.deceased !== true;
+}
+
+/** Autonomous simulation may originate ordinary reversible activity, but an
+ * unsupported rationale must never mint an irreversible life/polity event. */
+export function autonomousParallelActivityAllowed(activity: string): boolean {
+  return !!activity.trim() && !HIGH_IMPACT.test(activity);
+}
+
 export interface ParallelReconcileOptions {
   /** Selected NPC social autonomy. Only the highest level authorizes new
    * low-risk actor activity without visible-scene evidence. */
@@ -216,6 +230,7 @@ export function reconcileParallelSnapshot(
     if (!id || here.has(id) || !row.where?.trim()) continue;
     const old = priorActors.get(id);
     const actor = state.cast[id];
+    if (actor?.deceased) continue;
     const canonEstablished = establishedEntity(row.who!, establishedLabels, established);
     if (!actor && !canonEstablished && !evidenceMentionsActor(state, row.who!, prose)) continue;
     const known = canonicalActorLocation(state, id);
@@ -235,7 +250,7 @@ export function reconcileParallelSnapshot(
     // At Autonomous, a known absent NPC may originate an ordinary off-screen
     // act. This does not authorize teleportation, high-impact irreversible
     // outcomes, omniscient knowledge, or putting an on-stage actor elsewhere.
-    const autonomySupported = (basicAutonomy || advancedAutonomy) && !HIGH_IMPACT.test(row.activity) && knowledgeOkay;
+    const autonomySupported = (basicAutonomy || advancedAutonomy) && autonomousParallelActivityAllowed(row.activity) && knowledgeOkay;
     const supported = unchanged
       || evidenceGroundsActorActivity(state, id, row.where, row.activity, prose)
       || subplotGroundsActorActivity(state, id, row.where, row.activity)

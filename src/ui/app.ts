@@ -2509,7 +2509,11 @@ export function setup(ctx: Ctx): () => void {
         if (p.reason === 'no_generation') notify(ctx, 'warning', 'Off-screen sim needs the generation permission to run.');
         else if (p.reason === 'no_cast') notify(ctx, 'info', 'Nobody off-screen to simulate right now.');
         else if (p.reason === 'empty_reply') notify(ctx, 'warning', 'The model returned no off-screen beat \u2014 try again.');
+        else if (p.reason === 'impact_required') notify(ctx, 'warning', 'A subplot needs a concrete story impact.');
         else if (p.advanced) notify(ctx, 'success', 'Advanced the off-screen world.');
+      } else if (p?.type === 'vellum_parallel_promote_done') {
+        if (p.ok) notify(ctx, 'success', 'Parallel event promoted to a durable subplot.');
+        else notify(ctx, 'warning', String(p.reason ?? 'The parallel event could not be promoted.'));
       } else if (p?.type === 'vellum_plot_suggestion_done') {
         if (!p.ok) notify(ctx, 'warning', String(p.reason ?? 'The suggestion could not be applied.'));
         else notify(ctx, 'success', p.action === 'accepted' ? 'Suggestion accepted and added to the Chronicle.' : 'Suggestion dismissed.');

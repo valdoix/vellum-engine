@@ -37,6 +37,8 @@ describe('Director Off-screen view — renders model-narrated parallel meanwhile
     const html = directorTab.render(s);
     expect(html).not.toContain('No off-screen threads.');
     expect(html).toContain('the market reopened');
+    expect(html).toContain('PROMOTE TO SUBPLOT');
+    expect(html).toContain('data-par-promote');
   });
 
   it('version() changes when parallel CONTENT changes but the count stays equal', () => {

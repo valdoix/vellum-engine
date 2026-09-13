@@ -165,13 +165,31 @@ export const directorTab: Component<ChronicleState> = {
       // --- off-screen threads (re-homed from Chronicle→World) ---
       if (t.closest('[data-off-generate]')) { send({ type: 'vellum_intervention', op: 'parallel-now' }); return; }
       if (t.closest('[data-off-simall]')) { send({ type: 'vellum_offthread_advance' }); return; } // whole-world AI tick
+      const promote = t.closest('[data-par-promote]');
+      if (promote) {
+        const actor = promote.getAttribute('data-who') || '';
+        const activity = promote.getAttribute('data-activity') || '';
+        const opts = [{ value: '', label: '\u2014 none \u2014' }, ...(_state?.threads ?? []).filter(row => !/resolv/i.test(row.status)).map(row => ({ value: row.id, label: row.name }))];
+        formModal('Promote Parallel Event to Subplot', [
+          { key: 'name', label: 'Subplot name', type: 'text', value: actor ? `${actor}: ${activity}`.slice(0, 120) : activity.slice(0, 120) },
+          { key: 'impact', label: 'Why this matters to the story', type: 'text', placeholder: 'Changes Dawn\u2019s room and gives Xander a reason to be at the house' },
+          { key: 'bridge', label: 'How it may reach the foreground (optional)', type: 'text', placeholder: 'The unfinished wardrobe is visible when they arrive home' },
+          { key: 'thread', label: 'Link to plot thread (optional)', type: 'select', value: '', options: opts },
+        ], (o) => {
+          if (!o.impact?.trim()) return;
+          send({ type: 'vellum_parallel_promote', name: o.name, impact: o.impact, bridge: o.bridge || '', thread: o.thread || '', who: promote.getAttribute('data-who') || '', where: promote.getAttribute('data-where') || '', activity, turn: Number(promote.getAttribute('data-turn')), day: Number(promote.getAttribute('data-day')) });
+        });
+        return;
+      }
       if (t.closest('[data-off-add]')) {
         formModal('New Off-screen Thread', [
           { key: 'name', label: 'Subplot name', type: 'text', placeholder: 'The harbor strike' },
           { key: 'who', label: 'Character (optional)', type: 'text' },
           { key: 'where', label: 'Where (optional)', type: 'text' },
           { key: 'gist', label: 'What\u2019s happening now', type: 'text', placeholder: 'dockhands walk off the job' },
-        ], (o) => { if (o.name?.trim()) send({ type: 'vellum_offthread_set', name: o.name, who: o.who || undefined, where: o.where || undefined, gist: o.gist || undefined }); });
+          { key: 'impact', label: 'Why this matters to the story', type: 'text', placeholder: 'The strike delays supplies and forces a foreground choice' },
+          { key: 'bridge', label: 'Possible foreground bridge (optional)', type: 'text' },
+        ], (o) => { if (o.name?.trim() && o.impact?.trim()) send({ type: 'vellum_offthread_set', name: o.name, who: o.who || undefined, where: o.where || undefined, gist: o.gist || undefined, impact: o.impact, bridge: o.bridge || '' }); });
         return;
       }
       const oadv = t.closest('[data-off-adv]');
@@ -183,7 +201,9 @@ export const directorTab: Component<ChronicleState> = {
           { key: 'who', label: 'Character (optional)', type: 'text', value: oedit.getAttribute('data-who') || '' },
           { key: 'where', label: 'Where (optional)', type: 'text', value: oedit.getAttribute('data-where') || '' },
           { key: 'gist', label: 'Latest beat / gist', type: 'text', value: oedit.getAttribute('data-gist') || '' },
-        ], (o) => { send({ type: 'vellum_offthread_set', id: oedit.getAttribute('data-id'), name: o.name, who: o.who || undefined, where: o.where || undefined, gist: o.gist || undefined }); });
+          { key: 'impact', label: 'Why this matters to the story', type: 'text', value: oedit.getAttribute('data-impact') || '' },
+          { key: 'bridge', label: 'Add foreground bridge (optional)', type: 'text' },
+        ], (o) => { send({ type: 'vellum_offthread_set', id: oedit.getAttribute('data-id'), name: o.name, who: o.who || undefined, where: o.where || undefined, gist: o.gist || undefined, impact: o.impact || undefined, bridge: o.bridge || '' }); });
         return;
       }
       const ores = t.closest('[data-off-resolve]');
@@ -453,16 +473,18 @@ function offscreenView(s: ChronicleState): string {
       const linkedLine = linkedName ? `<div class="vle-feed-detail"><span class="vle-feed-label">Linked thread:</span> <span class="vle-feed-val vle-feed-linked">${esc(linkedName)}</span></div>` : '';
       const pressureLine = `<div class="vle-feed-detail"><span class="vle-feed-label">Pressure:</span> <span class="vle-feed-val">${o.pressure ?? Math.min(5, o.beats.length)} / 5${o.autonomy ? ` \u00b7 ${esc(o.autonomy)}` : ''}</span></div>`;
       const stakesLine = o.stakes ? `<div class="vle-feed-detail"><span class="vle-feed-label">Stakes:</span> <span class="vle-feed-val">${esc(o.stakes)}</span></div>` : '';
+      const impactLine = o.impact ? `<div class="vle-feed-detail"><span class="vle-feed-label">Story impact:</span> <span class="vle-feed-val">${esc(o.impact)}</span></div>` : '';
+      const groundingLine = o.grounding?.rationale ? `<div class="vle-feed-detail"><span class="vle-feed-label">Grounding:</span> <span class="vle-feed-val">${esc(o.grounding.rationale)}</span></div>` : '';
       const hooksLine = o.hooks?.length ? `<div class="vle-feed-detail"><span class="vle-feed-label">Future bridges:</span> <span class="vle-feed-val">${o.hooks.map(esc).join(' \u00b7 ')}</span></div>` : '';
       const nextBits = [o.nextTurn !== undefined ? `turn ${o.nextTurn}` : '', o.nextDay !== undefined ? `day ${o.nextDay}${o.nextClock !== undefined ? ` @ ${String(Math.floor(o.nextClock / 60)).padStart(2, '0')}:${String(o.nextClock % 60).padStart(2, '0')}` : ''}` : '', o.trigger ? `trigger: ${o.trigger}` : ''].filter(Boolean);
       const scheduleLine = nextBits.length ? `<div class="vle-feed-detail"><span class="vle-feed-label">Next eligible:</span> <span class="vle-feed-val">${nextBits.map(esc).join(' \u00b7 ')}</span></div>` : '';
       const gateBits = [...(o.dependsOn?.length ? [`after ${o.dependsOn.join(', ')}`] : []), ...(o.blockedBy?.length ? [`blocked by ${o.blockedBy.join(', ')}`] : [])];
       const gatesLine = gateBits.length ? `<div class="vle-feed-detail"><span class="vle-feed-label">Causal gates:</span> <span class="vle-feed-val">${gateBits.map(esc).join(' \u00b7 ')}</span></div>` : '';
-      const details = `<div class="vle-feed-details">${castLine}${linkedLine}${pressureLine}${stakesLine}${hooksLine}${scheduleLine}${gatesLine}</div>`;
+      const details = `<div class="vle-feed-details">${castLine}${linkedLine}${pressureLine}${impactLine}${stakesLine}${groundingLine}${hooksLine}${scheduleLine}${gatesLine}</div>`;
       
       // Actions
       const advBtn = done ? '' : `<button class="vle-btn vle-btn--primary" data-off-adv data-id="${A(o.id)}" title="Advance this thread one AI beat">ADVANCE</button>`;
-      const editBtn = `<button class="vle-btn vle-btn--secondary" data-off-edit data-id="${A(o.id)}" data-name="${A(o.name)}" data-who="${A(o.who ? (s.cast[o.who]?.name ?? o.who) : '')}" data-where="${A(o.where ?? '')}" data-gist="${A(o.gist ?? '')}" title="Edit">EDIT</button>`;
+      const editBtn = `<button class="vle-btn vle-btn--secondary" data-off-edit data-id="${A(o.id)}" data-name="${A(o.name)}" data-who="${A(o.who ? (s.cast[o.who]?.name ?? o.who) : '')}" data-where="${A(o.where ?? '')}" data-gist="${A(o.gist ?? '')}" data-impact="${A(o.impact ?? '')}" title="Edit">EDIT</button>`;
       const linkBtn = `<button class="vle-btn vle-btn--secondary" data-off-link data-id="${A(o.id)}" data-thread="${A(o.thread ?? '')}" title="${o.thread ? 'Change / clear link' : 'Link to thread'}">LINK</button>`;
       const stBtn = done
         ? `<button class="vle-btn vle-btn--secondary" data-off-reopen data-id="${A(o.id)}" data-name="${A(o.name)}" title="Reopen">REOPEN</button>`
@@ -519,7 +541,8 @@ function offscreenView(s: ChronicleState): string {
       const kicker = `<div class="vle-feed-kicker">Meanwhile${where ? ' \u00B7 ' + esc(where) : ''}</div>`;
       const activity = `<div class="vle-feed-title">${esc(p.activity)}</div>`;
       const meta = `<div class="vle-feed-meta">Turn ${p.turn}</div>`;
-      return `<div class="vle-feed-item vle-feed-item--narrated">${kicker}${activity}${who}${sim}${meta}</div>`;
+      const promote = `<button class="vle-btn vle-btn--secondary" data-par-promote data-who="${esc(p.who ? (s.cast[p.who]?.name ?? p.who) : '')}" data-where="${esc(p.where ?? '')}" data-activity="${esc(p.activity)}" data-turn="${p.turn}" data-day="${p.day}" title="Turn this current snapshot into a durable consequential subplot">PROMOTE TO SUBPLOT</button>`;
+      return `<div class="vle-feed-item vle-feed-item--narrated">${kicker}${activity}${who}${sim}${meta}<div class="vle-feed-actions">${promote}</div></div>`;
     }).join('');
     html += parItems;
     html += '</div>';

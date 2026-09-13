@@ -464,6 +464,27 @@ export interface ChronicleState {
   yearSuffix?: string;        // era text after the year (" A.R.")
 }
 
+export type SubplotBeatKind = 'progress' | 'obstacle' | 'consequence' | 'bridge' | 'resolution';
+export type SubplotEvidenceBasis = 'scene' | 'character' | 'location' | 'lorebook' | 'parallel' | 'subplot' | 'knowledge' | 'relationship' | 'intent' | 'manual';
+
+/** Why a subplot beat is allowed by canon and how it changes its own prior
+ * condition. `refs` are compact provenance pointers, not quotations. */
+export interface SubplotGrounding {
+  basis: SubplotEvidenceBasis[];
+  rationale: string;
+  refs?: string[];
+  before?: string;
+  after?: string;
+}
+
+export interface SubplotParallelOrigin {
+  turn: number;
+  day: number;
+  who?: string;
+  where?: string;
+  activity: string;
+}
+
 /** A living off-screen subplot the off-screen sim advances over turns. Mirrors
  * a plot thread but tracks its own running `beats` log + who/where. */
 export interface OffscreenThread {
@@ -474,6 +495,14 @@ export interface OffscreenThread {
   status: 'active' | 'resolved';
   gist: string;   // latest one-line state
   beats: string[]; // running history of what happened off-screen (newest last, capped)
+  beatKinds?: SubplotBeatKind[]; // aligned to the retained beats ring
+  beatKind?: SubplotBeatKind;
+  /** Concrete future-facing effect: what changes for people, resources,
+   * schedules, information, relationships, or foreground options. */
+  impact?: string;
+  grounding?: SubplotGrounding;
+  /** Provenance retained when a parallel snapshot is promoted by the user. */
+  originParallel?: SubplotParallelOrigin;
   /** Long-tail pressure created by accumulated off-screen beats. Higher pressure
    * makes the subplot eligible to intersect the foreground sooner. */
   pressure?: number; // 0..5

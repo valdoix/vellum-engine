@@ -432,7 +432,8 @@ export const coreFeature: Feature = {
         for (const subplot of ctx.state.offscreen.filter(row => row.status === 'active' && threadOffscreenLink(tracked.name, row, tracked.id))) {
           out.push({
             ...base(), kind: 'offscreen.op', op: t.op === 'resolve' ? 'resolve' : 'advance', id: subplot.id,
-            gist: t.note, thread: tracked.id,
+            gist: t.note, thread: tracked.id, beatKind: t.op === 'resolve' ? 'resolution' : 'bridge',
+            grounding: { basis: ['scene', 'subplot'], rationale: 'The foreground scene directly changed the plot thread linked to this subplot.', before: subplot.gist, after: t.note },
           } as VellumEvent);
         }
       }

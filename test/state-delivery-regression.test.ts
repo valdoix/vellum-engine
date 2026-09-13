@@ -62,9 +62,14 @@ describe('repaired Chronicle state delivery', () => {
     expect(backend).toContain('resolvePlotRef(rows, raw)');
   });
 
-  it('lets Engine Pass omit unchanged snapshot and proof boilerplate', () => {
-    expect(STATE_COMPILER_SYSTEM).toContain('Return only changes');
-    expect(STATE_COMPILER_SYSTEM).toContain('Do not build separate evidence, trackEvidence, or parallelReviewed arrays');
+  it('keeps Engine Pass concise without permitting shallow extraction', () => {
+    expect(STATE_COMPILER_SYSTEM).toContain('Lean and Full have identical content coverage');
+    expect(STATE_COMPILER_SYSTEM).toContain('Lean only simplifies formatting');
+    expect(STATE_COMPILER_SYSTEM).toContain('it never omits a supported fact, event, state family, character, plot change, or parallel operation');
+    expect(STATE_COMPILER_SYSTEM).toContain('Return the current scene and complete present roster');
+    expect(STATE_COMPILER_SYSTEM).toContain('audit every supported state family');
+    expect(STATE_COMPILER_SYSTEM).toContain('do not turn "concise" into empty delta/ext objects');
+    expect(STATE_COMPILER_SYSTEM).toContain('Root evidence, trackEvidence, and parallelReviewed are engine bookkeeping');
   });
 
   it('raises the event sequence floor from persisted history', () => {

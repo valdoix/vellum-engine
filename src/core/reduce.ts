@@ -666,6 +666,10 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       else if (e.gist && e.op !== 'resolve') ot.pressure = Math.min(5, Math.max(1, (ot.pressure ?? 0) + 1));
       if (e.stakes) ot.stakes = e.stakes;
       if (e.autonomy) ot.autonomy = e.autonomy;
+      if (e.beatKind) ot.beatKind = e.beatKind;
+      if (e.impact) ot.impact = e.impact;
+      if (e.grounding) ot.grounding = structuredClone(e.grounding);
+      if (e.originParallel) ot.originParallel = structuredClone(e.originParallel);
       if (e.hooks?.length) ot.hooks = [...new Set([...(ot.hooks ?? []), ...e.hooks.map(h => h.trim()).filter(Boolean)])].slice(-6);
       if (e.nextTurn !== undefined) ot.nextTurn = e.nextTurn;
       if (e.nextDay !== undefined) ot.nextDay = e.nextDay;
@@ -681,7 +685,16 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.gist && e.fill && isCatchupMarker(ot.beats[ot.beats.length - 1])) {
         ot.gist = e.gist;
         ot.beats = [...ot.beats.slice(0, -1), e.gist].slice(-6);
-      } else if (e.gist) { ot.gist = e.gist; ot.beats = [...ot.beats, e.gist].slice(-6); }
+        if (e.beatKind) {
+          const priorKinds = ot.beatKinds?.length === ot.beats.length ? ot.beatKinds : ot.beats.map(() => 'progress' as const);
+          ot.beatKinds = [...priorKinds.slice(0, -1), e.beatKind].slice(-6);
+        }
+      } else if (e.gist) {
+        const priorKinds = ot.beatKinds?.length === ot.beats.length ? ot.beatKinds : ot.beats.map(() => 'progress' as const);
+        ot.gist = e.gist;
+        ot.beats = [...ot.beats, e.gist].slice(-6);
+        ot.beatKinds = [...priorKinds, e.beatKind ?? (e.op === 'resolve' ? 'resolution' : 'progress')].slice(-6);
+      }
       ot.lastTurn = Math.max(ot.lastTurn, e.turn);
       if (ot.firstDay === undefined) ot.firstDay = e.day;
       ot.lastDay = ot.lastDay === undefined ? e.day : Math.max(ot.lastDay, e.day);

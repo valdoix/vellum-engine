@@ -146,6 +146,8 @@ describe('ARGENT strengthened invariants', () => {
     expect(compiler).toContain('[FINAL STATE COMPILER — FULL, ATOMIC AND MANDATORY]');
     expect(schema).toContain('List every named on-stage NPC with a concise first-person thought');
     expect(compiler).toContain('Give each on-stage NPC a knowledge-limited first-person thought');
+    expect(schema).toContain('CONTENT COVERAGE IS IDENTICAL TO FULL');
+    expect(compiler).toContain('Lean has the same content coverage as Full');
     expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'lean' })).toContain('VELLUM STATE — LEAN CONTRACT');
     expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'lean' })).not.toContain('VELLUM STATE — FULL CONTRACT');
     expect(expandedBlock('arg-state-schema', { state_compiler: 'inline', state_verbosity: 'full' })).toContain('VELLUM STATE — FULL CONTRACT');
@@ -261,12 +263,23 @@ describe('ARGENT strengthened invariants', () => {
     const output = block('arg-output-contract');
     expect(world).toContain('[PARALLEL T1 RECONCILIATION]');
     expect(world).toContain('MUST NOT appear in parallel');
-    expect(world).toContain('MOVE needs depicted travel');
+    expect(world).toContain('MOVE needs enough time and either depicted travel or a canon-grounded route');
+    expect(world).toContain('Parallel evidence need not appear in visible prose');
+    expect(world).toContain('Spike at the Bronze');
+    expect(world).toContain('Spike in Beijing');
     expect(schema).toContain('Complete replace-all T1 snapshot');
     expect(schema).toContain('use [] only when all prior rows resolve');
     expect(compiler).toContain('PARALLEL RECONCILIATION');
     expect(output).toContain('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]');
     expect(output).toContain('current snapshot must remain visible');
+  });
+
+  it('treats evidence as semantic grounding instead of exact quotation matching', () => {
+    const significance = block('arg-significance');
+    expect(significance).toContain('Evidence is semantic support, not an exact-quote test');
+    expect(significance).toContain('faithful paraphrase');
+    expect(significance).toContain('relevant lorebook passage');
+    expect(significance).toContain('life, location, elapsed-time, lore, motive, and knowledge plausibility audit');
   });
 
   it('keeps plot threads and arcs quiet unless the same tracked situation directly changes', () => {

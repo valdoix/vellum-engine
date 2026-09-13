@@ -75,6 +75,8 @@ export function materializeParallelBatch(parsed: ParsedState | null, state: Chro
       ...(row.arc ? { arc: row.arc } : {}), ...(row.pressure !== undefined ? { pressure: row.pressure } : {}),
       ...(row.hooks?.length ? { hooks: row.hooks } : {}), ...(row.stakes ? { stakes: row.stakes } : {}),
       ...(row.autonomy ? { autonomy: row.autonomy } : {}),
+      ...(row.beatKind ? { beatKind: row.beatKind } : {}), ...(row.impact ? { impact: row.impact } : {}),
+      ...(row.grounding ? { grounding: row.grounding } : {}),
       ...(row.nextTurn !== undefined ? { nextTurn: row.nextTurn } : {}), ...(row.nextDay !== undefined ? { nextDay: row.nextDay } : {}),
       ...(row.nextClock !== undefined ? { nextClock: row.nextClock } : {}), ...(row.deadlineDay !== undefined ? { deadlineDay: row.deadlineDay } : {}),
       ...(row.deadlineClock !== undefined ? { deadlineClock: row.deadlineClock } : {}), ...(row.dependsOn !== undefined ? { dependsOn: row.dependsOn } : {}),

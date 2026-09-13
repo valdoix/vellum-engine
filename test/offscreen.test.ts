@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys, threadOffscreenLink, linkedOffscreen, subplotEligible, planSubplotTick, effectiveSubplotMode } from '../src/domain/offscreen.js';
+import { offscreenCast, buildSimPrompt, parseSim, simEvents, SIM_SYS, simSys, threadOffscreenLink, linkedOffscreen, subplotEligible, subplotProofSufficient, planSubplotTick, effectiveSubplotMode } from '../src/domain/offscreen.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState, type ChronicleState } from '../src/domain/types.js';
 
@@ -170,6 +170,36 @@ describe('parseSim', () => {
     expect(r.offscreen).toEqual([expect.objectContaining({ who: 'Jaime', where: 'The Yard', gist: 'checks the gate' })]);
     expect(r.offscreen[0]!.id).toContain('jaime');
   });
+  it('preserves causal subplot proof fields from provider output', () => {
+    const row = parseSim(JSON.stringify({ offscreen: [{
+      op: 'new', id: 'wardrobe', name: 'Dawn wardrobe', who: 'Xander', where: "Dawn's home",
+      gist: 'measures the alcove for a wardrobe', beatKind: 'progress',
+      impact: 'The finished wardrobe gives Dawn a private place to protect the letters.',
+      grounding: { basis: ['character', 'location', 'intent'], rationale: "Xander knows Dawn and can realistically visit her home to build the wardrobe.", after: 'measures the alcove for a wardrobe' },
+    }] }))!.offscreen[0]!;
+    expect(row).toMatchObject({ beatKind: 'progress', impact: expect.stringContaining('protect the letters') });
+    expect(row.grounding).toMatchObject({ basis: ['character', 'location', 'intent'], after: 'measures the alcove for a wardrobe' });
+  });
+});
+
+describe('subplot causal proof', () => {
+  it('accepts a grounded consequential project start', () => {
+    expect(subplotProofSufficient({
+      op: 'new', id: 'wardrobe', name: 'Dawn wardrobe', who: 'Xander', where: "Dawn's home",
+      gist: 'measures the alcove for a wardrobe', beatKind: 'progress',
+      impact: 'The wardrobe will conceal Dawn’s letters and change what visitors can discover.',
+      grounding: { basis: ['character', 'location', 'intent'], rationale: "Xander knows Dawn, has practical skills, and can visit her home.", after: 'measures the alcove for a wardrobe' },
+    })).toBe(true);
+  });
+
+  it('rejects an advance that only restates the prior activity', () => {
+    const prior = { id: 'wardrobe', name: 'Dawn wardrobe', status: 'active', who: 'xander', where: "Dawn's home", gist: 'measures the alcove for a wardrobe', beats: ['measures the alcove for a wardrobe'], firstTurn: 1, lastTurn: 1 } as any;
+    expect(subplotProofSufficient({
+      op: 'advance', id: 'wardrobe', gist: 'measuring the alcove for the wardrobe', beatKind: 'progress',
+      impact: 'The wardrobe will conceal Dawn’s letters and change what visitors can discover.',
+      grounding: { basis: ['subplot'], rationale: 'The current beat is claimed as progress on the established wardrobe project.', before: 'measures the alcove for a wardrobe', after: 'measuring the alcove for the wardrobe' },
+    }, prior)).toBe(false);
+  });
 });
 
 describe('adaptive subplot scheduler', () => {
@@ -237,6 +267,7 @@ describe('simEvents + reduce round-trip', () => {
     evs = simEvents({ offscreen: [{ op: 'advance', id: 'siege', gist: 'a breach opens' }] }, s, 13, 1, seq);
     s = reduce(evs, s);
     expect(s.offscreen[0]!.beats).toEqual(['walls hold', 'a breach opens']);
+    expect(s.offscreen[0]!.beatKinds).toEqual(['progress', 'progress']);
     expect(s.offscreen[0]!.gist).toBe('a breach opens');
     // turn 3: resolve
     evs = simEvents({ offscreen: [{ op: 'resolve', id: 'siege' }] }, s, 14, 1, seq);
@@ -256,6 +287,16 @@ describe('simEvents + reduce round-trip', () => {
     const s = state();
     const evs = simEvents({ offscreen: [{ op: 'advance', id: 'ghost', name: 'Ghost', gist: 'x' }] }, s, 12, 1, (() => { let n = 0; return () => ++n; })());
     expect((evs[0] as any).op).toBe('new');
+  });
+  it('requires impact and transition proof when strict simulation is requested', () => {
+    const s = state();
+    const next = (() => { let n = 0; return () => ++n; })();
+    expect(simEvents({ offscreen: [{ op: 'new', id: 'empty', name: 'Empty', who: 'Jaime', where: 'The Yard', gist: 'checks the gate' }] }, s, 12, 1, next, { requireProof: true })).toEqual([]);
+    expect(simEvents({ offscreen: [{
+      op: 'new', id: 'gate_watch', name: 'Gate watch', who: 'Jaime', where: 'The Yard', gist: 'checks the gate hinges', beatKind: 'progress',
+      impact: 'A damaged hinge could delay the guard response when the gate is attacked.',
+      grounding: { basis: ['character', 'location'], rationale: 'Jaime is an established guard currently anchored in the Yard.', after: 'checks the gate hinges' },
+    }] }, s, 12, 1, next, { requireProof: true })).toEqual([expect.objectContaining({ kind: 'offscreen.op', id: 'gate_watch', impact: expect.stringContaining('guard response') })]);
   });
   it('never places the persona in a named or anonymous subplot', () => {
     const s = state();

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { applyCompilerMergePatch, argentRequirementErrors, CompilerCandidate, compilerProviderSchema, compilerRepairBase, jsonSchema, salvageCompilation, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
-import { compileState, compilerContext, compilerPatchObjects, compilerReplyObjects, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation } from '../src/bus/state-compiler.js';
+import { compileState, compilerContext, compilerPatchObjects, compilerReplyObjects, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation, STATE_COMPILER_SYSTEM } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
 import { registerFeature } from '../src/bus/registry.js';
 import { reduce } from '../src/core/reduce.js';
@@ -26,7 +26,16 @@ describe('strict pre-commit state compiler', () => {
     i.livingWorld = 'active';
     i.prose = 'Mara waits five minutes. Elsewhere, Ada waits in the Courtyard for the bell. Player stays quiet.';
     const c = candidate();
-    c.state.delta.offscreen = [{ op: 'new', id: 'courtyard_watch', name: 'Courtyard watch', who: 'Ada', where: 'Courtyard', gist: 'waits in the Courtyard for the bell', nextTurn: 3 }];
+    c.state.delta.offscreen = [{
+      op: 'new', id: 'courtyard_watch', name: 'Courtyard watch', who: 'Ada', where: 'Courtyard',
+      gist: 'waits in the Courtyard for the bell', nextTurn: 3, beatKind: 'progress',
+      impact: 'Ada can warn the archive when the bell sounds, changing how quickly Mara can respond.',
+      grounding: {
+        basis: ['scene', 'character', 'location', 'intent'],
+        rationale: 'Ada is an established NPC whose active bell-watching intent places her in the Courtyard.',
+        after: 'waits in the Courtyard for the bell',
+      },
+    }];
     c.state.ext.intent = [{ who: 'Ada', goal: 'hear the bell signal', nextStep: 'wait in the Courtyard', status: 'active' }];
     c.evidence.push({ path: 'delta.offscreen.0', quote: 'Ada waits in the Courtyard for the bell' });
     c.evidence.push({ path: 'ext.intent.0', quote: 'Ada waits in the Courtyard for the bell' });
@@ -117,6 +126,20 @@ describe('strict pre-commit state compiler', () => {
     };
     const result = validateCompilation(c, i);
     expect(result.ok).toBe(true);
+  });
+  it('accepts a faithful evidence paraphrase instead of requiring an exact quote', () => {
+    const i = input();
+    i.prose = 'Mara waits five minutes, then discovers a copper key hidden beneath the ledger. Player stays quiet.';
+    const c = candidate();
+    c.state.ext.codex = [{ op: 'add', fact: 'A copper key was hidden beneath the ledger.', tag: 'discovery' }];
+    c.evidence.push({ path: 'ext.codex.0', quote: 'Mara finds the copper key beneath the ledger.' });
+    expect(i.prose).not.toContain(c.evidence[c.evidence.length - 1]!.quote);
+    expect(validateCompilation(c, i).ok).toBe(true);
+
+    c.evidence[c.evidence.length - 1]!.quote = 'Mara waits five minutes.';
+    const unrelated = validateCompilation(c, i);
+    expect(unrelated.ok).toBe(false);
+    if (!unrelated.ok) expect(unrelated.errors).toContain('evidence does not materially ground the state change: ext.codex.0');
   });
   it('accepts a new plot baseline from lorebook canon but never treats it as later progress', () => {
     const i = input();
@@ -319,6 +342,71 @@ describe('strict pre-commit state compiler', () => {
     i.livingWorld = 'sandbox';
     c.parallelOps[0]!.activity = 'stealing the crown';
     expect(validateCompilation(c, i).ok).toBe(false);
+  });
+  it('rejects a parallel snapshot that contradicts the newest active subplot beat', () => {
+    const i = input();
+    i.livingWorld = 'active';
+    i.prose = 'Mara waits five minutes. At the East Gate, Ada tightens the courier latch, then reads the courier ledger. Player stays quiet.';
+    i.prior.parallel = [{ who: 'ada', where: 'East Gate', activity: 'waiting for the courier', day: 1, turn: 1 }];
+    i.prior.offscreen = [{ id: 'courier_watch', name: 'The Late Courier', status: 'active', who: 'ada', where: 'East Gate', gist: 'waiting for the courier', beats: ['waiting for the courier'], firstTurn: 1, lastTurn: 1 }] as any;
+    const c = candidate();
+    c.state.delta.offscreen = [{
+      op: 'advance', id: 'courier_watch', where: 'East Gate', gist: 'tightens the courier latch', beatKind: 'progress',
+      impact: 'The repaired latch controls whether the arriving courier can enter without alerting Ada.',
+      grounding: { basis: ['scene', 'subplot'], rationale: 'Ada tightens the latch at the established gate while continuing the courier watch.', before: 'waiting for the courier', after: 'tightens the courier latch' },
+    }];
+    c.evidence.push({ path: 'delta.offscreen.0', quote: 'At the East Gate, Ada tightens the courier latch' });
+    c.parallelReviewed = [];
+    c.parallelOps = [{ op: 'advance', who: 'Ada', where: 'East Gate', activity: 'reads the courier ledger', evidence: 'At the East Gate, Ada reads the courier ledger.' }];
+    const rejected = validateCompilation(c, i);
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) expect(rejected.errors).toContain('parallel activity contradicts active subplot courier_watch: ada');
+  });
+  it('accepts a canon-plausible autonomous parallel beat without a prose quote', () => {
+    const i = input();
+    i.livingWorld = 'active';
+    i.prior.scene.location = 'Sunnydale Cemetery';
+    i.prior.parallel = [];
+    i.prior.cast.spike = { ...i.prior.cast.ada!, id: 'spike', name: 'Spike', status: 'active', deceased: false, lastLocation: undefined, lastLocationTurn: undefined };
+    i.lorebookCanon = [{
+      id: 'bronze', bookId: 'buffy', title: 'The Bronze', keys: ['Bronze', 'Sunnydale'],
+      content: 'The Bronze is a nightclub and live-music venue in Sunnydale frequented by local residents and vampires.',
+    }];
+    const c = candidate();
+    c.state.scene.loc = 'Sunnydale Cemetery';
+    c.parallelReviewed = [];
+    c.parallelOps = [{
+      op: 'start', who: 'Spike', where: 'The Bronze', activity: 'playing pool near the bar',
+      evidence: 'Spike is alive and playing pool at the Bronze, an established Sunnydale venue; this is a reversible local activity.',
+    }];
+    const accepted = validateCompilation(c, i);
+    expect(accepted.ok).toBe(true);
+    if (accepted.ok) expect(JSON.parse(accepted.block.slice(9, -9)).delta.parallel).toEqual([
+      { who: 'Spike', where: 'The Bronze', activity: 'playing pool near the bar' },
+    ]);
+
+    c.parallelOps[0] = {
+      op: 'start', who: 'Spike', where: 'Beijing', activity: 'playing pool near the bar',
+      evidence: 'Spike is alive and playing pool in Beijing.',
+    };
+    const remote = validateCompilation(c, i);
+    expect(remote.ok).toBe(false);
+    if (!remote.ok) expect(remote.errors).toContain('parallel operation is not grounded in the scene or a canon-plausible life/location/activity: spike');
+  });
+  it('rejects autonomous activity for a deceased character even at a canonical venue', () => {
+    const i = input();
+    i.livingWorld = 'sandbox';
+    i.prior.scene.location = 'Sunnydale Cemetery';
+    i.prior.parallel = [];
+    i.prior.cast.spike = { ...i.prior.cast.ada!, id: 'spike', name: 'Spike', status: 'active', deceased: true };
+    i.lorebookCanon = [{ id: 'bronze', bookId: 'buffy', title: 'The Bronze', content: 'The Bronze is a nightclub in Sunnydale.' }];
+    const c = candidate();
+    c.state.scene.loc = 'Sunnydale Cemetery';
+    c.parallelReviewed = [];
+    c.parallelOps = [{ op: 'start', who: 'Spike', where: 'The Bronze', activity: 'playing pool', evidence: 'Spike is playing pool at the Bronze in Sunnydale.' }];
+    const rejected = validateCompilation(c, i);
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) expect(rejected.errors).toContain('deceased actor cannot act in parallel: spike');
   });
   it('rejects rollback against a legacy prior time even when prior clock is absent', () => {
     const i = input();
@@ -526,6 +614,20 @@ describe('strict pre-commit state compiler', () => {
     expect(context.prior.displayedDate).toBe('October 17, 2001');
     expect(context.prior.day).toBeUndefined();
   });
+  it.each([
+    ['lean', 'compact_fields'],
+    ['full', 'expanded_fields'],
+  ] as const)('declares identical content coverage with %s formatting', (verbosity, format) => {
+    const i = input();
+    i.verbosity = verbosity;
+    const context = JSON.parse(compilerContext(i));
+    expect(context.outputContract).toMatchObject({
+      contentCoverage: 'all_supported_durable_changes',
+      sceneAndPresent: 'complete_current_snapshot',
+      format,
+    });
+    expect(context.outputContract.rule).toContain('never reduces facts, events, state families');
+  });
   it('repairs a copied calendar day-of-month in engine and inline state', () => {
     const i = input();
     i.prior.day = 2;
@@ -569,6 +671,16 @@ ${JSON.stringify(c.state)}
   it('passes the persona-state control to the second-pass model', () => {
     const i = input(); i.personaState = true;
     expect(JSON.parse(compilerContext(i)).controls.personaState).toBe(true);
+  });
+  it('supplies semantic evidence policy and cast life-state to Engine Pass', () => {
+    const i = input();
+    i.prior.cast.ada!.deceased = true;
+    const context = JSON.parse(compilerContext(i));
+    expect(context.evidencePolicy.question).toContain('factually correct');
+    expect(context.evidencePolicy.accepted).toContain('faithful paraphrase');
+    expect(context.parallelPolicy.proseQuoteRequired).toBe(false);
+    expect(context.parallelPolicy.hardReject).toContain('deceased actor');
+    expect(context.prior.cast.find((row: { id: string }) => row.id === 'ada')).toMatchObject({ deceased: true });
   });
   it('keeps the Cast-selected player persona distinct from the character card', () => {
     const i = input();
@@ -621,12 +733,21 @@ ${JSON.stringify(c.state)}
     i.argent = true;
     i.prior.threads = [{ id: 'thr_existing', name: 'Existing plot', status: 'open', beats: [], firstTurn: 1, lastTurn: 1 }];
     i.prior.offscreen = [{ id: 'courier_watch', name: 'The Late Courier', status: 'active', who: 'ada', where: 'East Gate', gist: 'waiting for the courier', beats: ['waiting for the courier'], firstTurn: 1, lastTurn: 1 }] as any;
+    i.prior.locations = ['Harbor', 'Bell Tower', 'Market'].map((name, index) => ({ id: `place_${index}`, name, source: 'user' as const, firstTurn: 1, lastTurn: 1 }));
     const c = candidate();
     c.parallelReviewed = [];
     c.parallelOps = [{ op: 'start', who: 'Ada', where: 'East Gate', activity: 'waiting for the courier', evidence: 'Ada at East Gate: waiting for the courier' }];
     c.state.delta.offscreen = [
-      { op: 'new', id: 'harbor_watch', name: 'Harbor Watch', where: 'Harbor', gist: 'Dockworkers close the harbor gates' },
-      { op: 'new', id: 'bell_watch', name: 'Bell Watch', where: 'Bell Tower', gist: 'The warning bells begin ringing' },
+      {
+        op: 'new', id: 'harbor_watch', name: 'Harbor Watch', where: 'Harbor', gist: 'Dockworkers close the harbor gates', beatKind: 'progress',
+        impact: 'Closing the gates delays every arriving courier and changes who can reach the archive.',
+        grounding: { basis: ['scene', 'location'], rationale: 'At the established Harbor, dockworkers close the gates and alter access to the city.', after: 'Dockworkers close the harbor gates' },
+      },
+      {
+        op: 'new', id: 'bell_watch', name: 'Bell Watch', where: 'Bell Tower', gist: 'The warning bells begin ringing', beatKind: 'consequence',
+        impact: 'The warning bells alert the district and force the archive to react to the alarm.',
+        grounding: { basis: ['scene', 'location'], rationale: 'At the established Bell Tower, the keepers sound the warning bells for the district.', after: 'The warning bells begin ringing' },
+      },
     ];
     c.evidence.push(
       { path: 'delta.offscreen.0', quote: 'At the Harbor, dockworkers close the harbor gates.' },
@@ -699,14 +820,16 @@ ${JSON.stringify(c.state)}
   });
   it('keeps the Living/Active caps but removes Sandbox caps', () => {
     const makeRows = (count: number) => Array.from({ length: count }, (_, index) => ({
-      op: 'new' as const, id: `watch_${index}`, name: `Watch ${index}`, where: 'Courtyard', gist: `Bell watch ${index}`,
+      op: 'new' as const, id: `watch_${index}`, name: `Watch ${index}`, where: 'Courtyard', gist: `Bell watch ${index} begins`, beatKind: 'progress' as const,
+      impact: `Bell watch ${index} changes when the archive receives its next warning.`,
+      grounding: { basis: ['scene', 'location'] as const, rationale: `At the Courtyard, bell watch ${index} begins and changes the warning schedule.`, after: `Bell watch ${index} begins` },
     }));
     const i = input(); i.livingWorld = 'active';
     const c = candidate();
     c.state.delta.offscreen = makeRows(2);
     c.evidence.push(
-      { path: 'delta.offscreen.0', quote: 'Mara waits five minutes' },
-      { path: 'delta.offscreen.1', quote: 'Mara waits five minutes' },
+      { path: 'delta.offscreen.0', quote: 'At the Courtyard, bell watch 0 begins and changes the warning schedule.' },
+      { path: 'delta.offscreen.1', quote: 'At the Courtyard, bell watch 1 begins and changes the warning schedule.' },
     );
     const living = validateCompilation(c, i);
     expect(living.ok).toBe(false);
@@ -714,7 +837,7 @@ ${JSON.stringify(c.state)}
 
     i.livingWorld = 'sandbox';
     c.state.delta.offscreen = makeRows(3);
-    c.evidence.push({ path: 'delta.offscreen.2', quote: 'Mara waits five minutes' });
+    c.evidence.push({ path: 'delta.offscreen.2', quote: 'At the Courtyard, bell watch 2 begins and changes the warning schedule.' });
     const autonomous = validateCompilation(c, i);
     expect(autonomous.ok).toBe(true);
   });
@@ -891,7 +1014,13 @@ ${JSON.stringify(c.state)}
     const raw = {
       state: { delta: { offscreen: [{
         op: 'new', id: 'gate_watch', name: 'Gate watch', who: 'Ada', where: 'Gate',
-        gist: 'waits beside the gate', evidence: 'Ada moves to the gate and waits beside it',
+        gist: 'waits beside the gate', evidence: 'Ada moves to the gate and waits beside it', beatKind: 'progress',
+        impact: 'Ada can intercept the courier at the gate and warn Mara before the archive is entered.',
+        grounding: {
+          basis: ['scene', 'character', 'location'],
+          rationale: 'Ada is established and the scene explicitly places her at the gate waiting for the courier.',
+          after: 'waits beside the gate',
+        },
       }] } },
       parallelOps: [{ op: 'move', who: 'Ada', where: 'Gate', activity: 'waits beside the gate', evidence: 'Ada moves to the gate and waits beside it' }],
     };
@@ -1002,6 +1131,13 @@ ${JSON.stringify(c.state)}
     expect(progress.find((update) => update.status === 'requesting')?.message).toContain('first output token');
     expect(progress.find((update) => update.status === 'validated')?.text).toContain('<vellum>');
     expect(JSON.stringify(progress)).not.toContain('private chain of thought');
+  });
+  it('changes state formatting without reducing Lean or Full extraction coverage', () => {
+    expect(STATE_COMPILER_SYSTEM).toContain('Lean and Full have identical content coverage');
+    expect(STATE_COMPILER_SYSTEM).toContain('audit every supported state family');
+    expect(STATE_COMPILER_SYSTEM).not.toContain('prefer an empty state object');
+    expect(ENGINE_OUTPUT_TOKENS.lean).toBe(ENGINE_OUTPUT_TOKENS.full);
+    expect(ENGINE_TIMEOUT_MS.lean).toBe(ENGINE_TIMEOUT_MS.full);
   });
   it.each([
     ['lean', ENGINE_OUTPUT_TOKENS.lean, ENGINE_TIMEOUT_MS.lean],
