@@ -1362,6 +1362,11 @@ function normalizePlotProofRows(root: Record<string, any>, input: CompilerInput,
       // `status:"open"` is a common snapshot spelling. The shared block
       // normalizer maps it to `new`; retarget it when that title already exists.
       if (target && row.op === 'new') row.op = 'advance';
+      // Models often emit `status:"active"` on a thread; the shared normalizer
+      // adopts it as `op` and maps "active" to "advance". When that thread does
+      // not exist in the prior ledger, "advance" is impossible — it must be a
+      // new opener. Correct the op so ARGENT and plot causality see it as such.
+      if (!target && (row.op === 'advance' || row.op === 'stall')) row.op = 'new';
       const evidence = root.evidence?.find((item: Record<string, any>) => item.path === path);
       if (!proof && row.note && (input.evidenceMode === 'none' || evidence?.quote)) {
         const op = String(row.op ?? 'advance');

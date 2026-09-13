@@ -850,7 +850,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       // Compiler-shaped inline rows often use `evidence` for the exact depicted
       // beat. Preserve it as the durable note instead of letting Zod strip the
       // only grounding text and the plot gate subsequently discard the row.
-      adopt(row, 'note', ['beat', 'gist', 'development', 'event', 'evidence']);
+      adopt(row, 'note', ['beat', 'gist', 'development', 'description', 'event', 'evidence']);
       adopt(row, 'op', ['action', 'operation', 'status']);
       if (key === 'threads') adopt(row, 'arc', ['linkedArc', 'linked_arc', 'parentArc', 'parent_arc']);
       // Legacy rows often put the actual T1 beat in `event` and a status gloss

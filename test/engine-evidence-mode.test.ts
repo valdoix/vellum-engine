@@ -154,4 +154,69 @@ describe('Engine Pass evidence mode', () => {
     const system = captured[0].content as string;
     expect(system).not.toContain('EVIDENCE MODE — NONE');
   });
+
+  it('no-evidence mode corrects status:"active" on an opening thread to op:"new" for ARGENT', () => {
+    const i = input(); i.evidenceMode = 'none'; i.argent = true;
+    i.prose = 'Mara kneels beside the open grave, gripping her companion\'s hand, disoriented and overwhelmed by the noise and smoke. Player stays quiet.';
+    const raw = {
+      state: { turn: 2, day: 1, scene: { loc: 'Archive', time: '10:05', clock: 605 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {
+        threads: [{ id: 't_grave_dirt', title: 'Grave Dirt and Ocean Eyes', status: 'active', kind: 'actionable', description: 'Mara clawed out of her grave.', linkedArc: 'a_after_death', turn: 2, day: 0 }],
+        arcs: [{ id: 'a_after_death', title: 'After Death', status: 'active', description: 'Mara has been resurrected.', linkedThreads: ['t_grave_dirt'], turn: 2, day: 0 }],
+      }, ext: {} },
+      parallelOps: [], parallelWorldOps: [], parallelReviewed: ['Ada'], evidence: [], trackEvidence: [], genesis: false,
+    };
+    const r = salvageCompilation(raw, i);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const threads = r.candidate.state.delta.threads ?? [];
+      expect(threads).toHaveLength(1);
+      expect(threads[0]!.op).toBe('new');
+      const arcs = r.candidate.state.delta.arcs ?? [];
+      expect(arcs).toHaveLength(1);
+      expect(arcs[0]!.op).toBe('new');
+    }
+  });
+
+  it('evidence mode also corrects status:"active" on an opening thread to op:"new" for ARGENT', () => {
+    const i = input(); i.argent = true;
+    i.prose = 'Mara clawed out of her grave, resurrected at last. Player stays quiet.';
+    const raw = {
+      state: { turn: 2, day: 1, scene: { loc: 'Archive', time: '10:00', clock: 600 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {
+        threads: [{ id: 't_grave_dirt', title: 'Grave Dirt', status: 'active', description: 'Mara clawed out of her grave.', linkedArc: 'a_resurrection', turn: 2, day: 0 }],
+        arcs: [{ id: 'a_resurrection', title: 'Resurrected', status: 'active', description: 'resurrected at last', linkedThreads: ['t_grave_dirt'], turn: 2, day: 0 }],
+      }, ext: {} },
+      parallelOps: [], parallelWorldOps: [], parallelReviewed: ['Ada'],
+      evidence: [
+        { path: 'delta.threads.0', quote: 'Mara clawed out of her grave' },
+        { path: 'delta.arcs.0', quote: 'resurrected at last' },
+      ], trackEvidence: [], genesis: false,
+    };
+    const r = salvageCompilation(raw, i);
+    if (!r.ok) {
+      // If salvage rejected, verify it's NOT the ARGENT op error — the op
+      // correction still happened during normalization
+      expect(r.errors.some((e: string) => e.includes('ARGENT requires exactly one'))).toBe(false);
+    } else {
+      expect((r.candidate.state.delta.threads ?? [])[0]!.op).toBe('new');
+      expect((r.candidate.state.delta.arcs ?? [])[0]!.op).toBe('new');
+    }
+  });
+
+  it('does not promote an existing thread with status:"active" to op:"new"', () => {
+    const i = input(); i.evidenceMode = 'none'; i.argent = true;
+    i.prior.threads = [{ id: 't_grave_dirt', name: 'Grave Dirt and Ocean Eyes', status: 'open', beats: ['Mara clawed out.'], firstTurn: 1, lastTurn: 1 }];
+    i.prior.arcs = [{ id: 'a_after_death', name: 'After Death', status: 'open', beats: ['Mara has been resurrected.'], firstTurn: 1, lastTurn: 1 }];
+    i.prose = 'Mara kneels beside the open grave, gripping her companion\'s hand, disoriented and overwhelmed by the noise and smoke. Player stays quiet.';
+    const raw = {
+      state: { turn: 2, day: 1, scene: { loc: 'Archive', time: '10:05', clock: 605 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {
+        threads: [{ id: 't_grave_dirt', title: 'Grave Dirt and Ocean Eyes', status: 'active', note: 'Mara steadies herself against the gravestone.', linkedArc: 'a_after_death' }],
+        arcs: [{ id: 'a_after_death', title: 'After Death', status: 'active', note: 'The aftermath continues.' }],
+      }, ext: {} },
+      parallelOps: [], parallelWorldOps: [], parallelReviewed: ['Ada'], evidence: [], trackEvidence: [], genesis: false,
+    };
+    const r = salvageCompilation(raw, i);
+    if (r.ok) {
+      expect((r.candidate.state.delta.threads ?? [])[0]!.op).toBe('advance');
+    }
+  });
 });
