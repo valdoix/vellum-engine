@@ -59,6 +59,40 @@ describe('strict pre-commit state compiler', () => {
     expect(state.delta.parallel).toEqual([{ who: 'Ada', where: 'Courtyard', activity: 'Waiting' }]);
     expect(state.scene).toMatchObject({ time: '00:03', clock: 3 });
   });
+  it('normalizes a friendly provider time and copies the first-turn prose header before strict validation', () => {
+    const prior = freshState();
+    prior.scene = { id: 'scn_pending', reason: 'new_chat', pending: true, location: '', time: '', tension: 0, weather: '', present: [], detail: [] };
+    const i: CompilerInput = {
+      prior, turn: 1,
+      prose: '[SCENE|The Hand That Reached|Winters residence · 02:47]\nAt 2:47 AM, the living-room lamp burned through the smoke haze.',
+      userName: 'Player', genesisAllowed: false,
+    };
+    const raw: any = {
+      state: { turn: 1, day: 0, scene: { transition: 'scene', loc: 'Winters residence', time: '2:47 AM', clock: 167 }, present: [], delta: {}, ext: {} },
+      parallelOps: [], parallelWorldOps: [], parallelReviewed: [],
+      evidence: [{ path: 'scene.loc', quote: 'Winters residence' }, { path: 'scene.time', quote: '2:47 AM' }],
+      trackEvidence: [], genesis: false,
+    };
+    const result = salvageCompilation(raw, i);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.recovered).toContain('candidate shape');
+    expect(result.candidate.state.scene).toMatchObject({ title: 'The Hand That Reached', time: '02:47', clock: 167 });
+  });
+
+  it('holds a first-scene compiler candidate that has no model or prose title', () => {
+    const prior = freshState();
+    prior.scene = { id: 'scn_pending', reason: 'new_chat', pending: true, location: '', time: '', tension: 0, weather: '', present: [], detail: [] };
+    const i: CompilerInput = { prior, turn: 1, prose: 'At 02:47, the living-room lamp burned.', userName: 'Player', genesisAllowed: false };
+    const raw: any = {
+      state: { turn: 1, day: 0, scene: { loc: 'living room', time: '02:47', clock: 167 }, present: [], delta: {}, ext: {} },
+      parallelOps: [], parallelWorldOps: [], parallelReviewed: [],
+      evidence: [{ path: 'scene.loc', quote: 'living-room' }, { path: 'scene.time', quote: '02:47' }], trackEvidence: [], genesis: false,
+    };
+    const result = salvageCompilation(raw, i);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors).toContain('new scene requires scene.title');
+  });
   it('requires and accepts a complete opted-in persona snapshot in every agency mode without evidence', () => {
     const i = input();
     i.personaState = true;

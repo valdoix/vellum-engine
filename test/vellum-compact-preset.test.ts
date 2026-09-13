@@ -109,6 +109,7 @@ describe('VELLUM II — COMPACT preset', () => {
       stateCompiler: 'engine',
       stateVerbosity: 'lean',
       dialogueColor: true,
+      sceneHeader: true,
       codex: true,
       inventory: true,
       agency: 'protected',

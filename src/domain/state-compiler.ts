@@ -7,6 +7,7 @@ import type { ChronicleState } from './types.js';
 import type { VellumEvent } from '../core/events.js';
 import type { LorebookCanonEntry } from './lorebook-canon.js';
 import { normalizeSecretAudience } from './secret-audience.js';
+import { cleanSceneTitle, proseSceneHeader } from './scene-transition.js';
 import {
   activityNeedsAccessPath,
   canonicalActorLocation,
@@ -302,6 +303,14 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   if (s.turn !== input.turn) errors.push('turn must equal the engine turn');
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
   const currentTurnSource = `${input.userInput ?? ''}\n${input.prose}`;
+  const visibleHeader = proseSceneHeader(input.prose);
+  // Legacy Chronicles can lack a scene id even after many turns. Do not turn
+  // that migration gap into a permanent title-validation failure; only the
+  // actual first compiler turn or an explicit pending opener is mandatory.
+  const openingScene = input.prior.scene.pending === true || (input.turn <= 1 && !input.prior.scene.id);
+  const opensBoundary = openingScene || s.scene.transition === 'scene' || s.scene.transition === 'time_skip';
+  if (opensBoundary && !cleanSceneTitle(s.scene.title)) errors.push('new scene requires scene.title');
+  if (visibleHeader && cleanSceneTitle(s.scene.title) !== visibleHeader.title) errors.push('scene.title must match the visible scene header');
   // A time cut in the latest player input is part of this turn even when the
   // generated prose does not repeat it. Deterministically repair a candidate
   // that left the clock frozen or advanced it by less than the stated duration.
@@ -781,9 +790,14 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
   const rawScene = state.scene && typeof state.scene === 'object' && !Array.isArray(state.scene) ? state.scene : {};
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
   const suppliedClock = Number.isSafeInteger(rawScene.clock) ? rawScene.clock : undefined;
-  const suppliedTime = typeof rawScene.time === 'string' && parseClock(rawScene.time) !== null && parseClock(rawScene.time) !== undefined ? rawScene.time : undefined;
-  const clock = suppliedClock ?? (suppliedTime ? parseClock(suppliedTime) : undefined) ?? priorClock;
-  const time = suppliedTime ?? clockTime(clock);
+  const suppliedTimeClock = typeof rawScene.time === 'string' ? parseClock(rawScene.time) : undefined;
+  const clock = suppliedClock ?? suppliedTimeClock ?? priorClock;
+  // parseClock deliberately accepts friendly provider spellings ("2:47 AM",
+  // "dusk"). The strict compiler wire format does not. Canonicalize every
+  // recognized value before Zod sees it while retaining a real clock/time
+  // disagreement for semantic validation below.
+  const time = clockTime(suppliedTimeClock ?? clock);
+  const visibleHeader = proseSceneHeader(input.prose);
   const priorRows = input.prior.scene.present.map(id => {
     const actor = input.prior.cast[id];
     const detail = input.prior.scene.detail.find(row => canonId(row.id) === id);
@@ -793,7 +807,7 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
     ...state,
     turn: Number.isSafeInteger(state.turn) ? state.turn : input.turn,
     day: Number.isSafeInteger(state.day) ? state.day : input.prior.day,
-    scene: { ...rawScene, ...(!rawScene.title && (!rawScene.transition || rawScene.transition === 'continue') && input.prior.scene.title ? { title: input.prior.scene.title } : {}), loc: typeof rawScene.loc === 'string' && rawScene.loc.trim() ? rawScene.loc : input.prior.scene.location, time, clock },
+    scene: { ...rawScene, ...(!rawScene.title && visibleHeader ? { title: visibleHeader.title } : {}), ...(!rawScene.title && !visibleHeader && (!rawScene.transition || rawScene.transition === 'continue') && input.prior.scene.title ? { title: input.prior.scene.title } : {}), loc: typeof rawScene.loc === 'string' && rawScene.loc.trim() ? rawScene.loc : input.prior.scene.location, time, clock },
     present: Array.isArray(state.present) ? state.present : priorRows,
     delta: state.delta && typeof state.delta === 'object' && !Array.isArray(state.delta) ? state.delta : {},
     ext: state.ext && typeof state.ext === 'object' && !Array.isArray(state.ext) ? state.ext : {},

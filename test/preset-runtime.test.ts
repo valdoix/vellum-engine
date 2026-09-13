@@ -12,6 +12,7 @@ function argent(values: Record<string, unknown> = {}) {
         id: 'arg-control', variables: [
           { name: 'state_on', type: 'switch', defaultValue: 1 },
           { name: 'dialogue_color', type: 'switch', defaultValue: 1 },
+          { name: 'scene_header', type: 'switch', defaultValue: 0 },
           { name: 'reasoning_route', type: 'select', defaultValue: 'compact', options: [
             { id: 'compact', label: 'Compact Reverie', value: 'compact-contract' },
             { id: 'verbose', label: 'Verbose Reverie', value: 'verbose-contract' },
@@ -86,14 +87,14 @@ describe('active preset turn contract', () => {
   it('uses ARGENT defaults when the preset has no stored overrides', () => {
     expect(resolveTurnContract(argent())).toMatchObject({
       active: true, argent: true, state: true, reverie: true, dialogueColor: true,
-      reasoningRoute: 'compact', stateCompiler: 'engine', stateVerbosity: 'lean', codex: true, inventory: true,
+      sceneHeader: false, reasoningRoute: 'compact', stateCompiler: 'engine', stateVerbosity: 'lean', codex: true, inventory: true,
       livingWorld: 'active', agency: 'protected',
     });
   });
 
   it('honors state and dialogue controls from the active preset', () => {
-    expect(resolveTurnContract(argent({ state_on: 0, dialogue_color: 0, reasoning_route: 'silent' })))
-      .toMatchObject({ state: false, reverie: false, dialogueColor: false });
+    expect(resolveTurnContract(argent({ state_on: 0, dialogue_color: 0, scene_header: 1, reasoning_route: 'silent' })))
+      .toMatchObject({ state: false, reverie: false, dialogueColor: false, sceneHeader: true });
   });
 
   it('expects a visible reverie for both compact and verbose routes', () => {

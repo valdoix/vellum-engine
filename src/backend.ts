@@ -59,7 +59,7 @@ import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFact
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
 import { embedParallelCommand, hasParallelCommand, materializeParallelBatch, parallelCommandInjection, scrubParallelCommands, stripParallelCommand } from './domain/parallel-command.js';
-import { parseSceneCommand, sceneIntentInjection, scrubSceneCommands, type SceneIntent, type SceneTransitionKind } from './domain/scene-transition.js';
+import { openingSceneInjection, parseSceneCommand, sceneIntentInjection, scrubSceneCommands, type SceneIntent, type SceneTransitionKind } from './domain/scene-transition.js';
 import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
 import { auditCompiledEvents } from './domain/state-compiler.js';
@@ -1264,7 +1264,7 @@ function storedTurnContract(raw: unknown, expectedPresetId?: string): TurnContra
     const agency = c.agency === 'continuity' || c.agency === 'director' || c.agency === 'protected'
       ? c.agency
       : 'protected';
-    return { ...c, vtkCards: typeof c.vtkCards === 'boolean' ? c.vtkCards : false, livingWorld, agency } as TurnContract;
+    return { ...c, vtkCards: typeof c.vtkCards === 'boolean' ? c.vtkCards : false, sceneHeader: typeof c.sceneHeader === 'boolean' ? c.sceneHeader : false, livingWorld, agency } as TurnContract;
   } catch { return null; }
 }
 async function activeTurnContract(chatId: string, userId: string | null): Promise<TurnContract | null> {
@@ -2256,22 +2256,25 @@ async function wireCapabilitiesInner(): Promise<void> {
               parallelText = '';
             }
           }
-          if (!state.turns && !Object.keys(state.cast).length) {
+          // A new chat may already have user-seeded cast/Chronicle data. Turn
+          // zero, not an empty cast, is the reliable opening-scene boundary.
+          if (!state.turns) {
             const lorebookRecall = recallLorebooksForTurn(await activeLorePromise, state, out, context);
             const initialNextSceneText = await nextSceneInjection(chatId, state);
-            const initialText = [lorebookRecall.text, sceneCommandText, initialNextSceneText, personaStateText, dialogueText, refreshText, parallelCommandText].filter(Boolean).join('\n\n');
+            const openingSceneText = openingSceneInjection(state, turnContract?.sceneHeader === true);
+            const initialText = [lorebookRecall.text, sceneCommandText, initialNextSceneText, openingSceneText, personaStateText, dialogueText, refreshText, parallelCommandText].filter(Boolean).join('\n\n');
             if (!initialText) return out;
             const rec = recordInjection(chatId, 0, initialText, lorebookRecall.ids, { source: lorebookRecall.text ? 'lorebook' : refreshText ? 'prose-refresh' : 'persona-state' });
             try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
             const initialMessages = [
-              ...((lorebookRecall.text || sceneCommandText || initialNextSceneText || refreshText || parallelText || personaStateHead || dialogueText) ? [{ role: 'system', content: [lorebookRecall.text, sceneCommandText, initialNextSceneText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
+              ...((lorebookRecall.text || sceneCommandText || initialNextSceneText || openingSceneText || refreshText || parallelText || personaStateHead || dialogueText) ? [{ role: 'system', content: [lorebookRecall.text, sceneCommandText, initialNextSceneText, openingSceneText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
               ...out,
               ...(personaStateTail ? [{ role: 'system', content: personaStateTail }] : []),
             ];
             const initialBreakdown = [
-              ...((lorebookRecall.text || refreshText || parallelText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: lorebookRecall.text ? 'VELLUM Lorebook Recall' : parallelText ? 'VELLUM Parallel Events' : refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
-              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((lorebookRecall.text || refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
-              ...(parallelEmbeddedAt >= 0 ? [{ messageIndex: parallelEmbeddedAt + ((lorebookRecall.text || refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Parallel Events' }] : []),
+              ...((lorebookRecall.text || openingSceneText || refreshText || parallelText || personaStateHead || dialogueText) ? [{ messageIndex: 0, name: lorebookRecall.text ? 'VELLUM Lorebook Recall' : openingSceneText ? 'VELLUM Opening Scene' : parallelText ? 'VELLUM Parallel Events' : refreshText ? 'VELLUM Prose Refresh' : personaStateHead ? 'VELLUM Persona State' : 'VELLUM Dialogue Markup' }] : []),
+              ...(personaStateEmbeddedAt >= 0 ? [{ messageIndex: personaStateEmbeddedAt + ((lorebookRecall.text || openingSceneText || refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Persona State' }] : []),
+              ...(parallelEmbeddedAt >= 0 ? [{ messageIndex: parallelEmbeddedAt + ((lorebookRecall.text || openingSceneText || refreshText || parallelText || personaStateHead || dialogueText) ? 1 : 0), name: 'VELLUM Parallel Events' }] : []),
               ...(personaStateTail ? [{ messageIndex: initialMessages.length - 1, name: 'VELLUM Persona State' }] : []),
             ];
             return { messages: initialMessages, breakdown: initialBreakdown };

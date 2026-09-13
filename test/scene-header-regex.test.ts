@@ -21,5 +21,6 @@ describe('prose scene header regex', () => {
     const controls = preset.blocks.flatMap((block: any) => block.variables ?? []);
     expect(controls.find((control: any) => control.name === 'scene_header')).toMatchObject({ type: 'switch' });
     expect(preset.blocks.some((block: any) => block.content.includes('[SCENE|Concise Title|Location · Time]'))).toBe(true);
+    expect(preset.blocks.some((block: any) => block.content.includes('first assistant response in every new chat'))).toBe(true);
   });
 });

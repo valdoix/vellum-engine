@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { foldTurn } from '../src/bus/lifecycle.js';
 import { reduce } from '../src/core/reduce.js';
 import { freshState } from '../src/domain/types.js';
-import { parseSceneCommand, stripSceneCommand } from '../src/domain/scene-transition.js';
+import { openingSceneInjection, parseSceneCommand, proseSceneHeader, stripSceneCommand } from '../src/domain/scene-transition.js';
 import { STATE_COMPILER_SYSTEM } from '../src/bus/state-compiler.js';
 
 describe('scene transitions', () => {
@@ -25,6 +25,24 @@ describe('scene transitions', () => {
     expect(state.scene.title).toBe('Ash at Dawn');
     expect(state.scene.titleSource).toBe('model');
     expect(state.scenes).toHaveLength(1);
+  });
+
+  it('uses the visible prose card as the canonical title for a pending opening scene', () => {
+    let prior = reduce([{ seq: 1, turn: 0, day: 0, src: 'system', kind: 'scene.open', id: 'scn_pending', reason: 'new_chat', pending: true }], freshState());
+    const content = '[SCENE|The House Before Dawn|Winters residence · 02:47]\nThe hall light trembled.\n<vellum>{"turn":1,"day":0,"scene":{"loc":"Winters residence","time":"02:47","clock":167},"present":[],"delta":{}}</vellum>';
+    const folded = foldTurn(content, prior, 1);
+    prior = reduce(folded.events, prior);
+    expect(proseSceneHeader(content)).toEqual({ title: 'The House Before Dawn', meta: 'Winters residence · 02:47' });
+    expect(prior.scene).toMatchObject({ id: 'scn_pending', title: 'The House Before Dawn', titleSource: 'model', pending: false });
+  });
+
+  it('injects the optional display contract only for the first scene', () => {
+    const fresh = freshState();
+    expect(openingSceneInjection(fresh, true)).toContain('first assistant response in a new chat');
+    expect(openingSceneInjection(fresh, true)).toContain('[SCENE|Concise Title|Location · Time]');
+    expect(openingSceneInjection(fresh, false)).toBe('');
+    fresh.turns = 1;
+    expect(openingSceneInjection(fresh, true)).toBe('');
   });
 
   it('reuses a pending new-chat scene and preserves a user title over the model', () => {

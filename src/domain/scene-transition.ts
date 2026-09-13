@@ -28,6 +28,7 @@ export interface DetectedSceneTransition {
 }
 
 const COMMAND = /(?:^|\n)\s*(?:OOC\s*:\s*)?\(\(\s*(next\s+scene|time\s*[- ]?skip)\b([^)]*)\)\)\s*(?=\n|$)/gim;
+const PROSE_HEADER = /(?:^|\n)[ \t]*\[SCENE\|([^|<>\]\r\n]{1,100})\|([^<>\]\r\n]{0,160})\][ \t]*(?=\r?\n|$)/m;
 
 export function cleanSceneTitle(value: unknown): string | undefined {
   const title = String(value ?? '')
@@ -36,6 +37,23 @@ export function cleanSceneTitle(value: unknown): string | undefined {
     .trim()
     .slice(0, 100);
   return title || undefined;
+}
+
+/** Read the optional display header emitted by the narrative model. Keeping
+ * this parser beside the command/transition logic lets the visible title card
+ * and the Chronicle use one title instead of independently inventing labels. */
+export function proseSceneHeader(text: string | undefined): { title: string; meta: string } | null {
+  const match = String(text ?? '').match(PROSE_HEADER);
+  const title = cleanSceneTitle(match?.[1]);
+  if (!match || !title) return null;
+  return { title, meta: String(match[2] ?? '').replace(/\s+/g, ' ').trim().slice(0, 160) };
+}
+
+/** Runtime nudge for the one boundary static prose instructions cannot infer
+ * reliably: the first assistant response in a new chat. */
+export function openingSceneInjection(state: ChronicleState, enabled: boolean): string {
+  if (!enabled || state.turns > 0 || (state.scene.id && !state.scene.pending)) return '';
+  return '[OPENING SCENE — FIRST RESPONSE]\nThis is the first assistant response in a new chat, so it opens a new scene. Begin the visible prose with exactly one standalone [SCENE|Concise Title|Location · Time] line. Choose an evocative, spoiler-free title grounded in the opening, then use that same title for scene continuity. Write plain text only; never emit HTML. The Engine Pass records state separately.';
 }
 
 /** Parse a standalone author command. Examples:
@@ -137,7 +155,8 @@ export function detectSceneTransition(input: {
   const priorLoc = normalize(prior.scene.location);
   const nextLoc = normalize(parsed.scene?.loc);
   const locationChanged = !!nextLoc && !!priorLoc && nextLoc !== priorLoc;
-  const title = cleanSceneTitle(intent?.title ?? parsed.scene?.title);
+  const header = proseSceneHeader(prose);
+  const title = cleanSceneTitle(intent?.title ?? parsed.scene?.title ?? header?.title);
   const titleChanged = !!title && !!prior.scene.title && normalize(title) !== normalize(prior.scene.title);
   const elapsed = elapsedMinutes(prior, day, parsed);
   const skip = intent?.kind === 'time_skip' || proposed === 'time_skip' || day > prior.day || (cue && (elapsed ?? 0) >= 120);
@@ -154,7 +173,7 @@ export function detectSceneTransition(input: {
   const id = reusePending && prior.scene.id
     ? prior.scene.id
     : `scn_${turn}_${hashStr(`${turn}\u0000${title ?? ''}\u0000${parsed.scene?.loc ?? ''}\u0000${day}\u0000${prose}`).slice(0, 8)}`;
-  const source: SceneTitleSource | undefined = intent?.title ? 'user' : parsed.scene?.title ? 'model' : undefined;
+  const source: SceneTitleSource | undefined = intent?.title ? 'user' : (parsed.scene?.title || header?.title) ? 'model' : undefined;
   return {
     id,
     reason,

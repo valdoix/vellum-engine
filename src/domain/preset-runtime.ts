@@ -6,6 +6,8 @@ export interface TurnContract {
   state: boolean;
   reverie: boolean;
   dialogueColor: boolean;
+  /** The selected preset asks the prose model to render cinematic scene cards. */
+  sceneHeader: boolean;
   /** A safe visual-card renderer is active for this turn. ARGENT uses typed
    * artifacts; legacy VELLUM uses its enabled CODEX VTK regex. */
   vtkCards: boolean;
@@ -111,6 +113,7 @@ interface EffectiveMarker {
   verbosity?: unknown;
   reasoning?: unknown;
   dialogueColor?: unknown;
+  sceneHeader?: unknown;
   vtkCards?: unknown;
   codex?: unknown;
   inventory?: unknown;
@@ -224,6 +227,7 @@ function embeddedArgentContract(marker: EffectiveMarker | null, prompt: string):
     state: true,
     reverie: true,
     dialogueColor: true,
+    sceneHeader: false,
     vtkCards: false,
     reasoningRoute: 'compact',
     stateCompiler: 'engine',
@@ -257,6 +261,7 @@ export function resolveTurnContract(preset: PresetLike | null | undefined): Turn
     state: on(variableValue(preset, 'state_on'), true),
     reverie: reasoningRoute === 'compact' || reasoningRoute === 'verbose',
     dialogueColor: argent && on(variableValue(preset, 'dialogue_color'), true),
+    sceneHeader: on(variableValue(preset, 'scene_header'), false),
     vtkCards: argent ? on(variableValue(preset, 'vtk_cards'), false) : vtkRegex,
     reasoningRoute,
     stateCompiler: argent && variableValue(preset, 'state_compiler') === 'engine' ? 'engine' : 'inline',
@@ -289,6 +294,7 @@ export function resolveTurnContractFromMessages(
   if (marker) {
     next.state = on(marker.state, base.state);
     next.dialogueColor = base.argent && on(marker.dialogueColor, base.dialogueColor);
+    next.sceneHeader = on(marker.sceneHeader, base.sceneHeader);
     next.vtkCards = on(marker.vtkCards, base.vtkCards);
     next.reasoningRoute = typeof marker.reasoning === 'string' ? marker.reasoning : base.reasoningRoute;
     next.reverie = next.reasoningRoute === 'compact' || next.reasoningRoute === 'verbose';
@@ -317,6 +323,7 @@ export function resolveTurnContractFromMessages(
       const engineSecondPass = /\[ENGINE SECOND PASS\][^\n]*engine compiles and validates state separately/i.test(prompt);
       next.state = engineSecondPass || /\[VELLUM STATE[^\n]*CONTRACT\]|\[STATE SERIALIZATION[^\n]*FINAL GATE\]|one complete <vellum>|ends with <\/vellum>/i.test(prompt);
       next.dialogueColor = /\[COLORED DIALOGUE[^\n]*(?:CONTRACT|MARKUP)\]/i.test(prompt);
+      next.sceneHeader = /\[PROSE SCENE HEADER(?:\s+—\s+DISPLAY CONTRACT)?\]/i.test(prompt);
       next.vtkCards = /<artifact>\{\"type\":\"letter\|codex\|text/i.test(prompt) || /\[CODEX\|/.test(prompt);
       if (next.state) {
         const inlineSchema = /\[VELLUM STATE — (?:LEAN|FULL) CONTRACT\]|\[STATE COMPILER — FINAL\]/i.test(prompt);
