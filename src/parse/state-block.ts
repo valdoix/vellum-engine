@@ -585,15 +585,23 @@ export function parseState(content: string): ParseResult {
     const report: LenientReport = { partial: false, stats: null };
     const obj = lenientParse(raw, report);
     if (obj && typeof obj === 'object') {
+      const beforeNormalize = arraySectionCounts(obj as Record<string, unknown>);
       normalizeBlockAliases(obj as Record<string, unknown>); // tolerate common model naming drift
       hoistDeltaFields(obj as Record<string, unknown>); // tolerate misplaced delta fields
       normalizeBlock(obj as Record<string, unknown>); // map preset grammar (cat) → schema (addCats)
-      const validated = ParsedState.safeParse(obj);
+      let validated = ParsedState.safeParse(obj);
+      const normalizedDrops = sectionCountDrops(beforeNormalize, arraySectionCounts(obj as Record<string, unknown>));
+      let schemaDrops: Record<string, number> = {};
+      if (!validated.success) {
+        const salvaged = salvageSchemaElements(obj as Record<string, unknown>);
+        if (salvaged) { validated = salvaged.validated; schemaDrops = salvaged.dropped; }
+      }
       if (validated.success) {
         // rung 4 (element salvage) recovered the block by dropping corrupt
         // element(s) — surface that honestly so data loss is visible, not silent.
-        if (report.partial) {
-          const dropped = report.stats ? { ...report.stats.dropped } : {};
+        if (report.partial || Object.keys(normalizedDrops).length || Object.keys(schemaDrops).length) {
+          const dropped = { ...(report.stats?.dropped ?? {}) };
+          for (const source of [normalizedDrops, schemaDrops]) for (const [section, count] of Object.entries(source)) dropped[section] = (dropped[section] ?? 0) + count;
           return { state: validated.data, source: 'json-partial', dropped };
         }
         return { state: validated.data, source: 'json' };
@@ -632,6 +640,42 @@ function hoistDeltaFields(obj: Record<string, unknown>): void {
     if (Array.isArray(obj[k]) && delta[k] === undefined) { delta[k] = obj[k]; delete obj[k]; moved = true; }
   }
   if (moved || obj.delta === undefined) obj.delta = delta;
+}
+
+const ARRAY_SECTIONS = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations', 'parallel', 'offscreen'] as const;
+
+function arraySectionCounts(obj: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (Array.isArray(obj.present)) out.present = obj.present.length;
+  const delta = obj.delta && typeof obj.delta === 'object' && !Array.isArray(obj.delta) ? obj.delta as Record<string, unknown> : {};
+  for (const section of ARRAY_SECTIONS) if (Array.isArray(delta[section])) out[section] = (delta[section] as unknown[]).length;
+  return out;
+}
+
+function sectionCountDrops(before: Record<string, number>, after: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [section, count] of Object.entries(before)) if ((after[section] ?? 0) < count) out[section] = count - (after[section] ?? 0);
+  return out;
+}
+
+/** Valid JSON can still contain one schema-invalid member. Recover each valid
+ * sibling explicitly so an array-level validation failure never erases the
+ * entire plot/journal/etc section without a json-partial diagnostic. */
+function salvageSchemaElements(obj: Record<string, unknown>): { validated: ReturnType<typeof ParsedState.safeParse> & { success: true }; dropped: Record<string, number> } | null {
+  const copy = structuredClone(obj);
+  const dropped: Record<string, number> = {};
+  const filter = (owner: Record<string, unknown>, section: string, envelope: (item: unknown) => Record<string, unknown>): void => {
+    if (!Array.isArray(owner[section])) return;
+    const rows = owner[section] as unknown[];
+    const kept = rows.filter(item => ParsedState.safeParse(envelope(item)).success);
+    if (kept.length < rows.length) dropped[section] = rows.length - kept.length;
+    owner[section] = kept;
+  };
+  filter(copy, 'present', item => ({ present: [item] }));
+  const delta = copy.delta && typeof copy.delta === 'object' && !Array.isArray(copy.delta) ? copy.delta as Record<string, unknown> : {};
+  for (const section of ARRAY_SECTIONS) filter(delta, section, item => ({ delta: { [section]: [item] } }));
+  const validated = ParsedState.safeParse(copy);
+  return validated.success && Object.keys(dropped).length ? { validated, dropped } : null;
 }
 
 /** Normalize conservative, unambiguous aliases before Zod validation. Without
@@ -725,11 +769,11 @@ function normalizeBlock(obj: Record<string, unknown>): void {
   // A single object is a common model shorthand. Canonicalize it before the
   // element schemas run so one shape mismatch cannot erase the whole section.
   for (const key of ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations', 'parallel', 'offscreen']) rows(delta, key);
-  const plotOp = (raw: unknown, arc: boolean): 'new' | 'advance' | 'stall' | 'resolve' => {
+  const plotOp = (raw: unknown, _arc: boolean): 'new' | 'advance' | 'stall' | 'resolve' => {
     const value = str(raw).toLowerCase();
     if (['new', 'start', 'started', 'open', 'opened', 'seed'].includes(value)) return 'new';
     if (['resolve', 'resolved', 'complete', 'completed', 'close', 'closed', 'done'].includes(value)) return 'resolve';
-    if (!arc && ['stall', 'stalled', 'blocked', 'paused'].includes(value)) return 'stall';
+    if (['stall', 'stalled', 'blocked', 'paused'].includes(value)) return 'stall';
     return 'advance';
   };
   const plotRows = (key: 'threads' | 'arcs'): void => {

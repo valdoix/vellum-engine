@@ -481,6 +481,12 @@ export interface SimEventsOpts {
   /** Runtime scheduler guard: whether a new row may be created. Omit for
    * explicit/manual and compiler-authored transactions. */
   allowNew?: boolean;
+  /** Strict Engine candidates have already passed the prose-evidence movement
+   * gate. Do not reconstruct a weaker quote from `gist` and reject them again. */
+  validatedCompiler?: boolean;
+  /** Existing plus same-candidate thread references. Ordinary simulator calls
+   * omit this and continue resolving only against canonical prior state. */
+  compilerThreadIds?: ReadonlyMap<string, string>;
 }
 
 // map a loose sim `cat` string to a real bond Category (only the ones a sim may
@@ -513,7 +519,8 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
   const threadId = (raw?: string): string | undefined => {
     if (!raw) return undefined;
     const key = raw.trim().toLocaleLowerCase();
-    return state.threads.find(t => t.id.toLocaleLowerCase() === key || t.name.toLocaleLowerCase() === key)?.id;
+    return opts.compilerThreadIds?.get(key)
+      ?? state.threads.find(t => t.id.toLocaleLowerCase() === key || t.name.toLocaleLowerCase() === key)?.id;
   };
   const events: VellumEvent[] = [];
   const eligible = opts.eligibleIds ? new Set(opts.eligibleIds) : undefined;
@@ -546,14 +553,14 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     }
     const anchor = who ? canonicalActorLocation(state, who) : undefined;
     let where = p.where?.trim() || prior?.where || anchor?.where;
-    if (where && anchor && !sameLocation(anchor.where, where)) {
+    if (!opts.validatedCompiler && where && anchor && !sameLocation(anchor.where, where)) {
       const mover = state.cast[who!]?.name ?? who!;
       const moveEvidence = `${mover} ${p.gist ?? ''}`;
       if (!establishedPlace(where) || !evidenceGroundsMove(state, who!, where, moveEvidence)) continue;
-    } else if (where && prior?.where && !sameLocation(prior.where, where)) {
+    } else if (!opts.validatedCompiler && where && prior?.where && !sameLocation(prior.where, where)) {
       if (!establishedPlace(where) || !evidenceGroundsWorldMove(where, p.gist ?? '')) continue;
     }
-    if (p.where && !anchor && !prior?.where && !establishedPlace(p.where)) where = undefined;
+    if (!opts.validatedCompiler && p.where && !anchor && !prior?.where && !establishedPlace(p.where)) where = undefined;
     // stamp THIS subplot's own day when the model reported one (clamped to the
     // tick day so a subplot can't leap past "now"); else the tick day. Only the
     // subplots the model actually returned a beat for advance their lastDay.

@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 26 as const;
+export const SCHEMA_VERSION = 27 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -223,7 +223,7 @@ export const EvArc = z.object({ ...base, kind: z.literal('arc.op'), op: z.enum([
 // `fill: true` marks a Time Sync catch-up beat that should REPLACE a trailing
 // "caught up: Day X → Day Y" placeholder marker rather than stack on top of it —
 // so authoring real content for a gap swaps out the bare marker in place.
-export const EvThreadSet = z.object({ ...base, kind: z.literal('thread.set'), id: z.string().optional(), name: z.string(), status: z.string().optional(), note: z.string().optional(), kindArc: z.boolean().optional(), fill: z.boolean().optional(), arc: z.string().optional() }); // optional parent-arc link ('' clears); only honored for threads (kindArc unset)
+export const EvThreadSet = z.object({ ...base, kind: z.literal('thread.set'), id: z.string().optional(), name: z.string(), status: z.string().optional(), note: z.string().optional(), kindArc: z.boolean().optional(), fill: z.boolean().optional(), arc: z.string().optional(), ...TrackGates }); // optional parent-arc link ('' clears); only honored for threads (kindArc unset)
 export const EvThreadDrop = z.object({ ...base, kind: z.literal('thread.drop'), id: z.string() });
 export const EvArcDrop = z.object({ ...base, kind: z.literal('arc.drop'), id: z.string() });
 // Layer 3 — semantic reconcile: fold near-duplicate tracks (different words,
@@ -239,11 +239,13 @@ export const EvOffscreen = z.object({ ...base, kind: z.literal('offscreen.op'), 
 // user link/unlink of an off-screen subplot to a plot Track id ('' clears).
 export const EvOffscreenLink = z.object({ ...base, kind: z.literal('offscreen.link'), id: z.string(), thread: z.string() });
 export const EvOffscreenDrop = z.object({ ...base, kind: z.literal('offscreen.drop'), id: z.string() });
+export const EvPlotSuggestion = z.object({ ...base, kind: z.literal('plot.suggest'), id: z.string(), skind: z.enum(['thread', 'arc', 'offscreen']), row: z.record(z.unknown()), reason: z.string() });
+export const EvPlotSuggestionDrop = z.object({ ...base, kind: z.literal('plot.suggest.drop'), id: z.string() });
 
 export const EvStateCompiled = z.object({ ...base, kind: z.literal('state.compiled'), inputSig: z.string(), baseHash: z.string(), block: z.string(), genesis: z.boolean() });
 
 export const VellumEvent = z.discriminatedUnion('kind', [
-  EvStateCompiled,
+  EvStateCompiled, EvPlotSuggestion, EvPlotSuggestionDrop,
   EvTurnFold, EvConfigSet, EvToneSet, EvSceneOpen, EvSceneSet,
   EvCastSeen, EvCastEdit, EvCastDrop,
   EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding, EvFactionRel, EvFactionRelDrop,

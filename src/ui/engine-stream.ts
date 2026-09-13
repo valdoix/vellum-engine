@@ -16,6 +16,7 @@ export interface EngineStreamPayload {
   message?: string;
   errors?: string[];
   reason?: string;
+  recovered?: string[];
 }
 
 interface LiveEngine {
@@ -29,6 +30,7 @@ interface LiveEngine {
   failed: boolean;
   retrying: boolean;
   repairing: boolean;
+  recovered: string[];
 }
 
 let live: LiveEngine | null = null;
@@ -116,7 +118,9 @@ function render(): void {
   setText('[data-eng-turn]', `Turn ${live.turn || '\u2014'}`);
   const status = live.retrying ? live.message
     : live.failed ? (live.message || 'The candidate could not be filed. You can repair it safely.')
-      : live.finished ? 'Complete. The verified VELLUM file was applied to the Chronicle.'
+      : live.finished ? (live.recovered.length
+        ? `Applied with ${live.recovered.length} disclosed adjustment${live.recovered.length === 1 ? '' : 's'}: ${live.recovered.join(', ')}`
+        : 'Complete. Every validated VELLUM change was applied to the Chronicle.')
         : live.status === 'reasoning' ? (live.repairing ? 'The repair model is checking the rejected draft\u2026' : 'The compiler is reasoning\u2026')
           : live.status === 'validating' ? (live.repairing ? 'Applying and validating the repair patch\u2026' : 'Validating the completed file\u2026')
             : live.status === 'validated' ? 'File validated; committing it to the Chronicle\u2026'
@@ -139,7 +143,7 @@ function render(): void {
     retry.disabled = live.retrying;
     retry.textContent = live.retrying ? 'Repairing\u2026' : 'Repair Engine';
   }
-  setText('[data-eng-foot]', live.failed ? 'The rejected draft and patch were not applied.' : live.finished ? `Turn ${live.turn} is filed.` : 'Compiler output is validated before filing.');
+  setText('[data-eng-foot]', live.failed ? 'The rejected draft and patch were not applied.' : live.finished ? (live.recovered.length ? `Turn ${live.turn} is filed with every adjustment shown above.` : `Turn ${live.turn} is filed without silent loss.`) : 'Compiler output is validated before filing.');
 }
 
 export function handleEngineStream(payload: EngineStreamPayload, retry: () => void): void {
@@ -158,6 +162,7 @@ export function handleEngineStream(payload: EngineStreamPayload, retry: () => vo
       failed: false,
       retrying: false,
       repairing: false,
+      recovered: [],
     };
     detachDrag?.(); detachDrag = null; panel?.remove(); panel = null;
     render();
@@ -168,6 +173,7 @@ export function handleEngineStream(payload: EngineStreamPayload, retry: () => vo
   if (typeof payload.attempt === 'number') live.attempt = payload.attempt;
   if (payload.status) live.status = payload.status;
   if (payload.status === 'retry') live.repairing = true;
+  if (Array.isArray(payload.recovered)) live.recovered = payload.recovered.map(String);
   if (payload.message) live.message = payload.message;
   if (payload.status === 'retry') live.output = '';
   if ((payload.status === 'validating' || payload.status === 'validated') && typeof payload.text === 'string') live.output = payload.text;

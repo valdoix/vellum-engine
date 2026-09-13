@@ -69,14 +69,14 @@ const KIND_GLYPH: Record<string, string> = { reveal_secret: '\u26C0', reveal_kno
 function pushDirectives(next: UIDirective[]): void { send({ type: 'vellum_set_directives', directives: next }); refreshUI(); }
 
 export const directorTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.source ?? '') + (l.pinned ? 'p' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${(s.scene?.location ?? '')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}:${[..._feedExpanded].sort().join(',')}`,
+  version: (s) => `${_view}:${_directives.map((d) => d.id + d.status).join(',')}:${_nextScene ? JSON.stringify(_nextScene) : '0'}:${(s.plants ?? []).map((p) => p.id + p.status).join(',')}:${(s.locations ?? []).length}:${(s.locations ?? []).map((l) => l.id + l.lastTurn + (l.parent ?? '') + (l.source ?? '') + (l.pinned ? 'p' : '') + (l.name ?? '') + (l.note ?? '')).join(',')}:${(s.scene?.location ?? '')}:${[..._locCollapsed].sort().join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.lastTurn + o.beats.length).join(',')}:${(s.plotSuggestions ?? []).filter(x => x.kind === 'offscreen').map(x => x.id).join(',')}:${(s.parallel ?? []).map((p) => (p.who ?? '') + (p.where ?? '') + p.activity + p.turn).join('|')}:${(s.continuityFlags ?? []).map((f) => f.turn + f.code).join(',')}:${s.secrets.filter((x) => x.revealed).length}:${[..._feedExpanded].sort().join(',')}`,
   render(s) {
     _state = s;
     const counts: Record<DView, number> = {
       directives: _directives.filter((d) => d.status !== 'done').length,
       locations: (s.locations ?? []).length,
       nextscene: _nextScene ? 1 : 0,
-      offscreen: (s.offscreen ?? []).filter((o) => o.status === 'active').length + (s.parallel ?? []).length,
+      offscreen: (s.offscreen ?? []).filter((o) => o.status === 'active').length + narratedParallel(s).length + (s.plotSuggestions ?? []).filter(x => x.kind === 'offscreen').length,
       plants: (s.plants ?? []).filter((x) => x.status === 'planted').length,
       log: (s.continuityFlags ?? []).length,
     };
@@ -96,6 +96,10 @@ export const directorTab: Component<ChronicleState> = {
       const t = e.target as HTMLElement;
       const nv = t.closest('[data-dview]');
       if (nv) { _view = nv.getAttribute('data-dview') as DView; refreshUI(); return; }
+      const sugAccept = t.closest('[data-plot-suggest-accept]');
+      if (sugAccept) { send({ type: 'vellum_plot_suggestion_accept', id: sugAccept.getAttribute('data-id') }); return; }
+      const sugReject = t.closest('[data-plot-suggest-reject]');
+      if (sugReject) { confirmModal('Dismiss this suggested subplot?', () => send({ type: 'vellum_plot_suggestion_reject', id: sugReject.getAttribute('data-id') })); return; }
 
       // --- directives ---
       if (t.closest('[data-dir-add]')) { addDirectiveForm(); return; }
@@ -391,10 +395,11 @@ function offscreenView(s: ChronicleState): string {
   const all = (s.offscreen ?? []).slice();
   const active = all.filter((o) => o.status === 'active').sort(byRecentOff);
   const resolved = all.filter((o) => o.status === 'resolved').sort(byRecentOff);
-  const par = (s.parallel ?? []).slice();
+  const par = narratedParallel(s);
+  const suggestions = (s.plotSuggestions ?? []).filter(item => item.kind === 'offscreen');
   const head = sectionHeader('\u2748 Elsewhere Feed', { sub: true, count: active.length, action: '<button class="vle-add sm" data-off-generate title="Create 3-7 canon-grounded parallel events; persist each as a subplot linked to a plot thread">\u2726 generate events</button><button class="vle-add sm" data-off-simall title="Advance the whole off-screen world one small AI tick (needs generation)">\u2748 simulate all</button><button class="vle-add sm" data-off-add>+</button>' });
   const intro = '<div class="vle-cz-note">Generate events creates a 3-7 moment interlude grounded in chat, lorebooks and Chronicle canon; each accepted event becomes a persistent subplot linked to a plot thread and, when warranted, a shared arc. Simulate all is the smaller incremental tick.</div>';
-  if (!all.length && !par.length) return head + intro + emptyState('No off-screen threads.', 'Add one by hand, or enable Off-screen in Actions to let causally eligible subplots advance automatically.');
+  if (!all.length && !par.length && !suggestions.length) return head + intro + emptyState('No off-screen threads.', 'Add one by hand, or enable Off-screen in Actions to let causally eligible subplots advance automatically.');
   
   const now = s.turns || 0;
   const A = (x: unknown): string => esc(x);
@@ -476,7 +481,19 @@ function offscreenView(s: ChronicleState): string {
   if (_feedExpanded.size === 0 && active.length === 1 && active[0]) _feedExpanded.add(active[0].id);
   const isExpanded = (o: { id: string }): boolean => _feedExpanded.has(o.id);
   
-  let html = head + intro + '<div class="vle-feed">';
+  let html = head + intro;
+  if (suggestions.length) {
+    html += sectionHeader('\u2726 Suggested subplots', { sub: true, count: suggestions.length });
+    html += '<div class="vle-cz-note">These ideas failed automatic grounding and are not canon until you accept them.</div><div class="vle-suggest-grid">';
+    html += suggestions.map(item => `<div class="vle-suggest-card"><div class="vle-suggest-kicker">Suggested subplot · turn ${item.turn}</div>`
+      + `<div class="vle-suggest-title">${esc(String(item.row.name ?? item.row.id ?? 'Untitled subplot'))}</div>`
+      + `<div class="vle-suggest-note">${esc(String(item.row.gist ?? 'No proposed beat supplied.'))}</div>`
+      + `<div class="vle-suggest-reason">Held because: ${esc(item.reason)}</div><div class="vle-suggest-actions">`
+      + `<button class="vle-btn vle-btn--primary" data-plot-suggest-accept data-id="${esc(item.id)}">ACCEPT</button>`
+      + `<button class="vle-btn vle-btn--secondary" data-plot-suggest-reject data-id="${esc(item.id)}">REJECT</button></div></div>`).join('');
+    html += '</div>';
+  }
+  html += '<div class="vle-feed">';
   
   // Active threads
   if (active.length) {
@@ -512,6 +529,15 @@ function offscreenView(s: ChronicleState): string {
 }
 
 function byRecentOff(a: { lastTurn: number }, b: { lastTurn: number }): number { return b.lastTurn - a.lastTurn; }
+
+/** Durable subplots are mirrored into parallel for prompt continuity. Hide only
+ * those mirrored rows from the narrated list/count so the same event is not
+ * displayed twice; independent snapshots remain visible. */
+function narratedParallel(s: ChronicleState): ChronicleState['parallel'] {
+  const mirrored = new Set((s.offscreen ?? []).filter(row => row.status === 'active').map(row =>
+    `${row.who?.toLocaleLowerCase() ?? ''}\u0000${row.where ?? ''}\u0000${row.gist}`));
+  return (s.parallel ?? []).filter(row => !mirrored.has(`${row.who?.toLocaleLowerCase() ?? ''}\u0000${row.where ?? ''}\u0000${row.activity}`));
+}
 
 // Continuity-flag codes that concern the passage of time / the calendar clock.
 // These are the "time continuity log" — surfaced as their own section so a

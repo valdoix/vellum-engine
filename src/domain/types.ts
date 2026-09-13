@@ -397,6 +397,14 @@ export interface ItemHistoryStep {
   day: number;
 }
 
+export interface PlotSuggestion {
+  id: string;
+  kind: 'thread' | 'arc' | 'offscreen';
+  row: Record<string, unknown>;
+  reason: string;
+  turn: number;
+}
+
 export interface ChronicleState {
   compilation?: { turn: number; inputSig: string; baseHash: string; block: string };
   genesisTurn?: number;
@@ -421,6 +429,8 @@ export interface ChronicleState {
   arcs: Track[];
   parallel: ParallelEvent[];
   offscreen: OffscreenThread[];
+  /** Strictly rejected Engine plot rows awaiting an explicit author decision. */
+  plotSuggestions: PlotSuggestion[];
   scenes: SceneRecord[];
   scene: Scene;
   day: number;
@@ -516,6 +526,7 @@ export function freshState(): ChronicleState {
     arcs: [],
     parallel: [],
     offscreen: [],
+    plotSuggestions: [],
     scenes: [],
     scene: { location: '', time: '', tension: 0, weather: '', present: [], detail: [] },
     day: 0,

@@ -62,6 +62,7 @@ import { embedParallelCommand, hasParallelCommand, materializeParallelBatch, par
 import { parseSceneCommand, sceneIntentInjection, scrubSceneCommands, type SceneIntent, type SceneTransitionKind } from './domain/scene-transition.js';
 import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
+import { auditCompiledEvents } from './domain/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
 import { previewStateAtTurn, replaceTailDeferred } from './store/chronicle.js';
 import { collapseAssembledArgentPolicy } from './domain/argent-policy.js';
@@ -694,9 +695,9 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   // has crossed the durable flush boundary and the refreshed state has been
   // broadcast. Keep successful windows pending until both operations finish so
   // the UI can never report a memory-only append as complete.
-  const pendingEngineRuns: Array<{ turn: number; run: ReturnType<typeof beginEngineRun> }> = [];
+  const pendingEngineRuns: Array<{ turn: number; run: ReturnType<typeof beginEngineRun>; recovered?: string[] }> = [];
   const finishPendingEngineRuns = (ok: boolean, extra: Record<string, unknown> = {}): void => {
-    for (const pending of pendingEngineRuns.splice(0)) pending.run.finish(ok, { turn: pending.turn, ...extra });
+    for (const pending of pendingEngineRuns.splice(0)) pending.run.finish(ok, { turn: pending.turn, ...(pending.recovered?.length ? { recovered: pending.recovered } : {}), ...extra });
   };
   // Track the latest turn's raw content + parse source for post-loop block validation.
   let _latestContent = '';
@@ -883,12 +884,12 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         foldContent = prose + '\n' + compiled.block;
       }
     }
-    const folded = parallelFoldEvents !== null
+    let folded = parallelFoldEvents !== null
       ? { events: parallelFoldEvents, source: 'json' as const, sig: sigOf(content), dropped: undefined }
       : structuredStateEnabled
-      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, livingWorld: parallelMode, ...(turnNo === msgs.length && pendingNextScene ? { sceneIntent: nextSceneIntent(pendingNextScene) } : {}), ...(dayCap !== undefined ? { dayCap } : {}) })
+      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, livingWorld: parallelMode, ...(compiled?.ok ? { validatedCompiler: true } : {}), ...(turnNo === msgs.length && pendingNextScene ? { sceneIntent: nextSceneIntent(pendingNextScene) } : {}), ...(dayCap !== undefined ? { dayCap } : {}) })
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
-    const { events, source, dropped } = folded;
+    let { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {
       finishPendingEngineRuns(false, { reason: 'later_turn_failed', errors: ['A later validated candidate could not be filed.'] });
       engineRun?.finish(false, { reason: 'parser_rejected', errors: ['A validated compiler candidate did not round-trip through the canonical parser.'] });
@@ -897,8 +898,33 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `State compilation held turn ${turnNo}: canonical parser rejected the candidate.` }, userId ?? undefined);
       return;
     }
+    if (compiled?.ok) {
+      const filedState = parseState(compiled.block).state;
+      const materializationErrors = auditCompiledEvents({ state: { delta: filedState?.delta ?? compiled.candidate.state.delta } }, events);
+      if (materializationErrors.length) {
+        finishPendingEngineRuns(false, { reason: 'materialization_failed', errors: materializationErrors });
+        engineRun?.finish(false, { reason: 'materialization_failed', errors: materializationErrors, message: 'The validated file could not be represented completely. Nothing from it was filed; Repair Engine is available.' });
+        _heldCompilerDraftByChat.set(chatId, { turn: turnNo, inputSig: sigOf(content), errors: materializationErrors, draft: compiled.candidate });
+        await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors: materializationErrors }));
+        spindle.sendToFrontend?.({ type: 'vellum_toast', level: 'warning', msg: `Engine Pass held turn ${turnNo}: ${materializationErrors[0]}` }, userId ?? undefined);
+        // Preserve the completed prose and turn memory exactly like any other
+        // compiler failure. The incomplete compiled delta is not filed.
+        engineFallback = true;
+        compilerFailure = { turn: turnNo, inputSig: sigOf(content), errors: materializationErrors };
+        engineRun = null;
+        compiled = null;
+        folded = structuredStateEnabled
+          ? foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, livingWorld: parallelMode, ...(turnNo === msgs.length && pendingNextScene ? { sceneIntent: nextSceneIntent(pendingNextScene) } : {}), ...(dayCap !== undefined ? { dayCap } : {}) })
+          : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
+        events = folded.events; source = folded.source; dropped = folded.dropped;
+      }
+    }
     const sig = sigOf(content);
     for (const event of events) if (event.kind === 'turn.fold') event.sig = sig;
+    if (compiled?.ok) for (const suggestion of compiled.suggestions ?? []) events.push({
+      seq: nextSeqLocal(), turn: turnNo, day: compiled.candidate.state.day, src: 'system', kind: 'plot.suggest',
+      id: suggestion.id, skind: suggestion.kind, row: suggestion.row, reason: suggestion.reason,
+    } as VellumEvent);
     if (compiled?.ok) events.push({ seq: nextSeqLocal(), turn: turnNo, day: compiled.candidate.state.day, src: 'system', kind: 'state.compiled', inputSig: sig, baseHash: compiled.baseHash, block: compiled.block, genesis: compiled.candidate.genesis });
     // remember the newest turn's raw content + parse verdict for the block-
     // structure check below (the "only one block" warning).
@@ -937,7 +963,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
       _heldCompilerDraftByChat.delete(chatId);
     }
-    if (compiled?.ok && engineRun) pendingEngineRuns.push({ turn: turnNo, run: engineRun });
+    if (compiled?.ok && engineRun) pendingEngineRuns.push({ turn: turnNo, run: engineRun, ...(compiled.recovered?.length ? { recovered: compiled.recovered } : {}) });
     added += evs.length;
     // defer prose-driven extraction to PASS 2 (below the early broadcast).
     // `json-partial` means element salvage recovered the block by dropping corrupt
@@ -3443,6 +3469,74 @@ const dispatch: Record<string, Handler> = {
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_thread_done', ok: true }, uid);
+  },
+  vellum_plot_suggestion_reject: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const state = await loadState(chatId);
+    const suggestion = (state.plotSuggestions ?? []).find(item => item.id === String(p.id));
+    if (!suggestion) return;
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'plot.suggest.drop', id: suggestion.id } as VellumEvent]);
+    await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: true, action: 'rejected' }, uid);
+  },
+  vellum_plot_suggestion_accept: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId || !p?.id) return;
+    const state = await loadState(chatId);
+    const suggestion = (state.plotSuggestions ?? []).find(item => item.id === String(p.id));
+    if (!suggestion) return;
+    const row = suggestion.row as Record<string, any>;
+    const turn = state.turns || suggestion.turn || 0;
+    const day = state.day || 0;
+    const base = () => ({ seq: nextSeqLocal(), turn, day, src: 'user' as const });
+    const events: VellumEvent[] = [];
+    const resolveTrack = (rows: ChronicleState['threads'], raw: unknown) => {
+      const key = String(raw ?? '').trim().toLocaleLowerCase();
+      return key ? rows.find(item => item.id.toLocaleLowerCase() === key || item.name.toLocaleLowerCase() === key) : undefined;
+    };
+    if (suggestion.kind === 'thread' || suggestion.kind === 'arc') {
+      const name = String(row.name ?? '').trim();
+      if (!name) return;
+      const kindArc = suggestion.kind === 'arc';
+      const existing = resolveTrack(kindArc ? state.arcs : state.threads, row.id) ?? resolveTrack(kindArc ? state.arcs : state.threads, name);
+      const parent = !kindArc && row.arc ? resolveTrack(state.arcs, row.arc) : undefined;
+      if (!kindArc && row.arc && !parent) {
+        spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: false, reason: 'Accept the suggested parent arc first.' }, uid); return;
+      }
+      events.push({ ...base(), kind: 'thread.set', ...(existing ? { id: existing.id } : {}), name,
+        status: row.op === 'resolve' ? 'resolved' : String(row.note ?? row.op ?? 'active'),
+        ...(row.note ? { note: String(row.note).slice(0, 500) } : {}), ...(kindArc ? { kindArc: true } : {}),
+        ...(parent ? { arc: parent.id } : {}),
+        ...(row.milestone ? { milestone: String(row.milestone) } : {}), ...(Array.isArray(row.dependsOn) ? { dependsOn: row.dependsOn.map(String) } : {}),
+        ...(Array.isArray(row.blockedBy) ? { blockedBy: row.blockedBy.map(String) } : {}), ...(row.deadlineDay !== undefined ? { deadlineDay: Number(row.deadlineDay) } : {}),
+        ...(row.deadlineClock !== undefined ? { deadlineClock: Number(row.deadlineClock) } : {}),
+      } as VellumEvent);
+    } else {
+      const id = String(row.id ?? '').trim(); const gist = String(row.gist ?? '').trim();
+      if (!id || (!gist && row.op !== 'resolve')) return;
+      const linkedThread = row.thread ? resolveTrack(state.threads, row.thread) : undefined;
+      const linkedArc = row.arc ? resolveTrack(state.arcs, row.arc) : undefined;
+      if (row.thread && !linkedThread) { spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: false, reason: 'Accept the suggested plot thread first.' }, uid); return; }
+      if (row.arc && !linkedArc) { spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: false, reason: 'Accept the suggested parent arc first.' }, uid); return; }
+      const whoName = String(row.who ?? '').trim(); const who = whoName ? canonId(whoName) : '';
+      if (who && !state.cast[who]) events.push({ ...base(), kind: 'cast.seen', id: who, name: whoName, status: 'active' } as VellumEvent);
+      events.push({ ...base(), kind: 'offscreen.op', op: row.op === 'resolve' ? 'resolve' : (state.offscreen.some(item => item.id === id) ? 'advance' : 'new'), id,
+        ...(row.name ? { name: String(row.name) } : {}), ...(who ? { who } : {}), ...(row.where ? { where: String(row.where) } : {}), ...(gist ? { gist } : {}),
+        ...(linkedThread ? { thread: linkedThread.id } : {}), ...(row.pressure !== undefined ? { pressure: Number(row.pressure) } : {}),
+        ...(Array.isArray(row.hooks) ? { hooks: row.hooks.map(String).slice(0, 6) } : {}), ...(row.stakes ? { stakes: String(row.stakes) } : {}),
+        ...(row.autonomy ? { autonomy: row.autonomy } : {}), ...(row.nextTurn !== undefined ? { nextTurn: Number(row.nextTurn) } : {}),
+        ...(row.nextDay !== undefined ? { nextDay: Number(row.nextDay) } : {}), ...(row.nextClock !== undefined ? { nextClock: Number(row.nextClock) } : {}),
+        ...(row.deadlineDay !== undefined ? { deadlineDay: Number(row.deadlineDay) } : {}), ...(row.deadlineClock !== undefined ? { deadlineClock: Number(row.deadlineClock) } : {}),
+        ...(Array.isArray(row.dependsOn) ? { dependsOn: row.dependsOn.map(String) } : {}), ...(Array.isArray(row.blockedBy) ? { blockedBy: row.blockedBy.map(String) } : {}),
+        ...(row.trigger ? { trigger: String(row.trigger) } : {}),
+      } as VellumEvent);
+      if (linkedThread && linkedArc) events.push({ ...base(), kind: 'thread.set', id: linkedThread.id, name: linkedThread.name, arc: linkedArc.id } as VellumEvent);
+    }
+    events.push({ ...base(), kind: 'plot.suggest.drop', id: suggestion.id } as VellumEvent);
+    await append(chatId, events);
+    invalidateIndex(chatId); await broadcastState(chatId, uid);
+    spindle.sendToFrontend?.({ type: 'vellum_plot_suggestion_done', ok: true, action: 'accepted' }, uid);
   },
   vellum_thread_catchup: async (p, uid) => {
     // Bring lagging plot threads up to the current narrative day AND author the real

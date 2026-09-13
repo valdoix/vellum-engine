@@ -5,7 +5,7 @@ const backend = readFileSync(new URL('../src/backend.ts', import.meta.url), 'utf
 
 describe('Engine Pass durability boundary', () => {
   it('finishes successful windows only after Chronicle flush and state broadcast', () => {
-    const queuedAt = backend.indexOf('pendingEngineRuns.push({ turn: turnNo, run: engineRun })');
+    const queuedAt = backend.indexOf('pendingEngineRuns.push({ turn: turnNo, run: engineRun');
     const flushAt = backend.indexOf('await flush(chatId);', queuedAt);
     const broadcastAt = backend.indexOf('await broadcastState(chatId, userId);', flushAt);
     const completedAt = backend.indexOf('finishPendingEngineRuns(true);', broadcastAt);

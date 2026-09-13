@@ -2501,6 +2501,9 @@ export function setup(ctx: Ctx): () => void {
         else if (p.reason === 'no_cast') notify(ctx, 'info', 'Nobody off-screen to simulate right now.');
         else if (p.reason === 'empty_reply') notify(ctx, 'warning', 'The model returned no off-screen beat \u2014 try again.');
         else if (p.advanced) notify(ctx, 'success', 'Advanced the off-screen world.');
+      } else if (p?.type === 'vellum_plot_suggestion_done') {
+        if (!p.ok) notify(ctx, 'warning', String(p.reason ?? 'The suggestion could not be applied.'));
+        else notify(ctx, 'success', p.action === 'accepted' ? 'Suggestion accepted and added to the Chronicle.' : 'Suggestion dismissed.');
       } else if (p?.type === 'vellum_parallel_done') {
         if (p.started) notify(ctx, 'info', 'Grounding 3-7 parallel events in story canon\u2026');
         else if (p.ok) notify(ctx, 'success', `Filed ${Number(p.count) || 0} parallel event${Number(p.count) === 1 ? '' : 's'} as persistent subplot beats.`);

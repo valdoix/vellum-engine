@@ -63,8 +63,8 @@ export const ParsedThread = z.object({
   // persisted as a beat; the extractor may use it only to prove that a renamed
   // or differently-worded T1 event belongs to the existing track.
   prior: z.string().optional().catch(undefined),
-  // Optional parent arc reference (stable id or exact title). The ordinary
-  // extractor ignores it; the parallel-command transaction resolves it.
+  // Optional parent arc reference (stable id or exact title). Both ordinary
+  // inline folds and Engine compiler folds resolve it without title guessing.
   arc: z.string().optional().catch(undefined),
   milestone: z.string().optional().catch(undefined),
   dependsOn: z.array(z.string()).max(20).optional().catch(undefined),
@@ -165,19 +165,19 @@ export const ParsedState = z.object({
   // entry instead of a field) must not fail the entire turn's state block —
   // every element schema already tolerates a stray field-level null via its own
   // `.catch`, so this only guards against a non-object element slipping through.
-  present: z.array(ParsedPresent).optional().catch(undefined),
+  present: z.array(ParsedPresent).optional(),
   delta: z.object({
-    bonds: z.array(ParsedBond).optional().catch(undefined),
-    threads: z.array(ParsedThread).optional().catch(undefined),
-    arcs: z.array(ParsedThread).optional().catch(undefined),
-    journal: z.array(ParsedJournal).optional().catch(undefined),
-    knowledge: z.array(ParsedKnowledge).optional().catch(undefined),
-    secrets: z.array(ParsedSecret).optional().catch(undefined),
-    secretReveals: z.array(ParsedSecretReveal).optional().catch(undefined),
-    factions: z.array(ParsedFaction).optional().catch(undefined),
-    factionRelations: z.array(ParsedFactionRel).optional().catch(undefined),
-    parallel: z.array(ParsedParallel).optional().catch(undefined),
-    offscreen: z.array(ParsedOffscreen).optional().catch(undefined),
+    bonds: z.array(ParsedBond).optional(),
+    threads: z.array(ParsedThread).optional(),
+    arcs: z.array(ParsedThread).optional(),
+    journal: z.array(ParsedJournal).optional(),
+    knowledge: z.array(ParsedKnowledge).optional(),
+    secrets: z.array(ParsedSecret).optional(),
+    secretReveals: z.array(ParsedSecretReveal).optional(),
+    factions: z.array(ParsedFaction).optional(),
+    factionRelations: z.array(ParsedFactionRel).optional(),
+    parallel: z.array(ParsedParallel).optional(),
+    offscreen: z.array(ParsedOffscreen).optional(),
   }).optional().catch(undefined),
   // Open extension point: future blocks (e.g. inventory, factions) can land here
   // and be picked up by a registered extractor without schema churn elsewhere.

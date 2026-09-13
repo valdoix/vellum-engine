@@ -46,6 +46,19 @@ describe('Director Off-screen view — renders model-narrated parallel meanwhile
     const b = freshState(); b.parallel = [{ activity: 'the docks flooded', turn: 6, day: 1 }];
     expect(directorTab.version!(a)).not.toBe(directorTab.version!(b));
   });
+
+  it('shows rejected subplot suggestions and does not duplicate a mirrored durable beat', () => {
+    const s = freshState();
+    s.offscreen = [{ id: 'watch', name: 'Gate Watch', who: 'ada', where: 'East Gate', gist: 'searches for the seal', status: 'active', beats: ['searches for the seal'], firstTurn: 1, lastTurn: 2 }];
+    s.parallel = [{ who: 'ada', where: 'East Gate', activity: 'searches for the seal', turn: 2, day: 1 }];
+    s.plotSuggestions = [{ id: 'suggest_sub', kind: 'offscreen', row: { id: 'bells', name: 'The Bells', gist: 'waits for a signal' }, reason: 'movement was not grounded', turn: 2 }];
+    switchTo('offscreen');
+    const html = directorTab.render(s);
+    expect(html).toContain('Suggested subplots');
+    expect(html).toContain('movement was not grounded');
+    expect(html).toContain('data-plot-suggest-accept');
+    expect(html).not.toContain('Meanwhile (narrated)');
+  });
 });
 
 describe('Director Locations view — The Atlas: plates, breadcrumbs, provenance', () => {

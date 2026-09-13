@@ -45,6 +45,10 @@ export interface ExtractCtx {
    * entity on a fresh Chronicle, but never as proof of current knowledge,
    * location, travel, or activity. */
   parallelCanonLabels?: readonly string[];
+  /** The parsed block came from the strict Engine compiler and already passed
+   * its evidence/causality validator. Extractors may skip only redundant legacy
+   * lexical gates; identity, agency, and canonical-state guards still apply. */
+  validatedCompiler?: boolean;
 }
 
 export interface InjectCtx {
@@ -80,6 +84,7 @@ export function runExtractors(parsed: ParsedState, ctx: ExtractCtx): VellumEvent
     try {
       out.push(...f.extract(parsed, ctx));
     } catch (e) {
+      if (ctx.validatedCompiler) throw new Error(`Validated compiler extraction failed in feature "${f.id}": ${(e as Error)?.message ?? String(e)}`);
       // a misbehaving feature must never break the fold for the others
       try { (globalThis as { console?: Console }).console?.warn?.(`[vellum] feature "${f.id}" extract failed:`, e); } catch { /* ignore */ }
     }

@@ -43,6 +43,19 @@ describe('repaired Chronicle state delivery', () => {
     expect(html).not.toContain('data-cview="world">World <span class="vle-n">10</span>');
   });
 
+  it('renders rejected thread and arc rows as explicit accept/reject suggestions', () => {
+    const state = freshState();
+    state.plotSuggestions = [{ id: 'suggest_thread', kind: 'thread', row: { name: 'The Unproven Door', note: 'The door may open' }, reason: 'plot proof is not grounded', turn: 2 }];
+    switchChronicleTo('world');
+    const html = chronicleTab.render(state);
+    expect(html).toContain('Suggested plots');
+    expect(html).toContain('The Unproven Door');
+    expect(html).toContain('plot proof is not grounded');
+    expect(html).toContain('data-plot-suggest-accept');
+    expect(html).toContain('data-plot-suggest-reject');
+    expect(html).toContain('data-cview="world">World <span class="vle-n">1</span>');
+  });
+
   it('continues opening the plot ledger when an existing Chronicle has no tracks', () => {
     expect(STATE_COMPILER_SYSTEM).toContain('If prior has zero open threads');
     expect(STATE_COMPILER_SYSTEM).toContain('If prior has zero open arcs');

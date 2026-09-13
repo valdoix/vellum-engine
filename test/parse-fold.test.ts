@@ -122,6 +122,14 @@ describe('parseState', () => {
     expect(r.state?.delta?.journal?.[0]?.kind).toBeUndefined(); // invented enums dropped
   });
 
+  it('reports a malformed array member instead of silently dropping its whole section', () => {
+    const block = '<vellum>' + JSON.stringify({ delta: { threads: [null, { op: 'new', name: 'The Bell', note: 'The bell remains unanswered' }] } }) + '</vellum>';
+    const r = parseState(block);
+    expect(r.source).toBe('json-partial');
+    expect(r.dropped?.threads).toBe(1);
+    expect(r.state?.delta?.threads).toEqual([expect.objectContaining({ name: 'The Bell' })]);
+  });
+
   it('falls back to regex for terse [BTS]-style rel lines', () => {
     const r = parseState('Some prose.\nrelCersei \u2192 Jaime: aff +8, trust -2 cat:romantic (the look)');
     expect(r.source).toBe('regex');

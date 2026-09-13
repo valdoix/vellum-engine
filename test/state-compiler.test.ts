@@ -26,7 +26,7 @@ describe('strict pre-commit state compiler', () => {
     i.livingWorld = 'active';
     i.prose = 'Mara waits five minutes. Elsewhere, Ada waits in the Courtyard for the bell. Player stays quiet.';
     const c = candidate();
-    c.state.delta.offscreen = [{ op: 'new', id: 'courtyard_watch', name: 'Courtyard watch', who: 'Ada', where: 'Courtyard', gist: 'waits in the Courtyard for the bell', nextTurn: 3, thread: 'bell_watch' }];
+    c.state.delta.offscreen = [{ op: 'new', id: 'courtyard_watch', name: 'Courtyard watch', who: 'Ada', where: 'Courtyard', gist: 'waits in the Courtyard for the bell', nextTurn: 3 }];
     c.state.ext.intent = [{ who: 'Ada', goal: 'hear the bell signal', nextStep: 'wait in the Courtyard', status: 'active' }];
     c.evidence.push({ path: 'delta.offscreen.0', quote: 'Ada waits in the Courtyard for the bell' });
     c.evidence.push({ path: 'ext.intent.0', quote: 'Ada waits in the Courtyard for the bell' });
@@ -199,7 +199,8 @@ describe('strict pre-commit state compiler', () => {
     const c = candidate();
     c.state.delta.knowledge = [{ who: 'Ada', fact: 'the key is seven', reliability: 'knows', truth: 'true', source: 'messenger tells Ada' }];
     c.evidence.push({ path: 'delta.knowledge.0', quote: 'A messenger tells Ada at the East Gate that the key is seven' });
-    expect(validateCompilation(c, i).ok).toBe(true);
+    const accepted = validateCompilation(c, i);
+    expect(accepted.ok).toBe(true);
   });
   it('rejects knowledge that overstates a real quote or reverses its subject', () => {
     const i = input();
@@ -408,7 +409,14 @@ describe('strict pre-commit state compiler', () => {
       { path: 'delta.threads.0', targetId: 'thr_stolen_seal', before: 'Ada searches the archive for the royal seal', after: 'Ada finds the royal seal hidden in the archive wall', quote: 'Ada finds the royal seal hidden in the archive wall', basis: 'direct_development' },
       { path: 'delta.arcs.0', targetId: 'thr_city_conspiracy', before: 'The conspirators seek the royal seal', after: 'Finding the royal seal changes the conspirators\' leverage', quote: 'Ada finds the royal seal hidden in the archive wall', basis: 'child_milestone', childThreadIds: ['thr_stolen_seal'] },
     );
-    expect(validateCompilation(c, i).ok).toBe(true);
+    const accepted = validateCompilation(c, i);
+    expect(accepted.ok).toBe(true);
+    if (!accepted.ok) return;
+    const folded = foldTurn(accepted.block, structuredClone(i.prior), i.turn, { validatedCompiler: true });
+    expect(folded.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'thread.op', name: 'The Stolen Seal' }),
+      expect.objectContaining({ kind: 'arc.op', name: 'The City Conspiracy' }),
+    ]));
     c.trackEvidence[1]!.childThreadIds = [];
     expect(validateCompilation(c, i).ok).toBe(false);
   });
@@ -598,6 +606,20 @@ ${JSON.stringify(c.state)}
     expect(r.recovered).toContain('ext.codex.0');
     expect(r.candidate.state.ext.codex).toBeUndefined();
     expect(JSON.parse(r.block.slice(9, -9)).scene.time).toBe('00:03');
+  });
+  it('retains rejected plot rows as reviewable suggestions with a clear cause', () => {
+    const i = input();
+    i.prose += ' Gabriel watches the sunrise brighten the kitchen.';
+    i.prior.threads = [{ id: 'thr_forged_letter', name: 'The Forged Letter', status: 'hidden', beats: ['Mara hid the forged letter'], firstTurn: 1, lastTurn: 1 }];
+    const c = candidate();
+    c.state.delta.threads = [{ op: 'advance', name: 'The Forged Letter', note: 'Gabriel watches the sunrise' }];
+    c.evidence.push({ path: 'delta.threads.0', quote: 'Gabriel watches the sunrise brighten the kitchen' });
+    c.trackEvidence.push({ path: 'delta.threads.0', targetId: 'thr_forged_letter', before: 'Mara hid the forged letter', after: 'Gabriel watches the sunrise', quote: 'Gabriel watches the sunrise brighten the kitchen', basis: 'direct_development' });
+    const r = salvageCompilation(c, i);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.suggestions).toEqual([expect.objectContaining({ kind: 'thread', row: expect.objectContaining({ name: 'The Forged Letter' }) })]);
+    expect(r.suggestions?.[0]?.reason).toContain('plot proof');
   });
   it('fills omitted boilerplate and strips unsupported shape keys locally', () => {
     const c: any = candidate();

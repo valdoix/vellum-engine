@@ -82,7 +82,7 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.day}:${s.scene.id ?? ''}:${s.scene.title ?? ''}:${s.scene.location}:${s.scene.time}:${s.scene.clock ?? ''}:${s.scene.weather}:${s.scene.tension}:${s.scene.present.join(',')}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${Object.entries(s.timelineDayOverrides ?? {}).map(([t, d]) => t + '=' + d).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.day}:${s.scene.id ?? ''}:${s.scene.title ?? ''}:${s.scene.location}:${s.scene.time}:${s.scene.clock ?? ''}:${s.scene.weather}:${s.scene.tension}:${s.scene.present.join(',')}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${(s.plotSuggestions ?? []).map(x => x.id).join(',')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${Object.entries(s.timelineDayOverrides ?? {}).map(([t, d]) => t + '=' + d).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     loreSnapshot = s.lore;
     _sceneSnapshot = {
@@ -97,7 +97,7 @@ export const chronicleTab: Component<ChronicleState> = {
     // Off-screen subplots and parallel snapshots live in Director -> Off-screen.
     // Counting them here made World advertise records it does not render (for
     // example "World 11" beside empty Arc/Thread sections).
-    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length, timeline: s.memories.length, turns: _turnMax, beats: s.memories.filter((m) => m.tier === 'beat').length, timesync: 0, memory: memCount, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
+    const counts: Record<CView, number> = { world: s.arcs.length + s.threads.length + (s.plotSuggestions ?? []).filter(item => item.kind === 'thread' || item.kind === 'arc').length, timeline: s.memories.length, turns: _turnMax, beats: s.memories.filter((m) => m.tier === 'beat').length, timesync: 0, memory: memCount, knowledge: s.knowledge.length, secrets: s.secrets.length, scars: (s.scars ?? []).length, codex: (s.lore ?? []).length, items: (s.items ?? []).length };
     const btn = (v: { id: CView; label: string }): string =>
       `<button class="vle-subnav-b${_view === v.id ? ' on' : ''}" data-cview="${v.id}">${v.label}${counts[v.id] ? ` <span class="vle-n">${counts[v.id]}</span>` : ''}</button>`;
     // Story (the Spine river) leads as the primary reading surface; World/Beats
@@ -110,7 +110,7 @@ export const chronicleTab: Component<ChronicleState> = {
     let body = '';
     if (_view === 'world') {
       _arcSnapshot = (s.arcs ?? []).filter((a) => !/resolv/i.test(a.status || '')).slice(0, 20).map((a) => ({ id: a.id, name: a.name, beats: a.beats }));
-      body = establishingShot(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) || '';
+      body = establishingShot(s) + suggestedPlots(s) + tracks('\u2746 Arcs', s.arcs, true, s) + tracks('\u269C Threads', s.threads, false, s) || '';
     }
     else if (_view === 'timeline') body = timeline(s);
     else if (_view === 'turns') body = turnsView(s);
@@ -122,7 +122,7 @@ export const chronicleTab: Component<ChronicleState> = {
     else if (_view === 'scars') body = scars(s);
     else if (_view === 'codex') body = codex(s);
     else body = itemsView(s);
-    if (_view === 'world' && !s.scene.location && !s.scene.tension && !s.arcs.length && !s.threads.length && !(s.offscreen ?? []).length && !(s.parallel ?? []).length) body = emptyState('No world state yet.', 'Scene, arcs, and threads fill in as the story unfolds.');
+    if (_view === 'world' && !s.scene.location && !s.scene.tension && !s.arcs.length && !s.threads.length && !(s.plotSuggestions ?? []).some(item => item.kind === 'thread' || item.kind === 'arc') && !(s.offscreen ?? []).length && !(s.parallel ?? []).length) body = emptyState('No world state yet.', 'Scene, arcs, and threads fill in as the story unfolds.');
     return nav + body;
   },
   mount(host) {
@@ -333,6 +333,10 @@ export const chronicleTab: Component<ChronicleState> = {
       if (tro) { send({ type: 'vellum_thread_set', id: tro.getAttribute('data-id'), name: tro.getAttribute('data-name'), status: 'advance', kindArc: tro.getAttribute('data-arc') === '1' }); return; }
       const tdel = t.closest('[data-track-del]');
       if (tdel) { confirmModal('Delete this thread? (removes it from the board now; the model may re-raise it if the story keeps naming it)', () => send({ type: 'vellum_thread_drop', id: tdel.getAttribute('data-id'), kindArc: tdel.getAttribute('data-arc') === '1' })); return; }
+      const sugAccept = t.closest('[data-plot-suggest-accept]');
+      if (sugAccept) { send({ type: 'vellum_plot_suggestion_accept', id: sugAccept.getAttribute('data-id') }); return; }
+      const sugReject = t.closest('[data-plot-suggest-reject]');
+      if (sugReject) { confirmModal('Dismiss this suggested plot change?', () => send({ type: 'vellum_plot_suggestion_reject', id: sugReject.getAttribute('data-id') })); return; }
       // arc<->thread bridge: unlink a thread from its arc (thread.set with arc='').
       // Shared by the thread-card UNLINK button and the arc-card per-thread chip.
       const tUnlink = t.closest('[data-thread-arc-unlink]');
@@ -436,6 +440,23 @@ export const chronicleTab: Component<ChronicleState> = {
     });
   },
 };
+
+function suggestedPlots(s: ChronicleState): string {
+  const rows = (s.plotSuggestions ?? []).filter(item => item.kind === 'thread' || item.kind === 'arc');
+  if (!rows.length) return '';
+  const cards = rows.map(item => {
+    const name = String(item.row.name ?? (item.kind === 'arc' ? 'Untitled arc' : 'Untitled thread'));
+    const note = String(item.row.note ?? 'No proposed beat supplied.');
+    return `<div class="vle-suggest-card"><div class="vle-suggest-kicker">Suggested ${esc(item.kind)} · turn ${item.turn}</div>`
+      + `<div class="vle-suggest-title">${esc(name)}</div><div class="vle-suggest-note">${esc(note)}</div>`
+      + `<div class="vle-suggest-reason">Held because: ${esc(item.reason)}</div><div class="vle-suggest-actions">`
+      + `<button class="vle-btn vle-btn--primary" data-plot-suggest-accept data-id="${esc(item.id)}">ACCEPT</button>`
+      + `<button class="vle-btn vle-btn--secondary" data-plot-suggest-reject data-id="${esc(item.id)}">REJECT</button></div></div>`;
+  }).join('');
+  return sectionHeader('\u2726 Suggested plots', { sub: true, count: rows.length })
+    + '<div class="vle-cz-note">These Engine ideas did not pass automatic grounding. Nothing was added to canon; accept only when you want to author the change yourself.</div>'
+    + `<div class="vle-suggest-grid">${cards}</div>`;
+}
 
 /** Establishing Shot hero header — cinematic scene presentation with day, time,
  * location, present cast, and tension at a glance. Replaces the old scene chip. */

@@ -86,6 +86,19 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.genesis) s.genesisTurn = e.turn;
       break;
     }
+    case 'plot.suggest': {
+      s.plotSuggestions ??= [];
+      const key = String(e.row.id ?? e.row.name ?? '').trim().toLocaleLowerCase();
+      const prior = key ? s.plotSuggestions.findIndex(item => item.kind === e.skind && String(item.row.id ?? item.row.name ?? '').trim().toLocaleLowerCase() === key) : -1;
+      const next = { id: e.id, kind: e.skind, row: e.row, reason: e.reason, turn: e.turn };
+      if (prior >= 0) s.plotSuggestions[prior] = next;
+      else if (!s.plotSuggestions.some(item => item.id === e.id)) s.plotSuggestions.push(next);
+      break;
+    }
+    case 'plot.suggest.drop': {
+      s.plotSuggestions = (s.plotSuggestions ?? []).filter(item => item.id !== e.id);
+      break;
+    }
     case 'turn.fold': {
       s.turns = Math.max(s.turns, e.turn);
       s.day = Math.max(s.day, e.day);
@@ -608,6 +621,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         cur.lastTurn = Math.max(cur.lastTurn, e.turn);
         stampTrackDay(cur, e.day);
         if (wantArc) { if (arcId) cur.arc = arcId; else delete cur.arc; }
+        applyTrackGates(cur, e);
         // `fill`: an authored Time Sync beat REPLACES a trailing "caught up: …"
         // placeholder marker in place, so generating real content swaps out the
         // bare marker rather than leaving both. Falls back to a normal push when
@@ -616,7 +630,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
           cur.beats = [...cur.beats.slice(0, -1), e.note.trim()].slice(-6);
         } else if (e.note) pushTrackBeat(cur, e.note);
       } else {
-        upsertTrack(list, e.name, e.status ?? 'advance', e.turn, e.note, 'new', e.day);
+        upsertTrack(list, e.name, e.status ?? 'advance', e.turn, e.note, 'new', e.day, e);
         if (wantArc && arcId) {
           const minted = list.find((t) => sameTrack(t.name, e.name));
           if (minted) minted.arc = arcId;

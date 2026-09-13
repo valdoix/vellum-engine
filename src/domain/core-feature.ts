@@ -11,6 +11,7 @@ import { factTokens, similarFact } from './fact-match.js';
 import { durableParallelSnapshot, reconcileParallelSnapshot } from './parallel-canon.js';
 import { normalizeSecretAudience } from './secret-audience.js';
 import { simEvents, threadOffscreenLink } from './offscreen.js';
+import { sameTrack } from '../core/reduce.js';
 
 /**
  * The core narrative feature: maps a parsed turn's scene / present / bonds /
@@ -77,6 +78,30 @@ function inlinePlotChange(
   let shared = 0;
   for (const token of noteTokens) if (proseTokens.has(token)) shared++;
   return shared >= Math.min(2, noteTokens.size);
+}
+
+/** Predict the reducer-owned stable ids for prior plus same-candidate tracks.
+ * This mirrors upsertTrack's collision rule so links can be emitted in the same
+ * atomic event batch as the rows they target. */
+function plannedTrackRefs(prior: ExtractCtx['state']['threads'], rows: readonly { name: string }[]): Map<string, string> {
+  const refs = new Map<string, string>();
+  const planned = prior.map(track => ({ id: track.id, name: track.name }));
+  for (const track of planned) {
+    refs.set(track.id.toLocaleLowerCase(), track.id);
+    refs.set(plotTitleKey(track.name), track.id);
+  }
+  for (const row of rows) {
+    let track = planned.find(item => sameTrack(item.name, row.name));
+    if (!track) {
+      const base = `thr_${canonId(row.name)}`;
+      let id = base; let suffix = 2;
+      while (planned.some(item => item.id === id)) id = `${base}_${suffix++}`;
+      track = { id, name: row.name }; planned.push(track);
+    }
+    refs.set(track.id.toLocaleLowerCase(), track.id);
+    refs.set(plotTitleKey(row.name), track.id);
+  }
+  return refs;
 }
 
 /** Derive personality-drift events by diffing a character's NEW trait set against
@@ -335,10 +360,26 @@ export const coreFeature: Feature = {
       } as VellumEvent);
     }
 
-    // threads + arcs
-    for (const t of parsed.delta?.threads ?? []) {
-      if (!inlinePlotChange(t, ctx.state.threads, ctx.state, ctx.prose)) continue;
+    // threads + arcs. A strict compiler candidate has already passed the richer
+    // before/evidence/after proof gate, so it must not be silently rejected by
+    // the older token-overlap backstop used for untrusted inline blocks.
+    const threadRows = parsed.delta?.threads ?? [];
+    const arcRows = parsed.delta?.arcs ?? [];
+    const threadRefs = plannedTrackRefs(ctx.state.threads, threadRows);
+    const arcRefs = plannedTrackRefs(ctx.state.arcs, arcRows);
+    const resolveRef = (refs: ReadonlyMap<string, string>, raw?: string): string | undefined => raw ? refs.get(raw.trim().toLocaleLowerCase()) : undefined;
+    // Parent arcs are emitted first; subsequent thread.set events can then link
+    // both existing and same-pass threads to a real canonical arc id.
+    for (const a of arcRows) {
+      if (a.op === 'stall' || (!ctx.validatedCompiler && !inlinePlotChange(a, ctx.state.arcs, ctx.state, ctx.prose))) continue; // arcs have no stall
+      out.push({ ...base(), kind: 'arc.op', op: a.op, name: a.name, ...(a.note ? { note: a.note } : {}), ...(a.milestone ? { milestone: a.milestone } : {}), ...(a.dependsOn !== undefined ? { dependsOn: a.dependsOn } : {}), ...(a.blockedBy !== undefined ? { blockedBy: a.blockedBy } : {}), ...(a.deadlineDay !== undefined ? { deadlineDay: a.deadlineDay } : {}), ...(a.deadlineClock !== undefined ? { deadlineClock: a.deadlineClock } : {}) } as VellumEvent);
+    }
+    for (const t of threadRows) {
+      if (!ctx.validatedCompiler && !inlinePlotChange(t, ctx.state.threads, ctx.state, ctx.prose)) continue;
       out.push({ ...base(), kind: 'thread.op', op: t.op, name: t.name, ...(t.note ? { note: t.note } : {}), ...(t.milestone ? { milestone: t.milestone } : {}), ...(t.dependsOn !== undefined ? { dependsOn: t.dependsOn } : {}), ...(t.blockedBy !== undefined ? { blockedBy: t.blockedBy } : {}), ...(t.deadlineDay !== undefined ? { deadlineDay: t.deadlineDay } : {}), ...(t.deadlineClock !== undefined ? { deadlineClock: t.deadlineClock } : {}) } as VellumEvent);
+      const parentArc = resolveRef(arcRefs, t.arc);
+      const stableThread = resolveRef(threadRefs, t.id ?? t.name);
+      if (parentArc && stableThread) out.push({ ...base(), kind: 'thread.set', id: stableThread, name: t.name, arc: parentArc } as VellumEvent);
       // Close the subplot -> thread -> foreground loop. A grounded on-screen
       // change to an exact tracked thread is also the newest beat of every
       // explicitly linked off-screen subplot; resolution retires it. This stops
@@ -354,9 +395,15 @@ export const coreFeature: Feature = {
         }
       }
     }
-    for (const a of parsed.delta?.arcs ?? []) {
-      if (a.op === 'stall' || !inlinePlotChange(a, ctx.state.arcs, ctx.state, ctx.prose)) continue; // arcs have no stall
-      out.push({ ...base(), kind: 'arc.op', op: a.op, name: a.name, ...(a.note ? { note: a.note } : {}), ...(a.milestone ? { milestone: a.milestone } : {}), ...(a.dependsOn !== undefined ? { dependsOn: a.dependsOn } : {}), ...(a.blockedBy !== undefined ? { blockedBy: a.blockedBy } : {}), ...(a.deadlineDay !== undefined ? { deadlineDay: a.deadlineDay } : {}), ...(a.deadlineClock !== undefined ? { deadlineClock: a.deadlineClock } : {}) } as VellumEvent);
+    // A durable subplot may be the row that declares the graph bridge. Preserve
+    // subplot -> thread -> arc links even when both plot rows are new this pass.
+    for (const subplot of parsed.delta?.offscreen ?? []) {
+      const stableThread = resolveRef(threadRefs, subplot.thread);
+      const parentArc = resolveRef(arcRefs, subplot.arc);
+      if (!stableThread || !parentArc) continue;
+      const thread = threadRows.find(row => resolveRef(threadRefs, row.id ?? row.name) === stableThread)
+        ?? ctx.state.threads.find(row => row.id === stableThread);
+      if (thread) out.push({ ...base(), kind: 'thread.set', id: stableThread, name: thread.name, arc: parentArc } as VellumEvent);
     }
 
     // per-character memory journal entries
@@ -476,7 +523,9 @@ export const coreFeature: Feature = {
         activity: String(p.activity || '').trim(),
         ...(p.note ? { note: p.note } : {}),
       })).filter((p) => p.activity) : durableParallelSnapshot(ctx.state, present);
-      const reconciled = reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '', {
+      const reconciled = ctx.validatedCompiler ? proposed.map(row => ({
+        ...(row.who ? { who: rid(row.who) } : {}), ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}),
+      })) : reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '', {
         npcAutonomy: tone.social,
         livingWorld: ctx.livingWorld,
         establishedEntities: ctx.parallelCanonLabels,
@@ -508,6 +557,7 @@ export const coreFeature: Feature = {
     if (parsed.delta?.offscreen?.length) {
       out.push(...simEvents({ offscreen: parsed.delta.offscreen }, ctx.state, ctx.turn, ctx.day, ctx.seq, {
         locks: ctx.locks, social: ctx.tone?.social, politics: ctx.tone?.politics, livingWorld: ctx.livingWorld, userId: ctx.userCanon,
+        ...(ctx.validatedCompiler ? { validatedCompiler: true, compilerThreadIds: threadRefs } : {}),
       }));
     }
 

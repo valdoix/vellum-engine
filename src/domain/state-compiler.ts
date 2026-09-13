@@ -4,6 +4,7 @@ import { canonId, hashStr } from '../core/ids.js';
 import { clockTime, elapsedClockFloor, liveTurnClockFloor, parseClock, reconcileDay, supportsDayAdvance } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
 import type { ChronicleState } from './types.js';
+import type { VellumEvent } from '../core/events.js';
 import type { LorebookCanonEntry } from './lorebook-canon.js';
 import { normalizeSecretAudience } from './secret-audience.js';
 import {
@@ -33,6 +34,12 @@ const text = z.string().trim().min(1).max(4000);
 const name = z.string().trim().min(1).max(120);
 const item = (shape: z.ZodRawShape) => z.array(z.object(shape).strict()).max(100);
 const Delta = strict(ParsedState.shape.delta.removeCatch().unwrap()) as z.ZodObject<any>;
+// Arcs cannot stall: a blocked attempt belongs to a child thread. Keep the
+// compiler schema, semantic validator, inline normalizer, and event schema in
+// agreement instead of advertising an operation that extraction later drops.
+const CompilerArc = (strict(ParsedState.shape.delta.removeCatch().unwrap().shape.arcs.unwrap().element) as z.ZodObject<any>)
+  .extend({ op: z.enum(['new', 'advance', 'resolve']) });
+const CompilerDelta = Delta.extend({ arcs: z.array(CompilerArc).max(200).optional() });
 export const CompilerState = z.object({
   turn: z.number().int().nonnegative(), day: z.number().int().nonnegative(),
   scene: z.object({ title: z.string().trim().min(1).max(100).optional(), transition: z.enum(['continue', 'scene', 'time_skip']).optional(), loc: text, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), clock: z.number().int().min(0).max(1439), tension: z.number().min(0).max(10).optional(), weather: z.string().max(500).optional() }).strict(),
@@ -40,7 +47,7 @@ export const CompilerState = z.object({
   // `parallel` remains engine-reconciled from operation ledgers. Durable
   // offscreen rows are permitted when Living World autonomy is active and are
   // validated against the same closed cast/location firewall as ((parallel)).
-  delta: Delta.omit({ parallel: true }),
+  delta: CompilerDelta.omit({ parallel: true }),
   ext: z.object({
     scars: item({ who: name, was: text, about: name.optional() }).optional(),
     codex: item({ id: name.optional(), op: z.enum(['add', 'refresh']).optional(), fact: text, tag: name.optional() }).optional(),
@@ -99,8 +106,51 @@ export type CompilerInput = {
    * constrain objective world canon; they are never automatic actor knowledge. */
   lorebookCanon?: readonly LorebookCanonEntry[];
 };
-export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[] } | { ok: false; errors: string[]; draft?: unknown; fragment?: string };
+export interface CompilationSuggestion { id: string; kind: 'thread' | 'arc' | 'offscreen'; row: Record<string, unknown>; reason: string }
+export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[]; suggestions?: CompilationSuggestion[] } | { ok: false; errors: string[]; draft?: unknown; fragment?: string };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
+
+/** Final event-contract check for a strict compiler candidate. Validation says
+ * a row is true; this check says extraction actually represented it. It runs
+ * before the Chronicle append, turning any future validator/extractor drift
+ * into a held repair instead of a false-success window. */
+export function auditCompiledEvents(candidate: { state: { delta: Partial<NonNullable<ParsedState['delta']>> } }, events: readonly VellumEvent[]): string[] {
+  const errors: string[] = [];
+  const delta = candidate.state.delta;
+  const plotMatch = (kind: 'thread.op' | 'arc.op', row: { name: string; op: string; note?: string }): boolean => events.some(event =>
+    event.kind === kind && trackTitleKey(event.name) === trackTitleKey(row.name)
+      && event.op === row.op && (!row.note || event.note === row.note));
+  for (let index = 0; index < (delta.threads ?? []).length; index++) {
+    const row = delta.threads![index]!;
+    if (!plotMatch('thread.op', row)) errors.push(`validated thread was not materialized: delta.threads.${index}`);
+    if (row.arc && !events.some(event => event.kind === 'thread.set' && trackTitleKey(event.name) === trackTitleKey(row.name) && !!event.arc)) {
+      errors.push(`validated thread arc link was not materialized: delta.threads.${index}`);
+    }
+  }
+  for (let index = 0; index < (delta.arcs ?? []).length; index++) {
+    if (!plotMatch('arc.op', delta.arcs![index]!)) errors.push(`validated arc was not materialized: delta.arcs.${index}`);
+  }
+  for (let index = 0; index < (delta.offscreen ?? []).length; index++) {
+    const row = delta.offscreen![index]!;
+    const event = events.find((item): item is Extract<VellumEvent, { kind: 'offscreen.op' }> => item.kind === 'offscreen.op' && item.id === row.id);
+    if (!event) errors.push(`validated subplot was not materialized: delta.offscreen.${index}`);
+    else if (row.thread && !event.thread) errors.push(`validated subplot thread link was not materialized: delta.offscreen.${index}`);
+    if (row.arc && row.thread && (!event?.thread || !events.some(item => item.kind === 'thread.set' && item.id === event.thread && !!item.arc))) {
+      errors.push(`validated subplot arc bridge was not materialized: delta.offscreen.${index}`);
+    }
+  }
+  if (delta.parallel !== undefined) {
+    const event = events.find((item): item is Extract<VellumEvent, { kind: 'parallel.set' }> => item.kind === 'parallel.set');
+    if (!event) errors.push('validated parallel snapshot was not materialized');
+    else for (let index = 0; index < delta.parallel.length; index++) {
+      const row = delta.parallel[index]!;
+      if (!event.items.some(item => item.activity === row.activity
+        && String(item.where ?? '') === String(row.where ?? '')
+        && canonId(item.who ?? '') === canonId(row.who ?? ''))) errors.push(`validated parallel row was not materialized: delta.parallel.${index}`);
+    }
+  }
+  return errors;
+}
 
 export interface ParallelGrounding {
   source: 'offscreen';
@@ -436,6 +486,27 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     if (section !== 'threads') continue;
     const target = input.prior.threads.find(t => trackTitleKey(t.name) === trackTitleKey(row.name));
     if (target && row.op !== 'new') changedThreadIds.add(target.id);
+  }
+
+  // Graph references are part of the accepted transaction, not advisory text.
+  // They may target a canonical row or another row created in this candidate,
+  // but never disappear merely because that target did not exist at T0.
+  const resolvesTrack = (raw: unknown, prior: ChronicleState['threads'], candidateRows: Array<Record<string, any>>): boolean => {
+    const key = trackTitleKey(String(raw ?? ''));
+    return !!key && (prior.some(track => trackTitleKey(track.id) === key || trackTitleKey(track.name) === key)
+      || candidateRows.some(track => trackTitleKey(track.id ?? '') === key || trackTitleKey(track.name) === key));
+  };
+  const candidateThreads = (s.delta.threads ?? []) as Array<Record<string, any>>;
+  const candidateArcs = (s.delta.arcs ?? []) as Array<Record<string, any>>;
+  for (let index = 0; index < candidateThreads.length; index++) {
+    const row = candidateThreads[index]!;
+    if (row.arc && !resolvesTrack(row.arc, input.prior.arcs, candidateArcs)) errors.push(`unknown parent arc: delta.threads.${index}`);
+  }
+  for (let index = 0; index < (s.delta.offscreen ?? []).length; index++) {
+    const row = (s.delta.offscreen ?? [])[index] as Record<string, any>;
+    if (row.thread && !resolvesTrack(row.thread, input.prior.threads, candidateThreads)) errors.push(`unknown subplot thread: delta.offscreen.${index}`);
+    if (row.arc && !row.thread) errors.push(`subplot arc requires a thread link: delta.offscreen.${index}`);
+    if (row.arc && !resolvesTrack(row.arc, input.prior.arcs, candidateArcs)) errors.push(`unknown subplot arc: delta.offscreen.${index}`);
   }
   const allowedBasis = (section: 'threads' | 'arcs', op: string): Set<string> => {
     if (op === 'new') return new Set(['new_open_question']);
@@ -870,27 +941,89 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
   if (!core.ok) return { ok: false, errors: [...new Set([...direct.errors, ...core.errors])].slice(0, 50) };
 
   const dropped: string[] = [];
-  const tryCandidate = (label: string, build: (candidate: StateCandidate) => void): void => {
+  const suggestions: CompilationSuggestion[] = [];
+  const attemptCandidate = (build: (candidate: StateCandidate) => void): { ok: true } | { ok: false; errors: string[] } => {
     const trial = structuredClone(accepted);
     build(trial);
     const checked = validateCompilation(trial, input);
-    if (checked.ok) accepted = trial;
-    else dropped.push(label);
+    if (checked.ok) { accepted = trial; return { ok: true }; }
+    return { ok: false, errors: checked.errors };
   };
+  const tryCandidate = (label: string, build: (candidate: StateCandidate) => void, suggestion?: Omit<CompilationSuggestion, 'id' | 'reason'>): boolean => {
+    const result = attemptCandidate(build);
+    if (result.ok) return true;
+    dropped.push(label);
+    if (suggestion) suggestions.push({
+      id: `suggest_${input.turn}_${suggestion.kind}_${hashStr(`${label}\u0000${JSON.stringify(suggestion.row)}`).slice(0, 10)}`,
+      ...suggestion,
+      reason: result.errors[0] ?? 'The strict compiler could not ground this change.',
+    });
+    return false;
+  };
+
+  // Plot rows form a graph. Admit the complete valid graph first so a new child
+  // may reference a new parent arc in this same candidate. If the graph itself
+  // is invalid, fall back to row-level salvage and retain every rejected row as
+  // an explicit suggestion.
+  const plotSections = new Set(['threads', 'arcs']);
+  const hasPlotRows = !!((original.state.delta.threads?.length ?? 0) + (original.state.delta.arcs?.length ?? 0));
+  const plotGraphAccepted = hasPlotRows && attemptCandidate(candidate => {
+    for (const section of ['threads', 'arcs'] as const) {
+      const rows = original.state.delta[section] ?? [];
+      if (!rows.length) continue;
+      (candidate.state.delta as Record<string, unknown[]>)[section] = structuredClone(rows);
+      rows.forEach((_row: unknown, index: number) => {
+        const path = `delta.${section}.${index}`;
+        const proof = evidenceFor(path); if (proof) candidate.evidence.push(proof);
+        const trackProof = original.trackEvidence.find(entry => entry.path === path); if (trackProof) candidate.trackEvidence.push(trackProof);
+      });
+    }
+  }).ok;
+
+  const appendDeltaRow = (candidate: StateCandidate, section: string, row: unknown, originalIndex: number): void => {
+    const delta = candidate.state.delta as Record<string, unknown[]>;
+    const next = [...(delta[section] ?? []), row];
+    delta[section] = next;
+    const path = `delta.${section}.${next.length - 1}`;
+    const oldPath = `delta.${section}.${originalIndex}`;
+    const proof = evidenceFor(oldPath);
+    if (proof) candidate.evidence.push({ ...proof, path });
+    const trackProof = original.trackEvidence.find(entry => entry.path === oldPath);
+    if (trackProof) candidate.trackEvidence.push({ ...trackProof, path });
+  };
+
+  if (hasPlotRows && !plotGraphAccepted) {
+    let pending = (['threads', 'arcs'] as const).flatMap(section => (original.state.delta[section] ?? []).map((row: Record<string, unknown>, originalIndex: number) => ({ section, row, originalIndex, errors: [] as string[] })));
+    for (let pass = 0; pending.length && pass <= pending.length; pass++) {
+      let progressed = false;
+      const next: typeof pending = [];
+      for (const item of pending) {
+        const result = attemptCandidate(candidate => appendDeltaRow(candidate, item.section, item.row, item.originalIndex));
+        if (result.ok) progressed = true;
+        else next.push({ ...item, errors: result.errors });
+      }
+      pending = next;
+      if (!progressed) break;
+    }
+    for (const item of pending) {
+      const label = `delta.${item.section}.${item.originalIndex}`;
+      dropped.push(label);
+      suggestions.push({
+        id: `suggest_${input.turn}_${item.section === 'threads' ? 'thread' : 'arc'}_${hashStr(`${label}\u0000${JSON.stringify(item.row)}`).slice(0, 10)}`,
+        kind: item.section === 'threads' ? 'thread' : 'arc', row: structuredClone(item.row) as Record<string, unknown>,
+        reason: item.errors[0] ?? 'The strict compiler could not ground this change.',
+      });
+    }
+  }
 
   for (const [section, rows] of Object.entries(original.state.delta)) {
     if (!Array.isArray(rows)) continue;
+    if (plotSections.has(section)) continue;
     rows.forEach((row, originalIndex) => tryCandidate(`delta.${section}.${originalIndex}`, candidate => {
-      const delta = candidate.state.delta as Record<string, unknown[]>;
-      const next = [...(delta[section] ?? []), row];
-      delta[section] = next;
-      const path = `delta.${section}.${next.length - 1}`;
-      const oldPath = `delta.${section}.${originalIndex}`;
-      const proof = evidenceFor(oldPath);
-      if (proof) candidate.evidence.push({ ...proof, path });
-      const trackProof = original.trackEvidence.find(entry => entry.path === oldPath);
-      if (trackProof) candidate.trackEvidence.push({ ...trackProof, path });
-    }));
+      appendDeltaRow(candidate, section, row, originalIndex);
+    }, section === 'threads' || section === 'arcs' || section === 'offscreen'
+      ? { kind: section === 'threads' ? 'thread' : section === 'arcs' ? 'arc' : 'offscreen', row: structuredClone(row) as Record<string, unknown> }
+      : undefined));
   }
   for (const [section, rows] of Object.entries(original.state.ext)) {
     if (!Array.isArray(rows)) continue;
@@ -912,5 +1045,5 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
   const final = validateCompilation(accepted, input);
   if (!final.ok) return final;
   const recovered = [...(shapeRecovered ? ['candidate shape'] : []), ...dropped];
-  return { ...final, ...(recovered.length ? { recovered } : {}) };
+  return { ...final, ...(recovered.length ? { recovered } : {}), ...(suggestions.length ? { suggestions } : {}) };
 }
