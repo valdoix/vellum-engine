@@ -727,7 +727,9 @@ export const STYLES = [
   ".vle-name--lift{text-shadow:0 0 6px rgba(255,255,255,.35)}",
   ".vle-star{color:var(--vle-gold);font-size:calc(10px * var(--vscale))}",
   ".vle-persona-mark{display:inline-flex;vertical-align:middle;margin-left:4px;padding:2px 6px;border:1px solid color-mix(in srgb,var(--v-info) 52%,transparent);border-radius:999px;background:color-mix(in srgb,var(--v-info) 12%,transparent);color:var(--v-info);font:700 calc(8px * var(--vscale))/1 var(--vmono);letter-spacing:.45px;text-transform:uppercase}",
-  ".vle-persona-btn{width:auto;padding:0 6px;color:var(--vi2);font:700 calc(8px * var(--vscale))/1 var(--vmono);letter-spacing:.25px;text-transform:uppercase;white-space:nowrap}",
+  // More specific than .vle-mini below: the persona action is a labeled control,
+  // not one of the fixed-size icon buttons.
+  ".vle-mini.vle-persona-btn{width:auto;padding:0 6px;color:var(--vi2);font:700 calc(8px * var(--vscale))/1 var(--vmono);letter-spacing:.25px;text-transform:uppercase;white-space:nowrap}",
   ".vle-persona-btn.on{color:var(--v-info);border-color:color-mix(in srgb,var(--v-info) 58%,transparent);background:color-mix(in srgb,var(--v-info) 14%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--v-info) 12%,transparent)}",
   ".vle-persona-btn:disabled{cursor:wait;opacity:.55}",
   ".vle-deceased{opacity:.55;font-size:calc(11px * var(--vscale))}",

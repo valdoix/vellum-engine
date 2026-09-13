@@ -663,6 +663,31 @@ ${JSON.stringify(c.state)}
     const filled = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(required) });
     expect((await compileState(i, null, undefined, filled)).ok).toBe(true);
   });
+  it('does not count subplot-linked tracks as extra ARGENT opening threads or arcs', () => {
+    const i = input();
+    i.argent = true;
+    i.livingWorld = 'sandbox';
+    i.prose = 'A courier delivers a blackmail letter while harbor guards close the gates and bell keepers prepare a warning.';
+    const c = candidate();
+    c.state.delta.threads = [
+      { op: 'new', name: 'The Blackmail Letter', note: 'The letter demands the royal seal', arc: 'The Royal Seal Crisis' },
+      { op: 'new', id: 'thread_harbor_watch', name: 'Harbor Watch', note: 'Harbor guards close the gates', arc: 'Harbor Lockdown' },
+      { op: 'new', id: 'thread_bell_watch', name: 'Bell Watch', note: 'Bell keepers prepare a warning', arc: 'Bell Alarm' },
+    ];
+    c.state.delta.arcs = [
+      { op: 'new', name: 'The Royal Seal Crisis', note: 'The blackmail threat puts the seal in danger' },
+      { op: 'new', name: 'Harbor Lockdown', note: 'The harbor is closing under pressure' },
+      { op: 'new', name: 'Bell Alarm', note: 'The warning network is mobilizing' },
+    ];
+    c.state.delta.offscreen = [
+      { op: 'new', id: 'harbor_watch', name: 'Harbor Watch', where: 'Harbor', gist: 'Harbor guards close the gates', thread: 'thread_harbor_watch', arc: 'Harbor Lockdown' },
+      { op: 'new', id: 'bell_watch', name: 'Bell Watch', where: 'Bell Tower', gist: 'Bell keepers prepare a warning', thread: 'Bell Watch', arc: 'Bell Alarm' },
+    ];
+    c.parallelWorldOps = Array.from({ length: 4 }, (_, index) => ({
+      op: 'start' as const, where: `Place ${index}`, activity: `World event ${index}`, evidence: `World event ${index}`,
+    }));
+    expect(argentRequirementErrors(c, i)).toEqual([]);
+  });
   it('keeps the Living/Active caps but removes Sandbox caps', () => {
     const makeRows = (count: number) => Array.from({ length: count }, (_, index) => ({
       op: 'new' as const, id: `watch_${index}`, name: `Watch ${index}`, where: 'Courtyard', gist: `Bell watch ${index}`,

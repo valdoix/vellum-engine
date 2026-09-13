@@ -126,18 +126,34 @@ export function argentRequirementErrors(candidate: StateCandidate, input: Compil
   const hasOpenThread = input.prior.threads.some(row => !/resolv/i.test(row.status || ''));
   const hasOpenArc = input.prior.arcs.some(row => !/resolv/i.test(row.status || ''));
   const needsOpeningPlot = !hasOpenThread && narrative.length >= 40 && inCharacter;
-  const threads = (candidate.state.delta.threads ?? []).filter((row: { op?: string }) => row.op === 'new');
+  const newSubplots = (candidate.state.delta.offscreen ?? []).filter((row: { op?: string }) => row.op === 'new');
+  const subplotThreadRefs = new Set(newSubplots.map((row: { thread?: string }) => trackTitleKey(row.thread ?? '')).filter(Boolean));
+  const threads = (candidate.state.delta.threads ?? []).filter((row: { op?: string; id?: string; name: string }) =>
+    row.op === 'new'
+    // Sandbox subplots may need their own durable plot tracks on the opening
+    // pass. They are not additional foreground opening candidates merely
+    // because the prior ledger is empty.
+    && !subplotThreadRefs.has(trackTitleKey(row.id ?? ''))
+    && !subplotThreadRefs.has(trackTitleKey(row.name)));
   const arcs = (candidate.state.delta.arcs ?? []).filter((row: { op?: string }) => row.op === 'new');
   const errors: string[] = [];
   if (needsOpeningPlot && threads.length !== 1) errors.push('ARGENT requires exactly one grounded opening thread when the plot ledger is empty');
-  if (needsOpeningPlot && !hasOpenArc && arcs.length !== 1) errors.push('ARGENT requires exactly one grounded opening parent arc when no parent arc exists');
-  if (needsOpeningPlot && !hasOpenArc && threads.length === 1 && arcs.length === 1 && (!threads[0]!.arc || trackTitleKey(threads[0]!.arc) !== trackTitleKey(arcs[0]!.name))) {
-    errors.push('ARGENT opening thread must link to the exact opening arc title');
+  if (needsOpeningPlot && !hasOpenArc) {
+    const openingArcRef = threads.length === 1 ? trackTitleKey(threads[0]!.arc ?? '') : '';
+    const openingArcs = openingArcRef
+      ? arcs.filter((row: { id?: string; name: string }) => openingArcRef === trackTitleKey(row.id ?? '') || openingArcRef === trackTitleKey(row.name))
+      : [];
+    // Only the arc actually linked by the foreground opener is the opening
+    // parent. Independent subplot arcs must not inflate this cardinality.
+    if ((threads.length === 1 && openingArcs.length !== 1) || (threads.length === 0 && arcs.length === 0)) {
+      errors.push('ARGENT requires exactly one grounded opening parent arc when no parent arc exists');
+    }
+    if (threads.length === 1 && openingArcs.length !== 1) errors.push('ARGENT opening thread must link to the exact opening arc title');
   }
   if (inCharacter && input.livingWorld === 'sandbox') {
-    const newSubplots = (candidate.state.delta.offscreen ?? []).filter((row: { op?: string }) => row.op === 'new').length;
+    const newSubplotCount = newSubplots.length;
     const parallelEvents = candidate.parallelOps.length + (candidate.parallelWorldOps?.length ?? 0);
-    if (newSubplots < 2) errors.push(`ARGENT Sandbox requires at least 2 new durable subplots; received ${newSubplots}`);
+    if (newSubplotCount < 2) errors.push(`ARGENT Sandbox requires at least 2 new durable subplots; received ${newSubplotCount}`);
     if (parallelEvents < 4) errors.push(`ARGENT Sandbox requires at least 4 parallel event operations; received ${parallelEvents}`);
   }
   return errors;
