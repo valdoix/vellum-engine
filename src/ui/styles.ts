@@ -1616,7 +1616,7 @@ export const STYLES = [
   ".vlv-bklist{display:flex;flex-direction:column;gap:5px;margin-bottom:4px}",
   ".vlv-bk{display:flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid var(--vle-gold-soft);border-radius:8px;background:rgba(22,20,16,.4)}",
   ".vlv-bk-n{flex:1;font-family:var(--vserif);font-size:14px;color:var(--vi)}",
-  ".vlv-bk-tag{font:600 9px/1 var(--vmono);text-transform:uppercase;color:var(--v-info);opacity:.7}.vlv-bk-tag.vault{color:var(--v-pos-i);opacity:1}.vlv-bk-tag.protected{color:var(--v-warn)}",
+  ".vlv-bk-tag{font:600 9px/1 var(--vmono);text-transform:uppercase;color:var(--v-info);opacity:.7}.vlv-bk-tag.vault{color:var(--v-pos-i);opacity:1}.vlv-bk-tag.shared{color:var(--v-info);opacity:1}",
   ".vlv-bk-ctl{display:inline-flex;align-items:center;gap:5px}",
   ".vlv-bk-att,.vlv-bk-claim{font:600 9px/1 var(--vmono);letter-spacing:.4px;color:var(--vi2);background:rgba(var(--vg-rgb),.08);border:1px solid rgba(var(--vg-rgb),.22);border-radius:6px;padding:4px 8px;cursor:pointer;white-space:nowrap}.vlv-bk-claim{color:var(--vle-gold);border-color:rgba(var(--vg-rgb),.4);background:rgba(var(--vg-rgb),.14)}.vlv-bk-claim:hover{background:rgba(var(--vg-rgb),.27)}",
   ".vlv-bk-att.on{color:var(--v-pos-i);border-color:color-mix(in srgb,var(--v-pos) 40%,transparent);background:color-mix(in srgb,var(--v-pos) 16%,transparent)}",

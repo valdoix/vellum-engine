@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { activeLoreEntries, adoptBookForChat, attachedLoreEntries, contentHash, extensionsFromEntry, keywordHash, makeExtensions, ownedBooks, ownedEntries, type LiteEntry, type VaultSnapshot } from '../src/host/worldbooks.js';
+import { activeLoreEntries, adoptBookForChat, attachedLoreEntries, contentHash, extensionsFromEntry, keywordHash, makeExtensions, ownedBooks, ownedEntries, setBookAttached, type LiteEntry, type VaultSnapshot } from '../src/host/worldbooks.js';
 
 const lite = (over: Partial<LiteEntry> = {}): LiteEntry => ({
   id: 'e1', bookId: 'b1', key: ['Alice'], keysecondary: [], content: 'Alice is a courier.', comment: 'Alice',
@@ -86,6 +86,22 @@ describe('worldbook ownership envelope', () => {
     };
     const entries = await attachedLoreEntries('chat-a', 'user-a');
     expect(entries.map(entry => entry.id)).toEqual(['visible']);
+  });
+
+  it('attaches the same lorebook to several chats without detaching either chat', async () => {
+    const chats: Record<string, any> = {
+      'chat-a': { id: 'chat-a', metadata: { chat_world_book_ids: ['existing-a'] } },
+      'chat-b': { id: 'chat-b', metadata: { chat_world_book_ids: ['existing-b'] } },
+    };
+    (globalThis as any).spindle = { chats: {
+      get: async (id: string) => structuredClone(chats[id]),
+      update: async (id: string, patch: any) => { chats[id] = { ...chats[id], ...patch }; return structuredClone(chats[id]); },
+    } };
+
+    expect(await setBookAttached('chat-a', 'shared-book', true, 'user-a')).toBe(true);
+    expect(await setBookAttached('chat-b', 'shared-book', true, 'user-a')).toBe(true);
+    expect(chats['chat-a'].metadata.chat_world_book_ids).toEqual(['existing-a', 'shared-book']);
+    expect(chats['chat-b'].metadata.chat_world_book_ids).toEqual(['existing-b', 'shared-book']);
   });
 
   it('reads the exact chat, character, persona, global, and observed activation scopes once each', async () => {

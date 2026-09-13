@@ -42,4 +42,13 @@ describe('Vault integrity audit', () => {
     expect(health.stats.entries).toBe(0);
     expect(health.issues.some((x) => x.code === 'body_conflict')).toBe(false);
   });
+
+  it('treats a lorebook shared from another chat as a valid attachment', () => {
+    const state = freshState();
+    const snap = snapshot([entry({ ownerChatId: 'chat-a' })]);
+    snap.books[0]!.ownerChatId = 'chat-a';
+    const health = auditVault(snap, 'chat-b', state);
+    const codes = new Set<string>(health.issues.map((issue) => issue.code));
+    expect(codes.has('foreign_attachment')).toBe(false);
+  });
 });

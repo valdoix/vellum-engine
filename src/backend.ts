@@ -4057,7 +4057,13 @@ const dispatch: Record<string, Handler> = {
         if (typeof p.disabled === 'boolean') patch.disabled = p.disabled;
         patch.extensions = extensionsFromEntry(existing, { category: String(p.category || existing.category || 'concepts'), source: existing.vellum ? (existing.source || 'manual') : 'manual', content: nextContent, key: nextKey, ownerChatId: chatId ?? existing.ownerChatId ?? '', vaultRole: existing.vaultRole ?? 'manual', overrideFields: [...overrides] });
         const r = await updateEntry(String(p.entryId), patch, uid); done(r.ok, r.ok ? {} : { reason: r.error });
-      } else if (p.op === 'entry_delete') { const r = await deleteEntry(String(p.entryId), uid); done(r.ok, r.ok ? {} : { reason: r.error }); }
+      } else if (p.op === 'entry_delete') {
+        const snap = await vaultSnapshot(chatId ?? '', uid);
+        const existing = snap.books.flatMap((b) => b.entries).find((e) => e.id === String(p.entryId));
+        if (!existing) { done(false, { reason: 'entry_not_found' }); return; }
+        if (existing.ownerChatId && existing.ownerChatId !== chatId) { done(false, { reason: 'foreign_owner' }); return; }
+        const r = await deleteEntry(String(p.entryId), uid); done(r.ok, r.ok ? {} : { reason: r.error });
+      }
       else if (p.op === 'entry_unlink') {
         // convert an auto-managed entry to hand-owned: keep vellum tag + category,
         // drop the source link so Tier-B sync never touches it again

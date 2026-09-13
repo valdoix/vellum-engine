@@ -15,15 +15,16 @@ import { formModal, confirmModal } from '../modal.js';
  */
 
 interface VCat { id: string; label: string; glyph: string; color: string; hidden: boolean; sync: string; source?: string; defaults: any }
-interface VEntry { id: string; bookId: string; key: string[]; keysecondary?: string[]; content: string; comment: string; constant?: boolean; disabled: boolean; vellum: boolean; category: string; source: string; link: string; pending: boolean; ownerChatId?: string; schemaVersion?: number; bodyState?: 'clean' | 'override' | 'conflict' | 'legacy'; overrideFields?: string[]; recursionKeys?: string[]; createdAt?: number; updatedAt?: number }
-interface VBook { id: string; name: string; attachedToChat: boolean; global: boolean; vellum: boolean; ownerChatId?: string; role?: string; entries: VEntry[] }
+export interface VEntry { id: string; bookId: string; key: string[]; keysecondary?: string[]; content: string; comment: string; constant?: boolean; disabled: boolean; vellum: boolean; category: string; source: string; link: string; pending: boolean; ownerChatId?: string; schemaVersion?: number; bodyState?: 'clean' | 'override' | 'conflict' | 'legacy'; overrideFields?: string[]; recursionKeys?: string[]; createdAt?: number; updatedAt?: number }
+export interface VBook { id: string; name: string; attachedToChat: boolean; global: boolean; vellum: boolean; ownerChatId?: string; role?: string; entries: VEntry[] }
 interface VHealthIssue { code: string; severity: 'error' | 'warning' | 'info'; message: string; entryId?: string; bookId?: string; link?: string }
 interface VHealth { score: number; issues: VHealthIssue[]; stats: { books: number; entries: number; conflicts: number; orphaned: number; owned: number } }
 interface VSnap { ok: boolean; chatId?: string; reason?: string; listFailed?: boolean; complete?: boolean; errors?: string[]; categories: VCat[]; books: VBook[]; activated: Array<{ id: string }>; suggestions?: Array<{ kind: string; id: string; label: string; reason: string }>; health?: VHealth }
 
 let _snap: VSnap | null = null;
 let _filter = 'all';
-let _scope: 'vault' | 'all' = 'vault';
+export type VaultScope = 'attached' | 'all';
+let _scope: VaultScope = 'attached';
 let _sort: 'az' | 'za' | 'new' | 'old' = 'az';
 let _book = 'all'; // lorebook filter ('all' or a book id)
 let _query = '';
@@ -58,10 +59,10 @@ export const vaultTab: Component<ChronicleState> = {
     if (_snap.listFailed && !_snap.books.length) return '<div class="vlm-comp-error">Couldn\u2019t load your lorebooks just now.<br><span>This is usually a temporary host or permission hiccup \u2014 try Refresh, or re-check the <b>world_books</b> permission.</span></div>';
     const cats = _snap.categories.filter((c) => !c.hidden);
     const all = allEntries();
-    const vaultOwned = all.filter((e) => e.vellum && (!_snap!.chatId || e.ownerChatId === _snap!.chatId));
-    // scope: 'vault' shows only VELLUM-managed entries (default, clean); 'all'
-    // shows every native lorebook entry too (for adopting existing lore).
-    const scoped = _scope === 'vault' ? vaultOwned : all;
+    // Attachment and ownership are separate. A lorebook may be attached to
+    // several chats while retaining one editing/sync owner.
+    const attachedEntries = entriesForVaultScope(_snap, 'attached');
+    const scoped = _scope === 'attached' ? attachedEntries : all;
     // lorebook filter: only the books that actually contribute scoped entries.
     const bookIds = Array.from(new Set(scoped.map((e) => e.bookId)));
     const bookCounts: Record<string, number> = {};
@@ -71,7 +72,7 @@ export const vaultTab: Component<ChronicleState> = {
     const counts: Record<string, number> = {};
     for (const e of entries) counts[e.category || 'uncat'] = (counts[e.category || 'uncat'] ?? 0) + 1;
     const scopeBar = '<div class="vlv-scopebar">'
-      + `<button class="vlv-scope${_scope === 'vault' ? ' on' : ''}" data-vscope="vault">\u2756 Vault <span class="vlv-cn">${vaultOwned.length}</span></button>`
+      + `<button class="vlv-scope${_scope === 'attached' ? ' on' : ''}" data-vscope="attached">\u2756 Attached <span class="vlv-cn">${attachedEntries.length}</span></button>`
       + `<button class="vlv-scope${_scope === 'all' ? ' on' : ''}" data-vscope="all">All lorebooks <span class="vlv-cn">${all.length}</span></button>`
       + '</div>';
     const bar = '<div class="vlv-catbar">'
@@ -107,7 +108,7 @@ export const vaultTab: Component<ChronicleState> = {
       const { slice, page, pages } = paginate('vault', shown);
       grid = sortBar + bookBar + '<div class="vlv-grid">' + slice.map((e) => entryCard(e, active.has(e.id))).join('') + '</div>' + pagerHtml('vault', page, pages);
     } else {
-      grid = sortBar + bookBar + '<div class="vle-empty sm">' + (_scope === 'vault' ? 'No Vault entries yet. <b>+ Entry</b> to author lore, or switch to <b>All lorebooks</b> to adopt existing entries.' : 'No entries here yet.') + '</div>';
+      grid = sortBar + bookBar + '<div class="vle-empty sm">' + (_scope === 'attached' ? 'No entries in the lorebooks attached to this chat yet. <b>+ Entry</b> to author lore, or open <b>Books</b> to attach one.' : 'No entries here yet.') + '</div>';
     }
     return top + healthPanel() + pendingTray(pending) + suggestStrip() + scopeBar + bar + grid;
   },
@@ -127,7 +128,7 @@ export const vaultTab: Component<ChronicleState> = {
     host.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       const sc = t.closest('[data-vscope]');
-      if (sc) { _scope = sc.getAttribute('data-vscope') as 'vault' | 'all'; _filter = 'all'; setPage('vault', 0); rerender(host); return; }
+      if (sc) { _scope = sc.getAttribute('data-vscope') as VaultScope; _filter = 'all'; setPage('vault', 0); rerender(host); return; }
       const so = t.closest('[data-vsort]');
       if (so) { _sort = so.getAttribute('data-vsort') as typeof _sort; setPage('vault', 0); rerender(host); return; }
       const bf = t.closest('[data-vbookfilter]');
@@ -150,6 +151,12 @@ export const vaultTab: Component<ChronicleState> = {
 };
 
 function allEntries(): VEntry[] { return (_snap?.books ?? []).flatMap((b) => b.entries.map((e) => ({ ...e, bookId: b.id }))); }
+
+/** Select entries by chat attachment, never by their editing owner. */
+export function entriesForVaultScope(snap: Pick<VSnap, 'books'>, scope: VaultScope): VEntry[] {
+  const books = scope === 'attached' ? snap.books.filter((book) => book.attachedToChat) : snap.books;
+  return books.flatMap((book) => book.entries.map((entry) => ({ ...entry, bookId: book.id })));
+}
 
 /** A cheap signature of every entry's MUTABLE fields (id + key + comment +
  * content length/head + disabled + category + pending). Changes whenever an
@@ -218,16 +225,20 @@ function entryCard(e: VEntry, firing: boolean): string {
   const clr = safeColor(cat?.color);
   const keys = e.key.join(', ');
   const integrity = e.bodyState === 'conflict' ? '<span class="vlv-integrity conflict">conflict</span>' : e.bodyState === 'override' ? '<span class="vlv-integrity override">user override</span>' : '';
+  const editable = !e.ownerChatId || e.ownerChatId === _snap?.chatId;
   return `<div class="vlv-entry${e.disabled ? ' off' : ''}${e.bodyState === 'conflict' ? ' conflict' : ''}" style="--c:${clr}">`
     + `<div class="vlv-entry-top"><span class="vlv-entry-cat">${esc(cat?.glyph ?? '\u2727')} ${esc(cat?.label ?? 'Uncategorized')}</span>`
     + (e.bookId ? `<span class="vlv-entry-book" title="Lorebook">\uD83D\uDCD5 ${esc(bookName(e.bookId))}</span>` : '')
     + (firing ? '<span class="vlv-firing">\u25C9 firing</span>' : '')
     + integrity
-    + `<span class="vlv-entry-ctl"><button class="vle-mini" data-ventry-edit data-id="${esc(e.id)}">\u270E</button><button class="vle-mini del" data-ventry-del data-id="${esc(e.id)}">\u2715</button></span></div>`
+    + (editable
+      ? `<span class="vlv-entry-ctl"><button class="vle-mini" data-ventry-edit data-id="${esc(e.id)}">\u270E</button><button class="vle-mini del" data-ventry-del data-id="${esc(e.id)}">\u2715</button></span>`
+      : '<span class="vlv-bk-tag shared" title="Shared from another chat; attachable here, editable by its owner chat">shared</span>')
+    + '</div>'
     + (e.comment ? `<div class="vlv-title">${esc(e.comment)}</div>` : '')
     + `<div class="vlv-keys">${keys ? esc(keys) : e.constant ? '<em>always on</em>' : '<em>no activation keywords</em>'}</div>`
     + `<div class="vlv-content">${esc(e.content).slice(0, 280)}${e.content.length > 280 ? '\u2026' : ''}</div>`
-    + (e.source && e.source !== 'manual' ? `<div class="vlv-badge">\u21BB auto \u00b7 ${esc(e.source)}<button class="vlv-unlink" data-ventry-unlink data-id="${esc(e.id)}" data-cat="${esc(e.category)}" title="Stop auto-updating (convert to hand-owned)">unlink</button></div>` : '')
+    + (e.source && e.source !== 'manual' ? `<div class="vlv-badge">\u21BB auto \u00b7 ${esc(e.source)}${editable ? `<button class="vlv-unlink" data-ventry-unlink data-id="${esc(e.id)}" data-cat="${esc(e.category)}" title="Stop auto-updating (convert to hand-owned)">unlink</button>` : ''}</div>` : '')
     + '</div>';
 }
 
@@ -294,9 +305,9 @@ function bookManager(): void {
     const foreign = (!!b.ownerChatId && b.ownerChatId !== chatId) || b.entries.some((e) => !!e.ownerChatId && e.ownerChatId !== chatId);
     const canClaim = !!chatId && b.attachedToChat && !foreign && !fullyOwned(b);
     return `<div class="vlv-bk" data-bk="${esc(b.id)}"><span class="vlv-bk-n">${esc(b.name)}</span>`
-    + `${owned ? '<span class="vlv-bk-tag vault">Vault</span>' : foreign ? '<span class="vlv-bk-tag protected" title="Owned by another chat">other chat</span>' : ''}`
+    + `${owned ? '<span class="vlv-bk-tag vault">Vault</span>' : foreign ? '<span class="vlv-bk-tag shared" title="Shared from another chat; it can stay attached here and remains editable by its owner chat">shared</span>' : ''}`
     + `${b.global ? '<span class="vlv-bk-tag">global</span>' : ''}`
-    + `<span class="vlv-bk-ctl"><button class="vle-mini" data-bk-rename data-id="${esc(b.id)}" data-name="${esc(b.name)}" title="Rename">\u270E</button>`
+    + `<span class="vlv-bk-ctl">${foreign ? '' : `<button class="vle-mini" data-bk-rename data-id="${esc(b.id)}" data-name="${esc(b.name)}" title="Rename">\u270E</button>`}`
     + (canClaim ? `<button class="vlv-bk-claim" data-bk-claim data-id="${esc(b.id)}" title="Add this lorebook and its existing entries to this chat's Vault">${owned ? 'Repair Vault' : '+ Vault'}</button>` : '')
     + `<button class="vlv-bk-att${b.attachedToChat ? ' on' : ''}" data-bk-attach data-id="${esc(b.id)}" data-attach="${b.attachedToChat ? '' : '1'}">${b.attachedToChat ? '\u2713 attached' : '+ attach'}</button></span></div>`
   }).join('') || '<div class="vle-empty sm">No lorebooks yet.</div>';

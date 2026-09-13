@@ -2,7 +2,7 @@ import type { ChronicleState, MemorySnapshot } from './types.js';
 import type { LiteEntry, VaultSnapshot } from '../host/worldbooks.js';
 
 export type VaultIssueCode =
-  | 'snapshot_incomplete' | 'foreign_attachment' | 'legacy_owner' | 'duplicate_link'
+  | 'snapshot_incomplete' | 'legacy_owner' | 'duplicate_link'
   | 'orphan_link' | 'body_conflict' | 'user_override' | 'missing_keys'
   | 'restricted_projection' | 'oversized_entry' | 'disabled_projection';
 
@@ -78,9 +78,8 @@ export function auditVault(snapshot: VaultSnapshot, chatId: string, state: Chron
 
   if (!snapshot.complete) issues.push({ code: 'snapshot_incomplete', severity: 'error', message: 'The host returned an incomplete lorebook snapshot. Automatic deletes and overwrites are paused.' });
   for (const b of snapshot.books) {
-    if (b.attachedToChat && b.vellum && b.ownerChatId && b.ownerChatId !== chatId) {
-      issues.push({ code: 'foreign_attachment', severity: 'warning', bookId: b.id, message: `${b.name} belongs to another chat but is attached here.` });
-    }
+    // Cross-chat attachment is valid. Ownership controls editing and automatic
+    // reconciliation; attachment controls where lore is visible.
     if (b.vellum && !b.ownerChatId) issues.push({ code: 'legacy_owner', severity: 'info', bookId: b.id, message: `${b.name} is a legacy VELLUM book without a chat owner. It will not be auto-reconciled.` });
   }
 
