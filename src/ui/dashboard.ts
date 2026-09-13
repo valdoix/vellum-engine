@@ -111,9 +111,12 @@ function statusBar(s: ChronicleState): string {
     s.scene.clock !== undefined ? clockTime(s.scene.clock) : (s.scene.time ? esc(s.scene.time) : ''),
     s.scene.weather ? esc(s.scene.weather) : '',
   ].filter(Boolean).join('  \u00b7  ');
-  const loc = s.scene.location
-    ? `<div class="vld-loc vld-hero">${esc(s.scene.location)}</div>`
-    : '<div class="vld-loc vld-hero vld-loc--none">\u2014</div>';
+  const sceneTitle = s.scene.title?.trim();
+  const loc = sceneTitle
+    ? `<div class="vld-scene-kicker">Scene ${s.scenes?.length || 1}</div><div class="vld-scene-title vld-hero">${esc(sceneTitle)}</div>${s.scene.location ? `<div class="vld-scene-location">${esc(s.scene.location)}</div>` : ''}`
+    : s.scene.location
+      ? `<div class="vld-loc vld-hero">${esc(s.scene.location)}</div>`
+      : '<div class="vld-loc vld-hero vld-loc--none">\u2014</div>';
   // Modern "app" hero: an eyebrow label + an inline tension pill (top-right),
   // so the hero reads as the mockup's scene card. Other chromes ignore these.
   let eyebrow = '', pill = '';

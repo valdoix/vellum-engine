@@ -35,7 +35,7 @@ const item = (shape: z.ZodRawShape) => z.array(z.object(shape).strict()).max(100
 const Delta = strict(ParsedState.shape.delta.removeCatch().unwrap()) as z.ZodObject<any>;
 export const CompilerState = z.object({
   turn: z.number().int().nonnegative(), day: z.number().int().nonnegative(),
-  scene: z.object({ loc: text, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), clock: z.number().int().min(0).max(1439), tension: z.number().min(0).max(10).optional(), weather: z.string().max(500).optional() }).strict(),
+  scene: z.object({ title: z.string().trim().min(1).max(100).optional(), transition: z.enum(['continue', 'scene', 'time_skip']).optional(), loc: text, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), clock: z.number().int().min(0).max(1439), tension: z.number().min(0).max(10).optional(), weather: z.string().max(500).optional() }).strict(),
   present: item({ id: name, presence: z.enum(['spotlight', 'periphery']).optional(), mood: z.string().max(500).optional(), doing: z.string().max(500).optional(), condition: z.string().max(500).optional(), thought: z.string().max(1200), traits: z.array(name).max(12).optional() }),
   // `parallel` remains engine-reconciled from operation ledgers. Durable
   // offscreen rows are permitted when Living World autonomy is active and are
@@ -722,7 +722,7 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
     ...state,
     turn: Number.isSafeInteger(state.turn) ? state.turn : input.turn,
     day: Number.isSafeInteger(state.day) ? state.day : input.prior.day,
-    scene: { ...rawScene, loc: typeof rawScene.loc === 'string' && rawScene.loc.trim() ? rawScene.loc : input.prior.scene.location, time, clock },
+    scene: { ...rawScene, ...(!rawScene.title && (!rawScene.transition || rawScene.transition === 'continue') && input.prior.scene.title ? { title: input.prior.scene.title } : {}), loc: typeof rawScene.loc === 'string' && rawScene.loc.trim() ? rawScene.loc : input.prior.scene.location, time, clock },
     present: Array.isArray(state.present) ? state.present : priorRows,
     delta: state.delta && typeof state.delta === 'object' && !Array.isArray(state.delta) ? state.delta : {},
     ext: state.ext && typeof state.ext === 'object' && !Array.isArray(state.ext) ? state.ext : {},

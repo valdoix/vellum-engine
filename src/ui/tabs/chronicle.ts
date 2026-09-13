@@ -66,7 +66,7 @@ const _chapExpanded = new Set<string>();
 // snapshot of open arcs refilled each render(), read by the arc-link click handler
 // (which runs in mount(), where render() state `s` is not in scope).
 let _arcSnapshot: Array<{ id: string; name: string; beats: string[] }> = [];
-let _sceneSnapshot = { location: '', time: '', weather: '', tension: 0 };
+let _sceneSnapshot = { title: '', location: '', time: '', weather: '', tension: 0 };
 let _timelineSnapshot = { maxTurn: 0 };
 
 /** First-sentence preview of a (possibly very long) stored turn text. We store
@@ -82,10 +82,11 @@ function oneLine(text: string, max = 160): string {
 }
 
 export const chronicleTab: Component<ChronicleState> = {
-  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.day}:${s.scene.location}:${s.scene.time}:${s.scene.clock ?? ''}:${s.scene.weather}:${s.scene.tension}:${s.scene.present.join(',')}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${Object.entries(s.timelineDayOverrides ?? {}).map(([t, d]) => t + '=' + d).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
+  version: (s) => `${_view}:${_tlKind}:${_tlDay}:${_pickMode}:${_pickTier}:${_pickAction}:${_picked.size}:${_threadExpanded.size}:${_beatSuggest.length}:${_turnLog.length}:${s.day}:${s.scene.id ?? ''}:${s.scene.title ?? ''}:${s.scene.location}:${s.scene.time}:${s.scene.clock ?? ''}:${s.scene.weather}:${s.scene.tension}:${s.scene.present.join(',')}:${s.arcs.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.threads.map((t) => t.id + t.status + t.name + '>' + t.beats.map((b) => b.replace(/\s+/g, '').length).join(',')).join(';')}:${s.memories.length}:${s.memories.filter((m) => m.tier === 'beat').map((m) => m.id + (m.ord ?? '') + (m.spine ? 's' : '')).join(',')}:${s.memories.filter((m) => m.tier !== 'beat').map((m) => m.id + (m.text ?? '').length + (m.detail ?? '').length).join(',')}:${s.knowledge.length}:${s.secrets.length}:${(s.scars ?? []).length}:${(s.lore ?? []).length}:${(s.items ?? []).length}:${s.turns}:${Object.entries(s.timelineDayOverrides ?? {}).map(([t, d]) => t + '=' + d).join(',')}:${(s.offscreen ?? []).map((o) => o.id + o.status + o.beats.length + (o.thread ?? '')).join(',')}:${(s.parallel ?? []).length}:${s.knowledge.map((k) => k.reliability[0] + (k.truth === 'false' ? 'F' : '')).join('')}`,
   render(s) {
     loreSnapshot = s.lore;
     _sceneSnapshot = {
+      title: s.scene.title ?? '',
       location: s.scene.location ?? '',
       time: s.scene.clock !== undefined ? clockTime(s.scene.clock) : (s.scene.time ?? ''),
       weather: s.scene.weather ?? '',
@@ -370,11 +371,12 @@ export const chronicleTab: Component<ChronicleState> = {
       }
       if (t.closest('[data-scene-edit]')) {
         formModal('Edit current scene', [
+          { key: 'title', label: 'Scene title', type: 'text', value: _sceneSnapshot.title, placeholder: 'The Door at Dawn' },
           { key: 'location', label: 'Location', type: 'text', value: _sceneSnapshot.location, placeholder: 'Current location' },
           { key: 'time', label: 'Time', type: 'text', value: _sceneSnapshot.time, placeholder: '19:38', hint: 'Exact 24-hour time. Names such as dusk are normalized.' },
           { key: 'weather', label: 'Weather / sky', type: 'text', value: _sceneSnapshot.weather, placeholder: 'clear, light rain, storm…' },
           { key: 'tension', label: 'Tension', type: 'number', min: 0, max: 10, step: 1, value: String(_sceneSnapshot.tension) },
-        ], (o) => cmd('scene_set', { location: o.location, time: o.time, weather: o.weather, tension: o.tension }));
+        ], (o) => cmd('scene_set', { title: o.title, location: o.location, time: o.time, weather: o.weather, tension: o.tension }));
         return;
       }
       const tcatch = t.closest('[data-thread-catchup]');
@@ -464,7 +466,9 @@ function establishingShot(s: ChronicleState): string {
     + '</div>';
   
   const location = s.scene.location || 'Unknown Location';
-  const title = `<h3 class="vle-hero-title">${esc(location)}</h3>`;
+  const title = s.scene.title
+    ? `<h3 class="vle-hero-title vle-hero-scene-title">${esc(s.scene.title)}</h3><div class="vle-hero-location">${esc(location)}</div>`
+    : `<h3 class="vle-hero-title">${esc(location)}</h3>`;
   
   // present cast with character colors — color the names directly
   const present = s.scene.present?.length

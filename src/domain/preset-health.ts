@@ -1,12 +1,12 @@
 import type { PromptBlockSnapshotDTO } from 'lumiverse-spindle-types';
 
-export const VELLUM_STATE_CONTRACT_VERSION = '2.2';
+export const VELLUM_STATE_CONTRACT_VERSION = '2.3';
 
 /** Canonical compatibility contract inserted into ordinary Loom presets. */
 export const VELLUM_STATE_BLOCK_CONTENT =
   '[VELLUM STATE] After the prose, on a new line, append ONE raw-JSON <vellum>...</vellum> block (the display layer hides it). '
   + 'Valid JSON, current scene plus deltas — omit unchanged optional fields. Fields:\n'
-  + '{ turn:int, day:int, scene:{loc,time:"HH:MM",clock:int 0-1439,tension:0-10,weather}, '
+  + '{ turn:int, day:int, scene:{title?,transition?:"continue"|"scene"|"time_skip",loc,time:"HH:MM",clock:int 0-1439,tension:0-10,weather}, '
   + 'present:[{id or name,mood,condition,doing,thought,traits,evidence}], '
   + 'delta:{ bonds:[{a,b,aff,trust,addCats:[],removeCats:[],why}], threads:[{op:new|advance|stall|resolve,name,note}], '
   + 'arcs:[{op:new|advance|stall|resolve,name,note}], journal:[{who,about,memory,kind,weight,sentiment}], '
@@ -14,9 +14,10 @@ export const VELLUM_STATE_BLOCK_CONTENT =
   + 'secrets:[{keeper,secret,from}], secretReveals:[{id:"exact prior secret id",to:[names]}], factionRelations:[{from,to,trust,respect,fear,hostility,why}], parallel:[{who,where,activity}] }, '
   + 'ext:{ scars:[{who,was,about}], codex:[{id:"existing id when refreshing",op:add|refresh,fact,tag}], inventory:[{who,item,op:gain|lose|give|scene|note,to,note}], timeline:[{event,day,time:"HH:MM",location,participants:[names],importance:minor|major|critical}] } }\n'
   + 'When a scene is active, scene.time and scene.clock MUST describe the same exact instant. present[] MUST include {{user}} whenever on-screen. Leave mood/condition/doing/thought empty and traits [] unless the VELLUM runtime PERSONA STATE option explicitly says ON; when ON, always populate current mood, condition, doing, concise first-person thought, and stable traits as tracker-only metadata regardless of player-agency mode. This does not authorize corresponding player behavior in prose. '
+  + 'Give a newly opened scene a concise, evocative, spoiler-free title grounded in its opening; preserve a user title exactly. Use transition scene or time_skip only for a supported boundary, otherwise continue. '
   + 'Include every named on-stage NPC with a concise first-person private thought limited to that NPC\'s knowledge. '
   + 'Use secretReveals with the existing id when prose discloses a tracked secret, and add recipient knowledge with its source; never recreate that secret as new. Refresh changed Codex facts by existing id. '
-  + 'Threads and arcs default to no change. Reuse an exact existing title and require a concrete note only when this prose directly changes that tracked situation; mentions, shared characters, mood/theme/location, and elapsed time are not progress. Thread stall requires a blocked attempt and resolve requires actual closure. An arc advances only from a changed child thread or a structural milestone in the arc itself. '
+  + 'Audit threads and arcs every turn, including turn 1: capture the strongest supported unresolved question and its broader parent arc when clear, and prefer one directly changed thread plus its linked arc later. Never invent a cadence or progress. Reuse an exact existing title and require a concrete note only when this prose directly changes that tracked situation; mentions, shared characters, mood/theme/location, and elapsed time are not progress. Thread stall requires a blocked attempt and resolve requires actual closure. An arc advances only from a changed child thread or a structural milestone in the arc itself. '
   + 'Always close the </vellum> tag.';
 
 export type StateContractKind = 'argent' | 'vellum' | 'compatibility' | 'unknown';

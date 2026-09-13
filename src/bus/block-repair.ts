@@ -34,7 +34,7 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'not just the scene line. A rich, accurate block is the goal; a bare skeleton loses continuity.\n'
   + 'DELTAS ONLY: include everything THIS turn establishes or changes, and omit what did not move. Shape:\n'
   + '{ "turn": int, "day": int, '
-  + '"scene": { "loc": str, "time": "zero-padded HH:MM", "clock": 0-1439 integer matching HH*60+MM, "tension": 0-10, "weather": str }, '
+  + '"scene": { "title": optional concise scene title, "transition": optional "continue"|"scene"|"time_skip", "loc": str, "time": "zero-padded HH:MM", "clock": 0-1439 integer matching HH*60+MM, "tension": 0-10, "weather": str }, '
   + '"present": [{ "id": "Name", "mood": str, "condition": str, "doing": str, "thought": str, "traits": [str], "evidence": "exact persona source quote" }], '
   + '"delta": { '
   + '"bonds": [{ "a": "Name", "b": "Name", "aff": -100..100, "trust": -100..100, "addCats": ["familial|romantic|alliance|rivalry|social"], "removeCats": ["familial|romantic|alliance|rivalry|social"], "why": str }], '

@@ -270,6 +270,14 @@
           "defaultValue": 1
         },
         {
+          "id": "compact_var_scene_header",
+          "name": "scene_header",
+          "label": "Prose Scene Headers",
+          "description": "Show a cinematic title card only when a new scene or time skip opens.",
+          "type": "switch",
+          "defaultValue": 1
+        },
+        {
           "id": "compact_var_living_world",
           "name": "living_world",
           "label": "Living World",
@@ -425,6 +433,27 @@
       "characterTagTrigger": []
     },
     {
+      "id": "arg-scene-header-contract",
+      "name": "Prose Scene Header",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": null,
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:arg-scene-header-contract-->\n{{if::{{var::scene_header}}}}[PROSE SCENE HEADER]\nOnly on a genuine new scene or time skip, begin prose with one standalone [SCENE|Concise Title|Location · Time] line. Keep both fields plain, concise, spoiler-free, and grounded; preserve an author title exactly. Omit it on continuation turns.{{/if}}\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    },
+    {
       "id": "compact-cat-state",
       "name": "VELLUM COMPACT — State",
       "role": "system",
@@ -448,7 +477,7 @@
       "depth": 0,
       "group": null,
       "marker": null,
-      "content": "<!--ARGENT-SOURCE:arg-state-schema-->\n{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}}}[VELLUM STATE — LEAN CONTRACT]\nAfter prose emit one raw-JSON <vellum>...</vellum> object. Use current scene/present plus supported changes only:\nThe root day integer is the canonical elapsed STORY DAY COUNT. Copy T0 unless time crosses a day boundary; add the proven elapsed-day delta. Never use a calendar day-of-month, month, year, weekday, turn, or clock value.\n{\"turn\":int,\"day\":int,\"scene\":{\"loc\":string,\"time\":\"HH:MM\",\"clock\":0..1439,\"tension\":0..10,\"weather\":string},\"present\":[{\"id\":name,\"mood\":string,\"condition\":string,\"doing\":string,\"thought\":string,\"traits\":[],\"evidence\":string}],\"delta\":{\"bonds\":[{\"a\":name,\"b\":name,\"aff\":signed,\"trust\":signed,\"addCats\":[],\"removeCats\":[],\"why\":string}],\"threads\":[{\"op\":\"new|advance|stall|resolve\",\"name\":string,\"note\":string}],\"arcs\":[{\"op\":\"new|advance|stall|resolve\",\"name\":string,\"note\":string}],\"journal\":[{\"who\":name,\"about\":name,\"memory\":string,\"kind\":string,\"weight\":\"trivial|minor|significant|defining\",\"sentiment\":string}],\"knowledge\":[{\"who\":name,\"fact\":string,\"about\":name,\"reliability\":\"knows|believes|suspects|wrong|unaware\",\"truth\":\"true|false|unknown\",\"source\":string}],\"secrets\":[{\"keeper\":name,\"secret\":string,\"from\":name}],\"secretReveals\":[{\"id\":\"exact prior id\",\"to\":[]}],\"factions\":[{\"name\":string,\"kind\":string,\"members\":[],\"standing\":signed}],\"factionRelations\":[{\"a\":string,\"b\":string,\"kind\":\"alliance|rivalry|war|vassal|trade\",\"standing\":signed,\"why\":string}],\"parallel\":[{\"who\":name,\"where\":string,\"activity\":string}]},\"ext\":{\"scars\":[],\"codex\":[{\"id\":\"existing id when refreshing\",\"op\":\"add|refresh\",\"fact\":string,\"tag\":string}],\"inventory\":[{\"who\":name,\"item\":string,\"op\":\"gain|lose|give|scene|note\",\"to\":name,\"note\":string}],\"timeline\":[{\"event\":string,\"day\":int,\"time\":\"HH:MM\",\"location\":string,\"participants\":[],\"importance\":\"minor|major|critical\"}],\"plant\":[],\"payoff\":[]}}\nOn an active scene, require exact scene time/clock and every named on-stage character. Put {{user}} first; leave their tracker fields empty unless runtime PERSONA STATE says ON. When ON, always populate mood, condition, doing, private first-person thought, and stable traits through tracker-only inference regardless of player-agency mode; no evidence quote is required. This metadata never authorizes corresponding behavior in prose. Every on-stage NPC gets one concise first-person thought within their knowledge. Bonds are signed deltas. Reuse exact thread/arc/secret/Codex IDs or titles. delta.parallel is the complete final T1 off-stage snapshot: preserve prior rows unless an actor-specific clause proves change; keep location unless depicted travel reaches an established destination; require a delivered access path for off-stage knowledge/reaction; exclude present actors and keep one row per actor. Use [] only when every row is resolved. Omit unsupported or unchanged optional fields; never guess.{{/if}}\n<!--/ARGENT-SOURCE-->",
+      "content": "<!--ARGENT-SOURCE:arg-state-schema-->\n{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}}}[VELLUM STATE — LEAN CONTRACT]\nAfter prose emit one raw-JSON <vellum>...</vellum> object. Use current scene/present plus supported changes only:\nThe root day integer is the canonical elapsed STORY DAY COUNT. Copy T0 unless time crosses a day boundary; add the proven elapsed-day delta. Never use a calendar day-of-month, month, year, weekday, turn, or clock value.\nThe scene object also accepts optional \"title\" and \"transition\":\"continue|scene|time_skip\". Give a newly opened scene a concise grounded title; preserve an author title exactly. Audit threads/arcs from turn 1 and record the strongest directly supported unresolved thread plus a parent arc when clear; never invent progress or a cadence.\n{\"turn\":int,\"day\":int,\"scene\":{\"loc\":string,\"time\":\"HH:MM\",\"clock\":0..1439,\"tension\":0..10,\"weather\":string},\"present\":[{\"id\":name,\"mood\":string,\"condition\":string,\"doing\":string,\"thought\":string,\"traits\":[],\"evidence\":string}],\"delta\":{\"bonds\":[{\"a\":name,\"b\":name,\"aff\":signed,\"trust\":signed,\"addCats\":[],\"removeCats\":[],\"why\":string}],\"threads\":[{\"op\":\"new|advance|stall|resolve\",\"name\":string,\"note\":string}],\"arcs\":[{\"op\":\"new|advance|stall|resolve\",\"name\":string,\"note\":string}],\"journal\":[{\"who\":name,\"about\":name,\"memory\":string,\"kind\":string,\"weight\":\"trivial|minor|significant|defining\",\"sentiment\":string}],\"knowledge\":[{\"who\":name,\"fact\":string,\"about\":name,\"reliability\":\"knows|believes|suspects|wrong|unaware\",\"truth\":\"true|false|unknown\",\"source\":string}],\"secrets\":[{\"keeper\":name,\"secret\":string,\"from\":name}],\"secretReveals\":[{\"id\":\"exact prior id\",\"to\":[]}],\"factions\":[{\"name\":string,\"kind\":string,\"members\":[],\"standing\":signed}],\"factionRelations\":[{\"a\":string,\"b\":string,\"kind\":\"alliance|rivalry|war|vassal|trade\",\"standing\":signed,\"why\":string}],\"parallel\":[{\"who\":name,\"where\":string,\"activity\":string}]},\"ext\":{\"scars\":[],\"codex\":[{\"id\":\"existing id when refreshing\",\"op\":\"add|refresh\",\"fact\":string,\"tag\":string}],\"inventory\":[{\"who\":name,\"item\":string,\"op\":\"gain|lose|give|scene|note\",\"to\":name,\"note\":string}],\"timeline\":[{\"event\":string,\"day\":int,\"time\":\"HH:MM\",\"location\":string,\"participants\":[],\"importance\":\"minor|major|critical\"}],\"plant\":[],\"payoff\":[]}}\nOn an active scene, require exact scene time/clock and every named on-stage character. Put {{user}} first; leave their tracker fields empty unless runtime PERSONA STATE says ON. When ON, always populate mood, condition, doing, private first-person thought, and stable traits through tracker-only inference regardless of player-agency mode; no evidence quote is required. This metadata never authorizes corresponding behavior in prose. Every on-stage NPC gets one concise first-person thought within their knowledge. Bonds are signed deltas. Reuse exact thread/arc/secret/Codex IDs or titles. delta.parallel is the complete final T1 off-stage snapshot: preserve prior rows unless an actor-specific clause proves change; keep location unless depicted travel reaches an established destination; require a delivered access path for off-stage knowledge/reaction; exclude present actors and keep one row per actor. Use [] only when every row is resolved. Omit unsupported or unchanged optional fields; never guess.{{/if}}\n<!--/ARGENT-SOURCE-->",
       "enabled": true,
       "isLocked": false,
       "position": "pre_history",
@@ -885,6 +914,75 @@
         }
       },
       {
+        "script_id": "argent-scene-header-display",
+        "name": "VELLUM Compact · Scene Header · Display",
+        "folder": "ARGENT LOOM",
+        "description": "Optionally renders a standalone scene marker as a cinematic, theme-aware title card without changing stored prose.",
+        "find_regex": "{{if::{{and::{{var::scene_header}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}^[ \\t]*\\[SCENE\\|([^|<>\\]\\r\\n]{1,100})\\|([^<>\\]\\r\\n]{0,160})\\][ \\t]*${{else}}(?!){{/if}}",
+        "replace_string": "<style>.arg-scene{--ash:color-mix(in srgb,var(--vg,#d6b76d) 74%,#fff);position:relative;max-width:760px;margin:18px auto 24px;padding:24px 26px 21px;overflow:hidden;isolation:isolate;border:1px solid color-mix(in srgb,var(--vg,#d6b76d) 30%,transparent);border-radius:16px;background:radial-gradient(circle at 82% 15%,color-mix(in srgb,var(--vg,#d6b76d) 18%,transparent),transparent 38%),linear-gradient(145deg,rgba(30,27,24,.96),rgba(11,13,18,.98));box-shadow:0 16px 42px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.05);color:var(--vi,#f2e9d9);text-align:center}.arg-scene:before,.arg-scene:after{content:'';position:absolute;left:9%;right:9%;height:1px;background:linear-gradient(90deg,transparent,var(--ash),transparent);opacity:.58}.arg-scene:before{top:13px}.arg-scene:after{bottom:12px}.arg-scene-k{font:700 9px/1.2 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:3.2px;text-transform:uppercase;color:var(--ash);opacity:.9}.arg-scene-t{margin:7px auto 5px;max-width:660px;font:600 clamp(24px,4.8vw,38px)/1.08 var(--vserif,'Cormorant Garamond',Georgia,serif);letter-spacing:.2px;text-wrap:balance;text-shadow:0 3px 22px rgba(0,0,0,.7)}.arg-scene-m{font:600 10px/1.4 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:1.8px;text-transform:uppercase;color:color-mix(in srgb,var(--vi,#f2e9d9) 72%,transparent)}</style><header class=\"arg-scene\"><div class=\"arg-scene-k\">New scene</div><div class=\"arg-scene-t\">$1</div><div class=\"arg-scene-m\">$2</div></header>",
+        "actions": [],
+        "flags": "gm",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "display"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "find",
+        "disabled": false,
+        "sort_order": 24,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "display",
+          "anchored": true,
+          "gated_by_active_preset_control": "scene_header",
+          "preserves_canonical_raw": true
+        }
+      },
+      {
+        "script_id": "argent-scene-header-semantic-pipeline",
+        "name": "VELLUM Compact · Scene Header · Prompt + Memory Normalize",
+        "folder": "ARGENT LOOM",
+        "description": "Keeps the scene title and place/time in later context while removing display markup.",
+        "find_regex": "^[ \\t]*\\[SCENE\\|([^|<>\\]\\r\\n]{1,100})\\|([^<>\\]\\r\\n]{0,160})\\][ \\t]*$",
+        "replace_string": "SCENE — $1\n$2",
+        "actions": [],
+        "flags": "gm",
+        "placement": [
+          "ai_output",
+          "memory"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "prompt"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 25,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "prompt_memory",
+          "semantic_preservation": true
+        }
+      },
+      {
         "script_id": "argent-speaker-recover-leading-attribution",
         "name": "VELLUM Compact · Speaker Tags · Recover Name Before Quote",
         "folder": "ARGENT LOOM",
@@ -1063,8 +1161,8 @@
       "policyCompiler": 1,
       "compactPreset": true,
       "promptTokenCeiling": 5000,
-      "sourceHash": "5eb0e76f3477e0b53682534dc577abbe5e34118d99322e539e7870811f08066d",
-      "dependencyHash": "d8dfc649952d4aa2331662fba2a468e4f7f682ac59903726e1a60921e239ae6b"
+      "sourceHash": "ef46df22df51ebcd78a7cddf7df4988f859f4b108a1018a983a31c7fc3519e1b",
+      "dependencyHash": "98371f1882639cea527d5dfd5eb04877a30cdee02f103817c049214d1a377de4"
     }
   }
 }

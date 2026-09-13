@@ -28,7 +28,7 @@ let _view: DView = 'directives';
 
 interface UIDirective { id: string; kind: string; text: string; target?: string; status: string; ttl: number; whenTurn?: number; whenDay?: number }
 let _directives: UIDirective[] = [];
-let _nextScene: { location?: string; day?: number; time?: string; note?: string } | null = null;
+let _nextScene: { kind?: 'scene' | 'time_skip'; title?: string; location?: string; day?: number; time?: string; duration?: string; note?: string } | null = null;
 // latest rendered state, so click handlers (location/plant forms) can read lists.
 let _state: ChronicleState | null = null;
 // collapsed location ids (their contained places hidden). Session-only UI state;
@@ -132,11 +132,14 @@ export const directorTab: Component<ChronicleState> = {
       if (t.closest('[data-ns-set]')) {
         const cur = _nextScene ?? {};
         formModal('Set Next Scene', [
+          { key: 'kind', label: 'Transition', type: 'select', value: cur.kind || 'scene', options: [{ value: 'scene', label: 'New scene' }, { value: 'time_skip', label: 'Time skip' }] },
+          { key: 'title', label: 'Title (optional)', type: 'text', value: cur.title || '', placeholder: 'Leave blank for the model to name it' },
           { key: 'location', label: 'Location (opens here)', type: 'text', value: cur.location || '' },
           { key: 'day', label: 'Day (optional)', type: 'number', min: 0, step: 1, value: cur.day !== undefined ? String(cur.day) : '' },
           { key: 'time', label: 'Time (optional)', type: 'text', value: cur.time || '' },
+          { key: 'duration', label: 'Elapsed time (optional)', type: 'text', value: cur.duration || '', placeholder: 'three days' },
           { key: 'note', label: 'Note (optional)', type: 'text', value: cur.note || '' },
-        ], (o) => { send({ type: 'vellum_set_next_scene', location: o.location || '', day: o.day !== '' ? Number(o.day) : undefined, time: o.time || '', note: o.note || '' }); });
+        ], (o) => { send({ type: 'vellum_set_next_scene', kind: o.kind, title: o.title || '', location: o.location || '', day: o.day !== '' ? Number(o.day) : undefined, time: o.time || '', duration: o.duration || '', note: o.note || '' }); });
         return;
       }
       if (t.closest('[data-ns-clear]')) { send({ type: 'vellum_set_next_scene', clear: true }); return; }
@@ -352,8 +355,11 @@ function nextSceneView(s: ChronicleState): string {
   const ns = _nextScene;
   const when = [ns.day !== undefined ? formatDate(ns.day, s.dateFormat || 'day', s) : '', ns.time || ''].filter(Boolean).join(', ');
   const card = `<div class="vle-nextscene">`
+    + (ns.title ? `<div class="vle-ns-title">${esc(ns.title)}</div>` : `<div class="vle-ns-title auto">Model names this scene</div>`)
+    + `<div class="vle-ns-row"><span class="vle-ns-k">mode</span><span class="vle-ns-v">${ns.kind === 'time_skip' ? 'Time skip' : 'New scene'}</span></div>`
     + (ns.location ? `<div class="vle-ns-row"><span class="vle-ns-k">where</span><span class="vle-ns-v">${esc(ns.location)}</span></div>` : '')
     + (when ? `<div class="vle-ns-row"><span class="vle-ns-k">when</span><span class="vle-ns-v">${esc(when)}</span></div>` : '')
+    + (ns.duration ? `<div class="vle-ns-row"><span class="vle-ns-k">elapsed</span><span class="vle-ns-v">${esc(ns.duration)}</span></div>` : '')
     + (ns.note ? `<div class="vle-ns-row"><span class="vle-ns-k">note</span><span class="vle-ns-v">${esc(ns.note)}</span></div>` : '')
     + `<div class="vle-ns-ctl"><button class="vle-add sm" data-ns-set>Edit</button><button class="vle-add sm danger" data-ns-clear>Clear</button></div></div>`;
   return head + intro + card + steer;

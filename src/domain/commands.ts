@@ -231,6 +231,7 @@ export function cmdEvents(type: string, payload: Record<string, any>, state: Chr
       // absolute so a user can repair a bad canonical clock in either direction;
       // model-authored scene events remain subject to the monotonic reducer gate.
       const patch: Record<string, unknown> = {};
+      if (e.title !== undefined && String(e.title).trim()) { patch.title = String(e.title).trim().slice(0, 100); patch.titleSource = 'user'; }
       if (e.location !== undefined) patch.location = String(e.location).trim();
       if (e.weather !== undefined) patch.weather = String(e.weather).trim();
       if (e.tension !== undefined && e.tension !== '') {

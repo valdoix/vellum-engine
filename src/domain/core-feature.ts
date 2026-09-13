@@ -234,6 +234,8 @@ export const coreFeature: Feature = {
       const exactTime = clockMinutes !== undefined ? clockTime(clockMinutes) : parsed.scene?.time;
       out.push({
         ...base(), kind: 'scene.set',
+        ...(parsed.scene?.title ? { title: parsed.scene.title, titleSource: 'model' as const } : {}),
+        ...(parsed.scene?.transition ? { transition: parsed.scene.transition } : {}),
         ...(parsed.scene?.loc ? { location: parsed.scene.loc } : {}),
         ...(exactTime ? { time: exactTime } : {}),
         ...(clockMinutes !== undefined ? { clock: clockMinutes } : {}),

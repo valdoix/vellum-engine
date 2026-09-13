@@ -1368,6 +1368,12 @@ export const STYLES = [
   ".vld-stat{font:600 calc(11px * var(--vscale))/1 var(--vmono);color:var(--vi2);background:rgba(var(--vg-rgb),.1);border:1px solid rgba(var(--vg-rgb),.24);border-radius:8px;padding:7px 11px;display:inline-flex;gap:6px}",
   ".vld-stat b{color:var(--vle-gold);font-weight:600;opacity:.85}",
   ".vld-loc{font-family:var(--vserif);font-size:calc(18px * var(--vscale));color:var(--vi);font-style:italic;line-height:1.3}",
+  ".vld-scene-kicker{font:700 calc(8px * var(--vscale))/1 var(--vmono);letter-spacing:2.4px;text-transform:uppercase;color:var(--vle-gold);opacity:.9;margin-bottom:2px}",
+  ".vld-scene-title{font:600 calc(27px * var(--vscale))/1.08 var(--vserif);letter-spacing:.15px;color:#fff;text-wrap:balance;max-width:90%;text-shadow:0 2px 18px rgba(0,0,0,.62)}",
+  ".vld-scene-location{font:600 calc(9px * var(--vscale))/1.3 var(--vmono);letter-spacing:1.7px;text-transform:uppercase;color:rgba(255,255,255,.78);margin-top:2px}",
+  ".vle-hero-scene-title{font-size:calc(28px * var(--vscale));letter-spacing:.1px;text-wrap:balance}",
+  ".vle-hero-location{font:600 calc(10px * var(--vscale))/1.3 var(--vmono);letter-spacing:1.8px;text-transform:uppercase;color:var(--vg);opacity:.78;margin-top:-3px}",
+  ".vle-ns-title{font:600 calc(20px * var(--vscale))/1.2 var(--vserif);color:var(--vi);margin-bottom:8px}.vle-ns-title.auto{font-style:italic;opacity:.58}",
   // redesigned hero scene block + single quiet meta line (replaces the 4 pills)
   ".vld-sec--hero{gap:calc(6px * var(--vscale));position:relative;overflow:hidden;isolation:isolate}",
   // hero text + meta ride ABOVE the illustrated band

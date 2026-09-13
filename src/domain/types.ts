@@ -234,6 +234,12 @@ export interface PresentChar {
 }
 
 export interface Scene {
+  id?: string;
+  title?: string;
+  titleSource?: 'user' | 'model' | 'fallback';
+  openedTurn?: number;
+  reason?: 'new_chat' | 'command' | 'prose' | 'time_skip';
+  pending?: boolean;
   location: string;
   time: string;
   clock?: number;  // ordered time-of-day (minutes-since-midnight, 0..1439);
@@ -243,6 +249,14 @@ export interface Scene {
   weather: string;
   present: string[];
   detail: PresentChar[];
+}
+
+export interface SceneRecord extends Scene {
+  id: string;
+  openedTurn: number;
+  openedDay: number;
+  closedTurn?: number;
+  elapsedMinutes?: number;
 }
 
 export interface ParallelEvent {
@@ -407,6 +421,7 @@ export interface ChronicleState {
   arcs: Track[];
   parallel: ParallelEvent[];
   offscreen: OffscreenThread[];
+  scenes: SceneRecord[];
   scene: Scene;
   day: number;
   turns: number;
@@ -501,6 +516,7 @@ export function freshState(): ChronicleState {
     arcs: [],
     parallel: [],
     offscreen: [],
+    scenes: [],
     scene: { location: '', time: '', tension: 0, weather: '', present: [], detail: [] },
     day: 0,
     turns: 0,

@@ -7,6 +7,7 @@ import type { VellumEvent } from '../core/events.js';
 import type { ChronicleState } from '../domain/types.js';
 import type { Tone } from '../domain/tone.js';
 import type { RelationLock } from '../domain/relation-lock.js';
+import { detectSceneTransition, parseSceneCommand, type SceneIntent } from '../domain/scene-transition.js';
 
 /**
  * The FOLD step, as a PURE function: given the prior derived state and a turn's
@@ -27,7 +28,7 @@ export interface FoldResult {
   dropped?: Record<string, number>;
 }
 
-export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number; personaState?: boolean; userInput?: string; agency?: import('../domain/preset-runtime.js').AgencyMode; parallelCanonLabels?: readonly string[]; livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox' }): FoldResult {
+export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number; personaState?: boolean; userInput?: string; agency?: import('../domain/preset-runtime.js').AgencyMode; parallelCanonLabels?: readonly string[]; livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox'; sceneIntent?: SceneIntent | null }): FoldResult {
   // Hash the complete active content. The state block lives at the end of the
   // message, so a prefix-only signature misses precisely the edits/swipes that
   // must invalidate canonical state on long replies.
@@ -42,6 +43,19 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // event as t1 and (b) makes the loop re-fold turns 2..N each GENERATION_ENDED,
   // duplicating bond deltas. Day is reconciled against narrative evidence below.
   const turn = turnNo;
+  const authorSceneIntent = opts?.sceneIntent ?? parseSceneCommand(opts?.userInput);
+  if (authorSceneIntent) {
+    parsed.scene ??= {};
+    parsed.scene.transition = authorSceneIntent.kind;
+    if (authorSceneIntent.title) parsed.scene.title = authorSceneIntent.title;
+    if (authorSceneIntent.location) parsed.scene.loc = authorSceneIntent.location;
+    const requestedClock = parseClock(authorSceneIntent.time);
+    if (requestedClock !== undefined) {
+      parsed.scene.clock = requestedClock;
+      parsed.scene.time = clockTime(requestedClock);
+    }
+    if (authorSceneIntent.day !== undefined) parsed.day = Math.max(prior.day ?? 0, Math.floor(authorSceneIntent.day));
+  }
   // DAY SANITY: the day counter is model-supplied and monotonic downstream, so a
   // bad value sticks. reconcileDay accepts a forward story-day count only when
   // stripped prose proves elapsed days, a rollover, or a skip. Calendar date
@@ -57,7 +71,7 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // The latest player input can establish a real time cut ("ten minutes later")
   // even when the reply does not repeat it. When either current-turn source gives
   // a completed duration, repair a frozen/under-advanced endpoint before folding.
-  const timeSource = [opts?.userInput, prose].filter(Boolean).join('\n');
+  const timeSource = [opts?.userInput, authorSceneIntent?.duration, authorSceneIntent?.note, prose].filter(Boolean).join('\n');
   let inferredClockRollover = false;
   if (parsed.scene && newClock !== undefined) {
     let floored = elapsedClockFloor(prior.day ?? 0, priorClock, Math.floor(parsed.day ?? prior.day ?? 0), newClock, timeSource);
@@ -98,13 +112,16 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   }
   const ctx: ExtractCtx = { turn, day, state: prior, prose, seq: nextSeq, ...(opts?.tone ? { tone: opts.tone } : {}), ...(opts?.userCanon ? { userCanon: opts.userCanon } : {}), ...(opts?.locks?.length ? { locks: opts.locks } : {}), ...(opts?.personaState ? { personaState: true } : {}), ...(opts?.userInput ? { userInput: opts.userInput } : {}), ...(opts?.agency ? { agency: opts.agency } : {}), ...(opts?.parallelCanonLabels?.length ? { parallelCanonLabels: opts.parallelCanonLabels } : {}), ...(opts?.livingWorld ? { livingWorld: opts.livingWorld } : {}) };
 
+  if (authorSceneIntent?.day !== undefined) day = Math.max(prior.day ?? 0, Math.floor(authorSceneIntent.day));
+  const transition = detectSceneTransition({ prior, parsed, prose, userInput: opts?.userInput, day, turn, intent: authorSceneIntent });
   const events: VellumEvent[] = [
     { seq: nextSeq(), turn, day, src: 'system', kind: 'turn.fold', sig },
+    ...(transition ? [{ seq: nextSeq(), turn, day, src: transition.titleSource === 'user' ? 'user' as const : 'model' as const, kind: 'scene.open' as const, id: transition.id, reason: transition.reason, ...(transition.title ? { title: transition.title } : {}), ...(transition.titleSource ? { titleSource: transition.titleSource } : {}), ...(transition.elapsedMinutes !== undefined ? { elapsedMinutes: transition.elapsedMinutes } : {}) }] : []),
     ...runExtractors(parsed, ctx),
   ];
   // advisory day flag (backward report / unexplained jump) — the existing
   // continuity.flag kind, so no schema change. Non-blocking; shows in the Log.
-  if (rec.flag) {
+  if (rec.flag && !authorSceneIntent) {
     events.push({ seq: nextSeq(), turn, day, src: 'system', kind: 'continuity.flag', code: rec.flag.code, detail: rec.flag.detail });
   }
   return { events, source, sig, ...(dropped ? { dropped } : {}) };

@@ -168,7 +168,7 @@ describe('VELLUM II — COMPACT preset', () => {
     expect(all).toContain('Attached chat lorebooks define objective setting canon');
     expect(all).toContain('never grant character knowledge');
     expect(all).toContain('[spk=Exact Cast Name]');
-    expect(preset.extensions.regex_scripts).toHaveLength(10);
+    expect(preset.extensions.regex_scripts).toHaveLength(12);
     expect(regexExport).toMatchObject({ type: 'lumiverse_regex_scripts' });
     expect(regexExport.scripts).toEqual(preset.extensions.regex_scripts);
   });

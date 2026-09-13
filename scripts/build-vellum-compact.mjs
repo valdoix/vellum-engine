@@ -100,6 +100,7 @@ const variables = [
     ['compact', 'Compact Reverie', 'compact'],
   ]),
   switchVar('npc_dialogue', 'NPC-to-NPC Dialogue', 'Let present NPCs speak and respond directly when motives intersect.', 1),
+  switchVar('scene_header', 'Prose Scene Headers', 'Show a cinematic title card only when a new scene or time skip opens.', 1),
   selectVar('living_world', 'Living World', 'Amount of grounded off-screen activity.', 'active', [
     ['off', 'Off', 'off'],
     ['minimal', 'Minimal', 'minimal'],
@@ -161,11 +162,14 @@ For every absent actor, start from their canonical T0 location, activity, and pe
 Open on live action, perception, or pressure. Prefer concrete behavior and sensory evidence over named emotion or explanation. Avoid recap, filler, generic reassurance, repetitive beats, melodramatic inflation, “not X but Y” scaffolds, stock body tells, and a packaged moral ending. End on an earned action, image, line, or changed pressure; never provide menu choices unless asked.`),
   block('arg-colored-dialogue-contract', 'Dialogue Speaker Contract', `{{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — CONTRACT]
 Wrap every live spoken quotation whose speaker is named or certain as [spk=Exact Cast Name]"complete passage"[/spk]. Open before the quote, close immediately after it, and keep narration outside. Use one speaker per wrapper. Never tag thought, documents, remembered speech, signs, roles, pronouns, or uncertain speakers.{{/if}}`),
+  block('arg-scene-header-contract', 'Prose Scene Header', `{{if::{{var::scene_header}}}}[PROSE SCENE HEADER]
+Only on a genuine new scene or time skip, begin prose with one standalone [SCENE|Concise Title|Location · Time] line. Keep both fields plain, concise, spoiler-free, and grounded; preserve an author title exactly. Omit it on continuation turns.{{/if}}`),
 
   category('compact-cat-state', 'VELLUM COMPACT — State', '#9b8066'),
   block('arg-state-schema', 'Inline State Schema', `{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}}}[VELLUM STATE — LEAN CONTRACT]
 After prose emit one raw-JSON <vellum>...</vellum> object. Use current scene/present plus supported changes only:
 The root day integer is the canonical elapsed STORY DAY COUNT. Copy T0 unless time crosses a day boundary; add the proven elapsed-day delta. Never use a calendar day-of-month, month, year, weekday, turn, or clock value.
+The scene object also accepts optional "title" and "transition":"continue|scene|time_skip". Give a newly opened scene a concise grounded title; preserve an author title exactly. Audit threads/arcs from turn 1 and record the strongest directly supported unresolved thread plus a parent arc when clear; never invent progress or a cadence.
 {"turn":int,"day":int,"scene":{"loc":string,"time":"HH:MM","clock":0..1439,"tension":0..10,"weather":string},"present":[{"id":name,"mood":string,"condition":string,"doing":string,"thought":string,"traits":[],"evidence":string}],"delta":{"bonds":[{"a":name,"b":name,"aff":signed,"trust":signed,"addCats":[],"removeCats":[],"why":string}],"threads":[{"op":"new|advance|stall|resolve","name":string,"note":string}],"arcs":[{"op":"new|advance|stall|resolve","name":string,"note":string}],"journal":[{"who":name,"about":name,"memory":string,"kind":string,"weight":"trivial|minor|significant|defining","sentiment":string}],"knowledge":[{"who":name,"fact":string,"about":name,"reliability":"knows|believes|suspects|wrong|unaware","truth":"true|false|unknown","source":string}],"secrets":[{"keeper":name,"secret":string,"from":name}],"secretReveals":[{"id":"exact prior id","to":[]}],"factions":[{"name":string,"kind":string,"members":[],"standing":signed}],"factionRelations":[{"a":string,"b":string,"kind":"alliance|rivalry|war|vassal|trade","standing":signed,"why":string}],"parallel":[{"who":name,"where":string,"activity":string}]},"ext":{"scars":[],"codex":[{"id":"existing id when refreshing","op":"add|refresh","fact":string,"tag":string}],"inventory":[{"who":name,"item":string,"op":"gain|lose|give|scene|note","to":name,"note":string}],"timeline":[{"event":string,"day":int,"time":"HH:MM","location":string,"participants":[],"importance":"minor|major|critical"}],"plant":[],"payoff":[]}}
 On an active scene, require exact scene time/clock and every named on-stage character. Put {{user}} first; leave their tracker fields empty unless runtime PERSONA STATE says ON. When ON, always populate mood, condition, doing, private first-person thought, and stable traits through tracker-only inference regardless of player-agency mode; no evidence quote is required. This metadata never authorizes corresponding behavior in prose. Every on-stage NPC gets one concise first-person thought within their knowledge. Bonds are signed deltas. Reuse exact thread/arc/secret/Codex IDs or titles. delta.parallel is the complete final T1 off-stage snapshot: preserve prior rows unless an actor-specific clause proves change; keep location unless depicted travel reaches an established destination; require a delivered access path for off-stage knowledge/reaction; exclude present actors and keep one row per actor. Use [] only when every row is resolved. Omit unsupported or unchanged optional fields; never guess.{{/if}}`),
 
@@ -220,6 +224,8 @@ const regexIds = new Set([
   'argent-state-memory-prune',
   'argent-reverie-display',
   'argent-reverie-private-pipeline',
+  'argent-scene-header-display',
+  'argent-scene-header-semantic-pipeline',
   'argent-speaker-recover-leading-attribution',
   'argent-speaker-recover-trailing-attribution',
   'argent-speaker-recover-colon-attribution',

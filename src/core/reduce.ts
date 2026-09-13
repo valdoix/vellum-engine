@@ -115,6 +115,29 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.politics !== undefined) s.tone.politics = e.politics;
       break;
     }
+    case 'scene.open': {
+      (s.scenes ??= []);
+      const priorId = s.scene.id;
+      if (priorId && priorId !== e.id) {
+        const previous = s.scenes.find(row => row.id === priorId);
+        if (previous && previous.closedTurn === undefined) previous.closedTurn = Math.max(0, e.turn - 1);
+      }
+      const sameScene = priorId === e.id;
+      const userTitleLocked = s.scene.titleSource === 'user' && sameScene;
+      s.scene = {
+        ...s.scene,
+        ...(!sameScene ? { title: undefined, titleSource: undefined } : {}),
+        id: e.id,
+        openedTurn: e.turn,
+        reason: e.reason,
+        pending: e.pending === true,
+        ...(!userTitleLocked && e.title ? { title: e.title, titleSource: e.titleSource ?? 'model' } : {}),
+      };
+      if (!e.pending && !s.scenes.some(row => row.id === e.id)) {
+        s.scenes.push({ ...s.scene, id: e.id, openedTurn: e.turn, openedDay: e.day, ...(e.elapsedMinutes !== undefined ? { elapsedMinutes: e.elapsedMinutes } : {}) });
+      }
+      break;
+    }
     case 'scene.set': {
       // MERGE MODE (prose extractor recovery): never rewrite the scene wholesale
       // or demote anyone — only ADD missing present ids and FILL empty detail
@@ -170,7 +193,12 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       // explicit clock wins; else derive from a NEW time string; else keep the
       // established clock (an unparseable/absent time never erases the order).
       const clock = clockRegressed ? priorClock : (incomingClock ?? s.scene.clock);
+      const incomingTitleAllowed = !!e.title
+        && !(s.scene.titleSource === 'user' && e.titleSource !== 'user')
+        && (e.titleSource === 'user' || !s.scene.title || e.transition === 'scene' || e.transition === 'time_skip' || s.scene.openedTurn === e.turn);
       s.scene = {
+        ...s.scene,
+        ...(incomingTitleAllowed ? { title: e.title, titleSource: e.titleSource ?? 'model' } : {}),
         location: e.location ?? s.scene.location,
         time: nextTime,
         ...(clock !== undefined ? { clock } : {}),
@@ -179,6 +207,15 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         present: e.present,
         detail: e.detail ? e.detail.map((d) => ({ id: d.id, ...(d.presence ? { presence: d.presence } : {}), ...(d.mood ? { mood: d.mood } : {}), ...(d.doing ? { doing: d.doing } : {}), ...(d.condition ? { condition: d.condition } : {}), ...(d.thought ? { thought: d.thought } : {}) })) : (e.present.length ? s.scene.detail.filter((d) => e.present.includes(d.id)) : s.scene.detail),
       };
+      if (s.scene.pending) delete s.scene.pending;
+      if (s.scene.id) {
+        (s.scenes ??= []);
+        let record = s.scenes.find(row => row.id === s.scene.id);
+        if (!record) {
+          record = { ...s.scene, id: s.scene.id, openedTurn: s.scene.openedTurn ?? e.turn, openedDay: e.day };
+          s.scenes.push(record);
+        } else Object.assign(record, s.scene);
+      }
       // Consume the repair grant only on a full authored scene snapshot. Merge
       // recovery events merely fill missing detail and must not close the window.
       if (repairingTime) delete s.sceneTimeRepairPending;

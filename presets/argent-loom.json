@@ -1259,6 +1259,27 @@
       "characterTagTrigger": []
     },
     {
+      "id": "arg-scene-header-contract",
+      "name": "Prose Scene Header",
+      "role": "system",
+      "color": null,
+      "depth": 0,
+      "group": "arg-cat-craft",
+      "marker": null,
+      "content": "<!--ARGENT-SOURCE:arg-scene-header-contract-->\n{{if::{{var::scene_header}}}}[PROSE SCENE HEADER — DISPLAY CONTRACT]\nOnly when this response opens a genuinely new scene or time skip, begin the visible prose with exactly one standalone line: [SCENE|Concise Title|Location · Time]. Use plain text with no brackets or pipes inside either field. The title is evocative, spoiler-free, and grounded in the opening; preserve an author-supplied title exactly. Omit the line on ordinary continuation turns. The display regex turns it into a cinematic card; never write HTML.{{/if}}\n<!--/ARGENT-SOURCE-->",
+      "enabled": true,
+      "isLocked": false,
+      "position": "pre_history",
+      "categoryMode": null,
+      "injectionTrigger": [
+        "normal",
+        "continue",
+        "regenerate",
+        "swipe"
+      ],
+      "characterTagTrigger": []
+    },
+    {
       "id": "arg-prose-doctrine",
       "name": "Prose Doctrine",
       "role": "system",
@@ -1897,7 +1918,7 @@
       "depth": 0,
       "group": "arg-cat-simulation",
       "marker": null,
-      "content": "<!--ARGENT-SOURCE:arg-significance-->\n{{if::{{var::state_on}}}}[DURABLE CHANGE FILTER]\nA record changes only when a future turn should behave differently because this turn happened. The prose must contain the evidence.\n\n- PRESENT is the final on-stage snapshot. {{user}} has no inferred inner/action fields; every named NPC thought is private and knowledge-bounded.\n- THREADS are actionable unresolved situations, not topics or characters. Default to unchanged. Reuse the exact title; require prior condition -> direct prose event -> different note. New opens a question/task/threat/promise; advance changes its conditions; stall follows a blocked attempt; resolve closes it. Preserve milestone, dependencies, blockers, and deadlines; do not advance through a closed causal gate. Mentions, shared characters/themes/places, time passage, repeated beats, and unrelated events fail.\n- ARCS are trajectories above threads, not turn counters. Advance only from a changed linked thread or a structural milestone/reversal/commitment whose own dependencies have cleared. Never stall an arc or spend one event across unrelated rows. Uncertainty means omission.\n- JOURNAL is what a specific person will carry into later choices; ordinary dialogue is insufficient. KNOWLEDGE needs a new/corrected belief and source. SECRETS need keeper, exact secret, and excluded audience. SCARS require a lasting change to future behavior.\n{{if::{{var::codex}}}}- CODEX proposes durable facts about the world. Mint no more than three in an ordinary turn; VELLUM labels model-minted notes provisional until user-confirmed.{{/if}}\n{{if::{{var::inventory}}}}- INVENTORY records named, narratively relevant items gained, lost, given, placed in a scene, or materially changed. It is not a quantity/weight ledger.{{/if}}\n- NPC INTENT stores goal, next step, constraints, destination/deadline, and status. AFFECT is situational, not personality. INTRODUCTION is a one-time distinct identity packet.\n- PLANTS are possibilities, not obligations. Track maturity, dependencies/blockers, and due/expiry when useful. Pay off only an eligible plant through prose; expiry may close it without forcing revelation.\n\nOmit unchanged fields. Never create a second tracker in prose, HTML, comments, or private variables.{{/if}}\n<!--/ARGENT-SOURCE-->",
+      "content": "<!--ARGENT-SOURCE:arg-significance-->\n{{if::{{var::state_on}}}}[DURABLE CHANGE FILTER]\nA record changes only when a future turn should behave differently because this turn happened. The prose must contain the evidence.\n\n- PRESENT is the final on-stage snapshot. {{user}} has no inferred inner/action fields; every named NPC thought is private and knowledge-bounded.\n- THREADS are actionable unresolved situations, not topics or characters. From turn 1, capture supported threads/arcs. Default to unchanged without evidence. Reuse the exact title; require prior condition -> direct prose event -> different note. New opens a question/task/threat/promise; advance changes its conditions; stall follows a blocked attempt; resolve closes it. Preserve gates; do not advance through a closed gate. Mentions, shared characters/themes/places, time passage, repeated beats, and unrelated events fail.\n- ARCS are trajectories above threads, not turn counters. Advance only from a changed linked thread or a structural milestone/reversal/commitment whose own dependencies have cleared. Never stall an arc or spend one event across unrelated rows.\n- JOURNAL is what a specific person will carry into later choices; ordinary dialogue is insufficient. KNOWLEDGE needs a new/corrected belief and source. SECRETS need keeper, exact secret, and excluded audience. SCARS require a lasting change to future behavior.\n{{if::{{var::codex}}}}- CODEX proposes durable facts about the world. Mint no more than three in an ordinary turn; VELLUM labels model-minted notes provisional until user-confirmed.{{/if}}\n{{if::{{var::inventory}}}}- INVENTORY records named, narratively relevant items gained, lost, given, placed in a scene, or materially changed. It is not a quantity/weight ledger.{{/if}}\n- NPC INTENT stores goal, next step, constraints, destination/deadline, and status. AFFECT is situational, not personality. INTRODUCTION is a one-time distinct identity packet.\n- PLANTS are possibilities, not obligations. Track maturity, dependencies/blockers, and due/expiry when useful. Pay off only an eligible plant through prose; expiry may close it without forcing revelation.\n\nOmit unchanged fields. Never create a second tracker in prose, HTML, comments, or private variables.{{/if}}\n<!--/ARGENT-SOURCE-->",
       "enabled": true,
       "isLocked": false,
       "position": "pre_history",
@@ -2109,7 +2130,7 @@
       "depth": 0,
       "group": "arg-cat-engine",
       "marker": null,
-      "content": "<!--ARGENT-SOURCE:arg-state-schema-->\n{{if::{{and::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}::{{eq::{{var::state_verbosity}}::lean}}}}}}[VELLUM STATE — LEAN CONTRACT]\nAfter prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing after it. No Markdown fence, comments, trailing commas, null placeholders, ellipses, or unsupported keys.\n\nUse only this compact shape; omit unchanged optional sections:\n{v?,turn?,day?,scene?:{loc?,time?,clock?,tension?,weather?},present?:[{id or name,presence?,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?,offscreen?},ext?:{scars?,codex?,inventory?,timeline?,intent?,affect?,introduction?,plant?,payoff?}}\n\nActive scenes require matching HH:MM/clock, e.g. \"time\":\"07:45\",\"clock\":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. Mark NPC presence spotlight|periphery. List every named on-stage NPC with a concise first-person thought limited to their knowledge. Bonds are signed deltas; knowledge needs a source. With Living World Active/Sandbox or Social/Politics Living/Autonomous, parallel is the preserved T1 snapshot. Offscreen rows are scheduled, purpose-led, and thread-linked. Keep under ~500 tokens.\n\n{{/if}}\n{{if::{{and::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}::{{eq::{{var::state_verbosity}}::full}}}}}}[VELLUM STATE — FULL CONTRACT]\nAfter the prose, emit exactly one <vellum>...</vellum> block containing raw valid JSON. Do not use a Markdown fence. No comments, trailing commas, null placeholders, ellipses, or prose inside the block. Nothing follows </vellum>.\n\nSUPPORTED TOP LEVEL:\n- v?: number\n- turn?: number — include only if VELLUM supplied the number; never guess\n- day?: integer — canonical elapsed STORY DAY COUNT. Copy T0 unless story time crosses a day boundary; add only the proven elapsed-day delta. Never write a displayed calendar day-of-month (October 17 means neither day:17 nor seventeen elapsed days).\n- scene?: {loc?, time?, clock?, tension?, weather?}\n- present?: [{id or name, presence?:spotlight|periphery, mood?, doing?, condition?, thought?, traits?, evidence?}]\n- delta?: {bonds?, threads?, arcs?, journal?, knowledge?, secrets?, factions?, factionRelations?, parallel?, offscreen?}\n- ext?: {scars?, codex?, inventory?, timeline?, intent?, affect?, introduction?, plant?, payoff?}\n\nFIELD SHAPES:\n- When Time Continuity is on, scene.time and scene.clock are mandatory in every active-scene snapshot. scene.time is exact zero-padded 24-hour HH:MM only; narrative labels such as \"morning\" are forbidden. scene.clock is the matching integer minutes after midnight, 0–1439. scene.tension: 0–10.\n- bond: {a,b,aff?,trust?,addCats?,removeCats?,label?,why?}. aff/trust are signed changes this turn. addCats/removeCats use only familial|romantic|alliance|rivalry|social. Never use \"cat\". Never set absolute in normal narration.\n- thread: {op:new|advance|stall|resolve,name,note?,milestone?,dependsOn?,blockedBy?,deadlineDay?,deadlineClock?}. arc uses new|advance|resolve with the same optional milestone gates.\n- journal: {who,about?,memory,kind?,weight?,sentiment?}. kind is interaction|promise|betrayal|gift|shared|wound|observation; weight is trivial|minor|significant|defining; sentiment is positive|negative|neutral|complex.\n- knowledge: {who,fact,about?,reliability?,truth?,source?}. reliability is knows|believes|suspects|wrong|unaware; truth is the STRING true|false|unknown.\n- secret: {keeper,secret,from?}. from is a name or array of excluded names.\n- faction: {name,kind?,status?,members?,standing?,trust?,why?}. status is present|active|mentioned|added. standing is a small signed change; trust is for initial establishment only.\n- faction relation: {a,b,kind?,standing?,why?}. kind is alliance|rivalry|war|vassal|trade. standing is a small signed change. Do not set absolute in ordinary narration.\n- parallel: {who?,where?,activity,note?}. Complete replace-all T1 snapshot. Preserve prior actor rows; change activity only from an actor-specific clause, location only through depicted travel, and off-stage knowledge only through a delivered path. Exclude final present, require where for who, keep one row per actor, and use [] only when all prior rows resolve.\n- offscreen: {op,id,name?,who?,where?,gist,thread?,pressure?,hooks?,stakes?,autonomy?,nextTurn?,nextDay?,nextClock?,deadlineDay?,deadlineClock?,dependsOn?,blockedBy?,trigger?}; op=new|advance|resolve. Active/Sandbox or Living/Autonomous; reuse ids, real schedules, exact threads, no present actors.\n- scar: {who,was,about?}. codex: {fact,tag?} or a fact string.\n- inventory: {who,item,op,to?,note?}; op is gain|lose|give|scene|note. Use who:\"world\" for a scene object.\n- intent: {who,goal,nextStep,constraints?,destination?,deadlineDay?,deadlineClock?,status?}; affect: {who,valence,arousal,control,direction,cause?}; introduction: {who,role,want,constraint,counterTrait,voiceTell,culturalAnchor,physicalDetail}. NPC-only; introduce once.\n- plant: {what,subject?,maturity?,minMaturity?,dependsOn?,blockedBy?,dueDay?,dueClock?,expiryDay?}. payoff: {what}|string; requires cleared gates in prose.\n\nPRESENT RULES: list {{user}} first. Blank when PERSONA STATE is OFF. When ON, always populate mood, condition, doing, concise first-person thought, and 2–4 stable traits through tracker-only inference from the turn, prior state, and characterization in every agency mode; evidence is optional. This metadata never authorizes player behavior in prose. List every named on-stage NPC with a knowledge-limited first-person thought.\n\nOmit empty delta sections except delta.parallel: when Living World requests a parallel snapshot, emit the full reconciled array even when it is [] so earlier positions are replaced rather than retained. Even when nothing durable changes, emit scene/present if available and omit other delta sections. On complex turns, include every supported change that the prose clearly establishes, but do not exceed the schema.{{/if}}\n<!--/ARGENT-SOURCE-->",
+      "content": "<!--ARGENT-SOURCE:arg-state-schema-->\n{{if::{{and::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}::{{eq::{{var::state_verbosity}}::lean}}}}}}[VELLUM STATE — LEAN CONTRACT]\nAfter prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing after it. No Markdown fence, comments, trailing commas, null placeholders, ellipses, or unsupported keys.\n\nUse only this compact shape; omit unchanged optional sections:\n{v?,turn?,day?,scene?:{title?,transition?:continue|scene|time_skip,loc?,time?,clock?,tension?,weather?},present?:[{id or name,presence?,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?,offscreen?},ext?:{scars?,codex?,inventory?,timeline?,intent?,affect?,introduction?,plant?,payoff?}}\n\nActive scenes require matching HH:MM/clock, e.g. \"time\":\"07:45\",\"clock\":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. Mark NPC presence spotlight|periphery. List every named on-stage NPC with a concise first-person thought limited to their knowledge. Bonds are signed deltas; knowledge needs a source. With Living World Active/Sandbox or Social/Politics Living/Autonomous, parallel is the preserved T1 snapshot. Offscreen rows are scheduled, purpose-led, and thread-linked. Keep under ~500 tokens.\n\n{{/if}}\n{{if::{{and::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}::{{eq::{{var::state_verbosity}}::full}}}}}}[VELLUM STATE — FULL CONTRACT]\nAfter the prose, emit exactly one <vellum>...</vellum> block containing raw valid JSON. Do not use a Markdown fence. No comments, trailing commas, null placeholders, ellipses, or prose inside the block. Nothing follows </vellum>.\n\nSUPPORTED TOP LEVEL:\n- v?: number\n- turn?: number — include only if VELLUM supplied the number; never guess\n- day?: integer — canonical elapsed STORY DAY COUNT. Copy T0 unless story time crosses a day boundary; add only the proven elapsed-day delta. Never write a displayed calendar day-of-month (October 17 means neither day:17 nor seventeen elapsed days).\n- scene?: {title?, transition?:continue|scene|time_skip, loc?, time?, clock?, tension?, weather?}. Give each newly opened scene a concise, evocative, spoiler-free title grounded in its opening; preserve an author title exactly.\n- present?: [{id or name, presence?:spotlight|periphery, mood?, doing?, condition?, thought?, traits?, evidence?}]\n- delta?: {bonds?, threads?, arcs?, journal?, knowledge?, secrets?, factions?, factionRelations?, parallel?, offscreen?}\n- ext?: {scars?, codex?, inventory?, timeline?, intent?, affect?, introduction?, plant?, payoff?}\n\nFIELD SHAPES:\n- When Time Continuity is on, scene.time and scene.clock are mandatory in every active-scene snapshot. scene.time is exact zero-padded 24-hour HH:MM only; narrative labels such as \"morning\" are forbidden. scene.clock is the matching integer minutes after midnight, 0–1439. scene.tension: 0–10.\n- bond: {a,b,aff?,trust?,addCats?,removeCats?,label?,why?}. aff/trust are signed changes this turn. addCats/removeCats use only familial|romantic|alliance|rivalry|social. Never use \"cat\". Never set absolute in normal narration.\n- thread: {op:new|advance|stall|resolve,name,note?,milestone?,dependsOn?,blockedBy?,deadlineDay?,deadlineClock?}. arc uses new|advance|resolve with the same optional milestone gates.\n- journal: {who,about?,memory,kind?,weight?,sentiment?}. kind is interaction|promise|betrayal|gift|shared|wound|observation; weight is trivial|minor|significant|defining; sentiment is positive|negative|neutral|complex.\n- knowledge: {who,fact,about?,reliability?,truth?,source?}. reliability is knows|believes|suspects|wrong|unaware; truth is the STRING true|false|unknown.\n- secret: {keeper,secret,from?}. from is a name or array of excluded names.\n- faction: {name,kind?,status?,members?,standing?,trust?,why?}. status is present|active|mentioned|added. standing is a small signed change; trust is for initial establishment only.\n- faction relation: {a,b,kind?,standing?,why?}. kind is alliance|rivalry|war|vassal|trade. standing is a small signed change. Do not set absolute in ordinary narration.\n- parallel: {who?,where?,activity,note?}. Complete replace-all T1 snapshot. Preserve prior actor rows; change activity only from an actor-specific clause, location only through depicted travel, and off-stage knowledge only through a delivered path. Exclude final present, require where for who, keep one row per actor, and use [] only when all prior rows resolve.\n- offscreen: {op,id,name?,who?,where?,gist,thread?,pressure?,hooks?,stakes?,autonomy?,nextTurn?,nextDay?,nextClock?,deadlineDay?,deadlineClock?,dependsOn?,blockedBy?,trigger?}; op=new|advance|resolve. Active/Sandbox or Living/Autonomous; reuse ids, real schedules, exact threads, no present actors.\n- scar: {who,was,about?}. codex: {fact,tag?} or a fact string.\n- inventory: {who,item,op,to?,note?}; op is gain|lose|give|scene|note. Use who:\"world\" for a scene object.\n- intent: {who,goal,nextStep,constraints?,destination?,deadlineDay?,deadlineClock?,status?}; affect: {who,valence,arousal,control,direction,cause?}; introduction: {who,role,want,constraint,counterTrait,voiceTell,culturalAnchor,physicalDetail}. NPC-only; introduce once.\n- plant: {what,subject?,maturity?,minMaturity?,dependsOn?,blockedBy?,dueDay?,dueClock?,expiryDay?}. payoff: {what}|string; requires cleared gates in prose.\n\nPRESENT RULES: list {{user}} first. Blank when PERSONA STATE is OFF. When ON, always populate mood, condition, doing, concise first-person thought, and 2–4 stable traits through tracker-only inference from the turn, prior state, and characterization in every agency mode; evidence is optional. This metadata never authorizes player behavior in prose. List every named on-stage NPC with a knowledge-limited first-person thought.\n\nOmit empty delta sections except delta.parallel: when Living World requests a parallel snapshot, emit the full reconciled array even when it is [] so earlier positions are replaced rather than retained. Even when nothing durable changes, emit scene/present if available and omit other delta sections. On complex turns, include every supported change that the prose clearly establishes, but do not exceed the schema.{{/if}}\n<!--/ARGENT-SOURCE-->",
       "enabled": true,
       "isLocked": false,
       "position": "pre_history",
@@ -2289,6 +2310,14 @@
           "label": "Colored dialogue",
           "description": "Require every named speaker’s live dialogue to use exact VELLUM cast-name tags so the extension can apply the correct character color.",
           "defaultValue": 1
+        },
+        {
+          "id": "arg_var_scene_header",
+          "name": "scene_header",
+          "label": "Prose Scene Headers",
+          "description": "Optionally show a cinematic title card when a new scene or time skip opens.",
+          "type": "switch",
+          "defaultValue": 0
         }
       ]
     },
@@ -2931,6 +2960,75 @@
         }
       },
       {
+        "script_id": "argent-scene-header-display",
+        "name": "ARGENT · Scene Header · Display",
+        "folder": "ARGENT LOOM",
+        "description": "Optionally renders a standalone scene marker as a cinematic, theme-aware title card without changing stored prose.",
+        "find_regex": "{{if::{{and::{{var::scene_header}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}^[ \\t]*\\[SCENE\\|([^|<>\\]\\r\\n]{1,100})\\|([^<>\\]\\r\\n]{0,160})\\][ \\t]*${{else}}(?!){{/if}}",
+        "replace_string": "<style>.arg-scene{--ash:color-mix(in srgb,var(--vg,#d6b76d) 74%,#fff);position:relative;max-width:760px;margin:18px auto 24px;padding:24px 26px 21px;overflow:hidden;isolation:isolate;border:1px solid color-mix(in srgb,var(--vg,#d6b76d) 30%,transparent);border-radius:16px;background:radial-gradient(circle at 82% 15%,color-mix(in srgb,var(--vg,#d6b76d) 18%,transparent),transparent 38%),linear-gradient(145deg,rgba(30,27,24,.96),rgba(11,13,18,.98));box-shadow:0 16px 42px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.05);color:var(--vi,#f2e9d9);text-align:center}.arg-scene:before,.arg-scene:after{content:'';position:absolute;left:9%;right:9%;height:1px;background:linear-gradient(90deg,transparent,var(--ash),transparent);opacity:.58}.arg-scene:before{top:13px}.arg-scene:after{bottom:12px}.arg-scene-k{font:700 9px/1.2 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:3.2px;text-transform:uppercase;color:var(--ash);opacity:.9}.arg-scene-t{margin:7px auto 5px;max-width:660px;font:600 clamp(24px,4.8vw,38px)/1.08 var(--vserif,'Cormorant Garamond',Georgia,serif);letter-spacing:.2px;text-wrap:balance;text-shadow:0 3px 22px rgba(0,0,0,.7)}.arg-scene-m{font:600 10px/1.4 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:1.8px;text-transform:uppercase;color:color-mix(in srgb,var(--vi,#f2e9d9) 72%,transparent)}</style><header class=\"arg-scene\"><div class=\"arg-scene-k\">New scene</div><div class=\"arg-scene-t\">$1</div><div class=\"arg-scene-m\">$2</div></header>",
+        "actions": [],
+        "flags": "gm",
+        "placement": [
+          "ai_output"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "display"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "find",
+        "disabled": false,
+        "sort_order": 24,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "display",
+          "anchored": true,
+          "gated_by_active_preset_control": "scene_header",
+          "preserves_canonical_raw": true
+        }
+      },
+      {
+        "script_id": "argent-scene-header-semantic-pipeline",
+        "name": "ARGENT · Scene Header · Prompt + Memory Normalize",
+        "folder": "ARGENT LOOM",
+        "description": "Keeps the scene title and place/time in later context while removing display markup.",
+        "find_regex": "^[ \\t]*\\[SCENE\\|([^|<>\\]\\r\\n]{1,100})\\|([^<>\\]\\r\\n]{0,160})\\][ \\t]*$",
+        "replace_string": "SCENE — $1\n$2",
+        "actions": [],
+        "flags": "gm",
+        "placement": [
+          "ai_output",
+          "memory"
+        ],
+        "scope": "global",
+        "scope_id": null,
+        "target": [
+          "prompt"
+        ],
+        "min_depth": null,
+        "max_depth": null,
+        "trim_strings": [],
+        "run_on_edit": true,
+        "substitute_macros": "none",
+        "disabled": false,
+        "sort_order": 25,
+        "owner_extension_identifier": null,
+        "metadata": {
+          "suite": "ARGENT LOOM",
+          "schema": "lumiverse-regex-v1",
+          "built_from_scratch": true,
+          "layer": "prompt_memory",
+          "semantic_preservation": true
+        }
+      },
+      {
         "script_id": "argent-artifact-display",
         "name": "ARGENT · Artifact · Display",
         "folder": "ARGENT LOOM",
@@ -3373,7 +3471,7 @@
     "vellum_engine": {
       "identifier": "vellum_engine",
       "policyCompiler": 1,
-      "sourceHash": "92cbdb3831683928f4da09ceb48c9888c3d791c9155754ba8fb3b101407b1898",
+      "sourceHash": "c7be65e1b4c30d0b1b0f437658fe33214f8c564d396582cd3ced9971986b5c90",
       "baseHash": "a362e8736db742b4a459704694c909206612ebf1b3c16c4d71a1318ad53216ca"
     }
   }

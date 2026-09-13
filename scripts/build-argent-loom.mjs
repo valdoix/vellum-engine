@@ -235,6 +235,7 @@ const controlVariables = [
   existingVar('genre2', { defaultValue: 'off' }),
   existingVar('dialogue', { defaultValue: 'balanced' }),
   switchVar('npc_dialogue', 'NPC-to-NPC Dialogue', 'Let present NPCs initiate, answer, interrupt, and act upon dialogue with one another when their motives intersect, without making the player the hub.', 1),
+  switchVar('scene_header', 'Prose Scene Headers', 'Optionally show a cinematic title card when a new scene or time skip opens.', 0),
   agencyVar,
   existingVar('distance', { defaultValue: 'intimate' }),
   existingVar('pacing', { defaultValue: 'measured' }),
@@ -310,7 +311,7 @@ const storyControls = variableGroup(['pov', 'length', 'tense', 'prose', 'stakes'
 const craftControls = variableGroup(['doctrine_strictness', 'metaphor', 'diction', 'sensory', 'filter_words', 'paragraph_shape', 'profanity', 'era', 'era_strictness', 'cast', 'antislop', 'antislop_focus', 'slop_proofreader', 'interiority']);
 const worldControls = variableGroup(['epistemic', 'living_world', 'time_continuity', 'world_texture', 'world_broadsheet', 'codex', 'inventory', 'romance', 'disposition', 'social', 'politics', 'failure_shape', 'reveal_cadence', 'world_law', 'antagonist_pressure', 'variance']);
 const engineControls = variableGroup(['reasoning_route', 'state_on', 'state_compiler', 'state_verbosity', 'native_memory', 'model_adapter', 'craft_anchor', 'agency_reminder']);
-const presentationControls = variableGroup(['nsfw_level', 'nsfl', 'hard_limits', 'vtk', 'vtk_cards', 'vtk_spectacle', 'dialogue_color']);
+const presentationControls = variableGroup(['nsfw_level', 'nsfl', 'hard_limits', 'vtk', 'vtk_cards', 'vtk_spectacle', 'dialogue_color', 'scene_header']);
 const groupedControls = [...storyControls, ...craftControls, ...worldControls, ...engineControls, ...presentationControls];
 if (groupedControls.length !== controlVariables.length || new Set(groupedControls.map((variable) => variable.name)).size !== controlVariables.length) {
   throw new Error('ARGENT control grouping must cover every control exactly once');
@@ -383,6 +384,9 @@ Hold one coherent voice for the entire response. Length changes how deeply the s
 For each live quote with a named or certain speaker, open [spk=Exact Cast Name] before the quote and close [/spk] after it. This markup stays mandatory in story prose and Engine Second Pass. Use one speaker per wrapper; keep narration outside. Example: Mara said, [spk=Mara]"Wait."[/spk]
 
 Never tag thought, documents, remembered speech, signs, roles, pronouns, uncertain speakers, or private/state sections. Markup never authorizes {{user}}'s speech. Before sending, scan for bare eligible quotes and repair them.{{/if}}`, { group: CAT_CRAFT }),
+
+  block('arg-scene-header-contract', 'Prose Scene Header', String.raw`{{if::{{var::scene_header}}}}[PROSE SCENE HEADER — DISPLAY CONTRACT]
+Only when this response opens a genuinely new scene or time skip, begin the visible prose with exactly one standalone line: [SCENE|Concise Title|Location · Time]. Use plain text with no brackets or pipes inside either field. The title is evocative, spoiler-free, and grounded in the opening; preserve an author-supplied title exactly. Omit the line on ordinary continuation turns. The display regex turns it into a cinematic card; never write HTML.{{/if}}`, { group: CAT_CRAFT }),
 
   block('arg-prose-doctrine', 'Prose Doctrine', String.raw`[CRAFT FLOOR — {{var::doctrine_strictness}}]
 - Enter on the live action; never recap or paraphrase {{user}}.
@@ -512,8 +516,8 @@ Ambient texture is evidence, not exposition: prefer one specific pressure with a
 A record changes only when a future turn should behave differently because this turn happened. The prose must contain the evidence.
 
 - PRESENT is the final on-stage snapshot. {{user}} has no inferred inner/action fields; every named NPC thought is private and knowledge-bounded.
-- THREADS are actionable unresolved situations, not topics or characters. Default to unchanged. Reuse the exact title; require prior condition -> direct prose event -> different note. New opens a question/task/threat/promise; advance changes its conditions; stall follows a blocked attempt; resolve closes it. Preserve milestone, dependencies, blockers, and deadlines; do not advance through a closed causal gate. Mentions, shared characters/themes/places, time passage, repeated beats, and unrelated events fail.
-- ARCS are trajectories above threads, not turn counters. Advance only from a changed linked thread or a structural milestone/reversal/commitment whose own dependencies have cleared. Never stall an arc or spend one event across unrelated rows. Uncertainty means omission.
+- THREADS are actionable unresolved situations, not topics or characters. From turn 1, capture supported threads/arcs. Default to unchanged without evidence. Reuse the exact title; require prior condition -> direct prose event -> different note. New opens a question/task/threat/promise; advance changes its conditions; stall follows a blocked attempt; resolve closes it. Preserve gates; do not advance through a closed gate. Mentions, shared characters/themes/places, time passage, repeated beats, and unrelated events fail.
+- ARCS are trajectories above threads, not turn counters. Advance only from a changed linked thread or a structural milestone/reversal/commitment whose own dependencies have cleared. Never stall an arc or spend one event across unrelated rows.
 - JOURNAL is what a specific person will carry into later choices; ordinary dialogue is insufficient. KNOWLEDGE needs a new/corrected belief and source. SECRETS need keeper, exact secret, and excluded audience. SCARS require a lasting change to future behavior.
 {{if::{{var::codex}}}}- CODEX proposes durable facts about the world. Mint no more than three in an ordinary turn; VELLUM labels model-minted notes provisional until user-confirmed.{{/if}}
 {{if::{{var::inventory}}}}- INVENTORY records named, narratively relevant items gained, lost, given, placed in a scene, or materially changed. It is not a quantity/weight ledger.{{/if}}
@@ -530,7 +534,7 @@ Omit unchanged fields. Never create a second tracker in prose, HTML, comments, o
 After prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing after it. No Markdown fence, comments, trailing commas, null placeholders, ellipses, or unsupported keys.
 
 Use only this compact shape; omit unchanged optional sections:
-{v?,turn?,day?,scene?:{loc?,time?,clock?,tension?,weather?},present?:[{id or name,presence?,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?,offscreen?},ext?:{scars?,codex?,inventory?,timeline?,intent?,affect?,introduction?,plant?,payoff?}}
+{v?,turn?,day?,scene?:{title?,transition?:continue|scene|time_skip,loc?,time?,clock?,tension?,weather?},present?:[{id or name,presence?,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?,offscreen?},ext?:{scars?,codex?,inventory?,timeline?,intent?,affect?,introduction?,plant?,payoff?}}
 
 Active scenes require matching HH:MM/clock, e.g. "time":"07:45","clock":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. Mark NPC presence spotlight|periphery. List every named on-stage NPC with a concise first-person thought limited to their knowledge. Bonds are signed deltas; knowledge needs a source. With Living World Active/Sandbox or Social/Politics Living/Autonomous, parallel is the preserved T1 snapshot. Offscreen rows are scheduled, purpose-led, and thread-linked. Keep under ~500 tokens.
 
@@ -542,7 +546,7 @@ SUPPORTED TOP LEVEL:
 - v?: number
 - turn?: number — include only if VELLUM supplied the number; never guess
 - day?: integer — canonical elapsed STORY DAY COUNT. Copy T0 unless story time crosses a day boundary; add only the proven elapsed-day delta. Never write a displayed calendar day-of-month (October 17 means neither day:17 nor seventeen elapsed days).
-- scene?: {loc?, time?, clock?, tension?, weather?}
+- scene?: {title?, transition?:continue|scene|time_skip, loc?, time?, clock?, tension?, weather?}. Give each newly opened scene a concise, evocative, spoiler-free title grounded in its opening; preserve an author title exactly.
 - present?: [{id or name, presence?:spotlight|periphery, mood?, doing?, condition?, thought?, traits?, evidence?}]
 - delta?: {bonds?, threads?, arcs?, journal?, knowledge?, secrets?, factions?, factionRelations?, parallel?, offscreen?}
 - ext?: {scars?, codex?, inventory?, timeline?, intent?, affect?, introduction?, plant?, payoff?}
@@ -804,6 +808,7 @@ const artifactThreePattern = String.raw`^\[(CODEX|LETTER|TEXT|HALO|DECREE|PORTRA
 const artifactOnePattern = String.raw`^\[(BROADSHEET|DRAMATIS)\|([\s\S]*?)\][ \t]*$`;
 const visualMarkerPattern = String.raw`<!--\s*VIS_(?:START|END)\s*-->`;
 const visualBlockPattern = String.raw`[ \t]*<!--\s*VIS_START\s*-->[\s\S]*?<!--\s*VIS_END\s*-->[ \t]*(?:\r?\n)?`;
+const sceneHeaderPattern = String.raw`^[ \t]*\[SCENE\|([^|<>\]\r\n]{1,100})\|([^<>\]\r\n]{0,160})\][ \t]*$`;
 // Match the extension's tolerant speaker-tag contract. The non-greedy identity
 // capture plus surrounding whitespace/quote handling guarantees data-spk contains
 // only the canonical cast name, never padding or literal quote characters. The
@@ -831,6 +836,8 @@ const argentRouteSentinel = String.raw`{{or::{{eq::{{var::reasoning_route}}::com
 const dialogueColorGateCondition = String.raw`{{and::{{var::dialogue_color}}::${argentRouteSentinel}}}`;
 const dialogueColorGateOpen = `{{if::${dialogueColorGateCondition}}}`;
 const dialogueColorGate = (pattern) => `${dialogueColorGateOpen}${pattern}{{else}}(?!){{/if}}`;
+const sceneHeaderGateOpen = `{{if::{{and::{{var::scene_header}}::${argentRouteSentinel}}}}`;
+const sceneHeaderGate = (pattern) => `${sceneHeaderGateOpen}${pattern}{{else}}(?!){{/if}}`;
 const slopCapturePattern = String.raw`<slop\b[^>]*>([\s\S]*?)<\/\s*slop\s*>`;
 const slopTagPattern = String.raw`<\/?\s*slop\b[^>]*>`;
 
@@ -838,6 +845,7 @@ const stateCardHtml = String.raw`<style>.arg-ledger{max-width:780px;margin:14px 
 const reverieCardHtml = String.raw`<style>.arg-reverie{max-width:760px;margin:12px auto;border-left:2px solid color-mix(in srgb,var(--vg,#cda84e) 70%,transparent);font-family:var(--vserif,'Cormorant Garamond',Georgia,serif)}.arg-reverie>summary{cursor:pointer;list-style:none;padding:8px 13px;color:var(--vi2,#bdb29d);font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.78}.arg-reverie>summary::-webkit-details-marker{display:none}.arg-reverie>summary::before{content:'◇ ';color:var(--vg,#cda84e)}.arg-reverie>div{padding:4px 14px 11px;color:var(--vi2,#bdb29d);font:italic 13px/1.6 var(--vserif,'Cormorant Garamond',Georgia,serif);white-space:pre-wrap;opacity:.82}</style><details class="arg-reverie"><summary>Reverie</summary><div>$1</div></details>`;
 const artifactCardHtml = String.raw`<style>.arg-art{--arg-accent:var(--vg,#cda84e);max-width:600px;margin:16px auto;overflow:hidden;border:1px solid color-mix(in srgb,var(--arg-accent) 34%,transparent);border-radius:12px;background:linear-gradient(145deg,rgba(33,29,22,.97),rgba(17,15,12,.98));box-shadow:0 10px 30px rgba(0,0,0,.24);color:var(--vi,#eadfca);font-family:var(--vserif,'Cormorant Garamond',Georgia,serif)}.arg-art[data-kind="TEXT"]{--arg-accent:#75aee8;max-width:430px}.arg-art[data-kind="HALO"]{--arg-accent:#72d9ec;font-family:var(--vmono,'JetBrains Mono',ui-monospace,monospace)}.arg-art[data-kind="DECREE"]{border-style:double;border-width:3px}.arg-art[data-kind="TAROT"]{--arg-accent:#b794e8;max-width:420px;text-align:center}.arg-art[data-kind="VERSE"]{max-width:480px;text-align:center}.arg-art[data-kind="TITLE"]{border-left:0;border-right:0;border-radius:0;text-align:center}.arg-art-head{padding:12px 17px 8px;border-bottom:1px solid color-mix(in srgb,var(--arg-accent) 22%,transparent)}.arg-art-kind{font:700 9px/1.2 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:2.4px;color:var(--arg-accent)}.arg-art-title{margin-top:3px;font-size:21px;line-height:1.2;color:var(--arg-accent)}.arg-art-body{padding:12px 18px 17px;font-size:15px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}</style><article class="arg-art" data-kind="$1"><header class="arg-art-head"><div class="arg-art-kind">$1</div><div class="arg-art-title">$2</div></header><div class="arg-art-body">$3</div></article>`;
 const spectacleCardHtml = String.raw`<style>.arg-spectacle{max-width:620px;margin:16px auto;padding:17px 20px;border:1px solid color-mix(in srgb,var(--vg,#cda84e) 36%,transparent);border-radius:8px;background:linear-gradient(160deg,rgba(36,31,23,.97),rgba(18,16,12,.98));box-shadow:0 10px 30px rgba(0,0,0,.24);color:var(--vi,#eadfca);font-family:var(--vserif,'Cormorant Garamond',Georgia,serif)}.arg-spectacle[data-kind="BROADSHEET"]{border-radius:2px}.arg-spectacle-title{text-align:center;color:var(--vg,#cda84e);font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase}.arg-spectacle-body{margin-top:10px;font-size:15px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}</style><article class="arg-spectacle" data-kind="$1"><div class="arg-spectacle-title">$1</div><div class="arg-spectacle-body">$2</div></article>`;
+const sceneHeaderHtml = String.raw`<style>.arg-scene{--ash:color-mix(in srgb,var(--vg,#d6b76d) 74%,#fff);position:relative;max-width:760px;margin:18px auto 24px;padding:24px 26px 21px;overflow:hidden;isolation:isolate;border:1px solid color-mix(in srgb,var(--vg,#d6b76d) 30%,transparent);border-radius:16px;background:radial-gradient(circle at 82% 15%,color-mix(in srgb,var(--vg,#d6b76d) 18%,transparent),transparent 38%),linear-gradient(145deg,rgba(30,27,24,.96),rgba(11,13,18,.98));box-shadow:0 16px 42px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.05);color:var(--vi,#f2e9d9);text-align:center}.arg-scene:before,.arg-scene:after{content:'';position:absolute;left:9%;right:9%;height:1px;background:linear-gradient(90deg,transparent,var(--ash),transparent);opacity:.58}.arg-scene:before{top:13px}.arg-scene:after{bottom:12px}.arg-scene-k{font:700 9px/1.2 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:3.2px;text-transform:uppercase;color:var(--ash);opacity:.9}.arg-scene-t{margin:7px auto 5px;max-width:660px;font:600 clamp(24px,4.8vw,38px)/1.08 var(--vserif,'Cormorant Garamond',Georgia,serif);letter-spacing:.2px;text-wrap:balance;text-shadow:0 3px 22px rgba(0,0,0,.7)}.arg-scene-m{font:600 10px/1.4 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:1.8px;text-transform:uppercase;color:color-mix(in srgb,var(--vi,#f2e9d9) 72%,transparent)}</style><header class="arg-scene"><div class="arg-scene-k">New scene</div><div class="arg-scene-t">$1</div><div class="arg-scene-m">$2</div></header>`;
 
 const regexScripts = [
   regexScript({
@@ -887,6 +895,29 @@ const regexScripts = [
     target: ['prompt'],
     sortOrder: 21,
     metadata: { layer: 'prompt_memory', literal_only: true },
+  }),
+  regexScript({
+    scriptId: 'argent-scene-header-display',
+    name: 'ARGENT · Scene Header · Display',
+    description: 'Optionally renders a standalone scene marker as a cinematic, theme-aware title card without changing stored prose.',
+    findRegex: sceneHeaderGate(sceneHeaderPattern),
+    replaceString: sceneHeaderHtml,
+    flags: 'gm',
+    substituteMacros: 'find',
+    sortOrder: 24,
+    metadata: { layer: 'display', anchored: true, gated_by_active_preset_control: 'scene_header', preserves_canonical_raw: true },
+  }),
+  regexScript({
+    scriptId: 'argent-scene-header-semantic-pipeline',
+    name: 'ARGENT · Scene Header · Prompt + Memory Normalize',
+    description: 'Keeps the scene title and place/time in later context while removing display markup.',
+    findRegex: sceneHeaderPattern,
+    replaceString: 'SCENE — $1\n$2',
+    flags: 'gm',
+    placement: ['ai_output', 'memory'],
+    target: ['prompt'],
+    sortOrder: 25,
+    metadata: { layer: 'prompt_memory', semantic_preservation: true },
   }),
   regexScript({
     scriptId: 'argent-artifact-display',
@@ -1183,7 +1214,7 @@ const enabledChars = blocks.filter((entry) => entry.enabled).reduce((total, entr
 // Raw storage contains both mutually-exclusive Lean and Full contracts. The
 // assembled default includes only Lean, so cap the serialized graph separately
 // from the runtime budget reported by VELLUM's macro-aware estimator.
-assert(Math.ceil(enabledChars / 4) <= 13500, `Serialized prompt graph too large: ${Math.ceil(enabledChars / 4)} estimated tokens`);
+assert(Math.ceil(enabledChars / 4) <= 13800, `Serialized prompt graph too large: ${Math.ceil(enabledChars / 4)} estimated tokens`);
 
 assert(new Set(regexScripts.map((entry) => entry.script_id)).size === regexScripts.length, 'Duplicate regex script id');
 assert(regexScripts.every((entry) => !entry.script_id.startsWith('vellum2-')), 'Inherited VELLUM II regex leaked into ARGENT');
@@ -1192,11 +1223,12 @@ assert(new Set(regexScripts.map((entry) => entry.sort_order)).size === regexScri
 const validPlacements = new Set(['user_input', 'ai_output', 'world_info', 'reasoning', 'memory']);
 const validTargets = new Set(['prompt', 'response', 'display']);
 const validMacroModes = new Set(['none', 'find', 'raw', 'escaped', 'after']);
-const resolveDialogueColorGate = (source, enabled, activeArgent = true) => {
-  const open = dialogueColorGateOpen;
+const resolveDisplayGate = (source, enabled, activeArgent = true) => {
+  const open = source.startsWith(dialogueColorGateOpen) ? dialogueColorGateOpen
+    : source.startsWith(sceneHeaderGateOpen) ? sceneHeaderGateOpen : '';
   const split = '{{else}}';
   const close = '{{/if}}';
-  if (!source.startsWith(open) || !source.endsWith(close)) return source;
+  if (!open || !source.endsWith(close)) return source;
   const body = source.slice(open.length, -close.length);
   const at = body.lastIndexOf(split);
   const active = enabled && activeArgent;
@@ -1213,7 +1245,7 @@ for (const script of regexScripts) {
   assert(script.scope === 'global' && script.scope_id === null, `Regex ${script.script_id} has inconsistent global scope`);
   assert(script.metadata?.built_from_scratch === true, `Regex ${script.script_id} lacks ARGENT provenance`);
   try {
-    new RegExp(script.substitute_macros === 'find' ? resolveDialogueColorGate(script.find_regex, true) : script.find_regex, script.flags);
+    new RegExp(script.substitute_macros === 'find' ? resolveDisplayGate(script.find_regex, true) : script.find_regex, script.flags);
   } catch (error) {
     throw new Error(`Regex ${script.script_id} does not compile: ${error.message}`);
   }
@@ -1222,7 +1254,7 @@ for (const script of regexScripts) {
 const transformWith = (scriptId, input, dialogueColor = true, activeArgent = true) => {
   const script = regexScripts.find((entry) => entry.script_id === scriptId);
   assert(script, `Missing regex fixture target ${scriptId}`);
-  const find = script.substitute_macros === 'find' ? resolveDialogueColorGate(script.find_regex, dialogueColor, activeArgent) : script.find_regex;
+  const find = script.substitute_macros === 'find' ? resolveDisplayGate(script.find_regex, dialogueColor, activeArgent) : script.find_regex;
   return input.replace(new RegExp(find, script.flags), script.replace_string);
 };
 
@@ -1234,6 +1266,12 @@ assert(!transformWith('argent-state-memory-prune', '[VELLUM]{"journal":[] }[/VEL
 const reverieFixture = '<reverie>Authority: preserve choice\nReality: one room</reverie>\nThe latch settles.';
 assert(transformWith('argent-reverie-display', reverieFixture).includes('class="arg-reverie"'), 'Reverie display fixture failed');
 assert(transformWith('argent-reverie-private-pipeline', reverieFixture).trim() === 'The latch settles.', 'Reverie pipeline fixture failed');
+
+const sceneHeaderFixture = '[SCENE|Ash at Dawn|North Gate · 06:10]\nRain silvered the stones.';
+assert(transformWith('argent-scene-header-display', sceneHeaderFixture).includes('class="arg-scene"'), 'Scene-header display fixture failed');
+assert(transformWith('argent-scene-header-semantic-pipeline', sceneHeaderFixture).startsWith('SCENE — Ash at Dawn\nNorth Gate · 06:10'), 'Scene-header semantic fixture failed');
+assert(transformWith('argent-scene-header-display', sceneHeaderFixture, false) === sceneHeaderFixture, 'Scene-header renderer ignored the disabled control');
+assert(transformWith('argent-scene-header-display', '[SCENE|<img src=x onerror=alert(1)>|Hall]') === '[SCENE|<img src=x onerror=alert(1)>|Hall]', 'Scene-header renderer accepted HTML-bearing captures');
 
 const artifactFixture = 'Before\n[LETTER|Mara|The west gate is watched.\nCome alone.\n]\nAfter';
 const artifactDisplayFixture = transformWith('argent-artifact-display', artifactFixture);

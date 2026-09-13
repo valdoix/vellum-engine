@@ -59,6 +59,7 @@ import { FACT_MERGE_SYS, buildFactMergePrompt, parseFactMergeReply, validateFact
 import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type VaultEntryLite } from './domain/vault-intel.js';
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
 import { embedParallelCommand, hasParallelCommand, materializeParallelBatch, parallelCommandInjection, scrubParallelCommands, stripParallelCommand } from './domain/parallel-command.js';
+import { parseSceneCommand, sceneIntentInjection, scrubSceneCommands, type SceneIntent, type SceneTransitionKind } from './domain/scene-transition.js';
 import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
@@ -494,7 +495,7 @@ async function hardLimitsInjection(chatId: string): Promise<string> {
 // --- Next-scene setter: the author's where/when for the UPCOMING turn. Stored
 // as a chat var, injected as a strong (but non-teleport) steer, then cleared
 // after one generation so it never persists.
-interface NextScene { location?: string; day?: number; time?: string; note?: string }
+interface NextScene { kind?: SceneTransitionKind; title?: string; location?: string; day?: number; time?: string; duration?: string; note?: string }
 async function readNextScene(chatId: string): Promise<NextScene | null> {
   try { const raw = await getChatVar(chatId, 'vellum_next_scene'); if (!raw) return null; const o = JSON.parse(raw); return (o && typeof o === 'object') ? o as NextScene : null; } catch { return null; }
 }
@@ -504,22 +505,35 @@ async function clearNextScene(chatId: string): Promise<void> {
 async function nextSceneInjection(chatId: string, state?: import('./domain/types.js').ChronicleState): Promise<string> {
   const ns = await readNextScene(chatId);
   if (!ns) return '';
-  const where = ns.location ? `Location: ${ns.location}.` : '';
-  const dayLabel = ns.day !== undefined && ns.day !== null
-    ? (state ? formatDate(ns.day, state.dateFormat || 'day', state) : `Day ${ns.day}`)
-    : '';
-  const when = [dayLabel, ns.time || ''].filter(Boolean).join(', ');
-  const whenS = when ? `${when}.` : '';
-  const note = ns.note ? ` ${ns.note}` : '';
-  const body = [where, whenS].filter(Boolean).join(' ') + note;
-  if (!body.trim()) return '';
-  return '[NEXT SCENE \u2014 the author sets where/when this turn opens. Open the scene here and honor it. This frames the OPENING; it does not teleport characters who would plausibly be elsewhere.] ' + body.trim();
+  if (!state) return '';
+  return sceneIntentInjection({ kind: ns.kind ?? 'scene', source: 'director', ...ns }, state);
+}
+
+function nextSceneIntent(value: NextScene | null): SceneIntent | null {
+  return value ? { kind: value.kind ?? 'scene', source: 'director', ...value } : null;
+}
+
+async function ensureOpeningScene(chatId: string): Promise<void> {
+  const log = await loadLog(chatId);
+  if (log.events.some(event => event.kind === 'scene.open')) return;
+  const messages = await getRawMessages(chatId).catch(() => []);
+  const hasAssistant = Array.isArray(messages) && messages.some((message: any) => String(message?.role ?? '').toLowerCase() === 'assistant' && String(message?.content ?? '').trim());
+  if (hasAssistant || log.events.length) return;
+  await append(chatId, [{ seq: nextSeqLocal(), turn: 0, day: 0, src: 'system', kind: 'scene.open', id: 'scn_0_' + hashStr(chatId).slice(0, 8), reason: 'new_chat', pending: true } as VellumEvent]);
+}
+
+async function openForkScene(chatId: string): Promise<void> {
+  const state = await loadState(chatId);
+  if (state.scene.pending && state.scene.reason === 'new_chat') return;
+  const inheritedFromSceneId = state.scene.id;
+  await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'system', kind: 'scene.open', id: `scn_${state.turns || 0}_${hashStr(chatId + ':fork').slice(0, 8)}`, reason: 'new_chat', pending: true, ...(inheritedFromSceneId ? { inheritedFromSceneId } : {}) } as VellumEvent]);
 }
 
 async function foldChatInner(chatId: string, userId: string | null, snapshot?: AssistantSnapshot, forceRollbackTo?: number): Promise<void> {
   const transcript = await foldTranscript(chatId, snapshot);
   const msgs = transcript.turns;
   if (!msgs.length) return;
+  const pendingNextScene = await readNextScene(chatId);
   // Resolve the exact active preset's output controls once for this fold. This
   // turns state/reverie validation into a real contract instead of guessing from
   // whichever tags happened to survive in the response.
@@ -854,7 +868,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     const folded = parallelFoldEvents !== null
       ? { events: parallelFoldEvents, source: 'json' as const, sig: sigOf(content), dropped: undefined }
       : structuredStateEnabled
-      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, livingWorld: parallelMode, ...(dayCap !== undefined ? { dayCap } : {}) })
+      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, livingWorld: parallelMode, ...(turnNo === msgs.length && pendingNextScene ? { sceneIntent: nextSceneIntent(pendingNextScene) } : {}), ...(dayCap !== undefined ? { dayCap } : {}) })
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     const { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {
@@ -1145,6 +1159,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   // anything new). Only emitted when a deep pass was actually expected, so a
   // permission-less / block-only turn shows just the single phase-1 completion.
   if (willExtract) spindle.sendToFrontend?.({ type: 'vellum_fold_progress', chatId, phase: 2, total: 2, added: extracted }, userId ?? currentUser() ?? undefined);
+  if (pendingNextScene && added > 0) await clearNextScene(chatId);
   void maybeAutoSummarize(chatId, userId);
   void maybeVaultSync(chatId, userId);
   void maybeTidyThreads(chatId, userId);
@@ -2086,9 +2101,10 @@ async function wireCapabilitiesInner(): Promise<void> {
         const refreshText = proseRefreshInjection(rawOut, stripScaffold);
         let parallelText = '';
         let parallelCommandText = '';
+        const sceneCommandIntent = [...rawOut].reverse().reduce<SceneIntent | null>((found, message) => found ?? (message?.role === 'user' && typeof message.content === 'string' ? parseSceneCommand(message.content) : null), null);
         // Consume current and historical command lines from this transient
         // prompt copy. The saved conversation remains untouched.
-        let out = scrubParallelCommands(scrubProseRefreshCommands(rawOut));
+        let out = scrubSceneCommands(scrubParallelCommands(scrubProseRefreshCommands(rawOut)));
         // Race the entire injection build against a hard deadline. If the build
         // (host warm + up to 4 controller calls) stalls, we return the untouched
         // messages so a slow host API can never hang the chat or eat the budget.
@@ -2141,6 +2157,7 @@ async function wireCapabilitiesInner(): Promise<void> {
             }
           }
           const state = await loadState(chatId);
+          const sceneCommandText = sceneIntentInjection(sceneCommandIntent, state);
           parallelCommandText = parallelCommandInjection(rawOut, state, turnContract?.vtkCards ? (turnContract.argent ? 'artifact' : 'vtk') : 'plain');
           parallelText = parallelCommandText;
           const personaStateOn = await readPersonaStateEnabled(chatId);
@@ -2196,12 +2213,13 @@ async function wireCapabilitiesInner(): Promise<void> {
           }
           if (!state.turns && !Object.keys(state.cast).length) {
             const lorebookRecall = recallLorebooksForTurn(await activeLorePromise, state, out, context);
-            const initialText = [lorebookRecall.text, personaStateText, dialogueText, refreshText, parallelCommandText].filter(Boolean).join('\n\n');
+            const initialNextSceneText = await nextSceneInjection(chatId, state);
+            const initialText = [lorebookRecall.text, sceneCommandText, initialNextSceneText, personaStateText, dialogueText, refreshText, parallelCommandText].filter(Boolean).join('\n\n');
             if (!initialText) return out;
             const rec = recordInjection(chatId, 0, initialText, lorebookRecall.ids, { source: lorebookRecall.text ? 'lorebook' : refreshText ? 'prose-refresh' : 'persona-state' });
             try { spindle.sendToFrontend?.({ type: 'vellum_injection_push', chatId, record: rec }, uid); } catch { /* best effort */ }
             const initialMessages = [
-              ...((lorebookRecall.text || refreshText || parallelText || personaStateHead || dialogueText) ? [{ role: 'system', content: [lorebookRecall.text, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
+              ...((lorebookRecall.text || sceneCommandText || initialNextSceneText || refreshText || parallelText || personaStateHead || dialogueText) ? [{ role: 'system', content: [lorebookRecall.text, sceneCommandText, initialNextSceneText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n') }] : []),
               ...out,
               ...(personaStateTail ? [{ role: 'system', content: personaStateTail }] : []),
             ];
@@ -2318,7 +2336,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           // Refresh goes last inside VELLUM's system injection so it is the
           // freshest style instruction while every continuity/output contract
           // above it remains binding.
-          const injText = [limitsText, inj.text, lorebookRecall.text, locText, driftText, moodText, npcText, offText, livingText, lockText, plantText, calText, spineText, nextSceneText, dirText, blockExampleText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, lorebookRecall.text, locText, driftText, moodText, npcText, offText, livingText, lockText, plantText, calText, spineText, sceneCommandText, nextSceneText, dirText, blockExampleText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
           if (!injText && !personaStateText) return out;
           const loggedText = [injText, parallelEmbeddedAt >= 0 ? parallelCommandText : '', personaStateTail, personaStateEmbeddedAt >= 0 ? personaStateText : ''].filter(Boolean).join('\n\n');
           const rec = recordInjection(chatId, state.turns || 0, loggedText, [...inj.recallIds, ...lorebookRecall.ids], { source: inj.source, trace: inj.trace ?? inj.treeTrace });
@@ -2520,7 +2538,10 @@ try {
     const userKey = userId ?? '__single_user__';
     const previous = _activeChatByUser.get(userKey) ?? null;
     if (previous && previous !== next) pruneChatState(previous);
-    if (next) { _activeChatByUser.set(userKey, next); invalidate(next); }
+    if (next) {
+      _activeChatByUser.set(userKey, next); invalidate(next);
+      void ensureOpeningScene(next).then(() => userId ? broadcastState(next, userId) : undefined).catch((e) => spindle.log?.warn?.('[vellum_engine] opening scene: ' + ((e as Error)?.message ?? e)));
+    }
     else _activeChatByUser.delete(userKey);
     if (userId) spindle.sendToFrontend({ type: 'vellum_preview_chat_resolved', chatId: next ?? '' }, userId);
   }));
@@ -2531,6 +2552,7 @@ try {
   }
   _lifecycleDisposers.push(spindle.on('CHAT_FORKED', (payload: ChatForkedPayloadDTO, userId?: string) => {
     invalidate(payload.forkedChatId);
+    void openForkScene(payload.forkedChatId).catch(() => {});
     scheduleReconcile(payload.forkedChatId, userId);
   }));
   _lifecycleDisposers.push(spindle.on('EXTENSION_UNLOADED', () => {
@@ -2742,6 +2764,7 @@ const dispatch: Record<string, Handler> = {
     // (tone, hide, traversal, …) which are chat vars — orthogonal to the event log.
     // Gating on logVersion would skip re-sending settings when the log hadn't
     // changed, so the UI's toggles would revert to their module defaults.
+    try { await ensureOpeningScene(chatId); } catch { /* best effort */ }
     try { await foldChat(chatId, uid); } catch { /* best effort */ }
     await broadcastState(chatId, uid);
   },
@@ -3489,9 +3512,12 @@ const dispatch: Record<string, Handler> = {
     if (clear) { await clearNextScene(chatId); }
     else {
       const ns: Record<string, unknown> = {};
+      if (p?.kind === 'time_skip' || p?.kind === 'scene') ns.kind = p.kind;
+      if (p?.title !== undefined && String(p.title).trim()) ns.title = String(p.title).trim().slice(0, 100);
       if (p?.location !== undefined && String(p.location).trim()) ns.location = String(p.location).trim().slice(0, 120);
       if (Number.isFinite(p?.day)) ns.day = Number(p.day);
       if (p?.time !== undefined && String(p.time).trim()) ns.time = String(p.time).trim().slice(0, 60);
+      if (p?.duration !== undefined && String(p.duration).trim()) ns.duration = String(p.duration).trim().slice(0, 80);
       if (p?.note !== undefined && String(p.note).trim()) ns.note = String(p.note).trim().slice(0, 200);
       try { await setChatVar(chatId, 'vellum_next_scene', Object.keys(ns).length ? JSON.stringify(ns) : ''); } catch { /* best effort */ }
     }

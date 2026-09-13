@@ -7,7 +7,7 @@ import { z } from 'zod';
  * version-skewed log is caught at load, not deep in a reducer.
  */
 
-export const SCHEMA_VERSION = 25 as const;
+export const SCHEMA_VERSION = 26 as const;
 
 /** Where an assertion came from. Drives precedence (user wins) + weighting. */
 export const Src = z.enum(['model', 'user', 'living', 'scan', 'import', 'system']);
@@ -55,12 +55,15 @@ export const ToneSocial = z.enum(['off', 'reactive', 'living', 'autonomous']);
 export const TonePolitics = z.enum(['off', 'living', 'autonomous']);
 export const EvToneSet = z.object({ ...base, kind: z.literal('tone.set'), romance: ToneRomance.optional(), disposition: ToneDisposition.optional(), social: ToneSocial.optional(), politics: TonePolitics.optional() });
 export const PresentDetail = z.object({ id: z.string(), name: z.string().optional(), presence: z.enum(['spotlight', 'periphery']).optional(), mood: z.string().optional(), doing: z.string().optional(), condition: z.string().optional(), thought: z.string().optional() });
+export const SceneTitleSource = z.enum(['user', 'model', 'fallback']);
+export const SceneOpenReason = z.enum(['new_chat', 'command', 'prose', 'time_skip']);
+export const EvSceneOpen = z.object({ ...base, kind: z.literal('scene.open'), id: z.string(), title: z.string().max(100).optional(), titleSource: SceneTitleSource.optional(), reason: SceneOpenReason, pending: z.boolean().optional(), elapsedMinutes: z.number().int().nonnegative().optional(), inheritedFromSceneId: z.string().optional() });
 // `mergeDetail` = a NON-authoritative scene event (from the prose extractor): it
 // only FILLS GAPS in the current scene's present list + per-character detail
 // (mood/doing/condition/thought) and never demotes cast or replaces the block's
 // authored detail. Used to recover inner thoughts when the model's <vellum>
 // block was dropped or truncated mid-`present`.
-export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), location: z.string().optional(), time: z.string().optional(), clock: z.number().int().min(0).max(1439).optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional(), mergeDetail: z.boolean().optional(), absolute: z.boolean().optional() });
+export const EvSceneSet = z.object({ ...base, kind: z.literal('scene.set'), title: z.string().max(100).optional(), titleSource: SceneTitleSource.optional(), transition: z.enum(['continue', 'scene', 'time_skip']).optional(), location: z.string().optional(), time: z.string().optional(), clock: z.number().int().min(0).max(1439).optional(), tension: z.number().min(0).max(10).optional(), weather: z.string().optional(), present: z.array(z.string()).default([]), detail: z.array(PresentDetail).optional(), mergeDetail: z.boolean().optional(), absolute: z.boolean().optional() });
 export const ParallelItem = z.object({ who: z.string().optional(), where: z.string().optional(), activity: z.string(), note: z.string().optional(), src: z.literal('sim').optional() });
 export const EvParallel = z.object({ ...base, kind: z.literal('parallel.set'), items: z.array(ParallelItem).default([]) });
 
@@ -241,7 +244,7 @@ export const EvStateCompiled = z.object({ ...base, kind: z.literal('state.compil
 
 export const VellumEvent = z.discriminatedUnion('kind', [
   EvStateCompiled,
-  EvTurnFold, EvConfigSet, EvToneSet, EvSceneSet,
+  EvTurnFold, EvConfigSet, EvToneSet, EvSceneOpen, EvSceneSet,
   EvCastSeen, EvCastEdit, EvCastDrop,
   EvFactionSeen, EvFactionEdit, EvFactionDrop, EvFactionMember, EvFactionStanding, EvFactionRel, EvFactionRelDrop,
   EvBondDelta, EvBondDrop,

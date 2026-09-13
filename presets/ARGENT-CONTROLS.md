@@ -1,6 +1,6 @@
 # ARGENT control reference (generated)
 
-Version 1.4.0; 59 controls; 18 regex scripts.
+Version 1.4.0; 60 controls; 20 regex scripts.
 
 | Section | Control | Default | Options | Description |
 |---|---|---|---|---|
@@ -62,4 +62,5 @@ Version 1.4.0; 59 controls; 18 regex scripts.
 | Presentation & Safety Controls | VTK Card Library (tag → illuminated card) | 0 |  | Enable compact [CODEX]/[LETTER]/[TEXT]/[HALO]/[DECREE]/[VERSE]/[PORTRAIT]/[MAP]/[ITEM]/[TITLE] tags rendered by the matching regex pack |
 | Presentation & Safety Controls | VTK Spectacle (broadsheet / tarot / playbill) | 0 |  | Allow rare diegetic spectacle cards for delight (needs the card library on) |
 | Presentation & Safety Controls | Colored dialogue | 1 |  | Require every named speaker’s live dialogue to use exact VELLUM cast-name tags so the extension can apply the correct character color. |
+| Presentation & Safety Controls | Prose Scene Headers | 0 |  | Optionally show a cinematic title card when a new scene or time skip opens. |
 | Adherence Anchor | Adherence Placement | "balanced" | balanced: Balanced; frontier: Frontier / Weak Adherence; quiet: Quiet / Over-Literal | Move this final anchor for models with different instruction sensitivity. |
