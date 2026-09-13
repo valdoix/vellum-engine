@@ -676,9 +676,13 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   }
   let added = 0;
   const foldedEvents: VellumEvent[] = []; // accumulate for Plot Director self-clear
-  const stagedEngineRuns: Array<{ turn: number; run: ReturnType<typeof beginEngineRun> }> = [];
-  const finishStagedEngineRuns = (ok: boolean, extra: Record<string, unknown> = {}): void => {
-    for (const staged of stagedEngineRuns.splice(0)) staged.run.finish(ok, { turn: staged.turn, ...extra });
+  // A compiled candidate is not "applied" until the deferred Chronicle append
+  // has crossed the durable flush boundary and the refreshed state has been
+  // broadcast. Keep successful windows pending until both operations finish so
+  // the UI can never report a memory-only append as complete.
+  const pendingEngineRuns: Array<{ turn: number; run: ReturnType<typeof beginEngineRun> }> = [];
+  const finishPendingEngineRuns = (ok: boolean, extra: Record<string, unknown> = {}): void => {
+    for (const pending of pendingEngineRuns.splice(0)) pending.run.finish(ok, { turn: pending.turn, ...extra });
   };
   // Track the latest turn's raw content + parse source for post-loop block validation.
   let _latestContent = '';
@@ -810,7 +814,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         enginePassOn = false;
         engineCompiler = false;
         compiled = null;
-        finishStagedEngineRuns(false, { reason: 'engine_disabled', message: 'Engine Pass was disabled before the replacement tail could be filed.' });
+        finishPendingEngineRuns(false, { reason: 'engine_disabled', message: 'Engine Pass was disabled before the replacement tail could be filed.' });
         engineRun?.finish(false, { reason: 'engine_disabled', message: 'Engine Pass was disabled before the candidate could be filed.' });
         engineRun = null;
         await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
@@ -853,7 +857,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         const unchanged = snapshotStillCurrent && current.length === msgs.length && sigOf((current[turnNo - 1] ?? '').trim()) === sigOf(content);
         if (!unchanged || stateRevision(await loadState(chatId)) !== liveRevision) {
           const errors = ['The transcript or Chronicle changed during compilation; retry the fold.'];
-          finishStagedEngineRuns(false, { reason: 'later_turn_failed', errors });
+          finishPendingEngineRuns(false, { reason: 'later_turn_failed', errors });
           engineRun?.finish(false, { reason: 'state_changed', errors });
           _heldCompilerDraftByChat.set(chatId, { turn: turnNo, inputSig: sigOf(content), errors, draft: compiled.candidate });
           await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors }));
@@ -872,7 +876,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     const { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {
-      finishStagedEngineRuns(false, { reason: 'later_turn_failed', errors: ['A later validated candidate could not be filed.'] });
+      finishPendingEngineRuns(false, { reason: 'later_turn_failed', errors: ['A later validated candidate could not be filed.'] });
       engineRun?.finish(false, { reason: 'parser_rejected', errors: ['A validated compiler candidate did not round-trip through the canonical parser.'] });
       _heldCompilerDraftByChat.set(chatId, { turn: turnNo, inputSig: sigOf(content), errors: ['A validated compiler candidate did not round-trip through the canonical parser.'], draft: compiled.candidate });
       await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify({ turn: turnNo, inputSig: sigOf(content), errors: ['A validated compiler candidate did not round-trip through the canonical parser.'] }));
@@ -908,7 +912,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       } else prior = await appendDeferred(chatId, evs, expectedRevision);
     } catch (e) {
       const message = (e as Error)?.message ?? 'Chronicle commit failed.';
-      finishStagedEngineRuns(false, { reason: 'commit_error', message, errors: [message] });
+      finishPendingEngineRuns(false, { reason: 'commit_error', message, errors: [message] });
       engineRun?.finish(false, { reason: 'commit_error', message, errors: [message] });
       throw e;
     }
@@ -919,13 +923,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       await setChatVar(chatId, 'vellum_compiler_diagnostic', '');
       _heldCompilerDraftByChat.delete(chatId);
     }
-    if (compiled?.ok && engineRun) {
-      if (pendingRollback !== null) stagedEngineRuns.push({ turn: turnNo, run: engineRun });
-      else {
-        finishStagedEngineRuns(true);
-        engineRun.finish(true, { turn: turnNo });
-      }
-    }
+    if (compiled?.ok && engineRun) pendingEngineRuns.push({ turn: turnNo, run: engineRun });
     added += evs.length;
     // defer prose-driven extraction to PASS 2 (below the early broadcast).
     // `json-partial` means element salvage recovered the block by dropping corrupt
@@ -1033,9 +1031,16 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   // extractor runs, so the "Now" window and drawer refresh immediately instead
   // of waiting on the extractor's per-turn model round-trip. The deferred appends
   // are flushed here so a crash mid-extraction can't lose the block fold.
-  await flush(chatId);
-  invalidateIndex(chatId);
-  await broadcastState(chatId, userId);
+  try {
+    await flush(chatId);
+    invalidateIndex(chatId);
+    await broadcastState(chatId, userId);
+  } catch (e) {
+    const message = (e as Error)?.message ?? 'Chronicle flush or state refresh failed.';
+    finishPendingEngineRuns(false, { reason: 'commit_error', message, errors: [message] });
+    throw e;
+  }
+  finishPendingEngineRuns(true);
   // progress toast, phase 1 of N: the live scene is in. When a deep pass follows,
   // this reads "… (1/2)"; when it doesn't, the frontend shows a single done toast.
   spindle.sendToFrontend?.({ type: 'vellum_fold_progress', chatId, phase: 1, total: foldTotal }, userId ?? currentUser() ?? undefined);
