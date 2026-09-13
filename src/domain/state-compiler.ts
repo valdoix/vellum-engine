@@ -1084,6 +1084,43 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
   adoptCompilerKey(root, 'genesis', ['isGenesis', 'is_genesis']);
   const source = `${input.userInput ?? ''}\n${input.prose}`;
   const state = compilerRecord(root.state) ? root.state : {};
+  // Older/full-state providers put the on-stage id list and its tracker rows
+  // inside scene.present + scene.detail. The Engine Pass schema uses one
+  // top-level array of present objects instead. Rejoin those two losslessly
+  // before normalizeStateBlockObject filters non-object roster members; if we
+  // wait until after that pass, every string id (including the persona) has
+  // already disappeared and repair can loop on a false "player in present"
+  // failure.
+  const legacyScene = compilerRecord(state.scene) ? state.scene : undefined;
+  const suppliedPresent = Array.isArray(state.present)
+    ? state.present
+    : Array.isArray(legacyScene?.present) ? legacyScene.present : undefined;
+  if (suppliedPresent) {
+    const details = new Map(
+      compilerArray(legacyScene?.detail)
+        .filter(compilerRecord)
+        .map(row => [canonId(String(row.id ?? row.name ?? row.who ?? row.character ?? '')), row] as const)
+        .filter(([id]) => !!id),
+    );
+    const player = canonId(input.userName);
+    state.present = suppliedPresent.flatMap(value => {
+      const row = compilerRecord(value) ? { ...value } : { id: String(value ?? '').trim() };
+      const id = canonId(String(row.id ?? row.name ?? row.who ?? row.character ?? ''));
+      if (!id) return [];
+      const detail = details.get(id);
+      const merged: Record<string, any> = detail ? { ...detail, ...row } : row;
+      if (player && id === player) {
+        merged.id = input.userName;
+        const priorDetail = input.prior.scene.detail.find(entry => canonId(entry.id) === player);
+        for (const field of ['mood', 'doing', 'condition', 'thought'] as const) {
+          if (!String(merged[field] ?? '').trim() && priorDetail?.[field]) merged[field] = priorDetail[field];
+        }
+        const priorTraits = input.prior.cast[player]?.traits;
+        if ((!Array.isArray(merged.traits) || !merged.traits.length) && priorTraits?.length) merged.traits = priorTraits;
+      }
+      return [merged];
+    });
+  }
   normalizeStateBlockObject(state);
   if (input.personaState && input.userName && Array.isArray(state.present)) {
     for (const row of state.present) {

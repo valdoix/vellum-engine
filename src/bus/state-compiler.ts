@@ -277,6 +277,17 @@ export async function repairCompilation(
   const draft = rejectedDraft && typeof rejectedDraft === 'object' && !Array.isArray(rejectedDraft)
     ? structuredClone(rejectedDraft)
     : compilerRepairBase(input);
+  // A held draft can predate a deterministic compatibility recovery added by a
+  // newer build. Revalidate the specific false-negative roster failure before
+  // spending another provider call; this lets Repair Engine recover an already
+  // complete legacy scene.present + scene.detail document immediately.
+  if (validationErrors.includes('persona state requires the player in present')) {
+    const recovered = salvageCompilation(draft, input);
+    if (recovered.ok && !argentRequirementErrors(recovered.candidate, input).length) {
+      try { run?.onProgress?.({ status: 'validated', attempt: attemptNo, text: recovered.block, message: 'Held draft recovered by compatibility normalization.' }); } catch { /* best effort */ }
+      return recovered;
+    }
+  }
   const repairContext = JSON.stringify({
     validationErrors: [...new Set(validationErrors.map(String).filter(Boolean))].slice(0, 50),
     draft,

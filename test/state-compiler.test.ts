@@ -887,6 +887,47 @@ ${JSON.stringify(c.state)}
     expect(result.candidate.evidence.map(row => row.path)).toEqual(['scene.loc', 'scene.time', 'delta.threads.0', 'ext.plant.0']);
     expect(result.candidate.trackEvidence[0]).toMatchObject({ path: 'delta.threads.0', targetId: 'new', before: 'absent', basis: 'new_open_question' });
   });
+  it('rejoins a legacy Chronicle scene roster with detail before persona validation', async () => {
+    const i = input();
+    i.personaState = true;
+    i.userName = 'Gabriel Winters';
+    i.prose = "At Sunnydale Cemetery, Gabriel keeps holding Buffy's hand while she fights the vertigo.";
+    i.prior.scene = { location: 'Sunnydale Cemetery', time: '21:59', clock: 1319, tension: 5, weather: 'Clear', present: [], detail: [] };
+    i.prior.cast.gabriel_winters = {
+      id: 'gabriel_winters', name: 'Gabriel Winters', aka: [], traits: ['protective'], status: 'present',
+      source: 'user', firstTurn: 1, lastTurn: 1, userEdited: true,
+    };
+    i.prior.cast.buffy_summers = {
+      id: 'buffy_summers', name: 'Buffy Summers', aka: [], traits: [], status: 'present',
+      source: 'auto', firstTurn: 1, lastTurn: 1, userEdited: false,
+    };
+    const raw: any = {
+      state: {
+        turn: 2, day: 1,
+        scene: {
+          location: 'Sunnydale Cemetery', time: '22:00',
+          present: ['gabriel_winters', 'buffy_summers'],
+          detail: [
+            { id: 'buffy_summers', mood: 'disoriented', doing: "gripping Gabriel's hand", condition: 'weak', thought: 'Stay here.' },
+            { id: 'gabriel_winters', mood: 'steady', doing: "holding Buffy's hand", condition: 'uninjured', thought: 'She is alive.' },
+          ],
+          evidence: { time: 'while she fights the vertigo', present: "Gabriel keeps holding Buffy's hand" },
+        },
+      },
+    };
+
+    const result = salvageCompilation(raw, i);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.candidate.state.present).toEqual([
+      expect.objectContaining({ id: 'Gabriel Winters', mood: 'steady', thought: 'She is alive.', traits: ['protective'] }),
+      expect.objectContaining({ id: 'buffy_summers', mood: 'disoriented', thought: 'Stay here.' }),
+    ]);
+    const generate = vi.fn().mockRejectedValue(new Error('compatibility recovery must not call the provider'));
+    const repaired = await repairCompilation(i, raw, ['persona state requires the player in present'], null, undefined, generate);
+    expect(repaired.ok).toBe(true);
+    expect(generate).not.toHaveBeenCalled();
+  });
   it('streams compiler content and lifecycle without exposing reasoning tokens', async () => {
     const progress: Array<Record<string, unknown>> = [];
     const generate = vi.fn(async (_messages: unknown, _params: unknown, _userId: unknown, options: any) => {
