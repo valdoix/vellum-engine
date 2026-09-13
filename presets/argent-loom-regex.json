@@ -374,7 +374,7 @@
       "script_id": "argent-visual-html-display-tidy",
       "name": "ARGENT · Raw Visual HTML · Display Tidy",
       "folder": "ARGENT LOOM",
-      "description": "Disabled legacy raw-HTML renderer retained only so old imports keep stable script IDs.",
+      "description": "Removes bare VIS_START/VIS_END comments from displayed ARGENT VTKs while preserving their self-contained HTML/CSS.",
       "find_regex": "<!--\\s*VIS_(?:START|END)\\s*-->",
       "replace_string": "",
       "actions": [],
@@ -392,7 +392,7 @@
       "trim_strings": [],
       "run_on_edit": true,
       "substitute_macros": "none",
-      "disabled": true,
+      "disabled": false,
       "sort_order": 34,
       "owner_extension_identifier": null,
       "metadata": {

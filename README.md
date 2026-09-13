@@ -35,7 +35,7 @@ This project was built with the assistance of **Claude Opus 4.8** — engineered
 
 > **VELLUM II — COMPACT 1.0.0** — a separate small-preset option capped at 5,000 standing-prompt tokens. It retains per-turn agency, knowledge isolation, monotonic time, causal plot rules, NPC autonomy, dialogue colors, and VELLUM Engine Second Pass with 15 focused controls. Import `presets/vellum-compact.json`; it does not replace VELLUM II or ARGENT LOOM. See `presets/VELLUM-COMPACT-README.md`.
 
-> **ARGENT LOOM 1.4.0** — Active/Sandbox now run causally scheduled durable subplots from NPC intent, with dependency-aware arcs/plants, compact affect and presence tiers, while preserving the full agency and knowledge firewalls. See `presets/ARGENT-LOOM-README.md`.
+> **ARGENT LOOM 1.5.0** — The optional raw Visual Toolkit now builds scene-native artifacts, interfaces, mindscapes, memories, transitions, collisions, wonders, and playful micro-visuals. Frequent is enforced on every in-character narrative reply, while POV, agency, canon, and state boundaries remain intact. See `presets/ARGENT-LOOM-README.md`.
 
 > **Extension 2.1.0-beta.9 (testing)** — adds streamed summarization progress, safe cancellation, configurable summary token limits, completion-driven retries, verified archival coverage, refreshed knowledge/secret propagation, and stronger long-session retrieval.
 

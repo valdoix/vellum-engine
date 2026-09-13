@@ -75,15 +75,23 @@ describe('effective policy compilation and profiles', () => {
       expect(capsule).not.toContain('MINOR CONTINUITY FINAL GATE');
     }
   });
-  it('never promotes legacy raw-HTML VTK instructions into the runtime policy', () => {
-    const selected = applyProfile(blocks, {}, { vtk: 'rare', vtk_cards: 1 });
-    const capsule = compileArgentPolicy(blocks, selected);
-    expect(capsule).toContain('<artifact>');
-    expect(capsule).not.toContain('VIS_START');
-    expect(capsule).not.toContain('visual HTML');
+  it('compiles the selected VTK cadence and makes Frequent a final requirement', () => {
+    const off = compileArgentPolicy(blocks, applyProfile(blocks, {}, { vtk: 'off', vtk_cards: 0 }));
+    const rare = compileArgentPolicy(blocks, applyProfile(blocks, {}, { vtk: 'rare', vtk_cards: 0 }));
+    const frequent = compileArgentPolicy(blocks, applyProfile(blocks, {}, { vtk: 'frequent', vtk_cards: 1 }));
+
+    expect(off).toContain('Raw VTK is off');
+    expect(off).not.toContain('FREQUENT VTK FINAL GATE');
+    expect(rare).toContain('[ARGENT VISUAL TOOLKIT — RARE]');
+    expect(rare).toContain('VIS_START');
+    expect(frequent).toContain('[ARGENT VISUAL TOOLKIT — FREQUENT]');
+    expect(frequent).toContain('every in-character narrative response contains at least one complete VTK');
+    expect(frequent).toContain('FREQUENT VTK FINAL GATE');
+    expect(frequent).toContain('<artifact>');
   });
   it('explains dependency gates and respects state-off', () => {
     expect(dependencyIssues({ state_on: 0, vtk_cards: 0, antislop: 0 })).not.toHaveProperty('worldgen');
+    expect(dependencyIssues({ state_on: 1, vtk: 'frequent', vtk_cards: 0, antislop: 1 })).not.toHaveProperty('vtk');
     expect(dependencyIssues({ state_on: 1, vtk_cards: 1, antislop: 1 })).not.toHaveProperty('vtk_spectacle');
   });
 });

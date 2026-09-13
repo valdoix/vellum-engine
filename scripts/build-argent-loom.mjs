@@ -206,6 +206,12 @@ const worldTextureVar = existingVar('world_texture', {
 });
 worldTextureVar.options = (worldTextureVar.options ?? []).map((option) => ({ ...option, value: option.id }));
 
+const vtkVar = existingVar('vtk', {
+  defaultValue: 'off',
+  description: 'Render scene-native HTML/CSS artifacts and perceptual visuals. Frequent requires one complete VTK in every in-character narrative response.',
+});
+vtkVar.options = (vtkVar.options ?? []).map((option) => ({ ...option, value: option.id }));
+
 const antislopFocusVar = existingVar('antislop_focus');
 const compactSlopRules = {
   contrast: 'Contrast scaffold: replace “not X but Y” with the precise claim.',
@@ -289,7 +295,7 @@ const controlVariables = [
   existingVar('nsfw_level', { defaultValue: 'romantic' }),
   existingVar('nsfl', { defaultValue: 0 }),
   existingVar('hard_limits'),
-  existingVar('vtk', { defaultValue: 'off' }),
+  vtkVar,
   existingVar('vtk_cards', { defaultValue: 0 }),
   existingVar('vtk_spectacle', { defaultValue: 0 }),
   existingVar('dialogue_color', {
@@ -616,11 +622,36 @@ Use terse planning and one decisive movement.{{if::{{var::dialogue_color}}}} Ope
 
 Content intensity never overrides agency, consent, character knowledge, established relationship state, or hard limits. Do not use a mature-content setting as an instruction to steer every scene toward sex, violence, humiliation, or escalation.`, { group: CAT_NATIVE }),
 
-  block('arg-visuals', 'Optional Visual Presentation', String.raw`[DECLARATIVE PRESENTATION ONLY]
-The inherited Raw Visual Toolkit control is retained for import compatibility but has no authoring effect in ARGENT. Never emit raw HTML, CSS, VIS_START/VIS_END markers, URLs, executable markup, or legacy bracket-card syntax.
-{{if::{{var::vtk_cards}}}}At a genuine artifact, arrival, scene break, or public document, you may emit at most one closed declarative tag:
+  block('arg-visuals', 'Optional Visual Presentation', String.raw`{{if::{{not::{{eq::{{var::vtk}}::off}}}}}}[ARGENT VISUAL TOOLKIT — SCENECRAFT]
+Build an in-world object, interface, or perceptual event—not a decorative recap. Prose owns action, reaction, consequence, and durable fact; VTK owns inspectable detail, sensory pattern, evidence, timing, or subtext. It may stylize only facts and perceptions allowed by the active POV. Never expose hidden VELLUM state, unavailable private thoughts, or invented canon.
+
+{{switch::{{var::vtk}}
+::rare::CADENCE — RARE: Optional and exceptional. Render one VTK only for a true visual hinge: a transformed entrance, readable artifact, major reveal, rupture, confrontation, threshold, or unforgettable object. Expect roughly one every several narrative turns; never manufacture a trigger.
+::balanced::CADENCE — BALANCED: Render one VTK whenever a response contains a clear artifact, interface, emotional crest, visual clue, entrance, collision, or threshold. Aim for about every other narrative turn. Prefer one fully realized visual; skip only when no family honestly fits.
+::frequent::CADENCE — FREQUENT, HARD OUTPUT REQUIREMENT: Every in-character narrative response MUST contain at least one complete VTK. Only a purely OOC/meta/debug reply or an explicit request for plain prose is exempt. Choose the richest trigger. If no obvious object or interface exists, create a compact PULSE, THRESHOLD, PLAY, or atmospheric WONDER from the turn's strongest emotion, sensation, weather, time, gesture, or motif. Quiet scenes, short replies, and uncertainty are not permission to omit it. Normally render one excellent VTK; use two only for genuinely separate beats or hybridize two families into one.}}
+
+FAMILIES — choose one, or hybridize at most two around one clear visual idea:
+- RELIC: letter, journal, decree, ticket, map, photograph, evidence, or meaningful object; show material, wear, ownership, and handling.
+- SIGNAL: phone, terminal, feed, archive, instrument, surveillance, or setting-native interface; preserve a named real product's recognizable hierarchy and interaction grammar.
+- PULSE: emotion, bodily sensation, attraction, dread, altered perception, or a charged line expressed through rhythm, pressure, color, fracture, proximity, or breath—not stat meters.
+- ECHO: memory, dream, haunting, prophecy, or unreliable recall; distinguish then/from-now and certainty/from-distortion.
+- THRESHOLD: entrance, departure, travel, weather turn, time passage, scene break, transformation, or power shift.
+- COLLISION: combat, argument, pursuit, revelation, failure, or reversal with spatial force and one legible focal impact.
+- WONDER: ritual, omen, impossible ecology, architecture, or magic with a visual logic unique to this world.
+- PLAY: affectionate detail, visual joke, embarrassing failure, tiny celebration, or character-specific flourish when tone supports it.
+
+ART DIRECTION: Infer a design DNA from this beat: era + culture + maker/owner + material/device + genre + emotion. Use one coherent palette of 2–3 hues plus accent, one type pairing, a spacing rhythm, and a distinctive silhouette. Prefer asymmetry, depth, tactile texture, purposeful negative space, and one memorable motif over a generic centered card/dashboard. Quiet moments may be intimate micro-VTKs; set pieces must earn scale. Do not repeat the same dominant family, skeleton, palette, or interaction on consecutive turns.
+
+CRAFT: Wrap each VTK exactly in <!-- VIS_START --> and <!-- VIS_END --> with raw self-contained HTML5/CSS3 between them; never use Markdown fences. Use one uniquely named root and scope every selector to it. No scripts, event handlers, iframes, external URLs/assets, submitting forms, or hidden prompt text. Keep within message width; body text >=15px and metadata >=12px; strong contrast; mobile-safe sizing; no clipped text. Animate only opacity, transform, or color—no flicker, strobe, marquee, or animated shadow.
+
+INTERACTION: Static is valid when it best serves the beat. When inspection rewards layers, use CSS-only radio/checkbox state with unique IDs, a working default view, obvious labels, reachable sibling selectors, and a visible return path. Every control must reveal or change something meaningful; no dead tabs or fake buttons.
+
+PLACEMENT: Anchor the VTK immediately beside the prose beat it enriches; do not open or close the response with it. Never duplicate prose verbatim, advance the scene only inside the visual, decide for {{user}}, or substitute spectacle for consequence. Complete and close every wrapper.{{/if}}
+
+[DECLARATIVE CARD LIBRARY]
+{{if::{{var::vtk_cards}}}}At a genuine artifact, arrival, scene break, or public document, you may emit at most one closed declarative tag instead of a raw VTK when the typed card is the stronger form:
 <artifact>{"type":"letter|codex|text|decree|portrait|map|item|title|verse|tarot|broadsheet|playbill","title":"plain text","body":"plain text","tone":"neutral|warning|warm"}</artifact>
-Use one exact enum value for type and tone. The JSON may contain only type, title, body, and tone. Cards present facts already established by prose; they never create canon.{{if::{{var::vtk_spectacle}}}} Broadsheet, tarot, and playbill are rare spectacle forms and still obey the same closed schema.{{/if}}{{/if}}`, { group: CAT_NATIVE, enabled: true }),
+Use one exact enum value for type and tone. The JSON may contain only type, title, body, and tone. Cards present facts already established by prose; they never create canon. A typed card counts as the required Frequent visual when it visibly renders this turn.{{if::{{var::vtk_spectacle}}}} Broadsheet, tarot, and playbill are rare spectacle forms and still obey the same closed schema.{{/if}}{{/if}}`, { group: CAT_NATIVE, enabled: true }),
 
   category(CAT_CONTEXT, 'ARGENT LOOM — Context', '#9d8f7f'),
   marker('arg-system-prompt', 'Character System Prompt', 'system_prompt'),
@@ -748,6 +779,9 @@ The engine may originate grounded off-screen subplots without ((parallel)). In I
 
 {{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]
 In both Inline Compatibility and Engine Second Pass, every named or certain live speaker uses [spk=Exact Cast Name]"complete passage"[/spk]. Open it before the quote; keep narration outside; use one speaker per wrapper. Do not tag thought, documents, memory, signs, roles, pronouns, or uncertain speech. Before sending, scan every opening dialogue quote and repair bare eligible speech.{{/if}}
+
+{{if::{{eq::{{var::vtk}}::frequent}}}}[FREQUENT VTK — MANDATORY FINAL GATE]
+Before state serialization, verify this in-character narrative reply contains at least one complete <!-- VIS_START -->...<!-- VIS_END --> VTK, or one visibly rendered <artifact> when Card Library is on. If absent, add a compact scene-native PULSE, THRESHOLD, PLAY, or WONDER beside its supporting prose beat now. OOC/meta/debug and explicit plain-prose requests remain exempt.{{/if}}
 
 {{if::${inlineState}}}[STATE SERIALIZATION — FINAL GATE]
 Reserve room, precompose the full object, then emit balanced raw JSON and literal </vellum>. Shorten prose before risking state. A reply ending anywhere else is incomplete.{{/if}}
@@ -970,10 +1004,9 @@ const regexScripts = [
   regexScript({
     scriptId: 'argent-visual-html-display-tidy',
     name: 'ARGENT · Raw Visual HTML · Display Tidy',
-    description: 'Disabled legacy raw-HTML renderer retained only so old imports keep stable script IDs.',
+    description: 'Removes bare VIS_START/VIS_END comments from displayed ARGENT VTKs while preserving their self-contained HTML/CSS.',
     findRegex: visualMarkerPattern,
     target: ['display'],
-    disabled: true,
     sortOrder: 34,
     metadata: { layer: 'display', preserves_visual_html: true },
   }),
@@ -1066,8 +1099,8 @@ const regexScripts = [
 const preset = {
   id: 'vellum-ii-argent-loom',
   name: 'VELLUM II — ARGENT LOOM',
-  description: 'A VELLUM-native causal chronicle preset for high-fidelity literary roleplay. ARGENT protects player agency, physical and epistemic continuity, character-specific behavior, earned directional relationships, living off-screen worlds, factions, items, plants, and exact event deltas. With VELLUM 2.1 it compiles completed prose through a separate validated state pass and commits atomically; Inline Compatibility retains model-written <vellum> output. Includes a compact effective-policy compiler, grouped controls, native Lumiverse routing, optional Reverie, typed artifacts, and a scoped prompt/display/memory pipeline.',
-  presetVersion: '1.4.0',
+  description: 'A VELLUM-native causal chronicle preset for high-fidelity literary roleplay. ARGENT protects player agency, physical and epistemic continuity, character-specific behavior, earned directional relationships, living off-screen worlds, factions, items, plants, and exact event deltas. With VELLUM 2.1 it compiles completed prose through a separate validated state pass and commits atomically; Inline Compatibility retains model-written <vellum> output. Includes a compact effective-policy compiler, grouped controls, native Lumiverse routing, optional Reverie, scene-native Visual Toolkit, typed artifacts, and a scoped prompt/display/memory pipeline.',
+  presetVersion: '1.5.0',
   schemaVersion: 2,
   samplerOverrides: {
     enabled: true,
@@ -1353,8 +1386,10 @@ assert(transformWith('argent-slop-display', slopFixture).includes('class="arg-sl
 assert(transformWith('argent-slop-semantic-pipeline', slopFixture) === 'A shiver ran down her spine.', 'Slop semantic fixture failed');
 assert(!regexScripts.some((entry) => entry.script_id.includes('choice')), 'Guided Choice regex scripts must not exist');
 assert(transformWith('argent-artifact-display', '[UNKNOWN|Title|Body]') === '[UNKNOWN|Title|Body]', 'Artifact negative fixture overmatched');
-assert(['argent-artifact-display', 'argent-spectacle-display', 'argent-visual-html-display-tidy'].every(id => regexScripts.find(s => s.script_id === id)?.disabled), 'Unsafe legacy visual renderers must remain disabled');
-assert(!blocks.find(b => b.id === 'arg-visuals')?.content.includes('{{var::vtk}}'), 'Raw VTK option text must never enter ARGENT prompts');
+assert(['argent-artifact-display', 'argent-spectacle-display'].every(id => regexScripts.find(s => s.script_id === id)?.disabled), 'Legacy bracket-card renderers must remain disabled');
+assert(regexScripts.find(s => s.script_id === 'argent-visual-html-display-tidy')?.disabled !== true, 'ARGENT VTK display tidy must be active');
+assert(blocks.find(b => b.id === 'arg-visuals')?.content.includes('HARD OUTPUT REQUIREMENT'), 'Frequent VTK cadence must be explicit');
+assert(blocks.find(b => b.id === 'arg-output-contract')?.content.includes('[FREQUENT VTK — MANDATORY FINAL GATE]'), 'Frequent VTK final compliance gate is missing');
 
 // Source doctrine remains reviewable. Only these owned regions are replaced by
 // the runtime capsule; history, worldbooks and native Loom contributions survive.

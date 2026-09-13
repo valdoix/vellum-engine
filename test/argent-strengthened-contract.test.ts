@@ -50,8 +50,8 @@ function expandedBlock(id: string, overrides: Record<string, unknown> = {}): str
 }
 
 describe('ARGENT strengthened invariants', () => {
-  it('ships the 1.3 control surface without Guided Choices', () => {
-    expect(preset.presetVersion).toBe('1.4.0');
+  it('ships the 1.5 control surface without Guided Choices', () => {
+    expect(preset.presetVersion).toBe('1.5.0');
     expect(() => variable('guided_choices')).toThrow();
     expect(preset.blocks.some((entry) => entry.content.includes('<argent-choices>'))).toBe(false);
   });
@@ -113,6 +113,26 @@ describe('ARGENT strengthened invariants', () => {
     expect(expandedBlock('arg-world-texture', { world_texture: 'insistent' })).toContain('materially intrude');
     expect(expandedBlock('arg-world-texture', { world_texture: 'insistent', world_broadsheet: 1, vtk_cards: 1 })).toContain('[BROADSHEET|body]');
     expect(expandedBlock('arg-world-texture', { world_texture: 'living', world_broadsheet: 1, vtk_cards: 1 })).not.toContain('[BROADSHEET|body]');
+  });
+
+  it('routes VTK Off, Balanced, and Frequent through the authored visual contract', () => {
+    expect(variable('vtk').defaultValue).toBe('off');
+    expect(variable('vtk').description).toContain('Frequent requires one complete VTK');
+
+    const off = expandedBlock('arg-visuals', { vtk: 'off', vtk_cards: 0 });
+    const balanced = expandedBlock('arg-visuals', { vtk: 'balanced', vtk_cards: 0 });
+    const frequent = expandedBlock('arg-visuals', { vtk: 'frequent', vtk_cards: 0 });
+    const frequentOutput = expandedBlock('arg-output-contract', { vtk: 'frequent' });
+    const offOutput = expandedBlock('arg-output-contract', { vtk: 'off' });
+
+    expect(off).not.toContain('[ARGENT VISUAL TOOLKIT — SCENECRAFT]');
+    expect(balanced).toContain('Aim for about every other narrative turn');
+    expect(frequent).toContain('Every in-character narrative response MUST contain at least one complete VTK');
+    expect(frequent).toContain('No scripts, event handlers, iframes, external URLs/assets');
+    expect(frequent).toContain('RELIC:');
+    expect(frequent).toContain('PULSE:');
+    expect(frequentOutput).toContain('[FREQUENT VTK — MANDATORY FINAL GATE]');
+    expect(offOutput).not.toContain('[FREQUENT VTK — MANDATORY FINAL GATE]');
   });
 
   it('uses genuinely separate Lean and Full state contracts while retaining every NPC thought', () => {

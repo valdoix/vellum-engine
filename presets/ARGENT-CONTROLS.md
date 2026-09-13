@@ -1,6 +1,6 @@
 # ARGENT control reference (generated)
 
-Version 1.4.0; 60 controls; 20 regex scripts.
+Version 1.5.0; 60 controls; 20 regex scripts.
 
 | Section | Control | Default | Options | Description |
 |---|---|---|---|---|
@@ -58,7 +58,7 @@ Version 1.4.0; 60 controls; 20 regex scripts.
 | Presentation & Safety Controls | NSFW Level | "romantic" | off: Off; clean: Clean (fade to black); romantic: Sensual (implied); steamy: Explicit (tasteful); explicit: Graphic; filthy: Depraved (no limits) | Intimacy explicitness |
 | Presentation & Safety Controls | NSFL / Dark Content | 0 |  | Unflinching violence, death, transgression (fiction only) |
 | Presentation & Safety Controls | Hard Limits (never depict) | "" |  | Absolute content boundaries - things this story will never depict, regardless of NSFW level or any other setting. Comma- or line-separated. Leave empty for none. Outranks everything, including the mature Mandate. |
-| Presentation & Safety Controls | Visual Toolkit (diegetic HTML) | "off" | off: Off; rare: Rare; balanced: Balanced; frequent: Frequent | Render key beats as self-contained HTML/CSS visuals |
+| Presentation & Safety Controls | Visual Toolkit (diegetic HTML) | "off" | off: Off; rare: Rare; balanced: Balanced; frequent: Frequent | Render scene-native HTML/CSS artifacts and perceptual visuals. Frequent requires one complete VTK in every in-character narrative response. |
 | Presentation & Safety Controls | VTK Card Library (tag → illuminated card) | 0 |  | Enable compact [CODEX]/[LETTER]/[TEXT]/[HALO]/[DECREE]/[VERSE]/[PORTRAIT]/[MAP]/[ITEM]/[TITLE] tags rendered by the matching regex pack |
 | Presentation & Safety Controls | VTK Spectacle (broadsheet / tarot / playbill) | 0 |  | Allow rare diegetic spectacle cards for delight (needs the card library on) |
 | Presentation & Safety Controls | Colored dialogue | 1 |  | Require every named speaker’s live dialogue to use exact VELLUM cast-name tags so the extension can apply the correct character color. |

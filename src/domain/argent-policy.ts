@@ -20,7 +20,7 @@ export const ARGENT_PROFILES: Record<string, Record<string, unknown>> = {
   'Autonomous Sandbox': { living_world: 'sandbox', social: 'autonomous', politics: 'autonomous', world_texture: 'insistent', time_continuity: 1, state_on: 1 },
   'Romance': { genre: 'romance', romance: 'slow_burn', pacing: 'lingering', distance: 'intimate' },
   'Mystery': { genre: 'mystery', epistemic: 'alongside', reveal_cadence: 'measured', variance: 'disciplined' },
-  'Visual Showcase': { vtk_cards: 1, vtk_spectacle: 1, world_broadsheet: 1, vtk: 'off', dialogue_color: 1 },
+  'Visual Showcase': { vtk_cards: 1, vtk_spectacle: 1, world_broadsheet: 1, vtk: 'frequent', dialogue_color: 1 },
 };
 export function applyProfile(blocks: PolicyBlock[], selected: VariableValues, changes: Record<string, unknown>): VariableValues {
   const next = structuredClone(selected);
@@ -34,7 +34,6 @@ export function applyProfile(blocks: PolicyBlock[], selected: VariableValues, ch
 }
 export function dependencyIssues(v: Record<string, unknown>): Record<string, string> {
   const issues: Record<string, string> = {};
-  issues.vtk = 'Deprecated in ARGENT 1.3; use Card Library for typed artifacts.';
   if (!enabled(v.vtk_cards)) { issues.vtk_spectacle = 'Requires Card Library.'; issues.world_broadsheet = 'Requires Card Library.'; }
   if (!enabled(v.antislop)) issues.slop_proofreader = 'Requires Anti-Slop.';
   if (!enabled(v.state_on)) { issues.state_verbosity = 'State output is disabled.'; issues.state_compiler = 'State output is disabled.'; }
@@ -58,7 +57,7 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     ['Voice', ['pov', 'tense', 'distance', 'length', 'pacing', 'dialogue', 'prose', 'stakes', 'genre', 'genre2']],
     ['Craft', ['doctrine_strictness', 'metaphor', 'diction', 'sensory', 'filter_words', 'paragraph_shape', 'profanity', 'era', 'era_strictness', 'cast', 'interiority']],
     ['World', ['epistemic', 'living_world', 'world_texture', 'romance', 'disposition', 'social', 'politics', 'failure_shape', 'reveal_cadence', 'world_law', 'antagonist_pressure', 'variance']],
-    ['Output', ['npc_dialogue', 'time_continuity', 'codex', 'inventory', 'nsfw_level', 'nsfl', 'vtk_cards', 'vtk_spectacle', 'dialogue_color']],
+    ['Output', ['npc_dialogue', 'time_continuity', 'codex', 'inventory', 'nsfw_level', 'nsfl', 'vtk', 'vtk_cards', 'vtk_spectacle', 'dialogue_color']],
   ];
   const settings = compactGroups.map(([label, names]) => {
     const active = names.filter(name => byName.has(name) && !issues[name]).map(name => `${name}=${describe(name)}`);
@@ -85,6 +84,19 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     : v.agency === 'continuity'
       ? 'In story prose, complete only the mechanically inevitable endpoint of a trivial player action already begun. Add no speech, interiority, consent, strategy, reaction, injury, second action or new choice.'
       : 'In story prose, keep a player predicate only when the latest input supplied it exactly. An attempt grants no success, consequence, reaction or follow-up; recast violations on the NPC or world side.';
+  const vtkCadence = v.vtk === 'frequent'
+    ? 'FREQUENT is mandatory: every in-character narrative response contains at least one complete VTK. Only a purely OOC/meta/debug reply or explicit plain-prose request is exempt. If no object/interface is obvious, use a compact emotional, atmospheric, transitional or playful visual; quiet and short turns are not permission to omit it. Before finalizing, verify a complete VIS_START/VIS_END pair, or one visibly rendered typed artifact when Card Library is on.'
+    : v.vtk === 'balanced'
+      ? 'BALANCED: render one VTK for a clear artifact, interface, emotional crest, visual clue, entrance, collision or threshold; aim for about every other narrative turn and skip only when no visual family honestly fits.'
+      : 'RARE: reserve one VTK for an exceptional visual hinge such as a transformed entrance, readable artifact, major reveal, rupture, confrontation, threshold or unforgettable object.';
+  const vtkPresentation = v.vtk === 'rare' || v.vtk === 'balanced' || v.vtk === 'frequent'
+    ? `[ARGENT VISUAL TOOLKIT — ${String(v.vtk).toUpperCase()}] ${vtkCadence}
+Create a scene-native object, interface or perceptual event—not a recap. Choose or hybridize at most two: RELIC (material artifact/evidence), SIGNAL (device/interface with recognizable product grammar), PULSE (emotion/sensation as rhythm, pressure, color, fracture, proximity or breath), ECHO (memory/dream/distortion), THRESHOLD (entrance/travel/time/weather/transformation/power), COLLISION (conflict/reveal/failure), WONDER (world-specific ritual/magic/ecology/architecture), PLAY (character-specific joke, affection, embarrassment or celebration). Infer art direction from era, culture, maker/owner, material/device, genre and emotion. Use a coherent palette, typography, spacing rhythm, distinctive silhouette, tactile depth and one memorable motif; avoid generic centered cards/dashboards and do not repeat the last dominant design.
+Wrap raw self-contained HTML5/CSS3 exactly in <!-- VIS_START --> and <!-- VIS_END --> without Markdown fences. Use one unique scoped root. No scripts, event handlers, iframes, external URLs/assets, submitting forms or hidden prompt text. Keep body text at least 15px, metadata at least 12px, high contrast and mobile-safe. CSS-only interactions need unique IDs, a working default, reachable sibling selectors, visible return and no dead controls. Anchor beside supporting prose, never first/last. Visuals may show only POV-available facts; never hidden VELLUM state, unavailable thoughts, invented canon, player decisions, prose-only advancement or duplicated narration.`
+    : 'Raw VTK is off. Do not emit VIS_START/VIS_END or model-authored visual HTML/CSS.';
+  const vtkFinalGate = v.vtk === 'frequent'
+    ? 'FREQUENT VTK FINAL GATE: before state serialization, verify this narrative reply contains one complete raw VTK or, when Card Library is on, one visibly rendered typed artifact. If absent, add a compact scene-native visual beside its supporting prose beat now.'
+    : '';
   const rules = [
     '[ARGENT EFFECTIVE POLICY]',
     'Authority: explicit user boundaries and corrections > confirmed engine facts > scenario/card/worldbook > provisional lore > inferred detail. Never turn a provisional invention into confirmed canon. Follow character truth and depicted causality.',
@@ -97,7 +109,8 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
     ...settings,
     v.hard_limits ? `Absolute content boundaries: ${String(v.hard_limits)}` : '',
     enabled(v.dialogue_color) ? 'Wrap each named direct speaker inline as [spk=Exact Cast Name]"speech"[/spk]. One speaker per wrapper; no guessed identities.' : 'Do not add speaker markup.',
-    enabled(v.vtk_cards) ? 'Presentation: optional <artifact>{"type":"letter|codex|text|decree|portrait|map|item|title|verse|tarot|broadsheet|playbill","title":"plain text","body":"plain text","tone":"neutral|warning|warm"}</artifact>. No HTML, CSS, URLs or executable markup. Artifacts are presentation; establish durable facts in prose.' : 'No artifact markup.',
+    vtkPresentation,
+    enabled(v.vtk_cards) ? 'Typed Card Library: optional <artifact>{"type":"letter|codex|text|decree|portrait|map|item|title|verse|tarot|broadsheet|playbill","title":"plain text","body":"plain text","tone":"neutral|warning|warm"}</artifact>. The tag contains plain text only—no HTML, CSS, URLs or executable markup. Cards are presentation; establish durable facts in prose.' : 'No typed artifact markup.',
     v.reasoning_route === 'verbose'
       ? 'Planning route: one <reverie> with an extended 250–500 word fictional scene plan in eight sections A Authority, R Reality, G Gnosis, E Embodiment, N Narrative, T Truthful deltas, V Voice, X Final checks. Keep every named on-stage NPC in the embodiment check.'
       : v.reasoning_route === 'compact'
@@ -107,6 +120,7 @@ export function compileArgentPolicy(blocks: PolicyBlock[], selected: VariableVal
           : 'Do not emit a visible Reverie.',
     '[OUTPUT CONTRACT — FINAL]',
     visibleReverie,
+    vtkFinalGate,
     stateEnding,
     agencyEnding,
   ];

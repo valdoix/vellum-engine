@@ -2,7 +2,7 @@
 
 ARGENT LOOM is a VELLUM-native roleplay preset for long-running, causally coherent fiction. It combines strict player agency, limited character knowledge, physical and temporal continuity, durable relationships, living-world simulation, configurable prose craft, and an engine-owned state compiler that folds completed prose into the Chronicle only after validation.
 
-This guide covers all 59 user-facing controls in ARGENT LOOM 1.4.0, the 18-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
+This guide covers all 60 user-facing controls in ARGENT LOOM 1.5.0, the 20-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
 
 ## Included files
 
@@ -166,7 +166,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 
 ### Off-scene conversation privacy
 
-ARGENT 1.4.0 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
+ARGENT 1.5.0 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
 
 A can learn afterward only through a concrete bridge established in the fiction: B or C tells A, A plausibly overhears, a delivered message or readable record reaches A, a public announcement occurs, or observable evidence supports a limited inference. Evidence does not reveal more than it contains; suspicious aftermath may justify `suspects`, but not knowledge of the hidden transcript. The same audit applies to prose, dialogue, thoughts, reactions, interruptions, `present.thought`, and `delta.knowledge`.
 
@@ -216,16 +216,17 @@ The mature controls are ceilings, not quotas. A high level allows detail when th
 
 | Control | Default | Options and effect |
 |---|---|---|
-| `vtk` — Raw Visual Toolkit | **Off** | Retained only so inherited/imported variable data remains compatible. The ARGENT editor disables it, its option text never enters the prompt, and its old display renderer is disabled. Use Card Library for typed host-rendered artifacts. |
+| `vtk` — Raw Visual Toolkit | **Off** | **Rare:** exceptional visual hinges. **Balanced:** roughly every other narrative turn when a clear visual trigger exists. **Frequent:** at least one complete visual on every in-character narrative reply, with only pure OOC/meta/debug or explicit plain-prose exceptions. VTKs may be scene-native relics, signals/interfaces, emotional pulses, memories, thresholds, collisions, wonders, playful micro-visuals, or purposeful hybrids. |
 | `vtk_cards` — Card Library | **Off** | Enables `<artifact>` JSON for letters, codex cards, texts, decrees, portraits, maps, items, titles, verse, tarot, broadsheets, and playbills. A closed Zod schema validates it; VELLUM escapes all text and renders the card in a host-managed opaque-origin frame with a restrictive content policy and reduced-motion CSS. |
 | `vtk_spectacle` — Spectacle Cards | **Off** | Allows rarer broadsheet, tarot, and playbill artifacts. Requires Card Library. Dependency-aware controls explain and disable unavailable settings. |
 | `dialogue_color` — Colored Dialogue | **On** | Requires every live directly spoken quotation by a named speaker to use one complete exact-name wrapper. The display regex bridges it to VELLUM's cast-color system; prompt and memory transforms remove wrappers while retaining dialogue. Three conservative Response-stage recovery scripts repair explicit proper-name forms (`Mara said, "…"`, `"…" Mara said`, or `Mara: "…"`). VELLUM's runtime repair also handles `"…" said Mara` and canonical aliases. Recovery is restricted to explicit names; pronouns, generic titles, and uncertain speakers remain untouched. |
 
 ### Which visual system should I use?
 
-- Use **Card Library** for host-rendered, escaped, accessible artifacts.
-- Pre-1.2 raw VTK and bracket-card render scripts retain stable IDs but are disabled because regex substitution cannot safely sanitize model-authored HTML. New ARGENT output uses the declarative artifact contract.
-- If presentation begins to dominate the fiction, leave cards off except for turns that contain a real document or object.
+- Use **Raw Visual Toolkit** for bespoke, scene-specific HTML/CSS compositions and CSS-only inspectable interactions. It is model-authored markup, so enable it only on a host you trust to render that content; ARGENT forbids scripts, handlers, frames, external assets, and submitting forms, but prompt rules are not a sanitizer.
+- Use **Card Library** for the safer host-rendered, escaped, accessible artifact path. A typed card can satisfy Frequent when it visibly renders that turn.
+- Legacy bracket-card display regexes remain disabled. The raw VTK marker tidy and prompt/memory pruning scripts are active; they preserve the current visual while preventing its HTML from bloating later context or memory embeddings.
+- If presentation begins to dominate the fiction, use Rare or Balanced. Frequent deliberately treats a visual as part of every in-character output contract.
 
 ## Suggested configurations
 
@@ -298,7 +299,7 @@ This configuration consumes more state and can move the world beyond the player.
 
 - `vtk_cards`: On
 - `vtk_spectacle`: On
-- `vtk`: Rare
+- `vtk`: Frequent
 - `world_broadsheet`: On
 - `dialogue_color`: On
 
@@ -307,7 +308,7 @@ This configuration consumes more state and can move the world beyond the player.
 The 18 scripts are intentionally separated by Lumiverse pipeline surface:
 
 - **Response scripts** conservatively recover missing `[spk=...]` wrappers when an adjacent proper name makes the speaker explicit. Their find-stage gate requires both ARGENT's unique Planning Route sentinel and Colored Dialogue, so a different preset with a same-named color control still compiles to never-match. They also reject pronouns, determiners, and generic titles.
-- **Display scripts** render the Chronicle ledger, Reverie, colored speakers, and proofreader marks. The unsafe pre-1.2 raw-HTML and bracket-card renderers remain disabled; new `<artifact>` JSON uses VELLUM's typed host widget renderer.
+- **Display scripts** render the Chronicle ledger, Reverie, colored speakers, proofreader marks, and tidy active VTK marker comments. Legacy bracket-card renderers remain disabled; `<artifact>` JSON uses VELLUM's typed host widget renderer.
 - **Prompt scripts** retain only the newest useful state example, remove old planning and presentation wrappers, and normalize artifact text so future generations see meaning rather than UI syntax.
 - **Memory scripts** prevent machine JSON, planning, and raw HTML from entering embeddings while preserving semantic artifact and dialogue content.
 
@@ -347,7 +348,7 @@ The embedded and standalone regex packs were both imported. Keep one copy of eac
 
 ### Parallel events show an earlier location
 
-ARGENT 1.4.0 compiles off-screen changes as operations against prior T1 state and durable subplot state. Every prior actor is reviewed; unchanged rows survive, `move` requires travel, `resolve` retires a row, and an actor entering `scene.present` is removed automatically. Each durable subplot schedules its own next eligibility and remains linked to plot consequences.
+ARGENT 1.5.0 compiles off-screen changes as operations against prior T1 state and durable subplot state. Every prior actor is reviewed; unchanged rows survive, `move` requires travel, `resolve` retires a row, and an actor entering `scene.present` is removed automatically. Each durable subplot schedules its own next eligibility and remains linked to plot consequences.
 
 Parallel life is active when any relevant control requests it: Living World Active/Sandbox, NPC Social Autonomy Living/Autonomous, or Faction Politics Living/Autonomous. A state block that omits `delta.parallel` no longer erases accepted rows; VELLUM rebuilds the current snapshot from durable subplot state. Anonymous world and faction beats are shown in Elsewhere too. Living/Active stays restrained, while Autonomous/Sandbox can handle more independently moving lines and broader consequences without relaxing the knowledge, location, causality, or player-agency boundaries.
 
