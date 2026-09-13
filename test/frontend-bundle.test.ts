@@ -20,6 +20,8 @@ describe('frontend distribution bundle', () => {
     expect(bundle).toContain('Generated VELLUM file');
     expect(bundle).toContain('Persona state');
     expect(bundle).toContain('vellum_set_persona_state');
+    expect(bundle).toContain('vellum_set_persona_character');
+    expect(bundle).toContain('Player persona');
     expect(bundle).toContain('Edit current scene');
     expect(bundle).toContain('scene_set');
     expect(bundle).toContain('Repair Timeline Days');

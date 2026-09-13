@@ -4,7 +4,7 @@ import { mount, type Mounted } from './component.js';
 import { freshState, type ChronicleState } from '../domain/types.js';
 import { chronicleTab, setBeatSuggestions, setTurnLog } from './tabs/chronicle.js';
 import { directorTab, setDirectorDirectives, setDirectorNextScene } from './tabs/director.js';
-import { castTab } from './tabs/cast.js';
+import { castTab, setPersonaCastBinding } from './tabs/cast.js';
 import { relationsTab, setRelationLocks } from './tabs/relations.js';
 import { graphTab, resetGraphCache } from './tabs/graph.js';
 import { journalTab } from './tabs/journal.js';
@@ -1980,6 +1980,7 @@ export function setup(ctx: Ctx): () => void {
           try { renderPreview(); } catch { /* tab may be absent */ }
         }
         state = p.state ?? freshState();
+        setPersonaCastBinding(p.personaCast);
         compilerDiagnostic = p.compilerDiagnostic && typeof p.compilerDiagnostic === 'object'
           ? { turn: Number(p.compilerDiagnostic.turn) || 0, inputSig: String(p.compilerDiagnostic.inputSig ?? ''), errors: Array.isArray(p.compilerDiagnostic.errors) ? p.compilerDiagnostic.errors.map(String) : [] }
           : null;
@@ -2456,6 +2457,14 @@ export function setup(ctx: Ctx): () => void {
         });
         if (!p.ok) notify(ctx, 'warning', p.reason === 'no_active_chat' ? 'Open a chat before changing Persona state.' : 'Could not change Persona state.');
         else notify(ctx, 'success', _personaStateOn ? 'Persona state on — future turns track grounded state, thought, and traits.' : 'Persona state off — persona tracker fields stay blank.');
+      } else if (p?.type === 'vellum_persona_character_set_done') {
+        if (!p.ok) {
+          const message = p.reason === 'no_active_chat'
+            ? 'Open a chat before assigning the player persona.'
+            : p.reason === 'not_in_cast' ? 'That character is no longer in the cast.' : 'Could not assign the player persona.';
+          notify(ctx, 'warning', message);
+        } else if (p.personaCast?.name) notify(ctx, 'success', `${p.personaCast.name} is now the player persona for this chat.`);
+        else notify(ctx, 'success', 'Manual persona assignment cleared — VELLUM will use the host persona.');
       } else if (p?.type === 'vellum_traversal_done') {
         setQolBusy('traverse', false);
         _traverseMode = p.mode ?? (p.enabled ? 'flat' : 'off');

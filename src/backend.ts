@@ -75,6 +75,24 @@ import { buildLorebookRecall, type LorebookRecallResult } from './retrieval/lore
 import { TASK_ROLES, sanitizeModelRoutes, resolveTaskRoute, generationReasoning, type ModelRouteConfig, type TaskRole, type TaskRoute } from './domain/task-routing.js';
 import { auditChronicle } from './domain/workbench-health.js';
 import { plotRefMatches, resolvePlotRef } from './domain/plot-refs.js';
+import { applyPersonaCastBinding, parsePersonaCastBinding, type PersonaCastBinding } from './domain/persona-cast.js';
+
+const PERSONA_CAST_CHAT_VAR = 'vellum_persona_cast';
+
+async function readPersonaCastBinding(chatId: string): Promise<PersonaCastBinding | null> {
+  try { return parsePersonaCastBinding(await getChatVar(chatId, PERSONA_CAST_CHAT_VAR)); }
+  catch { return null; }
+}
+
+/** Resolve host names, then let an explicit Cast-tab persona assignment correct
+ * hosts that accidentally expose the {{char}} card as the active persona. */
+async function vellumChatNames(chatId: string, userId: string | null, personaId?: string | null): Promise<{ user: string; char: string }> {
+  const [names, binding] = await Promise.all([
+    chatNames(chatId, userId, personaId),
+    readPersonaCastBinding(chatId),
+  ]);
+  return applyPersonaCastBinding(names, binding);
+}
 
 function lorebookCanonEntries(entries: readonly LiteEntry[]): LorebookCanonEntry[] {
   return entries.map(entry => ({
@@ -210,7 +228,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw, engineWindowRaw, personaStateRaw] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw, engineWindowRaw, personaStateRaw, personaCast] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -232,6 +250,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     getChatVar(chatId, 'vellum_engine_pass').catch(() => ''),
     getChatVar(chatId, 'vellum_engine_window').catch(() => ''),
     getChatVar(chatId, 'vellum_persona_state').catch(() => ''),
+    readPersonaCastBinding(chatId),
   ]);
   const tidy = !!tidyRaw;
   const offscreen = !!offscreenRaw;
@@ -252,7 +271,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   if (_latestStateBroadcast.get(deliveryKey) !== deliverySeq) return;
   const state = await loadState(chatId);
   if (_latestStateBroadcast.get(deliveryKey) !== deliverySeq) return;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, engineWindow, personaState }, targetUser);
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, engineWindow, personaState, personaCast }, targetUser);
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -604,7 +623,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   const boundPersonaId = _personaIdByUserChat.get(userChatKey(userId, chatId));
   const [tone, names, locks, personaStateOn, attached] = await Promise.all([
     readTone(chatId, userId),
-    chatNames(chatId, userId, boundPersonaId),
+    vellumChatNames(chatId, userId, boundPersonaId),
     readLocks(chatId),
     readPersonaStateEnabled(chatId),
     structuredStateEnabled ? attachedLoreEntries(chatId, userId).catch(() => []) : Promise.resolve([]),
@@ -1560,7 +1579,7 @@ async function simulateOffscreen(chatId: string, userId: string | null, focusId?
       spindle.log?.warn?.('[vellum_engine] off-screen sim: parsed reply had zero usable beats. Raw reply: ' + JSON.stringify((res.value || '').slice(0, 400)));
       return { beats: 0, reason: 'empty_reply' };
     }
-    const simNames = await chatNames(chatId, userId);
+    const simNames = await vellumChatNames(chatId, userId);
     const simUserCanon = simNames.user ? canonId(simNames.user) : '';
     const evs = simEvents(useParsed, state, state.turns || 0, state.day || 0, () => nextSeqLocal(), { locks, worldCanon, social: tone.social, politics: tone.politics, livingWorld, userId: simUserCanon, ...(schedule ? { eligibleIds: schedule.dueIds, allowNew: schedule.allowNew, newCap: schedule.newCap } : {}), ...(skipDays ? { skipDays } : {}) });
     if (!evs.length) return { beats: 0, reason: 'empty_reply' };
@@ -1719,7 +1738,7 @@ async function vaultSyncPass(chatId: string, userId: string | null): Promise<voi
   if (autoCats.length) {
     let manualBook = ownedBooks(snap, chatId).find((b) => b.role === 'manual');
     if (!manualBook) {
-      const names = await chatNames(chatId, userId); const card = (names.char || 'Chronicle').slice(0, 40);
+      const names = await vellumChatNames(chatId, userId); const card = (names.char || 'Chronicle').slice(0, 40);
       const id = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card})`, 'Reviewable lore projected from this chat.', 'manual');
       manualBook = ownedBooks(snap, chatId).find((b) => b.id === id);
     }
@@ -1801,7 +1820,7 @@ async function maybeChapterVault(chatId: string, userId: string | null): Promise
       for (const e of entries.filter((x) => /^(chapter|arc|book):/.test(x.link) && x.bodyState === 'clean' && !(x.overrideFields ?? []).length)) { const r = await deleteEntry(e.id, userId); if (r.ok) removed++; }
       return { ok: true, reason: 'mode_off', created: 0, updated: 0, removed };
     }
-    const names = await chatNames(chatId, userId);
+    const names = await vellumChatNames(chatId, userId);
     const card = (names.char || 'Chronicle').slice(0, 40);
     const summaryBook = await resolveVellumBook(snap, chatId, userId, `VELLUM Vault (${card}) - Summaries`, 'Auto-authored chapter, arc, and book summaries.', 'summary');
     const bookId = summaryBook;
@@ -2005,7 +2024,7 @@ async function maybeAutoSummarize(chatId: string, userId: string | null): Promis
     // toasts on click; this covers the automatic cadence.
     spindle.sendToFrontend?.({ type: 'vellum_summarize_start', chatId, auto: true }, userId ?? currentUser() ?? undefined);
     const runOptions = await routedSummaryOptions(chatId, userId, stream.options, cfg);
-    const result = await summarizeWindow(state, userId, cfg.autoWindow, await chatNames(chatId, userId), cfg, runOptions);
+    const result = await summarizeWindow(state, userId, cfg.autoWindow, await vellumChatNames(chatId, userId), cfg, runOptions);
     const evs = result.events;
     if (evs.length) {
       await append(chatId, evs);
@@ -2262,7 +2281,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           parallelText = parallelCommandText;
           const personaStateOn = await readPersonaStateEnabled(chatId);
           const personaNames = personaStateOn || turnContract?.dialogueColor
-            ? await chatNames(chatId, uid, context.personaId)
+            ? await vellumChatNames(chatId, uid, context.personaId)
             : { user: '', char: '' };
           const personaStateText = personaStateGuidance(personaStateOn, turnContract, personaNames.user);
           const dialogueText = dialogueMarkupGuidance(!!turnContract?.dialogueColor, dialogueIdentities(state, personaNames));
@@ -2520,7 +2539,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           const boundPersonaId = _personaIdByUserChat.get(userChatKey(userId, chatId));
           const [state, names] = await Promise.all([
             loadState(chatId),
-            chatNames(chatId, userId, boundPersonaId),
+            vellumChatNames(chatId, userId, boundPersonaId),
           ]);
           const repaired = repairDialogueSpeakerTags(responseContent, dialogueIdentities(state, names));
           if (repaired !== responseContent && await has('chat_mutation') && spindle.chat?.updateMessage) {
@@ -2942,7 +2961,7 @@ const dispatch: Record<string, Handler> = {
     const report = (phase: string, done: number, total: number, message: string): void => spindle.sendToFrontend?.({ type: 'vellum_workbench_progress', job: { status: 'running', phase, done, total, message, deep: p?.deep !== false } }, uid);
     try {
       const [turns, raw, oldLog, names, tone, locks, personaStateOn, contract, ledger, attached] = await Promise.all([
-        allTurnContents(chatId), getRawMessages(chatId), loadLog(chatId), chatNames(chatId, uid), readTone(chatId, uid), readLocks(chatId), readPersonaStateEnabled(chatId), activeTurnContract(chatId, uid), activeTurnAgencyLedger(chatId, uid), attachedLoreEntries(chatId, uid),
+        allTurnContents(chatId), getRawMessages(chatId), loadLog(chatId), vellumChatNames(chatId, uid), readTone(chatId, uid), readLocks(chatId), readPersonaStateEnabled(chatId), activeTurnContract(chatId, uid), activeTurnAgencyLedger(chatId, uid), attachedLoreEntries(chatId, uid),
       ]);
       const hash = transcriptHash(turns);
       const baseLogHash = hashStr(JSON.stringify(oldLog.events));
@@ -3111,7 +3130,7 @@ const dispatch: Record<string, Handler> = {
     if (cleanTurns) {
       try {
         const msgs = await allTurnContents(chatId);
-        const names = await chatNames(chatId, uid);
+        const names = await vellumChatNames(chatId, uid);
         const prior = await loadState(chatId);
         const turnMems = prior.memories.filter((m) => m.tier === 'turn');
         const evs: VellumEvent[] = [];
@@ -3149,7 +3168,7 @@ const dispatch: Record<string, Handler> = {
       }
       let prior = await loadState(chatId);
       const tone = await readTone(chatId, uid);
-      const names = await chatNames(chatId, uid);
+      const names = await vellumChatNames(chatId, uid);
       const userCanon = names.user ? canonId(names.user) : '';
       const locks = await readLocks(chatId);
       const personaStateOn = await readPersonaStateEnabled(chatId);
@@ -3235,6 +3254,18 @@ const dispatch: Record<string, Handler> = {
     const evs = cmdEvents(p.cmd, p, state, { turn: state.turns || 0, day: state.day || 0 });
     if (!evs.length) return;
     await append(chatId, evs);
+    if (p.cmd === 'cast_upsert' || p.cmd === 'cast_delete') {
+      const binding = await readPersonaCastBinding(chatId);
+      const entry = p?.entry && typeof p.entry === 'object' ? p.entry : p;
+      const id = String(entry?.id ?? '').trim();
+      if (binding && id === binding.id) {
+        if (p.cmd === 'cast_delete') await setChatVar(chatId, PERSONA_CAST_CHAT_VAR, '');
+        else {
+          const name = String(entry?.name ?? '').trim();
+          if (name) await setChatVar(chatId, PERSONA_CAST_CHAT_VAR, JSON.stringify({ id, name }));
+        }
+      }
+    }
     invalidateIndex(chatId);
     await broadcastState(chatId, uid);
     // Deleting or editing a chapter/arc/book memory must reconcile its mirrored Vault.
@@ -3256,7 +3287,7 @@ const dispatch: Record<string, Handler> = {
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'busy' }, uid); return; }
     try {
       const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
-      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), (done, roundTotal, tokensSoFar) => {
+      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await vellumChatNames(chatId, uid), (done, roundTotal, tokensSoFar) => {
         invalidateIndex(chatId);
         void broadcastState(chatId, uid).catch((e) => spindle.log?.warn?.('[vellum_engine] summary round broadcast: ' + ((e as Error)?.message ?? e)));
         spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total: roundTotal, tokens: tokensSoFar }, uid);
@@ -3295,7 +3326,7 @@ const dispatch: Record<string, Handler> = {
       const cfg = await summarizerCfg(chatId);
       const win = Math.max(cfg.minWindow, Math.min(4, cfg.autoWindow));
       const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
-      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await chatNames(chatId, uid), (done, total, tokensSoFar) => {
+      const { rounds, tokens } = await summarizeAll(state, uid, (evs) => append(chatId, evs), win, await vellumChatNames(chatId, uid), (done, total, tokensSoFar) => {
         invalidateIndex(chatId);
         void broadcastState(chatId, uid).catch((e) => spindle.log?.warn?.('[vellum_engine] resummary round broadcast: ' + ((e as Error)?.message ?? e)));
         spindle.sendToFrontend?.({ type: 'vellum_summarize_progress', done, total, tokens: tokensSoFar }, uid);
@@ -3346,7 +3377,7 @@ const dispatch: Record<string, Handler> = {
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_summarize_done', ok: false, reason: 'busy' }, uid); return; }
     try {
       const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
-      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'chapter', runOptions);
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await vellumChatNames(chatId, uid), cfg, 'chapter', runOptions);
       if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, runOptions); }
       invalidateIndex(chatId);
       const cancelled = !!stream.options.signal?.aborted;
@@ -3378,7 +3409,7 @@ const dispatch: Record<string, Handler> = {
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_arc_done', ok: false, reason: 'busy' }, uid); return; }
     try {
       const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
-      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'arc', runOptions);
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await vellumChatNames(chatId, uid), cfg, 'arc', runOptions);
       if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, runOptions); }
       invalidateIndex(chatId);
       const cancelled = !!stream.options.signal?.aborted;
@@ -3407,7 +3438,7 @@ const dispatch: Record<string, Handler> = {
     if (!stream) { spindle.sendToFrontend?.({ type: 'vellum_book_done', ok: false, reason: 'busy' }, uid); return; }
     try {
       const runOptions = await routedSummaryOptions(chatId, uid, stream.options, cfg);
-      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await chatNames(chatId, uid), cfg, 'book', runOptions);
+      const { events, tokens } = await summarizeFromPlan(state, uid, plan, await vellumChatNames(chatId, uid), cfg, 'book', runOptions);
       if (events.length) { await append(chatId, events); reportArchiveSaved(events, tokens, runOptions); }
       invalidateIndex(chatId);
       const cancelled = !!stream.options.signal?.aborted;
@@ -3732,7 +3763,7 @@ const dispatch: Record<string, Handler> = {
     const name = String(p?.name ?? '').trim();
     if (!name && !p?.id) return;
     const state = await loadState(chatId);
-    const names = await chatNames(chatId, uid);
+    const names = await vellumChatNames(chatId, uid);
     const existing = p?.id ? state.offscreen.find(row => row.id === String(p.id)) : undefined;
     const personaLabels = [names.user, ...(names.user ? (state.cast[canonId(names.user)]?.aka ?? []) : [])]
       .map(value => String(value ?? '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim())
@@ -4361,6 +4392,35 @@ const dispatch: Record<string, Handler> = {
     } catch (e) {
       spindle.log?.warn?.('[vellum_engine] persona-state toggle: ' + ((e as Error)?.message ?? e));
       spindle.sendToFrontend?.({ type: 'vellum_persona_state_set_done', ok: false, reason: 'error', enabled: await readPersonaStateEnabled(chatId).catch(() => false) }, uid);
+    }
+  },
+  vellum_set_persona_character: async (p, uid) => {
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) {
+      spindle.sendToFrontend?.({ type: 'vellum_persona_character_set_done', ok: false, reason: 'no_active_chat' }, uid);
+      return;
+    }
+    const id = String(p?.id ?? '').trim();
+    try {
+      if (!id) {
+        await setChatVar(chatId, PERSONA_CAST_CHAT_VAR, '');
+        await broadcastState(chatId, uid);
+        spindle.sendToFrontend?.({ type: 'vellum_persona_character_set_done', ok: true, personaCast: null }, uid);
+        return;
+      }
+      const state = await loadState(chatId);
+      const card = state.cast[id];
+      if (!card) {
+        spindle.sendToFrontend?.({ type: 'vellum_persona_character_set_done', ok: false, reason: 'not_in_cast' }, uid);
+        return;
+      }
+      const personaCast: PersonaCastBinding = { id: card.id, name: card.name };
+      await setChatVar(chatId, PERSONA_CAST_CHAT_VAR, JSON.stringify(personaCast));
+      await broadcastState(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_persona_character_set_done', ok: true, personaCast }, uid);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] persona-character assignment: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_persona_character_set_done', ok: false, reason: 'error' }, uid);
     }
   },
   vellum_set_tone: async (p, uid) => {

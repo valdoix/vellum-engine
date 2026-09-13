@@ -8,6 +8,7 @@ import { traitArc, dormantTraits } from '../../domain/drift.js';
 import { visibleCast } from '../../domain/cast-hygiene.js';
 import { activeShape } from '../theme.js';
 import { shapeOrnament } from '../ornament.js';
+import type { PersonaCastBinding } from '../../domain/persona-cast.js';
 
 /**
  * Cast tab — two sections: CHARACTERS (individuals) and FACTIONS (groups).
@@ -42,6 +43,15 @@ let _density: 'cards' | 'strip' = 'cards';
 const _expanded = new Set<string>();
 // latest rendered state, so click handlers (memberForm) can read the cast list.
 let _state: ChronicleState | null = null;
+let _personaCast: PersonaCastBinding | null = null;
+
+/** Hydrate the per-chat player-persona assignment carried beside Chronicle state. */
+export function setPersonaCastBinding(value: unknown): void {
+  const row = value && typeof value === 'object' ? value as Partial<PersonaCastBinding> : null;
+  const id = String(row?.id ?? '').trim();
+  const name = String(row?.name ?? '').trim();
+  _personaCast = id && name ? { id, name } : null;
+}
 
 /** Status filter chips (zero-count statuses omitted) + sort buttons. */
 function filterBar(side: 'cast' | 'fac', counts: Record<string, number>, total: number): string {
@@ -67,7 +77,7 @@ export const castTab: Component<ChronicleState> = {
     const fv = Object.values(s.factions).map((f) => `${f.id}|${f.name}|${f.status}|${f.kind}|${f.standing}|${f.trust}|${f.lastTurn}|${f.seat ?? ''}|${f.userEdited ? 'u' : ''}`).join(';');
     const mv = s.memberships.map((m) => `${m.char}>${m.faction}:${m.role ?? ''}`).join(',')
       + '~' + (s.factionRelations ?? []).map((r) => `${r.a}>${r.b}:${r.kind}:${r.standing}`).join(',');
-    return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode() + '#' + _density + '#' + Array.from(_expanded).sort().join(',') + '#' + (s.traitHistory ?? []).length;
+    return cv + '#' + fv + '#' + mv + ':' + s.turns + '#' + _st.cast + _sort.cast + _st.fac + _sort.fac + '#' + autoNameMode() + '#' + _density + '#' + Array.from(_expanded).sort().join(',') + '#' + (s.traitHistory ?? []).length + '#persona:' + (_personaCast?.id ?? '');
   },
   render(s) {
     _state = s;
@@ -89,6 +99,13 @@ export const castTab: Component<ChronicleState> = {
       if (uf) { const id = uf.getAttribute('data-id')!; _expanded.has(id) ? _expanded.delete(id) : _expanded.add(id); refreshUI(); return; }
       const pr = t.closest('[data-cast-promote]');
       if (pr) { send({ type: 'vellum_vault_promote', kind: 'cast', id: pr.getAttribute('data-id') }); const b = pr as HTMLElement; const o = b.textContent; b.textContent = '\u2713'; setTimeout(() => { b.textContent = o; }, 1800); return; }
+      const pc = t.closest('[data-cast-persona]');
+      if (pc) {
+        const id = pc.getAttribute('data-id') ?? '';
+        send({ type: 'vellum_set_persona_character', id: _personaCast?.id === id ? '' : id });
+        (pc as HTMLButtonElement).disabled = true;
+        return;
+      }
       if (t.closest('[data-cast-add]')) { castForm('New Character', {}); return; }
       const ed = t.closest('[data-cast-edit]');
       if (ed) {
@@ -201,6 +218,15 @@ function deceasedMark(c: CastCard): string {
   return c.deceased ? ' <span class="vle-deceased" title="deceased">\u2020</span>' : '';
 }
 
+function personaMark(c: CastCard): string {
+  return _personaCast?.id === c.id ? ' <span class="vle-persona-mark" title="Player persona">persona</span>' : '';
+}
+
+function personaButton(c: CastCard): string {
+  const selected = _personaCast?.id === c.id;
+  return `<button class="vle-mini vle-persona-btn${selected ? ' on' : ''}" data-cast-persona data-id="${esc(c.id)}" aria-pressed="${selected ? 'true' : 'false'}" title="${selected ? 'Clear persona assignment and use the host persona' : `Set ${esc(c.name)} as the player persona`}">\u2659 persona</button>`;
+}
+
 /** Personality trait tags for a character, rendered as neutral chips. */
 function traitChips(c: CastCard): string {
   const traits = (c.traits ?? []).filter(Boolean).slice(0, 6);
@@ -261,12 +287,13 @@ function card(s: ChronicleState, c: CastCard): string {
   return '<div class="vle-card vle-card--' + esc(c.status) + (c.status === 'present' ? ' on' : '') + (open ? ' is-open' : '') + '">'
     + shapeOrnament(activeShape('cast'), 'cast')
     + '<button class="vle-av' + (c.imageUrl ? ' has-img' : '') + (c.deceased ? ' v-orn--ring-harm' : '') + '" data-cast-unfold data-id="' + A(c.id) + '" title="' + esc(c.status) + ' \u00b7 expand"' + (c.imageUrl ? ' style="background-image:url(' + esc(JSON.stringify(c.imageUrl)) + ')"' : '') + '>' + (c.imageUrl ? '' : esc(initials(c.name))) + '<span class="vle-av-dot"></span></button>'
-    + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + deceasedMark(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
+    + '<span class="vle-card-main"><span class="vle-card-n">' + nameHtmlCard(c) + deceasedMark(c) + personaMark(c) + (c.userEdited ? ' <span class="vle-star">\u2605</span>' : '') + '</span>'
     + (sub ? '<span class="vle-card-sub">' + sub + '</span>' : '')
     + (!open && c.appearance ? '<span class="vle-card-app">' + esc(c.appearance) + '</span>' : '')
     + detail
     + '</span>'
     + '<span class="vle-card-ctl">'
+    + personaButton(c)
     + `<button class="vle-mini" data-cast-unfold data-id="${A(c.id)}" title="${open ? 'Collapse' : 'Expand'}">${open ? '\u2303' : '\u2304'}</button>`
     + `<button class="vle-mini" data-cast-promote data-id="${A(c.id)}" title="Promote to Vault lore">\u2934</button>`
     + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-dcolor="${A(c.dialogueColor ?? '')}" data-img="${A(c.imageUrl ?? '')}" data-deceased="${c.deceased ? 'yes' : 'no'}" title="Edit">\u270E</button>`
@@ -286,11 +313,12 @@ function strip(s: ChronicleState, c: CastCard): string {
   const sav = avatarParts(c.name, c.imageUrl);
   return '<div class="vle-strip vle-card--' + esc(c.status) + '">'
     + '<span class="vle-strip-av' + sav.cls + '"' + sav.style + '>' + sav.inner + '</span>'
-    + '<span class="vle-strip-n">' + nameHtmlCard(c) + deceasedMark(c) + '</span>'
+    + '<span class="vle-strip-n">' + nameHtmlCard(c) + deceasedMark(c) + personaMark(c) + '</span>'
     + '<span class="vle-strip-st">' + esc(where) + '</span>'
     + (c.role ? '<span class="vle-strip-role">' + esc(c.role) + '</span>' : '')
     + (dots ? '<span class="vle-strip-bonds">' + dots + '</span>' : '')
     + '<span class="vle-card-ctl">'
+    + personaButton(c)
     + `<button class="vle-mini" data-cast-edit data-id="${A(c.id)}" data-name="${A(c.name)}" data-role="${A(c.role)}" data-age="${A(c.age)}" data-app="${A(c.appearance)}" data-note="${A(c.note)}" data-status="${A(c.status)}" data-aka="${A((c.aka ?? []).join(', '))}" data-disp="${A(c.disposition ?? '')}" data-traits="${A((c.traits ?? []).join(', '))}" data-color="${A(c.color ?? '')}" data-colorto="${A(c.colorTo ?? '')}" data-dcolor="${A(c.dialogueColor ?? '')}" data-img="${A(c.imageUrl ?? '')}" data-deceased="${c.deceased ? 'yes' : 'no'}" title="Edit">\u270E</button>`
     + `<button class="vle-mini del" data-cast-del data-id="${A(c.id)}" data-name="${A(c.name)}" title="Remove">\u2715</button>`
     + '</span></div>';
