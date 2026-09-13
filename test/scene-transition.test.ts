@@ -55,9 +55,9 @@ describe('scene transitions', () => {
     expect(state.scene.title).toBe('The Waking House');
   });
 
-  it('asks the compiler to inspect plots from turn one without inventing cadence', () => {
-    expect(STATE_COMPILER_SYSTEM).toContain('including turn 1');
-    expect(STATE_COMPILER_SYSTEM).toContain('Do not impose a fixed cadence or fabricate movement');
+  it('keeps the bare compiler conservative about plot movement', () => {
+    expect(STATE_COMPILER_SYSTEM).toContain('Plot rows need a concrete new condition directly caused by this turn');
+    expect(STATE_COMPILER_SYSTEM).toContain('no change is better than generic progress');
   });
 
   it('applies a Director time skip to canonical scene time and day', () => {

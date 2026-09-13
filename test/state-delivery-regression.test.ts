@@ -62,9 +62,9 @@ describe('repaired Chronicle state delivery', () => {
     expect(backend).toContain('resolvePlotRef(rows, raw)');
   });
 
-  it('continues opening the plot ledger when an existing Chronicle has no tracks', () => {
-    expect(STATE_COMPILER_SYSTEM).toContain('If prior has zero open threads');
-    expect(STATE_COMPILER_SYSTEM).toContain('If prior has zero open arcs');
+  it('lets Engine Pass omit unchanged snapshot and proof boilerplate', () => {
+    expect(STATE_COMPILER_SYSTEM).toContain('Return only changes');
+    expect(STATE_COMPILER_SYSTEM).toContain('Do not build separate evidence, trackEvidence, or parallelReviewed arrays');
   });
 
   it('raises the event sequence floor from persisted history', () => {

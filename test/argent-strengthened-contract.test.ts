@@ -228,7 +228,7 @@ describe('ARGENT strengthened invariants', () => {
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'active', social: 'off', politics: 'off' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'sandbox', social: 'off', politics: 'off' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'living', politics: 'off' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
-    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'autonomous', politics: 'off' })).toContain('Autonomous/Sandbox may handle four due rows');
+    expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'autonomous', politics: 'off' })).toContain('Autonomous/Sandbox must create at least four parallel events');
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'off', politics: 'living' })).toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'inline', living_world: 'off', social: 'off', politics: 'off' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');
     expect(expandedBlock('arg-output-contract', { state_on: 1, state_compiler: 'engine', living_world: 'active' })).not.toContain('PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE');

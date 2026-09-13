@@ -257,6 +257,16 @@ describe('simEvents + reduce round-trip', () => {
     const evs = simEvents({ offscreen: [{ op: 'advance', id: 'ghost', name: 'Ghost', gist: 'x' }] }, s, 12, 1, (() => { let n = 0; return () => ++n; })());
     expect((evs[0] as any).op).toBe('new');
   });
+  it('never places the persona in a named or anonymous subplot', () => {
+    const s = state();
+    s.cast.player = { ...s.cast.jaime!, id: 'player', name: 'Player', aka: ['The Captain'], status: 'active' } as any;
+    const parsed = { offscreen: [
+      { op: 'new' as const, id: 'persona_errand', name: 'Player errand', who: 'Player', where: 'The Yard', gist: 'Player waits by the gate' },
+      { op: 'new' as const, id: 'anonymous_persona', name: 'Captain watch', where: 'The Yard', gist: 'The Captain is watched from the wall' },
+    ] };
+    const evs = simEvents(parsed, s, 12, 1, (() => { let n = 0; return () => ++n; })(), { livingWorld: 'sandbox', userId: 'player' });
+    expect(evs).toEqual([]);
+  });
 });
 
 describe('SIM_SYS / simSys', () => {

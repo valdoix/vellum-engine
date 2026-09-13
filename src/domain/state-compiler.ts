@@ -102,6 +102,10 @@ export type CompilerInput = {
   codexAllowed?: boolean;
   inventoryAllowed?: boolean;
   livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox';
+  configuredLivingWorld?: 'off' | 'minimal' | 'active' | 'sandbox';
+  social?: 'off' | 'reactive' | 'living' | 'autonomous';
+  politics?: 'off' | 'living' | 'autonomous';
+  argent?: boolean;
   agency?: 'protected' | 'continuity' | 'director';
   personaState?: boolean;
   /** Relevant entries from lorebooks explicitly attached to this chat. These
@@ -111,6 +115,33 @@ export type CompilerInput = {
 export interface CompilationSuggestion { id: string; kind: 'thread' | 'arc' | 'offscreen'; row: Record<string, unknown>; reason: string }
 export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[]; suggestions?: CompilationSuggestion[] } | { ok: false; errors: string[]; draft?: unknown; fragment?: string };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
+
+/** Mandatory ARGENT output is separate from optional extraction. A compact
+ * provider reply may omit engine-owned boilerplate, but it may not skip the
+ * preset's opening plot ledger or an enabled Sandbox world's activity floor. */
+export function argentRequirementErrors(candidate: StateCandidate, input: CompilerInput): string[] {
+  if (!input.argent) return [];
+  const narrative = input.prose.trim();
+  const inCharacter = !!narrative && !/^\s*(?:OOC:|\(\()/i.test(narrative);
+  const hasOpenThread = input.prior.threads.some(row => !/resolv/i.test(row.status || ''));
+  const hasOpenArc = input.prior.arcs.some(row => !/resolv/i.test(row.status || ''));
+  const needsOpeningPlot = !hasOpenThread && narrative.length >= 40 && inCharacter;
+  const threads = (candidate.state.delta.threads ?? []).filter((row: { op?: string }) => row.op === 'new');
+  const arcs = (candidate.state.delta.arcs ?? []).filter((row: { op?: string }) => row.op === 'new');
+  const errors: string[] = [];
+  if (needsOpeningPlot && threads.length !== 1) errors.push('ARGENT requires exactly one grounded opening thread when the plot ledger is empty');
+  if (needsOpeningPlot && !hasOpenArc && arcs.length !== 1) errors.push('ARGENT requires exactly one grounded opening parent arc when no parent arc exists');
+  if (needsOpeningPlot && !hasOpenArc && threads.length === 1 && arcs.length === 1 && (!threads[0]!.arc || trackTitleKey(threads[0]!.arc) !== trackTitleKey(arcs[0]!.name))) {
+    errors.push('ARGENT opening thread must link to the exact opening arc title');
+  }
+  if (inCharacter && input.livingWorld === 'sandbox') {
+    const newSubplots = (candidate.state.delta.offscreen ?? []).filter((row: { op?: string }) => row.op === 'new').length;
+    const parallelEvents = candidate.parallelOps.length + (candidate.parallelWorldOps?.length ?? 0);
+    if (newSubplots < 2) errors.push(`ARGENT Sandbox requires at least 2 new durable subplots; received ${newSubplots}`);
+    if (parallelEvents < 4) errors.push(`ARGENT Sandbox requires at least 4 parallel event operations; received ${parallelEvents}`);
+  }
+  return errors;
+}
 
 function compilerLorebookCanon(input: CompilerInput): LorebookCanonEntry[] {
   const p = input.prior;
@@ -330,6 +361,39 @@ export function jsonSchema(s: z.ZodTypeAny): Record<string, unknown> {
   throw new Error('Unsupported compiler schema: ' + s._def.typeName);
 }
 
+/**
+ * Provider-facing schema for Engine Pass. The canonical validator remains
+ * authoritative, but the model does not need to repeat the complete T1
+ * snapshot or the engine's evidence/proof bookkeeping. Omitted core fields are
+ * restored from prior state by preparedCompilerCandidate(); evidence may live
+ * beside the changed row and is lifted out before strict validation.
+ */
+export function compilerProviderSchema(): Record<string, unknown> {
+  const schema = structuredClone(jsonSchema(CompilerCandidate)) as any;
+  schema.required = ['state'];
+  delete schema.properties.evidence;
+  delete schema.properties.trackEvidence;
+  delete schema.properties.parallelReviewed;
+
+  const state = schema.properties.state;
+  state.required = [];
+  state.properties.scene.required = [];
+  state.properties.scene.properties.evidence = {
+    type: 'object', additionalProperties: false, required: [],
+    properties: { loc: { type: 'string' }, time: { type: 'string' }, present: { type: 'string' } },
+  };
+  state.properties.present.items.required = ['id'];
+  state.properties.present.items.properties.evidence = { type: 'string' };
+
+  for (const branch of [state.properties.delta, state.properties.ext]) {
+    for (const property of Object.values(branch.properties ?? {}) as any[]) {
+      if (property?.type !== 'array' || !property.items?.properties) continue;
+      property.items.properties.evidence = { type: 'string' };
+    }
+  }
+  return schema;
+}
+
 export function validateCompilation(raw: unknown, input: CompilerInput): Compilation {
   const parsed = CompilerCandidate.safeParse(raw);
   if (!parsed.success) return { ok: false, errors: parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`) };
@@ -396,8 +460,12 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   if (h! * 60 + m! !== s.scene.clock) errors.push('time and clock disagree');
   if (s.day * 1440 + s.scene.clock < input.prior.day * 1440 + priorClock) errors.push('clock moves backward');
   const currentTurnEvidencePath = (path: string): boolean => path === 'scene.loc' || path === 'scene.time' || path.startsWith('present.add.') || path.startsWith('present.remove.');
+  const sandboxAutonomy = input.argent === true && input.livingWorld === 'sandbox';
   const quoteAllowed = (path: string, quote: string): boolean => sourceContainsEvidence(currentTurnEvidencePath(path) ? currentTurnSource : input.prose, quote)
-    || !!lorebookEvidence(quote);
+    || !!lorebookEvidence(quote)
+    // Sandbox is a simulation pass as well as an extractor. Its off-screen
+    // rows may carry a concise causal rationale authored from canonical T0.
+    || (sandboxAutonomy && path.startsWith('delta.offscreen.') && !!quote.trim());
   const needsEvidence = (path: string, changed: boolean, derived = false) => {
     if (changed && !derived && !c.evidence.some(e => e.path === path && quoteAllowed(path, e.quote))) errors.push(`missing evidence: ${path}`);
   };
@@ -410,6 +478,14 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   const allowed = new Set(Object.keys(input.prior.cast));
   const player = canonId(input.userName);
   if (player) allowed.add(player);
+  const personaLabels = [input.userName, input.prior.cast[player]?.name, ...(input.prior.cast[player]?.aka ?? [])]
+    .map(value => evidenceText(value).replace(/[^\p{L}\p{N}]+/gu, ' ').trim())
+    .filter(value => value.length >= 2);
+  const mentionsPersona = (...values: unknown[]): boolean => {
+    if (!personaLabels.length) return false;
+    const haystack = ` ${values.flatMap(value => Array.isArray(value) ? value : [value]).map(value => evidenceText(value).replace(/[^\p{L}\p{N}]+/gu, ' ')).join(' ')} `;
+    return personaLabels.some(label => haystack.includes(` ${label} `));
+  };
   const literalName = (n: string) => input.prose.toLocaleLowerCase().includes(n.toLocaleLowerCase());
   for (const p of s.present) {
     const id = canonId(p.id);
@@ -431,7 +507,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
         const traits = (p.traits ?? []).map((trait: string) => trait.trim().toLocaleLowerCase()).filter(Boolean).sort();
         if (!traits.length) errors.push('persona state requires traits');
       }
-    } else if (!p.thought.trim()) errors.push(`missing NPC thought: ${p.id}`);
+    }
   }
   if (input.personaState && player && !present.has(player)) errors.push('persona state requires the player in present');
   const priorPresent = new Set(input.prior.scene.present.map(canonId));
@@ -456,6 +532,11 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
         errors.push(`lorebook evidence cannot establish this kind of change: ${e.path}`);
       }
     }
+  }
+  const subplotRows = s.delta.offscreen ?? [];
+  if (input.livingWorld === 'active') {
+    if (subplotRows.length > 2) errors.push('offscreen deltas exceed the active row cap of 2');
+    if (subplotRows.filter((row: { op?: string }) => row.op === 'new').length > 1) errors.push('offscreen deltas exceed the active new-row cap of 1');
   }
   for (const [section, rows] of Object.entries(s.delta)) {
     if (!Array.isArray(rows)) continue;
@@ -484,22 +565,23 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
         const prior = input.prior.offscreen.find(item => item.id === row.id);
         if (row.op === 'new' && prior) errors.push(`offscreen new id already exists: ${row.id}`);
         if (row.op !== 'new' && !prior) errors.push(`offscreen mutation requires an existing id: ${row.id}`);
+        if (row.op !== 'resolve' && mentionsPersona(row.who, row.name, row.gist, row.hooks, row.stakes)) {
+          errors.push(`persona cannot appear in an offscreen subplot: ${row.id}`);
+        }
         const actorId = row.who ? canonId(row.who) : prior?.who ? canonId(prior.who) : '';
         if (actorId) {
           if (!input.prior.cast[actorId] || actorId === player) errors.push(`offscreen actor must be a known NPC: ${row.who ?? prior?.who}`);
           if (present.has(actorId)) errors.push(`present actor cannot also be offscreen: ${row.who ?? prior?.who}`);
-          const candidateIntent = s.ext.intent?.find(item => canonId(item.who) === actorId && (item.status ?? 'active') === 'active');
-          if (row.op === 'new' && input.prior.cast[actorId]?.intent?.status !== 'active' && !candidateIntent) errors.push(`new NPC subplot requires an active intent: ${row.who}`);
           const actorName = input.prior.cast[actorId]?.name ?? String(row.who ?? prior?.who ?? '');
           if (row.op === 'resolve') {
             if (!quote || !evidenceGroundsActorResolution(input.prior, actorName, quote)) errors.push(`offscreen resolution is not grounded: ${row.id}`);
-          } else if (!row.where || !quote || !evidenceGroundsActorActivity(input.prior, actorName, row.where, row.gist, quote)) {
-            errors.push(`offscreen beat is not grounded to its NPC, place, and activity: ${row.id}`);
+          } else if (!row.where || !row.gist || !quote || !evidenceMentionsActor(input.prior, actorName, quote)) {
+            errors.push(`offscreen beat needs a named NPC, place, activity, and current source excerpt: ${row.id}`);
           }
         } else if (row.op === 'resolve') {
           if (!quote || !evidenceGroundsWorldResolution(prior?.where, quote)) errors.push(`offscreen world resolution is not grounded: ${row.id}`);
-        } else if (!quote || !evidenceGroundsWorldActivity(row.where ?? prior?.where, row.gist, quote)) {
-          errors.push(`offscreen world beat is not grounded to place and activity: ${row.id}`);
+        } else if (!row.gist || !quote) {
+          errors.push(`offscreen world beat needs an activity and current source excerpt: ${row.id}`);
         }
         if (row.op !== 'resolve' && row.gist && activityNeedsAccessPath(row.gist) && !evidenceHasAccessPath(quote)) {
           errors.push(`offscreen knowledge/reaction lacks a delivered access path: ${row.id}`);
@@ -664,37 +746,36 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     const id = canonId(p.who!);
     return [id, { who: input.prior.cast[id]?.name ?? p.who!, where: p.where ?? '', activity: p.activity, note: p.note }];
   }));
-  const reviewed = new Set(c.parallelReviewed.map(canonId));
-  for (const id of rows.keys()) if (!reviewed.has(id)) errors.push(`parallel actor not reviewed: ${id}`);
   const operated = new Set<string>();
   const autonomousSupport = parallelGrounding(input);
   for (const op of c.parallelOps) {
     const id = canonId(op.who);
+    if (id === player || mentionsPersona(op.who, op.activity, op.evidence)) errors.push(`persona cannot appear in a parallel event: ${op.who}`);
     if (operated.has(id)) errors.push(`duplicate parallel operation: ${id}`);
     operated.add(id);
     const previous = rows.get(id);
     const proseQuote = sourceContainsEvidence(input.prose, op.evidence) ? op.evidence : '';
+    const sandboxProof = sandboxAutonomy && !!op.evidence.trim() ? op.evidence : '';
     const priorBacked = !proseQuote && op.op === 'start'
       && autonomousSupport.some(row => row.evidence === op.evidence
         && !!op.where && !!op.activity
         && evidenceGroundsActorActivity(input.prior, op.who, op.where, op.activity, row.evidence));
     let grounded = priorBacked;
-    if (proseQuote) {
-      if (op.op === 'start') grounded = !!op.where && !!op.activity
-        && evidenceGroundsActorActivity(input.prior, op.who, op.where, op.activity, proseQuote);
-      else if (op.op === 'move') grounded = !!op.where && evidenceGroundsMove(input.prior, op.who, op.where, proseQuote)
-        && (!previous || previous.activity === op.activity || (!!op.activity && evidenceGroundsActorActivity(input.prior, op.who, op.where, op.activity, proseQuote)));
-      else if (op.op === 'advance') grounded = !!op.where && !!op.activity
-        && evidenceGroundsActorActivity(input.prior, op.who, op.where, op.activity, proseQuote);
-      else grounded = evidenceGroundsActorResolution(input.prior, op.who, proseQuote);
+    const operationProof = proseQuote || sandboxProof;
+    if (operationProof) {
+      grounded = op.op === 'resolve'
+        ? evidenceGroundsActorResolution(input.prior, op.who, operationProof)
+        : op.op === 'move'
+          ? !!op.where?.trim() && evidenceGroundsMove(input.prior, op.who, op.where, operationProof)
+          : evidenceMentionsActor(input.prior, op.who, operationProof) && !!op.where?.trim() && !!op.activity?.trim();
     }
-    if (!grounded) errors.push(`parallel operation is not grounded to actor, place, and activity: ${id}`);
+    if (!grounded) errors.push(`parallel operation needs the named actor and a current source excerpt: ${id}`);
     if (!known(op.who)) errors.push(`unknown parallel actor: ${id}`);
     if (op.op === 'start' && rows.has(id)) errors.push(`parallel start already exists: ${id}`);
     if (op.op !== 'start' && !rows.has(id)) errors.push(`parallel operation has no prior row: ${id}`);
     const anchor = canonicalActorLocation(input.prior, id);
     if (op.op === 'start' && anchor && op.where && !sameLocation(anchor.where, op.where)
-      && !(proseQuote && evidenceGroundsMove(input.prior, op.who, op.where, proseQuote))) {
+      && !(operationProof && evidenceGroundsMove(input.prior, op.who, op.where, operationProof))) {
       errors.push(`parallel start contradicts canonical location ${anchor.where}: ${id}`);
     }
     if (op.op === 'advance' && previous?.where && op.where && !sameLocation(previous.where, op.where)) {
@@ -704,7 +785,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       errors.push(`parallel move does not change location: ${id}`);
     }
     if (op.op !== 'resolve' && op.activity && activityNeedsAccessPath(op.activity)
-      && !(proseQuote ? evidenceHasAccessPath(proseQuote) : evidenceHasAccessPath(op.evidence))) {
+      && !evidenceHasAccessPath(operationProof || op.evidence)) {
       errors.push(`parallel knowledge/reaction lacks a delivered access path: ${id}`);
     }
     if (op.op === 'resolve') rows.delete(id);
@@ -715,12 +796,14 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   }
   const operatedWorld = new Set<string>();
   for (const op of c.parallelWorldOps ?? []) {
+    if (mentionsPersona(op.activity, op.note, op.evidence)) errors.push('persona cannot appear in a parallel world event');
     const proseQuote = sourceContainsEvidence(input.prose, op.evidence) ? op.evidence : '';
-    if (!proseQuote) errors.push('parallel world operation lacks prose evidence');
+    const operationProof = proseQuote || (sandboxAutonomy && op.evidence.trim() ? op.evidence : '');
+    if (!operationProof) errors.push('parallel world operation lacks current or Sandbox causal evidence');
     if (op.op === 'start') {
       if (op.priorActivity || op.priorWhere) errors.push('parallel world start cannot target a prior row');
       if (!op.activity?.trim()) errors.push('parallel world start requires activity');
-      else if (!proseQuote || !evidenceGroundsWorldActivity(op.where, op.activity, proseQuote)) errors.push('parallel world start is not grounded to place and activity');
+      else if (!operationProof || !evidenceGroundsWorldActivity(op.where, op.activity, operationProof)) errors.push('parallel world start is not grounded to place and activity');
       else anonymousRows.push({ ...(op.where ? { where: op.where } : {}), activity: op.activity, ...(op.note ? { note: op.note } : {}) });
       continue;
     }
@@ -734,14 +817,14 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     if (operatedWorld.has(key)) errors.push('duplicate parallel world operation');
     operatedWorld.add(key);
     if (op.op === 'resolve') {
-      if (!proseQuote || !evidenceGroundsWorldResolution(target.row.where, proseQuote)) errors.push('parallel world resolve lacks an explicit ending at its established place');
+      if (!operationProof || !evidenceGroundsWorldResolution(target.row.where, operationProof)) errors.push('parallel world resolve lacks an explicit ending at its established place');
       else anonymousRows.splice(target.index, 1);
     }
     else if (!op.activity?.trim()) errors.push(`parallel world ${op.op} requires activity`);
     else {
       if (op.op === 'advance' && target.row.where && op.where && !sameLocation(target.row.where, op.where)) errors.push('parallel world advance cannot change location; use move');
-      if (op.op === 'move' && (!op.where || sameLocation(target.row.where, op.where) || !proseQuote || !evidenceGroundsWorldMove(op.where, proseQuote))) errors.push('parallel world move requires a new destination and movement evidence');
-      if (!proseQuote || !evidenceGroundsWorldActivity(op.where ?? target.row.where, op.activity, proseQuote)) errors.push(`parallel world ${op.op} is not grounded to place and activity`);
+      if (op.op === 'move' && (!op.where || sameLocation(target.row.where, op.where) || !operationProof || !evidenceGroundsWorldMove(op.where, operationProof))) errors.push('parallel world move requires a new destination and movement evidence');
+      if (!operationProof || !evidenceGroundsWorldActivity(op.where ?? target.row.where, op.activity, operationProof)) errors.push(`parallel world ${op.op} is not grounded to place and activity`);
       anonymousRows[target.index] = { ...(op.where ? { where: op.where } : target.row.where ? { where: target.row.where } : {}), activity: op.activity, ...(op.note ? { note: op.note } : {}) };
     }
   }
@@ -1021,6 +1104,13 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
     if (compilerRecord(state.scene.evidence)) {
       remember('scene.loc', { evidence: state.scene.evidence.loc ?? state.scene.evidence.location });
       remember('scene.time', { evidence: state.scene.evidence.time ?? state.scene.evidence.clock });
+      const rosterQuote = compilerQuote(state.scene.evidence.present ?? state.scene.evidence.roster);
+      if (rosterQuote && Array.isArray(state.present)) {
+        const priorPresent = new Set(input.prior.scene.present.map(canonId));
+        const nextPresent = new Set(state.present.filter(compilerRecord).map(row => canonId(String(row.id ?? row.name ?? ''))).filter(Boolean));
+        for (const id of nextPresent) if (!priorPresent.has(id)) embeddedEvidence.push({ path: `present.add.${id}`, quote: rosterQuote });
+        for (const id of priorPresent) if (!nextPresent.has(id)) embeddedEvidence.push({ path: `present.remove.${id}`, quote: rosterQuote });
+      }
     }
   }
   if (compilerRecord(state.delta)) for (const [section, rows] of Object.entries(state.delta)) {
@@ -1125,6 +1215,14 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
     delta: state.delta && typeof state.delta === 'object' && !Array.isArray(state.delta) ? state.delta : {},
     ext: state.ext && typeof state.ext === 'object' && !Array.isArray(state.ext) ? state.ext : {},
   };
+  // Present rows are snapshots only when supplied, but a thought is optional
+  // provider work. Fill the internal shape from prior tracker detail (or empty)
+  // so a missing flourish cannot erase an otherwise valid roster update.
+  for (const row of Array.isArray(root.state.present) ? root.state.present : []) {
+    if (!compilerRecord(row) || typeof row.thought === 'string') continue;
+    const id = canonId(String(row.id ?? row.name ?? ''));
+    row.thought = input.prior.scene.detail.find(detail => canonId(detail.id) === id)?.thought ?? '';
+  }
   // Normalize the only user-shaped identity arrays before schema validation.
   // This turns a provider loop such as ["Cersei", "Cersei", ...] into one
   // bounded audience instead of discarding the whole otherwise-valid candidate.
@@ -1236,7 +1334,7 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     if (id === player && !input.personaState) {
       merged.mood = ''; merged.doing = ''; merged.condition = ''; merged.thought = '';
       delete (merged as Record<string, unknown>).traits;
-    } else if (id !== player && !merged.thought?.trim()) continue;
+    }
     seen.add(id);
     present.push(merged);
   }
@@ -1244,7 +1342,7 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     if (seen.has(id) || evidenceFor(`present.remove.${id}`)) continue;
     const actor = input.prior.cast[id];
     const old = priorDetail.get(id);
-    if (!actor || (id !== player && !old?.thought?.trim())) continue;
+    if (!actor) continue;
     const restored: StateCandidate['state']['present'][number] = { id: actor.name, thought: old?.thought ?? '' };
     if (old?.presence) restored.presence = old.presence;
     if (old?.mood) restored.mood = old.mood;

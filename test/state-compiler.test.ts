@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { applyCompilerMergePatch, CompilerCandidate, compilerRepairBase, jsonSchema, salvageCompilation, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
+import { applyCompilerMergePatch, argentRequirementErrors, CompilerCandidate, compilerProviderSchema, compilerRepairBase, jsonSchema, salvageCompilation, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
 import { compileState, compilerContext, compilerPatchObjects, compilerReplyObjects, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
@@ -346,10 +346,8 @@ describe('strict pre-commit state compiler', () => {
   it.each([
     ['clock mismatch', (c: StateCandidate) => { c.state.scene.clock = 5; }],
     ['backward time', (c: StateCandidate) => { c.state.day = 0; }],
-    ['missing thought', (c: StateCandidate) => { c.state.present[0]!.thought = ''; }],
     ['invented player predicate', (c: StateCandidate) => { c.state.present[1]!.doing = 'opens the door'; }],
     ['duplicate actor', (c: StateCandidate) => { c.state.present.push(c.state.present[0]!); }],
-    ['forgotten parallel row', (c: StateCandidate) => { c.parallelReviewed = []; }],
     ['unsupported roster removal', (c: StateCandidate) => { c.state.present = c.state.present.filter(p => p.id !== 'Mara'); }],
     ['unjustified genesis', (c: StateCandidate) => { c.genesis = true; }],
     ['unknown field', (c: StateCandidate) => { (c.state as any).invented = true; }],
@@ -366,6 +364,18 @@ describe('strict pre-commit state compiler', () => {
     expect(schema.properties.state.properties.scene.properties.clock).toMatchObject({ type: 'integer', minimum: 0, maximum: 1439 });
     expect(schema.properties.state.properties.delta.additionalProperties).toBe(false);
     expect(schema.properties.state.properties.delta.properties.secrets.items.properties.from.anyOf[1].maxItems).toBe(32);
+  });
+  it('offers the provider a partial change schema instead of engine bookkeeping', () => {
+    const schema = compilerProviderSchema() as any;
+    expect(schema.required).toEqual(['state']);
+    expect(schema.properties).not.toHaveProperty('evidence');
+    expect(schema.properties).not.toHaveProperty('trackEvidence');
+    expect(schema.properties).not.toHaveProperty('parallelReviewed');
+    expect(schema.properties.state.required).toEqual([]);
+    expect(schema.properties.state.properties.scene.required).toEqual([]);
+    expect(schema.properties.state.properties.scene.properties.evidence.properties).toHaveProperty('present');
+    expect(schema.properties.state.properties.present.items.required).toEqual(['id']);
+    expect(schema.properties.state.properties.delta.properties.offscreen.items.properties.evidence).toEqual({ type: 'string' });
   });
   it('repairs a looping secret audience before filing the canonical block', () => {
     const i = input();
@@ -596,15 +606,109 @@ ${JSON.stringify(c.state)}
     const i = input();
     i.prior.parallel = [];
     i.livingWorld = 'sandbox';
+    i.configuredLivingWorld = 'active';
+    i.social = 'autonomous';
+    i.politics = 'living';
+    i.argent = true;
+    i.prior.threads = [{ id: 'thr_existing', name: 'Existing plot', status: 'open', beats: [], firstTurn: 1, lastTurn: 1 }];
     i.prior.offscreen = [{ id: 'courier_watch', name: 'The Late Courier', status: 'active', who: 'ada', where: 'East Gate', gist: 'waiting for the courier', beats: ['waiting for the courier'], firstTurn: 1, lastTurn: 1 }] as any;
     const c = candidate();
     c.parallelReviewed = [];
     c.parallelOps = [{ op: 'start', who: 'Ada', where: 'East Gate', activity: 'waiting for the courier', evidence: 'Ada at East Gate: waiting for the courier' }];
+    c.state.delta.offscreen = [
+      { op: 'new', id: 'harbor_watch', name: 'Harbor Watch', where: 'Harbor', gist: 'Dockworkers close the harbor gates' },
+      { op: 'new', id: 'bell_watch', name: 'Bell Watch', where: 'Bell Tower', gist: 'The warning bells begin ringing' },
+    ];
+    c.evidence.push(
+      { path: 'delta.offscreen.0', quote: 'At the Harbor, dockworkers close the harbor gates.' },
+      { path: 'delta.offscreen.1', quote: 'At the Bell Tower, the warning bells begin ringing.' },
+    );
+    c.parallelWorldOps = [
+      { op: 'start', where: 'Harbor', activity: 'Dockworkers close the harbor gates', evidence: 'At the Harbor, dockworkers close the harbor gates.' },
+      { op: 'start', where: 'Bell Tower', activity: 'The warning bells begin ringing', evidence: 'At the Bell Tower, the warning bells begin ringing.' },
+      { op: 'start', where: 'Market', activity: 'Merchants shutter the market stalls', evidence: 'At the Market, merchants shutter the market stalls.' },
+    ];
     const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(c) });
     const r = await compileState(i, null, undefined, generate);
     expect(r.ok).toBe(true);
-    expect(generate.mock.calls[0]![0][1].content).toContain('"livingWorld":"sandbox"');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"livingWorld":"active"');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"effectiveLivingWorld":"sandbox"');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"social":"autonomous"');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"politics":"living"');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"subplotDueCap":0');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"subplotNewCap":0');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"sandboxNewSubplotMinimum":2');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"sandboxParallelEventMinimum":4');
+    expect(generate.mock.calls[0]![0][1].content).toContain('"sandboxMaximum":"none"');
     expect(generate.mock.calls[0]![0][1].content).toContain('Ada at East Gate: waiting for the courier');
+  });
+  it('rejects an ARGENT reply that skips its required opening thread and parent arc', async () => {
+    const i = input();
+    i.argent = true;
+    i.prose = 'A courier delivers a blackmail letter. The letter demands the royal seal before dawn. The blackmail threat places the royal seal in immediate danger.';
+    const empty = vi.fn().mockResolvedValue({ ok: true, value: '{"state":{}}' });
+    const missing = await compileState(i, null, undefined, empty);
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.errors).toEqual(expect.arrayContaining([
+      'ARGENT requires exactly one grounded opening thread when the plot ledger is empty',
+      'ARGENT requires exactly one grounded opening parent arc when no parent arc exists',
+    ]));
+
+    const required = {
+      state: { delta: {
+        threads: [{ op: 'new', name: 'The Blackmail Letter', note: 'The letter demands the royal seal before dawn', arc: 'The Royal Seal Crisis', evidence: 'The letter demands the royal seal before dawn.' }],
+        arcs: [{ op: 'new', name: 'The Royal Seal Crisis', note: 'The blackmail threat places the royal seal in immediate danger', evidence: 'The blackmail threat places the royal seal in immediate danger.' }],
+      } },
+    };
+    const filled = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(required) });
+    expect((await compileState(i, null, undefined, filled)).ok).toBe(true);
+  });
+  it('keeps the Living/Active caps but removes Sandbox caps', () => {
+    const makeRows = (count: number) => Array.from({ length: count }, (_, index) => ({
+      op: 'new' as const, id: `watch_${index}`, name: `Watch ${index}`, where: 'Courtyard', gist: `Bell watch ${index}`,
+    }));
+    const i = input(); i.livingWorld = 'active';
+    const c = candidate();
+    c.state.delta.offscreen = makeRows(2);
+    c.evidence.push(
+      { path: 'delta.offscreen.0', quote: 'Mara waits five minutes' },
+      { path: 'delta.offscreen.1', quote: 'Mara waits five minutes' },
+    );
+    const living = validateCompilation(c, i);
+    expect(living.ok).toBe(false);
+    if (!living.ok) expect(living.errors).toContain('offscreen deltas exceed the active new-row cap of 1');
+
+    i.livingWorld = 'sandbox';
+    c.state.delta.offscreen = makeRows(3);
+    c.evidence.push({ path: 'delta.offscreen.2', quote: 'Mara waits five minutes' });
+    const autonomous = validateCompilation(c, i);
+    expect(autonomous.ok).toBe(true);
+  });
+  it('enforces Sandbox floors without imposing a maximum', () => {
+    const i = input(); i.argent = true; i.livingWorld = 'sandbox';
+    i.prior.threads = [{ id: 'thr_existing', name: 'Existing plot', status: 'open', beats: [], firstTurn: 1, lastTurn: 1 }];
+    const c = candidate();
+    expect(argentRequirementErrors(c, i)).toEqual(expect.arrayContaining([
+      'ARGENT Sandbox requires at least 2 new durable subplots; received 0',
+      'ARGENT Sandbox requires at least 4 parallel event operations; received 0',
+    ]));
+    c.state.delta.offscreen = Array.from({ length: 7 }, (_, index) => ({ op: 'new' as const, id: `subplot_${index}`, name: `Subplot ${index}`, where: `Place ${index}`, gist: `World pressure ${index}` }));
+    c.parallelWorldOps = Array.from({ length: 9 }, (_, index) => ({ op: 'start' as const, where: `Place ${index}`, activity: `World event ${index}`, evidence: `At Place ${index}, world event ${index} unfolds.` }));
+    expect(argentRequirementErrors(c, i)).toEqual([]);
+  });
+  it('forbids the persona from subplots and parallel events', () => {
+    const i = input(); i.livingWorld = 'sandbox'; i.argent = true;
+    i.prior.threads = [{ id: 'thr_existing', name: 'Existing plot', status: 'open', beats: [], firstTurn: 1, lastTurn: 1 }];
+    const c = candidate();
+    c.state.delta.offscreen = [{ op: 'new', id: 'player_watch', name: 'Player Watch', who: 'Player', where: 'Courtyard', gist: 'Player waits beyond the scene' }];
+    c.evidence.push({ path: 'delta.offscreen.0', quote: 'Player waits in the Courtyard beyond the scene.' });
+    c.parallelOps = [{ op: 'start', who: 'Player', where: 'Courtyard', activity: 'waits beyond the scene', evidence: 'Player waits in the Courtyard beyond the scene.' }];
+    const result = validateCompilation(c, i);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors).toEqual(expect.arrayContaining([
+      'persona cannot appear in an offscreen subplot: player_watch',
+      'persona cannot appear in a parallel event: Player',
+    ]));
   });
   it.each(['protected', 'continuity', 'director'] as const)('passes the %s agency contract for this turn only', (agency) => {
     const i = input();
@@ -724,6 +828,26 @@ ${JSON.stringify(c.state)}
     expect(r.recovered).toContain('candidate shape');
     expect((r.candidate.state as any).v).toBeUndefined();
     expect(r.candidate.parallelReviewed).toEqual(['Ada']);
+  });
+  it('files a bare Engine reply with a subplot and parallel move but no roster or proof arrays', async () => {
+    const i = input();
+    i.livingWorld = 'active';
+    i.prose = 'Mara waits five minutes. Elsewhere, Ada moves to the gate and waits beside it. Player stays quiet.';
+    const raw = {
+      state: { delta: { offscreen: [{
+        op: 'new', id: 'gate_watch', name: 'Gate watch', who: 'Ada', where: 'Gate',
+        gist: 'waits beside the gate', evidence: 'Ada moves to the gate and waits beside it',
+      }] } },
+      parallelOps: [{ op: 'move', who: 'Ada', where: 'Gate', activity: 'waits beside the gate', evidence: 'Ada moves to the gate and waits beside it' }],
+    };
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(raw) });
+    const compiled = await compileState(i, null, undefined, generate);
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    const folded = foldTurn(compiled.block, structuredClone(i.prior), i.turn, { validatedCompiler: true, livingWorld: 'active' });
+    const state = reduce(folded.events, i.prior);
+    expect(state.offscreen).toEqual([expect.objectContaining({ id: 'gate_watch', who: 'ada', gist: 'waits beside the gate' })]);
+    expect(state.parallel).toEqual([expect.objectContaining({ who: 'ada', where: 'Gate', activity: 'waits beside the gate' })]);
   });
   it('normalizes common Engine Pass aliases before evidence and schema validation', () => {
     const prior = freshState();

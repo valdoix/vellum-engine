@@ -805,7 +805,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
       const manualRepair = _retryingEngine.has(chatId) && _engineRepairTargetByChat.get(chatId) === turnNo;
-      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: parallelMode, agency, personaState: personaStateOn, lorebookCanon };
+      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: parallelMode, configuredLivingWorld: turnContract?.livingWorld, social: tone.social, politics: tone.politics, argent: !!turnContract?.argent, agency, personaState: personaStateOn, lorebookCanon };
       const compilerRoute = await taskRoute(chatId, userId, manualRepair ? 'engineRetry' : 'engine');
       const compilerTuning = routedParams(compilerRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
       const compilerAbort = new AbortController();
@@ -3732,6 +3732,17 @@ const dispatch: Record<string, Handler> = {
     const name = String(p?.name ?? '').trim();
     if (!name && !p?.id) return;
     const state = await loadState(chatId);
+    const names = await chatNames(chatId, uid);
+    const existing = p?.id ? state.offscreen.find(row => row.id === String(p.id)) : undefined;
+    const personaLabels = [names.user, ...(names.user ? (state.cast[canonId(names.user)]?.aka ?? []) : [])]
+      .map(value => String(value ?? '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim())
+      .filter(value => value.length >= 2);
+    const subplotText = ` ${[p?.who, name, p?.gist, existing?.who, existing?.name, existing?.gist]
+      .map(value => String(value ?? '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')).join(' ')} `;
+    if (personaLabels.some(label => subplotText.includes(` ${label} `))) {
+      spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: false, reason: 'persona_excluded' }, uid);
+      return;
+    }
     const id = p?.id ? String(p.id) : 'off_u' + nextSeqLocal();
     await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'offscreen.op', op: p?.id ? 'advance' : 'new', id, ...(name ? { name } : {}), ...(p?.who ? { who: canonId(String(p.who)) } : {}), ...(p?.where ? { where: String(p.where) } : {}), ...(p?.gist ? { gist: String(p.gist).slice(0, 200) } : {}) } as VellumEvent]);
     invalidateIndex(chatId); await broadcastState(chatId, uid);

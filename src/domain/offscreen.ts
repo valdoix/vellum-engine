@@ -474,7 +474,7 @@ export interface SimEventsOpts {
   /** Attached lorebook setting canon. Used only to recognize established
    * physical destinations; never as evidence of an actor's knowledge. */
   worldCanon?: readonly LorebookCanonEntry[];
-  /** canonical {{user}} id — so the sim never authors a bond involving the player */
+  /** canonical {{user}} id — so the sim never puts the persona in a subplot or bond */
   userId?: string;
   /** Runtime scheduler guard: existing rows outside this set may not advance. */
   eligibleIds?: readonly string[];
@@ -516,6 +516,15 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
   ].some(place => sameLocation(place, where)) || loreEstablishesPlace(where));
   const known = new Set((state.offscreen ?? []).map((o) => o.id));
   const present = new Set((state.scene.present ?? []).map(canonId));
+  const persona = opts.userId ? state.cast[opts.userId] : undefined;
+  const personaLabels = [opts.userId, persona?.name, ...(persona?.aka ?? [])]
+    .map(value => String(value ?? '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim())
+    .filter(value => value.length >= 2);
+  const mentionsPersona = (...values: unknown[]): boolean => {
+    if (!personaLabels.length) return false;
+    const text = ` ${values.flatMap(value => Array.isArray(value) ? value : [value]).map(value => String(value ?? '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')).join(' ')} `;
+    return personaLabels.some(label => text.includes(` ${label} `));
+  };
   const threadId = (raw?: string): string | undefined => {
     if (!raw) return undefined;
     const key = raw.trim().toLocaleLowerCase();
@@ -540,6 +549,8 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     if (prior?.who && requestedActor && canonId(prior.who) !== requestedActor) continue;
     if (prior && !prior.who && requestedActor) continue;
     const who = prior?.who ? canonId(prior.who) : requestedActor;
+    if (p.op !== 'resolve' && ((opts.userId && who === opts.userId)
+      || mentionsPersona(p.who, p.name, p.gist, p.hooks, p.stakes))) continue;
     if (who && (present.has(who) || state.cast[who]?.deceased)) continue;
     if (eligible && !prior) {
       const intent = who ? state.cast[who]?.intent : undefined;
