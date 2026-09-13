@@ -97,6 +97,9 @@ export type CompilerInput = {
   prose: string;
   userInput?: string;
   userName: string;
+  /** The host's {{char}} card. This stays separate from the authoritative
+   * player persona in userName, including when Cast supplies an override. */
+  characterName?: string;
   genesisAllowed: boolean;
   verbosity?: 'lean' | 'full';
   codexAllowed?: boolean;

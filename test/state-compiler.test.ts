@@ -570,6 +570,15 @@ ${JSON.stringify(c.state)}
     const i = input(); i.personaState = true;
     expect(JSON.parse(compilerContext(i)).controls.personaState).toBe(true);
   });
+  it('keeps the Cast-selected player persona distinct from the character card', () => {
+    const i = input();
+    i.userName = 'Gabriel Winters';
+    i.characterName = 'Buffy Summers';
+    const context = JSON.parse(compilerContext(i));
+    expect(context.identity.playerPersona).toEqual({ id: 'gabriel_winters', name: 'Gabriel Winters' });
+    expect(context.identity.characterCard).toEqual({ id: 'buffy_summers', name: 'Buffy Summers' });
+    expect(context.identity.rule).toContain('characterCard is {{char}} and must never replace it');
+  });
   it('supplies relevant attached lorebook canon as world truth without making it character knowledge', () => {
     const i = input();
     i.prose += ' Mara studies a map of the Moon Gate.';

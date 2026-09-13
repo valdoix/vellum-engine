@@ -1,5 +1,6 @@
 import { internalGenerate } from '../host/generation.js';
 import { applyCompilerMergePatch, argentRequirementErrors, compilerProviderSchema, compilerRepairBase, parallelGrounding, salvageCompilation, type CompilerInput, type Compilation } from '../domain/state-compiler.js';
+import { canonId } from '../core/ids.js';
 import { formatDate } from '../domain/date-format.js';
 import { selectLorebookCanon } from '../domain/lorebook-canon.js';
 import { normalizeSecretAudience } from '../domain/secret-audience.js';
@@ -42,7 +43,7 @@ Record durable changes only. Knowledge needs a depicted access path. A secret re
 Parallel/off-screen rows describe what is happening elsewhere now. Preserve absent rows by omission. Move or resolve only with direct evidence; absent actors do not learn main-scene facts without delivery or witness. Living World active/sandbox may use prior.parallelSupport as a current baseline.
 ARGENT autonomy remains authoritative: Living World active or Social/Politics living enables the bounded Living/Active tier (up to two due rows and one new reversible line). Living World sandbox or Social/Politics autonomous enables Autonomous/Sandbox: create at least two new durable subplots and at least four parallel event operations on every in-character pass, with no narrative maximum. More are allowed when canon, motive, logistics, time, and knowledge support them. Social living allows only small NPC bond drift and autonomous allows bounded category change. Politics living allows only small standing drift and autonomous may change relation kinds. Never create player bonds, choices, consent, acts, or any subplot/parallel role for the persona character.
 Meet every active preset requirement in the supplied requirements object. For ARGENT, an empty plot ledger requires exactly one strongest grounded foreground actionable thread and, only when no parent arc exists, exactly one clear parent arc linked by its exact title. A new thread referenced by a new offscreen row is that subplot's durable track, not an additional foreground opener. Preserve the current parallel snapshot by omission; emit every grounded due operation and required new subplot for the active tier.
-Respect controls and player agency. Persona fields are private tracker state only. genesis is true only for an eligible initial Codex baseline.`;
+Respect controls and player agency. The supplied identity.playerPersona is the exact player/persona, even when the focal story character or identity.characterCard ({{char}}) is someone else. Never infer the persona from {{char}}, narrative focus, roster order, or whose interiority is shown. Persona fields are private tracker state only. genesis is true only for an eligible initial Codex baseline.`;
 
 export const STATE_COMPILER_REPAIR_SYSTEM = `For this repair call, this output rule supersedes the original complete-document instruction: repair a rejected VELLUM compiler document with a minimal RFC 7396 JSON Merge Patch. Return only {"patch":{...}}.
 The supplied draft is the base document. A rejectedFragment may show useful unfinished output from the failed call; treat it only as a clue and copy nothing unsupported. Include only branches that must change. A JSON object recursively edits an object, an array replaces that one array, and null deletes that one property. Never repeat an unchanged branch and never return the complete compiler document.
@@ -71,7 +72,15 @@ export function compilerContext(input: CompilerInput): string {
   const openingPlot = !!input.argent && !p.threads.some(row => !/resolv/i.test(row.status || ''));
   const openingArc = openingPlot && !p.arcs.some(row => !/resolv/i.test(row.status || ''));
   return JSON.stringify({
-    turn: input.turn, prose: input.prose.slice(0, 24000), latestUser: input.userInput?.slice(0, 12000) ?? '', userName: input.userName,
+    turn: input.turn, prose: input.prose.slice(0, 24000), latestUser: input.userInput?.slice(0, 12000) ?? '',
+    identity: {
+      playerPersona: { id: canonId(input.userName), name: input.userName },
+      characterCard: { id: canonId(input.characterName ?? ''), name: input.characterName ?? '' },
+      rule: 'playerPersona is authoritative for the persona/player; characterCard is {{char}} and must never replace it',
+    },
+    // Retain the flat field for compatibility with older provider behavior and
+    // existing diagnostics while making the two identities unambiguous.
+    userName: input.userName,
     genesisAllowed: input.genesisAllowed, verbosity: input.verbosity,
     controls: {
       codex: input.codexAllowed !== false, inventory: input.inventoryAllowed !== false,

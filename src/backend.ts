@@ -824,7 +824,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
       const manualRepair = _retryingEngine.has(chatId) && _engineRepairTargetByChat.get(chatId) === turnNo;
-      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: parallelMode, configuredLivingWorld: turnContract?.livingWorld, social: tone.social, politics: tone.politics, argent: !!turnContract?.argent, agency, personaState: personaStateOn, lorebookCanon };
+      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', characterName: names.char ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: parallelMode, configuredLivingWorld: turnContract?.livingWorld, social: tone.social, politics: tone.politics, argent: !!turnContract?.argent, agency, personaState: personaStateOn, lorebookCanon };
       const compilerRoute = await taskRoute(chatId, userId, manualRepair ? 'engineRetry' : 'engine');
       const compilerTuning = routedParams(compilerRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
       const compilerAbort = new AbortController();
@@ -1098,7 +1098,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
           const latestAgency = msgs.length <= turnAgencyLedger.through
             ? agencyAtTurn(turnAgencyLedger, msgs.length)
             : turnContract?.agency ?? 'protected';
-          const ctxHeader = buildRepairContext(prior, msgs.length, personaStateOn, latestParts?.userInput ?? '', latestAgency);
+          const ctxHeader = buildRepairContext(prior, msgs.length, personaStateOn, latestParts?.userInput ?? '', latestAgency, names.user, names.char);
           const repairRoute = await taskRoute(chatId, userId, 'blockRepair');
           const repairTuning = routedParams(repairRoute, { maxTokens: 1800, timeoutMs: 45000, temperature: 0.2 });
           const repaired = await repairStateBlock(prose, ctxHeader, userId, { connectionId: repairRoute.resolvedConnectionId, fallbackIds: repairRoute.fallbackIds, retries: repairTuning.retries, maxTokens: repairTuning.maxTokens, timeoutMs: repairTuning.timeoutMs, temperature: repairTuning.temperature, reasoning: repairTuning.reasoning, schema: repairTuning.schema });
@@ -2283,7 +2283,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           const personaNames = personaStateOn || turnContract?.dialogueColor
             ? await vellumChatNames(chatId, uid, context.personaId)
             : { user: '', char: '' };
-          const personaStateText = personaStateGuidance(personaStateOn, turnContract, personaNames.user);
+          const personaStateText = personaStateGuidance(personaStateOn, turnContract, personaNames.user, personaNames.char);
           const dialogueText = dialogueMarkupGuidance(!!turnContract?.dialogueColor, dialogueIdentities(state, personaNames));
           // ARGENT's output contract must stay the literal last assembled prompt
           // block. Its static schema explicitly recognizes this runtime option,
@@ -2999,7 +2999,7 @@ const dispatch: Record<string, Handler> = {
           report('Compiling evidence', turnNo - 1, turns.length, `Reconciling turn ${turnNo} against prior state and attached canon.`);
           const routeIds = [route.resolvedConnectionId, ...(route.fallbackIds ?? [])].filter((id): id is string => !!id);
           for (let attempt = 0; attempt < Math.max(1, tuning.retries + 1) && !abort.signal.aborted; attempt++) {
-            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: reconstructionParallelMode, agency, personaState: personaStateOn, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
+            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, characterName: names.char, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: reconstructionParallelMode, agency, personaState: personaStateOn, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
             if (compiled.ok) { foldContent = prose + '\n' + compiled.block; compiledOk = true; break; }
           }
         }
@@ -4286,16 +4286,17 @@ const dispatch: Record<string, Handler> = {
       const msgs = await allTurnContents(chatId);
       const prose = stripScaffold(asstContent);
       const repairTurn = msgs.length || (prior.turns || 0) + 1;
-      const [repairContract, repairLedger, repairPersonaState] = await Promise.all([
+      const [repairContract, repairLedger, repairPersonaState, repairNames] = await Promise.all([
         activeTurnContract(chatId, uid),
         activeTurnAgencyLedger(chatId, uid),
         readPersonaStateEnabled(chatId),
+        vellumChatNames(chatId, uid),
       ]);
       const repairAgency = repairTurn <= repairLedger.through
         ? agencyAtTurn(repairLedger, repairTurn)
         : repairContract?.agency ?? 'protected';
       const repairParts = messagePartsAtTurn(raw, repairTurn);
-      const ctxHeader = buildRepairContext(prior, repairTurn, repairPersonaState, repairParts?.userInput ?? '', repairAgency);
+      const ctxHeader = buildRepairContext(prior, repairTurn, repairPersonaState, repairParts?.userInput ?? '', repairAgency, repairNames.user, repairNames.char);
       const repairRoute = await taskRoute(chatId, uid, 'blockRepair');
       const repairTuning = routedParams(repairRoute, { maxTokens: 1800, timeoutMs: 45000, temperature: 0.2 });
       const repaired = await repairStateBlock(prose, ctxHeader, uid, { connectionId: repairRoute.resolvedConnectionId, fallbackIds: repairRoute.fallbackIds, retries: repairTuning.retries, maxTokens: repairTuning.maxTokens, timeoutMs: repairTuning.timeoutMs, temperature: repairTuning.temperature, reasoning: repairTuning.reasoning, schema: repairTuning.schema });

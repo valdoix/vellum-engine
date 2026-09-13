@@ -34,9 +34,11 @@ describe('block-repair — buildRepairContext', () => {
   });
 
   it('marks the persona-state opt-in for the recovery prompt', () => {
-    const ctx = buildRepairContext(stateWith(), 5, true, 'I am wounded but alert.', 'director');
+    const ctx = buildRepairContext(stateWith(), 5, true, 'I am wounded but alert.', 'director', 'Gabriel Winters', 'Buffy Summers');
     expect(ctx).toContain('PERSONA STATE: ON');
     expect(ctx).toContain('PERSONA AGENCY: director');
+    expect(ctx).toContain('PLAYER PERSONA (authoritative {{user}}): Gabriel Winters');
+    expect(ctx).toContain('CHARACTER CARD ({{char}}, never the persona): Buffy Summers');
     expect(ctx).toContain('latest player input: I am wounded but alert.');
     expect(VELLUM_BLOCK_REPAIR_SYS).toContain('PERSONA STATE OFF');
     expect(VELLUM_BLOCK_REPAIR_SYS).toContain('regardless of PERSONA AGENCY');

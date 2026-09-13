@@ -75,6 +75,13 @@ describe('active preset turn contract', () => {
     expect(personaStateGuidance(false, contract, 'Gabriel Winters')).toBe('');
   });
 
+  it('names a Cast-selected persona separately from the character card', () => {
+    const contract = resolveTurnContract(argent({ agency: 'protected', state_compiler: 'engine' }));
+    const guidance = personaStateGuidance(true, contract, 'Gabriel Winters', 'Buffy Summers');
+    expect(guidance).toContain('Gabriel Winters is the player persona.');
+    expect(guidance).toContain('Buffy Summers is the {{char}} character card, not the persona.');
+  });
+
   it.each(['protected', 'continuity', 'director'] as const)('requires Inline persona fields under %s agency without evidence quotes', (agency) => {
     const contract = resolveTurnContract(argent({ agency, state_compiler: 'inline' }))!;
     const guidance = personaStateGuidance(true, contract, 'Gabriel Winters');

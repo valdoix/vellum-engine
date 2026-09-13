@@ -95,14 +95,18 @@ export function personaStateEnabled(value: unknown): boolean {
  * separate permission from narrative authorship: Forbidden and Minor
  * Continuity still govern prose, while the private VELLUM snapshot may always
  * maintain the persona's current state and interiority when this option is on. */
-export function personaStateGuidance(enabled: boolean, contract: TurnContract | null, personaName = ''): string {
+export function personaStateGuidance(enabled: boolean, contract: TurnContract | null, personaName = '', characterName = ''): string {
   if (!enabled || contract?.state === false) return '';
   const safeName = String(personaName || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120) || 'the player persona';
+  const safeCharacter = String(characterName || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120);
+  const identity = safeCharacter && safeCharacter.toLocaleLowerCase() !== safeName.toLocaleLowerCase()
+    ? `${safeName} is the player persona. ${safeCharacter} is the {{char}} character card, not the persona.`
+    : `${safeName} is the player persona.`;
   const mode = contract?.agency ?? 'protected';
   if (contract?.stateCompiler === 'engine') {
-    return `[PERSONA STATE TRACKING — ON]\nKeep ${safeName} in the on-stage cast. The private VELLUM compiler must populate their current mood, physical condition, activity, concise first-person thought, and stable traits on every turn, including ${mode} agency. Persona State is explicit permission for tracker-only inference from the latest input, completed scene, prior persona state, and established characterization. It does not authorize any corresponding speech, decision, action, reaction, sensation, or interiority in story prose; continue to obey the selected ${mode} prose-agency contract. Do not emit tracker fields, JSON, or a state block.`;
+    return `[PERSONA STATE TRACKING — ON]\n${identity} Keep ${safeName} in the on-stage cast. The private VELLUM compiler must populate their current mood, physical condition, activity, concise first-person thought, and stable traits on every turn, including ${mode} agency. Persona State is explicit permission for tracker-only inference from the latest input, completed scene, prior persona state, and established characterization. It does not authorize any corresponding speech, decision, action, reaction, sensation, or interiority in story prose; continue to obey the selected ${mode} prose-agency contract. Do not emit tracker fields, JSON, or a state block.`;
   }
-  return `[PERSONA STATE TRACKING — ON]\nIn the final VELLUM present roster, put ${safeName} first and always populate current mood, physical condition, activity, a concise first-person thought, and stable traits, including under ${mode} agency. Infer the private tracker snapshot from the latest input, completed scene, prior persona state, and established characterization; preserve stable traits and continuing conditions until they change. Persona State is tracker-only permission and does not authorize corresponding player speech, decisions, actions, reactions, sensations, or interiority in story prose. The selected ${mode} prose-agency contract remains fully binding. Persona tracker fields do not require an evidence quote.`;
+  return `[PERSONA STATE TRACKING — ON]\n${identity} In the final VELLUM present roster, put ${safeName} first and always populate current mood, physical condition, activity, a concise first-person thought, and stable traits, including under ${mode} agency. Infer the private tracker snapshot from the latest input, completed scene, prior persona state, and established characterization; preserve stable traits and continuing conditions until they change. Persona State is tracker-only permission and does not authorize corresponding player speech, decisions, actions, reactions, sensations, or interiority in story prose. The selected ${mode} prose-agency contract remains fully binding. Persona tracker fields do not require an evidence quote.`;
 }
 
 type MessageLike = { role?: unknown; content?: unknown; __isChatHistory?: unknown };

@@ -391,6 +391,8 @@ export async function extractFromProse(prose: string, turn: number, day: number,
   const factions = Object.values(state?.factions ?? {}).map((f) => f.name).filter(Boolean).slice(0, 100);
   const secrets = (state?.secrets ?? []).filter((s) => !s.revealed).slice(0, 100);
   const context = '[KNOWN CHARACTERS]\n' + (roster.length ? roster.join('\n') : '(none)')
+    + `\n\n[PLAYER PERSONA — authoritative {{user}}]\n${names.user || '(unknown)'}`
+    + `\n\n[CHARACTER CARD — {{char}}, never the persona]\n${names.char || '(unknown)'}`
     + '\n\n[KNOWN FACTIONS]\n' + (factions.length ? factions.join('\n') : '(none)')
     + '\n\n[KNOWN SECRETS — copy id exactly when disclosed]\n' + (secrets.length ? secrets.map((s) => `${s.id}: ${s.text}`).join('\n') : '(none)')
     + `\n\n[PERSONA STATE MODE]\n${personaState ? 'ON' : 'OFF'}`

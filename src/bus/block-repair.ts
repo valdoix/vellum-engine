@@ -101,7 +101,7 @@ export const VELLUM_BLOCK_REPAIR_SYS =
  *  day, scene continuity, real cast names, live threads) instead of guessing.
  *  Richer context ⇒ richer, more accurate recovery: knowing who was on-stage and
  *  what threads are open lets the model attribute changes correctly. Pure. */
-export function buildRepairContext(prior: ChronicleState, turnNo: number, personaState = false, playerInput = '', agency: AgencyMode = 'protected'): string {
+export function buildRepairContext(prior: ChronicleState, turnNo: number, personaState = false, playerInput = '', agency: AgencyMode = 'protected', personaName = '', characterName = ''): string {
   const day = prior.day || 0;
   const loc = prior.scene?.location?.trim();
   const time = prior.scene?.clock !== undefined ? clockTime(prior.scene.clock) : prior.scene?.time?.trim();
@@ -151,6 +151,8 @@ export function buildRepairContext(prior: ChronicleState, turnNo: number, person
     `day: ${day}`,
     `PERSONA STATE: ${personaState ? 'ON' : 'OFF'}`,
     `PERSONA AGENCY: ${agency}`,
+    ...(personaName.trim() ? [`PLAYER PERSONA (authoritative {{user}}): ${personaName.trim()}`] : []),
+    ...(characterName.trim() ? [`CHARACTER CARD ({{char}}, never the persona): ${characterName.trim()}`] : []),
     ...(personaState && playerInput.trim() ? [`latest player input: ${playerInput.trim().slice(0, 4000)}`] : []),
     ...(loc ? [`prior scene location: ${loc}`] : []),
     ...(time ? [`prior scene time: ${time}`] : []),
