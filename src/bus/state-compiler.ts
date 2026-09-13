@@ -104,7 +104,11 @@ export function compilerContext(input: CompilerInput): string {
       format: input.verbosity === 'full' ? 'expanded_fields' : 'compact_fields',
       rule: 'format changes representation only; it never reduces facts, events, state families, cast, plot changes, or parallel operations',
     },
-    evidencePolicy: {
+    evidencePolicy: input.evidenceMode === 'none' ? {
+      mode: 'none',
+      rule: 'evidence quotations are neither requested nor validated; every change must still be factually correct and canon-consistent',
+    } : {
+      mode: 'evidence',
       question: 'Is the evidence factually correct and materially grounded in the current scene or attached canon?',
       accepted: ['exact passage', 'faithful paraphrase', 'relevant lorebook passage'],
       rejected: ['merely related text', 'partial support for a larger claim', 'contradiction', 'reversed actor or subject'],
@@ -135,6 +139,7 @@ export function compilerContext(input: CompilerInput): string {
       livingWorld: input.configuredLivingWorld ?? input.livingWorld ?? 'off',
       effectiveLivingWorld: input.livingWorld ?? 'off', social: input.social ?? 'off', politics: input.politics ?? 'off',
       agency: input.agency ?? 'protected', personaState: input.personaState === true,
+      evidenceMode: input.evidenceMode ?? 'evidence',
     },
     requirements: input.argent ? {
       openingThreads: openingPlot ? 1 : 0, openingArcs: openingArc ? 1 : 0,
@@ -247,11 +252,15 @@ export function compilerPatchObjects(raw: string): Array<{ patch: Record<string,
 }
 
 export async function compileState(input: CompilerInput, userId: string | null, connectionId?: string, generate: typeof internalGenerate = internalGenerate, run?: CompilerRunOptions): Promise<Compilation> {
-  const schema = compilerProviderSchema();
+  const evidenceMode = input.evidenceMode ?? 'evidence';
+  const schema = compilerProviderSchema(evidenceMode);
   const context = compilerContext(input);
   const mode = input.verbosity === 'full'
     ? 'FULL: audit every listed state family and emit every supported durable change with all supported optional metadata.'
     : 'LEAN: audit every listed state family and emit the same supported durable changes as Full. Simplify only the JSON formatting: use shorter notes and omit optional descriptive metadata that carries no additional fact. Never reduce content coverage.';
+  const evidenceDirective = evidenceMode === 'none'
+    ? '\nEVIDENCE MODE — NONE: The user disabled evidence quotations for this chat. Do not emit the root evidence array, trackEvidence quotations, or evidence fields on rows, scene, subplots, or parallel operations. Never copy prose to satisfy a quote requirement. The engine still validates identities, canon/life state, chronology, causality, plot continuity, and plausibility, and still derives bookkeeping itself. Subplot grounding (basis/rationale/before/after) and knowledge transmission sources remain required.'
+    : '';;
   const attemptNo = Math.max(1, Math.round(run?.attempt ?? 1));
   try { run?.onProgress?.({ status: 'start', attempt: attemptNo }); } catch { /* a progress UI must never interrupt compilation */ }
   let streamed = '';
@@ -261,7 +270,7 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   // phase so a slow first token is never misdiagnosed as a stuck state compiler.
   try { run?.onProgress?.({ status: 'requesting', attempt: attemptNo, message: 'Compiler request sent; waiting for the first output token.' }); } catch { /* best effort */ }
   const result = await generate([
-    { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + '\nThe provider schema permits omitted bookkeeping for compatibility, but the requested payload always includes state.scene and state.present. All nonzero preset requirements still apply.' },
+    { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + evidenceDirective + '\nThe provider schema permits omitted bookkeeping for compatibility, but the requested payload always includes state.scene and state.present. All nonzero preset requirements still apply.' },
     { role: 'user', content: context },
   ], { temperature: run?.generation?.temperature ?? 0, max_tokens: maxTokens }, userId,
   {
@@ -352,7 +361,7 @@ export async function repairCompilation(
   let streamed = '';
   try { run?.onProgress?.({ status: 'requesting', attempt: attemptNo, message: 'Repair request sent; waiting for the patch.' }); } catch { /* best effort */ }
   const result = await generate([
-    { role: 'system', content: STATE_COMPILER_SYSTEM + '\n\n' + STATE_COMPILER_REPAIR_SYSTEM },
+    { role: 'system', content: STATE_COMPILER_SYSTEM + (input.evidenceMode === 'none' ? '\nEVIDENCE MODE — NONE: evidence quotations are disabled for this chat; regenerate without root evidence, trackEvidence quotes, or per-row evidence fields. Subplot grounding and knowledge transmission sources remain required.' : '') + '\n\n' + STATE_COMPILER_REPAIR_SYSTEM },
     { role: 'user', content: repairContext },
   ], { temperature: run?.generation?.temperature ?? 0, max_tokens: run?.generation?.maxTokens ?? ENGINE_OUTPUT_TOKENS[input.verbosity === 'full' ? 'full' : 'lean'] }, userId, {
     reasoningOff: true,

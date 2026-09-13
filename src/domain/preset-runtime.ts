@@ -75,6 +75,16 @@ export function enginePassEnabled(value: unknown): boolean {
   return !['off', 'false', '0', 'disabled'].includes(value.trim().toLowerCase());
 }
 
+/** Evidence grounding demanded by the Engine Pass. Unset keeps the historical
+ * semantic-evidence audit; an explicit "none" relaxes only the quotation gates
+ * while canon, identity, chronology, and plot-causality checks stay binding. */
+export type EngineEvidenceMode = 'evidence' | 'none';
+export function engineEvidenceMode(value: unknown): EngineEvidenceMode {
+  if (value === 'none' || value === 'no_evidence' || value === 'noevidence') return 'none';
+  if (typeof value === 'string' && ['off', 'false', '0', 'disabled', 'none', 'no_evidence', 'noevidence'].includes(value.trim().toLowerCase())) return 'none';
+  return 'evidence';
+}
+
 /** Per-chat visibility for the live Engine Second Pass window. Unset is on so
  * upgraded chats immediately expose compiler progress; users can independently
  * hide the window without disabling the state compiler itself. */

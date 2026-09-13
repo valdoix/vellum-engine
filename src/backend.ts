@@ -60,7 +60,7 @@ import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type Vau
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
 import { embedParallelCommand, hasParallelCommand, materializeParallelBatch, parallelCommandInjection, scrubParallelCommands, stripParallelCommand } from './domain/parallel-command.js';
 import { openingSceneInjection, parseSceneCommand, sceneIntentInjection, scrubSceneCommands, type SceneIntent, type SceneTransitionKind } from './domain/scene-transition.js';
-import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
+import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, engineEvidenceMode, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
 import { auditCompiledEvents } from './domain/state-compiler.js';
 import { stateRevision } from './domain/state-compiler.js';
@@ -228,7 +228,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   // per-chat toggle/setting the UI shows must be included here — the frontend
   // hydrates its toggle display from this broadcast, so anything omitted silently
   // reverts to its default after a reload/chat-switch (the hide-toggle bug).
-  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw, engineWindowRaw, personaStateRaw, personaCast] = await Promise.all([
+  const [tone, tidyRaw, offscreenRaw, hideRaw, chapterVault, travOn, travModeRaw, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, themeRaw, prefsRaw, autoRetryRaw, blockExampleRaw2, compilerDiagnostic, enginePassRaw, engineWindowRaw, engineEvidenceRaw, personaStateRaw, personaCast] = await Promise.all([
     readTone(chatId, userId),
     getChatVar(chatId, 'vellum_tidy_threads').catch(() => ''),
     getChatVar(chatId, 'vellum_offscreen').catch(() => ''),
@@ -249,6 +249,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
     readCompilerDiagnostic(chatId),
     getChatVar(chatId, 'vellum_engine_pass').catch(() => ''),
     getChatVar(chatId, 'vellum_engine_window').catch(() => ''),
+    getChatVar(chatId, 'vellum_engine_evidence').catch(() => ''),
     getChatVar(chatId, 'vellum_persona_state').catch(() => ''),
     readPersonaCastBinding(chatId),
   ]);
@@ -262,6 +263,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const blockExample = !!blockExampleRaw2;
   const enginePass = enginePassEnabled(enginePassRaw);
   const engineWindow = engineWindowEnabled(engineWindowRaw);
+  const engineEvidence = engineEvidenceMode(engineEvidenceRaw) === 'evidence';
   const personaState = personaStateEnabled(personaStateRaw);
   // A repair replaces the Chronicle tail atomically. An older broadcast may
   // already be waiting on the settings reads above with a reference to the
@@ -271,7 +273,7 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   if (_latestStateBroadcast.get(deliveryKey) !== deliverySeq) return;
   const state = await loadState(chatId);
   if (_latestStateBroadcast.get(deliveryKey) !== deliverySeq) return;
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, engineWindow, personaState, personaCast }, targetUser);
+    spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, engineWindow, engineEvidence, personaState, personaCast }, targetUser);
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */
@@ -307,6 +309,11 @@ async function readEnginePassEnabled(chatId: string): Promise<boolean> {
 async function readEngineWindowEnabled(chatId: string): Promise<boolean> {
   try { return engineWindowEnabled(await getChatVar(chatId, 'vellum_engine_window')); }
   catch { return true; }
+}
+
+async function readEngineEvidenceMode(chatId: string): Promise<'evidence' | 'none'> {
+  try { return engineEvidenceMode(await getChatVar(chatId, 'vellum_engine_evidence')); }
+  catch { return 'evidence'; }
 }
 
 async function readPersonaStateEnabled(chatId: string): Promise<boolean> {
@@ -617,6 +624,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
   const structuredStateEnabled = turnContract?.state !== false;
   let enginePassOn = await readEnginePassEnabled(chatId);
   let engineCompiler = structuredStateEnabled && turnContract?.stateCompiler === 'engine' && enginePassOn;
+  let engineEvidence = await readEngineEvidenceMode(chatId);
   let prior = await loadState(chatId);
   // tone dials + canonical {{user}} id + locks, resolved once per fold pass (in
   // parallel; chat vars are cached but this also overlaps the name derivation).
@@ -824,7 +832,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
       const userInput = playerInput;
       const explicitGenesis = /(?:\(\(worldgen\)\)|OOC:\s*worldgen)/i.test(userInput);
       const manualRepair = _retryingEngine.has(chatId) && _engineRepairTargetByChat.get(chatId) === turnNo;
-      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', characterName: names.char ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: parallelMode, configuredLivingWorld: turnContract?.livingWorld, social: tone.social, politics: tone.politics, argent: !!turnContract?.argent, agency, personaState: personaStateOn, lorebookCanon };
+      const compilerInput: Parameters<typeof compileState>[0] = { prior: baseline, turn: turnNo, prose, userInput, userName: names.user ?? '', characterName: names.char ?? '', genesisAllowed: !!turnContract?.worldgen && (!baseline.genesisTurn || explicitGenesis), verbosity: turnContract?.stateVerbosity, codexAllowed: turnContract?.codex, inventoryAllowed: turnContract?.inventory, livingWorld: parallelMode, configuredLivingWorld: turnContract?.livingWorld, social: tone.social, politics: tone.politics, argent: !!turnContract?.argent, agency, personaState: personaStateOn, evidenceMode: engineEvidence, lorebookCanon };
       const compilerRoute = await taskRoute(chatId, userId, manualRepair ? 'engineRetry' : 'engine');
       const compilerContract = turnContract?.stateVerbosity === 'full' ? 'full' : 'lean';
       const compilerTuning = routedParams(compilerRoute, { maxTokens: ENGINE_OUTPUT_TOKENS[compilerContract], timeoutMs: ENGINE_TIMEOUT_MS[compilerContract], temperature: 0 });
@@ -2986,6 +2994,7 @@ const dispatch: Record<string, Handler> = {
       const lorebookCanon = lorebookCanonEntries(attached);
       const parallelCanonLabels = lorebookParallelLabels(lorebookCanon);
       const reconstructionParallelMode = effectiveSubplotMode(contract?.livingWorld ?? 'active', tone.social, tone.politics);
+      const engineEvidenceMode = await readEngineEvidenceMode(chatId);
       report('Reading evidence', startAt - 1, turns.length, startAt > 1 ? `Resuming verified checkpoint at turn ${startAt}.` : 'Transcript and canonical sources loaded.');
       for (let turnNo = startAt; turnNo <= turns.length; turnNo++) {
         if (abort.signal.aborted) break;
@@ -3001,7 +3010,7 @@ const dispatch: Record<string, Handler> = {
           report('Compiling evidence', turnNo - 1, turns.length, `Reconciling turn ${turnNo} against prior state and attached canon.`);
           const routeIds = [route.resolvedConnectionId, ...(route.fallbackIds ?? [])].filter((id): id is string => !!id);
           for (let attempt = 0; attempt < Math.max(1, tuning.retries + 1) && !abort.signal.aborted; attempt++) {
-            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, characterName: names.char, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: reconstructionParallelMode, agency, personaState: personaStateOn, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
+            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, characterName: names.char, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: reconstructionParallelMode, agency, personaState: personaStateOn, evidenceMode: engineEvidenceMode, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
             if (compiled.ok) { foldContent = prose + '\n' + compiled.block; compiledOk = true; break; }
           }
         }
@@ -4423,6 +4432,25 @@ const dispatch: Record<string, Handler> = {
     } catch (e) {
       spindle.log?.warn?.('[vellum_engine] engine-pass toggle: ' + ((e as Error)?.message ?? e));
       spindle.sendToFrontend?.({ type: 'vellum_engine_pass_set_done', ok: false, reason: 'error', enabled: await readEnginePassEnabled(chatId).catch(() => true) }, uid);
+    }
+  },
+  vellum_set_engine_evidence: async (p, uid) => {
+    // Per-chat Engine Pass evidence policy. Unset keeps the semantic evidence
+    // audit (current behavior); an explicit "off" relaxes only the quotation
+    // gates while canon, identity, chronology, and causality stay binding.
+    const chatId = p?.chatId || (await activeChatId(uid));
+    if (!chatId) {
+      spindle.sendToFrontend?.({ type: 'vellum_engine_evidence_set_done', ok: false, reason: 'no_active_chat', enabled: true }, uid);
+      return;
+    }
+    const enabled = !!p?.enabled;
+    try {
+      await setChatVar(chatId, 'vellum_engine_evidence', enabled ? '' : 'none');
+      await broadcastState(chatId, uid);
+      spindle.sendToFrontend?.({ type: 'vellum_engine_evidence_set_done', ok: true, enabled }, uid);
+    } catch (e) {
+      spindle.log?.warn?.('[vellum_engine] engine-evidence toggle: ' + ((e as Error)?.message ?? e));
+      spindle.sendToFrontend?.({ type: 'vellum_engine_evidence_set_done', ok: false, reason: 'error', enabled: (await readEngineEvidenceMode(chatId).catch(() => 'evidence')) === 'evidence' }, uid);
     }
   },
   vellum_set_engine_window: async (p, uid) => {

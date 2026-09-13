@@ -182,6 +182,7 @@ const QOL = [
   { id: 'summarizer', label: '\u2699 Summarizer', title: 'Summarizer settings: token caps, window size, automation, and custom gist/chapter/arc/book prompts', group: 'settings' },
   // toggles = persistent on/off state
   { id: 'enginepass', label: '\u2699 Engine pass', title: 'Run Engine Second Pass when the active preset requests it. Off keeps the prose turn and uses VELLUM\'s fallback memory extraction without compiling full state.', group: 'toggle' },
+  { id: 'engineevidence', label: '\u201C Engine evidence', title: 'Engine Pass evidence grounding. On (default) requires every compiled state change to cite evidence from the scene or attached canon. Off (no evidence) keeps canon, identity, chronology, causality, and subplot continuity validation but drops the quotation requirement — useful when a model paraphrases instead of quoting and you want fewer held/repair loops.', group: 'toggle' },
   { id: 'enginewindow', label: '\u25a3 Engine window', title: 'Pop up a live window while Engine Second Pass writes and validates the VELLUM file. This does not enable or disable the pass itself.', group: 'toggle' },
   { id: 'personastate', label: '\u2659 Persona state', title: 'Track the persona\'s grounded mood, condition, current activity, thought, and stable traits beside the rest of the cast. This does not change the selected player-agency rule.', group: 'toggle' },
   { id: 'hide', label: '\u25d1 Hide filed', title: 'Hide summarized turns from the prompt (toggle)', group: 'toggle' },
@@ -751,6 +752,7 @@ let _ctxRef: Ctx | null = null;
 let _hideOn = false;
 let _offscreenOn = false; // off-screen sim toggle, mirrored from backend
 let _enginePassOn = true; // per-chat permission for Engine Second Pass; default on
+let _engineEvidenceOn = true; // per-chat Engine Pass evidence audit; default on (current behavior)
 let _engineWindowOn = true; // optional live compiler window; default on
 let _personaStateOn = false; // grounded persona detail/traits; explicit per-chat opt-in
 let _autoRetryOn = false; // auto-repair a dropped <vellum> block, mirrored from backend
@@ -998,6 +1000,7 @@ function openActions(ctx: Ctx): void {
   const bodyHtml = (): string => {
     const toggleState: Record<string, string> = {
       enginepass: _enginePassOn ? 'on' : 'off',
+      engineevidence: _engineEvidenceOn ? 'on' : 'off',
       enginewindow: _engineWindowOn ? 'on' : 'off',
       personastate: _personaStateOn ? 'on' : 'off',
       hide: _hideOn ? 'on' : 'off',
@@ -1106,6 +1109,7 @@ function onQol(ctx: Ctx, id: string): void {
   else if (id === 'rebuild') { openRebuildModal(ctx); }
   else if (id === 'hide') { _hideOn = !_hideOn; setQolBusy('hide', true); ctx.sendToBackend({ type: 'vellum_set_hide', enabled: _hideOn }); }
   else if (id === 'enginepass') { _enginePassOn = !_enginePassOn; setQolBusy('enginepass', true); ctx.sendToBackend({ type: 'vellum_set_engine_pass', enabled: _enginePassOn }); }
+  else if (id === 'engineevidence') { _engineEvidenceOn = !_engineEvidenceOn; setQolBusy('engineevidence', true); ctx.sendToBackend({ type: 'vellum_set_engine_evidence', enabled: _engineEvidenceOn }); }
   else if (id === 'enginewindow') { _engineWindowOn = !_engineWindowOn; setQolBusy('enginewindow', true); if (!_engineWindowOn) cleanupEngineStream(); ctx.sendToBackend({ type: 'vellum_set_engine_window', enabled: _engineWindowOn }); }
   else if (id === 'personastate') { _personaStateOn = !_personaStateOn; setQolBusy('personastate', true); ctx.sendToBackend({ type: 'vellum_set_persona_state', enabled: _personaStateOn }); }
   else if (id === 'offscreen') { _offscreenOn = !_offscreenOn; ctx.sendToBackend({ type: 'vellum_set_offscreen', enabled: _offscreenOn }); }
@@ -2000,6 +2004,14 @@ export function setup(ctx: Ctx): () => void {
             if (status) status.textContent = _enginePassOn ? 'on' : 'off';
           });
         }
+        if (typeof p.engineEvidence === 'boolean') {
+          _engineEvidenceOn = p.engineEvidence;
+          document.querySelectorAll('[data-qol=\'engineevidence\']').forEach((b) => {
+            b.classList.toggle('on', _engineEvidenceOn);
+            const status = b.querySelector('.vle-act-st');
+            if (status) status.textContent = _engineEvidenceOn ? 'on' : 'off';
+          });
+        }
         if (typeof p.engineWindow === 'boolean') {
           _engineWindowOn = p.engineWindow;
           document.querySelectorAll('[data-qol=\'enginewindow\']').forEach((b) => {
@@ -2436,6 +2448,16 @@ export function setup(ctx: Ctx): () => void {
         });
         if (!p.ok) notify(ctx, 'warning', p.reason === 'no_active_chat' ? 'Open a chat before changing Engine Second Pass.' : 'Could not change Engine Second Pass.');
         else notify(ctx, 'success', _enginePassOn ? 'Engine Second Pass on.' : 'Engine Second Pass off — turns use fallback memory extraction.');
+      } else if (p?.type === 'vellum_engine_evidence_set_done') {
+        setQolBusy('engineevidence', false);
+        _engineEvidenceOn = !!p.enabled;
+        document.querySelectorAll('[data-qol=\'engineevidence\']').forEach((b) => {
+          b.classList.toggle('on', _engineEvidenceOn);
+          const status = b.querySelector('.vle-act-st');
+          if (status) status.textContent = _engineEvidenceOn ? 'on' : 'off';
+        });
+        if (!p.ok) notify(ctx, 'warning', p.reason === 'no_active_chat' ? 'Open a chat before changing Engine evidence.' : 'Could not change Engine evidence.');
+        else notify(ctx, 'success', _engineEvidenceOn ? 'Engine evidence on — compiled changes must cite the scene or attached canon.' : 'Engine evidence off — canon, chronology, identity, and causality still validated; quotations no longer required.');
       } else if (p?.type === 'vellum_engine_window_set_done') {
         setQolBusy('enginewindow', false);
         _engineWindowOn = !!p.enabled;

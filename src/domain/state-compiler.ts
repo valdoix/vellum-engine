@@ -67,7 +67,7 @@ export const CompilerState = z.object({
 }).strict();
 export const CompilerCandidate = z.object({
   state: CompilerState,
-  parallelOps: item({ op: z.enum(['start', 'advance', 'move', 'resolve']), who: name, where: text.optional(), activity: text.optional(), evidence: text }),
+  parallelOps: item({ op: z.enum(['start', 'advance', 'move', 'resolve']), who: name, where: text.optional(), activity: text.optional(), evidence: z.string().max(4000).optional() }),
   parallelWorldOps: item({
     op: z.enum(['start', 'advance', 'move', 'resolve']),
     priorActivity: text.optional(),
@@ -75,11 +75,11 @@ export const CompilerCandidate = z.object({
     where: text.optional(),
     activity: text.optional(),
     note: text.optional(),
-    evidence: text,
+    evidence: z.string().max(4000).optional(),
   }).optional(),
   // Every prior row must be accounted for. A forgotten actor cannot silently disappear.
   parallelReviewed: z.array(name).max(200),
-  evidence: item({ path: text, quote: text }),
+  evidence: item({ path: text, quote: z.string().max(4000).optional() }),
   // Plot mutations get a stricter, track-specific proof record. Generic prose
   // evidence is insufficient: the compiler must identify the exact prior row,
   // state its previous and resulting conditions, and classify the causal step.
@@ -88,7 +88,7 @@ export const CompilerCandidate = z.object({
     targetId: name,
     before: text,
     after: text,
-    quote: text,
+    quote: z.string().max(4000).optional(),
     basis: z.enum(['new_open_question', 'direct_development', 'blocked_attempt', 'closed_question', 'child_milestone', 'structural_milestone']),
     childThreadIds: z.array(name).max(20).optional(),
   }),
@@ -115,6 +115,11 @@ export type CompilerInput = {
   argent?: boolean;
   agency?: 'protected' | 'continuity' | 'director';
   personaState?: boolean;
+  /** 'none' relaxes only the semantic evidence audit (quotes, grounding
+   * overlap, proof quotation matching). Deterministic gates — identities,
+   * canon/life state, chronology, plot-causality transitions, and ARGENT
+   * requirements — remain fully binding in both modes. */
+  evidenceMode?: 'evidence' | 'none';
   /** Relevant entries from lorebooks explicitly attached to this chat. These
    * constrain objective world canon; they are never automatic actor knowledge. */
   lorebookCanon?: readonly LorebookCanonEntry[];
@@ -514,7 +519,7 @@ export function jsonSchema(s: z.ZodTypeAny): Record<string, unknown> {
  * restored from prior state by preparedCompilerCandidate(); evidence may live
  * beside the changed row and is lifted out before strict validation.
  */
-export function compilerProviderSchema(): Record<string, unknown> {
+export function compilerProviderSchema(evidenceMode: 'evidence' | 'none' = 'evidence'): Record<string, unknown> {
   const schema = structuredClone(jsonSchema(CompilerCandidate)) as any;
   schema.required = ['state'];
   delete schema.properties.evidence;
@@ -537,6 +542,23 @@ export function compilerProviderSchema(): Record<string, unknown> {
       property.items.properties.evidence = { type: 'string' };
     }
   }
+  // The evidence-aware fields on parallel operations are only requested when
+  // the chat keeps the semantic evidence audit. In no-evidence mode the
+  // provider schema drops them so models never spend tokens on quotations.
+  if (evidenceMode === 'none') {
+    delete state.properties.scene.properties.evidence;
+    delete state.properties.present.items.properties.evidence;
+    for (const branch of [state.properties.delta, state.properties.ext]) {
+      for (const property of Object.values(branch.properties ?? {}) as any[]) {
+        if (property?.type !== 'array' || !property.items?.properties) continue;
+        delete property.items.properties.evidence;
+      }
+    }
+    for (const key of ['parallelOps', 'parallelWorldOps']) {
+      const arr = schema.properties[key];
+      if (arr?.items?.required) arr.items.required = arr.items.required.filter((k: string) => k !== 'evidence');
+    }
+  }
   return schema;
 }
 
@@ -546,6 +568,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   const c = parsed.data;
   const s = c.state;
   const errors: string[] = [];
+  const noEvidence = input.evidenceMode === 'none';
   if (s.turn !== input.turn) errors.push('turn must equal the engine turn');
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
   const currentTurnSource = `${input.userInput ?? ''}\n${input.prose}`;
@@ -587,7 +610,9 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   // (October 17 -> day:17) is repaired to the prior count rather than either
   // corrupting the Chronicle or discarding every other valid state update.
   const reportedDay = s.day;
-  const timeProof = c.evidence.find(e => e.path === 'scene.time' && (sourceSupportsEvidence(currentTurnSource, e.quote) || !!lorebookEvidence(e.quote)));
+  const timeProof = noEvidence
+    ? undefined
+    : c.evidence.find(e => e.path === 'scene.time' && (sourceSupportsEvidence(currentTurnSource, e.quote) || !!lorebookEvidence(e.quote)));
   const proofAt = timeProof ? currentTurnSource.indexOf(timeProof.quote) : -1;
   const proofContext = proofAt >= 0
     ? currentTurnSource.slice(Math.max(0, proofAt - 80), Math.min(currentTurnSource.length, proofAt + timeProof!.quote.length + 80))
@@ -615,6 +640,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     // checked below against canonical life, place, time, and knowledge state.
     || (parallelAutonomy && path.startsWith('delta.offscreen.') && !!quote.trim());
   const needsEvidence = (path: string, changed: boolean, derived = false) => {
+    if (noEvidence) return;
     if (changed && !derived && !c.evidence.some(e => e.path === path && quoteAllowed(path, e.quote))) errors.push(`missing evidence: ${path}`);
   };
   needsEvidence('scene.loc', s.scene.loc !== input.prior.scene.location);
@@ -668,6 +694,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     else evidence.set(e.path, e.quote);
   }
   for (const e of c.evidence) {
+    if (noEvidence) continue;
     if (input.personaState && e.path.startsWith('present.persona.')) {
       // Evidence is optional for tracker-only inference. If a compiler includes
       // it, still reject fabricated quotations.
@@ -691,13 +718,16 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     rows.forEach((row: Record<string, any>, index: number) => {
       const path = `delta.${section}.${index}`;
       const rowEvidence = evidence.get(path) ?? (section === 'offscreen' ? String(row.grounding?.rationale ?? '') : '');
-      if (!rowEvidence) errors.push(`missing evidence: ${path}`);
-      if (rowEvidence && !['threads', 'arcs', 'knowledge', 'offscreen', 'secretReveals'].includes(section)
+      if (!noEvidence && !rowEvidence) errors.push(`missing evidence: ${path}`);
+      if (!noEvidence && rowEvidence && !['threads', 'arcs', 'knowledge', 'offscreen', 'secretReveals'].includes(section)
         && !evidenceGroundsRowClaim(section, row, rowEvidence)) errors.push(`evidence does not materially ground the state change: ${path}`);
       for (const key of ['who', 'keeper', 'about']) if (row[key] && !known(row[key])) errors.push(`unknown ${key}: ${row[key]}`);
       if (section === 'bonds' && (!known(row.a) || !known(row.b) || canonId(row.a) === canonId(row.b))) errors.push('invalid bond identities');
+      if (noEvidence) {
+        if (section === 'knowledge' && !row.source?.trim()) errors.push('knowledge requires a transmission source');
+      } else
       if (section === 'knowledge' && (!row.source?.trim() || !evidence.has(`delta.knowledge.${index}`))) errors.push('knowledge requires a transmission source and evidence');
-      if (section === 'knowledge') {
+      if (section === 'knowledge' && !noEvidence) {
         const holder = canonId(row.who);
         const quote = evidence.get(`delta.knowledge.${index}`) ?? '';
         const onStageThisTurn = input.prior.scene.present.map(canonId).includes(holder) || present.has(holder);
@@ -733,37 +763,40 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
           if (input.prior.cast[actorId]?.deceased) errors.push(`deceased actor cannot act offscreen: ${row.who ?? prior?.who}`);
           if (present.has(actorId)) errors.push(`present actor cannot also be offscreen: ${row.who ?? prior?.who}`);
           const actorName = input.prior.cast[actorId]?.name ?? String(row.who ?? prior?.who ?? '');
-          const currentSourceGrounded = sourceSupportsEvidence(input.prose, quote) || !!lorebookEvidence(quote);
+          const currentSourceGrounded = !noEvidence && (sourceSupportsEvidence(input.prose, quote) || !!lorebookEvidence(quote));
           const autonomousGrounded = parallelAutonomy && actorCanActInParallel(input.prior, actorName)
             && (row.op === 'resolve'
-              ? !!prior && evidenceGroundsActorResolution(input.prior, actorName, quote)
+              ? !!prior && (noEvidence || evidenceGroundsActorResolution(input.prior, actorName, quote))
               : !!row.where && !!row.gist
                 && autonomousParallelActivityAllowed(row.gist)
                 && autonomousDestinationPlausible(input, lorebookCanon, actorName, row.where)
-                && evidenceGroundsActorActivity(input.prior, actorName, row.where, row.gist, quote));
+                && (noEvidence || evidenceGroundsActorActivity(input.prior, actorName, row.where, row.gist, quote)));
           if (row.op === 'resolve') {
-            if (!quote || !(currentSourceGrounded || autonomousGrounded) || !evidenceGroundsActorResolution(input.prior, actorName, quote)) errors.push(`offscreen resolution is not grounded: ${row.id}`);
-          } else if (!row.where || !row.gist || !quote || !(currentSourceGrounded || autonomousGrounded) || !evidenceMentionsActor(input.prior, actorName, quote)) {
+            if (!quote && !noEvidence) errors.push(`offscreen resolution is not grounded: ${row.id}`);
+            else if (!(currentSourceGrounded || autonomousGrounded)) errors.push(`offscreen resolution is not grounded: ${row.id}`);
+            else if (!noEvidence && !evidenceGroundsActorResolution(input.prior, actorName, quote)) errors.push(`offscreen resolution is not grounded: ${row.id}`);
+          } else if (!row.where || !row.gist || !(noEvidence || !!quote) || !(currentSourceGrounded || autonomousGrounded) || (!noEvidence && !evidenceMentionsActor(input.prior, actorName, quote))) {
             errors.push(`offscreen beat needs a living named NPC and a scene-grounded or canon-plausible place/activity: ${row.id}`);
           }
-          if (row.op !== 'new' && prior?.where && row.where && !sameLocation(prior.where, row.where)
+          if (!noEvidence && row.op !== 'new' && prior?.where && row.where && !sameLocation(prior.where, row.where)
             && !(evidenceGroundsMove(input.prior, actorName, row.where, quote)
               && (currentSourceGrounded || (autonomousGrounded && elapsedMinutes > 0)))) {
             errors.push(`offscreen relocation is not feasible from ${prior.where}: ${row.id}`);
           }
         } else if (row.op === 'resolve') {
-          if (!quote || !evidenceGroundsWorldResolution(prior?.where, quote)) errors.push(`offscreen world resolution is not grounded: ${row.id}`);
+          if (!quote && !noEvidence) errors.push(`offscreen world resolution is not grounded: ${row.id}`);
+          else if (!noEvidence && !evidenceGroundsWorldResolution(prior?.where, quote)) errors.push(`offscreen world resolution is not grounded: ${row.id}`);
         } else {
-          const currentSourceGrounded = sourceSupportsEvidence(input.prose, quote) || !!lorebookEvidence(quote);
+          const currentSourceGrounded = !noEvidence && (sourceSupportsEvidence(input.prose, quote) || !!lorebookEvidence(quote));
           const autonomousGrounded = parallelAutonomy && !!row.gist
             && autonomousParallelActivityAllowed(row.gist)
             && autonomousWorldLocationPlausible(input, lorebookCanon, row.where)
-            && evidenceGroundsWorldActivity(row.where, row.gist, quote);
-          if (!row.gist || !quote || !(currentSourceGrounded || autonomousGrounded)) {
+            && (noEvidence || evidenceGroundsWorldActivity(row.where, row.gist, quote));
+          if (!row.gist || !(noEvidence || !!quote) || !(currentSourceGrounded || autonomousGrounded)) {
             errors.push(`offscreen world beat needs a scene-grounded or canon-plausible place/activity: ${row.id}`);
           }
         }
-        if (row.op !== 'resolve' && row.gist && activityNeedsAccessPath(row.gist) && !evidenceHasAccessPath(quote)) {
+        if (!noEvidence && row.op !== 'resolve' && row.gist && activityNeedsAccessPath(row.gist) && !evidenceHasAccessPath(quote)) {
           errors.push(`offscreen knowledge/reaction lacks a delivered access path: ${row.id}`);
         }
       }
@@ -811,6 +844,27 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     const target = input.prior.threads.find(t => trackTitleKey(t.name) === trackTitleKey(row.name));
     if (target && row.op !== 'new') changedThreadIds.add(target.id);
   }
+  // In no-evidence mode the model omits trackEvidence quotations. Synthesize a
+  // deterministic proof from the prior canonical state and the row's own note so
+  // the causality gate (target, before -> after, basis, changed condition) still
+  // runs without demanding a quotation. The quote is never lexically validated.
+  if (noEvidence) for (const { section, row, index } of plotRows) {
+    const path = `delta.${section}.${index}`;
+    if (proofs.has(path)) continue;
+    const note = String(row.note ?? '').trim();
+    if (!note) continue; // the note-required error below covers this
+    const priorList = section === 'threads' ? input.prior.threads : input.prior.arcs;
+    const target = priorList.find(t => trackTitleKey(t.name) === trackTitleKey(String(row.name ?? '')));
+    const op = String(row.op ?? 'advance');
+    proofs.set(path, {
+      path, targetId: target ? target.id : 'new',
+      before: target ? trackBefore(target) : 'absent',
+      after: note, quote: note,
+      basis: op === 'new' ? 'new_open_question' : op === 'resolve' ? 'closed_question'
+        : section === 'threads' && op === 'stall' ? 'blocked_attempt'
+        : section === 'threads' ? 'direct_development' : 'structural_milestone',
+    } as StateCandidate['trackEvidence'][number]);
+  }
 
   // Graph references are part of the accepted transaction, not advisory text.
   // They may target a canonical row or another row created in this candidate,
@@ -845,8 +899,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     const proof = proofs.get(path);
     if (!proof) { errors.push(`missing plot proof: ${path}`); continue; }
     const quote = evidence.get(path);
-    if (!quote || evidenceText(proof.quote) !== evidenceText(quote) || !(sourceSupportsEvidence(input.prose, proof.quote) || !!lorebookEvidence(proof.quote))) errors.push(`plot proof must be grounded in the current scene or attached canon: ${path}`);
-    if (lorebookEvidence(proof.quote) && row.op !== 'new') errors.push(`lorebook baseline cannot advance or resolve an existing plot row: ${path}`);
+    if (!noEvidence && (!quote || evidenceText(proof.quote) !== evidenceText(quote) || !(sourceSupportsEvidence(input.prose, proof.quote) || !!lorebookEvidence(proof.quote)))) errors.push(`plot proof must be grounded in the current scene or attached canon: ${path}`);
+    if (!noEvidence && lorebookEvidence(proof.quote) && row.op !== 'new') errors.push(`lorebook baseline cannot advance or resolve an existing plot row: ${path}`);
     const note = String(row.note ?? '').trim();
     if (!note) errors.push(`plot change requires a concrete resulting condition: ${path}`);
     else if (evidenceText(proof.after) !== evidenceText(note)) errors.push(`plot proof after must equal the plot note: ${path}`);
@@ -868,7 +922,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       }
     }
 
-    if (!plotProofGrounded(target, String(row.name), proof, input.prior)) errors.push(`plot proof is not grounded in the tracked situation: ${path}`);
+    if (!noEvidence && !plotProofGrounded(target, String(row.name), proof, input.prior)) errors.push(`plot proof is not grounded in the tracked situation: ${path}`);
 
     if (section === 'arcs' && proof.basis === 'child_milestone') {
       const arc = target;
@@ -900,8 +954,10 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     rows.forEach((row: any, i: number) => {
       const path = `ext.${section}.${i}`;
       const rowEvidence = evidence.get(path) ?? '';
-      if (!rowEvidence) errors.push(`missing evidence: ${path}`);
-      else if (!evidenceGroundsRowClaim(section, row, rowEvidence)) errors.push(`evidence does not materially ground the state change: ${path}`);
+      if (!noEvidence) {
+        if (!rowEvidence) errors.push(`missing evidence: ${path}`);
+        else if (!evidenceGroundsRowClaim(section, row, rowEvidence)) errors.push(`evidence does not materially ground the state change: ${path}`);
+      }
       if (row.who && row.who !== 'world' && !known(row.who)) errors.push(`unknown owner: ${row.who}`);
       if (row.op === 'give' && (!row.to || !known(row.to))) errors.push('give requires a known recipient');
       if (section === 'codex' && row.op === 'refresh' && (!row.id || !input.prior.lore.some(x => x.id === row.id))) errors.push(`codex refresh requires an existing id: ${row.id ?? '(missing)'}`);
@@ -964,7 +1020,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     if (operated.has(id)) errors.push(`duplicate parallel operation: ${id}`);
     operated.add(id);
     const previous = rows.get(id);
-    const sourceProof = (sourceSupportsEvidence(input.prose, op.evidence) || !!lorebookEvidence(op.evidence)) ? op.evidence : '';
+    const opEvidenceText = String(op.evidence ?? '');
+    const sourceProof = opEvidenceText && (sourceSupportsEvidence(input.prose, opEvidenceText) || !!lorebookEvidence(opEvidenceText)) ? opEvidenceText : '';
     const sourceGrounded = !!sourceProof && (op.op === 'resolve'
       ? evidenceGroundsActorResolution(input.prior, op.who, sourceProof)
       : op.op === 'move'
@@ -975,15 +1032,21 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
       && autonomousSupport.some(row => row.evidence === op.evidence
         && !!op.where && !!op.activity
         && evidenceGroundsActorActivity(input.prior, op.who, op.where, op.activity, row.evidence));
-    const autonomousProof = parallelAutonomy && !!op.evidence.trim() && actorCanActInParallel(input.prior, op.who)
-      && (op.op === 'resolve'
-        ? !!previous && evidenceGroundsActorResolution(input.prior, op.who, op.evidence)
-        : !!op.where?.trim() && !!op.activity?.trim()
-          && autonomousParallelActivityAllowed(op.activity)
-          && autonomousDestinationPlausible(input, lorebookCanon, op.who, op.where)
-          && evidenceGroundsActorActivity(input.prior, op.who, op.where, op.activity, op.evidence)
-          && (op.op !== 'move' || (elapsedMinutes > 0 && evidenceGroundsMove(input.prior, op.who, op.where, op.evidence))));
-    const operationProof = (sourceGrounded ? sourceProof : '') || (priorBacked || autonomousProof ? op.evidence : '');
+    const autonomousProof = parallelAutonomy && actorCanActInParallel(input.prior, op.who)
+      && (noEvidence
+        ? op.op === 'resolve'
+          ? !!previous
+          : !!op.where?.trim() && !!op.activity?.trim()
+            && autonomousParallelActivityAllowed(op.activity)
+            && autonomousDestinationPlausible(input, lorebookCanon, op.who, op.where)
+        : !!opEvidenceText.trim() && (op.op === 'resolve'
+          ? !!previous && evidenceGroundsActorResolution(input.prior, op.who, opEvidenceText)
+          : !!op.where?.trim() && !!op.activity?.trim()
+            && autonomousParallelActivityAllowed(op.activity)
+            && autonomousDestinationPlausible(input, lorebookCanon, op.who, op.where)
+            && evidenceGroundsActorActivity(input.prior, op.who, op.where, op.activity, opEvidenceText)
+            && (op.op !== 'move' || (elapsedMinutes > 0 && evidenceGroundsMove(input.prior, op.who, op.where, opEvidenceText)))));
+    const operationProof = (sourceGrounded ? sourceProof : '') || ((priorBacked || autonomousProof) ? opEvidenceText : '');
     const grounded = priorBacked || sourceGrounded || autonomousProof;
     if (!grounded) errors.push(`parallel operation is not grounded in the scene or a canon-plausible life/location/activity: ${id}`);
     if (!known(op.who)) errors.push(`unknown parallel actor: ${id}`);
@@ -994,7 +1057,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     const anchorStale = (input.prior.cast[id]?.lastLocationTurn ?? -1) < input.turn - 1;
     if (op.op === 'start' && anchor && op.where && !sameLocation(anchor.where, op.where)
       && !(autonomousProof && anchorStale)
-      && !(operationProof && elapsedMinutes > 0 && evidenceGroundsMove(input.prior, op.who, op.where, operationProof))) {
+      && !(operationProof && elapsedMinutes > 0 && evidenceGroundsMove(input.prior, op.who, op.where, operationProof))
+      && !noEvidence) {
       errors.push(`parallel start contradicts canonical location ${anchor.where}: ${id}`);
     }
     if (op.op === 'advance' && previous?.where && op.where && !sameLocation(previous.where, op.where)) {
@@ -1003,7 +1067,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     if (op.op === 'move' && previous?.where && op.where && sameLocation(previous.where, op.where)) {
       errors.push(`parallel move does not change location: ${id}`);
     }
-    if (op.op !== 'resolve' && op.activity && activityNeedsAccessPath(op.activity)
+    if (!noEvidence && op.op !== 'resolve' && op.activity && activityNeedsAccessPath(op.activity)
       && !evidenceHasAccessPath(operationProof || op.evidence)) {
       errors.push(`parallel knowledge/reaction lacks a delivered access path: ${id}`);
     }
@@ -1016,21 +1080,29 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   const operatedWorld = new Set<string>();
   for (const op of c.parallelWorldOps ?? []) {
     if (mentionsPersona(op.activity, op.note, op.evidence)) errors.push('persona cannot appear in a parallel world event');
-    const sourceProof = (sourceSupportsEvidence(input.prose, op.evidence) || !!lorebookEvidence(op.evidence)) ? op.evidence : '';
-    const autonomousProof = parallelAutonomy && !!op.evidence.trim()
-      && (op.op === 'resolve'
-        ? evidenceGroundsWorldResolution(op.priorWhere, op.evidence)
-        : !!op.activity?.trim()
-          && autonomousParallelActivityAllowed(op.activity)
-          && autonomousWorldLocationPlausible(input, lorebookCanon, op.where ?? op.priorWhere)
-          && evidenceGroundsWorldActivity(op.where ?? op.priorWhere, op.activity, op.evidence)
-          && (op.op !== 'move' || (!!op.where && elapsedMinutes > 0 && evidenceGroundsWorldMove(op.where, op.evidence))));
-    const operationProof = sourceProof || (autonomousProof ? op.evidence : '');
-    if (!operationProof) errors.push('parallel world operation is not grounded in the scene or a canon-plausible place/activity');
+    const opEvidenceText = String(op.evidence ?? '');
+    const sourceProof = opEvidenceText && (sourceSupportsEvidence(input.prose, opEvidenceText) || !!lorebookEvidence(opEvidenceText)) ? opEvidenceText : '';
+    const autonomousProof = parallelAutonomy
+      && (noEvidence
+        ? op.op === 'resolve'
+          ? true
+          : !!op.activity?.trim() && autonomousParallelActivityAllowed(op.activity)
+            && autonomousWorldLocationPlausible(input, lorebookCanon, op.where ?? op.priorWhere)
+        : !!opEvidenceText.trim()
+          && (op.op === 'resolve'
+            ? evidenceGroundsWorldResolution(op.priorWhere, opEvidenceText)
+            : !!op.activity?.trim()
+              && autonomousParallelActivityAllowed(op.activity)
+              && autonomousWorldLocationPlausible(input, lorebookCanon, op.where ?? op.priorWhere)
+              && evidenceGroundsWorldActivity(op.where ?? op.priorWhere, op.activity, opEvidenceText)
+              && (op.op !== 'move' || (!!op.where && elapsedMinutes > 0 && evidenceGroundsWorldMove(op.where, opEvidenceText)))));
+    const operationProof = sourceProof || (autonomousProof ? opEvidenceText : '');
+    if (!operationProof && !noEvidence) errors.push('parallel world operation is not grounded in the scene or a canon-plausible place/activity');
     if (op.op === 'start') {
       if (op.priorActivity || op.priorWhere) errors.push('parallel world start cannot target a prior row');
       if (!op.activity?.trim()) errors.push('parallel world start requires activity');
-      else if (!operationProof || !evidenceGroundsWorldActivity(op.where, op.activity, operationProof)) errors.push('parallel world start is not grounded to place and activity');
+      else if (!operationProof && !noEvidence) errors.push('parallel world start is not grounded to place and activity');
+      else if (operationProof && !noEvidence && !evidenceGroundsWorldActivity(op.where, op.activity, operationProof)) errors.push('parallel world start is not grounded to place and activity');
       else anonymousRows.push({ ...(op.where ? { where: op.where } : {}), activity: op.activity, ...(op.note ? { note: op.note } : {}) });
       continue;
     }
@@ -1044,14 +1116,14 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     if (operatedWorld.has(key)) errors.push('duplicate parallel world operation');
     operatedWorld.add(key);
     if (op.op === 'resolve') {
-      if (!operationProof || !evidenceGroundsWorldResolution(target.row.where, operationProof)) errors.push('parallel world resolve lacks an explicit ending at its established place');
+      if (operationProof && !noEvidence && !evidenceGroundsWorldResolution(target.row.where, operationProof)) errors.push('parallel world resolve lacks an explicit ending at its established place');
       else anonymousRows.splice(target.index, 1);
     }
     else if (!op.activity?.trim()) errors.push(`parallel world ${op.op} requires activity`);
     else {
       if (op.op === 'advance' && target.row.where && op.where && !sameLocation(target.row.where, op.where)) errors.push('parallel world advance cannot change location; use move');
-      if (op.op === 'move' && (!op.where || sameLocation(target.row.where, op.where) || !operationProof || !evidenceGroundsWorldMove(op.where, operationProof))) errors.push('parallel world move requires a new destination and movement evidence');
-      if (!operationProof || !evidenceGroundsWorldActivity(op.where ?? target.row.where, op.activity, operationProof)) errors.push(`parallel world ${op.op} is not grounded to place and activity`);
+      if (!noEvidence && op.op === 'move' && (!op.where || sameLocation(target.row.where, op.where) || !operationProof || !evidenceGroundsWorldMove(op.where, operationProof))) errors.push('parallel world move requires a new destination and movement evidence');
+      if (operationProof && !noEvidence && !evidenceGroundsWorldActivity(op.where ?? target.row.where, op.activity, operationProof)) errors.push(`parallel world ${op.op} is not grounded to place and activity`);
       anonymousRows[target.index] = { ...(op.where ? { where: op.where } : target.row.where ? { where: target.row.where } : {}), activity: op.activity, ...(op.note ? { note: op.note } : {}) };
     }
   }
@@ -1291,14 +1363,14 @@ function normalizePlotProofRows(root: Record<string, any>, input: CompilerInput,
       // normalizer maps it to `new`; retarget it when that title already exists.
       if (target && row.op === 'new') row.op = 'advance';
       const evidence = root.evidence?.find((item: Record<string, any>) => item.path === path);
-      if (!proof && evidence?.quote && row.note) {
+      if (!proof && row.note && (input.evidenceMode === 'none' || evidence?.quote)) {
         const op = String(row.op ?? 'advance');
         proof = {
           path,
           targetId: target ? target.id : 'new',
           before: target ? trackBefore(target) : 'absent',
           after: String(row.note),
-          quote: evidence.quote,
+          quote: evidence?.quote ?? String(row.note),
           basis: op === 'new' ? 'new_open_question'
             : op === 'resolve' ? 'closed_question'
               : section === 'threads' && op === 'stall' ? 'blocked_attempt'
@@ -1405,6 +1477,7 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
   }
   const explicitEvidence = normalizeEvidenceRows(root.evidence, source);
   const inferredEvidence: Array<Record<string, unknown>> = [];
+  if (input.evidenceMode !== 'none') {
   if (compilerRecord(state.delta)) for (const [section, rows] of Object.entries(state.delta)) {
     compilerArray(rows).forEach((row, index) => {
       if (!compilerRecord(row)) return;
@@ -1423,6 +1496,7 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
       if (quote) inferredEvidence.push({ path, quote });
     });
   }
+  }
   root.evidence = normalizeEvidenceRows([...explicitEvidence, ...embeddedEvidence, ...inferredEvidence], source);
 
   for (const key of ['parallelOps', 'parallelWorldOps'] as const) {
@@ -1433,6 +1507,10 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
       adoptCompilerKey(value, 'where', ['loc', 'location']);
       adoptCompilerKey(value, 'activity', ['gist', 'event', 'doing']);
       value.evidence = exactCompilerQuote(compilerQuote(value.evidence ?? value.quote ?? value.source), source);
+      if (input.evidenceMode === 'none' && !String(value.evidence ?? '').trim()) {
+        value.evidence = [value.op, value.who, value.where, value.activity, value.note]
+          .filter(part => typeof part === 'string' && part.trim()).join(' — ').trim() || 'autonomous operation';
+      }
       return [value];
     });
   }
@@ -1576,13 +1654,15 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
   const currentSource = `${input.userInput ?? ''}\n${input.prose}`;
   const selectedLorebook = compilerLorebookCanon(input);
   const validEvidence = original.evidence.filter((entry, index, rows) => {
+    if (input.evidenceMode === 'none') return rows.findIndex(other => other.path === entry.path) === index;
     const source = entry.path === 'scene.loc' || entry.path === 'scene.time'
       || entry.path.startsWith('present.add.') || entry.path.startsWith('present.remove.')
       ? currentSource : input.prose;
     return (sourceContainsEvidence(source, entry.quote) || !!lorebookQuoteEntry(selectedLorebook, entry.quote))
       && rows.findIndex(other => other.path === entry.path) === index;
   });
-  const evidenceFor = (path: string) => validEvidence.find(entry => entry.path === path);
+  const evidenceFor = (path: string): StateCandidate['evidence'][number] | undefined =>
+    input.evidenceMode === 'none' ? undefined : validEvidence.find(entry => entry.path === path);
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
   const scene = structuredClone(original.state.scene);
   const parsedSceneClock = parseClock(scene.time);

@@ -14,6 +14,8 @@ describe('frontend distribution bundle', () => {
     expect(bundle).toContain('vellum_retry_engine');
     expect(bundle).toContain('Engine pass');
     expect(bundle).toContain('vellum_set_engine_pass');
+    expect(bundle).toContain('Engine evidence');
+    expect(bundle).toContain('vellum_set_engine_evidence');
     expect(bundle).toContain('Engine window');
     expect(bundle).toContain('vellum_set_engine_window');
     expect(bundle).toContain('vellum_engine_stream');
