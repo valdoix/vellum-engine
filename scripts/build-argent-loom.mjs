@@ -836,8 +836,6 @@ const argentRouteSentinel = String.raw`{{or::{{eq::{{var::reasoning_route}}::com
 const dialogueColorGateCondition = String.raw`{{and::{{var::dialogue_color}}::${argentRouteSentinel}}}`;
 const dialogueColorGateOpen = `{{if::${dialogueColorGateCondition}}}`;
 const dialogueColorGate = (pattern) => `${dialogueColorGateOpen}${pattern}{{else}}(?!){{/if}}`;
-const sceneHeaderGateOpen = `{{if::{{and::{{var::scene_header}}::${argentRouteSentinel}}}}`;
-const sceneHeaderGate = (pattern) => `${sceneHeaderGateOpen}${pattern}{{else}}(?!){{/if}}`;
 const slopCapturePattern = String.raw`<slop\b[^>]*>([\s\S]*?)<\/\s*slop\s*>`;
 const slopTagPattern = String.raw`<\/?\s*slop\b[^>]*>`;
 
@@ -899,13 +897,12 @@ const regexScripts = [
   regexScript({
     scriptId: 'argent-scene-header-display',
     name: 'ARGENT · Scene Header · Display',
-    description: 'Optionally renders a standalone scene marker as a cinematic, theme-aware title card without changing stored prose.',
-    findRegex: sceneHeaderGate(sceneHeaderPattern),
+    description: 'Renders an emitted standalone scene marker as a cinematic, theme-aware title card without changing stored prose. The preset control governs marker emission.',
+    findRegex: sceneHeaderPattern,
     replaceString: sceneHeaderHtml,
     flags: 'gm',
-    substituteMacros: 'find',
     sortOrder: 24,
-    metadata: { layer: 'display', anchored: true, gated_by_active_preset_control: 'scene_header', preserves_canonical_raw: true },
+    metadata: { layer: 'display', anchored: true, emission_control: 'scene_header', preserves_canonical_raw: true },
   }),
   regexScript({
     scriptId: 'argent-scene-header-semantic-pipeline',
@@ -1224,8 +1221,7 @@ const validPlacements = new Set(['user_input', 'ai_output', 'world_info', 'reaso
 const validTargets = new Set(['prompt', 'response', 'display']);
 const validMacroModes = new Set(['none', 'find', 'raw', 'escaped', 'after']);
 const resolveDisplayGate = (source, enabled, activeArgent = true) => {
-  const open = source.startsWith(dialogueColorGateOpen) ? dialogueColorGateOpen
-    : source.startsWith(sceneHeaderGateOpen) ? sceneHeaderGateOpen : '';
+  const open = source.startsWith(dialogueColorGateOpen) ? dialogueColorGateOpen : '';
   const split = '{{else}}';
   const close = '{{/if}}';
   if (!open || !source.endsWith(close)) return source;
@@ -1270,7 +1266,7 @@ assert(transformWith('argent-reverie-private-pipeline', reverieFixture).trim() =
 const sceneHeaderFixture = '[SCENE|Ash at Dawn|North Gate · 06:10]\nRain silvered the stones.';
 assert(transformWith('argent-scene-header-display', sceneHeaderFixture).includes('class="arg-scene"'), 'Scene-header display fixture failed');
 assert(transformWith('argent-scene-header-semantic-pipeline', sceneHeaderFixture).startsWith('SCENE — Ash at Dawn\nNorth Gate · 06:10'), 'Scene-header semantic fixture failed');
-assert(transformWith('argent-scene-header-display', sceneHeaderFixture, false) === sceneHeaderFixture, 'Scene-header renderer ignored the disabled control');
+assert(transformWith('argent-scene-header-display', 'Your story begins here.') === 'Your story begins here.', 'Scene-header renderer changed prose without a marker');
 assert(transformWith('argent-scene-header-display', '[SCENE|<img src=x onerror=alert(1)>|Hall]') === '[SCENE|<img src=x onerror=alert(1)>|Hall]', 'Scene-header renderer accepted HTML-bearing captures');
 
 const artifactFixture = 'Before\n[LETTER|Mara|The west gate is watched.\nCome alone.\n]\nAfter';

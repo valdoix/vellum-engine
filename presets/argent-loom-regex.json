@@ -171,8 +171,8 @@
       "script_id": "argent-scene-header-display",
       "name": "ARGENT · Scene Header · Display",
       "folder": "ARGENT LOOM",
-      "description": "Optionally renders a standalone scene marker as a cinematic, theme-aware title card without changing stored prose.",
-      "find_regex": "{{if::{{and::{{var::scene_header}}::{{or::{{eq::{{var::reasoning_route}}::compact}}::{{eq::{{var::reasoning_route}}::verbose}}::{{eq::{{var::reasoning_route}}::native}}::{{eq::{{var::reasoning_route}}::silent}}}}}}}^[ \\t]*\\[SCENE\\|([^|<>\\]\\r\\n]{1,100})\\|([^<>\\]\\r\\n]{0,160})\\][ \\t]*${{else}}(?!){{/if}}",
+      "description": "Renders an emitted standalone scene marker as a cinematic, theme-aware title card without changing stored prose. The preset control governs marker emission.",
+      "find_regex": "^[ \\t]*\\[SCENE\\|([^|<>\\]\\r\\n]{1,100})\\|([^<>\\]\\r\\n]{0,160})\\][ \\t]*$",
       "replace_string": "<style>.arg-scene{--ash:color-mix(in srgb,var(--vg,#d6b76d) 74%,#fff);position:relative;max-width:760px;margin:18px auto 24px;padding:24px 26px 21px;overflow:hidden;isolation:isolate;border:1px solid color-mix(in srgb,var(--vg,#d6b76d) 30%,transparent);border-radius:16px;background:radial-gradient(circle at 82% 15%,color-mix(in srgb,var(--vg,#d6b76d) 18%,transparent),transparent 38%),linear-gradient(145deg,rgba(30,27,24,.96),rgba(11,13,18,.98));box-shadow:0 16px 42px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.05);color:var(--vi,#f2e9d9);text-align:center}.arg-scene:before,.arg-scene:after{content:'';position:absolute;left:9%;right:9%;height:1px;background:linear-gradient(90deg,transparent,var(--ash),transparent);opacity:.58}.arg-scene:before{top:13px}.arg-scene:after{bottom:12px}.arg-scene-k{font:700 9px/1.2 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:3.2px;text-transform:uppercase;color:var(--ash);opacity:.9}.arg-scene-t{margin:7px auto 5px;max-width:660px;font:600 clamp(24px,4.8vw,38px)/1.08 var(--vserif,'Cormorant Garamond',Georgia,serif);letter-spacing:.2px;text-wrap:balance;text-shadow:0 3px 22px rgba(0,0,0,.7)}.arg-scene-m{font:600 10px/1.4 var(--vmono,'JetBrains Mono',ui-monospace,monospace);letter-spacing:1.8px;text-transform:uppercase;color:color-mix(in srgb,var(--vi,#f2e9d9) 72%,transparent)}</style><header class=\"arg-scene\"><div class=\"arg-scene-k\">New scene</div><div class=\"arg-scene-t\">$1</div><div class=\"arg-scene-m\">$2</div></header>",
       "actions": [],
       "flags": "gm",
@@ -188,7 +188,7 @@
       "max_depth": null,
       "trim_strings": [],
       "run_on_edit": true,
-      "substitute_macros": "find",
+      "substitute_macros": "none",
       "disabled": false,
       "sort_order": 24,
       "owner_extension_identifier": null,
@@ -198,7 +198,7 @@
         "built_from_scratch": true,
         "layer": "display",
         "anchored": true,
-        "gated_by_active_preset_control": "scene_header",
+        "emission_control": "scene_header",
         "preserves_canonical_raw": true
       }
     },

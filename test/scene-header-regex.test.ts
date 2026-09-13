@@ -8,10 +8,13 @@ describe('prose scene header regex', () => {
   it.each([['ARGENT', argent], ['Compact', compact]])('%s ships the optional display and semantic lanes', (_name, preset) => {
     const display = preset.extensions.regex_scripts.find((row: any) => row.script_id === 'argent-scene-header-display');
     const semantic = preset.extensions.regex_scripts.find((row: any) => row.script_id === 'argent-scene-header-semantic-pipeline');
-    expect(display).toMatchObject({ disabled: false, placement: ['ai_output'], target: ['display'], substitute_macros: 'find' });
+    expect(display).toMatchObject({ disabled: false, placement: ['ai_output'], target: ['display'], substitute_macros: 'none' });
     expect(display.find_regex).toContain('SCENE');
+    expect(display.find_regex).not.toContain('{{');
     expect(display.replace_string).toContain('class="arg-scene"');
     expect(display.replace_string).toContain('linear-gradient');
+    expect('Your story begins here.'.replace(new RegExp(display.find_regex, display.flags), display.replace_string)).toBe('Your story begins here.');
+    expect('[SCENE|Ash at Dawn|North Gate · 06:10]'.replace(new RegExp(display.find_regex, display.flags), display.replace_string)).toContain('Ash at Dawn');
     expect(semantic).toMatchObject({ placement: ['ai_output', 'memory'], target: ['prompt'] });
     expect(semantic.replace_string).toContain('SCENE — $1');
 
