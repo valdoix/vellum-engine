@@ -1,6 +1,7 @@
 import { ParsedState, type ParseResult } from './parsed.js';
 import { parseFallback } from './fallback-regex.js';
 import { artifactText } from '../domain/artifacts.js';
+import { clockTime, parseClock } from '../domain/clock.js';
 
 /**
  * Parse the model's per-turn state. JSON-first: a fenced ‹vellum›…‹/vellum›
@@ -586,9 +587,7 @@ export function parseState(content: string): ParseResult {
     const obj = lenientParse(raw, report);
     if (obj && typeof obj === 'object') {
       const beforeNormalize = arraySectionCounts(obj as Record<string, unknown>);
-      normalizeBlockAliases(obj as Record<string, unknown>); // tolerate common model naming drift
-      hoistDeltaFields(obj as Record<string, unknown>); // tolerate misplaced delta fields
-      normalizeBlock(obj as Record<string, unknown>); // map preset grammar (cat) → schema (addCats)
+      normalizeStateBlockObject(obj as Record<string, unknown>);
       let validated = ParsedState.safeParse(obj);
       const normalizedDrops = sectionCountDrops(beforeNormalize, arraySectionCounts(obj as Record<string, unknown>));
       let schemaDrops: Record<string, number> = {};
@@ -690,6 +689,7 @@ function normalizeBlockAliases(obj: Record<string, unknown>): void {
     }
   };
   const normalizeSections = (container: Record<string, unknown>): void => {
+    alias(container, 'bonds', ['relations', 'relationships']);
     alias(container, 'threads', ['plotThreads', 'plot_threads']);
     alias(container, 'arcs', ['storyArcs', 'story_arcs']);
     alias(container, 'parallel', ['parallelEvents', 'parallel_events']);
@@ -697,6 +697,9 @@ function normalizeBlockAliases(obj: Record<string, unknown>): void {
     alias(container, 'factionRelations', ['faction_relations']);
   };
   normalizeSections(obj);
+  alias(obj, 'scene', ['currentScene', 'current_scene']);
+  alias(obj, 'present', ['charactersPresent', 'characters_present', 'roster']);
+  alias(obj, 'ext', ['extensions', 'extension']);
   const delta = obj.delta && typeof obj.delta === 'object' && !Array.isArray(obj.delta)
     ? obj.delta as Record<string, unknown>
     : undefined;
@@ -747,8 +750,34 @@ function normalizeBlock(obj: Record<string, unknown>): void {
   // converted, and unparseable authored values are left for Zod to discard.
   numeric(obj, 'v', 0); numeric(obj, 'turn', 0); numeric(obj, 'day', 0);
   if (record(obj.scene)) {
+    adopt(obj.scene, 'title', ['name', 'sceneTitle', 'scene_title']);
     adopt(obj.scene, 'loc', ['location', 'place']);
+    if (typeof obj.scene.clock === 'string') {
+      const parsedClock = parseClock(obj.scene.clock);
+      if (parsedClock !== undefined) obj.scene.clock = parsedClock;
+    }
     numeric(obj.scene, 'clock', 0, 1439);
+    const parsedTime = typeof obj.scene.time === 'string' ? parseClock(obj.scene.time) : undefined;
+    const hasAuthoredClock = obj.scene.clock !== undefined && obj.scene.clock !== null && obj.scene.clock !== '';
+    const canonicalClock = hasAuthoredClock
+      ? (typeof obj.scene.clock === 'number' && Number.isSafeInteger(obj.scene.clock) ? obj.scene.clock : undefined)
+      : parsedTime;
+    if (canonicalClock !== undefined && canonicalClock >= 0 && canonicalClock <= 1439) {
+      obj.scene.clock = canonicalClock;
+      // Preserve useful human-readable inline labels ("morning", "late
+      // evening") when an explicit clock accompanies them. Exact spellings
+      // are canonicalized, and a missing time is filled from the clock.
+      if (parsedTime !== undefined && /^\s*(?:[01]?\d|2[0-3]):[0-5]\d(?:\s*[ap]m)?\s*$/i.test(String(obj.scene.time ?? ''))) {
+        obj.scene.time = clockTime(canonicalClock);
+      } else if (obj.scene.time === undefined || obj.scene.time === null || obj.scene.time === '') {
+        obj.scene.time = clockTime(canonicalClock);
+      }
+    }
+    const transition = str(obj.scene.transition).toLocaleLowerCase().replace(/[\s-]+/g, '_');
+    if (['continue', 'continuation', 'same_scene', 'same'].includes(transition)) obj.scene.transition = 'continue';
+    else if (['scene', 'new_scene', 'scene_change', 'cut'].includes(transition)) obj.scene.transition = 'scene';
+    else if (['time_skip', 'timeskip', 'skip', 'later'].includes(transition)) obj.scene.transition = 'time_skip';
+    else if (transition) delete obj.scene.transition;
     numeric(obj.scene, 'tension', 0, 10);
   }
 
@@ -757,6 +786,10 @@ function normalizeBlock(obj: Record<string, unknown>): void {
   for (const row of rows(obj, 'present')) {
     adopt(row, 'id', ['who', 'character']);
     adopt(row, 'doing', ['activity', 'action']);
+    const presence = str(row.presence).toLowerCase().replace(/[\s-]+/g, '_');
+    if (['spotlight', 'foreground', 'focus', 'lead', 'primary'].includes(presence)) row.presence = 'spotlight';
+    else if (['periphery', 'background', 'supporting', 'secondary'].includes(presence)) row.presence = 'periphery';
+    else if (presence) delete row.presence;
     if (typeof row.traits === 'string') {
       const traits = list(row.traits, true);
       if (traits) row.traits = traits; else delete row.traits;
@@ -784,6 +817,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       adopt(row, 'name', ['title', key === 'threads' ? 'thread' : 'arc']);
       adopt(row, 'note', ['beat', 'gist', 'development', 'event']);
       adopt(row, 'op', ['action', 'operation', 'status']);
+      if (key === 'threads') adopt(row, 'arc', ['linkedArc', 'linked_arc', 'parentArc', 'parent_arc']);
       // Legacy rows often put the actual T1 beat in `event` and a status gloss
       // ("advance — ...") in `note`. The event is the durable plot fact.
       const event = str(row.event);
@@ -793,6 +827,8 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       row.name = name;
       row.op = plotOp(row.op, key === 'arcs');
       if (row.note !== undefined) { const note = str(row.note); if (note) row.note = note; else delete row.note; }
+      for (const field of ['dependsOn', 'blockedBy'] as const) if (typeof row[field] === 'string') row[field] = list(row[field], true);
+      numeric(row, 'deadlineDay', 0); numeric(row, 'deadlineClock', 0, 1439);
       return [row];
     });
   };
@@ -826,6 +862,21 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     const who = str(row.who), fact = str(row.fact);
     if (!who || !fact) return [];
     row.who = who; row.fact = fact;
+    const reliability = str(row.reliability).toLowerCase().replace(/[\s-]+/g, '_');
+    const reliabilityAliases: Record<string, string> = {
+      known: 'knows', certain: 'knows', observed: 'knows', witnessed: 'knows', saw: 'knows', heard: 'knows', felt: 'knows', feels: 'knows',
+      belief: 'believes', think: 'believes', thinks: 'believes', assumed: 'believes', assumes: 'believes',
+      suspect: 'suspects', inferred: 'suspects', infers: 'suspects', uncertain: 'suspects',
+      mistaken: 'wrong', false: 'wrong', incorrect: 'wrong', unknown: 'unaware', does_not_know: 'unaware',
+    };
+    const normalizedReliability = reliabilityAliases[reliability] ?? reliability;
+    if (['knows', 'believes', 'suspects', 'wrong', 'unaware'].includes(normalizedReliability)) row.reliability = normalizedReliability;
+    else if (reliability) delete row.reliability;
+    if (typeof row.truth === 'boolean') row.truth = String(row.truth);
+    const truth = str(row.truth).toLowerCase();
+    const normalizedTruth = ({ yes: 'true', accurate: 'true', no: 'false', inaccurate: 'false', uncertain: 'unknown', unclear: 'unknown' } as Record<string, string>)[truth] ?? truth;
+    if (['true', 'false', 'unknown'].includes(normalizedTruth)) row.truth = normalizedTruth;
+    else if (truth) delete row.truth;
     return [row];
   });
 
@@ -889,6 +940,12 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       // as a new beat, but a neutral sentinel lets a valid close survive the
       // schema when the provider omitted a replacement gist.
       row.gist = gist || 'resolved';
+      for (const field of ['hooks', 'dependsOn', 'blockedBy'] as const) if (typeof row[field] === 'string') row[field] = list(row[field], true);
+      for (const field of ['pressure', 'nextTurn', 'nextDay', 'nextClock', 'deadlineDay', 'deadlineClock'] as const) numeric(row, field, 0, field.endsWith('Clock') ? 1439 : undefined);
+      const autonomy = str(row.autonomy).toLowerCase().replace(/[\s-]+/g, '_');
+      const normalizedAutonomy = ({ individual: 'personal', interpersonal: 'social', group: 'faction', world: 'environment', hybrid: 'mixed' } as Record<string, string>)[autonomy] ?? autonomy;
+      if (['personal', 'social', 'faction', 'environment', 'mixed'].includes(normalizedAutonomy)) row.autonomy = normalizedAutonomy;
+      else if (autonomy) delete row.autonomy;
       return [row];
     });
   }
@@ -900,6 +957,10 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     if (!name) return [];
     row.name = name;
     if (typeof row.members === 'string') row.members = list(row.members, true);
+    const status = str(row.status).toLowerCase();
+    const normalizedStatus = ({ new: 'added', open: 'active', current: 'present' } as Record<string, string>)[status] ?? status;
+    if (['present', 'active', 'mentioned', 'added'].includes(normalizedStatus)) row.status = normalizedStatus;
+    else if (status) delete row.status;
     numeric(row, 'standing', -100, 100); numeric(row, 'trust', -100, 100);
     return [row];
   });
@@ -937,6 +998,8 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     adopt(bond, 'a', ['from', 'who', 'character']);
     adopt(bond, 'b', ['to', 'about', 'target']);
     adopt(bond, 'aff', ['affection']);
+    adopt(bond, 'label', ['sentiment', 'status']);
+    adopt(bond, 'why', ['reason', 'cause', 'note']);
     if (bond.addCats === undefined && bond.cat !== undefined) { bond.addCats = bond.cat; delete bond.cat; }
     if (bond.addCats === undefined && bond.categories !== undefined) { bond.addCats = bond.categories; delete bond.categories; }
     if (bond.removeCats === undefined && bond.removeCat !== undefined) { bond.removeCats = bond.removeCat; delete bond.removeCat; }
@@ -967,11 +1030,22 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     adopt(row, 'who', ['character', 'actor', 'name']);
     adopt(row, 'nextStep', ['next', 'action', 'plan']);
     if (typeof row.constraints === 'string') row.constraints = list(row.constraints);
+    const status = str(row.status).toLowerCase();
+    const normalizedStatus = ({ open: 'active', pending: 'active', stalled: 'blocked', done: 'complete', completed: 'complete' } as Record<string, string>)[status] ?? status;
+    if (['active', 'blocked', 'complete'].includes(normalizedStatus)) row.status = normalizedStatus;
+    else if (status) delete row.status;
+    numeric(row, 'deadlineDay', 0); numeric(row, 'deadlineClock', 0, 1439);
   }
   const affectLevel = (value: unknown, kind: 'valence' | 'arousal' | 'control'): number | undefined => {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const clamp = (numericValue: number): number => {
+      const [min, max] = kind === 'arousal' ? [0, 2] : [-2, 2];
+      return Math.max(min, Math.min(max, Math.round(numericValue)));
+    };
+    if (typeof value === 'number' && Number.isFinite(value)) return clamp(value);
     const text = str(value).toLowerCase();
     if (!text) return undefined;
+    const numericValue = Number(text);
+    if (Number.isFinite(numericValue)) return clamp(numericValue);
     if (kind === 'arousal') return /very high|extreme|overwhelm|shak|panic|furious/.test(text) ? 2 : /low|calm|quiet|settled/.test(text) ? 0 : 1;
     if (kind === 'control') return /controlled|suppressed|contained|mask|restrained/.test(text) ? 2 : /overwhelm|breaking|shattered|uncontrolled/.test(text) ? -1 : 0;
     const positive = /relief|hope|joy|love|warm|pleas|happy|affection/.test(text);
@@ -979,7 +1053,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     return positive === negative ? 0 : positive ? 1 : -1;
   };
   for (const row of rows(ext, 'affect')) {
-    adopt(row, 'who', ['character', 'actor', 'name']);
+    adopt(row, 'who', ['id', 'character', 'actor', 'name']);
     const originalValence = row.valence;
     const originalArousal = row.arousal;
     for (const key of ['valence', 'arousal', 'control'] as const) {
@@ -1003,6 +1077,10 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     adopt(row, 'item', ['name', 'object']);
     adopt(row, 'op', ['action', 'operation']);
     adopt(row, 'to', ['recipient', 'target']);
+    const op = str(row.op).toLowerCase();
+    const normalizedOp = ({ add: 'gain', gained: 'gain', acquire: 'gain', remove: 'lose', lost: 'lose', transfer: 'give', move: 'give', present: 'scene', mention: 'note' } as Record<string, string>)[op] ?? op;
+    if (['gain', 'lose', 'give', 'scene', 'note'].includes(normalizedOp)) row.op = normalizedOp;
+    else if (op) delete row.op;
   }
   for (const row of rows(ext, 'timeline')) {
     adopt(row, 'event', ['entry', 'text', 'description', 'beat']);
@@ -1010,7 +1088,34 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     adopt(row, 'participants', ['characters', 'actors', 'who']);
     if (typeof row.participants === 'string') row.participants = list(row.participants, true);
     numeric(row, 'day', 0);
+    if (typeof row.time === 'string') {
+      const time = parseClock(row.time);
+      if (time !== undefined) row.time = clockTime(time);
+    }
   }
+  for (const row of rows(ext, 'codex')) {
+    adopt(row, 'fact', ['entry', 'text', 'description']);
+    adopt(row, 'tag', ['category', 'title']);
+    const op = str(row.op).toLowerCase();
+    const normalizedOp = ({ new: 'add', create: 'add', update: 'refresh', revise: 'refresh' } as Record<string, string>)[op] ?? op;
+    if (['add', 'refresh'].includes(normalizedOp)) row.op = normalizedOp;
+    else if (op) delete row.op;
+  }
+  for (const row of rows(ext, 'plant')) {
+    adopt(row, 'what', ['description', 'fact', 'entry', 'text']);
+    adopt(row, 'subject', ['who', 'character', 'actor']);
+    numeric(row, 'maturity', 0, 5); numeric(row, 'minMaturity', 0, 5);
+  }
+  for (const row of rows(ext, 'payoff')) adopt(row, 'what', ['description', 'fact', 'entry', 'text']);
+}
+
+/** Shared compatibility seam for inline blocks and Engine Pass candidates.
+ * This performs deterministic shape coercion only. Canon, evidence, agency,
+ * and time continuity are still enforced after normalization. */
+export function normalizeStateBlockObject(obj: Record<string, unknown>): void {
+  normalizeBlockAliases(obj);
+  hoistDeltaFields(obj);
+  normalizeBlock(obj);
 }
 
 /** True if a message carries any VELLUM state (used to gate folding). */

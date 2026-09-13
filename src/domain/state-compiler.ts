@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ParsedState } from '../parse/parsed.js';
+import { normalizeStateBlockObject } from '../parse/state-block.js';
 import { canonId, hashStr } from '../core/ids.js';
 import { clockEvidenceAgrees, clockTime, elapsedClockFloor, liveTurnClockFloor, parseClock, reconcileDay, supportsDayAdvance } from './clock.js';
 import { factTokens, similarFact } from './fact-match.js';
@@ -813,23 +814,222 @@ function pruneCompilerShape(value: unknown, schema: Record<string, any>): unknow
   return Object.fromEntries(Object.entries(schema.properties).filter(([key]) => key in source).map(([key, child]) => [key, pruneCompilerShape(source[key], child as Record<string, any>)]));
 }
 
+function compilerRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function adoptCompilerKey(owner: Record<string, any>, canonical: string, aliases: string[]): void {
+  if (owner[canonical] !== undefined) return;
+  for (const alias of aliases) {
+    if (owner[alias] === undefined) continue;
+    owner[canonical] = owner[alias];
+    delete owner[alias];
+    return;
+  }
+}
+
+/** Canonicalize the paths providers most often copy from the full candidate
+ * shape. Evidence paths are relative to state, even though models commonly
+ * emit `state.scene.loc`, JSONPath, bracket indexes, or inline section names. */
+function canonicalCompilerPath(value: unknown): string {
+  let path = String(value ?? '').trim()
+    .replace(/^\$\.?/, '')
+    .replace(/\[(?:["']?)([A-Za-z_][\w-]*|\d+)(?:["']?)\]/g, '.$1')
+    .replace(/\.+/g, '.')
+    .replace(/^state\./i, '')
+    .replace(/^delta\.(?:relations|relationships)(?=\.|$)/i, 'delta.bonds')
+    .replace(/^delta\.(?:plotThreads|plot_threads)(?=\.|$)/i, 'delta.threads')
+    .replace(/^delta\.(?:storyArcs|story_arcs)(?=\.|$)/i, 'delta.arcs')
+    .replace(/^delta\.(?:offscreenEvents|offscreen_events|subplots)(?=\.|$)/i, 'delta.offscreen')
+    .replace(/^delta\.(?:parallelEvents|parallel_events)(?=\.|$)/i, 'delta.parallel')
+    .replace(/^delta\.faction_relations(?=\.|$)/i, 'delta.factionRelations')
+    .replace(/^scene\.(?:location|place)$/i, 'scene.loc')
+    .replace(/^scene\.clock$/i, 'scene.time')
+    .replace(/^extensions?(?=\.|$)/i, 'ext')
+    .replace(/^\.+|\.+$/g, '');
+  return path;
+}
+
+function compilerQuote(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (!compilerRecord(value)) return '';
+  for (const key of ['quote', 'evidence', 'text', 'source', 'excerpt']) {
+    const nested = value[key];
+    if (typeof nested === 'string' && nested.trim()) return nested.trim();
+  }
+  return '';
+}
+
+/** Preserve the source's exact casing and whitespace when a provider returns a
+ * case-insensitive or whitespace-normalized quotation. This never fabricates
+ * text: the returned slice must still exist verbatim in the current turn. */
+function exactCompilerQuote(quote: string, source: string): string {
+  if (!quote || source.includes(quote)) return quote;
+  const direct = source.toLocaleLowerCase().indexOf(quote.toLocaleLowerCase());
+  if (direct >= 0) return source.slice(direct, direct + quote.length);
+  const pattern = quote.split(/\s+/).filter(Boolean).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+  if (!pattern) return quote;
+  const match = new RegExp(pattern, 'iu').exec(source);
+  return match?.[0] ?? quote;
+}
+
+function compilerArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  return value === undefined || value === null ? [] : [value];
+}
+
+function normalizeEvidenceRows(value: unknown, source: string): Array<Record<string, string>> {
+  const rows: unknown[] = compilerRecord(value) && !('path' in value)
+    ? Object.entries(value).map(([path, quote]) => ({ path, quote }))
+    : compilerArray(value);
+  const byPath = new Map<string, Record<string, string>>();
+  for (const value of rows) {
+    if (!compilerRecord(value)) continue;
+    const path = canonicalCompilerPath(value.path ?? value.field ?? value.target ?? value.key);
+    const rawQuote = compilerQuote(value.quote ?? value.evidence ?? value.source ?? value.text ?? value.excerpt);
+    if (!path || !rawQuote || byPath.has(path)) continue;
+    byPath.set(path, { path, quote: exactCompilerQuote(rawQuote, source) });
+  }
+  return [...byPath.values()];
+}
+
+function normalizePlotProofRows(root: Record<string, any>, input: CompilerInput, source: string): void {
+  root.trackEvidence = compilerArray(root.trackEvidence).flatMap((value): Record<string, any>[] => {
+    if (!compilerRecord(value)) return [];
+    adoptCompilerKey(value, 'path', ['field', 'target', 'key']);
+    adoptCompilerKey(value, 'targetId', ['target_id', 'id', 'trackId', 'track_id']);
+    adoptCompilerKey(value, 'before', ['previous', 'prior', 'beforeState', 'before_state']);
+    adoptCompilerKey(value, 'after', ['result', 'next', 'afterState', 'after_state', 'note']);
+    adoptCompilerKey(value, 'quote', ['evidence', 'source', 'text', 'excerpt']);
+    adoptCompilerKey(value, 'basis', ['reason', 'kind', 'type']);
+    adoptCompilerKey(value, 'childThreadIds', ['linkedThreads', 'linked_threads', 'childThreads', 'child_threads']);
+    value.path = canonicalCompilerPath(value.path);
+    value.quote = exactCompilerQuote(compilerQuote(value.quote), source);
+    if (typeof value.childThreadIds === 'string') value.childThreadIds = value.childThreadIds.split(/[,;|]/).map((part: string) => part.trim()).filter(Boolean);
+    const basis = String(value.basis ?? '').trim().toLocaleLowerCase().replace(/[\s-]+/g, '_');
+    const basisAliases: Record<string, string> = {
+      new: 'new_open_question', open_question: 'new_open_question', new_question: 'new_open_question',
+      advance: 'direct_development', development: 'direct_development', direct: 'direct_development',
+      stall: 'blocked_attempt', blocked: 'blocked_attempt', resolve: 'closed_question', closed: 'closed_question',
+      milestone: 'structural_milestone', child: 'child_milestone',
+    };
+    value.basis = basisAliases[basis] ?? basis;
+    return [value];
+  });
+
+  const delta = compilerRecord(root.state?.delta) ? root.state.delta : {};
+  for (const section of ['threads', 'arcs'] as const) {
+    const rows = Array.isArray(delta[section]) ? delta[section] : [];
+    const prior = section === 'threads' ? input.prior.threads : input.prior.arcs;
+    rows.forEach((row: Record<string, any>, index: number) => {
+      const path = `delta.${section}.${index}`;
+      const target = prior.find(track => trackTitleKey(track.name) === trackTitleKey(String(row.name ?? '')));
+      const proof = root.trackEvidence.find((item: Record<string, any>) => item.path === path);
+      // `status:"open"` is a common snapshot spelling. The shared block
+      // normalizer maps it to `new`; retarget it when that title already exists.
+      if (target && row.op === 'new') row.op = 'advance';
+      if (!proof) return;
+      if (target) {
+        if (!proof.targetId || proof.targetId === 'new' || proof.targetId === row.id) proof.targetId = target.id;
+        if (!proof.before || trackTitleKey(proof.before) === 'absent') proof.before = trackBefore(target);
+        if (proof.basis === 'new_open_question' && row.op === 'advance') proof.basis = section === 'threads' ? 'direct_development' : 'structural_milestone';
+      } else if (row.op === 'new') {
+        if (!proof.targetId || proof.targetId === row.id) proof.targetId = 'new';
+        if (!proof.before) proof.before = 'absent';
+      }
+      if (!proof.after && row.note) proof.after = String(row.note);
+    });
+  }
+}
+
+/** Compatibility layer shared by initial Engine Pass output and merge-patch
+ * repairs. It only canonicalizes unambiguous shape/format drift; the semantic
+ * validator remains responsible for chronology, canon, agency, and causality. */
+function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInput): void {
+  adoptCompilerKey(root, 'parallelOps', ['parallel_ops', 'parallelOperations', 'parallel_operations']);
+  adoptCompilerKey(root, 'parallelWorldOps', ['parallel_world_ops', 'parallelWorldOperations', 'worldOps', 'world_ops']);
+  adoptCompilerKey(root, 'parallelReviewed', ['parallel_reviewed', 'reviewedParallel', 'reviewed_parallel']);
+  adoptCompilerKey(root, 'trackEvidence', ['track_evidence', 'plotEvidence', 'plot_evidence']);
+  adoptCompilerKey(root, 'genesis', ['isGenesis', 'is_genesis']);
+  const source = `${input.userInput ?? ''}\n${input.prose}`;
+  const state = compilerRecord(root.state) ? root.state : {};
+  normalizeStateBlockObject(state);
+  root.state = state;
+
+  const embeddedEvidence: Array<Record<string, unknown>> = [];
+  const remember = (path: string, row: unknown): void => {
+    if (!compilerRecord(row)) return;
+    const quote = compilerQuote(row.evidence ?? row.quote ?? row.source);
+    if (quote) embeddedEvidence.push({ path, quote });
+  };
+  if (compilerRecord(state.scene)) {
+    if (compilerRecord(state.scene.evidence)) {
+      remember('scene.loc', { evidence: state.scene.evidence.loc ?? state.scene.evidence.location });
+      remember('scene.time', { evidence: state.scene.evidence.time ?? state.scene.evidence.clock });
+    }
+  }
+  if (compilerRecord(state.delta)) for (const [section, rows] of Object.entries(state.delta)) {
+    compilerArray(rows).forEach((row, index) => remember(`delta.${section}.${index}`, row));
+  }
+  if (compilerRecord(state.ext)) for (const [section, rows] of Object.entries(state.ext)) {
+    compilerArray(rows).forEach((row, index) => remember(`ext.${section}.${index}`, row));
+  }
+  const explicitEvidence = normalizeEvidenceRows(root.evidence, source);
+  root.evidence = normalizeEvidenceRows([...explicitEvidence, ...embeddedEvidence], source);
+
+  for (const key of ['parallelOps', 'parallelWorldOps'] as const) {
+    root[key] = compilerArray(root[key]).flatMap(value => {
+      if (!compilerRecord(value)) return [];
+      adoptCompilerKey(value, 'op', ['action', 'operation', 'status']);
+      adoptCompilerKey(value, 'who', ['id', 'actor', 'character']);
+      adoptCompilerKey(value, 'where', ['loc', 'location']);
+      adoptCompilerKey(value, 'activity', ['gist', 'event', 'doing']);
+      value.evidence = exactCompilerQuote(compilerQuote(value.evidence ?? value.quote ?? value.source), source);
+      return [value];
+    });
+  }
+  root.parallelReviewed = compilerArray(root.parallelReviewed).map(value => String(value).trim()).filter(Boolean);
+  normalizePlotProofRows(root, input, source);
+}
+
+const COMPILER_STATE_KEYS = [
+  'v', 'turn', 'day', 'scene', 'currentScene', 'current_scene', 'present', 'charactersPresent', 'characters_present', 'roster',
+  'delta', 'ext', 'extensions', 'extension', 'bonds', 'relations', 'relationships', 'threads', 'plotThreads', 'plot_threads',
+  'arcs', 'storyArcs', 'story_arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations',
+  'faction_relations', 'parallel', 'parallelEvents', 'parallel_events', 'offscreen', 'offscreenEvents', 'offscreen_events', 'subplots',
+] as const;
+
+function looksLikeCompilerState(value: unknown): value is Record<string, any> {
+  return compilerRecord(value) && COMPILER_STATE_KEYS.some(key => value[key] !== undefined);
+}
+
 /** Fill only required structural boilerplate and discard unsupported keys before
  * strict validation. Defaults preserve prior state; they never create a delta. */
 function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown {
-  const pruned = pruneCompilerShape(raw, jsonSchema(CompilerCandidate));
+  if (!compilerRecord(raw)) return raw;
+  let normalized = structuredClone(raw);
+  for (const key of ['candidate', 'result', 'output']) {
+    if (!compilerRecord(normalized.state) && (compilerRecord(normalized[key]?.state) || looksLikeCompilerState(normalized[key]))) normalized = normalized[key];
+  }
+  if (!compilerRecord(normalized.state) && looksLikeCompilerState(normalized)) {
+    normalized.state = Object.fromEntries(COMPILER_STATE_KEYS.filter(key => normalized[key] !== undefined).map(key => [key, normalized[key]]));
+  }
+  normalizeCompilerEnvelope(normalized, input);
+  const pruned = pruneCompilerShape(normalized, jsonSchema(CompilerCandidate));
   if (!pruned || typeof pruned !== 'object' || Array.isArray(pruned)) return pruned;
   const root = pruned as Record<string, any>;
   const state = root.state && typeof root.state === 'object' && !Array.isArray(root.state) ? root.state : {};
   const rawScene = state.scene && typeof state.scene === 'object' && !Array.isArray(state.scene) ? state.scene : {};
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
-  const suppliedClock = Number.isSafeInteger(rawScene.clock) ? rawScene.clock : undefined;
+  const normalizedClock = typeof rawScene.clock === 'string' ? parseClock(rawScene.clock) : rawScene.clock;
+  const suppliedClock = Number.isSafeInteger(normalizedClock) ? normalizedClock : undefined;
   const suppliedTimeClock = typeof rawScene.time === 'string' ? parseClock(rawScene.time) : undefined;
   const clock = suppliedClock ?? suppliedTimeClock ?? priorClock;
   // parseClock deliberately accepts friendly provider spellings ("2:47 AM",
-  // "dusk"). The strict compiler wire format does not. Canonicalize every
-  // recognized value before Zod sees it while retaining a real clock/time
-  // disagreement for semantic validation below.
-  const time = clockTime(suppliedTimeClock ?? clock);
+  // "three in the morning", "dusk"). The compiler owns normalization: when
+  // both fields exist, the explicit minute clock is authoritative and time is
+  // rewritten to its exact zero-padded representation before validation.
+  const time = clockTime(clock);
   const visibleHeader = proseSceneHeader(input.prose);
   const priorRows = input.prior.scene.present.map(id => {
     const actor = input.prior.cast[id];

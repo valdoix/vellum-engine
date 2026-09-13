@@ -386,7 +386,7 @@ For each live quote with a named or certain speaker, open [spk=Exact Cast Name] 
 Never tag thought, documents, remembered speech, signs, roles, pronouns, uncertain speakers, or private/state sections. Markup never authorizes {{user}}'s speech. Before sending, scan for bare eligible quotes and repair them.{{/if}}`, { group: CAT_CRAFT }),
 
   block('arg-scene-header-contract', 'Prose Scene Header', String.raw`{{if::{{var::scene_header}}}}[PROSE SCENE HEADER — DISPLAY CONTRACT]
-Only when this response opens a genuinely new scene or time skip, begin the visible prose with exactly one standalone line: [SCENE|Concise Title|Location · Time]. Use plain text with no brackets or pipes inside either field. The title is evocative, spoiler-free, and grounded in the opening; preserve an author-supplied title exactly. Omit the line on ordinary continuation turns. The display regex turns it into a cinematic card; never write HTML.{{/if}}`, { group: CAT_CRAFT }),
+Only when this response opens a genuinely new scene or time skip, begin the visible prose with exactly one standalone line: [SCENE|Concise Title|Location · Time]. The first assistant response in every new chat is a new scene. Use plain text with no brackets or pipes inside either field. The title is evocative, spoiler-free, and grounded in the opening; preserve an author-supplied title exactly. Omit the line on ordinary continuation turns. The display regex turns it into a cinematic card; never write HTML.{{/if}}`, { group: CAT_CRAFT }),
 
   block('arg-prose-doctrine', 'Prose Doctrine', String.raw`[CRAFT FLOOR — {{var::doctrine_strictness}}]
 - Enter on the live action; never recap or paraphrase {{user}}.
@@ -528,7 +528,7 @@ Omit unchanged fields. Never create a second tracker in prose, HTML, comments, o
 
   category(CAT_ENGINE, 'ARGENT LOOM — VELLUM Contract', '#d46f73'),
 
-  block('arg-control-engine', 'Planning & State Controls', String.raw`<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"{{var::state_verbosity}}","reasoning":"{{var::reasoning_route}}","agency":"{{var::agency}}","dialogueColor":{{var::dialogue_color}},"vtkCards":{{var::vtk_cards}},"codex":{{var::codex}},"inventory":{{var::inventory}},"livingWorld":"{{var::living_world}}"}-->`, { group: CAT_ENGINE, variables: engineControls }),
+  block('arg-control-engine', 'Planning & State Controls', String.raw`<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"{{var::state_verbosity}}","reasoning":"{{var::reasoning_route}}","agency":"{{var::agency}}","dialogueColor":{{var::dialogue_color}},"sceneHeader":{{var::scene_header}},"vtkCards":{{var::vtk_cards}},"codex":{{var::codex}},"inventory":{{var::inventory}},"livingWorld":"{{var::living_world}}"}-->`, { group: CAT_ENGINE, variables: engineControls }),
 
   block('arg-state-schema', 'VELLUM State Schema', String.raw`{{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::lean}}}}}}[VELLUM STATE — LEAN CONTRACT]
 After prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing after it. No Markdown fence, comments, trailing commas, null placeholders, ellipses, or unsupported keys.
@@ -568,6 +568,11 @@ FIELD SHAPES:
 - plant: {what,subject?,maturity?,minMaturity?,dependsOn?,blockedBy?,dueDay?,dueClock?,expiryDay?}. payoff: {what}|string; requires cleared gates in prose.
 
 PRESENT RULES: list {{user}} first. Blank when PERSONA STATE is OFF. When ON, always populate mood, condition, doing, concise first-person thought, and 2–4 stable traits through tracker-only inference from the turn, prior state, and characterization in every agency mode; evidence is optional. This metadata never authorizes player behavior in prose. List every named on-stage NPC with a knowledge-limited first-person thought.
+
+CANONICAL EXAMPLE (adapt):
+<vellum>
+{"turn":6,"day":0,"scene":{"title":"The Letter","transition":"continue","loc":"Observatory","time":"03:05","clock":185},"present":[{"id":"{{user}}","thought":""},{"id":"Mira","thought":"Why wait?"}],"delta":{"bonds":[{"a":"{{user}}","b":"Mira","addCats":["alliance"]}],"threads":[{"op":"new","name":"The Letter"}]},"ext":{}}
+</vellum>
 
 Omit empty delta sections except delta.parallel: when Living World requests a parallel snapshot, emit the full reconciled array even when it is [] so earlier positions are replaced rather than retained. Even when nothing durable changes, emit scene/present if available and omit other delta sections. On complex turns, include every supported change that the prose clearly establishes, but do not exceed the schema.{{/if}}`, { group: CAT_ENGINE }),
 
@@ -1165,6 +1170,8 @@ for (const requiredTerm of ['addCats', 'removeCats', 'arcs?', 'factionRelations?
 }
 assert(!/\bcat:\s*\[/.test(schemaBlock), 'Obsolete cat field leaked into schema');
 assert(schemaBlock.includes('zero-padded 24-hour HH:MM') && schemaBlock.includes('matching integer minutes after midnight'), 'State schema lacks the exact-clock contract');
+assert(schemaBlock.includes('"time":"03:05","clock":185'), 'Canonical VELLUM example lost matching HH:MM/clock');
+assert(schemaBlock.includes('"addCats":["alliance"]') && !schemaBlock.includes('"cat":'), 'Canonical VELLUM example uses obsolete bond category fields');
 
 const agencyBlock = blocks.find((entry) => entry.id === 'arg-channel-agency')?.content ?? '';
 const finalAnchorBlock = blocks.find((entry) => entry.id === 'arg-final-anchor')?.content ?? '';

@@ -120,7 +120,7 @@ const variables = [
 
 const blocks = [
   category('compact-cat-core', 'VELLUM COMPACT — Core', '#7f8fb3'),
-  block('arg-control', 'Compact Controls', `<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"lean","reasoning":"{{var::reasoning_route}}","agency":"{{var::agency}}","dialogueColor":{{var::dialogue_color}},"vtkCards":0,"codex":{{var::codex}},"inventory":{{var::inventory}},"worldgen":0,"livingWorld":"{{var::living_world}}"}-->
+  block('arg-control', 'Compact Controls', `<!--VELLUM-EFFECTIVE {"state":{{var::state_on}},"compiler":"{{var::state_compiler}}","verbosity":"lean","reasoning":"{{var::reasoning_route}}","agency":"{{var::agency}}","dialogueColor":{{var::dialogue_color}},"sceneHeader":{{var::scene_header}},"vtkCards":0,"codex":{{var::codex}},"inventory":{{var::inventory}},"worldgen":0,"livingWorld":"{{var::living_world}}"}-->
 [VELLUM COMPACT 1.0]
 Continue the roleplay directly. The newest user message is story input even when it contains no question. Never answer with an instruction summary or ask what to do unless the user explicitly speaks OOC and requests it.
 
@@ -163,7 +163,7 @@ Open on live action, perception, or pressure. Prefer concrete behavior and senso
   block('arg-colored-dialogue-contract', 'Dialogue Speaker Contract', `{{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — CONTRACT]
 Wrap every live spoken quotation whose speaker is named or certain as [spk=Exact Cast Name]"complete passage"[/spk]. Open before the quote, close immediately after it, and keep narration outside. Use one speaker per wrapper. Never tag thought, documents, remembered speech, signs, roles, pronouns, or uncertain speakers.{{/if}}`),
   block('arg-scene-header-contract', 'Prose Scene Header', `{{if::{{var::scene_header}}}}[PROSE SCENE HEADER]
-Only on a genuine new scene or time skip, begin prose with one standalone [SCENE|Concise Title|Location · Time] line. Keep both fields plain, concise, spoiler-free, and grounded; preserve an author title exactly. Omit it on continuation turns.{{/if}}`),
+The first assistant response in every new chat always opens a new scene. On that first response, and on a later genuine new scene or time skip, begin prose with one standalone [SCENE|Concise Title|Location · Time] line. Keep both fields plain, concise, spoiler-free, and grounded; preserve an author title exactly. Omit it on continuation turns. Engine Second Pass records the same title separately and never replaces this visible line.{{/if}}`),
 
   category('compact-cat-state', 'VELLUM COMPACT — State', '#9b8066'),
   block('arg-state-schema', 'Inline State Schema', `{{if::{{and::{{var::state_on}}::{{eq::{{var::state_compiler}}::inline}}}}}}[VELLUM STATE — LEAN CONTRACT]

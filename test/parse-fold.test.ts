@@ -54,6 +54,33 @@ describe('parseState', () => {
     expect(s.relations[0]?.categories).toContain('romantic');
   });
 
+  it('normalizes common inline scene, relationship, plot, and extension aliases', () => {
+    const r = parseState('<vellum>' + JSON.stringify({
+      turn: '2', day: '1',
+      currentScene: { name: 'Late Watch', transition: 'new scene', place: 'Hall', time: 'night', clock: '23:15' },
+      roster: [{ who: 'Mara', activity: 'keeping watch' }],
+      delta: {
+        relationships: [{ from: 'Mara', to: 'Ada', affection: '2', sentiment: 'warming', reason: 'shared vigil' }],
+        plotThreads: [{ title: 'The Bell', status: 'open', beat: 'The bell remains silent.', linkedArc: 'Night Watch' }],
+        knowledge: [{ character: 'Mara', entry: 'The bell is cracked.', reliability: 'feels', truth: true }],
+      },
+      extensions: {
+        affect: [{ id: 'Ada', valence: '5', arousal: '2', control: '0', direction: 'toward Mara' }],
+        plant: [{ description: 'A hairline crack in the bell', maturity: '1' }],
+      },
+    }) + '</vellum>');
+    expect(r.source).toBe('json');
+    expect(r.state?.scene).toMatchObject({ title: 'Late Watch', transition: 'scene', loc: 'Hall', time: 'night', clock: 1395 });
+    expect(r.state?.present?.[0]).toMatchObject({ id: 'Mara', doing: 'keeping watch' });
+    expect(r.state?.delta?.bonds?.[0]).toMatchObject({ a: 'Mara', b: 'Ada', aff: 2, label: 'warming', why: 'shared vigil' });
+    expect(r.state?.delta?.threads?.[0]).toMatchObject({ name: 'The Bell', op: 'new', arc: 'Night Watch' });
+    expect(r.state?.delta?.knowledge?.[0]).toMatchObject({ who: 'Mara', fact: 'The bell is cracked.', reliability: 'knows', truth: 'true' });
+    expect(r.state?.ext).toMatchObject({
+      affect: [{ who: 'Ada', valence: 2, arousal: 2, control: 0 }],
+      plant: [{ what: 'A hairline crack in the bell', maturity: 1 }],
+    });
+  });
+
   it('an INVALID bond category does not nuke the whole block (filtered, not fatal)', () => {
     // model invented "physical" — must keep the valid cat + the rest of the turn,
     // not drop the entire <vellum> block to source:none (the reverie-bleed bug).

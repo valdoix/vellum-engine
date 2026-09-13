@@ -711,6 +711,44 @@ ${JSON.stringify(c.state)}
     expect((r.candidate.state as any).v).toBeUndefined();
     expect(r.candidate.parallelReviewed).toEqual(['Ada']);
   });
+  it('normalizes common Engine Pass aliases before evidence and schema validation', () => {
+    const prior = freshState();
+    prior.scene = { id: 'scn_pending', reason: 'new_chat', pending: true, location: '', time: '', tension: 0, weather: '', present: [], detail: [] };
+    const prose = '[SCENE|Out of the Earth|Sunnydale Cemetery Clearing · Night]\nA sealed letter lies unopened on the altar, demanding a choice.';
+    const i: CompilerInput = { prior, turn: 1, prose, userName: 'Player', genesisAllowed: false };
+    const raw: any = { output: {
+      state: {
+        turn: '1', day: '0',
+        current_scene: { title: 'Out of the Earth', transition: 'new scene', location: 'Sunnydale Cemetery Clearing', time: 'night', clock: '23:15' },
+        roster: [],
+        delta: {
+          plot_threads: [{ id: 'sealed_letter', title: 'The Sealed Letter', status: 'open', beat: 'The sealed letter lies unopened on the altar.' }],
+        },
+        extensions: { plant: [{ description: 'The sealed letter lies unopened on the altar.' }] },
+      },
+      parallel_ops: [], parallel_world_ops: [], parallel_reviewed: [],
+      evidence: {
+        'state.scene.location': 'Sunnydale Cemetery Clearing',
+        'state.scene.clock': 'Night',
+        'state.delta.plotThreads[0]': 'A sealed letter lies unopened on the altar, demanding a choice.',
+        'state.extensions.plant[0]': 'A sealed letter lies unopened on the altar, demanding a choice.',
+      },
+      track_evidence: [{
+        field: 'state.delta.plotThreads[0]', id: 'sealed_letter', previous: 'absent',
+        result: 'The sealed letter lies unopened on the altar.', evidence: { quote: 'A sealed letter lies unopened on the altar, demanding a choice.' }, reason: 'new',
+      }],
+      is_genesis: false,
+    } };
+    const result = salvageCompilation(raw, i);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.recovered).toContain('candidate shape');
+    expect(result.candidate.state.scene).toMatchObject({ title: 'Out of the Earth', transition: 'scene', loc: 'Sunnydale Cemetery Clearing', time: '23:15', clock: 1395 });
+    expect(result.candidate.state.delta.threads).toEqual([expect.objectContaining({ op: 'new', name: 'The Sealed Letter' })]);
+    expect(result.candidate.state.ext.plant).toEqual([{ what: 'The sealed letter lies unopened on the altar.' }]);
+    expect(result.candidate.evidence.map(row => row.path)).toEqual(['scene.loc', 'scene.time', 'delta.threads.0', 'ext.plant.0']);
+    expect(result.candidate.trackEvidence[0]).toMatchObject({ path: 'delta.threads.0', targetId: 'new', before: 'absent', basis: 'new_open_question' });
+  });
   it('streams compiler content and lifecycle without exposing reasoning tokens', async () => {
     const progress: Array<Record<string, unknown>> = [];
     const generate = vi.fn(async (_messages: unknown, _params: unknown, _userId: unknown, options: any) => {
