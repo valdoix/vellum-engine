@@ -578,7 +578,7 @@ PRESENT RULES: list {{user}} first. Blank when PERSONA STATE is OFF. When ON, al
 
 CANONICAL EXAMPLE (adapt):
 <vellum>
-{"turn":6,"day":0,"scene":{"title":"The Letter","transition":"continue","loc":"Observatory","time":"03:05","clock":185},"present":[{"id":"{{user}}","thought":""},{"id":"Mira","thought":"Why wait?"}],"delta":{"bonds":[{"a":"{{user}}","b":"Mira","addCats":["alliance"]}],"threads":[{"op":"new","name":"The Letter"}]},"ext":{}}
+{"turn":6,"day":0,"scene":{"title":"The Letter","transition":"continue","loc":"Observatory","time":"03:05","clock":185},"present":[{"id":"{{user}}","thought":""},{"id":"Mira","thought":"Why wait?"}],"delta":{"bonds":[{"a":"{{user}}","b":"Mira","addCats":["alliance"]}],"arcs":[{"op":"new","name":"The Observatory Mystery","note":"A sealed letter appears in the observatory."}],"threads":[{"op":"new","name":"The Sealed Letter","note":"A sealed letter appears in the observatory.","arc":"The Observatory Mystery"}]},"ext":{}}
 </vellum>
 
 Omit empty delta sections except delta.parallel: when Living World requests a parallel snapshot, emit the full reconciled array even when it is [] so earlier positions are replaced rather than retained. Even when nothing durable changes, emit scene/present if available and omit other delta sections. On complex turns, include every supported change that the prose clearly establishes, but do not exceed the schema.{{/if}}`, { group: CAT_ENGINE }),

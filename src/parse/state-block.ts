@@ -641,6 +641,24 @@ function hoistDeltaFields(obj: Record<string, unknown>): void {
   if (moved || obj.delta === undefined) obj.delta = delta;
 }
 
+/** Inline models sometimes copy the Engine Pass response envelope and emit
+ * `<vellum>{"state":{...}}</vellum>` (or `{output:{state:{...}}}`) instead of
+ * the raw state object. Zod strips that unknown wrapper and otherwise reports a
+ * successful but empty parse, so valid plot rows never reach the extension.
+ * Unwrap only when no canonical state key exists at the root; an authored raw
+ * block always remains authoritative over a stray wrapper. */
+function unwrapStateEnvelope(obj: Record<string, unknown>): void {
+  const canonical = ['v', 'turn', 'day', 'scene', 'present', 'delta', 'ext'];
+  if (canonical.some(key => obj[key] !== undefined)) return;
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+  const direct = record(obj.state) ? obj.state : undefined;
+  const output = record(obj.output) ? obj.output : undefined;
+  const nested = direct ?? (output && record(output.state) ? output.state : undefined);
+  if (!nested) return;
+  for (const key of Object.keys(obj)) delete obj[key];
+  Object.assign(obj, nested);
+}
+
 const ARRAY_SECTIONS = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations', 'parallel', 'offscreen'] as const;
 
 function arraySectionCounts(obj: Record<string, unknown>): Record<string, number> {
@@ -829,7 +847,10 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
       const row = value as Record<string, unknown>;
       adopt(row, 'name', ['title', key === 'threads' ? 'thread' : 'arc']);
-      adopt(row, 'note', ['beat', 'gist', 'development', 'event']);
+      // Compiler-shaped inline rows often use `evidence` for the exact depicted
+      // beat. Preserve it as the durable note instead of letting Zod strip the
+      // only grounding text and the plot gate subsequently discard the row.
+      adopt(row, 'note', ['beat', 'gist', 'development', 'event', 'evidence']);
       adopt(row, 'op', ['action', 'operation', 'status']);
       if (key === 'threads') adopt(row, 'arc', ['linkedArc', 'linked_arc', 'parentArc', 'parent_arc']);
       // Legacy rows often put the actual T1 beat in `event` and a status gloss
@@ -1127,6 +1148,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
  * This performs deterministic shape coercion only. Canon, evidence, agency,
  * and time continuity are still enforced after normalization. */
 export function normalizeStateBlockObject(obj: Record<string, unknown>): void {
+  unwrapStateEnvelope(obj);
   normalizeBlockAliases(obj);
   hoistDeltaFields(obj);
   normalizeBlock(obj);

@@ -766,7 +766,7 @@ ${JSON.stringify(c.state)}
     expect(patched.state.present).toEqual(base.state.present);
     expect(patched.evidence).toEqual(base.evidence);
   });
-  it('repairs only rejected branches through a streamed merge patch', async () => {
+  it('regenerates corrections from the canonical repair base through a streamed merge patch', async () => {
     const i = input();
     i.personaState = true;
     const rejected = candidate();
@@ -791,9 +791,13 @@ ${JSON.stringify(c.state)}
     expect(repaired.ok).toBe(true);
     expect(generate).toHaveBeenCalledTimes(1);
     const messages = generate.mock.calls[0]![0] as Array<{ content: string }>;
-    expect(messages[0]!.content).toContain('minimal RFC 7396 JSON Merge Patch');
-    expect(messages[0]!.content).toContain('never return the complete compiler document');
-    expect(JSON.parse(messages[1]!.content).draft.state.present).toEqual(rejected.state.present);
+    expect(messages[0]!.content).toContain('regenerate a corrected VELLUM compiler candidate');
+    expect(messages[0]!.content).toContain('failed attempt is intentionally not supplied');
+    const context = JSON.parse(messages[1]!.content);
+    expect(context.repairBase).toEqual(compilerRepairBase(i));
+    expect(context.authority).toContain('failed attempt is not repair evidence');
+    expect(context).not.toHaveProperty('rejectedAttempt');
+    expect(context).not.toHaveProperty('rejectedFragment');
     expect(progress.map(update => update.status)).toEqual(expect.arrayContaining(['retry', 'chunk', 'validating', 'validated']));
     if (repaired.ok) expect(repaired.candidate.state.present.find(row => row.id === 'Player')?.condition).toBe('tired');
   });
@@ -802,7 +806,24 @@ ${JSON.stringify(c.state)}
     const draft = compilerRepairBase(i);
     const generate = vi.fn().mockResolvedValue({ ok: true, value: '{"patch":{}}' });
     const repaired = await repairCompilation(i, draft, ['timeout'], null, undefined, generate);
-    expect(repaired).toMatchObject({ ok: false, errors: ['Repair patch made no changes to the rejected draft'] });
+    expect(repaired).toMatchObject({ ok: false, errors: ['Repair patch made no changes to the canonical repair base'] });
+  });
+
+  it('creates missing required state without retaining unsupported rows from the rejected attempt', async () => {
+    const i = input();
+    i.personaState = true;
+    i.userInput = 'I stay beside Mara, exhausted but alert. I think the seal is a trap.';
+    const rejected = candidate();
+    rejected.state.present = [{ id: 'Mara', thought: 'I should wait.' }];
+    rejected.state.delta.threads = [{ op: 'new', name: 'Unsupported Detour', note: 'A fact absent from the turn.' }];
+    const player = { id: 'Player', mood: 'alert', doing: 'staying beside Mara', condition: 'exhausted', thought: 'The seal is a trap.', traits: ['watchful'] };
+    const reply = JSON.stringify({ patch: { state: { present: [{ id: 'Mara' }, player] } } });
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: reply });
+    const repaired = await repairCompilation(i, rejected, ['persona state requires the player in present'], null, undefined, generate);
+    expect(repaired.ok).toBe(true);
+    if (!repaired.ok) return;
+    expect(repaired.candidate.state.present).toContainEqual(expect.objectContaining({ id: 'Player', thought: 'The seal is a trap.' }));
+    expect(repaired.candidate.state.delta.threads).toBeUndefined();
   });
   it('accepts a complete streamed object even when the provider terminal event times out', async () => {
     const generate = vi.fn(async (_messages: unknown, _params: unknown, _userId: unknown, options: any) => {
@@ -957,10 +978,15 @@ ${JSON.stringify(c.state)}
       expect.objectContaining({ id: 'Gabriel Winters', mood: 'steady', thought: 'She is alive.', traits: ['protective'] }),
       expect.objectContaining({ id: 'buffy_summers', mood: 'disoriented', thought: 'Stay here.' }),
     ]);
-    const generate = vi.fn().mockRejectedValue(new Error('compatibility recovery must not call the provider'));
+    const repairedCandidate = salvageCompilation(raw, i);
+    expect(repairedCandidate.ok).toBe(true);
+    if (!repairedCandidate.ok) return;
+    const repairBase = compilerRepairBase(i);
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify({ patch: repairedCandidate.candidate }) });
     const repaired = await repairCompilation(i, raw, ['persona state requires the player in present'], null, undefined, generate);
     expect(repaired.ok).toBe(true);
-    expect(generate).not.toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledOnce();
+    expect(JSON.parse((generate.mock.calls[0]![0] as Array<{ content: string }>)[1]!.content).repairBase).toEqual(repairBase);
   });
   it('streams compiler content and lifecycle without exposing reasoning tokens', async () => {
     const progress: Array<Record<string, unknown>> = [];

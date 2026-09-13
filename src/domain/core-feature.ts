@@ -50,14 +50,18 @@ function inlinePlotChange(
   prose?: string,
 ): boolean {
   const note = String(row.note ?? '').trim();
-  if (!note) return false;
   const target = prior.find(track => plotTitleKey(track.name) === plotTitleKey(row.name));
   if (row.op === 'new') {
     if (target) return false;
     const title = inlinePlotTokens(row.name, state);
-    const after = inlinePlotTokens(note, state);
+    // The shipped inline contract historically showed a new thread without a
+    // note. Keep that compatible shape when its title is directly grounded in
+    // the visible prose; later operations still require a concrete changed
+    // condition. This files the declared track without inventing a beat.
+    const after = inlinePlotTokens(note || prose || '', state);
     if (!title.size || ![...title].some(token => after.has(token))) return false;
   } else {
+    if (!note) return false;
     if (!target || /resolv/i.test(target.status || '')) return false;
     const before = target.beats[target.beats.length - 1]?.trim() || target.status?.trim() || target.name;
     if (plotTitleKey(before) === plotTitleKey(note) || similarFact(before, note)) return false;
@@ -72,7 +76,7 @@ function inlinePlotChange(
       && [...claimedPrior].some(token => anchors.has(token));
     if (!beatContinuesTrack && !priorAnchored) return false;
   }
-  if (prose === undefined) return true;
+  if (prose === undefined || !note) return true;
   const noteTokens = factTokens(note);
   const proseTokens = factTokens(prose);
   if (!noteTokens.size || !proseTokens.size) return false;

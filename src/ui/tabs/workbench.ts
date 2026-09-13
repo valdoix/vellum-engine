@@ -136,7 +136,7 @@ function interventions(): string {
       ${actionCard('parallel-now', 'Living world', 'Generate parallel events', 'Create 3-7 simultaneous canon-grounded events; every accepted beat persists as a subplot, links to a plot thread, and may feed a shared arc.', '((parallel))', 'ready')}
       ${actionCard('rescan', 'Latest turn', 'Rescan prose', 'Fold the latest saved reply again and refresh its derived Chronicle data.', 'Derived data only')}
       ${actionCard('repair', 'State block', 'Repair latest block', 'Reconstruct a malformed or missing VELLUM block from the saved prose.', 'Uses repair route')}
-      ${actionCard('retry-engine', 'Engine candidate', 'Repair held draft', 'Patch only the invalid or missing parts of the held Engine candidate with the configured repair route.', 'Held draft', 'attention')}
+      ${actionCard('retry-engine', 'Engine candidate', 'Regenerate failed state', 'Rebuild corrected state from the canonical turn and its validation errors with the configured repair route.', 'Held errors', 'attention')}
       ${actionCard('reindex', 'Recall', 'Reindex memory', 'Rebuild the searchable recall index from Chronicle evidence and attached lore.', 'Safe rebuild')}
       ${actionCard('summarize', 'Archive', 'Build summaries', 'Run pending chapters, arcs, and books through their selected summarizer routes.', 'Archive pipeline')}
       ${actionCard('audit', 'Continuity', 'Audit health', 'Inspect deterministic continuity findings before starting a reconstruction.', 'Read only', 'attention')}

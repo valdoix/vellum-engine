@@ -45,9 +45,10 @@ ARGENT autonomy remains authoritative: Living World active or Social/Politics li
 Meet every active preset requirement in the supplied requirements object. For ARGENT, an empty plot ledger requires exactly one strongest grounded foreground actionable thread and, only when no parent arc exists, exactly one clear parent arc linked by its exact title. A new thread referenced by a new offscreen row is that subplot's durable track, not an additional foreground opener. Preserve the current parallel snapshot by omission; emit every grounded due operation and required new subplot for the active tier.
 Respect controls and player agency. The supplied identity.playerPersona is the exact player/persona, even when the focal story character or identity.characterCard ({{char}}) is someone else. Never infer the persona from {{char}}, narrative focus, roster order, or whose interiority is shown. Persona fields are private tracker state only. genesis is true only for an eligible initial Codex baseline.`;
 
-export const STATE_COMPILER_REPAIR_SYSTEM = `For this repair call, this output rule supersedes the original complete-document instruction: repair a rejected VELLUM compiler document with a minimal RFC 7396 JSON Merge Patch. Return only {"patch":{...}}.
-The supplied draft is the base document. A rejectedFragment may show useful unfinished output from the failed call; treat it only as a clue and copy nothing unsupported. Include only branches that must change. A JSON object recursively edits an object, an array replaces that one array, and null deletes that one property. Never repeat an unchanged branch and never return the complete compiler document.
-Fix every listed validation error. Recheck the completed prose for a directly supported field or change the rejected draft plainly missed because of that error, but do not continue the story or invent facts. Preserve every valid scene, roster, delta, evidence, plot, and parallel member already in the draft. If an invalid optional mutation cannot be grounded, delete only that row and repair the corresponding evidence indexes. The patched result must satisfy the original compiler contract.`;
+export const STATE_COMPILER_REPAIR_SYSTEM = `For this repair call, regenerate a corrected VELLUM compiler candidate as an RFC 7396 JSON Merge Patch against the supplied repairBase. Return only {"patch":{...}}.
+The validationErrors are the repair specification and the supplied source (canonical prior state, completed prose, latest user input, controls, requirements, and canon) is the only source of truth. The failed attempt is intentionally not supplied as repair evidence. Do not preserve, reconstruct, or defend a field merely because it may have appeared in that attempt.
+Create any supported content required to fix every listed error, even when it was absent from the rejected attempt: for example, add a missing persona thought, rebuild the complete present roster, create a required grounded opening thread and parent arc, or regenerate required subplot and parallel operations. You may replace an entire array or branch when that is the clearest repair. Do not continue the visible story or invent unsupported facts.
+The patch applies to repairBase: a JSON object recursively edits an object, an array replaces that one array, and null deletes that one property. Omit only branches that already match repairBase. The final patched candidate, not the rejected attempt, must satisfy the original compiler contract and every active requirement.`;
 
 export function compilerContext(input: CompilerInput): string {
   const p = input.prior;
@@ -268,14 +269,13 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   return { ok: false, errors, draft: compilerRepairBase(input) };
 }
 
-/**
- * Repair a rejected draft without asking the model to regenerate it. The model
- * emits only an RFC 7396 merge patch; VELLUM applies that patch locally and runs
- * the same strict salvage/semantic validation used by the first compiler pass.
- */
+/** Reconstruct a failed compilation from canonical prior state plus the actual
+ * source turn. The failed attempt is not supplied to the repair model. The provider emits an
+ * RFC 7396 patch against a conservative canonical base, then VELLUM applies the
+ * same strict salvage/semantic validation used by the first compiler pass. */
 export async function repairCompilation(
   input: CompilerInput,
-  rejectedDraft: unknown,
+  _rejectedDraft: unknown,
   validationErrors: readonly string[],
   userId: string | null,
   connectionId?: string,
@@ -283,24 +283,11 @@ export async function repairCompilation(
   run?: CompilerRunOptions,
 ): Promise<Compilation> {
   const attemptNo = Math.max(1, Math.round(run?.attempt ?? 2));
-  const draft = rejectedDraft && typeof rejectedDraft === 'object' && !Array.isArray(rejectedDraft)
-    ? structuredClone(rejectedDraft)
-    : compilerRepairBase(input);
-  // A held draft can predate a deterministic compatibility recovery added by a
-  // newer build. Revalidate the specific false-negative roster failure before
-  // spending another provider call; this lets Repair Engine recover an already
-  // complete legacy scene.present + scene.detail document immediately.
-  if (validationErrors.includes('persona state requires the player in present')) {
-    const recovered = salvageCompilation(draft, input);
-    if (recovered.ok && !argentRequirementErrors(recovered.candidate, input).length) {
-      try { run?.onProgress?.({ status: 'validated', attempt: attemptNo, text: recovered.block, message: 'Held draft recovered by compatibility normalization.' }); } catch { /* best effort */ }
-      return recovered;
-    }
-  }
+  const repairBase = compilerRepairBase(input);
   const repairContext = JSON.stringify({
     validationErrors: [...new Set(validationErrors.map(String).filter(Boolean))].slice(0, 50),
-    draft,
-    ...(run?.rejectedFragment ? { rejectedFragment: run.rejectedFragment.slice(0, 32000) } : {}),
+    authority: 'validationErrors identify what must be fixed; source is canonical truth; the failed attempt is not repair evidence',
+    repairBase,
     source: JSON.parse(compilerContext(input)),
   });
   const patchSchema = {
@@ -310,8 +297,8 @@ export async function repairCompilation(
   try {
     run?.onProgress?.({
       status: 'retry', attempt: attemptNo,
-      text: JSON.stringify(draft),
-      message: 'Repairing the rejected draft with a minimal patch.',
+      text: JSON.stringify(repairBase),
+      message: 'Regenerating corrected state from the canonical turn and its validation errors.',
       errors: validationErrors.slice(0, 20),
     });
   } catch { /* best effort */ }
@@ -340,14 +327,14 @@ export async function repairCompilation(
   if (!raw.trim()) {
     const errors = [result.ok ? 'Repair response was empty' : result.error];
     try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, errors, message: errors[0] }); } catch { /* best effort */ }
-    return { ok: false, errors, draft };
+    return { ok: false, errors, draft: repairBase };
   }
   let closest = [...validationErrors];
-  let closestDraft: unknown = draft;
+  let closestDraft: unknown = repairBase;
   for (const envelope of compilerPatchObjects(raw).reverse()) {
-    const patched = applyCompilerMergePatch(draft, envelope.patch);
-    if (JSON.stringify(patched) === JSON.stringify(draft)) {
-      closest = ['Repair patch made no changes to the rejected draft'];
+    const patched = applyCompilerMergePatch(repairBase, envelope.patch);
+    if (JSON.stringify(patched) === JSON.stringify(repairBase)) {
+      closest = ['Repair patch made no changes to the canonical repair base'];
       continue;
     }
     try { run?.onProgress?.({ status: 'validating', attempt: attemptNo, text: JSON.stringify(patched), message: 'Applying and validating the repair patch.' }); } catch { /* best effort */ }

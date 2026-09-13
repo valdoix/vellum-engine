@@ -9,6 +9,44 @@ import { DEFAULT_TONE } from '../src/domain/tone.js';
 const wrap = (value: unknown): string => `<vellum>${JSON.stringify(value)}</vellum>`;
 
 describe('inline VELLUM compatibility normalization', () => {
+  it('unwraps an Engine-shaped inline state envelope so plot rows reach the extension', () => {
+    const parsed = parseState(wrap({ output: { state: {
+      scene: { loc: 'Observatory', time: '03:05', clock: 185 },
+      delta: {
+        arcs: [{ op: 'new', name: 'The Observatory Mystery', evidence: 'A sealed letter appears in the observatory.' }],
+        threads: [{ op: 'new', name: 'The Sealed Letter', evidence: 'A sealed letter appears in the observatory.', arc: 'The Observatory Mystery' }],
+      },
+    } } }));
+    expect(parsed.source).toBe('json');
+    expect(parsed.state?.delta).toMatchObject({
+      arcs: [{ op: 'new', name: 'The Observatory Mystery', note: 'A sealed letter appears in the observatory.' }],
+      threads: [{ op: 'new', name: 'The Sealed Letter', note: 'A sealed letter appears in the observatory.', arc: 'The Observatory Mystery' }],
+    });
+    let sequence = 0;
+    const state = freshState();
+    const events = coreFeature.extract!(parsed.state!, {
+      turn: 1, day: 0, state, prose: 'A sealed letter appears in the observatory.', seq: () => ++sequence,
+    } as ExtractCtx);
+    const next = reduce(events, state);
+    expect(next.arcs.find(row => row.name === 'The Observatory Mystery')).toBeTruthy();
+    expect(next.threads.find(row => row.name === 'The Sealed Letter')).toMatchObject({ arc: expect.any(String) });
+  });
+
+  it('files a note-less new inline thread when its title is directly grounded in prose', () => {
+    const parsed = parseState(wrap({ delta: {
+      arcs: [{ op: 'new', name: 'The Observatory Mystery' }],
+      threads: [{ op: 'new', name: 'The Sealed Letter', arc: 'The Observatory Mystery' }],
+    } })).state!;
+    let sequence = 0;
+    const state = freshState();
+    const events = coreFeature.extract!(parsed, {
+      turn: 1, day: 0, state, prose: 'Mira finds the sealed letter beneath the telescope.', seq: () => ++sequence,
+    } as ExtractCtx);
+    const next = reduce(events, state);
+    expect(next.arcs.find(row => row.name === 'The Observatory Mystery')).toBeTruthy();
+    expect(next.threads.find(row => row.name === 'The Sealed Letter')).toMatchObject({ arc: expect.any(String) });
+  });
+
   it('merges a dedicated persona tracker object into the canonical present roster', () => {
     const parsed = parseState(wrap({
       scene: { loc: 'Library', time: '20:10', clock: 1210 },

@@ -121,17 +121,17 @@ function render(): void {
       : live.finished ? (live.recovered.length
         ? `Applied with ${live.recovered.length} disclosed adjustment${live.recovered.length === 1 ? '' : 's'}: ${live.recovered.join(', ')}`
         : 'Complete. Every validated VELLUM change was applied to the Chronicle.')
-        : live.status === 'reasoning' ? (live.repairing ? 'The repair model is checking the rejected draft\u2026' : 'The compiler is reasoning\u2026')
-          : live.status === 'validating' ? (live.repairing ? 'Applying and validating the repair patch\u2026' : 'Validating the completed file\u2026')
+        : live.status === 'reasoning' ? (live.repairing ? 'The repair model is rebuilding state from the source turn\u2026' : 'The compiler is reasoning\u2026')
+          : live.status === 'validating' ? (live.repairing ? 'Applying and validating the regenerated state\u2026' : 'Validating the completed file\u2026')
             : live.status === 'validated' ? 'File validated; committing it to the Chronicle\u2026'
-              : live.status === 'retry' ? (live.message || 'Preparing a minimal repair patch for the rejected draft\u2026')
-                : live.status === 'chunk' ? (live.repairing ? 'Writing the repair patch\u2026' : 'Writing the VELLUM file\u2026')
-                  : live.status === 'requesting' ? (live.repairing ? 'Waiting for the model to begin the repair patch\u2026' : 'Waiting for the model to begin the VELLUM file\u2026')
+              : live.status === 'retry' ? (live.message || 'Regenerating corrected state for the reported errors\u2026')
+                : live.status === 'chunk' ? (live.repairing ? 'Writing regenerated state\u2026' : 'Writing the VELLUM file\u2026')
+                  : live.status === 'requesting' ? (live.repairing ? 'Waiting for the model to begin corrected state\u2026' : 'Waiting for the model to begin the VELLUM file\u2026')
                     : 'Preparing the state compiler\u2026';
   setText('[data-eng-status]', status);
   setText('[data-eng-file-label]', live.status === 'retry' || (live.repairing && live.status === 'chunk')
-    ? 'Streaming repair patch'
-    : live.repairing ? 'Patched VELLUM file' : 'Generated VELLUM file');
+    ? 'Streaming corrected state'
+    : live.repairing ? 'Regenerated VELLUM file' : 'Generated VELLUM file');
   setText('[data-eng-attempt]', live.repairing ? `repair ${Math.max(1, live.attempt - 1)}` : `attempt ${live.attempt}`);
   setText('[data-eng-count]', live.output ? `${live.output.length.toLocaleString()} chars` : 'waiting');
   setOutput(live.output);
@@ -143,7 +143,7 @@ function render(): void {
     retry.disabled = live.retrying;
     retry.textContent = live.retrying ? 'Repairing\u2026' : 'Repair Engine';
   }
-  setText('[data-eng-foot]', live.failed ? 'The rejected draft and patch were not applied.' : live.finished ? (live.recovered.length ? `Turn ${live.turn} is filed with every adjustment shown above.` : `Turn ${live.turn} is filed without silent loss.`) : 'Compiler output is validated before filing.');
+  setText('[data-eng-foot]', live.failed ? 'The rejected attempt and regenerated state were not applied.' : live.finished ? (live.recovered.length ? `Turn ${live.turn} is filed with every adjustment shown above.` : `Turn ${live.turn} is filed without silent loss.`) : 'Compiler output is validated before filing.');
 }
 
 export function handleEngineStream(payload: EngineStreamPayload, retry: () => void): void {

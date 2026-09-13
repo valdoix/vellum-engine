@@ -850,8 +850,9 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
             { ...(engineRun ? { onProgress: engineRun.report } : {}), attempt: 1, signal: compilerAbort.signal, generation: { maxTokens: compilerTuning.maxTokens, timeoutMs: compilerTuning.timeoutMs, temperature: compilerTuning.temperature, reasoning: compilerTuning.reasoning, schema: compilerTuning.schema } },
           );
         }
-        // Any further model call is a bounded patch repair of the rejected
-        // document. It never asks the model to regenerate the complete file.
+        // Any further model call is an error-directed regeneration expressed as
+        // a bounded patch against canonical prior state. The rejected document
+        // is diagnostic only and never becomes repair truth.
         if (!compiled.ok && !compilerAbort.signal.aborted) {
           const repairRoute = manualRepair ? compilerRoute : await taskRoute(chatId, userId, 'engineRetry');
           const repairTuning = routedParams(repairRoute, { maxTokens: turnContract?.stateVerbosity === 'full' ? 20000 : 12000, timeoutMs: turnContract?.stateVerbosity === 'full' ? 120000 : 90000, temperature: 0 });
@@ -902,7 +903,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
           engineFallback = true;
           compilerFailure = { turn: turnNo, inputSig: sigOf(content), errors };
           _heldCompilerDraftByChat.set(chatId, { ...compilerFailure, draft: compiled.draft ?? {}, ...(compiled.fragment ? { fragment: compiled.fragment } : {}) });
-          engineRun?.finish(false, { reason: 'invalid_candidate', errors, message: 'The prose was saved immediately. Repair Engine can patch the held tracker draft when convenient.' });
+          engineRun?.finish(false, { reason: 'invalid_candidate', errors, message: 'The prose was saved immediately. Repair Engine can regenerate corrected state from the turn and these errors when convenient.' });
           engineRun = null;
           await setChatVar(chatId, 'vellum_compiler_diagnostic', JSON.stringify(compilerFailure));
           spindle.log?.warn?.(`[vellum_engine] compiler repair held for turn ${turnNo}; filing the prose fallback: ${errors.slice(0, 2).join('; ')}`);
