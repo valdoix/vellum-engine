@@ -286,30 +286,30 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   const raw = result.ok ? result.value : streamed;
   if (raw.trim()) {
     try { run?.onProgress?.({ status: 'validating', attempt: attemptNo, text: raw }); } catch { /* best effort */ }
-    let closest: string[] | null = null;
-    let closestDraft: unknown;
     // If a provider emits a draft/example and then a corrected document, the
     // final complete object is authoritative, matching inline <vellum> parsing.
-    // Reading oldest-first could commit a valid but superseded clock snapshot.
-    for (const candidate of compilerReplyObjects(raw).reverse()) {
+    // Do not borrow errors from an earlier object either: the Engine window and
+    // Repair Engine must describe the exact same final candidate. Previously a
+    // stale draft with tension 11 could supply the error while the visible final
+    // object correctly showed tension 7.
+    const candidate = compilerReplyObjects(raw).at(-1);
+    if (candidate) {
       const validated = salvageCompilation(candidate, input);
       if (validated.ok) {
         const required = argentRequirementErrors(validated.candidate, input);
         if (required.length) {
-          if (!closest || required.length < closest.length) { closest = required; closestDraft = candidate; }
-          continue;
+          try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, text: JSON.stringify(candidate), errors: required.slice(0, 20), message: required[0] }); } catch { /* best effort */ }
+          return { ok: false, errors: required, draft: candidate, fragment: raw.slice(0, 32000) };
         }
         try { run?.onProgress?.({ status: 'validated', attempt: attemptNo, text: validated.block, ...(validated.recovered?.length ? { message: `Recovered locally; omitted ${validated.recovered.length} unsupported change${validated.recovered.length === 1 ? '' : 's'}.` } : {}) }); } catch { /* best effort */ }
         return validated;
       }
-      if (!closest || validated.errors.length < closest.length) {
-        closest = validated.errors;
-        closestDraft = candidate;
-      }
+      try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, text: JSON.stringify(candidate), errors: validated.errors.slice(0, 20), message: validated.errors[0] }); } catch { /* best effort */ }
+      return { ok: false, errors: validated.errors, draft: candidate, fragment: raw.slice(0, 32000) };
     }
-    const errors = closest ?? ['Response was not one complete JSON object'];
-    try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, errors: errors.slice(0, 20), message: errors[0] }); } catch { /* best effort */ }
-    return { ok: false, errors, draft: closestDraft ?? compilerRepairBase(input), fragment: raw.slice(0, 32000) };
+    const errors = ['Response was not one complete JSON object'];
+    try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, text: raw, errors, message: errors[0] }); } catch { /* best effort */ }
+    return { ok: false, errors, draft: compilerRepairBase(input), fragment: raw.slice(0, 32000) };
   }
   const errors = [result.ok ? 'Response was empty' : result.error];
   try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, errors, message: errors[0] }); } catch { /* best effort */ }
@@ -376,31 +376,29 @@ export async function repairCompilation(
     try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, errors, message: errors[0] }); } catch { /* best effort */ }
     return { ok: false, errors, draft: repairBase };
   }
-  let closest = [...validationErrors];
-  let closestDraft: unknown = repairBase;
-  for (const envelope of compilerPatchObjects(raw).reverse()) {
+  const envelope = compilerPatchObjects(raw).at(-1);
+  if (envelope) {
     const patched = applyCompilerMergePatch(repairBase, envelope.patch);
     if (JSON.stringify(patched) === JSON.stringify(repairBase)) {
-      closest = ['Repair patch made no changes to the canonical repair base'];
-      continue;
+      const errors = ['Repair patch made no changes to the canonical repair base'];
+      try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, text: JSON.stringify(patched), errors, message: errors[0] }); } catch { /* best effort */ }
+      return { ok: false, errors, draft: patched, fragment: raw.slice(0, 32000) };
     }
     try { run?.onProgress?.({ status: 'validating', attempt: attemptNo, text: JSON.stringify(patched), message: 'Applying and validating the repair patch.' }); } catch { /* best effort */ }
     const validated = salvageCompilation(patched, input);
     if (validated.ok) {
       const required = argentRequirementErrors(validated.candidate, input);
       if (required.length) {
-        if (!closest.length || required.length <= closest.length) { closest = required; closestDraft = patched; }
-        continue;
+        try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, text: JSON.stringify(patched), errors: required.slice(0, 20), message: required[0] }); } catch { /* best effort */ }
+        return { ok: false, errors: required, draft: patched, fragment: raw.slice(0, 32000) };
       }
       try { run?.onProgress?.({ status: 'validated', attempt: attemptNo, text: validated.block, message: 'Repair patch validated.' }); } catch { /* best effort */ }
       return validated;
     }
-    if (!closest.length || validated.errors.length <= closest.length) {
-      closest = validated.errors;
-      closestDraft = patched;
-    }
+    try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, text: JSON.stringify(patched), errors: validated.errors.slice(0, 20), message: validated.errors[0] }); } catch { /* best effort */ }
+    return { ok: false, errors: validated.errors, draft: patched, fragment: raw.slice(0, 32000) };
   }
-  const errors = closest.length ? closest : ['Repair response did not contain one JSON merge patch'];
-  try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, errors: errors.slice(0, 20), message: errors[0] }); } catch { /* best effort */ }
-  return { ok: false, errors, draft: closestDraft, fragment: raw.slice(0, 32000) };
+  const errors = ['Repair response did not contain one JSON merge patch'];
+  try { run?.onProgress?.({ status: 'failed', attempt: attemptNo, text: raw, errors, message: errors[0] }); } catch { /* best effort */ }
+  return { ok: false, errors, draft: repairBase, fragment: raw.slice(0, 32000) };
 }

@@ -1132,6 +1132,30 @@ ${JSON.stringify(c.state)}
     expect(progress.find((update) => update.status === 'validated')?.text).toContain('<vellum>');
     expect(JSON.stringify(progress)).not.toContain('private chain of thought');
   });
+  it('reports errors for the same final candidate shown in the Engine window', async () => {
+    const i = input();
+    i.argent = true;
+    const stale = candidate() as any;
+    stale.state.scene.tension = 11;
+    const final = candidate() as any;
+    final.state.scene.tension = 7;
+    const progress: Array<Record<string, unknown>> = [];
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: `${JSON.stringify(stale)}\n${JSON.stringify(final)}` });
+    const result = await compileState(i, null, undefined, generate, { onProgress: update => progress.push(update as unknown as Record<string, unknown>) });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toContain('ARGENT requires exactly one grounded opening thread when the plot ledger is empty');
+      expect(result.errors.join('\n')).not.toContain('less than or equal to 10');
+      expect((result.draft as StateCandidate).state.scene.tension).toBe(7);
+    }
+    const failed = [...progress].reverse().find(update => update.status === 'failed');
+    expect(JSON.parse(String(failed?.text)).state.scene.tension).toBe(7);
+  });
+  it('does not carry an invalid legacy tension into the canonical repair base', () => {
+    const i = input();
+    i.prior.scene.tension = 11;
+    expect(compilerRepairBase(i).state.scene.tension).toBeUndefined();
+  });
   it('changes state formatting without reducing Lean or Full extraction coverage', () => {
     expect(STATE_COMPILER_SYSTEM).toContain('Lean and Full have identical content coverage');
     expect(STATE_COMPILER_SYSTEM).toContain('audit every supported state family');

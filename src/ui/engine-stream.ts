@@ -176,7 +176,7 @@ export function handleEngineStream(payload: EngineStreamPayload, retry: () => vo
   if (Array.isArray(payload.recovered)) live.recovered = payload.recovered.map(String);
   if (payload.message) live.message = payload.message;
   if (payload.status === 'retry') live.output = '';
-  if ((payload.status === 'validating' || payload.status === 'validated') && typeof payload.text === 'string') live.output = payload.text;
+  if ((payload.status === 'validating' || payload.status === 'validated' || payload.status === 'failed') && typeof payload.text === 'string') live.output = payload.text;
   if (payload.event === 'chunk' && payload.delta) {
     live.output += payload.delta;
     live.message = '';

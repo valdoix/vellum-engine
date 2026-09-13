@@ -1100,7 +1100,12 @@ export function compilerRepairBase(input: CompilerInput): StateCandidate {
         loc: input.prior.scene.location || 'Unknown location',
         time: clockTime(priorClock),
         clock: priorClock,
-        ...(Number.isFinite(input.prior.scene.tension) ? { tension: input.prior.scene.tension } : {}),
+        // A legacy or externally edited Chronicle may contain an old invalid
+        // value. Do not let that poison every repair base: tension is optional,
+        // and only an already-valid canonical value is safe to carry forward.
+        ...(Number.isFinite(input.prior.scene.tension) && input.prior.scene.tension >= 0 && input.prior.scene.tension <= 10
+          ? { tension: input.prior.scene.tension }
+          : {}),
         ...(input.prior.scene.weather ? { weather: input.prior.scene.weather } : {}),
       },
       present: input.prior.scene.present.map(id => {
