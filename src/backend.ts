@@ -195,8 +195,14 @@ function recordInjection(chatId: string, turn: number, text: string, recallIds: 
   return rec;
 }
 
+let _stateBroadcastSeq = 0;
+const _latestStateBroadcast = new Map<string, number>();
+
 async function broadcastState(chatId: string, userId: string | null): Promise<void> {
-  const state = await loadState(chatId);
+  const targetUser = userId ?? currentUser() ?? undefined;
+  const deliveryKey = `${targetUser ?? ''}\u0000${chatId}`;
+  const deliverySeq = ++_stateBroadcastSeq;
+  _latestStateBroadcast.set(deliveryKey, deliverySeq);
   // independent reads run in parallel (chat vars are cached, but this also cuts
   // first-read host round-trips and any awaited derivations). EVERY persisted
   // per-chat toggle/setting the UI shows must be included here — the frontend
@@ -236,7 +242,15 @@ async function broadcastState(chatId: string, userId: string | null): Promise<vo
   const enginePass = enginePassEnabled(enginePassRaw);
   const engineWindow = engineWindowEnabled(engineWindowRaw);
   const personaState = personaStateEnabled(personaStateRaw);
-  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, engineWindow, personaState }, userId ?? currentUser() ?? undefined);
+  // A repair replaces the Chronicle tail atomically. An older broadcast may
+  // already be waiting on the settings reads above with a reference to the
+  // pre-repair state; if it sends after the repair broadcast, the UI regresses
+  // one turn even though disk is correct. Only the newest delivery for this
+  // chat/user may publish, and snapshot state at the last possible moment.
+  if (_latestStateBroadcast.get(deliveryKey) !== deliverySeq) return;
+  const state = await loadState(chatId);
+  if (_latestStateBroadcast.get(deliveryKey) !== deliverySeq) return;
+  spindle.sendToFrontend?.({ type: 'vellum_state', chatId, state, tone, tidy, offscreen, hide, chapterVault, traversalMode, traversalAxis, relationLocks, directives, nextScene, hardLimits, calendar, theme, prefs, autoRetryBlock, blockExample, compilerDiagnostic, enginePass, engineWindow, personaState }, targetUser);
 }
 
 /** FOLD: read the raw turn, parse — events — append — broadcast. */

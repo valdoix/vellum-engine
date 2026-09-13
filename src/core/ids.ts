@@ -41,6 +41,10 @@ export function canonId(name: string): string {
 }
 
 let _seq = 0;
+/** Raise the process-local sequence floor from persisted Chronicle history. */
+export function observeSeq(seq: number): void {
+  if (Number.isSafeInteger(seq) && seq > _seq) _seq = seq;
+}
 /**
  * Monotonic local sequence for event ordering within a single worker session.
  * Events also carry `turn`; this disambiguates multiple events in one turn.

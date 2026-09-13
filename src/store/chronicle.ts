@@ -6,6 +6,7 @@ import { sweepProvisionalCast } from '../domain/cast-hygiene.js';
 import { repairSecretAudiences } from '../domain/secret-audience.js';
 import { migrate } from '../core/migrate.js';
 import { tryCatchAsync } from '../core/result.js';
+import { observeSeq } from '../core/ids.js';
 
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI;
 
@@ -60,6 +61,12 @@ const _writeQueues = new Map<string, Promise<void>>();
  * junk a fresh load would have reaped. */
 function buildState(events: VellumEvent[]): ChronicleState {
   return repairSecretAudiences(sweepProvisionalCast(mergeDuplicates(reduce(events))));
+}
+
+/** Keep newly authored event sequences above every persisted event after a
+ * worker/extension restart. Sequence is process-local, but logs are durable. */
+function observeEventSequences(events: readonly VellumEvent[]): void {
+  for (const event of events) observeSeq(event.seq);
 }
 
 /** Build a fully normalized read-only projection for staged imports and audits. */
@@ -148,6 +155,7 @@ async function loadLogUncached(chatId: string): Promise<EventLog> {
     readonly = true;
     spindle.log?.warn?.('[vellum_engine] log read failed for ' + chatId + ' — READ-ONLY this session.');
   }
+  observeEventSequences(log.events);
   _cache.set(chatId, { log, state: buildState(log.events), reduced: log.events.length, readonly, dirty: false, revision: 0, ...(serialized !== undefined ? { serialized, persistedCount } : {}) });
   return log;
 }
@@ -319,6 +327,7 @@ export async function recoverFromBackup(chatId: string): Promise<ChronicleState 
   const { log, usable } = lenientLog(parsed, chatId);
   if (!usable || log.events.length <= curLen) return null; // backup isn't fuller — nothing to recover
   const revision = (_cache.get(chatId)?.revision ?? 0) + 1;
+  observeEventSequences(log.events);
   _cache.set(chatId, { log, state: buildState(log.events), reduced: log.events.length, readonly: false, revision });
   await persist(chatId);
   spindle.log?.warn?.('[vellum_engine] recovered ' + chatId + ' from backup (' + log.events.length + ' events).');
@@ -454,6 +463,7 @@ export async function exportLog(chatId: string): Promise<EventLog> {
 export async function importLog(chatId: string, log: EventLog): Promise<ChronicleState> {
   const { log: next } = lenientLog(log, chatId);
   const revision = (_cache.get(chatId)?.revision ?? 0) + 1;
+  observeEventSequences(next.events);
   _cache.set(chatId, { log: next, state: buildState(next.events), reduced: next.events.length, readonly: false, dirty: true, revision });
   await persist(chatId);
   return _cache.get(chatId)!.state;
