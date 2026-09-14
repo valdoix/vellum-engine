@@ -47,8 +47,20 @@ ENGINE PASS TRAINING — NO-EVIDENCE MODE: Treat this as shape training only; ne
 {"state":{"turn":2,"day":0,"scene":{"loc":"Cemetery","time":"22:18","clock":1338},"present":[{"id":"Buffy Summers","thought":"I need to know why I am back."}],"delta":{"threads":[{"op":"new","id":"t_return","name":"Why Buffy Returned","note":"Buffy is alive after clawing out of her grave and does not know who restored her.","arc":"a_return"}],"arcs":[{"op":"new","id":"a_return","name":"Return from Death","note":"Her unexplained return from death begins a new crisis."}]},"ext":{}},"parallelOps":[],"parallelWorldOps":[],"parallelReviewed":[],"genesis":false}
 There is deliberately no evidence array, no trackEvidence array, and no row evidence field. No-evidence removes quotations only; note must still state the concrete resulting condition, new rows still use op:"new", and existing rows still need a real before-to-after change that the engine can verify against prior state. Durable world beats go in state.delta.offscreen; their current actor operations go at root parallelOps. state.ext is only for scars, Codex, inventory, timeline, NPC intent/affect/introduction, plants, and payoffs. Never emit snapshot aliases such as status, title, summary, proof, openedTurn, or linkedThreads in a compiler mutation.`;
 
-function enginePassTraining(evidenceMode: EvidenceMode): string {
-  return engineValidationCapabilities(evidenceMode).requireEvidence ? ENGINE_PASS_EVIDENCE_TRAINING : ENGINE_PASS_NO_EVIDENCE_TRAINING;
+function sandboxTraining(evidenceMode: EvidenceMode): string {
+  const withEvidence = engineValidationCapabilities(evidenceMode).requireEvidence;
+  const rowEvidence = (actor: string, place: string): string => withEvidence
+    ? `,"evidence":"Attached canon establishes ${actor} alive and able to act at ${place}."`
+    : '';
+  return `
+ENGINE PASS TRAINING — PROTOCOL V4 SANDBOX SHAPE: This appendix applies because Autonomous/Sandbox is enabled. Every required new durable subplot must itself be semantically valid; two decorative or actorless rows count as zero. Use one established living NPC in who and one canonical, reachable place in where. The display name must be a creative Title Case title such as "Lanterns Before Dawn", never a snake_case id such as "lanterns_before_dawn". The id remains a stable machine reference. A minimal pair has this shape:
+{"state":{"delta":{"offscreen":[{"op":"new","id":"ada_gate_watch","name":"Lanterns Before Dawn","who":"Ada","where":"Courtyard","gist":"Ada patrols the gate while watching for the overdue courier.","beatKind":"progress","impact":"Ada can intercept the courier before the archive is reached.","grounding":{"basis":["character","location"],"rationale":"Ada is an established living NPC at the established Courtyard."}${rowEvidence('Ada', 'the Courtyard')}},{"op":"new","id":"spike_broken_lock","name":"The Lock That Lied","who":"Spike","where":"Crypt Row","gist":"Spike checks recently disturbed crypt doors for a forced lock.","beatKind":"obstacle","impact":"Spike may identify the disturbed entrance before anyone returns.","grounding":{"basis":["character","location"],"rationale":"Spike is an established living NPC who can reach Crypt Row."}${rowEvidence('Spike', 'Crypt Row')}}]}},"parallelOps":[{"op":"advance","who":"Ada","where":"Courtyard","activity":"patrols the gate while watching for the overdue courier"${rowEvidence('Ada', 'the Courtyard')}},{"op":"start","who":"Spike","where":"Crypt Row","activity":"checks recently disturbed crypt doors"${rowEvidence('Spike', 'Crypt Row')}},{"op":"start","who":"Willow","where":"Magic Box","activity":"catalogues the damaged warding supplies"${rowEvidence('Willow', 'the Magic Box')}},{"op":"start","who":"Xander","where":"Summers Residence","activity":"secures the broken rear window"${rowEvidence('Xander', 'the Summers Residence')}}]}
+These names and facts are shape training only. Replace them with established cast, places, motives, and logistics from the supplied source. Put offscreen only under state.delta and put parallelOps only at the root. Do not substitute actor/place aliases for who/where. Do not finalize until at least two valid op:"new" subplot rows and at least four valid root parallel operations are present.${withEvidence ? ' Evidence mode still requires semantic evidence for each changed row and operation.' : ' No-evidence mode omits every evidence field and array; it does not relax actor, place, canon, chronology, causality, grounding, or count requirements.'}`;
+}
+
+function enginePassTraining(evidenceMode: EvidenceMode, sandbox = false): string {
+  const base = engineValidationCapabilities(evidenceMode).requireEvidence ? ENGINE_PASS_EVIDENCE_TRAINING : ENGINE_PASS_NO_EVIDENCE_TRAINING;
+  return base + (sandbox ? sandboxTraining(evidenceMode) : '');
 }
 
 export const STATE_COMPILER_SYSTEM = `Compile the completed narrative into VELLUM state. Return one JSON object and no prose. Never continue the visible story; Autonomous/Sandbox may create private off-screen simulation state for Director.
@@ -271,7 +283,8 @@ export function compilerPatchObjects(raw: string): Array<{ patch: Record<string,
 
 export async function compileState(input: CompilerInput, userId: string | null, connectionId?: string, generate: typeof internalGenerate = internalGenerate, run?: CompilerRunOptions): Promise<Compilation> {
   const evidenceMode = input.evidenceMode ?? 'evidence';
-  const schema = compilerProviderSchema(evidenceMode);
+  const sandbox = input.livingWorld === 'sandbox';
+  const schema = compilerProviderSchema(evidenceMode, { sandbox });
   const context = compilerContext(input);
   const mode = input.verbosity === 'full'
     ? 'FULL: audit every listed state family and emit every supported durable change with all supported optional metadata.'
@@ -288,7 +301,7 @@ export async function compileState(input: CompilerInput, userId: string | null, 
   // phase so a slow first token is never misdiagnosed as a stuck state compiler.
   try { run?.onProgress?.({ status: 'requesting', attempt: attemptNo, message: 'Compiler request sent; waiting for the first output token.' }); } catch { /* best effort */ }
   const result = await generate([
-    { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + evidenceDirective + enginePassTraining(evidenceMode) + '\nThe provider schema permits omitted bookkeeping for compatibility, but the requested payload always includes state.scene and state.present. All nonzero preset requirements still apply.' },
+    { role: 'system', content: STATE_COMPILER_SYSTEM + '\n' + mode + evidenceDirective + enginePassTraining(evidenceMode, sandbox) + '\nThe provider schema permits omitted bookkeeping for compatibility, but the requested payload always includes state.scene and state.present. All nonzero preset requirements still apply.' },
     { role: 'user', content: context },
   ], { temperature: run?.generation?.temperature ?? 0, max_tokens: maxTokens }, userId,
   {
@@ -388,7 +401,7 @@ export async function repairCompilation(
   let streamed = '';
   try { run?.onProgress?.({ status: 'requesting', attempt: attemptNo, message: 'Repair request sent; waiting for the patch.' }); } catch { /* best effort */ }
   const result = await generate([
-    { role: 'system', content: STATE_COMPILER_SYSTEM + (input.evidenceMode === 'none' ? NO_EVIDENCE_DIRECTIVE : '') + enginePassTraining(input.evidenceMode ?? 'evidence') + '\n\n' + STATE_COMPILER_REPAIR_SYSTEM },
+    { role: 'system', content: STATE_COMPILER_SYSTEM + (input.evidenceMode === 'none' ? NO_EVIDENCE_DIRECTIVE : '') + enginePassTraining(input.evidenceMode ?? 'evidence', input.livingWorld === 'sandbox') + '\n\n' + STATE_COMPILER_REPAIR_SYSTEM },
     { role: 'user', content: repairContext },
   ], { temperature: run?.generation?.temperature ?? 0, max_tokens: run?.generation?.maxTokens ?? ENGINE_OUTPUT_TOKENS[input.verbosity === 'full' ? 'full' : 'lean'] }, userId, {
     reasoningOff: true,

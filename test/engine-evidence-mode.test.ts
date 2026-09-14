@@ -143,6 +143,17 @@ describe('Engine Pass evidence mode', () => {
     expect(noneSchema.properties.parallelOps.items.required).not.toContain('evidence');
   });
 
+  it('Sandbox provider schema requires semantically countable subplot and parallel rows', () => {
+    const schema = compilerProviderSchema('none', { sandbox: true }) as any;
+    const offscreenRequired = schema.properties.state.properties.delta.properties.offscreen.items.required;
+    const parallelRequired = schema.properties.parallelOps.items.required;
+    expect(offscreenRequired).toEqual(expect.arrayContaining([
+      'op', 'id', 'name', 'who', 'where', 'gist', 'beatKind', 'impact', 'grounding',
+    ]));
+    expect(parallelRequired).toEqual(expect.arrayContaining(['op', 'who', 'where', 'activity']));
+    expect(schema.properties.parallelWorldOps.items.required).not.toContain('who');
+  });
+
   it('compiler context reports evidence mode none and omits the evidence question', () => {
     const i = input(); i.evidenceMode = 'none';
     const ctx = JSON.parse(compilerContext(i));
@@ -179,11 +190,34 @@ describe('Engine Pass evidence mode', () => {
     expect(system).not.toContain('ENGINE PASS TRAINING — NO-EVIDENCE MODE');
   });
 
+  it.each(['evidence', 'none'] as const)('Sandbox compileState adds protocol-v4 %s-mode shape training and schema constraints', async evidenceMode => {
+    const i = input(); i.evidenceMode = evidenceMode; i.argent = true; i.livingWorld = 'sandbox';
+    let capturedMessages: any = null;
+    let capturedRequest: any = null;
+    const generate = vi.fn(async (messages: any[], _options: any, _userId: any, request: any) => {
+      capturedMessages = messages; capturedRequest = request;
+      return { ok: true, value: JSON.stringify(candidate()) };
+    });
+    await compileState(i, null, undefined, generate as any);
+    const system = capturedMessages[0].content as string;
+    const marker = 'ENGINE PASS TRAINING — PROTOCOL V4 SANDBOX SHAPE';
+    const appendix = system.slice(system.indexOf(marker));
+    expect(appendix).toContain('creative Title Case title');
+    expect(appendix).toContain('never a snake_case id');
+    expect(appendix).toContain('Do not substitute actor/place aliases for who/where.');
+    expect(appendix).toContain('at least two valid op:"new" subplot rows');
+    if (evidenceMode === 'none') expect(appendix).not.toContain('"evidence":');
+    else expect(appendix).toContain('"evidence":');
+    const schema = capturedRequest.responseFormat.json_schema.schema;
+    expect(schema.properties.state.properties.delta.properties.offscreen.items.required).toContain('who');
+    expect(schema.properties.parallelOps.items.required).toContain('activity');
+  });
+
   it.each([
     ['evidence', 'ENGINE PASS TRAINING — EVIDENCE MODE'],
     ['none', 'ENGINE PASS TRAINING — NO-EVIDENCE MODE'],
   ] as const)('repair prompt retains the %s-mode training example', async (evidenceMode, marker) => {
-    const i = input(); i.evidenceMode = evidenceMode;
+    const i = input(); i.evidenceMode = evidenceMode; i.livingWorld = 'sandbox';
     let captured: any = null;
     const generate = vi.fn(async (messages: any[]) => {
       captured = messages;
@@ -192,6 +226,7 @@ describe('Engine Pass evidence mode', () => {
     await repairCompilation(i, candidate(), ['manufactured failure'], null, undefined, generate as any);
     const system = captured[0].content as string;
     expect(system).toContain(marker);
+    expect(system).toContain('ENGINE PASS TRAINING — PROTOCOL V4 SANDBOX SHAPE');
     expect(system).toContain('RFC 7396 JSON Merge Patch');
   });
 
@@ -300,6 +335,45 @@ describe('Engine Pass evidence mode', () => {
     expect(r.candidate.state.delta.offscreen).toHaveLength(2);
     expect(r.candidate.parallelOps).toHaveLength(4);
     expect(r.recovered).toContain('ext.codex.0');
+  });
+
+  it('reports why visible but actorless Sandbox subplots were rejected before received 0', async () => {
+    const i = input();
+    i.evidenceMode = 'none'; i.argent = true; i.livingWorld = 'sandbox';
+    i.prior.threads = [{ id: 'thr_existing', name: 'Existing plot', status: 'open', beats: [], firstTurn: 1, lastTurn: 1 }];
+    i.prior.locations = [{ id: 'courtyard', name: 'Courtyard', source: 'user', firstTurn: 1, lastTurn: 1 }];
+    for (const [id, actorName] of [['ada', 'Ada'], ['spike', 'Spike'], ['iris', 'Iris'], ['jules', 'Jules']] as const) {
+      i.prior.cast[id] = { ...i.prior.cast.ada!, id, name: actorName, status: 'active', lastLocation: 'Courtyard', lastLocationTurn: 1 };
+    }
+    const raw = candidate();
+    raw.state.delta.offscreen = [
+      {
+        op: 'new', id: 'hellions_approach', name: 'Hellions Ride Through Sunnydale',
+        gist: 'A gang rides toward the center of town.', beatKind: 'progress',
+        impact: 'Their route may disrupt patrols and expose anyone crossing town.',
+        grounding: { basis: ['canon'], rationale: 'The gang and its vehicles are established in canon.' },
+      },
+      {
+        op: 'new', id: 'scoobies_patrol', name: 'Scoobies Patrol With Buffybot',
+        gist: 'The group patrols while using the Buffybot as cover.', beatKind: 'progress',
+        impact: 'The patrol can redirect threats before they reach the current scene.',
+        grounding: { basis: ['canon'], rationale: 'The group and Buffybot are established in canon.' },
+      },
+    ];
+    raw.parallelOps = [
+      { op: 'advance', who: 'Ada', where: 'Courtyard', activity: 'patrols the gate' },
+      { op: 'start', who: 'Spike', where: 'Courtyard', activity: 'checks the doors' },
+      { op: 'start', who: 'Iris', where: 'Courtyard', activity: 'counts the lanterns' },
+      { op: 'start', who: 'Jules', where: 'Courtyard', activity: 'secures the side gate' },
+    ];
+    const generate = vi.fn(async () => ({ ok: true, value: JSON.stringify(raw) }));
+
+    const r = await compileState(i, null, undefined, generate as any);
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors[0]).toMatch(/^Rejected offscreen "Hellions Ride Through Sunnydale":/);
+    expect(r.errors).toContain('ARGENT Sandbox requires at least 2 new durable subplots; received 0');
   });
 
   it('reports a salvaged opening row rejection before the downstream ARGENT count error', async () => {

@@ -126,7 +126,7 @@ export type CompilerInput = {
   lorebookCanon?: readonly LorebookCanonEntry[];
 };
 export interface CompilationSuggestion { id: string; kind: 'thread' | 'arc' | 'offscreen'; row: Record<string, unknown>; reason: string }
-export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[]; suggestions?: CompilationSuggestion[] } | { ok: false; errors: string[]; draft?: unknown; fragment?: string };
+export type Compilation = { ok: true; block: string; candidate: StateCandidate; baseHash: string; recovered?: string[]; suggestions?: CompilationSuggestion[] } | { ok: false; errors: string[]; draft?: unknown; fragment?: string; suggestions?: CompilationSuggestion[] };
 export const stateRevision = (state: ChronicleState): string => hashStr(JSON.stringify(state));
 
 /** Mandatory ARGENT output is separate from optional extraction. A compact
@@ -520,7 +520,7 @@ export function jsonSchema(s: z.ZodTypeAny): Record<string, unknown> {
  * restored from prior state by preparedCompilerCandidate(); evidence may live
  * beside the changed row and is lifted out before strict validation.
  */
-export function compilerProviderSchema(evidenceMode: EvidenceMode = 'evidence'): Record<string, unknown> {
+export function compilerProviderSchema(evidenceMode: EvidenceMode = 'evidence', requirements: { sandbox?: boolean } = {}): Record<string, unknown> {
   const capabilities = engineValidationCapabilities(evidenceMode);
   const schema = structuredClone(jsonSchema(CompilerCandidate)) as any;
   schema.required = ['state'];
@@ -560,6 +560,22 @@ export function compilerProviderSchema(evidenceMode: EvidenceMode = 'evidence'):
       const arr = schema.properties[key];
       if (arr?.items?.required) arr.items.required = arr.items.required.filter((k: string) => k !== 'evidence');
     }
+  }
+  // Sandbox cardinality is semantic, not merely numeric. A subplot without an
+  // established actor and place will be rejected by the canonical validator
+  // and therefore cannot count toward the floor. Put that invariant in the
+  // provider schema as well as the prompt so malformed placeholder rows are
+  // corrected before they consume an Engine Pass.
+  if (requirements.sandbox) {
+    const offscreenItem = state.properties.delta.properties.offscreen?.items;
+    if (offscreenItem) {
+      offscreenItem.required = [...new Set([
+        ...(offscreenItem.required ?? []),
+        'op', 'id', 'name', 'who', 'where', 'gist', 'beatKind', 'impact', 'grounding',
+      ])];
+    }
+    const operationItem = schema.properties.parallelOps?.items;
+    if (operationItem) operationItem.required = [...new Set([...(operationItem.required ?? []), 'op', 'who', 'where', 'activity'])];
   }
   return schema;
 }
@@ -1938,7 +1954,21 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
   if (original.genesis && !accepted.genesis) tryCandidate('genesis', candidate => { candidate.genesis = true; });
 
   const final = validateCompilation(accepted, input);
-  if (!final.ok) return final;
+  if (!final.ok) {
+    // Preserve the causal rejection that produced a downstream ARGENT floor
+    // failure. Without this, two visible but invalid subplot rows are reported
+    // only as "received 0", which sends repair toward cardinality instead of
+    // the missing actor/place/grounding contract.
+    const rejectionErrors = suggestions.map(suggestion => {
+      const label = String(suggestion.row.name ?? suggestion.row.title ?? suggestion.row.id ?? suggestion.kind).trim();
+      return `Rejected ${suggestion.kind}${label ? ` "${label}"` : ''}: ${suggestion.reason}`;
+    });
+    return {
+      ...final,
+      errors: [...new Set([...rejectionErrors, ...final.errors])].slice(0, 50),
+      ...(suggestions.length ? { suggestions } : {}),
+    };
+  }
   const recovered = [...(shapeRecovered ? ['candidate shape'] : []), ...preparation.ignoredPaths.map(path => `ignored unsupported field: ${path}`), ...dropped];
   return { ...final, ...(recovered.length ? { recovered } : {}), ...(suggestions.length ? { suggestions } : {}) };
 }
