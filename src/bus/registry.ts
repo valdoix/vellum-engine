@@ -45,6 +45,10 @@ export interface ExtractCtx {
    * entity on a fresh Chronicle, but never as proof of current knowledge,
    * location, travel, or activity. */
   parallelCanonLabels?: readonly string[];
+  /** Attached setting canon available to Inline Compatibility's semantic
+   * no-evidence gate. Passages may establish that a person/place/motive exists,
+   * but never grant a character knowledge without an in-world access path. */
+  worldCanon?: readonly import('../domain/lorebook-canon.js').LorebookCanonEntry[];
   /** The parsed block came from the strict Engine compiler and already passed
    * its evidence/causality validator. Extractors may skip only redundant legacy
    * lexical gates; identity, agency, and canonical-state guards still apply. */

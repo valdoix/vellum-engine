@@ -162,12 +162,12 @@ describe('inline VELLUM compatibility normalization', () => {
 
   it('files id-shaped autonomous parallel rows from attached canon on a fresh Chronicle', () => {
     const rows = [
-      { id: 'Willow Rosenberg', where: 'fleeing cemetery area', activity: 'retreating with Tara, Xander, and Anya after the interrupted ritual; believes resurrection failed' },
-      { id: 'Tara Maclay', where: 'fleeing with Willow', activity: 'retreating after ritual interruption' },
-      { id: 'Xander Harris', where: 'fleeing with Willow', activity: 'retreating after ritual interruption' },
-      { id: 'Anya Jenkins', where: 'fleeing with Willow', activity: 'retreating after ritual interruption' },
-      { id: 'Dawn Summers', where: 'Summers home or with Spike', activity: 'unaware of resurrection attempt' },
-      { id: 'Spike', where: 'Sunnydale, protecting Dawn', activity: 'unaware of resurrection attempt; Buffybot being destroyed by Hellions' },
+      { id: 'Willow Rosenberg', where: 'Sunnydale cemetery road', activity: 'retreating with Tara, Xander, and Anya after the interrupted ritual; believes resurrection failed' },
+      { id: 'Tara Maclay', where: 'Sunnydale cemetery road', activity: 'retreating after ritual interruption' },
+      { id: 'Xander Harris', where: 'Sunnydale cemetery road', activity: 'retreating after ritual interruption' },
+      { id: 'Anya Jenkins', where: 'Sunnydale cemetery road', activity: 'retreating after ritual interruption' },
+      { id: 'Dawn Summers', where: 'Summers home', activity: 'unaware of resurrection attempt' },
+      { id: 'Spike', where: 'Summers home', activity: 'unaware of resurrection attempt; Buffybot being destroyed by Hellions' },
       { id: 'Hellion biker gang', where: 'downtown Sunnydale', activity: 'rampaging through town, destroying the Buffybot' },
     ];
     // The reported block used parallel at the root as well as `id` rather than
@@ -190,7 +190,8 @@ describe('inline VELLUM compatibility normalization', () => {
       tone: { ...DEFAULT_TONE, social: 'autonomous' },
       parallelCanonLabels: [
         'Willow Rosenberg', 'Tara Maclay', 'Xander Harris', 'Anya Jenkins',
-        'Dawn Summers', 'Spike', 'Hellion bikers',
+        'Dawn Summers', 'Spike', 'Hellion bikers', 'Sunnydale cemetery road',
+        'Summers home', 'downtown Sunnydale',
       ],
       seq: () => ++sequence,
     } as ExtractCtx);
@@ -236,7 +237,12 @@ describe('inline VELLUM compatibility normalization', () => {
         arcs: [{ op: 'new', name: 'The City Conspiracy', note: 'The royal seal is missing at the East Gate.' }],
         threads: [{ op: 'new', name: 'The Missing Royal Seal', note: 'Ada finds the royal seal missing at the East Gate.', arc: 'The City Conspiracy' }],
         parallel: [{ who: 'Ada', where: 'East Gate', activity: 'searching for the missing royal seal' }],
-        offscreen: [{ op: 'new', id: 'east_gate_search', name: 'East Gate Search', who: 'Ada', where: 'East Gate', gist: 'searching for the missing royal seal', thread: 'The Missing Royal Seal', arc: 'The City Conspiracy', nextTurn: 3 }],
+        offscreen: [{
+          op: 'new', id: 'east_gate_search', name: 'East Gate Search', who: 'Ada', where: 'East Gate',
+          gist: 'searching for the missing royal seal', thread: 'The Missing Royal Seal', arc: 'The City Conspiracy', nextTurn: 3,
+          beatKind: 'progress', impact: 'The search can identify which courier diverted the seal before the archive receives it.',
+          grounding: { basis: ['character', 'location', 'parallel'], rationale: 'Ada is established at the East Gate and the current parallel row places her in the same search.' },
+        }],
       },
     })).state!;
     let sequence = 0;
@@ -265,7 +271,11 @@ describe('inline VELLUM compatibility normalization', () => {
     const parsed = parseState(wrap({ delta: {
       arcs: [{ op: 'new', id: 'arc_succession', name: 'The Succession Crisis', note: prose }],
       threads: [{ op: 'new', id: 'thread_empty_throne', name: 'The Empty Throne', note: prose, arc: 'arc_succession' }],
-      offscreen: [{ op: 'new', id: 'courier_search', where: 'East Gate', gist: 'The gate watch searches arriving couriers', thread: 'thread_empty_throne' }],
+      offscreen: [{
+        op: 'new', id: 'courier_search', where: 'East Gate', gist: 'The gate watch searches arriving couriers', thread: 'thread_empty_throne',
+        beatKind: 'progress', impact: 'The search can expose who removed the royal seal before the succession decision.',
+        grounding: { basis: ['scene', 'location'], rationale: 'The scene establishes the missing seal at the East Gate and the watch can inspect arrivals.' },
+      }],
     } })).state!;
     let sequence = 0;
     const next = reduce(coreFeature.extract!(parsed, {
@@ -274,6 +284,28 @@ describe('inline VELLUM compatibility normalization', () => {
     const arc = next.arcs.find(row => row.name === 'The Succession Crisis')!;
     expect(next.threads.find(row => row.name === 'The Empty Throne')).toMatchObject({ arc: arc.id });
     expect(next.offscreen.find(row => row.id === 'courier_search')).toMatchObject({ thread: 'thr_the_empty_throne' });
+  });
+
+  it('accepts semantic no-evidence subplot grounding but rejects decorative rows without impact', () => {
+    const state = freshState();
+    state.scene = { location: 'Magic Box', time: '10:00', clock: 600, tension: 1, weather: '', present: [], detail: [] };
+    state.cast.xander = { id: 'xander', name: 'Xander', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, lastLocation: 'Summers home', lastLocationTurn: 1, traits: ['practical'], userEdited: false } as any;
+    const parsed = parseState(wrap({ delta: { offscreen: [
+      {
+        op: 'new', id: 'dawn_wardrobe', name: "Dawn's Wardrobe", who: 'Xander', where: 'Summers home', gist: 'builds Dawn a wardrobe',
+        beatKind: 'progress', impact: 'Dawn gains needed storage and Xander must later deliver the finished wardrobe.',
+        grounding: { basis: ['character', 'location'], rationale: 'Xander is practical, is already at the Summers home, and has time to work there.' },
+      },
+      {
+        op: 'new', id: 'ambient_coffee', name: 'Coffee', who: 'Xander', where: 'Summers home', gist: 'drinks coffee',
+        beatKind: 'progress', grounding: { basis: ['character', 'location'], rationale: 'Xander can drink coffee at the Summers home.' },
+      },
+    ] } })).state!;
+    let sequence = 0;
+    const next = reduce(coreFeature.extract!(parsed, {
+      turn: 2, day: 0, state, prose: 'Buffy checks the books at the Magic Box.', livingWorld: 'active', seq: () => ++sequence,
+    } as ExtractCtx), structuredClone(state));
+    expect(next.offscreen).toEqual([expect.objectContaining({ id: 'dawn_wardrobe', impact: expect.stringContaining('deliver') })]);
   });
 
   it('materializes generated resurrection tracks and grounded subplots despite inflection, collective actors, and reordered places', () => {
@@ -297,7 +329,7 @@ describe('inline VELLUM compatibility normalization', () => {
             op: 'new', id: 'scoobies_fleeing', who: 'Willow Rosenberg', where: 'Sunnydale streets, fleeing',
             gist: 'Willow and the others are running from the attack believing the resurrection ritual failed', thread: "Buffy's Resurrection",
             beatKind: 'obstacle', impact: 'The people who brought Buffy back do not know she is alive and believe they failed', autonomy: 'active',
-            grounding: { basis: ['Canon: Scoobies flee when the urn shatters', 'They did not witness Buffy emerge'], rationale: 'The interrupted group fled before seeing the result' },
+            grounding: { basis: ['Canon: Scoobies flee when the urn shatters', 'They did not witness Buffy emerge'], rationale: 'The group witnessed the urn shatter, fled before seeing Buffy emerge, and inferred that the ritual failed.' },
           },
         ],
       },
@@ -312,7 +344,7 @@ describe('inline VELLUM compatibility normalization', () => {
       turn: 1, day: 0, state,
       prose: 'Buffy claws her way out of the grave while Gabriel waits beside the broken ritual circle.',
       livingWorld: 'active', tone: { ...DEFAULT_TONE, social: 'autonomous' },
-      parallelCanonLabels: ['Willow Rosenberg', 'Hellion bikers'],
+      parallelCanonLabels: ['Willow Rosenberg', 'Hellion bikers', 'Fleeing through Sunnydale streets', 'Sunnydale town center and surrounding streets'],
       seq: () => ++sequence,
     } as ExtractCtx), state);
 
@@ -337,7 +369,7 @@ describe('inline VELLUM compatibility normalization', () => {
     const folded = reduce(coreFeature.extract!(parsed.state!, {
       turn: 1, day: 0, state: knownState, prose: '',
       livingWorld: 'active', tone: { ...DEFAULT_TONE, social: 'autonomous' },
-      parallelCanonLabels: ['Willow Rosenberg', 'Hellion bikers'],
+      parallelCanonLabels: ['Willow Rosenberg', 'Hellion bikers', 'Fleeing through Sunnydale streets', 'Sunnydale town center and surrounding streets'],
       seq: () => ++blockSequence,
     } as ExtractCtx), knownState);
     expect(folded.arcs.find(row => row.name === 'Buffy Returns')).toBeTruthy();

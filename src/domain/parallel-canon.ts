@@ -167,6 +167,14 @@ export function activityNeedsAccessPath(activity: string): boolean {
   return EPISTEMIC_ACTIVITY.test(activity);
 }
 
+/** No-evidence autonomy still needs an in-world information path. The path may
+ * be summarized semantically in a rationale; it never has to be an exact quote. */
+export function parallelKnowledgePlausible(activity: string, rationale: string): boolean {
+  return !activityNeedsAccessPath(activity)
+    || NEGATIVE_KNOWLEDGE.test(activity)
+    || evidenceHasAccessPath(rationale);
+}
+
 /** Proves that one clause is actually about this actor, at this place, doing
  * this activity. This is deliberately stricter than merely finding the quote. */
 export function evidenceGroundsActorActivity(state: ChronicleState, who: string, where: string, activity: string, evidence: string): boolean {
@@ -222,7 +230,6 @@ export function reconcileParallelSnapshot(
   prose = '',
   options: ParallelReconcileOptions = {},
 ): ParallelDraft[] {
-  if (incoming.length === 0) return [];
   const here = new Set(finalPresent.map(canonId));
   const priorActors = new Map(state.parallel.filter(row => row.who).map(row => [canonId(row.who!), row]));
   const resultActors = new Map<string, ParallelDraft>();
@@ -246,6 +253,16 @@ export function reconcileParallelSnapshot(
     const canonEstablished = establishedEntity(row.who!, establishedLabels, established);
     if (!actor && !canonEstablished && !evidenceMentionsActor(state, row.who!, prose)) continue;
     const known = canonicalActorLocation(state, id);
+    const destinationEstablished = [
+      state.scene.location,
+      ...state.locations.map(location => location.name),
+      ...state.parallel.map(item => item.where ?? ''),
+      ...state.offscreen.map(item => item.where ?? ''),
+      ...Object.values(state.cast).map(item => item.lastLocation ?? ''),
+    ].some(place => sameLocation(place, row.where))
+      || establishedEntity(row.where, establishedLabels, established)
+      || includesNormalized(prose, row.where);
+    if (!destinationEstablished) continue;
     const moved = !!known && !sameLocation(known.where, row.where);
     const basicAutonomy = (options.npcAutonomy === 'living' || options.livingWorld === 'active') && (!!actor || canonEstablished);
     const advancedAutonomy = (options.npcAutonomy === 'autonomous' || options.livingWorld === 'sandbox') && (!!actor || canonEstablished);
@@ -255,10 +272,7 @@ export function reconcileParallelSnapshot(
       && sameLocation(peer.where, row.where)
       && evidenceMentionsActor(state, id, peer.activity)
       && evidenceHasAccessPath(peer.activity));
-    const knowledgeOkay = !activityNeedsAccessPath(row.activity)
-      || NEGATIVE_KNOWLEDGE.test(row.activity)
-      || evidenceHasAccessPath(row.activity)
-      || peerDeliveredAccess;
+    const knowledgeOkay = parallelKnowledgePlausible(row.activity, row.activity) || peerDeliveredAccess;
     // At Autonomous, a known absent NPC may originate an ordinary off-screen
     // act. This does not authorize teleportation, high-impact irreversible
     // outcomes, omniscient knowledge, or putting an on-stage actor elsewhere.
@@ -290,5 +304,11 @@ export function reconcileParallelSnapshot(
     if (samePlace.length === 1) world[samePlace[0]!.index] = { ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}) };
     else world.push(row);
   }
-  return [...world, ...resultActors.values()];
+  // Active subplots are the durable physical authority. Even an explicit []
+  // may clear ordinary volatile rows only; it cannot erase or contradict a
+  // still-active subplot. Overlaying here also keeps legacy inline blocks that
+  // omit delta.parallel coherent without spending tokens repeating known rows.
+  return durableParallelSnapshot({ ...state, parallel: [...world, ...resultActors.values()].map(row => ({
+    ...row, turn: state.turns, day: state.day,
+  })) }, finalPresent);
 }

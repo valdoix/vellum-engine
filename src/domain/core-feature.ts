@@ -637,7 +637,11 @@ export const coreFeature: Feature = {
       // Validate against the same-pass graph/cast snapshot. Inline rows often
       // create an arc, thread, parallel actor, and subplot in one transaction;
       // checking only T0 made the final subplot look orphaned and dropped it.
-      const samePassState = reduce(out, structuredClone(ctx.state));
+      // A model-written parallel snapshot is volatile and must not bootstrap
+      // its own subplot location. Build the subplot gate from canonical T0 plus
+      // same-pass cast/plot changes, then let an accepted subplot overwrite any
+      // contradictory parallel row as the durable physical authority.
+      const samePassState = reduce(out.filter(event => event.kind !== 'parallel.set'), structuredClone(ctx.state));
       const offscreenRows = parsed.delta.offscreen.map(row => {
         const normalized = { ...row };
         // `who` is a character owner, not a free-form subject. Generated
@@ -658,9 +662,9 @@ export const coreFeature: Feature = {
         return normalized;
       });
       out.push(...simEvents({ offscreen: offscreenRows }, samePassState, ctx.turn, ctx.day, ctx.seq, {
-        locks: ctx.locks, social: ctx.tone?.social, politics: ctx.tone?.politics, livingWorld: ctx.livingWorld, userId: ctx.userCanon,
+        locks: ctx.locks, worldCanon: ctx.worldCanon, social: ctx.tone?.social, politics: ctx.tone?.politics, livingWorld: ctx.livingWorld, userId: ctx.userCanon,
         compilerThreadIds: threadRefs,
-        ...(ctx.validatedCompiler ? { validatedCompiler: true } : {}),
+        ...(ctx.validatedCompiler ? { validatedCompiler: true } : { requireProof: true }),
       }));
     }
 

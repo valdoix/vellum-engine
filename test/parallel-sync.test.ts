@@ -162,7 +162,7 @@ describe('parallel T1 synchronization', () => {
 
     const autonomous = coreFeature.extract!(parsed, {
       turn: 2, day: 1, state: prior, prose: 'The living room is quiet.',
-      tone: { social: 'autonomous' }, seq: () => ++nextSeq,
+      tone: { social: 'autonomous' }, parallelCanonLabels: ["Spike's crypt"], seq: () => ++nextSeq,
     } as never);
     expect((autonomous.find(event => event.kind === 'parallel.set') as any).items).toEqual([
       { who: 'willow', where: "Spike's crypt", activity: 'sitting quietly; has told Spike the resurrection news' },
@@ -180,6 +180,26 @@ describe('parallel T1 synchronization', () => {
     } as never);
     const next = reduce(events, structuredClone(prior));
     expect(next.parallel).toEqual([expect.objectContaining({ who: 'ada', where: 'Courtyard', activity: 'waits for the courier' })]);
+  });
+
+  it('keeps an active subplot as physical authority over a contradictory inline parallel row', () => {
+    const prior = freshState();
+    prior.cast.xander = { id: 'xander', name: 'Xander', aka: [], status: 'active', source: 'auto', firstTurn: 1, lastTurn: 1, lastLocation: 'Summers home', lastLocationTurn: 1, userEdited: false } as any;
+    prior.offscreen = [{
+      id: 'dawn_wardrobe', name: "Dawn's Wardrobe", who: 'xander', where: 'Summers home', status: 'active',
+      gist: 'builds Dawn a wardrobe', beats: ['builds Dawn a wardrobe'], firstTurn: 1, lastTurn: 1,
+    } as any];
+    prior.parallel = [{ who: 'xander', where: 'Summers home', activity: 'builds Dawn a wardrobe', turn: 1, day: 1 }];
+    let nextSeq = 0;
+    const events = coreFeature.extract!({
+      scene: { loc: 'Magic Box' }, present: [],
+      delta: { parallel: [{ who: 'Xander', where: 'Cafe', activity: 'drinks coffee' }] },
+    } as never, {
+      turn: 2, day: 1, state: prior, prose: 'The Magic Box is quiet.', livingWorld: 'active',
+      parallelCanonLabels: ['Cafe'], seq: () => ++nextSeq,
+    } as never);
+    const next = reduce(events, structuredClone(prior));
+    expect(next.parallel).toEqual([expect.objectContaining({ who: 'xander', where: 'Summers home', activity: 'builds Dawn a wardrobe' })]);
   });
 
   it('mirrors anonymous durable subplot beats into Parallel instead of hiding them in Subplots', () => {

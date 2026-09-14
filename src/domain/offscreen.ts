@@ -5,7 +5,7 @@ import type { Directive } from './directive.js';
 import { type Social, type Politics, offscreenBondPolicy, factionPolicy } from './tone.js';
 import { canonId } from '../core/ids.js';
 import { spanLabel } from './date-format.js';
-import { canonicalActorLocation, evidenceGroundsMove, evidenceGroundsWorldMove, locationKey, sameLocation } from './parallel-canon.js';
+import { canonicalActorLocation, evidenceGroundsMove, evidenceGroundsWorldMove, locationKey, parallelKnowledgePlausible, sameLocation } from './parallel-canon.js';
 import type { LorebookCanonEntry } from './lorebook-canon.js';
 import { factTokens, similarFact } from './fact-match.js';
 import type { SubplotBeatKind, SubplotGrounding } from './types.js';
@@ -614,6 +614,10 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     if (!known.has(p.id) && newRows >= newCap) continue;
     const prior = state.offscreen.find(row => row.id === p.id);
     if (opts.requireProof && !subplotProofSufficient(p, prior)) continue;
+    if (opts.requireProof && p.op !== 'resolve' && p.gist && !parallelKnowledgePlausible(
+      p.gist,
+      [p.grounding?.rationale, ...(p.grounding?.refs ?? []), p.grounding?.before, p.grounding?.after].filter(Boolean).join(' '),
+    )) continue;
     const requestedActor = resolve(p.who);
     if (p.who && !requestedActor) continue; // closed cast: no simulator-minted people
     if (prior?.who && requestedActor && canonId(prior.who) !== requestedActor) continue;

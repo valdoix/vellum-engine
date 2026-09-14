@@ -722,6 +722,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         userInput: auditParts?.userInput ?? '',
         agency: auditAgency,
         parallelCanonLabels,
+        worldCanon: lorebookCanon,
         livingWorld: parallelMode,
       });
       const expected = reduce(expectedFold.events, structuredClone(before));
@@ -958,7 +959,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     let folded = parallelFoldEvents !== null
       ? { events: parallelFoldEvents, source: 'json' as const, sig: sigOf(content), dropped: undefined }
       : structuredStateEnabled
-      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, livingWorld: parallelMode, ...(compiled?.ok ? { validatedCompiler: true } : {}), ...(turnNo === msgs.length && pendingNextScene ? { sceneIntent: nextSceneIntent(pendingNextScene) } : {}), ...(dayCap !== undefined ? { dayCap } : {}) })
+      ? foldTurn(foldContent, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, worldCanon: lorebookCanon, livingWorld: parallelMode, ...(compiled?.ok ? { validatedCompiler: true } : {}), ...(turnNo === msgs.length && pendingNextScene ? { sceneIntent: nextSceneIntent(pendingNextScene) } : {}), ...(dayCap !== undefined ? { dayCap } : {}) })
       : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
     let { events, source, dropped } = folded;
     if (compiled?.ok && source !== 'json') {
@@ -985,7 +986,7 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
         engineRun = null;
         compiled = null;
         folded = structuredStateEnabled
-          ? foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, livingWorld: parallelMode, ...(turnNo === msgs.length && pendingNextScene ? { sceneIntent: nextSceneIntent(pendingNextScene) } : {}), ...(dayCap !== undefined ? { dayCap } : {}) })
+          ? foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: playerInput, agency, parallelCanonLabels, worldCanon: lorebookCanon, livingWorld: parallelMode, ...(turnNo === msgs.length && pendingNextScene ? { sceneIntent: nextSceneIntent(pendingNextScene) } : {}), ...(dayCap !== undefined ? { dayCap } : {}) })
           : { events: [] as VellumEvent[], source: 'none' as const, sig: sigOf(content), dropped: undefined };
         events = folded.events; source = folded.source; dropped = folded.dropped;
       }
@@ -3014,7 +3015,7 @@ const dispatch: Record<string, Handler> = {
             if (compiled.ok) { foldContent = prose + '\n' + compiled.block; compiledOk = true; break; }
           }
         }
-        const folded = foldTurn(foldContent, prior, turnNo, { tone, userCanon: names.user ? canonId(names.user) : '', locks, personaState: personaStateOn, userInput, agency, parallelCanonLabels, livingWorld: reconstructionParallelMode });
+        const folded = foldTurn(foldContent, prior, turnNo, { tone, userCanon: names.user ? canonId(names.user) : '', locks, personaState: personaStateOn, userInput, agency, parallelCanonLabels, worldCanon: lorebookCanon, livingWorld: reconstructionParallelMode });
         const evs = [...folded.events];
         if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig: hashStr(content) } as VellumEvent);
         const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;
@@ -3186,9 +3187,10 @@ const dispatch: Record<string, Handler> = {
       const rebuildContract = await activeTurnContract(chatId, uid);
       const rebuildParallelMode = effectiveSubplotMode(rebuildContract?.livingWorld ?? 'off', tone.social, tone.politics);
       const rebuildAgencyLedger = await activeTurnAgencyLedger(chatId, uid);
-      const rebuildParallelCanonLabels = messagesOnly
+      const rebuildWorldCanon = messagesOnly
         ? []
-        : lorebookParallelLabels(lorebookCanonEntries(await attachedLoreEntries(chatId, uid).catch(() => [])));
+        : lorebookCanonEntries(await attachedLoreEntries(chatId, uid).catch(() => []));
+      const rebuildParallelCanonLabels = lorebookParallelLabels(rebuildWorldCanon);
       const rebuildExtractorRoute = await taskRoute(chatId, uid, 'reconstruction');
       const rebuildExtractorTuning = routedParams(rebuildExtractorRoute, { maxTokens: 1800, timeoutMs: 90000, temperature: 0.1 });
       // ids of turn-memories that already exist (messagesOnly: only backfill gaps)
@@ -3214,7 +3216,7 @@ const dispatch: Record<string, Handler> = {
           if (!gist) continue;
           evs.push({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'memory.record', id: memId, tier: 'turn', text: gist, keys: [] } as VellumEvent);
         } else {
-          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: rebuiltParts?.userInput ?? '', agency: rebuildAgency, parallelCanonLabels: rebuildParallelCanonLabels, livingWorld: rebuildParallelMode });
+          const { events } = foldTurn(content, prior, turnNo, { tone, userCanon, locks, personaState: personaStateOn, userInput: rebuiltParts?.userInput ?? '', agency: rebuildAgency, parallelCanonLabels: rebuildParallelCanonLabels, worldCanon: rebuildWorldCanon, livingWorld: rebuildParallelMode });
           evs.push(...events);
           if (!evs.some((e) => e.kind === 'turn.fold')) evs.unshift({ seq: nextSeqLocal(), turn: turnNo, day: prior.day || 0, src: 'system', kind: 'turn.fold', sig } as VellumEvent);
           const committedDay = evs.find((event) => event.kind === 'turn.fold')?.day ?? prior.day ?? 0;
