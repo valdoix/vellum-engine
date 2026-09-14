@@ -17,6 +17,7 @@ export interface EngineStreamPayload {
   errors?: string[];
   reason?: string;
   recovered?: string[];
+  section?: 'core' | 'story' | 'extensions' | 'world';
 }
 
 interface LiveEngine {
@@ -31,6 +32,7 @@ interface LiveEngine {
   retrying: boolean;
   repairing: boolean;
   recovered: string[];
+  section: string;
 }
 
 let live: LiveEngine | null = null;
@@ -121,17 +123,17 @@ function render(): void {
       : live.finished ? (live.recovered.length
         ? `Applied with ${live.recovered.length} disclosed adjustment${live.recovered.length === 1 ? '' : 's'}: ${live.recovered.join(', ')}`
         : 'Complete. Every validated VELLUM change was applied to the Chronicle.')
-        : live.status === 'reasoning' ? (live.repairing ? 'The repair model is rebuilding state from the source turn\u2026' : 'The compiler is reasoning\u2026')
+        : live.status === 'reasoning' ? (live.repairing ? `The repair model is rebuilding ${live.section || 'state'}\u2026` : `The compiler is reasoning about ${live.section || 'state'}\u2026`)
           : live.status === 'validating' ? (live.repairing ? 'Applying and validating the regenerated state\u2026' : 'Validating the completed file\u2026')
             : live.status === 'validated' ? 'File validated; committing it to the Chronicle\u2026'
               : live.status === 'retry' ? (live.message || 'Regenerating corrected state for the reported errors\u2026')
                 : live.status === 'chunk' ? (live.repairing ? 'Writing regenerated state\u2026' : 'Writing the VELLUM file\u2026')
-                  : live.status === 'requesting' ? (live.repairing ? 'Waiting for the model to begin corrected state\u2026' : 'Waiting for the model to begin the VELLUM file\u2026')
+                  : live.status === 'requesting' ? (live.repairing ? `Waiting for corrected ${live.section || 'state'}\u2026` : `Generating ${live.section || 'the next'} section\u2026`)
                     : 'Preparing the state compiler\u2026';
   setText('[data-eng-status]', status);
   setText('[data-eng-file-label]', live.status === 'retry' || (live.repairing && live.status === 'chunk')
     ? 'Streaming corrected state'
-    : live.repairing ? 'Regenerated VELLUM file' : 'Generated VELLUM file');
+    : live.repairing ? `Regenerated ${live.section || 'VELLUM file'}` : live.section ? `Generated section: ${live.section}` : 'Generated VELLUM file');
   setText('[data-eng-attempt]', live.repairing ? `repair ${Math.max(1, live.attempt - 1)}` : `attempt ${live.attempt}`);
   setText('[data-eng-count]', live.output ? `${live.output.length.toLocaleString()} chars` : 'waiting');
   setOutput(live.output);
@@ -163,6 +165,7 @@ export function handleEngineStream(payload: EngineStreamPayload, retry: () => vo
       retrying: false,
       repairing: false,
       recovered: [],
+      section: '',
     };
     detachDrag?.(); detachDrag = null; panel?.remove(); panel = null;
     render();
@@ -172,6 +175,11 @@ export function handleEngineStream(payload: EngineStreamPayload, retry: () => vo
   if (typeof payload.turn === 'number') live.turn = payload.turn;
   if (typeof payload.attempt === 'number') live.attempt = payload.attempt;
   if (payload.status) live.status = payload.status;
+  if (payload.section && payload.section !== live.section) {
+    live.section = payload.section;
+    if (payload.status === 'requesting' || payload.status === 'retry') live.output = '';
+  }
+  if (!payload.section && (payload.status === 'validating' || payload.status === 'validated')) live.section = '';
   if (payload.status === 'retry') live.repairing = true;
   if (Array.isArray(payload.recovered)) live.recovered = payload.recovered.map(String);
   if (payload.message) live.message = payload.message;

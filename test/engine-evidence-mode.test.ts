@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { validateCompilation, salvageCompilation, compilerProviderSchema, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
-import { compileState, compilerContext, repairCompilation } from '../src/bus/state-compiler.js';
+import { compileState, compilerContext, COMPILER_SECTIONS, repairCompilation } from '../src/bus/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
 
 // Same-day clock fixture: a small forward tick the deterministic floor can infer
@@ -188,6 +188,26 @@ describe('Engine Pass evidence mode', () => {
     expect(system).toContain('ENGINE PASS TRAINING — EVIDENCE MODE');
     expect(system).toContain('Each trackEvidence.after exactly equals that row\'s note.');
     expect(system).not.toContain('ENGINE PASS TRAINING — NO-EVIDENCE MODE');
+  });
+
+  it.each(['evidence', 'none'] as const)('sectioned Engine Pass preserves the %s evidence contract in every section', async evidenceMode => {
+    const i = input(); i.evidenceMode = evidenceMode;
+    const calls: Array<{ messages: any[]; request: any }> = [];
+    const generate = vi.fn(async (messages: any[], _options: any, _userId: any, request: any) => {
+      calls.push({ messages, request });
+      return { ok: true, value: JSON.stringify(candidate()) };
+    });
+    await compileState(i, null, undefined, generate as any, { sectioned: true });
+    expect(calls).toHaveLength(COMPILER_SECTIONS.length);
+    for (const call of calls) {
+      const system = String(call.messages[0].content);
+      if (evidenceMode === 'none') expect(system).toContain('EVIDENCE MODE — NONE');
+      else expect(system).not.toContain('EVIDENCE MODE — NONE');
+    }
+    const storySchema = calls[1]!.request.responseFormat.json_schema.schema;
+    const threadFields = storySchema.properties.state.properties.delta.properties.threads.items.properties;
+    if (evidenceMode === 'none') expect(threadFields).not.toHaveProperty('evidence');
+    else expect(threadFields).toHaveProperty('evidence');
   });
 
   it.each(['evidence', 'none'] as const)('Sandbox compileState adds protocol-v4 %s-mode shape training and schema constraints', async evidenceMode => {

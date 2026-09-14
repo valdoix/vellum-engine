@@ -1631,7 +1631,7 @@ function looksLikeCompilerState(value: unknown): value is Record<string, any> {
 
 /** Fill only required structural boilerplate and discard unsupported keys before
  * strict validation. Defaults preserve prior state; they never create a delta. */
-function preparedCompilerCandidate(raw: unknown, input: CompilerInput): { candidate: unknown; ignoredPaths: string[] } {
+export function prepareCompilerCandidate(raw: unknown, input: CompilerInput): { candidate: unknown; ignoredPaths: string[] } {
   if (!compilerRecord(raw)) return { candidate: raw, ignoredPaths: [] };
   let normalized = structuredClone(raw);
   for (const key of ['candidate', 'result', 'output']) {
@@ -1741,7 +1741,7 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): { candid
  */
 export function salvageCompilation(raw: unknown, input: CompilerInput): Compilation {
   const capabilities = engineValidationCapabilities(input.evidenceMode);
-  const preparation = preparedCompilerCandidate(raw, input);
+  const preparation = prepareCompilerCandidate(raw, input);
   const prepared = preparation.candidate;
   const shapeRecovered = JSON.stringify(prepared) !== JSON.stringify(raw);
   const parsed = CompilerCandidate.safeParse(prepared);

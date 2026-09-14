@@ -562,7 +562,7 @@ Open the VELLUM drawer to find these. There's also a compact floating **"Now"** 
 - **Undo turn** — drop the most recent turn's tracked changes.
 - **Tidy threads / Tidy lore** — merge near-duplicate plot threads or facts.
 - **Hide filed** — hide already-summarized turns from the prompt to save context.
-- **Engine pass** — enable or disable the validated state compiler for presets that request it.
+- **Engine pass** — enable or disable the validated state compiler for presets that request it. The pass generates four bounded sections (scene/roster, story state, extensions, and parallel world), validates the assembled result, and retries only the affected section when one fails. Evidence and no-evidence modes use the same section boundaries.
 - **Persona state** — opt in to persona mood, condition, activity, first-person thought, and stable traits on every turn. This private tracker remains populated under Forbidden, Minor Continuity, and Director; player agency still governs what the story prose may author.
 - **Traverse** — smarter, AI-guided recall (cycles through off / one-shot / deep tree drill).
 - **Tone** — quick access to romance pace + world disposition.

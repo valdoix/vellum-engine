@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { applyCompilerMergePatch, argentRequirementErrors, CompilerCandidate, compilerProviderSchema, compilerRepairBase, jsonSchema, salvageCompilation, validateCompilation, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
-import { compileState, compilerContext, compilerPatchObjects, compilerReplyObjects, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation, STATE_COMPILER_SYSTEM } from '../src/bus/state-compiler.js';
+import { compileState, compilerContext, compilerPatchObjects, compilerReplyObjects, compilerSectionsForErrors, COMPILER_SECTIONS, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation, STATE_COMPILER_SYSTEM } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
 import { parseState } from '../src/parse/state-block.js';
 import { registerFeature } from '../src/bus/registry.js';
@@ -1262,5 +1262,81 @@ ${JSON.stringify(c.state)}
     expect(generate).toHaveBeenCalledTimes(1);
     expect(generate.mock.calls[0]![3].timeoutMs).toBe(ENGINE_TIMEOUT_MS.lean);
     expect(generate.mock.calls[0]![0][0].content).not.toContain('"additionalProperties"');
+  });
+
+  it('generates Engine Pass state as four independently owned sections', async () => {
+    const generate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(candidate()) });
+    const result = await compileState(input(), null, undefined, generate, { sectioned: true });
+    expect(result.ok).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(COMPILER_SECTIONS.length);
+    const systems = generate.mock.calls.map(call => String(call[0][0].content));
+    expect(systems).toEqual(expect.arrayContaining([
+      expect.stringContaining('SECTION core owns'),
+      expect.stringContaining('SECTION story owns'),
+      expect.stringContaining('SECTION extensions owns'),
+      expect.stringContaining('SECTION world owns'),
+    ]));
+    const schemas = generate.mock.calls.map(call => call[3].responseFormat.json_schema.schema);
+    expect(Object.keys(schemas[0].properties.state.properties)).toEqual(expect.arrayContaining(['scene', 'present']));
+    expect(schemas[0].properties.state.properties).not.toHaveProperty('delta');
+    expect(schemas[1].properties.state.properties.delta.properties).not.toHaveProperty('offscreen');
+    expect(schemas[2].properties.state.properties).toHaveProperty('ext');
+    expect(Object.keys(schemas[3].properties.state.properties.delta.properties)).toContain('offscreen');
+  });
+
+  it('regenerates only the section implicated by validation errors', async () => {
+    const i = input();
+    i.evidenceMode = 'none';
+    i.personaState = true;
+    i.prior.day = 2;
+    i.prior.scene.time = '00:00';
+    i.prior.scene.clock = 0;
+    i.userInput = 'I stay quiet beside Mara, tired but alert, thinking that I should watch the door.';
+    const invalid = candidate();
+    invalid.state.present = [{ id: 'Mara', thought: 'I should wait.' }];
+    const initialGenerate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(invalid) });
+    const first = await compileState(i, null, undefined, initialGenerate, { sectioned: true });
+    expect(first.ok).toBe(false);
+    if (first.ok) return;
+    expect(compilerSectionsForErrors(first.errors)).toEqual(['core']);
+
+    const corrected = candidate();
+    corrected.state.present.find(row => row.id === 'Player')!.mood = 'alert';
+    corrected.state.present.find(row => row.id === 'Player')!.doing = 'staying quiet beside Mara';
+    corrected.state.present.find(row => row.id === 'Player')!.condition = 'tired';
+    corrected.state.present.find(row => row.id === 'Player')!.thought = 'I should watch the door.';
+    corrected.state.present.find(row => row.id === 'Player')!.traits = ['watchful'];
+    const repairGenerate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(corrected) });
+    const repaired = await repairCompilation(i, first.draft, first.errors, null, undefined, repairGenerate, { attempt: 2 });
+    expect(repaired).toMatchObject({ ok: true });
+    expect(repairGenerate).toHaveBeenCalledTimes(1);
+    const messages = repairGenerate.mock.calls[0]![0];
+    expect(messages[0].content).toContain('accepted sections are immutable');
+    const context = JSON.parse(messages[1].content);
+    expect(context.section).toBe('core');
+    expect(context.sectionBase.state).not.toHaveProperty('delta');
+    expect(context.sectionBase).not.toHaveProperty('parallelOps');
+  });
+
+  it('resumes from the failed section without regenerating completed earlier sections', async () => {
+    const initialGenerate = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: JSON.stringify(candidate()) })
+      .mockResolvedValueOnce({ ok: false, error: 'timeout' });
+    const first = await compileState(input(), null, undefined, initialGenerate, { sectioned: true });
+    expect(first.ok).toBe(false);
+    expect(initialGenerate).toHaveBeenCalledTimes(2);
+    if (first.ok) return;
+
+    const repairGenerate = vi.fn().mockResolvedValue({ ok: true, value: JSON.stringify(candidate()) });
+    const repaired = await repairCompilation(input(), first.draft, first.errors, null, undefined, repairGenerate);
+    expect(repaired.ok).toBe(true);
+    expect(repairGenerate).toHaveBeenCalledTimes(3);
+    const systems = repairGenerate.mock.calls.map(call => String(call[0][0].content));
+    expect(systems.some(system => system.includes('SECTION core owns'))).toBe(false);
+    expect(systems).toEqual(expect.arrayContaining([
+      expect.stringContaining('SECTION story owns'),
+      expect.stringContaining('SECTION extensions owns'),
+      expect.stringContaining('SECTION world owns'),
+    ]));
   });
 });

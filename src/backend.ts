@@ -858,12 +858,12 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
             userId,
             compilerRoute.resolvedConnectionId,
             internalGenerate,
-            { ...(engineRun ? { onProgress: engineRun.report } : {}), attempt: 1, signal: compilerAbort.signal, generation: { maxTokens: compilerTuning.maxTokens, timeoutMs: compilerTuning.timeoutMs, temperature: compilerTuning.temperature, reasoning: compilerTuning.reasoning, schema: compilerTuning.schema } },
+            { ...(engineRun ? { onProgress: engineRun.report } : {}), attempt: 1, sectioned: true, signal: compilerAbort.signal, generation: { maxTokens: compilerTuning.maxTokens, timeoutMs: compilerTuning.timeoutMs, temperature: compilerTuning.temperature, reasoning: compilerTuning.reasoning, schema: compilerTuning.schema } },
           );
         }
-        // Any further model call is an error-directed regeneration expressed as
-        // a bounded patch against canonical prior state. The rejected document
-        // is diagnostic only and never becomes repair truth.
+        // Any further model call is error-directed. Sectioned drafts regenerate
+        // only failed/uncompleted branches; legacy drafts use a bounded patch
+        // against canonical prior state. Rejected claims never become truth.
         if (!compiled.ok && !compilerAbort.signal.aborted) {
           const repairRoute = manualRepair ? compilerRoute : await taskRoute(chatId, userId, 'engineRetry');
           const repairTuning = routedParams(repairRoute, { maxTokens: ENGINE_OUTPUT_TOKENS[compilerContract], timeoutMs: ENGINE_TIMEOUT_MS[compilerContract], temperature: 0 });
@@ -1917,19 +1917,21 @@ function beginEngineRun(chatId: string, userId: string | null, turn: number): {
   };
   let pending = '';
   let pendingAttempt = 1;
+  let pendingSection: CompilerProgress['section'];
   let timer: ReturnType<typeof setTimeout> | null = null;
   let closed = false;
   const flushPending = (): void => {
     if (timer) { clearTimeout(timer); timer = null; }
     if (!pending) return;
-    sendStream({ event: 'chunk', status: 'chunk', attempt: pendingAttempt, delta: pending });
+    sendStream({ event: 'chunk', status: 'chunk', attempt: pendingAttempt, ...(pendingSection ? { section: pendingSection } : {}), delta: pending });
     pending = '';
   };
   const report = (update: CompilerProgress): void => {
     if (closed) return;
     if (update.status === 'chunk' && update.delta) {
-      if (pending && pendingAttempt !== update.attempt) flushPending();
+      if (pending && (pendingAttempt !== update.attempt || pendingSection !== update.section)) flushPending();
       pendingAttempt = update.attempt;
+      pendingSection = update.section;
       pending += update.delta;
       if (pending.length >= 240) flushPending();
       else if (!timer) timer = setTimeout(flushPending, 50);
@@ -3019,7 +3021,7 @@ const dispatch: Record<string, Handler> = {
           report('Compiling evidence', turnNo - 1, turns.length, `Reconciling turn ${turnNo} against prior state and attached canon.`);
           const routeIds = [route.resolvedConnectionId, ...(route.fallbackIds ?? [])].filter((id): id is string => !!id);
           for (let attempt = 0; attempt < Math.max(1, tuning.retries + 1) && !abort.signal.aborted; attempt++) {
-            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, characterName: names.char, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: reconstructionParallelMode, agency, personaState: personaStateOn, evidenceMode: engineEvidenceMode, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
+            const compiled = await compileState({ prior: structuredClone(prior), turn: turnNo, prose, userInput, userName: names.user, characterName: names.char, genesisAllowed: !prior.genesisTurn && /\(\(worldgen\)\)/i.test(userInput), verbosity: 'full', codexAllowed: contract?.codex ?? true, inventoryAllowed: contract?.inventory ?? true, livingWorld: reconstructionParallelMode, agency, personaState: personaStateOn, evidenceMode: engineEvidenceMode, lorebookCanon }, uid, routeIds[Math.min(attempt, routeIds.length - 1)] ?? route.resolvedConnectionId, internalGenerate, { sectioned: true, signal: abort.signal, generation: { maxTokens: tuning.maxTokens, timeoutMs: tuning.timeoutMs, temperature: tuning.temperature, reasoning: tuning.reasoning, schema: tuning.schema } });
             if (compiled.ok) { foldContent = prose + '\n' + compiled.block; compiledOk = true; break; }
           }
         }
