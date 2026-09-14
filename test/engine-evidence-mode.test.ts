@@ -251,6 +251,41 @@ describe('Engine Pass evidence mode', () => {
     expect((r.candidate.state.ext as any).parallelOps).toBeUndefined();
   });
 
+  it('salvages valid Sandbox floors before enforcing their final cardinality', () => {
+    const i = input();
+    i.evidenceMode = 'none'; i.argent = true; i.livingWorld = 'sandbox'; i.codexAllowed = false;
+    i.prior.threads = [{ id: 'thr_existing', name: 'Existing plot', status: 'open', beats: [], firstTurn: 1, lastTurn: 1 }];
+    i.prior.locations = [{ id: 'courtyard', name: 'Courtyard', source: 'user', firstTurn: 1, lastTurn: 1 }];
+    for (const [id, actorName] of [['ada', 'Ada'], ['spike', 'Spike'], ['iris', 'Iris'], ['jules', 'Jules']] as const) {
+      i.prior.cast[id] = { ...i.prior.cast.ada!, id, name: actorName, status: 'active', lastLocation: 'Courtyard', lastLocationTurn: 1 };
+    }
+    const subplot = (id: string, who: string, gist: string, impact: string) => ({
+      op: 'new' as const, id, name: `${who} watch`, who, where: 'Courtyard', gist,
+      beatKind: 'progress' as const, impact,
+      grounding: { basis: ['character', 'location'] as const, rationale: `${who} is a living established NPC acting at the established Courtyard.` },
+    });
+    const raw = candidate();
+    raw.state.delta.offscreen = [
+      subplot('ada_watch', 'Ada', 'patrols the gate', 'Ada can intercept the next courier before the archive is reached.'),
+      subplot('spike_watch', 'Spike', 'checks the doors', 'Spike can discover which entrance was disturbed before anyone returns.'),
+    ];
+    raw.state.ext.codex = [{ op: 'add', fact: 'This row is deliberately disabled.' }];
+    raw.parallelOps = [
+      { op: 'advance', who: 'Ada', where: 'Courtyard', activity: 'patrols the gate' },
+      { op: 'start', who: 'Spike', where: 'Courtyard', activity: 'checks the doors' },
+      { op: 'start', who: 'Iris', where: 'Courtyard', activity: 'counts the lanterns' },
+      { op: 'start', who: 'Jules', where: 'Courtyard', activity: 'secures the side gate' },
+    ];
+
+    const r = salvageCompilation(raw, i);
+
+    expect(r.ok, JSON.stringify(r, null, 2)).toBe(true);
+    if (!r.ok) return;
+    expect(r.candidate.state.delta.offscreen).toHaveLength(2);
+    expect(r.candidate.parallelOps).toHaveLength(4);
+    expect(r.recovered).toContain('ext.codex.0');
+  });
+
   it('reports a salvaged opening row rejection before the downstream ARGENT count error', async () => {
     const i = input(); i.evidenceMode = 'none'; i.argent = true;
     i.prose = 'Mara claws free of the grave and grips Gabriel\'s hand, alive but disoriented and uncertain why she returned. Player stays quiet.';

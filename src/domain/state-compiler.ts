@@ -1774,8 +1774,22 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     parallelReviewed: input.prior.parallel.filter(row => row.who).map(row => input.prior.cast[canonId(row.who!)]?.name ?? row.who!),
     evidence: coreEvidence, trackEvidence: [], genesis: false,
   };
-  const core = validateCompilation(structuredClone(accepted), input);
-  if (!core.ok) return { ok: false, errors: [...new Set([...direct.errors, ...core.errors])].slice(0, 50) };
+  // Salvage is deliberately incremental, while ARGENT requirements describe
+  // the completed candidate. An empty core cannot yet meet an opening-plot or
+  // Sandbox floor, and a single valid subplot/parallel row cannot meet a
+  // multi-row floor by itself. Treat only those final-cardinality errors as
+  // provisional while rebuilding; every semantic error remains binding, and
+  // the final validation below still enforces the full ARGENT contract.
+  const provisionalErrors = (candidate: StateCandidate, errors: readonly string[]): string[] => {
+    const requirements = new Set(argentRequirementErrors(candidate, input));
+    return errors.filter(error => !requirements.has(error));
+  };
+  const coreCandidate = structuredClone(accepted);
+  const core = validateCompilation(coreCandidate, input);
+  if (!core.ok) {
+    const substantive = provisionalErrors(coreCandidate, core.errors);
+    if (substantive.length) return { ok: false, errors: [...new Set([...direct.errors, ...substantive])].slice(0, 50) };
+  }
 
   const dropped: string[] = [];
   const suggestions: CompilationSuggestion[] = [];
@@ -1784,7 +1798,9 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     build(trial);
     const checked = validateCompilation(trial, input);
     if (checked.ok) { accepted = trial; return { ok: true }; }
-    return { ok: false, errors: checked.errors };
+    const substantive = provisionalErrors(trial, checked.errors);
+    if (!substantive.length) { accepted = trial; return { ok: true }; }
+    return { ok: false, errors: substantive };
   };
   const tryCandidate = (label: string, build: (candidate: StateCandidate) => void, suggestion?: Omit<CompilationSuggestion, 'id' | 'reason'>): boolean => {
     const result = attemptCandidate(build);
