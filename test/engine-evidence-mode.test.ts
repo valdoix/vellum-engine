@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { validateCompilation, salvageCompilation, compilerProviderSchema, type CompilerInput, type StateCandidate } from '../src/domain/state-compiler.js';
-import { compileState, compilerContext } from '../src/bus/state-compiler.js';
+import { compileState, compilerContext, repairCompilation } from '../src/bus/state-compiler.js';
 import { freshState } from '../src/domain/types.js';
 
 // Same-day clock fixture: a small forward tick the deterministic floor can infer
@@ -144,17 +144,39 @@ describe('Engine Pass evidence mode', () => {
     expect(system).toContain('EVIDENCE MODE — NONE');
     expect(system).toContain('plot mutations belong in state.delta as {op,id,name,note,arc}');
     expect(system).toContain('never put offscreen or parallelOps inside state.ext');
+    expect(system).toContain('ENGINE PASS TRAINING — NO-EVIDENCE MODE');
+    expect(system).toContain('There is deliberately no evidence array, no trackEvidence array, and no row evidence field.');
+    expect(system).not.toContain('ENGINE PASS TRAINING — EVIDENCE MODE');
     const user = JSON.parse(captured[1].content);
     expect(user.evidencePolicy.mode).toBe('none');
   });
 
-  it('default compileState does not emit the no-evidence directive', async () => {
+  it('default compileState emits evidence training but not the no-evidence directive', async () => {
     const i = input();
     let captured: any = null;
     const generate = vi.fn(async (messages: any[]) => { captured = messages; return { ok: true, value: JSON.stringify(candidate()) }; });
     await compileState(i, null, undefined, generate as any);
     const system = captured[0].content as string;
     expect(system).not.toContain('EVIDENCE MODE — NONE');
+    expect(system).toContain('ENGINE PASS TRAINING — EVIDENCE MODE');
+    expect(system).toContain('Each trackEvidence.after exactly equals that row\'s note.');
+    expect(system).not.toContain('ENGINE PASS TRAINING — NO-EVIDENCE MODE');
+  });
+
+  it.each([
+    ['evidence', 'ENGINE PASS TRAINING — EVIDENCE MODE'],
+    ['none', 'ENGINE PASS TRAINING — NO-EVIDENCE MODE'],
+  ] as const)('repair prompt retains the %s-mode training example', async (evidenceMode, marker) => {
+    const i = input(); i.evidenceMode = evidenceMode;
+    let captured: any = null;
+    const generate = vi.fn(async (messages: any[]) => {
+      captured = messages;
+      return { ok: true, value: JSON.stringify({ patch: {} }) };
+    });
+    await repairCompilation(i, candidate(), ['manufactured failure'], null, undefined, generate as any);
+    const system = captured[0].content as string;
+    expect(system).toContain(marker);
+    expect(system).toContain('RFC 7396 JSON Merge Patch');
   });
 
   it('no-evidence mode corrects status:"active" on an opening thread to op:"new" for ARGENT', () => {
