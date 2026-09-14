@@ -196,8 +196,103 @@ describe('subplot causal proof', () => {
     const prior = { id: 'wardrobe', name: 'Dawn wardrobe', status: 'active', who: 'xander', where: "Dawn's home", gist: 'measures the alcove for a wardrobe', beats: ['measures the alcove for a wardrobe'], firstTurn: 1, lastTurn: 1 } as any;
     expect(subplotProofSufficient({
       op: 'advance', id: 'wardrobe', gist: 'measuring the alcove for the wardrobe', beatKind: 'progress',
-      impact: 'The wardrobe will conceal Dawn’s letters and change what visitors can discover.',
+      impact: 'The wardrobe will conceal Dawn\'s letters and change what visitors can discover.',
       grounding: { basis: ['subplot'], rationale: 'The current beat is claimed as progress on the established wardrobe project.', before: 'measures the alcove for a wardrobe', after: 'measuring the alcove for the wardrobe' },
+    }, prior)).toBe(false);
+  });
+
+  it('accepts an advance when grounding.before matches a prior beat instead of gist', () => {
+    const prior = {
+      id: 'hellions_smash_the_bot', name: 'Hellion Bot Smash', status: 'active',
+      who: 'hellion_bikers', where: 'Sunnydale streets',
+      gist: 'The Hellion biker gang catches and destroys the Buffybot during the rampage, ending the illusion that the Slayer still patrols Sunnydale.',
+      beats: [
+        'Hellion bikers arrived at the cemetery to disrupt the resurrection ritual',
+        'The Hellion biker gang catches and destroys the Buffybot during the rampage',
+      ],
+      firstTurn: 1, lastTurn: 2,
+    } as any;
+    expect(subplotProofSufficient({
+      op: 'advance', id: 'hellions_smash_the_bot',
+      gist: 'Hellions parade Buffybot parts through the streets, drawing more demons to Sunnydale',
+      beatKind: 'consequence',
+      impact: 'The visible destruction of the Slayer decoy emboldens demon factions and weakens Sunnydale\'s defensive bluff.',
+      grounding: {
+        basis: ['subplot', 'location'],
+        rationale: 'The Hellions destroyed the Buffybot during the rampage; parading its parts is a plausible next escalation.',
+        refs: ['hellions_smash_the_bot'],
+        before: 'Hellion bikers arrived at the cemetery to disrupt the resurrection ritual',
+        after: 'Hellions parade Buffybot parts through the streets, drawing more demons to Sunnydale',
+      },
+    }, prior)).toBe(true);
+  });
+
+  it('accepts an advance when grounding.before paraphrases the subplot name', () => {
+    const prior = {
+      id: 'spike_guards_dawn', name: 'Spike Guards Dawn', status: 'active',
+      who: 'spike', where: 'Summers home',
+      gist: 'Spike fulfills his promise to protect Dawn during the Hellion raid.',
+      beats: ['Spike guards Dawn under the Buffybot-assisted household arrangement'],
+      firstTurn: 1, lastTurn: 2,
+    } as any;
+    expect(subplotProofSufficient({
+      op: 'advance', id: 'spike_guards_dawn',
+      gist: 'Spike barricades the house after hearing distant explosions, keeping Dawn inside',
+      beatKind: 'progress',
+      impact: 'Dawn remains safe but isolated; Spike commits to a defensive posture that limits his options.',
+      grounding: {
+        basis: ['subplot', 'character'],
+        rationale: 'Spike promised to protect Dawn and is at the Summers home; barricading after hearing danger is in-character.',
+        refs: ['spike_guards_dawn'],
+        before: 'Spike guards Dawn at the Summers home',
+        after: 'Spike barricades the house after hearing distant explosions, keeping Dawn inside',
+      },
+    }, prior)).toBe(true);
+  });
+
+  it('accepts an advance when grounding.before describes actor+place context', () => {
+    const prior = {
+      id: 'willow_research', name: "Willow's Dark Research", status: 'active',
+      who: 'willow_rosenberg', where: 'Magic Box',
+      gist: 'Willow searches for a counter-ritual in the restricted section of the Magic Box.',
+      beats: ['Willow begins consulting restricted texts at the Magic Box'],
+      firstTurn: 3, lastTurn: 4,
+    } as any;
+    expect(subplotProofSufficient({
+      op: 'advance', id: 'willow_research',
+      gist: 'Willow discovers a dangerous amplification spell that could reverse the resurrection side effects',
+      beatKind: 'progress',
+      impact: 'A new magical option opens but carries serious risk of dark magic corruption.',
+      grounding: {
+        basis: ['subplot', 'character', 'location'],
+        rationale: 'Willow is an experienced witch at the Magic Box with access to restricted texts.',
+        refs: ['willow_research'],
+        before: 'Willow Rosenberg researches at the Magic Box',
+        after: 'Willow discovers a dangerous amplification spell that could reverse the resurrection side effects',
+      },
+    }, prior)).toBe(true);
+  });
+
+  it('still rejects an advance with completely unrelated grounding.before', () => {
+    const prior = {
+      id: 'hellions_smash_the_bot', name: 'Hellion Bot Smash', status: 'active',
+      who: 'hellion_bikers', where: 'Sunnydale streets',
+      gist: 'The Hellion biker gang catches and destroys the Buffybot.',
+      beats: ['The Hellion biker gang catches and destroys the Buffybot'],
+      firstTurn: 1, lastTurn: 2,
+    } as any;
+    expect(subplotProofSufficient({
+      op: 'advance', id: 'hellions_smash_the_bot',
+      gist: 'Hellions parade Buffybot parts through the streets',
+      beatKind: 'consequence',
+      impact: 'The destruction emboldens demon factions.',
+      grounding: {
+        basis: ['subplot'],
+        rationale: 'The destruction is a consequence.',
+        refs: ['hellions_smash_the_bot'],
+        before: 'The weather is nice in Sunnydale today and birds are singing',
+        after: 'Hellions parade Buffybot parts through the streets',
+      },
     }, prior)).toBe(false);
   });
 });

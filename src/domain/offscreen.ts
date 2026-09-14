@@ -577,8 +577,29 @@ export function subplotProofSufficient(
   const priorPhysical = derivedForegroundBridge && namesPrior && prior.beats.length > 1
     ? prior.beats[prior.beats.length - 2]
     : undefined;
-  const beforeMatches = transitionMatches(prior.gist, row.grounding.before)
-    || (!!priorPhysical && namesPrior);
+  // Primary: the model paraphrases the subplot's current gist as `before`.
+    const suppliedBefore = row.grounding?.before;
+    const beforeMatchesGist = transitionMatches(prior.gist, suppliedBefore);
+    // Fallback 1: the model wrote the world-state before the subplot's creation
+    // or paraphrased an earlier beat. Accept any prior beat as a valid anchor.
+    const beforeMatchesBeat = !beforeMatchesGist && prior.beats.length > 0
+      && prior.beats.some(beat => transitionMatches(beat, suppliedBefore));
+    // Fallback 2: the model described the subplot by name/title rather than
+    // paraphrasing the gist. Common when inline models don't have exact stored
+    // text and instead reference the subplot's identity.
+    const beforeMatchesName = !beforeMatchesGist && !beforeMatchesBeat
+      && transitionMatches(prior.name, suppliedBefore);
+    // Fallback 3: the model described the actor + place combination as the
+    // before-state. Inline models often write "X does Y at Z" rather than
+    // quoting the stored gist verbatim.
+    const beforeMatchesContext = !beforeMatchesGist && !beforeMatchesBeat && !beforeMatchesName
+      && !!prior.who && !!prior.where
+      && !!suppliedBefore?.trim()
+      && (suppliedBefore.toLocaleLowerCase().includes(prior.who.toLocaleLowerCase())
+        || suppliedBefore.toLocaleLowerCase().includes((prior.who ?? '').split('_').join(' ').toLocaleLowerCase()))
+      && suppliedBefore.toLocaleLowerCase().includes(prior.where.toLocaleLowerCase().slice(0, Math.max(4, prior.where.length - 3)));
+    const beforeMatches = beforeMatchesGist || beforeMatchesBeat || beforeMatchesName || beforeMatchesContext
+      || (!!priorPhysical && namesPrior);
   const afterOverlap = row.gist && after
     ? [...factTokens(row.gist)].filter(token => factTokens(after).has(token)).length
     : 0;
