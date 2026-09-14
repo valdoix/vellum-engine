@@ -652,7 +652,17 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       let ot = list.find((o) => o.id === e.id);
       // Capture the prior anonymous projection before mutation so an advance or
       // resolution can replace/remove exactly that Elsewhere row.
-      const priorAnon = ot && !ot.who ? { where: ot.where, activity: ot.gist } : undefined;
+      const priorAnon = ot && !ot.who ? {
+        where: ot.where,
+        activities: new Set([
+          ot.gist,
+          ...(ot.beatKind === 'bridge'
+            && ot.grounding?.rationale === 'The foreground scene directly changed the plot thread linked to this subplot.'
+            && ot.beats.length > 1
+            ? [ot.beats[ot.beats.length - 2]!]
+            : []),
+        ].filter(Boolean)),
+      } : undefined;
       if (!ot) {
         if (e.op === 'resolve') break; // nothing to resolve
         ot = { id: e.id, name: e.name || e.id, status: 'active', gist: e.gist ?? '', beats: [], firstTurn: e.turn, lastTurn: e.turn, ...(e.who ? { who: e.who } : {}), ...(e.where ? { where: e.where } : {}), ...(e.thread ? { thread: e.thread } : {}) };
@@ -719,7 +729,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       } else {
         if (priorAnon) {
           s.parallel = s.parallel.filter(row => row.who
-            || row.activity !== priorAnon.activity
+            || !priorAnon.activities.has(row.activity)
             || String(row.where ?? '') !== String(priorAnon.where ?? ''));
         }
         if (ot.status === 'active' && ot.gist) {

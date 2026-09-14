@@ -412,8 +412,18 @@ export const coreFeature: Feature = {
     // threads + arcs. A strict compiler candidate has already passed the richer
     // before/evidence/after proof gate, so it must not be silently rejected by
     // the older token-overlap backstop used for untrusted inline blocks.
-    const threadRows = parsed.delta?.threads ?? [];
-    const explicitArcRows = parsed.delta?.arcs ?? [];
+    const suppliedThreadRows = parsed.delta?.threads ?? [];
+    // A common inline drift puts an existing parent arc back into threads[] and
+    // even self-links it with arc:"same title". Reclassify only the unambiguous
+    // case: the exact title exists as an arc and does not exist as a thread.
+    // This preserves the strict no-title-guessing gate while preventing a real
+    // arc update from being silently discarded.
+    const misplacedArcRows = suppliedThreadRows.filter(row =>
+      !ctx.state.threads.some(track => plotTitleKey(track.name) === plotTitleKey(row.name))
+      && ctx.state.arcs.some(track => plotTitleKey(track.name) === plotTitleKey(row.name)));
+    const misplacedArcSet = new Set(misplacedArcRows);
+    const threadRows = suppliedThreadRows.filter(row => !misplacedArcSet.has(row));
+    const explicitArcRows = [...(parsed.delta?.arcs ?? []), ...misplacedArcRows];
     const acceptedThreads = ctx.validatedCompiler
       ? threadRows
       : threadRows.filter(row => {
@@ -453,6 +463,7 @@ export const coreFeature: Feature = {
     for (const a of acceptedArcs) {
       out.push({ ...base(), kind: 'arc.op', op: a.op, name: a.name, ...(a.note ? { note: a.note } : {}), ...(a.milestone ? { milestone: a.milestone } : {}), ...(a.dependsOn !== undefined ? { dependsOn: a.dependsOn } : {}), ...(a.blockedBy !== undefined ? { blockedBy: a.blockedBy } : {}), ...(a.deadlineDay !== undefined ? { deadlineDay: a.deadlineDay } : {}), ...(a.deadlineClock !== undefined ? { deadlineClock: a.deadlineClock } : {}) } as VellumEvent);
     }
+    const explicitSubplotIds = new Set((parsed.delta?.offscreen ?? []).map(row => row.id));
     for (const t of acceptedThreads) {
       out.push({ ...base(), kind: 'thread.op', op: t.op, name: t.name, ...(t.note ? { note: t.note } : {}), ...(t.milestone ? { milestone: t.milestone } : {}), ...(t.dependsOn !== undefined ? { dependsOn: t.dependsOn } : {}), ...(t.blockedBy !== undefined ? { blockedBy: t.blockedBy } : {}), ...(t.deadlineDay !== undefined ? { deadlineDay: t.deadlineDay } : {}), ...(t.deadlineClock !== undefined ? { deadlineClock: t.deadlineClock } : {}) } as VellumEvent);
       const parentArc = resolveRef(arcRefs, t.arc);
@@ -465,7 +476,16 @@ export const coreFeature: Feature = {
       // has already reached the visible story.
       const tracked = ctx.state.threads.find(row => row.id === t.id || plotTitleKey(row.name) === plotTitleKey(t.name));
       if (tracked && t.note) {
-        for (const subplot of ctx.state.offscreen.filter(row => row.status === 'active' && threadOffscreenLink(tracked.name, row, tracked.id))) {
+        for (const subplot of ctx.state.offscreen.filter(row => row.status === 'active'
+          && !explicitSubplotIds.has(row.id)
+          && threadOffscreenLink(tracked.name, row, tracked.id))) {
+          // Exact links establish ownership, not that every foreground beat is
+          // also the subplot's newest physical condition. Auto-bridge only a
+          // meaningfully named subplot whose own title intersects this beat;
+          // id-shaped placeholder names cannot authorize copying one generic
+          // foreground summary into several unrelated off-screen rows.
+          if (subplot.name === subplot.id
+            || !plotSetsOverlap(inlinePlotTokens(subplot.name, ctx.state), inlinePlotTokens(t.note, ctx.state))) continue;
           out.push({
             ...base(), kind: 'offscreen.op', op: t.op === 'resolve' ? 'resolve' : 'advance', id: subplot.id,
             gist: t.note, thread: tracked.id, beatKind: t.op === 'resolve' ? 'resolution' : 'bridge',

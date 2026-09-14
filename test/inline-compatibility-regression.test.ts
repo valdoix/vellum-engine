@@ -9,6 +9,26 @@ import { DEFAULT_TONE } from '../src/domain/tone.js';
 const wrap = (value: unknown): string => `<vellum>${JSON.stringify(value)}</vellum>`;
 
 describe('inline VELLUM compatibility normalization', () => {
+  it('hoists a misplaced delta.ext payload and preserves snapshot-style possession verbs', () => {
+    const parsed = parseState(wrap({
+      day: 0,
+      delta: {
+        threads: [{ op: 'advance', name: 'The Return', note: 'The survivor reaches the surface.' }],
+        ext: {
+          inventory: [{ who: 'Buffy Summers', item: 'a gold necklace', op: 'hold', note: 'held through the fight' }],
+          affect: [{ who: 'Buffy Summers', valence: 'positive', arousal: 6, control: 3, cause: 'someone kept a promise' }],
+        },
+      },
+    }));
+
+    expect(parsed.source).toBe('json');
+    expect(parsed.state?.ext).toMatchObject({
+      inventory: [{ who: 'Buffy Summers', item: 'a gold necklace', op: 'note', note: 'held through the fight' }],
+      affect: [{ who: 'Buffy Summers', valence: 1, arousal: 2, control: 2, direction: 'someone kept a promise' }],
+    });
+    expect((parsed.state?.delta as Record<string, unknown>)?.ext).toBeUndefined();
+  });
+
   it('unwraps an Engine-shaped inline state envelope so plot rows reach the extension', () => {
     const parsed = parseState(wrap({ output: { state: {
       scene: { loc: 'Observatory', time: '03:05', clock: 185 },
@@ -256,6 +276,69 @@ describe('inline VELLUM compatibility normalization', () => {
     expect(next.offscreen).toEqual([expect.objectContaining({ id: 'east_gate_search', thread: thread.id })]);
   });
 
+  it('reclassifies an exact existing arc misplaced in threads and lets explicit subplot state outrank an automatic bridge', () => {
+    const state = freshState();
+    state.cast.buffy_summers = {
+      id: 'buffy_summers', name: 'Buffy Summers', aka: [], status: 'active', source: 'auto',
+      firstTurn: 1, lastTurn: 3, traits: [], userEdited: false,
+    } as any;
+    state.threads = [{
+      id: 'thr_buffy_s_resurrection', name: "Buffy's Resurrection", status: 'Buffy is alive but in danger.',
+      beats: ['Buffy is alive but in danger.'], firstTurn: 1, lastTurn: 3, arc: 'arc_buffy_returns',
+    } as any];
+    state.arcs = [{
+      id: 'arc_buffy_returns', name: 'Buffy Returns', status: 'Buffy is alive and disoriented.',
+      beats: ['Buffy is alive and disoriented.'], firstTurn: 1, lastTurn: 3,
+    } as any];
+    state.offscreen = [
+      {
+        id: 'hellion_raid', name: 'hellion_raid', status: 'active',
+        gist: 'Buffy is alive but in danger.', beats: ['Hellions are closing on the cemetery.', 'Buffy is alive but in danger.'],
+        firstTurn: 1, lastTurn: 3, where: 'Sunnydale', thread: 'thr_buffy_s_resurrection', beatKind: 'bridge',
+        grounding: { basis: ['scene', 'subplot'], rationale: 'The foreground scene directly changed the plot thread linked to this subplot.', before: 'Hellions are closing on the cemetery.', after: 'Buffy is alive but in danger.' },
+      },
+      {
+        id: 'scoobies_fleeing', name: 'scoobies_fleeing', status: 'active',
+        gist: 'The Scoobies are fleeing and believe the ritual failed.', beats: ['The Scoobies are fleeing and believe the ritual failed.'],
+        firstTurn: 1, lastTurn: 3, where: 'Sunnydale streets', thread: 'thr_buffy_s_resurrection',
+      },
+    ] as any;
+    state.parallel = [
+      { where: 'Sunnydale', activity: 'Hellions are closing on the cemetery.', turn: 3, day: 0 },
+      { where: 'Sunnydale', activity: 'Buffy is alive but in danger.', turn: 3, day: 0 },
+    ];
+    const prose = 'Gabriel kills the cemetery Hellions, ending Buffy\'s immediate danger. Her disorientation begins to lift as she reconnects with the present.';
+    const parsed = parseState(wrap({ delta: {
+      threads: [
+        { op: 'advance', name: "Buffy's Resurrection", note: 'Buffy\'s immediate danger changes when Gabriel kills the cemetery Hellions.', arc: 'Buffy Returns' },
+        { op: 'advance', name: 'Buffy Returns', note: 'Buffy\'s disorientation begins to lift as she reconnects with the present.', arc: 'Buffy Returns' },
+      ],
+      offscreen: [{
+        op: 'advance', id: 'hellion_raid', who: 'Hellion biker gang', where: 'Sunnydale — multiple locations',
+        gist: 'A Hellion pack at the cemetery was killed while the wider raid continues across Sunnydale.', thread: "Buffy's Resurrection",
+        beatKind: 'consequence', impact: 'The cemetery is safer but the rest of Sunnydale remains under attack.',
+        grounding: { basis: ['scene'], rationale: 'The visible fight destroys the local pack.', refs: ['hellion_raid'], before: 'Hellions are closing on the cemetery.', after: 'Cemetery pack destroyed; wider raid continues.' },
+      }],
+    } })).state!;
+    let sequence = 0;
+    const events = coreFeature.extract!(parsed, {
+      turn: 4, day: 0, state, prose, livingWorld: 'active', seq: () => ++sequence,
+    } as ExtractCtx);
+
+    expect(events).toContainEqual(expect.objectContaining({ kind: 'arc.op', name: 'Buffy Returns', op: 'advance' }));
+    expect(events.filter(event => event.kind === 'offscreen.op' && event.id === 'hellion_raid')).toEqual([
+      expect.objectContaining({ where: 'Sunnydale', gist: 'A Hellion pack at the cemetery was killed while the wider raid continues across Sunnydale.' }),
+    ]);
+    expect(events.some(event => event.kind === 'offscreen.op' && event.id === 'scoobies_fleeing')).toBe(false);
+    const next = reduce(events, structuredClone(state));
+    const worldActivity = next.parallel.filter(row => !row.who).map(row => row.activity);
+    expect(worldActivity).toEqual(expect.arrayContaining([
+      'A Hellion pack at the cemetery was killed while the wider raid continues across Sunnydale.',
+    ]));
+    expect(worldActivity).not.toContain('Hellions are closing on the cemetery.');
+    expect(worldActivity).not.toContain('Buffy is alive but in danger.');
+  });
+
   it('creates an explicitly named parent arc when an inline child omits the redundant arc row', () => {
     const state = freshState();
     const prose = 'The sealed letter orders Mara to choose an heir before dawn.';
@@ -306,6 +389,32 @@ describe('inline VELLUM compatibility normalization', () => {
       turn: 2, day: 0, state, prose: 'Buffy checks the books at the Magic Box.', livingWorld: 'active', seq: () => ++sequence,
     } as ExtractCtx), structuredClone(state));
     expect(next.offscreen).toEqual([expect.objectContaining({ id: 'dawn_wardrobe', impact: expect.stringContaining('deliver') })]);
+  });
+
+  it('accepts a grounded nearby address refinement for an existing off-screen actor', () => {
+    const state = freshState();
+    state.cast.spike = {
+      id: 'spike', name: 'Spike', aka: [], status: 'active', source: 'auto',
+      firstTurn: 1, lastTurn: 1, lastLocation: 'Sunnydale streets near Revello Drive', lastLocationTurn: 1,
+      traits: [], userEdited: false,
+    } as any;
+    const parsed = parseState(wrap({ delta: { offscreen: [{
+      op: 'new', id: 'spike_dawn_shelter', who: 'Spike', where: 'Summers residence, 1630 Revello Drive',
+      gist: 'Spike protects Dawn during the Hellion raid.', beatKind: 'obstacle',
+      impact: 'Dawn depends on Spike while the raid threatens their shelter.',
+      grounding: {
+        basis: ['character', 'location'], rationale: 'Spike is guarding Dawn at Revello Drive during the raid.',
+        refs: ['Spike guarding Dawn at Revello Drive'], before: 'Spike guarding Dawn near Revello Drive',
+        after: 'Spike and Dawn shelter at the Summers residence on Revello Drive',
+      },
+    }] } })).state!;
+    let sequence = 0;
+    const events = coreFeature.extract!(parsed, {
+      turn: 2, day: 0, state, prose: '', livingWorld: 'sandbox', seq: () => ++sequence,
+    } as ExtractCtx);
+    expect(events).toContainEqual(expect.objectContaining({
+      kind: 'offscreen.op', id: 'spike_dawn_shelter', who: 'spike', where: 'Summers residence, 1630 Revello Drive',
+    }));
   });
 
   it('materializes generated resurrection tracks and grounded subplots despite inflection, collective actors, and reordered places', () => {

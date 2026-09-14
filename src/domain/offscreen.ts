@@ -556,11 +556,42 @@ export function subplotProofSufficient(
     const placeBasis = !row.where || row.grounding.basis.some(value => ['scene', 'location', 'lorebook', 'parallel'].includes(value));
     return actorBasis && placeBasis;
   }
-  if (!prior || !row.grounding.basis.includes('subplot')) return false;
+  // Resolving the exact stable id to a prior row is itself the subplot anchor.
+  // Compatible inline models often list the concrete character/location/lore
+  // bases but omit the redundant literal "subplot" category; do not discard an
+  // otherwise complete before -> after proof for that presentation drift.
+  if (!prior) return false;
   const after = row.grounding.after ?? row.gist;
-  if (!transitionMatches(prior.gist, row.grounding.before) || !transitionMatches(row.gist ?? after, after)) return false;
+  // Older folds could auto-copy one foreground thread summary into every linked
+  // subplot. That synthetic bridge is bookkeeping, not the actor/world line's
+  // physical T0. Let an explicitly id-referenced row repair that known pattern
+  // against the last real beat instead of making the corruption permanently
+  // sticky. No other stale-before mismatch is relaxed.
+  const derivedForegroundBridge = prior.beatKind === 'bridge'
+    && prior.grounding?.rationale === 'The foreground scene directly changed the plot thread linked to this subplot.';
+  const namesPrior = (row.grounding.refs ?? []).some(ref => {
+    const key = ref.trim().toLocaleLowerCase();
+    return key === prior.id.toLocaleLowerCase() || key === prior.name.trim().toLocaleLowerCase();
+  });
+  const priorPhysical = derivedForegroundBridge && namesPrior && prior.beats.length > 1
+    ? prior.beats[prior.beats.length - 2]
+    : undefined;
+  const beforeMatches = transitionMatches(prior.gist, row.grounding.before)
+    || (!!priorPhysical && namesPrior);
+  const afterOverlap = row.gist && after
+    ? [...factTokens(row.gist)].filter(token => factTokens(after).has(token)).length
+    : 0;
+  const afterMatches = transitionMatches(row.gist ?? after, after)
+    || (derivedForegroundBridge && namesPrior && afterOverlap >= 2);
+  if (!beforeMatches || !afterMatches) return false;
   if (row.op === 'resolve') return row.beatKind === 'resolution';
-  if (!row.gist || transitionMatches(prior.gist, row.gist)) return false;
+  const repeatsPhysicalBeat = transitionMatches(priorPhysical ?? prior.gist, row.gist);
+  // A known synthetic foreground bridge may have replaced the durable tail
+  // with unrelated scene text. In that repair case the explicit, id-grounded
+  // row is authoritative even when it summarizes the last real beat while
+  // adding its consequence. Requiring it to be wholly dissimilar would keep
+  // the bad bridge sticky forever.
+  if (!row.gist || (repeatsPhysicalBeat && !(derivedForegroundBridge && namesPrior))) return false;
   return row.beatKind !== 'resolution';
 }
 
@@ -594,6 +625,20 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     const text = ` ${values.flatMap(value => Array.isArray(value) ? value : [value]).map(value => String(value ?? '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')).join(' ')} `;
     return personaLabels.some(label => text.includes(` ${label} `));
   };
+  const groundedNearAnchor = (anchor: string, destination: string, row: ParsedSim['offscreen'][number]): boolean => {
+    if (!row.grounding?.basis.includes('location')) return false;
+    const anchored = new Set(locationKey(anchor).split(/\s+/u).filter(token => token.length >= 4));
+    const destinationTokens = locationKey(destination).split(/\s+/u).filter(token => token.length >= 4);
+    const shared = destinationTokens.filter(token => anchored.has(token));
+    if (shared.length < 2) return false;
+    const proof = factTokens([
+      row.grounding.rationale,
+      ...(row.grounding.refs ?? []),
+      row.grounding.before,
+      row.grounding.after,
+    ].filter(Boolean).join(' '));
+    return shared.every(token => proof.has(token));
+  };
   const threadId = (raw?: string): string | undefined => {
     if (!raw) return undefined;
     const key = raw.trim().toLocaleLowerCase();
@@ -619,7 +664,11 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
       [p.grounding?.rationale, ...(p.grounding?.refs ?? []), p.grounding?.before, p.grounding?.after].filter(Boolean).join(' '),
     )) continue;
     const requestedActor = resolve(p.who);
-    if (p.who && !requestedActor) continue; // closed cast: no simulator-minted people
+    // Closed cast still forbids minting actors on new rows. For an existing
+    // stable subplot id, however, an unresolvable descriptive group label (for
+    // example "Hellion biker gang") must not discard the whole advance: keep
+    // the prior row's canonical actor, or keep it actorless as before.
+    if (p.who && !requestedActor && !prior) continue;
     if (prior?.who && requestedActor && canonId(prior.who) !== requestedActor) continue;
     if (prior && !prior.who && requestedActor) continue;
     const who = prior?.who ? canonId(prior.who) : requestedActor;
@@ -641,9 +690,17 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     if (!opts.validatedCompiler && where && anchor && !sameLocation(anchor.where, where)) {
       const mover = state.cast[who!]?.name ?? who!;
       const moveEvidence = `${mover} ${p.gist ?? ''}`;
-      if (!establishedPlace(where) || !evidenceGroundsMove(state, who!, where, moveEvidence)) continue;
+      const nearbyGrounded = groundedNearAnchor(anchor.where, where, p);
+      if ((!establishedPlace(where) || !evidenceGroundsMove(state, who!, where, moveEvidence)) && !nearbyGrounded) continue;
     } else if (!opts.validatedCompiler && where && prior?.where && !sameLocation(prior.where, where)) {
-      if (!establishedPlace(where) || !evidenceGroundsWorldMove(where, p.gist ?? '')) continue;
+      if (!establishedPlace(where) || !evidenceGroundsWorldMove(where, p.gist ?? '')) {
+        // An unsupported location rewrite should not erase an otherwise valid
+        // advance to an existing actorless/world subplot. Retain its canonical
+        // place; actor movement remains strict because it changes a person's
+        // physical state.
+        if (who) continue;
+        where = prior.where;
+      }
     }
     if (!opts.validatedCompiler && p.where && !anchor && !prior?.where && !establishedPlace(p.where)) where = undefined;
     // stamp THIS subplot's own day when the model reported one (clamped to the

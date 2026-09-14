@@ -638,6 +638,25 @@ function hoistDeltaFields(obj: Record<string, unknown>): void {
   for (const k of keys) {
     if (Array.isArray(obj[k]) && delta[k] === undefined) { delta[k] = obj[k]; delete obj[k]; moved = true; }
   }
+  // Inline models sometimes close the object one brace too late and place the
+  // extension family at delta.ext. Zod deliberately strips unknown delta keys,
+  // which previously made a valid inventory/affect/etc payload disappear while
+  // the rest of the block reported a successful JSON parse. Root ext is the
+  // canonical authority; merge only missing families from the misplaced object.
+  const nestedExtKey = ['ext', 'extensions', 'extension'].find(key => {
+    const value = delta[key];
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+  });
+  if (nestedExtKey) {
+    const nestedExt = delta[nestedExtKey] as Record<string, unknown>;
+    const rootExt = obj.ext && typeof obj.ext === 'object' && !Array.isArray(obj.ext)
+      ? obj.ext as Record<string, unknown>
+      : {};
+    for (const [key, value] of Object.entries(nestedExt)) if (rootExt[key] === undefined) rootExt[key] = value;
+    obj.ext = rootExt;
+    delete delta[nestedExtKey];
+    moved = true;
+  }
   if (moved || obj.delta === undefined) obj.delta = delta;
 }
 
@@ -1136,8 +1155,8 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     if (Number.isFinite(numericValue)) return clamp(numericValue);
     if (kind === 'arousal') return /very high|extreme|overwhelm|shak|panic|furious/.test(text) ? 2 : /low|calm|quiet|settled/.test(text) ? 0 : 1;
     if (kind === 'control') return /controlled|suppressed|contained|mask|restrained/.test(text) ? 2 : /overwhelm|breaking|shattered|uncontrolled/.test(text) ? -1 : 0;
-    const positive = /relief|hope|joy|love|warm|pleas|happy|affection/.test(text);
-    const negative = /fear|fury|anger|grief|pain|shatter|sad|dread|hate/.test(text);
+    const positive = /positive|relief|hope|joy|love|warm|pleas|happy|affection/.test(text);
+    const negative = /negative|fear|fury|anger|grief|pain|shatter|sad|dread|hate/.test(text);
     return positive === negative ? 0 : positive ? 1 : -1;
   };
   for (const row of rows(ext, 'affect')) {
@@ -1166,7 +1185,12 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     adopt(row, 'op', ['action', 'operation']);
     adopt(row, 'to', ['recipient', 'target']);
     const op = str(row.op).toLowerCase();
-    const normalizedOp = ({ add: 'gain', gained: 'gain', acquire: 'gain', remove: 'lose', lost: 'lose', transfer: 'give', move: 'give', present: 'scene', mention: 'note' } as Record<string, string>)[op] ?? op;
+    const normalizedOp = ({
+      add: 'gain', gained: 'gain', acquire: 'gain',
+      remove: 'lose', lost: 'lose', transfer: 'give', move: 'give',
+      present: 'scene', mention: 'note', hold: 'note', held: 'note',
+      carry: 'note', carrying: 'note', possess: 'note', possessed: 'note',
+    } as Record<string, string>)[op] ?? op;
     if (['gain', 'lose', 'give', 'scene', 'note'].includes(normalizedOp)) row.op = normalizedOp;
     else if (op) delete row.op;
   }

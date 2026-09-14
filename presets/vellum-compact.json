@@ -1162,7 +1162,7 @@
       "compactPreset": true,
       "promptTokenCeiling": 5000,
       "sourceHash": "1be5fab0c7b3569714d2f95ec87999e26b2884dde0598063e70b90c353cfd11f",
-      "dependencyHash": "f0270447096fcd885b1a486eddcf095d33c8fe2294aa5a4132c1936cf809c783"
+      "dependencyHash": "4d6170253604bb19da149db5a510680064dfdbf9ddaa69b372afea7cb5250e22"
     }
   }
 }
