@@ -186,6 +186,8 @@ export function migrate(raw: unknown): unknown {
     version = 19;
   }
 
+  // v28 adds structured subplot/projection provenance. It is optional on old
+  // events, so historical logs remain valid and derive it on their next beat.
   // v20 adds state.compiled audit events. Existing events retain their semantics.
   // v21 adds recursive archive coverage proofs, prose-driven Codex refreshes,
   // and a derived item-transfer history. v22 adds book-tier memories above arcs.

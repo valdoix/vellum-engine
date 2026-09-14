@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Category } from '../core/events.js';
 import { SECRET_AUDIENCE_LIMIT } from '../domain/secret-audience.js';
+import { STATE_PROTOCOL_VERSION } from '../domain/state-protocol.js';
 
 /**
  * PARSED STATE — the seam between "how a turn was expressed" (JSON block, ledger
@@ -83,6 +84,7 @@ export const ParsedOffscreen = z.object({
   name: z.string().optional().catch(undefined),
   who: z.string().optional().catch(undefined),
   where: z.string().optional().catch(undefined),
+  locationOp: z.enum(['retain', 'refine', 'move']).optional().catch(undefined),
   gist: z.string(),
   thread: z.string().optional().catch(undefined),
   arc: z.string().optional().catch(undefined),
@@ -201,6 +203,13 @@ export const ParsedState = z.object({
 });
 export type ParsedState = z.infer<typeof ParsedState>;
 
+export const VELLUM_STATE_PROTOCOL_VERSION = STATE_PROTOCOL_VERSION;
+export interface ParseDiagnostic {
+  code: 'protocol_migrated' | 'future_protocol' | 'unknown_field' | 'element_dropped';
+  path: string;
+  message: string;
+}
+
 export interface ParseResult {
   state: ParsedState | null;
   /** how it was parsed, for diagnostics + the live feed. `json-partial` means the
@@ -209,4 +218,6 @@ export interface ParseResult {
   source: 'json' | 'json-partial' | 'regex' | 'none';
   /** for `json-partial`: count of dropped elements per section (e.g. { journal: 1 }) */
   dropped?: Record<string, number>;
+  /** Successful parsing must not conceal migrations or ignored data. */
+  diagnostics?: ParseDiagnostic[];
 }

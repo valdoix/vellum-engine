@@ -1,5 +1,5 @@
 import { parseState, stripScaffold } from '../parse/state-block.js';
-import { runExtractors, type ExtractCtx } from './registry.js';
+import { runExtractorsDetailed, type ExtractCtx, type ExtractionDecision } from './registry.js';
 import { nextSeq } from '../core/ids.js';
 import { hashStr } from '../core/ids.js';
 import { clockTime, elapsedClockFloor, liveTurnClockFloor, reconcileDay, parseClock, rollover, supportsDayAdvance } from '../domain/clock.js';
@@ -26,6 +26,8 @@ export interface FoldResult {
   sig: string;
   /** for `json-partial`: count of dropped elements per section (e.g. { journal: 1 }) */
   dropped?: Record<string, number>;
+  diagnostics?: import('../parse/parsed.js').ParseDiagnostic[];
+  decisions?: ExtractionDecision[];
 }
 
 export function foldTurn(content: string, prior: ChronicleState, turnNo: number, opts?: { tone?: Tone; userCanon?: string; locks?: readonly RelationLock[]; dayCap?: number; personaState?: boolean; userInput?: string; agency?: import('../domain/preset-runtime.js').AgencyMode; parallelCanonLabels?: readonly string[]; worldCanon?: readonly import('../domain/lorebook-canon.js').LorebookCanonEntry[]; livingWorld?: 'off' | 'minimal' | 'active' | 'sandbox'; sceneIntent?: SceneIntent | null; validatedCompiler?: boolean }): FoldResult {
@@ -33,7 +35,7 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
   // message, so a prefix-only signature misses precisely the edits/swipes that
   // must invalidate canonical state on long replies.
   const sig = hashStr(content);
-  const { state: parsed, source, dropped } = parseState(content);
+  const { state: parsed, source, dropped, diagnostics } = parseState(content);
   if (!parsed) return { events: [], source, sig };
 
   // TURN IS POSITIONAL (authoritative): the fold loop's index = the assistant
@@ -114,15 +116,16 @@ export function foldTurn(content: string, prior: ChronicleState, turnNo: number,
 
   if (authorSceneIntent?.day !== undefined) day = Math.max(prior.day ?? 0, Math.floor(authorSceneIntent.day));
   const transition = detectSceneTransition({ prior, parsed, prose, userInput: opts?.userInput, day, turn, intent: authorSceneIntent });
+  const extraction = runExtractorsDetailed(parsed, ctx);
   const events: VellumEvent[] = [
     { seq: nextSeq(), turn, day, src: 'system', kind: 'turn.fold', sig },
     ...(transition ? [{ seq: nextSeq(), turn, day, src: transition.titleSource === 'user' ? 'user' as const : 'model' as const, kind: 'scene.open' as const, id: transition.id, reason: transition.reason, ...(transition.title ? { title: transition.title } : {}), ...(transition.titleSource ? { titleSource: transition.titleSource } : {}), ...(transition.elapsedMinutes !== undefined ? { elapsedMinutes: transition.elapsedMinutes } : {}) }] : []),
-    ...runExtractors(parsed, ctx),
+    ...extraction.events,
   ];
   // advisory day flag (backward report / unexplained jump) — the existing
   // continuity.flag kind, so no schema change. Non-blocking; shows in the Log.
   if (rec.flag && !authorSceneIntent) {
     events.push({ seq: nextSeq(), turn, day, src: 'system', kind: 'continuity.flag', code: rec.flag.code, detail: rec.flag.detail });
   }
-  return { events, source, sig, ...(dropped ? { dropped } : {}) };
+  return { events, source, sig, decisions: extraction.decisions, ...(dropped ? { dropped } : {}), ...(diagnostics?.length ? { diagnostics } : {}) };
 }

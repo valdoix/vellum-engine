@@ -9,6 +9,7 @@ import { canonicalActorLocation, evidenceGroundsMove, evidenceGroundsWorldMove, 
 import type { LorebookCanonEntry } from './lorebook-canon.js';
 import { factTokens, similarFact } from './fact-match.js';
 import type { SubplotBeatKind, SubplotGrounding } from './types.js';
+import { creativeSubplotTitle } from './subplot-title.js';
 
 /**
  * Off-screen simulation (Plot Director) — tick the world forward while it's
@@ -223,7 +224,7 @@ const SIM_SOCIAL_RULE: Record<Social, string> = {
 };
 const SIM_JSON_BONDS = ' You MAY also include a "bonds" array of NPC↔NPC relationship shifts: [{"a":"Name","b":"Name","aff":small +/- int,"trust":small +/- int,"cat":"social|rivalry|alliance or omit","why":"one clause"}]. Never involve the player in a bond.';
 const SIM_JSON_FACTIONS = ' You MAY also include a "factions" array of FACTION↔FACTION shifts: [{"a":"Faction","b":"Faction","kind":"alliance|rivalry|war|vassal|trade or omit","standing":small +/- int,"why":"one clause"}]. Never involve the player.';
-const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"subplot name","who":"Character or omit","where":"place or omit","gist":"new concrete condition","beatKind":"progress|obstacle|consequence|bridge|resolution","impact":"specific future-facing story effect","grounding":{"basis":["character|location|lorebook|parallel|subplot|knowledge|relationship|intent"],"rationale":"why this is canon-plausible now","refs":["optional compact provenance pointers"],"before":"required prior condition for advance/resolve","after":"new condition, matching gist"},"thread":"OPTIONAL exact existing plot-thread id","pressure":"OPTIONAL int 0..5","stakes":"OPTIONAL one clause","hooks":["OPTIONAL concrete future contact, clue, absence, message, consequence"],"autonomy":"personal|social|faction|environment|mixed","nextTurn":"OPTIONAL absolute turn","nextDay":"OPTIONAL absolute narrative day","nextClock":"OPTIONAL minutes after midnight","deadlineDay":"OPTIONAL absolute day","deadlineClock":"OPTIONAL minutes after midnight","dependsOn":["OPTIONAL exact subplot/thread/arc/plant ids"],"blockedBy":["OPTIONAL exact ids"],"trigger":"OPTIONAL concrete event condition","day":"OPTIONAL narrative day reached under a time skip"}]BONDSFACTIONS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. At most MODECAP offscreen entries.';
+const SIM_JSON = 'Reply STRICT JSON only: {"offscreen":[{"op":"new|advance|resolve","id":"short_id","name":"Creative Title Case story hook (2-6 words, never the id)","who":"Character or omit","where":"place or omit","gist":"new concrete condition","beatKind":"progress|obstacle|consequence|bridge|resolution","impact":"specific future-facing story effect","grounding":{"basis":["character|location|lorebook|parallel|subplot|knowledge|relationship|intent"],"rationale":"why this is canon-plausible now","refs":["optional compact provenance pointers"],"before":"required prior condition for advance/resolve","after":"new condition, matching gist"},"thread":"OPTIONAL exact existing plot-thread id","pressure":"OPTIONAL int 0..5","stakes":"OPTIONAL one clause","hooks":["OPTIONAL concrete future contact, clue, absence, message, consequence"],"autonomy":"personal|social|faction|environment|mixed","nextTurn":"OPTIONAL absolute turn","nextDay":"OPTIONAL absolute narrative day","nextClock":"OPTIONAL minutes after midnight","deadlineDay":"OPTIONAL absolute day","deadlineClock":"OPTIONAL minutes after midnight","dependsOn":["OPTIONAL exact subplot/thread/arc/plant ids"],"blockedBy":["OPTIONAL exact ids"],"trigger":"OPTIONAL concrete event condition","day":"OPTIONAL narrative day reached under a time skip"}]BONDSFACTIONS}. Use the SAME id to advance/resolve an existing subplot; pick a fresh short snake_case id for a new one. The name is a creative, evocative display title in the exact format "This Is A Title"; it must not repeat or title-case the id. At most MODECAP offscreen entries.';
 // what the sim may do to FACTION↔FACTION relations, by Politics autonomy level.
 const SIM_POLITICS_RULE: Record<Politics, string> = {
   off: '',
@@ -246,7 +247,7 @@ export function simSys(social: Social = 'off', politics: Politics = 'off', livin
   const depthRule = livingWorld === 'sandbox'
     ? 'AUTONOMOUS/SANDBOX DEPTH: you may move up to four independently due lines and originate up to two grounded new lines. They may create medium-term political, social, logistical, or material consequences, but irreversible major outcomes still require a visible causal chain and must remain interruptible before completion.'
     : 'LIVING/ACTIVE DEPTH: move at most two due lines and originate at most one grounded new line. Prefer reversible routine, preparation, delay, contact, and small consequence beats; do not escalate merely to keep the feed busy.';
-  return [...SIM_SYS_BASE, depthRule, rule + politicsRule, json].join(' ');
+  return [...SIM_SYS_BASE, depthRule, 'LOCATION INTENT: on an update, set locationOp to retain for the same place, refine for a more specific nearby address, or move for actual travel. Never hide movement in a wording change.', rule + politicsRule, json].join(' ');
 }
 
 /** Back-compat default (off = today's behavior) for callers/tests that want the
@@ -329,7 +330,7 @@ export function buildSimPrompt(state: ChronicleState, cast: ReadonlyArray<{ name
 export interface ParsedSimBond { a: string; b: string; aff?: number; trust?: number; cat?: string; why?: string }
 export interface ParsedSimFactionRel { a: string; b: string; kind?: string; standing?: number; why?: string }
 export interface ParsedSim {
-  offscreen: Array<{ op: 'new' | 'advance' | 'resolve'; id: string; name?: string; who?: string; where?: string; gist?: string; day?: number; thread?: string; arc?: string; pressure?: number; hooks?: string[]; stakes?: string; autonomy?: 'personal' | 'social' | 'faction' | 'environment' | 'mixed'; beatKind?: SubplotBeatKind; impact?: string; grounding?: SubplotGrounding; nextTurn?: number; nextDay?: number; nextClock?: number; deadlineDay?: number; deadlineClock?: number; dependsOn?: string[]; blockedBy?: string[]; trigger?: string }>;
+  offscreen: Array<{ op: 'new' | 'advance' | 'resolve'; id: string; name?: string; who?: string; where?: string; locationOp?: 'retain' | 'refine' | 'move'; gist?: string; day?: number; thread?: string; arc?: string; pressure?: number; hooks?: string[]; stakes?: string; autonomy?: 'personal' | 'social' | 'faction' | 'environment' | 'mixed'; beatKind?: SubplotBeatKind; impact?: string; grounding?: SubplotGrounding; nextTurn?: number; nextDay?: number; nextClock?: number; deadlineDay?: number; deadlineClock?: number; dependsOn?: string[]; blockedBy?: string[]; trigger?: string }>;
   bonds?: ParsedSimBond[];
   factions?: ParsedSimFactionRel[];
 }
@@ -687,11 +688,13 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     }
     const anchor = who ? canonicalActorLocation(state, who) : undefined;
     let where = p.where?.trim() || prior?.where || anchor?.where;
+    if (p.locationOp === 'retain') where = prior?.where || anchor?.where || where;
     if (!opts.validatedCompiler && where && anchor && !sameLocation(anchor.where, where)) {
       const mover = state.cast[who!]?.name ?? who!;
       const moveEvidence = `${mover} ${p.gist ?? ''}`;
       const nearbyGrounded = groundedNearAnchor(anchor.where, where, p);
-      if ((!establishedPlace(where) || !evidenceGroundsMove(state, who!, where, moveEvidence)) && !nearbyGrounded) continue;
+      if (p.locationOp === 'refine' && !nearbyGrounded) continue;
+      if ((!establishedPlace(where) || !evidenceGroundsMove(state, who!, where, moveEvidence)) && !(p.locationOp !== 'move' && nearbyGrounded)) continue;
     } else if (!opts.validatedCompiler && where && prior?.where && !sameLocation(prior.where, where)) {
       if (!establishedPlace(where) || !evidenceGroundsWorldMove(where, p.gist ?? '')) {
         // An unsupported location rewrite should not erase an otherwise valid
@@ -708,7 +711,9 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     // subplots the model actually returned a beat for advance their lastDay.
     const evDay = (p.day !== undefined && day > 0) ? Math.min(p.day, day) : day;
     const linkedThread = threadId(p.thread) ?? prior?.thread;
-    events.push({ seq: seq(), turn, day: evDay, src: 'system', kind: 'offscreen.op', op, id: p.id, ...(!prior && p.name ? { name: p.name } : {}), ...(who ? { who } : {}), ...(where ? { where } : {}), ...(p.gist ? { gist: p.gist } : {}), ...(linkedThread ? { thread: linkedThread } : {}), ...(p.pressure !== undefined ? { pressure: p.pressure } : {}), ...(p.hooks?.length ? { hooks: p.hooks } : {}), ...(p.stakes ? { stakes: p.stakes } : {}), ...(p.autonomy ? { autonomy: p.autonomy } : {}), ...(p.beatKind ? { beatKind: p.beatKind } : {}), ...(p.impact ? { impact: p.impact } : {}), ...(p.grounding ? { grounding: p.grounding } : {}), ...(p.nextTurn !== undefined ? { nextTurn: p.nextTurn } : {}), ...(p.nextDay !== undefined ? { nextDay: p.nextDay } : {}), ...(p.nextClock !== undefined ? { nextClock: p.nextClock } : {}), ...(p.deadlineDay !== undefined ? { deadlineDay: p.deadlineDay } : {}), ...(p.deadlineClock !== undefined ? { deadlineClock: p.deadlineClock } : {}), ...(p.dependsOn !== undefined ? { dependsOn: p.dependsOn } : {}), ...(p.blockedBy !== undefined ? { blockedBy: p.blockedBy } : {}), ...(p.trigger !== undefined ? { trigger: p.trigger } : {}) } as VellumEvent);
+    events.push({ seq: seq(), turn, day: evDay, src: 'system', kind: 'offscreen.op', op, id: p.id, ...(!prior ? { name: creativeSubplotTitle({ id: p.id, name: p.name, gist: p.gist, who: p.who, where: p.where }) } : {}), ...(who ? { who } : {}), ...(where ? { where } : {}), ...(p.gist ? { gist: p.gist } : {}), ...(linkedThread ? { thread: linkedThread } : {}), ...(p.pressure !== undefined ? { pressure: p.pressure } : {}), ...(p.hooks?.length ? { hooks: p.hooks } : {}), ...(p.stakes ? { stakes: p.stakes } : {}), ...(p.autonomy ? { autonomy: p.autonomy } : {}), ...(p.beatKind ? { beatKind: p.beatKind } : {}), ...(p.impact ? { impact: p.impact } : {}), ...(p.grounding ? { grounding: p.grounding } : {}), provenance: { kind: opts.validatedCompiler ? 'explicit' : 'simulation', sourceSubplotId: p.id }, ...(p.nextTurn !== undefined ? { nextTurn: p.nextTurn } : {}), ...(p.nextDay !== undefined ? { nextDay: p.nextDay } : {}), ...(p.nextClock !== undefined ? { nextClock: p.nextClock } : {}), ...(p.deadlineDay !== undefined ? { deadlineDay: p.deadlineDay } : {}), ...(p.deadlineClock !== undefined ? { deadlineClock: p.deadlineClock } : {}), ...(p.dependsOn !== undefined ? { dependsOn: p.dependsOn } : {}), ...(p.blockedBy !== undefined ? { blockedBy: p.blockedBy } : {}), ...(p.trigger !== undefined ? { trigger: p.trigger } : {}) } as VellumEvent);
+    const accepted = events[events.length - 1];
+    if (p.locationOp && accepted?.kind === 'offscreen.op') accepted.locationOp = p.locationOp;
     if (!prior && op !== 'resolve') newRows += 1;
   }
 

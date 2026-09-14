@@ -557,9 +557,11 @@ function byRecentOff(a: { lastTurn: number }, b: { lastTurn: number }): number {
  * those mirrored rows from the narrated list/count so the same event is not
  * displayed twice; independent snapshots remain visible. */
 function narratedParallel(s: ChronicleState): ChronicleState['parallel'] {
+  const subplotIds = new Set((s.offscreen ?? []).map(row => row.id));
   const mirrored = new Set((s.offscreen ?? []).filter(row => row.status === 'active').map(row =>
     `${row.who?.toLocaleLowerCase() ?? ''}\u0000${row.where ?? ''}\u0000${row.gist}`));
-  return (s.parallel ?? []).filter(row => !mirrored.has(`${row.who?.toLocaleLowerCase() ?? ''}\u0000${row.where ?? ''}\u0000${row.activity}`));
+  return (s.parallel ?? []).filter(row => !(row.sourceSubplotId && subplotIds.has(row.sourceSubplotId))
+    && !mirrored.has(`${row.who?.toLocaleLowerCase() ?? ''}\u0000${row.where ?? ''}\u0000${row.activity}`));
 }
 
 // Continuity-flag codes that concern the passage of time / the calendar clock.

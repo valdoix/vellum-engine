@@ -1,7 +1,8 @@
-import { ParsedState, type ParseResult } from './parsed.js';
+import { ParsedState, VELLUM_STATE_PROTOCOL_VERSION, type ParseDiagnostic, type ParseResult } from './parsed.js';
 import { parseFallback } from './fallback-regex.js';
 import { artifactText } from '../domain/artifacts.js';
 import { clockTime, parseClock } from '../domain/clock.js';
+import { creativeSubplotTitle } from '../domain/subplot-title.js';
 
 /**
  * Parse the model's per-turn state. JSON-first: a fenced ‹vellum›…‹/vellum›
@@ -578,6 +579,20 @@ function tryParse(s: string): unknown | undefined {
   try { return JSON.parse(s); } catch { return undefined; }
 }
 
+function strippedPaths(input: unknown, output: unknown, path = ''): string[] {
+  if (!input || typeof input !== 'object' || !output || typeof output !== 'object') return [];
+  if (Array.isArray(input)) {
+    if (!Array.isArray(output)) return path ? [path] : [];
+    return input.flatMap((value, index) => strippedPaths(value, output[index], `${path}[${index}]`));
+  }
+  if (Array.isArray(output)) return path ? [path] : [];
+  const out = output as Record<string, unknown>;
+  return Object.entries(input as Record<string, unknown>).flatMap(([key, value]) => {
+    const child = path ? `${path}.${key}` : key;
+    return Object.prototype.hasOwnProperty.call(out, key) ? strippedPaths(value, out[key], child) : [child];
+  });
+}
+
 export function parseState(content: string): ParseResult {
   if (!content) return { state: null, source: 'none' };
 
@@ -586,8 +601,16 @@ export function parseState(content: string): ParseResult {
     const report: LenientReport = { partial: false, stats: null };
     const obj = lenientParse(raw, report);
     if (obj && typeof obj === 'object') {
+      const diagnostics: ParseDiagnostic[] = [];
       const beforeNormalize = arraySectionCounts(obj as Record<string, unknown>);
       normalizeStateBlockObject(obj as Record<string, unknown>);
+      const suppliedVersion = Number((obj as Record<string, unknown>).v);
+      if (!Number.isFinite(suppliedVersion) || suppliedVersion < VELLUM_STATE_PROTOCOL_VERSION) {
+        diagnostics.push({ code: 'protocol_migrated', path: 'v', message: `Migrated VELLUM state protocol ${Number.isFinite(suppliedVersion) ? suppliedVersion : 'unversioned'} to ${VELLUM_STATE_PROTOCOL_VERSION}.` });
+        (obj as Record<string, unknown>).v = VELLUM_STATE_PROTOCOL_VERSION;
+      } else if (suppliedVersion > VELLUM_STATE_PROTOCOL_VERSION) {
+        diagnostics.push({ code: 'future_protocol', path: 'v', message: `State protocol ${suppliedVersion} is newer than supported protocol ${VELLUM_STATE_PROTOCOL_VERSION}; only recognized fields were accepted.` });
+      }
       let validated = ParsedState.safeParse(obj);
       const normalizedDrops = sectionCountDrops(beforeNormalize, arraySectionCounts(obj as Record<string, unknown>));
       let schemaDrops: Record<string, number> = {};
@@ -596,14 +619,20 @@ export function parseState(content: string): ParseResult {
         if (salvaged) { validated = salvaged.validated; schemaDrops = salvaged.dropped; }
       }
       if (validated.success) {
+        for (const path of strippedPaths(obj, validated.data)) diagnostics.push({ code: 'unknown_field', path, message: `Ignored unsupported state field: ${path}.` });
         // rung 4 (element salvage) recovered the block by dropping corrupt
         // element(s) — surface that honestly so data loss is visible, not silent.
         if (report.partial || Object.keys(normalizedDrops).length || Object.keys(schemaDrops).length) {
           const dropped = { ...(report.stats?.dropped ?? {}) };
           for (const source of [normalizedDrops, schemaDrops]) for (const [section, count] of Object.entries(source)) dropped[section] = (dropped[section] ?? 0) + count;
-          return { state: validated.data, source: 'json-partial', dropped };
+          for (const [section, count] of Object.entries(dropped)) diagnostics.push({ code: 'element_dropped', path: section, message: `Dropped ${count} invalid ${section} element${count === 1 ? '' : 's'}.` });
+          return { state: validated.data, source: 'json-partial', dropped, diagnostics };
         }
-        return { state: validated.data, source: 'json' };
+        // Unknown legacy/placeholder keys remain a successful compatibility
+        // parse, but are now visible through diagnostics. A genuinely newer
+        // protocol is partial because we cannot promise lossless semantics.
+        const lossy = diagnostics.some(item => item.code === 'future_protocol');
+        return { state: validated.data, source: lossy ? 'json-partial' : 'json', ...(diagnostics.length ? { diagnostics } : {}) };
       }
     }
   }
@@ -880,6 +909,10 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       // ("advance — ...") in `note`. The event is the durable plot fact.
       const event = str(row.event);
       if (event && (!str(row.note) || /^(?:new|advance|advanced|stall|stalled|resolve|resolved|active|complete|completed)\b\s*(?:[-:\u2013\u2014]|$)/i.test(str(row.note)))) row.note = event;
+      // Once folded into canonical note, compatibility-only proof/beat aliases
+      // have no independent semantics. Remove them so diagnostics distinguish
+      // genuinely unknown fields from successfully migrated ones.
+      for (const alias of ['beat', 'gist', 'development', 'description', 'event', 'evidence', 'proof', 'summary']) delete row[alias];
       const name = str(row.name);
       if (!name) return [];
       row.name = name;
@@ -978,6 +1011,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       adopt(row, 'name', ['title']);
       adopt(row, 'who', ['actor', 'character']);
       adopt(row, 'where', ['location', 'loc', 'place']);
+      adopt(row, 'locationOp', ['location_op', 'placeOp', 'place_op']);
       adopt(row, 'gist', ['activity', 'event', 'development', 'beat', 'summary', 'description']);
       adopt(row, 'thread', ['plotThread', 'plot_thread']);
       adopt(row, 'arc', ['storyArc', 'story_arc']);
@@ -989,6 +1023,13 @@ function normalizeBlock(obj: Record<string, unknown>): void {
         const bk = str(row.beatKind).toLowerCase().replace(/[\s-]+/g, '_');
         if (['progress', 'obstacle', 'consequence', 'bridge', 'resolution'].includes(bk)) row.beatKind = bk;
         else delete row.beatKind;
+      }
+      if (row.locationOp !== undefined) {
+        const locationOp = str(row.locationOp).toLowerCase().replace(/[\s-]+/g, '_');
+        row.locationOp = ['same', 'keep', 'unchanged'].includes(locationOp) ? 'retain'
+          : ['detail', 'refinement', 'nearby'].includes(locationOp) ? 'refine'
+            : ['relocate', 'relocation', 'travel'].includes(locationOp) ? 'move' : locationOp;
+        if (!['retain', 'refine', 'move'].includes(String(row.locationOp))) delete row.locationOp;
       }
       // impact is the concrete story effect; LLMs often use effect/consequence.
       adopt(row, 'impact', ['effect', 'consequence', 'result', 'significance']);
@@ -1043,6 +1084,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       const id = seed.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
       if (!id || (!gist && row.op !== 'resolve')) return [];
       row.id = id;
+      row.name = creativeSubplotTitle({ id, name: str(row.name), gist, who: str(row.who), where: str(row.where) });
       // ParsedOffscreen keeps one uniform shape. Resolve does not use this text
       // as a new beat, but a neutral sentinel lets a valid close survive the
       // schema when the provider omitted a replacement gist.

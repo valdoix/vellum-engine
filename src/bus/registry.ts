@@ -69,6 +69,18 @@ export interface Feature {
   inject?(ctx: InjectCtx): { label: string; text: string; ids: string[] } | null;
 }
 
+export interface ExtractionDecision {
+  feature: string;
+  status: 'emitted' | 'empty' | 'failed';
+  count: number;
+  message?: string;
+}
+
+export interface ExtractionResult {
+  events: VellumEvent[];
+  decisions: ExtractionDecision[];
+}
+
 const _features: Feature[] = [];
 
 export function registerFeature(f: Feature): void {
@@ -82,16 +94,26 @@ export function features(): readonly Feature[] {
 
 /** Run every feature's extractor over a parsed turn → a flat event list. */
 export function runExtractors(parsed: ParsedState, ctx: ExtractCtx): VellumEvent[] {
+  return runExtractorsDetailed(parsed, ctx).events;
+}
+
+/** Auditable extractor runner. Compatibility callers can still request only
+ * events, while the fold lifecycle retains feature-level accept/fail results. */
+export function runExtractorsDetailed(parsed: ParsedState, ctx: ExtractCtx): ExtractionResult {
   const out: VellumEvent[] = [];
+  const decisions: ExtractionDecision[] = [];
   for (const f of _features) {
     if (!f.extract) continue;
     try {
-      out.push(...f.extract(parsed, ctx));
+      const events = f.extract(parsed, ctx);
+      out.push(...events);
+      decisions.push({ feature: f.id, status: events.length ? 'emitted' : 'empty', count: events.length });
     } catch (e) {
       if (ctx.validatedCompiler) throw new Error(`Validated compiler extraction failed in feature "${f.id}": ${(e as Error)?.message ?? String(e)}`);
+      decisions.push({ feature: f.id, status: 'failed', count: 0, message: (e as Error)?.message ?? String(e) });
       // a misbehaving feature must never break the fold for the others
       try { (globalThis as { console?: Console }).console?.warn?.(`[vellum] feature "${f.id}" extract failed:`, e); } catch { /* ignore */ }
     }
   }
-  return out;
+  return { events: out, decisions };
 }

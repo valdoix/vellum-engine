@@ -7,6 +7,7 @@ import { normalizeCategorySet, primaryCategory, isCategory } from '../domain/cat
 import { clockTime, parseClock } from '../domain/clock.js';
 import { isCatchupMarker } from '../domain/thread-catchup.js';
 import { normalizeSecretAudience } from '../domain/secret-audience.js';
+import { creativeSubplotTitle, machineSubplotTitle } from '../domain/subplot-title.js';
 
 /**
  * reduce(events) → ChronicleState. PURE: no I/O, no randomness, no host calls.
@@ -267,7 +268,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         const who = it.who ? canonId(it.who) : '';
         if (who && (here.has(who) || seen.has(who))) continue;
         if (who) seen.add(who);
-        next.push({ ...(who ? { who } : {}), ...(it.where ? { where: it.where } : {}), activity: it.activity, ...(it.note ? { note: it.note } : {}), ...(it.src ? { src: it.src } : {}), turn: e.turn, day: e.day });
+        next.push({ ...(who ? { who } : {}), ...(it.where ? { where: it.where } : {}), activity: it.activity, ...(it.note ? { note: it.note } : {}), ...(it.src ? { src: it.src } : {}), ...(it.sourceSubplotId ? { sourceSubplotId: it.sourceSubplotId } : {}), turn: e.turn, day: e.day });
       }
       s.parallel = next.reverse();
       // A validated/manual T1 row is also the actor's newest canonical physical
@@ -657,7 +658,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         activities: new Set([
           ot.gist,
           ...(ot.beatKind === 'bridge'
-            && ot.grounding?.rationale === 'The foreground scene directly changed the plot thread linked to this subplot.'
+            && (ot.provenance?.kind === 'foreground_bridge'
+              || ot.grounding?.rationale === 'The foreground scene directly changed the plot thread linked to this subplot.')
             && ot.beats.length > 1
             ? [ot.beats[ot.beats.length - 2]!]
             : []),
@@ -665,12 +667,13 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       } : undefined;
       if (!ot) {
         if (e.op === 'resolve') break; // nothing to resolve
-        ot = { id: e.id, name: e.name || e.id, status: 'active', gist: e.gist ?? '', beats: [], firstTurn: e.turn, lastTurn: e.turn, ...(e.who ? { who: e.who } : {}), ...(e.where ? { where: e.where } : {}), ...(e.thread ? { thread: e.thread } : {}) };
+        ot = { id: e.id, name: creativeSubplotTitle({ id: e.id, name: e.name, gist: e.gist, who: e.who, where: e.where }), status: 'active', gist: e.gist ?? '', beats: [], firstTurn: e.turn, lastTurn: e.turn, ...(e.who ? { who: e.who } : {}), ...(e.where ? { where: e.where } : {}), ...(e.thread ? { thread: e.thread } : {}) };
         list.push(ot);
       }
-      if (e.name) ot.name = e.name;
+      if (e.name || machineSubplotTitle(ot.name, ot.id)) ot.name = creativeSubplotTitle({ id: ot.id, name: e.name ?? ot.name, gist: e.gist ?? ot.gist, who: e.who ?? ot.who, where: e.where ?? ot.where });
       if (e.who) ot.who = e.who;
       if (e.where) ot.where = e.where;
+      if (e.locationOp) ot.locationOp = e.locationOp;
       if (e.thread !== undefined) { if (e.thread) ot.thread = e.thread; else delete ot.thread; }
       if (e.pressure !== undefined) ot.pressure = Math.max(0, Math.min(5, e.pressure));
       else if (e.gist && e.op !== 'resolve') ot.pressure = Math.min(5, Math.max(1, (ot.pressure ?? 0) + 1));
@@ -680,6 +683,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       if (e.impact) ot.impact = e.impact;
       if (e.grounding) ot.grounding = structuredClone(e.grounding);
       if (e.originParallel) ot.originParallel = structuredClone(e.originParallel);
+      if (e.provenance) ot.provenance = structuredClone(e.provenance);
+      else if (!ot.provenance) ot.provenance = { kind: e.src === 'user' ? 'manual' : e.src === 'system' ? 'simulation' : 'explicit', sourceSubplotId: e.id };
       if (e.hooks?.length) ot.hooks = [...new Set([...(ot.hooks ?? []), ...e.hooks.map(h => h.trim()).filter(Boolean)])].slice(-6);
       if (e.nextTurn !== undefined) ot.nextTurn = e.nextTurn;
       if (e.nextDay !== undefined) ot.nextDay = e.nextDay;
@@ -717,12 +722,16 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       // valid simulator output existed in Subplots but the Parallel panel stayed
       // empty, which looked like a parse failure.
       const offWho = ot.who ? canonId(ot.who) : '';
+      // A projection has one stable owner. Remove the owner's previous view by
+      // id before rebuilding it; legacy text/location matching remains below
+      // only for old logs that predate structured provenance.
+      s.parallel = s.parallel.filter(row => row.sourceSubplotId !== ot!.id);
       if (offWho) {
         s.parallel = s.parallel.filter(row => !row.who || canonId(row.who) !== offWho);
         const current = [...s.offscreen].reverse().find(row => row.status === 'active' && row.who
           && canonId(row.who) === offWho && row.where && row.gist);
         if (current?.where && current.gist && !s.scene.present.map(canonId).includes(offWho)) {
-          s.parallel.push({ who: offWho, where: current.where, activity: current.gist, ...(e.src === 'system' ? { src: 'sim' as const } : {}), turn: e.turn, day: e.day });
+          s.parallel.push({ who: offWho, where: current.where, activity: current.gist, ...(e.src === 'system' ? { src: 'sim' as const } : {}), sourceSubplotId: current.id, turn: e.turn, day: e.day });
           const actor = s.cast[offWho];
           if (actor) { actor.lastLocation = current.where; actor.lastLocationTurn = e.turn; }
         }
@@ -735,7 +744,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
         if (ot.status === 'active' && ot.gist) {
           const duplicate = s.parallel.some(row => !row.who && row.activity === ot!.gist
             && String(row.where ?? '') === String(ot!.where ?? ''));
-          if (!duplicate) s.parallel.push({ ...(ot.where ? { where: ot.where } : {}), activity: ot.gist, ...(e.src === 'system' ? { src: 'sim' as const } : {}), turn: e.turn, day: e.day });
+          if (!duplicate) s.parallel.push({ ...(ot.where ? { where: ot.where } : {}), activity: ot.gist, ...(e.src === 'system' ? { src: 'sim' as const } : {}), sourceSubplotId: ot.id, turn: e.turn, day: e.day });
         }
       }
       break;
@@ -747,6 +756,7 @@ function apply(s: ChronicleState, e: VellumEvent): void {
     }
     case 'offscreen.drop': {
       s.offscreen = s.offscreen.filter((o) => o.id !== e.id);
+      s.parallel = s.parallel.filter((row) => row.sourceSubplotId !== e.id);
       break;
     }
     case 'journal.entry': {
@@ -855,7 +865,8 @@ function apply(s: ChronicleState, e: VellumEvent): void {
       } else if (e.op === 'note') {
         const cur = findItem(e.who, e.item);
         if (cur) { if (e.note) cur.note = e.note; }
-        else { if (e.who !== 'world') ensureCast(s, e.who, e.turn); s.items.push({ id: e.id, who: e.who, item: e.item, ...(e.note ? { note: e.note } : {}), ...(e.who === 'world' ? { scene: true } : {}), turn: e.turn }); }
+        // `note` records descriptive/history context but never asserts current
+        // ownership. Only gain/scene/give can create a present possession.
       }
       break;
     }

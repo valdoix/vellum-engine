@@ -51,7 +51,7 @@ function expandedBlock(id: string, overrides: Record<string, unknown> = {}): str
 
 describe('ARGENT strengthened invariants', () => {
   it('ships the 1.5 control surface without Guided Choices', () => {
-    expect(preset.presetVersion).toBe('1.5.0');
+    expect(preset.presetVersion).toBe('1.5.1');
     expect(() => variable('guided_choices')).toThrow();
     expect(preset.blocks.some((entry) => entry.content.includes('<argent-choices>'))).toBe(false);
   });
@@ -272,6 +272,24 @@ describe('ARGENT strengthened invariants', () => {
     expect(compiler).toContain('PARALLEL RECONCILIATION');
     expect(output).toContain('[PARALLEL EVENTS — CURRENT T1 SNAPSHOT GATE]');
     expect(output).toContain('current snapshot must remain visible');
+  });
+
+  it('ships the shared v3 state protocol and creative subplot title contract', () => {
+    const schema = block('arg-state-schema');
+    const world = block('arg-world-factions');
+    expect(schema).toContain('{v:3,turn?');
+    expect(schema).toContain('Always emit v:3');
+    expect(schema).toContain('secretReveals?');
+    expect(schema).toContain('absolute?');
+    expect(schema).toContain('locationOp?:retain|refine|move');
+    expect(schema).toContain('creative, evocative 2-6 word display title in exact Title Case ("This Is A Title")');
+    expect(world).toContain('keep id as a stable snake_case machine reference');
+    expect(world).toContain('Declare locationOp for every durable location decision');
+    expect(block('arg-state-final')).toContain('begin the object with "v":3');
+    expect(block('arg-state-final')).toContain('creative Title Case subplot display names');
+    expect(block('arg-output-contract')).toContain('Inline serializes delta.offscreen under protocol v3');
+    expect(block('arg-output-contract')).toContain('precompose the full object beginning with "v":3');
+    expect((preset as any).metadata.vellum_engine.stateProtocolVersion).toBe(3);
   });
 
   it('treats evidence as semantic grounding instead of exact quotation matching', () => {

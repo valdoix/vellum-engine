@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "deltaFamilies": [
+    "bonds",
+    "threads",
+    "arcs",
+    "journal",
+    "knowledge",
+    "secrets",
+    "secretReveals",
+    "factions",
+    "factionRelations",
+    "parallel",
+    "offscreen"
+  ],
+  "extensionFamilies": [
+    "scars",
+    "codex",
+    "inventory",
+    "timeline",
+    "intent",
+    "affect",
+    "introduction",
+    "plant",
+    "payoff"
+  ],
+  "subplotTitleContract": "a creative, evocative 2-6 word display title in exact Title Case (\"This Is A Title\"), never snake_case and never a mechanical expansion of the id"
+}

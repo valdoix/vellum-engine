@@ -489,6 +489,7 @@ export const coreFeature: Feature = {
           out.push({
             ...base(), kind: 'offscreen.op', op: t.op === 'resolve' ? 'resolve' : 'advance', id: subplot.id,
             gist: t.note, thread: tracked.id, beatKind: t.op === 'resolve' ? 'resolution' : 'bridge',
+            provenance: { kind: 'foreground_bridge', sourceThreadId: tracked.id, sourceSubplotId: subplot.id },
             grounding: { basis: ['scene', 'subplot'], rationale: 'The foreground scene directly changed the plot thread linked to this subplot.', before: subplot.gist, after: t.note },
           } as VellumEvent);
         }
@@ -622,12 +623,20 @@ export const coreFeature: Feature = {
         activity: String(p.activity || '').trim(),
         ...(p.note ? { note: p.note } : {}),
       })).filter((p) => p.activity) : durableParallelSnapshot(ctx.state, present);
-      const reconciled = ctx.validatedCompiler ? proposed.map(row => ({
-        ...(row.who ? { who: rid(row.who) } : {}), ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}),
+      const reconciledBase = ctx.validatedCompiler ? proposed.map(row => ({
+        ...(row.who ? { who: rid(row.who) } : {}), ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}), ...('sourceSubplotId' in row && row.sourceSubplotId ? { sourceSubplotId: row.sourceSubplotId } : {}),
       })) : reconcileParallelSnapshot(ctx.state, proposed, present, ctx.prose ?? '', {
         npcAutonomy: tone.social,
         livingWorld: ctx.livingWorld,
         establishedEntities: ctx.parallelCanonLabels,
+      });
+      const reconciled = reconciledBase.map(row => {
+        if ('sourceSubplotId' in row && row.sourceSubplotId) return row;
+        const source = proposed.find(candidate => 'sourceSubplotId' in candidate && candidate.sourceSubplotId
+          && String(candidate.who ?? '') === String(row.who ?? '')
+          && String(candidate.where ?? '') === String(row.where ?? '')
+          && candidate.activity === row.activity);
+        return source && 'sourceSubplotId' in source && source.sourceSubplotId ? { ...row, sourceSubplotId: source.sourceSubplotId } : row;
       });
       // A named actor accepted from visible evidence or attached canon on the
       // first Chronicle turn must become a durable cast identity. Otherwise the
@@ -807,7 +816,6 @@ export const coreFeature: Feature = {
     // Possession tracker — named items the model reports gained/lost/given/scene.
     // `who` goes through the same badName gate; a canon-sentinel owner ('world')
     // is a SCENE item, not a character (never mints a cast card).
-    let ii = 0;
     for (const it of Array.isArray(ext.inventory) ? ext.inventory : []) {
       const item = String(it?.item || '').trim();
       const opRaw = String(it?.op || 'gain').trim().toLowerCase();
@@ -819,7 +827,9 @@ export const coreFeature: Feature = {
       if (!who) continue; // a mash/pronoun owner that isn't 'world' → drop
       const effOp = (who === 'world' && (op === 'gain' || op === 'note')) ? 'scene' : op;
       const to = it?.to ? (isCanonSentinel(it.to) ? 'world' : (badName(it.to) ? undefined : rid(it.to))) : undefined;
-      out.push({ ...base(), kind: 'item.change', id: 'item_' + ctx.turn + '_' + (ii++), who, item, op: effOp, ...(to ? { to } : {}), ...(it?.note ? { note: String(it.note).slice(0, 200) } : {}) } as VellumEvent);
+      const priorItem = ctx.state.items.find(row => row.item.trim().toLocaleLowerCase() === item.toLocaleLowerCase());
+      const itemId = priorItem?.id ?? `item_${canonId(item) || `turn_${ctx.turn}`}`;
+      out.push({ ...base(), kind: 'item.change', id: itemId, who, item, op: effOp, ...(to ? { to } : {}), ...(it?.note ? { note: String(it.note).slice(0, 200) } : {}) } as VellumEvent);
     }
 
     // Foreshadow plants — details seeded this turn (ext.plant) and any paid off

@@ -4,6 +4,7 @@ import { internalGenerate, type GenMsg } from '../host/generation.js';
 import { has } from '../host/capability.js';
 import type { AgencyMode } from '../domain/preset-runtime.js';
 import { clockTime } from '../domain/clock.js';
+import { STATE_PROTOCOL_VERSION, SUBPLOT_TITLE_CONTRACT } from '../domain/state-protocol.js';
 
 /**
  * BLOCK REPAIR (Option C) — when a just-generated turn folds with
@@ -33,7 +34,7 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + 'prose, no code fence, no commentary. Be THOROUGH: recover every change the prose actually depicts, '
   + 'not just the scene line. A rich, accurate block is the goal; a bare skeleton loses continuity.\n'
   + 'DELTAS ONLY: include everything THIS turn establishes or changes, and omit what did not move. Shape:\n'
-  + '{ "turn": int, "day": int, '
+  + `{ "v": ${STATE_PROTOCOL_VERSION}, "turn": int, "day": int, `
   + '"scene": { "title": optional concise scene title, "transition": optional "continue"|"scene"|"time_skip", "loc": str, "time": "zero-padded HH:MM", "clock": 0-1439 integer matching HH*60+MM, "tension": 0-10, "weather": str }, '
   + '"present": [{ "id": "Name", "mood": str, "condition": str, "doing": str, "thought": str, "traits": [str], "evidence": "exact persona source quote" }], '
   + '"delta": { '
@@ -46,7 +47,8 @@ export const VELLUM_BLOCK_REPAIR_SYS =
   + '"secrets": [{ "keeper": "Name", "secret": str, "from": "Name" }], '
   + '"secretReveals": [{ "id": "exact tracked secret id", "to": ["Name"] }], '
   + '"factions": [{ "name": str, "kind": str, "members": ["Name"], "standing": -40..40 }], '
-  + '"factionRelations": [{ "a": str, "b": str, "kind": "alliance|rivalry|war|vassal|trade", "standing": -40..40, "why": str }] }, '
+  + '"factionRelations": [{ "a": str, "b": str, "kind": "alliance|rivalry|war|vassal|trade", "standing": -40..40, "why": str }], '
+  + `"offscreen": [{ "op": "new|advance|resolve", "id": "stable snake_case id", "name": "${SUBPLOT_TITLE_CONTRACT}", "who": "Name", "where": str, "gist": str, "thread": "exact thread id/title", "beatKind": "progress|obstacle|consequence|bridge|resolution", "impact": str, "grounding": { "basis": [str], "rationale": str, "before": str, "after": str } }] }, `
   + '"ext": { '
   + '"scars": [{ "who": "Name", "was": "the belief proven wrong", "turn": int }], '
   + '"codex": [{ "id": "existing id when refreshing", "op": "add|refresh", "fact": "world fact", "tag": str }], '

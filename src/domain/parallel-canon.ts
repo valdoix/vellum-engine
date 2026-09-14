@@ -8,7 +8,7 @@ export interface ActorLocation {
   source: 'scene' | 'parallel' | 'offscreen' | 'last-seen';
 }
 
-export type ParallelDraft = Pick<ParallelEvent, 'who' | 'where' | 'activity' | 'note'>;
+export type ParallelDraft = Pick<ParallelEvent, 'who' | 'where' | 'activity' | 'note' | 'sourceSubplotId'>;
 
 const MOVE = /\b(?:arriv(?:e|es|ed|ing)|depart(?:s|ed|ing)?|enter(?:s|ed|ing)?|exit(?:s|ed|ing)?|flee|flees|fleeing|fled|go(?:es|ing)?|head(?:s|ed|ing)?|journey(?:s|ed|ing)?|leave(?:s|ing)?|left|mov(?:e|es|ed|ing)|reach(?:es|ed|ing)?|retreat(?:s|ed|ing)?|return(?:s|ed|ing)?|ride(?:s|ing)?|rode|run(?:s|ning)?|ran|sail(?:s|ed|ing)?|teleport(?:s|ed|ing)?|travel(?:s|ed|ing)?|walk(?:s|ed|ing)?|went)\b/i;
 const ACCESS = /\b(?:announce(?:s|d)?|broadcast(?:s|ed|ing)?|call(?:s|ed|ing)?|courier|deliver(?:s|ed|ing)?|discover(?:s|ed|ing)?|hear(?:s|d|ing)?|heard|inform(?:s|ed|ing)?|learn(?:s|ed|ing)?|letter|message|messenger|notice(?:s|d|ing)?|observe(?:s|d|ing)?|overhear(?:s|d|ing)?|phone|radio|read(?:s|ing)?|receive(?:s|d|ing)?|report(?:s|ed|ing)?|see(?:s|ing)?|saw|signal(?:s|ed|ing)?|tell(?:s|ing)?|told|telegram|text(?:s|ed|ing)?|witness(?:es|ed|ing)?)\b/i;
@@ -62,19 +62,19 @@ export function durableParallelSnapshot(state: ChronicleState, finalPresent: rea
   for (const row of state.parallel) {
     const who = row.who ? canonId(row.who) : '';
     if (who) {
-      if (!here.has(who)) actorRows.set(who, { who, ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}) });
+      if (!here.has(who)) actorRows.set(who, { who, ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}), ...(row.sourceSubplotId ? { sourceSubplotId: row.sourceSubplotId } : {}) });
     } else if (row.activity?.trim()) {
-      worldRows.push({ ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}) });
+      worldRows.push({ ...(row.where ? { where: row.where } : {}), activity: row.activity, ...(row.note ? { note: row.note } : {}), ...(row.sourceSubplotId ? { sourceSubplotId: row.sourceSubplotId } : {}) });
     }
   }
   for (const subplot of state.offscreen) {
     if (subplot.status !== 'active' || !subplot.gist?.trim()) continue;
     const who = subplot.who ? canonId(subplot.who) : '';
     if (who) {
-      if (!here.has(who) && subplot.where?.trim()) actorRows.set(who, { who, where: subplot.where, activity: subplot.gist });
+      if (!here.has(who) && subplot.where?.trim()) actorRows.set(who, { who, where: subplot.where, activity: subplot.gist, sourceSubplotId: subplot.id });
       continue;
     }
-    const candidate = { ...(subplot.where ? { where: subplot.where } : {}), activity: subplot.gist };
+    const candidate = { ...(subplot.where ? { where: subplot.where } : {}), activity: subplot.gist, sourceSubplotId: subplot.id };
     if (!worldRows.some(row => sameLocation(row.where, candidate.where) && sameActivity(row.activity, candidate.activity))) worldRows.push(candidate);
   }
   return [...worldRows, ...actorRows.values()];

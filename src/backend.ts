@@ -75,6 +75,7 @@ import { buildLorebookRecall, type LorebookRecallResult } from './retrieval/lore
 import { TASK_ROLES, sanitizeModelRoutes, resolveTaskRoute, generationReasoning, type ModelRouteConfig, type TaskRole, type TaskRoute } from './domain/task-routing.js';
 import { auditChronicle } from './domain/workbench-health.js';
 import { plotRefMatches, resolvePlotRef } from './domain/plot-refs.js';
+import { creativeSubplotTitle } from './domain/subplot-title.js';
 import { applyPersonaCastBinding, parsePersonaCastBinding, type PersonaCastBinding } from './domain/persona-cast.js';
 
 const PERSONA_CAST_CHAT_VAR = 'vellum_persona_cast';
@@ -1048,6 +1049,13 @@ async function foldChatInner(chatId: string, userId: string | null, snapshot?: A
     if (source === 'json-partial' && dropped) {
       const summary = Object.entries(dropped).map(([k, n]) => `${n} ${k}`).join(', ');
       spindle.log?.warn?.(`[vellum_engine] turn ${turnNo} salvaged with element loss${summary ? ' (dropped ' + summary + ')' : ''} — a corrupt block member was skipped`);
+    }
+    if (folded.diagnostics?.length) {
+      spindle.log?.warn?.(`[vellum_engine] turn ${turnNo} state diagnostics: ${folded.diagnostics.map(item => `${item.code}@${item.path}`).join(', ')}`);
+    }
+    const extractionFailures = folded.decisions?.filter(item => item.status === 'failed') ?? [];
+    if (extractionFailures.length) {
+      spindle.log?.warn?.(`[vellum_engine] turn ${turnNo} extractor failures: ${extractionFailures.map(item => `${item.feature}: ${item.message ?? 'unknown error'}`).join('; ')}`);
     }
     if (source === 'none' && /\u2039\/?vellum\u203a|<\/?vellum>/i.test(content)) {
       const m = content.match(/(?:\u2039vellum\u203a|<vellum>)([\s\S]*?)(?:\u2039\/vellum\u203a|<\/vellum>)/i);
@@ -3796,7 +3804,7 @@ const dispatch: Record<string, Handler> = {
     const gist = p?.gist ? String(p.gist).slice(0, 500) : '';
     const priorGist = existing?.gist;
     const bridge = String(p?.bridge ?? '').trim();
-    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'offscreen.op', op: p?.id ? 'advance' : 'new', id, ...(name ? { name } : {}), ...(p?.who ? { who: canonId(String(p.who)) } : {}), ...(p?.where ? { where: String(p.where) } : {}), ...(gist ? { gist } : {}), ...(impact ? { impact: impact.slice(0, 500) } : {}), ...(bridge ? { hooks: [bridge.slice(0, 500)] } : {}), ...(gist ? { beatKind: 'progress' as const, grounding: { basis: ['manual'] as const, rationale: 'The user explicitly authored this subplot condition and its intended story impact.', ...(priorGist ? { before: priorGist } : {}), after: gist } } : {}) } as VellumEvent]);
+    await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'offscreen.op', op: p?.id ? 'advance' : 'new', id, name: creativeSubplotTitle({ id, name, gist, who: String(p?.who ?? ''), where: String(p?.where ?? '') }), ...(p?.who ? { who: canonId(String(p.who)) } : {}), ...(p?.where ? { where: String(p.where) } : {}), ...(gist ? { gist } : {}), ...(impact ? { impact: impact.slice(0, 500) } : {}), ...(bridge ? { hooks: [bridge.slice(0, 500)] } : {}), provenance: { kind: 'manual', sourceSubplotId: id }, ...(gist ? { beatKind: 'progress' as const, grounding: { basis: ['manual'] as const, rationale: 'The user explicitly authored this subplot condition and its intended story impact.', ...(priorGist ? { before: priorGist } : {}), after: gist } } : {}) } as VellumEvent]);
     invalidateIndex(chatId); await broadcastState(chatId, uid);
     spindle.sendToFrontend?.({ type: 'vellum_offthread_done', ok: true }, uid);
   },
@@ -3841,14 +3849,15 @@ const dispatch: Record<string, Handler> = {
     }
     const bridge = String(p?.bridge ?? '').trim();
     const actorName = who ? (state.cast[who]?.name ?? source.who) : '';
-    const name = String(p?.name ?? '').trim() || (actorName ? `${actorName}: ${source.activity}` : source.activity).slice(0, 120);
     const id = `off_p_${hashStr(`${source.turn}\u0000${source.day}\u0000${source.who ?? ''}\u0000${source.where ?? ''}\u0000${source.activity}`).slice(0, 12)}`;
+    const name = creativeSubplotTitle({ id, name: String(p?.name ?? '').trim(), gist: source.activity, who: actorName, where: source.where });
     const basis = [source.who ? 'character' : 'location', source.where ? 'location' : '', 'parallel'].filter(Boolean) as Array<'character' | 'location' | 'parallel'>;
     await append(chatId, [{ seq: nextSeqLocal(), turn: state.turns || 0, day: state.day || 0, src: 'user', kind: 'offscreen.op', op: 'new', id, name,
       ...(who ? { who } : {}), ...(source.where ? { where: source.where } : {}), gist: source.activity,
       beatKind: 'progress', impact: impact.slice(0, 500), pressure: 1,
       grounding: { basis, rationale: `Promoted from the canonical turn ${source.turn} parallel snapshot; its actor, place, and activity are already part of T1 world state.`, refs: [`parallel:turn:${source.turn}`], after: source.activity },
       originParallel: { turn: source.turn, day: source.day, ...(source.who ? { who: source.who } : {}), ...(source.where ? { where: source.where } : {}), activity: source.activity },
+      provenance: { kind: 'promotion', sourceSubplotId: id },
       ...(bridge ? { hooks: [bridge.slice(0, 500)] } : {}), ...(linkedThread ? { thread: linkedThread.id } : {}),
     } as VellumEvent]);
     invalidateIndex(chatId); await broadcastState(chatId, uid);

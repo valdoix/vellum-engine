@@ -747,6 +747,9 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
         const prior = input.prior.offscreen.find(item => item.id === row.id);
         if (row.op === 'new' && prior) errors.push(`offscreen new id already exists: ${row.id}`);
         if (row.op !== 'new' && !prior) errors.push(`offscreen mutation requires an existing id: ${row.id}`);
+        if (prior && row.locationOp === 'retain' && row.where && prior.where && !sameLocation(prior.where, row.where)) errors.push(`subplot locationOp retain cannot relocate from ${prior.where}: ${row.id}`);
+        if (prior && row.locationOp === 'refine' && row.where && prior.where && !sameLocation(prior.where, row.where)) errors.push(`subplot locationOp refine must remain within ${prior.where}: ${row.id}`);
+        if (prior && row.locationOp === 'move' && (!row.where || !prior.where || sameLocation(prior.where, row.where))) errors.push(`subplot locationOp move requires a distinct destination: ${row.id}`);
         if (!subplotProofSufficient(row as any, prior)) {
           if (!row.impact?.trim()) errors.push(`subplot lacks a concrete story impact: ${row.id}`);
           else if (!row.beatKind) errors.push(`subplot beat lacks a progress/obstacle/consequence/bridge/resolution type: ${row.id}`);

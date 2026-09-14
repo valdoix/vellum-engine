@@ -2,7 +2,7 @@
 
 ARGENT LOOM is a VELLUM-native roleplay preset for long-running, causally coherent fiction. It combines strict player agency, limited character knowledge, physical and temporal continuity, durable relationships, living-world simulation, configurable prose craft, and an engine-owned state compiler that folds completed prose into the Chronicle only after validation.
 
-This guide covers all 60 user-facing controls in ARGENT LOOM 1.5.0, the 20-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
+This guide covers all 61 user-facing controls in ARGENT LOOM 1.5.1, the 20-script Lumiverse regex layer, useful control combinations, and common failure modes. The generated control catalog is in `ARGENT-CONTROLS.md`.
 
 ## Included files
 
@@ -166,7 +166,7 @@ Use **Verbose Reverie** when diagnosing weak planning, complex group scenes, kno
 
 ### Off-scene conversation privacy
 
-ARGENT 1.5.0 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
+ARGENT 1.5.1 audits knowledge per character and per fact. If B and C talk while A is absent, out of earshot, blocked, inattentive, or unable to understand, A remains unaware of the subject, exact words, tone, admissions, plans, and private reactions. A later entrance does not retroactively grant the conversation.
 
 A can learn afterward only through a concrete bridge established in the fiction: B or C tells A, A plausibly overhears, a delivered message or readable record reaches A, a public announcement occurs, or observable evidence supports a limited inference. Evidence does not reveal more than it contains; suspicious aftermath may justify `suspects`, but not knowledge of the hidden transcript. The same audit applies to prose, dialogue, thoughts, reactions, interruptions, `present.thought`, and `delta.knowledge`.
 
@@ -348,7 +348,7 @@ The embedded and standalone regex packs were both imported. Keep one copy of eac
 
 ### Parallel events show an earlier location
 
-ARGENT 1.5.0 compiles off-screen changes as operations against prior T1 state and durable subplot state. Every prior actor is reviewed; unchanged rows survive, `move` requires travel, `resolve` retires a row, and an actor entering `scene.present` is removed automatically. Each durable subplot schedules its own next eligibility and remains linked to plot consequences.
+ARGENT 1.5.1 uses VELLUM state protocol v3 and compiles off-screen changes as operations against prior T1 state and durable subplot state. Every prior actor is reviewed; unchanged rows survive, `move` requires travel, `resolve` retires a row, and an actor entering `scene.present` is removed automatically. Each durable subplot keeps a stable machine id, uses a creative Title Case display name, schedules its own next eligibility, and remains linked to plot consequences.
 
 Parallel life is active when any relevant control requests it: Living World Active/Sandbox, NPC Social Autonomy Living/Autonomous, or Faction Politics Living/Autonomous. A state block that omits `delta.parallel` no longer erases accepted rows; VELLUM rebuilds the current snapshot from durable subplot state. Anonymous world and faction beats are shown in Director → Off-screen too. Living/Active stays restrained. Autonomous/Sandbox requires at least four parallel event operations and two new durable subplots per in-character Engine Pass and imposes no narrative maximum, without relaxing knowledge, location, causality, player-agency, or persona-exclusion boundaries.
 

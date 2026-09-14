@@ -265,6 +265,9 @@ export interface ParallelEvent {
   activity: string;
   note?: string;
   src?: 'sim'; // tagged when authored by the off-screen simulation (vs model-narrated)
+  /** Stable provenance for a derived Elsewhere projection. Never infer this by
+   * comparing mutable prose text. */
+  sourceSubplotId?: string;
   turn: number;
   day: number;
 }
@@ -492,6 +495,7 @@ export interface OffscreenThread {
   name: string;
   who?: string;   // canonical cast id, when it concerns a known character
   where?: string;
+  locationOp?: 'retain' | 'refine' | 'move';
   status: 'active' | 'resolved';
   gist: string;   // latest one-line state
   beats: string[]; // running history of what happened off-screen (newest last, capped)
@@ -503,6 +507,7 @@ export interface OffscreenThread {
   grounding?: SubplotGrounding;
   /** Provenance retained when a parallel snapshot is promoted by the user. */
   originParallel?: SubplotParallelOrigin;
+  provenance?: { kind: 'foreground_bridge' | 'simulation' | 'manual' | 'promotion' | 'explicit'; sourceThreadId?: string; sourceSubplotId?: string };
   /** Long-tail pressure created by accumulated off-screen beats. Higher pressure
    * makes the subplot eligible to intersect the foreground sooner. */
   pressure?: number; // 0..5
