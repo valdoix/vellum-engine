@@ -2,7 +2,7 @@ import type { Feature, ExtractCtx } from '../bus/registry.js';
 import type { ParsedState } from '../parse/parsed.js';
 import type { VellumEvent } from '../core/events.js';
 import { canonId } from '../core/ids.js';
-import { resolveCastId, notAName, resolveFactionId, isNameMash } from './identity.js';
+import { resolveCastId, notAName, resolveFactionId, isNameMash, looksLikeGroup } from './identity.js';
 import { adjustBond, DEFAULT_TONE, seedFactionStanding } from './tone.js';
 import { findLock, applyLockToBond } from './relation-lock.js';
 import { inferLocationParent } from './locations.js';
@@ -40,6 +40,32 @@ function inlinePlotTokens(value: string, state: ExtractCtx['state']): Set<string
   return new Set([...factTokens(value)].filter(token => !cast.has(token) && !INLINE_PLOT_GENERIC.has(token)));
 }
 
+/** Conservative inflection match for compatibility prose. This deliberately
+ * needs a long shared stem, so `resurrection` ↔ `resurrected` and `migration`
+ * ↔ `migrating` match while short/generic lookalikes do not. */
+function relatedPlotToken(a: string, b: string): boolean {
+  if (a === b) return true;
+  const limit = Math.min(a.length, b.length);
+  if (limit < 5) return false;
+  let shared = 0;
+  while (shared < limit && a[shared] === b[shared]) shared++;
+  return shared >= 5 && shared >= limit - 3;
+}
+
+function plotSetsOverlap(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  return [...left].some(token => [...right].some(candidate => relatedPlotToken(token, candidate)));
+}
+
+function inlineClaimSupported(claim: string, prose?: string): boolean {
+  if (prose === undefined || !prose.trim()) return true;
+  const wanted = [...factTokens(claim)];
+  const visible = [...factTokens(prose)];
+  if (!wanted.length || !visible.length) return false;
+  let shared = 0;
+  for (const token of wanted) if (visible.some(candidate => relatedPlotToken(token, candidate))) shared++;
+  return shared >= Math.min(2, wanted.length);
+}
+
 /** Inline-compatibility backstop. The engine compiler has richer proof records,
  * but legacy model-written blocks still pass here. Refuse title drift, bare
  * status echoes, repeated beats, and notes with no concrete support in prose. */
@@ -59,7 +85,7 @@ function inlinePlotChange(
     // the visible prose; later operations still require a concrete changed
     // condition. This files the declared track without inventing a beat.
     const after = inlinePlotTokens(note || prose || '', state);
-    if (!title.size || ![...title].some(token => after.has(token))) return false;
+    if (!title.size || !plotSetsOverlap(title, after)) return false;
   } else {
     if (!note) return false;
     if (!target || /resolv/i.test(target.status || '')) return false;
@@ -67,28 +93,26 @@ function inlinePlotChange(
     if (plotTitleKey(before) === plotTitleKey(note) || similarFact(before, note)) return false;
     const anchors = inlinePlotTokens([target.name, ...target.beats.slice(-3), target.status].join(' '), state);
     const after = inlinePlotTokens(note, state);
-    const beatContinuesTrack = anchors.size > 0 && [...anchors].some(token => after.has(token));
+    const beatContinuesTrack = anchors.size > 0 && plotSetsOverlap(anchors, after);
     // Some compatible grammars separate the T0 anchor (`prior`) from the T1
     // event (`note`). Accept that shape only when the claimed T0 actually
     // overlaps canonical track history; it cannot bootstrap or rename a track.
     const claimedPrior = inlinePlotTokens(String(row.prior ?? ''), state);
     const priorAnchored = claimedPrior.size > 0 && anchors.size > 0
-      && [...claimedPrior].some(token => anchors.has(token));
+      && plotSetsOverlap(claimedPrior, anchors);
     if (!beatContinuesTrack && !priorAnchored) return false;
   }
-  if (prose === undefined || !note) return true;
-  const noteTokens = factTokens(note);
-  const proseTokens = factTokens(prose);
-  if (!noteTokens.size || !proseTokens.size) return false;
-  let shared = 0;
-  for (const token of noteTokens) if (proseTokens.has(token)) shared++;
-  return shared >= Math.min(2, noteTokens.size);
+  // A block-only compatibility response has no separate prose to corroborate
+  // against. Its concrete note still passed the title/track gate above, so do
+  // not turn an empty stripped scaffold into evidence of contradiction.
+  if (!note) return true;
+  return inlineClaimSupported(note, prose);
 }
 
 /** Predict the reducer-owned stable ids for prior plus same-candidate tracks.
  * This mirrors upsertTrack's collision rule so links can be emitted in the same
  * atomic event batch as the rows they target. */
-function plannedTrackRefs(prior: ExtractCtx['state']['threads'], rows: readonly { name: string }[]): Map<string, string> {
+function plannedTrackRefs(prior: ExtractCtx['state']['threads'], rows: readonly { id?: string; name: string }[]): Map<string, string> {
   const refs = new Map<string, string>();
   const planned = prior.map(track => ({ id: track.id, name: track.name }));
   for (const track of planned) {
@@ -103,6 +127,7 @@ function plannedTrackRefs(prior: ExtractCtx['state']['threads'], rows: readonly 
       while (planned.some(item => item.id === id)) id = `${base}_${suffix++}`;
       track = { id, name: row.name }; planned.push(track);
     }
+    if (row.id?.trim()) refs.set(row.id.trim().toLocaleLowerCase(), track.id);
     refs.set(track.id.toLocaleLowerCase(), track.id);
     refs.set(plotTitleKey(row.name), track.id);
   }
@@ -388,10 +413,20 @@ export const coreFeature: Feature = {
     // before/evidence/after proof gate, so it must not be silently rejected by
     // the older token-overlap backstop used for untrusted inline blocks.
     const threadRows = parsed.delta?.threads ?? [];
+    const explicitArcRows = parsed.delta?.arcs ?? [];
     const acceptedThreads = ctx.validatedCompiler
       ? threadRows
-      : threadRows.filter(row => inlinePlotChange(row, ctx.state.threads, ctx.state, ctx.prose));
-    const explicitArcRows = parsed.delta?.arcs ?? [];
+      : threadRows.filter(row => {
+        if (inlinePlotChange(row, ctx.state.threads, ctx.state, ctx.prose)) return true;
+        if (row.op !== 'new' || !row.note || resolvePlotRef(ctx.state.threads, row.name) || !inlineClaimSupported(row.note, ctx.prose)) return false;
+        // A coherent declared graph can corroborate a title even when its wording
+        // is paraphrastic: require both an explicit parent arc and an exact
+        // subplot edge to this child. Neither declaration alone is sufficient.
+        const hasParent = !!row.arc && explicitArcRows.some(arc => [arc.id, arc.name].some(ref => ref && plotTitleKey(ref) === plotTitleKey(row.arc!)));
+        const childRefs = [row.id, row.name].filter((ref): ref is string => !!ref).map(plotTitleKey);
+        const hasChild = (parsed.delta?.offscreen ?? []).some(subplot => childRefs.includes(plotTitleKey(subplot.thread ?? '')));
+        return hasParent && hasChild;
+      });
     // A thread's explicit human-readable parent is enough to mint that parent
     // when the model omitted the redundant arc row. Never synthesize from an
     // id-like reference, and inherit only the already-grounded child condition.
@@ -399,7 +434,7 @@ export const coreFeature: Feature = {
       const parent = String(thread.arc ?? '').trim();
       if (!parent || /^(?:thr|thread|arc|plot)_/i.test(parent)
         || resolvePlotRef(ctx.state.arcs, parent)
-        || explicitArcRows.some(arc => plotTitleKey(arc.name) === plotTitleKey(parent))) return [];
+        || explicitArcRows.some(arc => [arc.id, arc.name].some(ref => ref && plotTitleKey(ref) === plotTitleKey(parent)))) return [];
       return [{ op: 'new' as const, name: parent, ...(thread.note ? { note: thread.note } : {}) }];
     });
     const candidateArcRows = [...explicitArcRows, ...implicitArcRows];
@@ -407,7 +442,8 @@ export const coreFeature: Feature = {
       if (arc.op === 'stall') return false;
       if (inlinePlotChange(arc, ctx.state.arcs, ctx.state, ctx.prose)) return true;
       if (arc.op !== 'new' || resolvePlotRef(ctx.state.arcs, arc.name)) return false;
-      return acceptedThreads.some(thread => thread.arc && plotTitleKey(thread.arc) === plotTitleKey(arc.name));
+      return acceptedThreads.some(thread => thread.arc
+        && [arc.id, arc.name].some(ref => ref && plotTitleKey(thread.arc!) === plotTitleKey(ref)));
     });
     const threadRefs = plannedTrackRefs(ctx.state.threads, acceptedThreads);
     const arcRefs = plannedTrackRefs(ctx.state.arcs, acceptedArcs);
@@ -602,9 +638,29 @@ export const coreFeature: Feature = {
       // create an arc, thread, parallel actor, and subplot in one transaction;
       // checking only T0 made the final subplot look orphaned and dropped it.
       const samePassState = reduce(out, structuredClone(ctx.state));
-      out.push(...simEvents({ offscreen: parsed.delta.offscreen }, samePassState, ctx.turn, ctx.day, ctx.seq, {
+      const offscreenRows = parsed.delta.offscreen.map(row => {
+        const normalized = { ...row };
+        // `who` is a character owner, not a free-form subject. Generated
+        // compatibility blocks sometimes put a collective here. Keep it as a
+        // world subplot without minting a fake cast card; the subject remains
+        // explicit in its gist and evidence.
+        if (normalized.who && looksLikeGroup(normalized.who)) delete normalized.who;
+
+        // A common compatible shape puts the parent arc title in `thread`.
+        // Repair it only when that arc has exactly one accepted child, making
+        // the intended durable thread unambiguous.
+        const suppliedPlotRef = normalized.thread || normalized.arc;
+        if (suppliedPlotRef && !resolveRef(threadRefs, suppliedPlotRef)) {
+          const parentArc = resolveRef(arcRefs, suppliedPlotRef);
+          const children = parentArc ? acceptedThreads.filter(thread => resolveRef(arcRefs, thread.arc) === parentArc) : [];
+          if (children.length === 1) normalized.thread = resolveRef(threadRefs, children[0]!.id ?? children[0]!.name) ?? children[0]!.name;
+        }
+        return normalized;
+      });
+      out.push(...simEvents({ offscreen: offscreenRows }, samePassState, ctx.turn, ctx.day, ctx.seq, {
         locks: ctx.locks, social: ctx.tone?.social, politics: ctx.tone?.politics, livingWorld: ctx.livingWorld, userId: ctx.userCanon,
-        ...(ctx.validatedCompiler ? { validatedCompiler: true, compilerThreadIds: threadRefs } : {}),
+        compilerThreadIds: threadRefs,
+        ...(ctx.validatedCompiler ? { validatedCompiler: true } : {}),
       }));
     }
 

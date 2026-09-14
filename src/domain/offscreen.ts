@@ -507,7 +507,7 @@ export interface SimEventsOpts {
   /** Generated simulator replies must prove grounding, transition and impact.
    * Kept opt-in for legacy programmatic callers and imported logs. */
   requireProof?: boolean;
-  /** Existing plus same-candidate thread references. Ordinary simulator calls
+  /** Existing plus same-candidate thread references. Direct simulator calls
    * omit this and continue resolving only against canonical prior state. */
   compilerThreadIds?: ReadonlyMap<string, string>;
 }

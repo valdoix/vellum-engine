@@ -3,6 +3,7 @@ import type { VellumEvent } from '../src/core/events.js';
 import { reduce } from '../src/core/reduce.js';
 import { coreFeature } from '../src/domain/core-feature.js';
 import { freshState } from '../src/domain/types.js';
+import { sameLocation } from '../src/domain/parallel-canon.js';
 
 let seq = 0;
 function ev(e: Partial<VellumEvent> & { kind: VellumEvent['kind'] }): VellumEvent {
@@ -10,6 +11,11 @@ function ev(e: Partial<VellumEvent> & { kind: VellumEvent['kind'] }): VellumEven
 }
 
 describe('parallel T1 synchronization', () => {
+  it('matches reordered descriptive locations without collapsing distinct named places', () => {
+    expect(sameLocation('Sunnydale streets, fleeing', 'Fleeing through Sunnydale streets')).toBe(true);
+    expect(sameLocation('North Gate', 'South Gate')).toBe(false);
+  });
+
   it('clears the previous parallel snapshot when a new authoritative scene arrives', () => {
     const state = reduce([
       ev({ kind: 'parallel.set', items: [{ who: 'mara', where: 'Place A', activity: 'waits' }] }),

@@ -107,7 +107,19 @@ export function locationKey(value?: string): string {
 
 export function sameLocation(a?: string, b?: string): boolean {
   const ak = locationKey(a), bk = locationKey(b);
-  return !!ak && ak === bk;
+  if (!ak || !bk) return false;
+  if (ak === bk) return true;
+  // Generated snapshots frequently reorder a descriptive place around its
+  // activity ("Sunnydale streets, fleeing" vs "Fleeing through Sunnydale
+  // streets"). Treat only high-overlap, multi-token forms as the same anchor;
+  // one shared generic token cannot collapse distinct places such as North and
+  // South Gate.
+  const left = new Set(ak.split(/\s+/u).filter(token => token.length > 1));
+  const right = new Set(bk.split(/\s+/u).filter(token => token.length > 1));
+  const smaller = left.size <= right.size ? left : right;
+  const larger = left.size <= right.size ? right : left;
+  const shared = [...smaller].filter(token => larger.has(token)).length;
+  return shared >= 2 && shared / smaller.size >= 0.75;
 }
 
 /** The newest engine-owned physical anchor for an actor. */

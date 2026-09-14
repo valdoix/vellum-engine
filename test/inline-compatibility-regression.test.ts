@@ -259,4 +259,89 @@ describe('inline VELLUM compatibility normalization', () => {
     const arc = next.arcs.find(row => row.name === 'The Succession Crisis')!;
     expect(next.threads.find(row => row.name === 'Choose an Heir')?.arc).toBe(arc.id);
   });
+
+  it('uses a coherent arc-thread-subplot graph to corroborate a paraphrastic new title', () => {
+    const prose = 'Ada discovers that the royal seal vanished from the courier case.';
+    const parsed = parseState(wrap({ delta: {
+      arcs: [{ op: 'new', id: 'arc_succession', name: 'The Succession Crisis', note: prose }],
+      threads: [{ op: 'new', id: 'thread_empty_throne', name: 'The Empty Throne', note: prose, arc: 'arc_succession' }],
+      offscreen: [{ op: 'new', id: 'courier_search', where: 'East Gate', gist: 'The gate watch searches arriving couriers', thread: 'thread_empty_throne' }],
+    } })).state!;
+    let sequence = 0;
+    const next = reduce(coreFeature.extract!(parsed, {
+      turn: 1, day: 0, state: freshState(), prose, seq: () => ++sequence,
+    } as ExtractCtx));
+    const arc = next.arcs.find(row => row.name === 'The Succession Crisis')!;
+    expect(next.threads.find(row => row.name === 'The Empty Throne')).toMatchObject({ arc: arc.id });
+    expect(next.offscreen.find(row => row.id === 'courier_search')).toMatchObject({ thread: 'thr_the_empty_throne' });
+  });
+
+  it('materializes generated resurrection tracks and grounded subplots despite inflection, collective actors, and reordered places', () => {
+    const content = `Buffy claws her way out of the grave while Gabriel waits beside the broken ritual circle.
+<vellum>${JSON.stringify({
+      v: 1, turn: 1, day: 0,
+      scene: { title: 'From the Earth', loc: 'Sunnydale Cemetery', time: 'night', tension: 8 },
+      present: [{ id: 'Gabriel Winters' }, { id: 'Buffy Summers' }],
+      delta: {
+        threads: [{ op: 'new', name: "Buffy's Resurrection", note: 'Buffy has clawed out of her grave and is alive, but does not know who resurrected her or why.', arc: 'Buffy Returns' }],
+        arcs: [{ op: 'new', name: 'Buffy Returns', note: 'Buffy Summers has been pulled from the grave by Gabriel Winters. She is alive, traumatized, and disoriented.' }],
+        parallel: [{ who: 'Willow Rosenberg', where: 'Fleeing through Sunnydale streets', activity: 'Running from the Hellion bikers after the interrupted resurrection ritual' }],
+        offscreen: [
+          {
+            op: 'new', id: 'hellion_raid', who: 'Hellion Biker Gang', where: 'Sunnydale town center and surrounding streets',
+            gist: 'The Hellion biker gang is rampaging through Sunnydale and attacking anything that moves', thread: 'Buffy Returns',
+            beatKind: 'consequence', impact: 'Town-wide chaos, fires, destruction, and an exposed gap in Slayer patrols', autonomy: 'active',
+            grounding: { basis: ['Canon: Hellions attack during Bargaining', 'The ritual was interrupted by the Hellion assault'], rationale: 'The active Hellion raid interrupted the resurrection ritual' },
+          },
+          {
+            op: 'new', id: 'scoobies_fleeing', who: 'Willow Rosenberg', where: 'Sunnydale streets, fleeing',
+            gist: 'Willow and the others are running from the attack believing the resurrection ritual failed', thread: "Buffy's Resurrection",
+            beatKind: 'obstacle', impact: 'The people who brought Buffy back do not know she is alive and believe they failed', autonomy: 'active',
+            grounding: { basis: ['Canon: Scoobies flee when the urn shatters', 'They did not witness Buffy emerge'], rationale: 'The interrupted group fled before seeing the result' },
+          },
+        ],
+      },
+    })}</vellum>`;
+    const parsed = parseState(content);
+    expect(parsed.source).toBe('json');
+    expect(parsed.state?.delta?.offscreen).toHaveLength(2);
+
+    let sequence = 0;
+    const state = freshState();
+    const next = reduce(coreFeature.extract!(parsed.state!, {
+      turn: 1, day: 0, state,
+      prose: 'Buffy claws her way out of the grave while Gabriel waits beside the broken ritual circle.',
+      livingWorld: 'active', tone: { ...DEFAULT_TONE, social: 'autonomous' },
+      parallelCanonLabels: ['Willow Rosenberg', 'Hellion bikers'],
+      seq: () => ++sequence,
+    } as ExtractCtx), state);
+
+    const arc = next.arcs.find(row => row.name === 'Buffy Returns')!;
+    const thread = next.threads.find(row => row.name === "Buffy's Resurrection")!;
+    expect(arc).toBeTruthy();
+    expect(thread).toMatchObject({ arc: arc.id });
+    expect(next.offscreen).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'hellion_raid', thread: thread.id }),
+      expect.objectContaining({ id: 'scoobies_fleeing', thread: thread.id, who: 'willow_rosenberg' }),
+    ]));
+    expect(next.offscreen.find(row => row.id === 'hellion_raid')).not.toHaveProperty('who');
+
+    let blockSequence = 0;
+    const knownState = freshState();
+    // Existing cast names are removed from title-evidence tokens, which makes
+    // this exercise the generic inflection matcher rather than a shared name.
+    knownState.cast.buffy_summers = {
+      id: 'buffy_summers', name: 'Buffy Summers', aka: [], status: 'active', source: 'auto',
+      firstTurn: 0, lastTurn: 0, traits: [], userEdited: false,
+    } as any;
+    const folded = reduce(coreFeature.extract!(parsed.state!, {
+      turn: 1, day: 0, state: knownState, prose: '',
+      livingWorld: 'active', tone: { ...DEFAULT_TONE, social: 'autonomous' },
+      parallelCanonLabels: ['Willow Rosenberg', 'Hellion bikers'],
+      seq: () => ++blockSequence,
+    } as ExtractCtx), knownState);
+    expect(folded.arcs.find(row => row.name === 'Buffy Returns')).toBeTruthy();
+    expect(folded.threads.find(row => row.name === "Buffy's Resurrection")).toBeTruthy();
+    expect(folded.offscreen).toHaveLength(2);
+  });
 });
