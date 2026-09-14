@@ -60,6 +60,7 @@ import { sceneSuggestions, recursionSeeds, evaluateSchedules, findDupe, type Vau
 import { proseRefreshInjection, scrubProseRefreshCommands, stripProseRefreshCommand } from './domain/prose-refresh.js';
 import { embedParallelCommand, hasParallelCommand, materializeParallelBatch, parallelCommandInjection, scrubParallelCommands, stripParallelCommand } from './domain/parallel-command.js';
 import { openingSceneInjection, parseSceneCommand, sceneIntentInjection, scrubSceneCommands, type SceneIntent, type SceneTransitionKind } from './domain/scene-transition.js';
+import { plotStateInjection } from './domain/plot-refs.js';
 import { agencyAtTurn, enginePassEnabled, engineWindowEnabled, engineEvidenceMode, personaStateEnabled, personaStateGuidance, parseTurnAgencyLedger, prospectiveAssistantTurn, recordTurnAgency, resolveTurnContract, resolveTurnContractFromMessages, serializeTurnAgencyLedger, type TurnAgencyLedger, type TurnContract } from './domain/preset-runtime.js';
 import { compileState, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation, type CompilerProgress } from './bus/state-compiler.js';
 import { auditCompiledEvents } from './domain/state-compiler.js';
@@ -2443,6 +2444,10 @@ async function wireCapabilitiesInner(): Promise<void> {
           const plantText = caps.plants ? plantsInjection(state, state.turns || 0, caps.plants) : '';
           // Off-screen convergence — threads ripe to walk back into the scene.
           const offText = caps.offscreen ? offscreenInjection(state, caps.offscreen) : '';
+          // Canonical plot ledger — every active arc, thread, and subplot is
+          // supplied each turn so the model can update existing objects instead
+          // of minting renamed duplicates.
+          const plotText = plotStateInjection(state);
           // Living Clock (opt-in) — on a detected time-skip, surface advisory decay
           // for time-sensitive state (wounds, plants, distant beats, aging). Off by
           // default; the skip span comes from the same lastSimDay anchor the sim uses.
@@ -2480,7 +2485,7 @@ async function wireCapabilitiesInner(): Promise<void> {
           // Refresh goes last inside VELLUM's system injection so it is the
           // freshest style instruction while every continuity/output contract
           // above it remains binding.
-          const injText = [limitsText, inj.text, lorebookRecall.text, locText, driftText, moodText, npcText, offText, livingText, lockText, plantText, calText, spineText, sceneCommandText, nextSceneText, dirText, blockExampleText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
+          const injText = [limitsText, inj.text, lorebookRecall.text, locText, driftText, moodText, npcText, plotText, offText, livingText, lockText, plantText, calText, spineText, sceneCommandText, nextSceneText, dirText, blockExampleText, refreshText, parallelText, personaStateHead, dialogueText].filter(Boolean).join('\n\n');
           if (!injText && !personaStateText) return out;
           const loggedText = [injText, parallelEmbeddedAt >= 0 ? parallelCommandText : '', personaStateTail, personaStateEmbeddedAt >= 0 ? personaStateText : ''].filter(Boolean).join('\n\n');
           const rec = recordInjection(chatId, state.turns || 0, loggedText, [...inj.recallIds, ...lorebookRecall.ids], { source: inj.source, trace: inj.trace ?? inj.treeTrace });

@@ -945,7 +945,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     adopt(row, 'id', ['who', 'character']);
     adopt(row, 'doing', ['activity', 'action']);
     const presence = str(row.presence).toLowerCase().replace(/[\s-]+/g, '_');
-    if (['spotlight', 'foreground', 'focus', 'lead', 'primary'].includes(presence)) row.presence = 'spotlight';
+    if (['spotlight', 'foreground', 'focus', 'lead', 'primary', 'on_stage', 'onstage', 'active'].includes(presence)) row.presence = 'spotlight';
     else if (['periphery', 'background', 'supporting', 'secondary'].includes(presence)) row.presence = 'periphery';
     else if (presence) delete row.presence;
     if (typeof row.traits === 'string') {
@@ -1026,7 +1026,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
 
   if (delta.knowledge !== undefined) delta.knowledge = rows(delta, 'knowledge').flatMap((row) => {
     adopt(row, 'who', ['character', 'actor', 'name']);
-    adopt(row, 'fact', ['knowledge', 'entry', 'memory', 'text']);
+    adopt(row, 'fact', ['knowledge', 'learns', 'entry', 'memory', 'text']);
     adopt(row, 'about', ['subject']);
     const who = str(row.who), fact = str(row.fact);
     if (!who || !fact) return [];
@@ -1052,6 +1052,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
   if (delta.secrets !== undefined) delta.secrets = rows(delta, 'secrets').flatMap((row) => {
     adopt(row, 'keeper', ['who', 'character', 'actor']);
     adopt(row, 'secret', ['entry', 'fact', 'memory']);
+    adopt(row, 'from', ['excluded', 'excludedFrom', 'excluded_from', 'audience']);
     const keeper = str(row.keeper), secret = str(row.secret ?? row.text);
     if (!keeper || !secret) return [];
     row.keeper = keeper;
@@ -1091,11 +1092,18 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       adopt(row, 'where', ['location', 'loc', 'place']);
       adopt(row, 'locationOp', ['location_op', 'placeOp', 'place_op']);
       adopt(row, 'gist', ['activity', 'event', 'development', 'beat', 'summary', 'description']);
+      // When no gist was found but impact exists, copy impact into gist as
+      // a last resort — the model put the beat description in the wrong field.
+      // impact itself is preserved so both fields carry their data.
+      if (row.gist === undefined && row.impact !== undefined) row.gist = row.impact;
       adopt(row, 'thread', ['plotThread', 'plot_thread']);
       adopt(row, 'arc', ['storyArc', 'story_arc']);
       adopt(row, 'op', ['action', 'operation', 'status']);
       // beatKind is often emitted as beat_kind, type, or kind by LLMs that
       // copy the schema's prose description instead of the canonical key.
+      // The `type` alias must come AFTER gist adoption so a stray "type":"subplot"
+      // (a non-beatKind value) gets cleaned by the validation below rather than
+      // silently consumed as gist text.
       adopt(row, 'beatKind', ['beat_kind', 'beat_type', 'beatType', 'type', 'kind']);
       if (row.beatKind !== undefined) {
         const bk = str(row.beatKind).toLowerCase().replace(/[\s-]+/g, '_');
@@ -1110,6 +1118,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
         if (!['retain', 'refine', 'move'].includes(String(row.locationOp))) delete row.locationOp;
       }
       // impact is the concrete story effect; LLMs often use effect/consequence.
+      // When impact was consumed as gist above, do not double-adopt it.
       adopt(row, 'impact', ['effect', 'consequence', 'result', 'significance']);
       // Grounding fields are frequently hoisted to the row level by models
       // that flatten the nested object. Rejoin them so subplotProofSufficient
@@ -1117,6 +1126,11 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       if (row.grounding === undefined || (typeof row.grounding === 'object' && !Array.isArray(row.grounding))) {
         const grounding = (row.grounding && typeof row.grounding === 'object' && !Array.isArray(row.grounding)) ? row.grounding as Record<string, unknown> : (row.grounding === undefined ? {} : {});
         if (row.grounding === undefined) row.grounding = grounding;
+        // Models using Inline Compatibility sometimes emit `evidence` instead
+        // of `rationale` inside the grounding object, or as a hoisted row field.
+        const groundingEvidence = grounding.evidence !== undefined ? str(grounding.evidence) : str(row.evidence);
+        if (grounding.rationale === undefined && grounding.evidence !== undefined) { grounding.rationale = grounding.evidence; delete grounding.evidence; }
+        if (grounding.rationale === undefined && row.evidence !== undefined) { grounding.rationale = row.evidence; delete row.evidence; }
         if (grounding.rationale === undefined && row.rationale !== undefined) { grounding.rationale = row.rationale; delete row.rationale; }
         if (grounding.before === undefined && row.before !== undefined) { grounding.before = row.before; delete row.before; }
         if (grounding.after === undefined && row.after !== undefined) { grounding.after = row.after; delete row.after; }
@@ -1148,6 +1162,24 @@ function normalizeBlock(obj: Record<string, unknown>): void {
             grounding.refs = [...new Set(refs)].slice(0, 20);
           }
           grounding.basis = [...new Set(canonical)];
+        }
+        // Inline Compatibility models often omit basis entirely while providing
+        // a valid rationale. Synthesize from available row context so the
+        // subplot proof gate does not reject an otherwise complete beat.
+        if (!Array.isArray(grounding.basis) || !grounding.basis.length) {
+          const synthesized: string[] = [];
+          if (str(row.who)) synthesized.push('character');
+          if (str(row.where)) synthesized.push('location');
+          const rationaleText = str(grounding.rationale).toLowerCase();
+          if (/lorebook|canon/.test(rationaleText)) synthesized.push('lorebook');
+          if (/prose|scene|foreground|present/.test(rationaleText)) synthesized.push('scene');
+          if (/parallel/.test(rationaleText)) synthesized.push('parallel');
+          if (/subplot|off[- ]?screen/.test(rationaleText)) synthesized.push('subplot');
+          if (synthesized.length) grounding.basis = [...new Set(synthesized)];
+        }
+        if (groundingEvidence) {
+          const refs = Array.isArray(grounding.refs) ? grounding.refs.map(value => str(value)).filter(Boolean) : [];
+          grounding.refs = [...new Set([...refs, groundingEvidence])].slice(0, 20);
         }
       }
       const op = str(row.op).toLowerCase();

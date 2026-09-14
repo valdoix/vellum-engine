@@ -145,6 +145,21 @@ describe('inline VELLUM compatibility normalization', () => {
     });
   });
 
+  it('rejects a new thread or arc that collides across plot layers', () => {
+    const state = freshState();
+    state.arcs = [{ id: 'arc_return', name: 'Buffys Return', status: 'active', beats: ['Buffy comes back'], firstTurn: 1, lastTurn: 1 } as any];
+    state.threads = [{ id: 'thr_search', name: 'Find Dawn', status: 'active', beats: ['The search begins'], firstTurn: 1, lastTurn: 1 } as any];
+    const parsed = parseState(wrap({ delta: {
+      arcs: [{ op: 'new', name: 'Find Dawn', note: 'The search for Dawn expands.' }],
+      threads: [{ op: 'new', name: 'Buffys Return', note: 'Buffy returns to the world.' }],
+    } })).state!;
+    let sequence = 0;
+    const events = coreFeature.extract!(parsed, {
+      turn: 2, day: 0, state, prose: 'The search expands while Buffy returns to the world.', seq: () => ++sequence,
+    } as ExtractCtx);
+    expect(events.filter(event => event.kind === 'arc.op' || event.kind === 'thread.op')).toEqual([]);
+  });
+
   it('uses a grounded prior anchor and preserves prose introduction packets without inventing structure', () => {
     const state = freshState();
     state.cast.jonathan_winters = {

@@ -56,6 +56,10 @@ function plotSetsOverlap(left: ReadonlySet<string>, right: ReadonlySet<string>):
   return [...left].some(token => [...right].some(candidate => relatedPlotToken(token, candidate)));
 }
 
+function duplicatePlotTitle(name: string, rows: readonly { name: string }[]): boolean {
+  return rows.some(row => sameTrack(row.name, name));
+}
+
 function inlineClaimSupported(claim: string, prose?: string): boolean {
   if (prose === undefined || !prose.trim()) return true;
   const wanted = [...factTokens(claim)];
@@ -427,6 +431,10 @@ export const coreFeature: Feature = {
     const acceptedThreads = ctx.validatedCompiler
       ? threadRows
       : threadRows.filter(row => {
+        // A new thread cannot reuse an existing or same-pass arc title. Threads
+        // and arcs are different graph layers; a title collision creates an
+        // ambiguous parent link and was observed in the exported chronology.
+        if (row.op === 'new' && (duplicatePlotTitle(row.name, ctx.state.arcs) || duplicatePlotTitle(row.name, explicitArcRows))) return false;
         if (inlinePlotChange(row, ctx.state.threads, ctx.state, ctx.prose)) return true;
         if (row.op !== 'new' || !row.note || resolvePlotRef(ctx.state.threads, row.name) || !inlineClaimSupported(row.note, ctx.prose)) return false;
         // A coherent declared graph can corroborate a title even when its wording
@@ -449,6 +457,9 @@ export const coreFeature: Feature = {
     });
     const candidateArcRows = [...explicitArcRows, ...implicitArcRows];
     const acceptedArcs = ctx.validatedCompiler ? candidateArcRows : candidateArcRows.filter(arc => {
+      // Do not mint a new arc that is an existing/same-pass thread under a new
+      // title. An arc may still advance normally when it already exists.
+      if (arc.op === 'new' && (duplicatePlotTitle(arc.name, ctx.state.threads) || duplicatePlotTitle(arc.name, acceptedThreads))) return false;
       if (arc.op === 'stall') return false;
       if (inlinePlotChange(arc, ctx.state.arcs, ctx.state, ctx.prose)) return true;
       if (arc.op !== 'new' || resolvePlotRef(ctx.state.arcs, arc.name)) return false;

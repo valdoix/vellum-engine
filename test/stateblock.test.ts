@@ -24,4 +24,22 @@ describe('state-block parse robustness', () => {
     const r = parseState(J('{ "turn": 9, "extra": "junk", "scene": { "loc": "z", "tension": 4 } }'));
     expect(r.source).toBe('json'); expect(r.state?.scene?.tension).toBe(4);
   });
+  it('normalizes ARGENT inline compatibility aliases without dropping plot data', () => {
+    const r = parseState(J(JSON.stringify({
+      v: 4,
+      turn: 7,
+      present: [{ id: 'buffy_summers', presence: 'on-stage', traits: 'brave, stubborn', thought: 'I need Dawn.' }],
+      delta: {
+        knowledge: [{ character: 'Buffy Summers', learns: 'Dawn is alive', source: 'Gabriel told her', truth: true }],
+        secrets: [{ keeper: 'Buffy Summers', secret: 'The necklace is a promise', excluded: ['Dawn Summers'] }],
+        offscreen: [{ id: 'dawn_search', name: 'Search For Dawn', type: 'subplot', actor: 'Spike', where: 'Sunnydale streets', impact: 'Spike guards Dawn from the raid', beatKind: 'progress', grounding: { evidence: 'Spike is already protecting Dawn', rationale: 'The established raid gives him an immediate reason to keep guarding her.' } }],
+      },
+    })));
+    expect(r.state?.present?.[0]?.presence).toBe('spotlight');
+    expect(r.state?.delta?.knowledge?.[0]?.fact).toBe('Dawn is alive');
+    expect(r.state?.delta?.secrets?.[0]?.from).toEqual(['Dawn Summers']);
+    expect(r.state?.delta?.offscreen?.[0]?.gist).toBe('Spike guards Dawn from the raid');
+    expect(r.state?.delta?.offscreen?.[0]?.grounding?.basis).toContain('character');
+    expect(r.state?.delta?.offscreen?.[0]?.grounding?.basis).toContain('location');
+  });
 });

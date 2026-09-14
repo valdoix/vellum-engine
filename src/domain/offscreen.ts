@@ -668,6 +668,20 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
       ?? state.threads.find(t => t.id.toLocaleLowerCase() === key || t.name.toLocaleLowerCase() === key)?.id;
   };
   const events: VellumEvent[] = [];
+  const acceptedNew = new Set<string>();
+  const plotNameDuplicate = (name: string): boolean => [...state.threads, ...state.arcs]
+    .some(track => similarFact(track.name, name))
+    || [...acceptedNew].some(existing => similarFact(existing, name));
+  const subplotDuplicate = (row: ParsedSim['offscreen'][number]): boolean => {
+    const proposedName = row.name || row.id;
+    if (state.offscreen.some(existing => existing.status === 'active' && similarFact(existing.name, proposedName))) return true;
+    return state.offscreen.some(existing => {
+      if (existing.status !== 'active' || !existing.who || !row.who || !existing.where || !row.where) return false;
+      return canonId(existing.who) === canonId(row.who)
+        && sameLocation(existing.where, row.where)
+        && similarFact(existing.gist, String(row.gist ?? ''));
+    });
+  };
   const eligible = opts.eligibleIds ? new Set(opts.eligibleIds) : undefined;
   const mode = opts.livingWorld ?? 'active';
   let newRows = 0;
@@ -679,6 +693,7 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
     if (eligible && known.has(p.id) && !eligible.has(p.id)) continue;
     if (eligible && !known.has(p.id) && opts.allowNew !== true) continue;
     if (!known.has(p.id) && newRows >= newCap) continue;
+    if (!known.has(p.id) && (plotNameDuplicate(p.name || p.id) || subplotDuplicate(p))) continue;
     const prior = state.offscreen.find(row => row.id === p.id);
     if (opts.requireProof && !subplotProofSufficient(p, prior)) continue;
     if (opts.requireProof && p.op !== 'resolve' && p.gist && !parallelKnowledgePlausible(
@@ -707,6 +722,7 @@ export function simEvents(parsed: ParsedSim, state: ChronicleState, turn: number
       const sandboxBacked = mode === 'sandbox' && !!actor?.traits?.length;
       if (!who || !anchored?.where || (!explicitIntent && !roleBacked && !sandboxBacked) || alreadyOccupied) continue;
     }
+    if (!prior && !known.has(p.id)) acceptedNew.add(p.name || p.id);
     const anchor = who ? canonicalActorLocation(state, who) : undefined;
     let where = p.where?.trim() || prior?.where || anchor?.where;
     if (p.locationOp === 'retain') where = prior?.where || anchor?.where || where;

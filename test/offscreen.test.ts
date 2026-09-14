@@ -393,6 +393,12 @@ describe('simEvents + reduce round-trip', () => {
       grounding: { basis: ['character', 'location'], rationale: 'Jaime is an established guard currently anchored in the Yard.', after: 'checks the gate hinges' },
     }] }, s, 12, 1, next, { requireProof: true })).toEqual([expect.objectContaining({ kind: 'offscreen.op', id: 'gate_watch', impact: expect.stringContaining('guard response') })]);
   });
+  it('rejects a renamed duplicate subplot for the same actor and location', () => {
+    const s = state();
+    s.offscreen = [{ id: 'jaime_watch', name: 'Watch At The Yard', status: 'active', gist: 'Jaime checks the gate', beats: ['Jaime checks the gate'], who: 'jaime', where: 'The Yard', firstTurn: 8, lastTurn: 10 }] as any;
+    const evs = simEvents({ offscreen: [{ op: 'new', id: 'jaime_gate', name: 'Gate Vigil', who: 'Jaime', where: 'The Yard', gist: 'Jaime checks the gate again', beatKind: 'progress', impact: 'The gate remains watched.', grounding: { basis: ['character', 'location'], rationale: 'Jaime is an established guard currently anchored in the Yard.', after: 'Jaime checks the gate again' } }] }, s, 12, 1, (() => { let n = 0; return () => ++n; })(), { requireProof: true });
+    expect(evs).toEqual([]);
+  });
   it('never places the persona in a named or anonymous subplot', () => {
     const s = state();
     s.cast.player = { ...s.cast.jaime!, id: 'player', name: 'Player', aka: ['The Captain'], status: 'active' } as any;
