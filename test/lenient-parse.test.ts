@@ -287,3 +287,88 @@ describe('regex fallback unchanged after stripScaffold rewire (B2)', () => {
     expect(r.state?.scene?.loc).toBe('Keep');
   });
 });
+
+// ── duplicate top-level members: JSON.parse is last-wins, which silently
+// discarded the FIRST "delta" (threads/arcs/bonds) when the model emitted a
+// second one holding parallel/offscreen. The parser must merge them. ──
+describe('duplicate top-level member merge', () => {
+  it('merges two delta objects: threads/arcs/bonds AND parallel/offscreen all survive', () => {
+    const s = ok(
+      '{ "v": 4, "day": 0, "scene": { "loc": "Sunnydale Cemetery" }, "present": [ { "id": "Buffy Summers" } ],'
+      + ' "delta": {'
+      + '   "bonds": [ { "a": "Buffy Summers", "b": "Gabriel Winters", "aff": 3, "trust": 1 } ],'
+      + '   "threads": [ { "op": "new", "name": "Resurrection Aftermath", "note": "Buffy clawed out of her grave.", "arc": "Buffy\'s Return" } ],'
+      + '   "arcs": [ { "op": "new", "name": "Buffy\'s Return", "note": "Buffy has been resurrected." } ],'
+      + '   "knowledge": [ { "who": "Buffy Summers", "fact": "A stranger pulled her from the grave", "reliability": "knows", "truth": "true" } ]'
+      + ' },'
+      + ' "ext": { "intent": [ { "who": "Buffy Summers", "goal": "Survive", "nextStep": "Breathe", "status": "active" } ] },'
+      + ' "delta": {'
+      + '   "parallel": [ { "who": "Willow Rosenberg", "where": "Sunnydale streets", "activity": "Fleeing the raid" } ],'
+      + '   "offscreen": [ { "op": "new", "id": "scoobies_fleeing_raid", "name": "Scoobies in Flight", "who": "Willow Rosenberg", "where": "Sunnydale streets", "gist": "The group flees believing the ritual failed.", "beatKind": "consequence", "impact": "The Scoobies will not return tonight.", "grounding": { "basis": ["scene"], "rationale": "Established at cutoff.", "before": "The group performed the ritual", "after": "The group flees" } } ]'
+      + ' }'
+      + ' }',
+    );
+    expect(s.delta.bonds[0].a).toBe('Buffy Summers');
+    expect(s.delta.threads[0].name).toBe('Resurrection Aftermath');
+    expect(s.delta.arcs[0].name).toBe('Buffy\'s Return');
+    expect(s.delta.knowledge[0].who).toBe('Buffy Summers');
+    expect(s.delta.parallel[0].who).toBe('Willow Rosenberg');
+    expect(s.delta.offscreen[0].id).toBe('scoobies_fleeing_raid');
+    expect(s.ext.intent[0].who).toBe('Buffy Summers');
+  });
+
+  it('merges a duplicate delta that is the LAST member (no trailing comma)', () => {
+    const s = ok(
+      '{ "scene": { "loc": "X" },'
+      + ' "delta": { "threads": [ { "op": "new", "name": "The Letter", "note": "A sealed letter appears." } ] },'
+      + ' "delta": { "parallel": [ { "who": "Mira", "where": "Observatory", "activity": "reading" } ] }'
+      + ' }',
+    );
+    expect(s.delta.threads[0].name).toBe('The Letter');
+    expect(s.delta.parallel[0].who).toBe('Mira');
+  });
+
+  it('merges three duplicate deltas in document order', () => {
+    const s = ok(
+      '{ "delta": { "journal": [ { "who": "C", "memory": "first" } ] },'
+      + ' "delta": { "bonds": [ { "a": "A", "b": "B", "aff": 1 } ] },'
+      + ' "delta": { "knowledge": [ { "who": "C", "fact": "third" } ] }'
+      + ' }',
+    );
+    expect(s.delta.journal[0].memory).toBe('first');
+    expect(s.delta.bonds[0].a).toBe('A');
+    expect(s.delta.knowledge[0].fact).toBe('third');
+  });
+
+  it('merges duplicate ext objects the same way', () => {
+    const s = ok(
+      '{ "scene": { "loc": "X" },'
+      + ' "ext": { "affect": [ { "who": "C", "valence": 1 } ] },'
+      + ' "ext": { "inventory": [ { "who": "C", "item": "lantern" } ] }'
+      + ' }',
+    );
+    expect(s.ext.affect[0].who).toBe('C');
+    expect(s.ext.inventory[0].item).toBe('lantern');
+  });
+
+  it('keeps scalar duplicates last-wins (no merge attempted)', () => {
+    const s = ok('{ "turn": 1, "turn": 2, "scene": { "loc": "X" } }');
+    expect(s.turn).toBe(2);
+    expect(s.scene.loc).toBe('X');
+  });
+
+  it('leaves a single delta untouched (no false-positive rewrite)', () => {
+    const s = ok('{ "delta": { "journal": [ { "who": "C", "memory": "the delta key appears once" } ] } }');
+    expect(s.delta.journal[0].memory).toBe('the delta key appears once');
+  });
+
+  it('does not fire on "delta" text inside string values', () => {
+    const s = ok('{ "delta": { "journal": [ { "who": "C", "memory": "talked about \\"delta\\": the plan" } ] } }');
+    expect(s.delta.journal[0].memory).toContain('delta');
+  });
+
+  it('duplicate container keys parse as json (not json-partial)', () => {
+    const r = parseState(wrap('{ "delta": { "threads": [ { "op": "new", "name": "T", "note": "n" } ] }, "delta": { "parallel": [] } }'));
+    expect(r.source).toBe('json');
+  });
+});

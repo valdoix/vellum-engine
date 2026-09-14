@@ -322,7 +322,7 @@ function structuralFixups(out: string): string {
 // per-element loss. All walkers reuse the SAME quote-family discipline as
 // scanJson/balancedObject so braces/commas/colons inside strings never fool them.
 
-interface KV { key: string; value: string; }
+interface KV { key: string; value: string; keyStart: number; valueStart: number; valueEnd: number; }
 
 /** Depth-1, quote/bracket-aware split of an object's `"key": value` pairs. Each
  *  `value` is the EXACT source substring (scalar up to the next depth-1 comma, or
@@ -384,18 +384,72 @@ function tokenizeTopLevel(objSrc: string): KV[] | null {
   for (let guard = 0; guard < 500 && i < n; guard++) {
     skipWs();
     if (objSrc[i] === '}' || i >= n) break;
+    const keyStart = i;
     const key = readKey();
     if (key === null) break;
     skipWs();
     if (objSrc[i] !== ':') break; // malformed — stop segmenting here
     i++; // consume ':'
+    const valueStart = i;
     const value = readValue();
     if (value === null || value === '') break;
-    pairs.push({ key, value });
+    pairs.push({ key, value, keyStart, valueStart, valueEnd: i });
     skipWs();
     if (objSrc[i] === ',') i++; // consume separator and continue
   }
   return pairs.length ? pairs : null;
+}
+
+/** Models occasionally emit the same top-level member twice — most often a
+ *  second "delta" holding parallel/offscreen after a first "delta" with
+ *  bonds/threads/arcs. Native JSON.parse resolves duplicate keys LAST-WINS,
+ *  silently discarding the earlier object before validation ever runs. Detect
+ *  duplicated top-level keys whose values are containers of the SAME shape and
+ *  merge them on the raw text (objects: comma-join their inner members; arrays:
+ *  comma-join their elements) so both families survive. Scalar duplicates keep
+ *  standard last-wins. Returns the repaired source, or null when there is
+ *  nothing to merge. */
+function mergeDuplicateTopLevelKeys(objSrc: string): string | null {
+  const pairs = tokenizeTopLevel(objSrc);
+  if (!pairs) return null;
+  const byKey = new Map<string, KV[]>();
+  for (const pair of pairs) {
+    if (pair.value[0] !== '{' && pair.value[0] !== '[') continue; // scalars keep last-wins
+    const group = byKey.get(pair.key);
+    if (group) group.push(pair); else byKey.set(pair.key, [pair]);
+  }
+  const spans: Array<{ start: number; end: number; text: string }> = [];
+  for (const group of byKey.values()) {
+    if (group.length < 2) continue;
+    // only merge when every duplicate opens the same bracket kind; a mixed
+    // object/array group would splice illegal members, so leave it to last-wins
+    if (group.some(pair => pair.value[0] !== group[0]!.value[0])) continue;
+    const bodies = group
+      .map(pair => pair.value.slice(1, -1).trim())
+      .filter(body => body.length > 0);
+    if (!bodies.length) continue;
+    const open = group[0]!.value[0]!;
+    spans.push({ start: group[0]!.valueStart, end: group[0]!.valueEnd, text: open + bodies.join(',') + (open === '{' ? '}' : ']') });
+    // drop every later duplicate member by consuming the separator BEFORE it
+    // (always the preceding one: each duplicate follows at least the kept
+    // first occurrence, so its own preceding separator is unambiguous and
+    // adjacent duplicates can never claim the same comma)
+    for (const dup of group.slice(1)) {
+      let start = dup.keyStart;
+      while (start > 0 && /\s/.test(objSrc[start - 1]!)) start--;
+      if (start > 0 && objSrc[start - 1] === ',') start--;
+      spans.push({ start, end: dup.valueEnd, text: '' });
+    }
+  }
+  if (!spans.length) return null;
+  spans.sort((a, b) => a.start - b.start);
+  let out = '';
+  let cursor = 0;
+  for (const span of spans) {
+    out += objSrc.slice(cursor, span.start) + span.text;
+    cursor = span.end;
+  }
+  return out + objSrc.slice(cursor);
 }
 
 /** Depth-1, quote/bracket-aware element spans of an array. NOT a comma split —
@@ -514,6 +568,25 @@ function lenientParse(raw: string, report?: LenientReport): unknown | null {
   // even when the object is unbalanced (balancedObject would return null then).
   const fromBrace = base.slice(Math.max(0, base.indexOf('{')));
   const obj0 = balancedObject(base) ?? fromBrace;
+
+  // 0. duplicate top-level members: JSON.parse is last-wins, which silently
+  //    discards the earlier "delta" (threads/arcs/bonds) when a model emits a
+  //    second one (parallel/offscreen). A cheap text pre-check gates the full
+  //    tokenization; string-content false positives are filtered by the
+  //    authoritative depth-1 walk inside mergeDuplicateTopLevelKeys.
+  const hasDuplicateKeyText = (key: string): boolean => {
+    const re = new RegExp(`["']${key}["']\\s*:`, 'g');
+    let count = 0;
+    while (re.exec(obj0) !== null) { if (++count >= 2) return true; }
+    return false;
+  };
+  if (hasDuplicateKeyText('delta') || hasDuplicateKeyText('ext')) {
+    const merged = mergeDuplicateTopLevelKeys(obj0);
+    if (merged !== null) {
+      const m = tryParse(merged);
+      if (m !== undefined) return m;
+    }
+  }
 
   // 1. happy path
   const direct = tryParse(obj0);
