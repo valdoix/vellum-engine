@@ -312,7 +312,7 @@ async function readEngineWindowEnabled(chatId: string): Promise<boolean> {
   catch { return true; }
 }
 
-async function readEngineEvidenceMode(chatId: string): Promise<'evidence' | 'none'> {
+async function readEngineEvidenceMode(chatId: string): Promise<import('./domain/state-protocol.js').EvidenceMode> {
   try { return engineEvidenceMode(await getChatVar(chatId, 'vellum_engine_evidence')); }
   catch { return 'evidence'; }
 }

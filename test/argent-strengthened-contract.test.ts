@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { expandMacros } from '../src/domain/preset-macro-lite.js';
 import { calculatePresetBudget } from '../src/domain/preset-budget.js';
+import { STATE_PROTOCOL_VERSION } from '../src/domain/state-protocol.js';
 
 interface PromptVariable {
   name: string;
@@ -274,22 +275,22 @@ describe('ARGENT strengthened invariants', () => {
     expect(output).toContain('current snapshot must remain visible');
   });
 
-  it('ships the shared v3 state protocol and creative subplot title contract', () => {
+  it('ships the shared current state protocol and creative subplot title contract', () => {
     const schema = block('arg-state-schema');
     const world = block('arg-world-factions');
-    expect(schema).toContain('{v:3,turn?');
-    expect(schema).toContain('Always emit v:3');
+    expect(schema).toContain(`{v:${STATE_PROTOCOL_VERSION},turn?`);
+    expect(schema).toContain(`Always emit v:${STATE_PROTOCOL_VERSION}`);
     expect(schema).toContain('secretReveals?');
     expect(schema).toContain('absolute?');
     expect(schema).toContain('locationOp?:retain|refine|move');
     expect(schema).toContain('creative, evocative 2-6 word display title in exact Title Case ("This Is A Title")');
     expect(world).toContain('keep id as a stable snake_case machine reference');
     expect(world).toContain('Declare locationOp for every durable location decision');
-    expect(block('arg-state-final')).toContain('begin the object with "v":3');
+    expect(block('arg-state-final')).toContain(`begin the object with "v":${STATE_PROTOCOL_VERSION}`);
     expect(block('arg-state-final')).toContain('creative Title Case subplot display names');
-    expect(block('arg-output-contract')).toContain('Inline serializes delta.offscreen under protocol v3');
-    expect(block('arg-output-contract')).toContain('precompose the full object beginning with "v":3');
-    expect((preset as any).metadata.vellum_engine.stateProtocolVersion).toBe(3);
+    expect(block('arg-output-contract')).toContain(`Inline serializes delta.offscreen under protocol v${STATE_PROTOCOL_VERSION}`);
+    expect(block('arg-output-contract')).toContain(`precompose the full object beginning with "v":${STATE_PROTOCOL_VERSION}`);
+    expect((preset as any).metadata.vellum_engine.stateProtocolVersion).toBe(STATE_PROTOCOL_VERSION);
   });
 
   it('treats evidence as semantic grounding instead of exact quotation matching', () => {

@@ -3,6 +3,7 @@ import { parseFallback } from './fallback-regex.js';
 import { artifactText } from '../domain/artifacts.js';
 import { clockTime, parseClock } from '../domain/clock.js';
 import { creativeSubplotTitle } from '../domain/subplot-title.js';
+import { STATE_DELTA_FAMILIES, STATE_EXTENSION_FAMILIES } from '../domain/state-protocol.js';
 
 /**
  * Parse the model's per-turn state. JSON-first: a fenced ‹vellum›…‹/vellum›
@@ -19,7 +20,11 @@ const FENCES: Array<[string, string]> = [
   ['[VELLUM]', '[/VELLUM]'],
 ];
 
-const SCHEMA_KEY = /"(?:delta|scene|present|persona|personaState|persona_state|playerState|player_state|turn|day|threads|plotThreads|plot_threads|arcs|storyArcs|story_arcs|parallel|parallelEvents|parallel_events|offscreen|offscreenEvents|offscreen_events|subplots)"/;
+const SCHEMA_KEY = new RegExp(`"(?:${[
+  'delta', 'ext', 'scene', 'present', 'persona', 'personaState', 'persona_state', 'playerState', 'player_state', 'turn', 'day',
+  ...STATE_DELTA_FAMILIES, ...STATE_EXTENSION_FAMILIES,
+  'plotThreads', 'plot_threads', 'storyArcs', 'story_arcs', 'parallelEvents', 'parallel_events', 'offscreenEvents', 'offscreen_events', 'subplots',
+].join('|')})"`);
 
 function extractFenced(content: string): string | null {
   const candidates: Array<{ body: string; at: number }> = [];
@@ -661,7 +666,7 @@ function hoistDeltaFields(obj: Record<string, unknown>): void {
   while (obj.delta && typeof obj.delta === 'object' && (obj.delta as Record<string, unknown>).delta && typeof (obj.delta as Record<string, unknown>).delta === 'object' && guard++ < 4) {
     obj.delta = (obj.delta as Record<string, unknown>).delta;
   }
-  const keys = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations', 'parallel', 'offscreen'];
+  const keys = STATE_DELTA_FAMILIES;
   const delta = (obj.delta && typeof obj.delta === 'object') ? obj.delta as Record<string, unknown> : {};
   let moved = false;
   for (const k of keys) {
@@ -707,7 +712,7 @@ function unwrapStateEnvelope(obj: Record<string, unknown>): void {
   Object.assign(obj, nested);
 }
 
-const ARRAY_SECTIONS = ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations', 'parallel', 'offscreen'] as const;
+const ARRAY_SECTIONS = STATE_DELTA_FAMILIES;
 
 function arraySectionCounts(obj: Record<string, unknown>): Record<string, number> {
   const out: Record<string, number> = {};
@@ -881,7 +886,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
 
   // A single object is a common model shorthand. Canonicalize it before the
   // element schemas run so one shape mismatch cannot erase the whole section.
-  for (const key of ['bonds', 'threads', 'arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations', 'parallel', 'offscreen']) rows(delta, key);
+  for (const key of STATE_DELTA_FAMILIES) rows(delta, key);
   const plotOp = (raw: unknown, _arc: boolean): 'new' | 'advance' | 'stall' | 'resolve' => {
     const value = str(raw).toLowerCase();
     if (['new', 'start', 'started', 'open', 'opened', 'seed'].includes(value)) return 'new';

@@ -4,7 +4,7 @@ import { canonId } from '../core/ids.js';
 import { formatDate } from '../domain/date-format.js';
 import { selectLorebookCanon } from '../domain/lorebook-canon.js';
 import { normalizeSecretAudience } from '../domain/secret-audience.js';
-import { SUBPLOT_TITLE_CONTRACT } from '../domain/state-protocol.js';
+import { engineValidationCapabilities, SUBPLOT_TITLE_CONTRACT, type EvidenceMode } from '../domain/state-protocol.js';
 
 export interface CompilerProgress {
   status: 'start' | 'requesting' | 'chunk' | 'reasoning' | 'retry' | 'validating' | 'validated' | 'failed';
@@ -47,8 +47,8 @@ ENGINE PASS TRAINING — NO-EVIDENCE MODE: Treat this as shape training only; ne
 {"state":{"turn":2,"day":0,"scene":{"loc":"Cemetery","time":"22:18","clock":1338},"present":[{"id":"Buffy Summers","thought":"I need to know why I am back."}],"delta":{"threads":[{"op":"new","id":"t_return","name":"Why Buffy Returned","note":"Buffy is alive after clawing out of her grave and does not know who restored her.","arc":"a_return"}],"arcs":[{"op":"new","id":"a_return","name":"Return from Death","note":"Her unexplained return from death begins a new crisis."}]},"ext":{}},"parallelOps":[],"parallelWorldOps":[],"parallelReviewed":[],"genesis":false}
 There is deliberately no evidence array, no trackEvidence array, and no row evidence field. No-evidence removes quotations only; note must still state the concrete resulting condition, new rows still use op:"new", and existing rows still need a real before-to-after change that the engine can verify against prior state. Durable world beats go in state.delta.offscreen; their current actor operations go at root parallelOps. state.ext is only for scars, Codex, inventory, timeline, NPC intent/affect/introduction, plants, and payoffs. Never emit snapshot aliases such as status, title, summary, proof, openedTurn, or linkedThreads in a compiler mutation.`;
 
-function enginePassTraining(evidenceMode: 'evidence' | 'none'): string {
-  return evidenceMode === 'none' ? ENGINE_PASS_NO_EVIDENCE_TRAINING : ENGINE_PASS_EVIDENCE_TRAINING;
+function enginePassTraining(evidenceMode: EvidenceMode): string {
+  return engineValidationCapabilities(evidenceMode).requireEvidence ? ENGINE_PASS_EVIDENCE_TRAINING : ENGINE_PASS_NO_EVIDENCE_TRAINING;
 }
 
 export const STATE_COMPILER_SYSTEM = `Compile the completed narrative into VELLUM state. Return one JSON object and no prose. Never continue the visible story; Autonomous/Sandbox may create private off-screen simulation state for Director.

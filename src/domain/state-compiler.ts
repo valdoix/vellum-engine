@@ -26,6 +26,7 @@ import {
   sameLocation,
 } from './parallel-canon.js';
 import { subplotProofSufficient } from './offscreen.js';
+import { engineValidationCapabilities, STATE_DELTA_FAMILIES, STATE_EXTENSION_FAMILIES, type EvidenceMode } from './state-protocol.js';
 
 /** Compilation rejects malformed data. The legacy parser remains a separate salvage lane. */
 function strict(schema: z.ZodTypeAny): z.ZodTypeAny {
@@ -119,7 +120,7 @@ export type CompilerInput = {
    * overlap, proof quotation matching). Deterministic gates — identities,
    * canon/life state, chronology, plot-causality transitions, and ARGENT
    * requirements — remain fully binding in both modes. */
-  evidenceMode?: 'evidence' | 'none';
+  evidenceMode?: EvidenceMode;
   /** Relevant entries from lorebooks explicitly attached to this chat. These
    * constrain objective world canon; they are never automatic actor knowledge. */
   lorebookCanon?: readonly LorebookCanonEntry[];
@@ -519,7 +520,8 @@ export function jsonSchema(s: z.ZodTypeAny): Record<string, unknown> {
  * restored from prior state by preparedCompilerCandidate(); evidence may live
  * beside the changed row and is lifted out before strict validation.
  */
-export function compilerProviderSchema(evidenceMode: 'evidence' | 'none' = 'evidence'): Record<string, unknown> {
+export function compilerProviderSchema(evidenceMode: EvidenceMode = 'evidence'): Record<string, unknown> {
+  const capabilities = engineValidationCapabilities(evidenceMode);
   const schema = structuredClone(jsonSchema(CompilerCandidate)) as any;
   schema.required = ['state'];
   delete schema.properties.evidence;
@@ -545,7 +547,7 @@ export function compilerProviderSchema(evidenceMode: 'evidence' | 'none' = 'evid
   // The evidence-aware fields on parallel operations are only requested when
   // the chat keeps the semantic evidence audit. In no-evidence mode the
   // provider schema drops them so models never spend tokens on quotations.
-  if (evidenceMode === 'none') {
+  if (capabilities.providerEvidenceFields === 'omit') {
     delete state.properties.scene.properties.evidence;
     delete state.properties.present.items.properties.evidence;
     for (const branch of [state.properties.delta, state.properties.ext]) {
@@ -568,7 +570,8 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
   const c = parsed.data;
   const s = c.state;
   const errors: string[] = [];
-  const noEvidence = input.evidenceMode === 'none';
+  const capabilities = engineValidationCapabilities(input.evidenceMode);
+  const noEvidence = !capabilities.requireEvidence;
   if (s.turn !== input.turn) errors.push('turn must equal the engine turn');
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
   const currentTurnSource = `${input.userInput ?? ''}\n${input.prose}`;
@@ -640,7 +643,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     // checked below against canonical life, place, time, and knowledge state.
     || (parallelAutonomy && path.startsWith('delta.offscreen.') && !!quote.trim());
   const needsEvidence = (path: string, changed: boolean, derived = false) => {
-    if (noEvidence) return;
+    if (!capabilities.requireEvidence) return;
     if (changed && !derived && !c.evidence.some(e => e.path === path && quoteAllowed(path, e.quote))) errors.push(`missing evidence: ${path}`);
   };
   needsEvidence('scene.loc', s.scene.loc !== input.prior.scene.location);
@@ -694,7 +697,7 @@ export function validateCompilation(raw: unknown, input: CompilerInput): Compila
     else evidence.set(e.path, e.quote);
   }
   for (const e of c.evidence) {
-    if (noEvidence) continue;
+    if (!capabilities.validateEvidenceGrounding) continue;
     if (input.personaState && e.path.startsWith('present.persona.')) {
       // Evidence is optional for tracker-only inference. If a compiler includes
       // it, still reject fabricated quotations.
@@ -1240,6 +1243,30 @@ function pruneCompilerShape(value: unknown, schema: Record<string, any>): unknow
   return Object.fromEntries(Object.entries(schema.properties).filter(([key]) => key in source).map(([key, child]) => [key, pruneCompilerShape(source[key], child as Record<string, any>)]));
 }
 
+/** Report fields the strict Engine wire shape will ignore. Compatibility
+ * aliases are normalized before this scan, so every returned path is genuinely
+ * unsupported rather than a successfully migrated spelling. */
+function unknownCompilerPaths(value: unknown, schema: Record<string, any>, path = ''): string[] {
+  if (schema.anyOf) {
+    const branch = schema.anyOf.find((option: Record<string, unknown>) => option.type === 'array' ? Array.isArray(value)
+      : option.type === 'object' ? !!value && typeof value === 'object' && !Array.isArray(value)
+        : option.type === typeof value) ?? schema.anyOf[0];
+    return unknownCompilerPaths(value, branch, path);
+  }
+  if (schema.type === 'array') return Array.isArray(value)
+    ? value.flatMap((item, index) => unknownCompilerPaths(item, schema.items ?? {}, `${path}.${index}`))
+    : [];
+  if (schema.type !== 'object' || !value || typeof value !== 'object' || Array.isArray(value) || !schema.properties) return [];
+  const source = value as Record<string, unknown>;
+  const unknown = Object.keys(source)
+    .filter(key => !(key in schema.properties))
+    .map(key => path ? `${path}.${key}` : key);
+  const nested = Object.entries(schema.properties).flatMap(([key, child]) => key in source
+    ? unknownCompilerPaths(source[key], child as Record<string, any>, path ? `${path}.${key}` : key)
+    : []);
+  return [...unknown, ...nested];
+}
+
 function compilerRecord(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -1331,6 +1358,7 @@ function normalizeEvidenceRows(value: unknown, source: string): Array<Record<str
 }
 
 function normalizePlotProofRows(root: Record<string, any>, input: CompilerInput, source: string): void {
+  const capabilities = engineValidationCapabilities(input.evidenceMode);
   root.trackEvidence = compilerArray(root.trackEvidence).flatMap((value): Record<string, any>[] => {
     if (!compilerRecord(value)) return [];
     adoptCompilerKey(value, 'path', ['field', 'target', 'key']);
@@ -1371,7 +1399,7 @@ function normalizePlotProofRows(root: Record<string, any>, input: CompilerInput,
       // new opener. Correct the op so ARGENT and plot causality see it as such.
       if (!target && (row.op === 'advance' || row.op === 'stall')) row.op = 'new';
       const evidence = root.evidence?.find((item: Record<string, any>) => item.path === path);
-      if (!proof && row.note && (input.evidenceMode === 'none' || evidence?.quote)) {
+      if (!proof && row.note && (!capabilities.requireEvidence || evidence?.quote)) {
         const op = String(row.op ?? 'advance');
         proof = {
           path,
@@ -1417,6 +1445,7 @@ function normalizePlotProofRows(root: Record<string, any>, input: CompilerInput,
  * repairs. It only canonicalizes unambiguous shape/format drift; the semantic
  * validator remains responsible for chronology, canon, agency, and causality. */
 function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInput): void {
+  const capabilities = engineValidationCapabilities(input.evidenceMode);
   adoptCompilerKey(root, 'parallelOps', ['parallel_ops', 'parallelOperations', 'parallel_operations']);
   adoptCompilerKey(root, 'parallelWorldOps', ['parallel_world_ops', 'parallelWorldOperations', 'worldOps', 'world_ops']);
   adoptCompilerKey(root, 'parallelReviewed', ['parallel_reviewed', 'reviewedParallel', 'reviewed_parallel']);
@@ -1519,7 +1548,7 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
   }
   const explicitEvidence = normalizeEvidenceRows(root.evidence, source);
   const inferredEvidence: Array<Record<string, unknown>> = [];
-  if (input.evidenceMode !== 'none') {
+  if (capabilities.requireEvidence) {
   if (compilerRecord(state.delta)) for (const [section, rows] of Object.entries(state.delta)) {
     compilerArray(rows).forEach((row, index) => {
       if (!compilerRecord(row)) return;
@@ -1556,7 +1585,7 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
         ? rawOp
         : aliases[rawOp] ?? (key === 'parallelOps' && value.who && input.prior.parallel.some(row => row.who && canonId(row.who) === canonId(String(value.who))) ? 'advance' : 'start');
       value.evidence = exactCompilerQuote(compilerQuote(value.evidence ?? value.quote ?? value.source), source);
-      if (input.evidenceMode === 'none' && !String(value.evidence ?? '').trim()) {
+      if (!capabilities.requireEvidence && !String(value.evidence ?? '').trim()) {
         value.evidence = [value.op, value.who, value.where, value.activity, value.note]
           .filter(part => typeof part === 'string' && part.trim()).join(' — ').trim() || 'autonomous operation';
       }
@@ -1575,8 +1604,8 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
 
 const COMPILER_STATE_KEYS = [
   'v', 'turn', 'day', 'scene', 'currentScene', 'current_scene', 'present', 'charactersPresent', 'characters_present', 'roster', 'persona', 'personaState', 'persona_state', 'playerState', 'player_state',
-  'delta', 'ext', 'extensions', 'extension', 'bonds', 'relations', 'relationships', 'threads', 'plotThreads', 'plot_threads',
-  'arcs', 'storyArcs', 'story_arcs', 'journal', 'knowledge', 'secrets', 'secretReveals', 'factions', 'factionRelations',
+  'delta', 'ext', 'extensions', 'extension', ...STATE_DELTA_FAMILIES, ...STATE_EXTENSION_FAMILIES, 'relations', 'relationships', 'plotThreads', 'plot_threads',
+  'storyArcs', 'story_arcs',
   'faction_relations', 'parallel', 'parallelEvents', 'parallel_events', 'offscreen', 'offscreenEvents', 'offscreen_events', 'subplots',
 ] as const;
 
@@ -1586,18 +1615,21 @@ function looksLikeCompilerState(value: unknown): value is Record<string, any> {
 
 /** Fill only required structural boilerplate and discard unsupported keys before
  * strict validation. Defaults preserve prior state; they never create a delta. */
-function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown {
-  if (!compilerRecord(raw)) return raw;
+function preparedCompilerCandidate(raw: unknown, input: CompilerInput): { candidate: unknown; ignoredPaths: string[] } {
+  if (!compilerRecord(raw)) return { candidate: raw, ignoredPaths: [] };
   let normalized = structuredClone(raw);
   for (const key of ['candidate', 'result', 'output']) {
     if (!compilerRecord(normalized.state) && (compilerRecord(normalized[key]?.state) || looksLikeCompilerState(normalized[key]))) normalized = normalized[key];
   }
   if (!compilerRecord(normalized.state) && looksLikeCompilerState(normalized)) {
     normalized.state = Object.fromEntries(COMPILER_STATE_KEYS.filter(key => normalized[key] !== undefined).map(key => [key, normalized[key]]));
+    for (const key of COMPILER_STATE_KEYS) delete normalized[key];
   }
   normalizeCompilerEnvelope(normalized, input);
-  const pruned = pruneCompilerShape(normalized, jsonSchema(CompilerCandidate));
-  if (!pruned || typeof pruned !== 'object' || Array.isArray(pruned)) return pruned;
+  const candidateSchema = jsonSchema(CompilerCandidate);
+  const ignoredPaths = unknownCompilerPaths(normalized, candidateSchema);
+  const pruned = pruneCompilerShape(normalized, candidateSchema);
+  if (!pruned || typeof pruned !== 'object' || Array.isArray(pruned)) return { candidate: pruned, ignoredPaths };
   const root = pruned as Record<string, any>;
   const state = root.state && typeof root.state === 'object' && !Array.isArray(root.state) ? root.state : {};
   const rawScene = state.scene && typeof state.scene === 'object' && !Array.isArray(state.scene) ? state.scene : {};
@@ -1660,7 +1692,7 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
   // let the strict schema and semantic validator decide the remainder.
   for (let pass = 0; pass < 4; pass++) {
     const checked = CompilerCandidate.safeParse(root);
-    if (checked.success) return checked.data;
+    if (checked.success) return { candidate: checked.data, ignoredPaths };
     let changed = false;
     const removals = new Map<any[], Set<number>>();
     for (const path of checked.error.issues.map(issue => issue.path)) {
@@ -1681,7 +1713,7 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
     }
     if (!changed) break;
   }
-  return root;
+  return { candidate: root, ignoredPaths };
 }
 
 /**
@@ -1692,18 +1724,23 @@ function preparedCompilerCandidate(raw: unknown, input: CompilerInput): unknown 
  * It never rewrites evidence or manufactures a state change.
  */
 export function salvageCompilation(raw: unknown, input: CompilerInput): Compilation {
-  const prepared = preparedCompilerCandidate(raw, input);
+  const capabilities = engineValidationCapabilities(input.evidenceMode);
+  const preparation = preparedCompilerCandidate(raw, input);
+  const prepared = preparation.candidate;
   const shapeRecovered = JSON.stringify(prepared) !== JSON.stringify(raw);
   const parsed = CompilerCandidate.safeParse(prepared);
   if (!parsed.success) return { ok: false, errors: parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`) };
   const original = parsed.data;
   const direct = validateCompilation(structuredClone(original), input);
-  if (direct.ok) return shapeRecovered ? { ...direct, recovered: ['candidate shape'] } : direct;
+  if (direct.ok) {
+    const recovered = [...(shapeRecovered ? ['candidate shape'] : []), ...preparation.ignoredPaths.map(path => `ignored unsupported field: ${path}`)];
+    return recovered.length ? { ...direct, recovered } : direct;
+  }
 
   const currentSource = `${input.userInput ?? ''}\n${input.prose}`;
   const selectedLorebook = compilerLorebookCanon(input);
   const validEvidence = original.evidence.filter((entry, index, rows) => {
-    if (input.evidenceMode === 'none') return rows.findIndex(other => other.path === entry.path) === index;
+    if (!capabilities.validateEvidenceGrounding) return rows.findIndex(other => other.path === entry.path) === index;
     const source = entry.path === 'scene.loc' || entry.path === 'scene.time'
       || entry.path.startsWith('present.add.') || entry.path.startsWith('present.remove.')
       ? currentSource : input.prose;
@@ -1711,7 +1748,7 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
       && rows.findIndex(other => other.path === entry.path) === index;
   });
   const evidenceFor = (path: string): StateCandidate['evidence'][number] | undefined =>
-    input.evidenceMode === 'none' ? undefined : validEvidence.find(entry => entry.path === path);
+    capabilities.requireEvidence ? validEvidence.find(entry => entry.path === path) : undefined;
   const priorClock = input.prior.scene.clock ?? parseClock(input.prior.scene.time) ?? 0;
   const scene = structuredClone(original.state.scene);
   const parsedSceneClock = parseClock(scene.time);
@@ -1722,8 +1759,8 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     scene.clock = priorClock;
     scene.time = clockTime(priorClock);
   }
-  if (scene.loc !== input.prior.scene.location && !evidenceFor('scene.loc')) scene.loc = input.prior.scene.location || scene.loc;
-  if ((original.state.day !== input.prior.day || scene.clock !== priorClock) && !evidenceFor('scene.time')) {
+  if (capabilities.requireEvidence && scene.loc !== input.prior.scene.location && !evidenceFor('scene.loc')) scene.loc = input.prior.scene.location || scene.loc;
+  if (capabilities.requireEvidence && (original.state.day !== input.prior.day || scene.clock !== priorClock) && !evidenceFor('scene.time')) {
     original.state.day = input.prior.day;
     scene.clock = priorClock;
     scene.time = clockTime(priorClock);
@@ -1741,7 +1778,7 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     if (!id || seen.has(id)) continue;
     const established = known.has(id) || input.prose.toLocaleLowerCase().includes(row.id.toLocaleLowerCase());
     if (!established) continue;
-    if (!priorPresent.has(id) && id !== player && !evidenceFor(`present.add.${id}`)) continue;
+    if (capabilities.requireEvidence && !priorPresent.has(id) && id !== player && !evidenceFor(`present.add.${id}`)) continue;
     const old = priorDetail.get(id);
     const merged = { ...old, ...row, id: row.id };
     if (id === player && !input.personaState) {
@@ -1752,7 +1789,7 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     present.push(merged);
   }
   for (const id of priorPresent) {
-    if (seen.has(id) || evidenceFor(`present.remove.${id}`)) continue;
+    if (seen.has(id) || !capabilities.requireEvidence || evidenceFor(`present.remove.${id}`)) continue;
     const actor = input.prior.cast[id];
     const old = priorDetail.get(id);
     if (!actor) continue;
@@ -1769,8 +1806,10 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
     present.push(restored);
   }
 
-  const coreEvidence = validEvidence.filter(entry => entry.path === 'scene.loc' || entry.path === 'scene.time'
-    || entry.path.startsWith('present.add.') || entry.path.startsWith('present.remove.') || entry.path.startsWith('present.persona.'));
+  const coreEvidence = capabilities.requireEvidence
+    ? validEvidence.filter(entry => entry.path === 'scene.loc' || entry.path === 'scene.time'
+      || entry.path.startsWith('present.add.') || entry.path.startsWith('present.remove.') || entry.path.startsWith('present.persona.'))
+    : [];
   let accepted: StateCandidate = {
     state: { turn: input.turn, day: original.state.day, scene, present, delta: {}, ext: {} },
     parallelOps: [], parallelWorldOps: [],
@@ -1900,6 +1939,6 @@ export function salvageCompilation(raw: unknown, input: CompilerInput): Compilat
 
   const final = validateCompilation(accepted, input);
   if (!final.ok) return final;
-  const recovered = [...(shapeRecovered ? ['candidate shape'] : []), ...dropped];
+  const recovered = [...(shapeRecovered ? ['candidate shape'] : []), ...preparation.ignoredPaths.map(path => `ignored unsupported field: ${path}`), ...dropped];
   return { ...final, ...(recovered.length ? { recovered } : {}), ...(suggestions.length ? { suggestions } : {}) };
 }

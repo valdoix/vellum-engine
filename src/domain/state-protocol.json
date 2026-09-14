@@ -1,28 +1,55 @@
 {
-  "version": 3,
-  "deltaFamilies": [
-    "bonds",
-    "threads",
-    "arcs",
-    "journal",
-    "knowledge",
-    "secrets",
-    "secretReveals",
-    "factions",
-    "factionRelations",
-    "parallel",
-    "offscreen"
-  ],
-  "extensionFamilies": [
-    "scars",
-    "codex",
-    "inventory",
-    "timeline",
-    "intent",
-    "affect",
-    "introduction",
-    "plant",
-    "payoff"
-  ],
+  "version": 4,
+  "wireShapes": {
+    "inline": { "envelope": "vellum", "payload": "state-delta", "unknownFields": "diagnose-and-ignore" },
+    "engine": { "envelope": "candidate", "payload": "state-plus-operations", "unknownFields": "normalize-then-prune" },
+    "repair": { "envelope": "merge-patch", "payload": "rfc7396-against-canonical-base", "unknownFields": "normalize-then-prune" }
+  },
+  "evidenceModes": {
+    "evidence": {
+      "providerEvidenceFields": "include",
+      "requireEvidence": true,
+      "validateEvidenceGrounding": true,
+      "validateCanon": true,
+      "validateChronology": true,
+      "validateCausality": true,
+      "validateIdentity": true
+    },
+    "none": {
+      "providerEvidenceFields": "omit",
+      "requireEvidence": false,
+      "validateEvidenceGrounding": false,
+      "validateCanon": true,
+      "validateChronology": true,
+      "validateCausality": true,
+      "validateIdentity": true
+    }
+  },
+  "families": {
+    "delta": {
+      "bonds": { "ownership": "mutation", "omission": "no-change", "identity": "actor-pair", "evidence": "mode" },
+      "threads": { "ownership": "mutation", "omission": "no-change", "identity": "stable-id-or-title", "evidence": "mode-plus-causal-proof" },
+      "arcs": { "ownership": "mutation", "omission": "no-change", "identity": "stable-id-or-title", "evidence": "mode-plus-causal-proof" },
+      "journal": { "ownership": "append", "omission": "no-change", "identity": "event", "evidence": "mode" },
+      "knowledge": { "ownership": "mutation", "omission": "no-change", "identity": "actor-fact", "evidence": "mode-plus-access-path" },
+      "secrets": { "ownership": "append", "omission": "no-change", "identity": "generated-stable-id", "evidence": "mode" },
+      "secretReveals": { "ownership": "mutation", "omission": "no-change", "identity": "existing-secret-id", "evidence": "mode-plus-access-path" },
+      "factions": { "ownership": "mutation", "omission": "no-change", "identity": "stable-name", "evidence": "mode" },
+      "factionRelations": { "ownership": "mutation", "omission": "no-change", "identity": "faction-pair", "evidence": "mode" },
+      "parallel": { "ownership": "snapshot", "omission": "preserve-durable-projection", "identity": "actor-or-source-subplot-id", "evidence": "canon-and-feasibility" },
+      "offscreen": { "ownership": "mutation", "omission": "no-change", "identity": "stable-id", "evidence": "semantic-grounding-and-mode" }
+    },
+    "extension": {
+      "scars": { "ownership": "append", "omission": "no-change", "identity": "event", "evidence": "mode" },
+      "codex": { "ownership": "mutation", "omission": "no-change", "identity": "stable-id", "evidence": "mode" },
+      "inventory": { "ownership": "mutation", "omission": "no-change", "identity": "actor-item", "evidence": "mode" },
+      "timeline": { "ownership": "append", "omission": "no-change", "identity": "event", "evidence": "mode" },
+      "intent": { "ownership": "mutation", "omission": "preserve", "identity": "actor", "evidence": "mode" },
+      "affect": { "ownership": "mutation", "omission": "preserve", "identity": "actor", "evidence": "mode" },
+      "introduction": { "ownership": "mutation", "omission": "preserve", "identity": "actor", "evidence": "mode" },
+      "plant": { "ownership": "mutation", "omission": "no-change", "identity": "generated-stable-id", "evidence": "mode" },
+      "payoff": { "ownership": "mutation", "omission": "no-change", "identity": "plant-reference", "evidence": "mode" }
+    }
+  },
   "subplotTitleContract": "a creative, evocative 2-6 word display title in exact Title Case (\"This Is A Title\"), never snake_case and never a mechanical expansion of the id"
 }

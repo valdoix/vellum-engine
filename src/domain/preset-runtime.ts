@@ -78,8 +78,9 @@ export function enginePassEnabled(value: unknown): boolean {
 /** Evidence grounding demanded by the Engine Pass. Unset keeps the historical
  * semantic-evidence audit; an explicit "none" relaxes only the quotation gates
  * while canon, identity, chronology, and plot-causality checks stay binding. */
-export type EngineEvidenceMode = 'evidence' | 'none';
-export function engineEvidenceMode(value: unknown): EngineEvidenceMode {
+export type { EvidenceMode as EngineEvidenceMode } from './state-protocol.js';
+import type { EvidenceMode } from './state-protocol.js';
+export function engineEvidenceMode(value: unknown): EvidenceMode {
   if (value === 'none' || value === 'no_evidence' || value === 'noevidence') return 'none';
   if (typeof value === 'string' && ['off', 'false', '0', 'disabled', 'none', 'no_evidence', 'noevidence'].includes(value.trim().toLowerCase())) return 'none';
   return 'evidence';

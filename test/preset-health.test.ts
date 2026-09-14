@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { assessVellumStateContract, VELLUM_STATE_BLOCK_CONTENT } from '../src/domain/preset-health.js';
+import { STATE_PROTOCOL_VERSION } from '../src/domain/state-protocol.js';
 
 const block = (value: Record<string, unknown>) => ({
   id: 'state', name: 'State', role: 'system', position: 'post_history', enabled: true, content: '', ...value,
@@ -9,7 +10,7 @@ const block = (value: Record<string, unknown>) => ({
 describe('preset state-contract health', () => {
   it('accepts the exact canonical compatibility contract', () => {
     const health = assessVellumStateContract([block({ name: 'VELLUM — State Block', content: VELLUM_STATE_BLOCK_CONTENT })]);
-    expect(health).toMatchObject({ status: 'healthy', kind: 'compatibility', version: '3.0' });
+    expect(health).toMatchObject({ status: 'healthy', kind: 'compatibility', version: `${STATE_PROTOCOL_VERSION}.0` });
     expect(health.issues).toEqual([]);
     expect(VELLUM_STATE_BLOCK_CONTENT).toContain('Audit threads and arcs every turn, including turn 1');
     expect(VELLUM_STATE_BLOCK_CONTENT).toContain('elapsed time are not progress');
@@ -39,9 +40,9 @@ describe('preset state-contract health', () => {
 
   it('validates the complete ARGENT state/output graph and final ordering', () => {
     const graph = [
-      block({ id: 'arg-state-schema', position: 'pre_history', content: '[VELLUM STATE — LEAN CONTRACT] <vellum></vellum>' }),
-      block({ id: 'arg-state-final', content: '[FINAL STATE COMPILER — LEAN, ATOMIC AND MANDATORY]' }),
-      block({ id: 'arg-output-contract', content: '[OUTPUT — FOLLOW EXACTLY]' }),
+      block({ id: 'arg-state-schema', position: 'pre_history', content: `[VELLUM STATE — LEAN CONTRACT] {v:${STATE_PROTOCOL_VERSION},turn?} <vellum></vellum>` }),
+      block({ id: 'arg-state-final', content: `[FINAL STATE COMPILER — LEAN, ATOMIC AND MANDATORY] begin with "v":${STATE_PROTOCOL_VERSION}` }),
+      block({ id: 'arg-output-contract', content: `[OUTPUT — FOLLOW EXACTLY] begin with "v":${STATE_PROTOCOL_VERSION}` }),
     ];
     expect(assessVellumStateContract(graph)).toMatchObject({ status: 'healthy', kind: 'argent' });
     expect(assessVellumStateContract([...graph, block({ id: 'later', content: 'later instruction' })]).issues)

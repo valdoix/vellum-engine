@@ -119,6 +119,22 @@ describe('Engine Pass evidence mode', () => {
     if (r.ok) expect(r.candidate.state.scene.loc).toBe('East Wing');
   });
 
+  it('no-evidence salvage preserves valid scene and roster changes while dropping an invalid optional mutation', () => {
+    const i = input(); i.evidenceMode = 'none';
+    i.prose = 'Mara crosses to the East Wing with Spike. Five minutes pass. Player stays quiet.';
+    const raw = candidate();
+    raw.state.scene = { loc: 'East Wing', time: '10:05', clock: 605 };
+    raw.state.present = [...raw.state.present, { id: 'Spike', thought: 'This archive had better be worth it.' }];
+    raw.state.ext.inventory = [{ who: 'Nobody', item: 'copper key', op: 'gain' }];
+    const r = salvageCompilation(raw, i);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.candidate.state.scene.loc).toBe('East Wing');
+      expect(r.candidate.state.present.map(row => row.id)).toContain('Spike');
+      expect(r.candidate.state.ext.inventory).toBeUndefined();
+    }
+  });
+
   it('provider schema drops evidence fields in no-evidence mode', () => {
     const evidenceSchema = compilerProviderSchema('evidence') as any;
     const noneSchema = compilerProviderSchema('none') as any;

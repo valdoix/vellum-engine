@@ -1,5 +1,5 @@
 import type { PromptBlockSnapshotDTO } from 'lumiverse-spindle-types';
-import { STATE_PROTOCOL_VERSION, SUBPLOT_TITLE_CONTRACT } from './state-protocol.js';
+import { STATE_DELTA_FAMILIES, STATE_EXTENSION_FAMILIES, STATE_PROTOCOL_VERSION, SUBPLOT_TITLE_CONTRACT } from './state-protocol.js';
 
 export const VELLUM_STATE_CONTRACT_VERSION = `${STATE_PROTOCOL_VERSION}.0`;
 
@@ -7,7 +7,7 @@ export const VELLUM_STATE_CONTRACT_VERSION = `${STATE_PROTOCOL_VERSION}.0`;
 export const VELLUM_STATE_BLOCK_CONTENT =
   '[VELLUM STATE] After the prose, on a new line, append ONE raw-JSON <vellum>...</vellum> block (the display layer hides it). '
   + 'Valid JSON, current scene plus deltas — omit unchanged optional fields. Fields:\n'
-  + '{ v:3, turn:int, day:int, scene:{title?,transition?:"continue"|"scene"|"time_skip",loc,time:"HH:MM",clock:int 0-1439,tension:0-10,weather}, '
+  + `{ v:${STATE_PROTOCOL_VERSION}, turn:int, day:int, scene:{title?,transition?:"continue"|"scene"|"time_skip",loc,time:"HH:MM",clock:int 0-1439,tension:0-10,weather}, `
   + 'present:[{id or name,mood,condition,doing,thought,traits,evidence}], '
   + 'delta:{ bonds:[{a,b,aff,trust,addCats:[],removeCats:[],why}], threads:[{op:new|advance|stall|resolve,id?,name,note,arc?}], '
   + 'arcs:[{op:new|advance|resolve,id?,name,note}], journal:[{who,about,memory,kind,weight,sentiment}], '
@@ -54,12 +54,16 @@ export function stateContractHash(text: string): string {
 
 const EXPECTED_HASH = stateContractHash(VELLUM_STATE_BLOCK_CONTENT);
 const REQUIRED_SCHEMA_TERMS = [
-  '<vellum>', '</vellum>', 'scene', 'present', 'knowledge', 'secrets',
-  'secretReveals', 'scars', 'codex', 'inventory', 'timeline',
+  '<vellum>', '</vellum>', 'scene', 'present',
+  ...STATE_DELTA_FAMILIES, ...STATE_EXTENSION_FAMILIES,
 ];
 
 function contentOf(block: BlockLike | undefined): string {
   return typeof block?.content === 'string' ? block.content : '';
+}
+
+function declaresProtocolSchema(content: string): boolean {
+  return new RegExp(`\\{(?:"v"|v):${STATE_PROTOCOL_VERSION},(?:"turn"|turn)\\??`).test(content);
 }
 
 function structuralIssues(block: BlockLike, expectedPosition?: 'pre_history' | 'post_history'): StateContractIssue[] {
@@ -100,12 +104,21 @@ export function assessVellumStateContract(input: readonly BlockLike[] | null | u
     if (schema && !/VELLUM STATE[^\n]*CONTRACT/i.test(contentOf(schema))) {
       issues.push({ code: 'argent_schema_stale', blockId: String(schema.id ?? ''), message: 'ARGENT state schema is incomplete or obsolete.' });
     }
+    if (schema && !declaresProtocolSchema(contentOf(schema))) {
+      issues.push({ code: 'argent_protocol_stale', blockId: String(schema.id ?? ''), message: `ARGENT state schema does not declare protocol v${STATE_PROTOCOL_VERSION}.` });
+    }
     if (final && !/(?:STATE COMPILER[^\n]*FINAL|FINAL STATE COMPILER)/i.test(contentOf(final))) {
       issues.push({ code: 'argent_final_stale', blockId: String(final.id ?? ''), message: 'ARGENT final state compiler contract is incomplete or obsolete.' });
+    }
+    if (final && !contentOf(final).includes(`"v":${STATE_PROTOCOL_VERSION}`)) {
+      issues.push({ code: 'argent_protocol_stale', blockId: String(final.id ?? ''), message: `ARGENT final compiler does not declare protocol v${STATE_PROTOCOL_VERSION}.` });
     }
     if (output) {
       if (!/OUTPUT[^\n]*FOLLOW EXACTLY/i.test(contentOf(output))) {
         issues.push({ code: 'argent_output_stale', blockId: String(output.id ?? ''), message: 'ARGENT output contract is incomplete or obsolete.' });
+      }
+      if (!contentOf(output).includes(`"v":${STATE_PROTOCOL_VERSION}`)) {
+        issues.push({ code: 'argent_protocol_stale', blockId: String(output.id ?? ''), message: `ARGENT output contract does not declare protocol v${STATE_PROTOCOL_VERSION}.` });
       }
       const lastEnabled = [...blocks].reverse().find((block) => block.enabled !== false && block.marker !== 'category');
       if (lastEnabled?.id !== output.id) {

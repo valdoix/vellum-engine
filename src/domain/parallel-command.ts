@@ -4,6 +4,7 @@ import { simEvents, type ParsedSim, type SimEventsOpts } from './offscreen.js';
 import type { ParsedState } from '../parse/parsed.js';
 import { canonId } from '../core/ids.js';
 import { sameTrack } from '../core/reduce.js';
+import { STATE_PROTOCOL_VERSION } from './state-protocol.js';
 
 const PARALLEL_LINE = /(?:^|\r?\n)[ \t]*(?:OOC\s*:?\s*)?\(\(\s*parallel\s*\)\)[ \t]*(?=$|\r?\n)/iu;
 const PARALLEL_LINE_GLOBAL = /(?:^|\r?\n)[ \t]*(?:OOC\s*:?\s*)?\(\(\s*parallel\s*\)\)[ \t]*(?=$|\r?\n)/gimu;
@@ -293,7 +294,7 @@ ${visual}
 
 After the visible response, emit exactly one canonical raw-JSON VELLUM block:
 <vellum>
-{"v":3,"delta":{"offscreen":[...],"bonds":[...optional...],"factionRelations":[...optional...]}}
+{"v":${STATE_PROTOCOL_VERSION},"delta":{"offscreen":[...],"bonds":[...optional...],"factionRelations":[...optional...]}}
 </vellum>
 Use strict JSON with no comments, Markdown fence, nulls, trailing commas, unsupported keys, or text after </vellum>. Do not emit reverie, scene, present, foreground continuation, explanation, separate threads/arcs/parallel arrays, or any other scaffold. The command freezes the foreground; this block records only its off-screen transaction.
 
