@@ -142,6 +142,8 @@ describe('Engine Pass evidence mode', () => {
     expect(captured).toBeTruthy();
     const system = captured[0].content as string;
     expect(system).toContain('EVIDENCE MODE — NONE');
+    expect(system).toContain('plot mutations belong in state.delta as {op,id,name,note,arc}');
+    expect(system).toContain('never put offscreen or parallelOps inside state.ext');
     const user = JSON.parse(captured[1].content);
     expect(user.evidencePolicy.mode).toBe('none');
   });
@@ -175,6 +177,74 @@ describe('Engine Pass evidence mode', () => {
       expect(arcs).toHaveLength(1);
       expect(arcs[0]!.op).toBe('new');
     }
+  });
+
+  it('recovers a Chronicle-shaped no-evidence opening and misplaced world branches', () => {
+    const i = input(); i.evidenceMode = 'none'; i.argent = true; i.livingWorld = 'sandbox';
+    i.prose = 'Mara claws free of the grave and grips Gabriel\'s hand while distant engines tear through the night. Player stays quiet.';
+    for (const [id, name] of [['spike', 'Spike'], ['iris', 'Iris'], ['jules', 'Jules']] as const) {
+      i.prior.cast[id] = { ...i.prior.cast.ada!, id, name, lastLocation: 'Courtyard', lastLocationTurn: 1 };
+    }
+    i.prior.cast.ada!.lastLocation = 'Courtyard'; i.prior.cast.ada!.lastLocationTurn = 1;
+    i.prior.locations = [{ id: 'courtyard', name: 'Courtyard', source: 'user', firstTurn: 1, lastTurn: 1 }];
+    const grounding = (actor: string, activity: string) => ({
+      before: `${actor} was elsewhere in the established setting`, after: activity,
+      basis: [`The lorebook establishes ${actor} and the Courtyard`, `The prose supports the current scene while ${actor} acts elsewhere`],
+      rationale: `${actor} is an established living NPC at the established Courtyard.`,
+    });
+    const raw = {
+      state: {
+        turn: 2, day: 1,
+        scene: { loc: 'Archive', time: '10:05', clock: 605 },
+        present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }],
+        delta: {
+          threads: [{ id: 't_return', title: 'The Return', status: 'open', arc: 'a_return', summary: 'Mara is alive but disoriented.', proof: 'Mara claws free of the grave and does not know why she returned.' }],
+          arcs: [{ id: 'a_return', title: 'After Death', status: 'open', summary: 'Mara has returned from death.', linkedThreads: ['t_return'] }],
+        },
+        ext: {
+          offscreen: [
+            { id: 'ada_watch', actor: 'Ada', place: 'Courtyard', activity: 'patrols the courtyard', beatKind: 'progress', impact: 'Ada can intercept anyone crossing the courtyard.', grounding: grounding('Ada', 'patrols the courtyard') },
+            { id: 'spike_watch', actor: 'Spike', place: 'Courtyard', activity: 'checks the crypt doors', beatKind: 'obstacle', impact: 'Spike may discover which crypt was disturbed.', grounding: grounding('Spike', 'checks the crypt doors') },
+          ],
+          parallelOps: [
+            { id: 'par_ada', actor: 'Ada', place: 'Courtyard', activity: 'patrols the courtyard' },
+            { id: 'par_spike', actor: 'Spike', place: 'Courtyard', activity: 'checks the crypt doors' },
+            { id: 'par_iris', actor: 'Iris', place: 'Courtyard', activity: 'counts the lanterns' },
+            { id: 'par_jules', actor: 'Jules', place: 'Courtyard', activity: 'secures the side gate' },
+          ],
+        },
+      },
+      parallelOps: [], parallelWorldOps: [], parallelReviewed: [], evidence: [], trackEvidence: [], genesis: false,
+    };
+    const r = salvageCompilation(raw, i);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.candidate.state.delta.threads).toEqual([expect.objectContaining({ op: 'new', name: 'The Return', note: 'Mara claws free of the grave and does not know why she returned.' })]);
+    expect(r.candidate.state.delta.arcs).toEqual([expect.objectContaining({ op: 'new', name: 'After Death', note: 'Mara has returned from death.' })]);
+    expect(r.candidate.state.delta.offscreen, JSON.stringify(r, null, 2)).toHaveLength(2);
+    expect(r.candidate.state.delta.offscreen?.every((row: { op?: string }) => row.op === 'new')).toBe(true);
+    expect(r.candidate.parallelOps).toHaveLength(4);
+    expect(r.candidate.parallelOps.map(row => row.who)).toEqual(['Ada', 'Spike', 'Iris', 'Jules']);
+    expect((r.candidate.state.ext as any).offscreen).toBeUndefined();
+    expect((r.candidate.state.ext as any).parallelOps).toBeUndefined();
+  });
+
+  it('reports a salvaged opening row rejection before the downstream ARGENT count error', async () => {
+    const i = input(); i.evidenceMode = 'none'; i.argent = true;
+    i.prose = 'Mara claws free of the grave and grips Gabriel\'s hand, alive but disoriented and uncertain why she returned. Player stays quiet.';
+    const raw = {
+      state: { turn: 2, day: 1, scene: { loc: 'Archive', time: '10:05', clock: 605 }, present: [{ id: 'Mara', thought: 'I should wait.' }, { id: 'Player', thought: '' }], delta: {
+        threads: [{ id: 't_return', title: 'The Return', status: 'open', arc: 'a_return' }],
+        arcs: [{ id: 'a_return', title: 'After Death', status: 'open', summary: 'Mara has returned from death.' }],
+      }, ext: {} },
+      parallelOps: [], parallelWorldOps: [], parallelReviewed: ['Ada'], evidence: [], trackEvidence: [], genesis: false,
+    };
+    const generate = vi.fn(async () => ({ ok: true, value: JSON.stringify(raw) }));
+    const r = await compileState(i, null, undefined, generate as any);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors[0]).toMatch(/^Rejected thread "The Return":/);
+    expect(r.errors).toContain('ARGENT requires exactly one grounded opening thread when the plot ledger is empty');
   });
 
   it('evidence mode also corrects status:"active" on an opening thread to op:"new" for ARGENT', () => {

@@ -42,6 +42,18 @@ const switchVar = (name, label, description, defaultValue = 0) => ({
   defaultValue,
 });
 
+const numberVar = (name, label, description, defaultValue, min, max, step) => ({
+  id: `arg_var_${name}`,
+  name,
+  label,
+  description,
+  type: 'number',
+  defaultValue,
+  min,
+  max,
+  step,
+});
+
 const normalTriggers = ['normal', 'continue', 'regenerate', 'swipe'];
 
 function block(id, name, content, options = {}) {
@@ -292,6 +304,7 @@ const controlVariables = [
     defaultValue: 'lean',
     description: 'Lean and Full extract the same supported content. Lean uses a compact shape, shorter notes, and less optional descriptive metadata. Full uses the expanded field guide and richer supported metadata. Both retain private thoughts for every named on-stage NPC.',
   }),
+  numberVar('state_reserve_tokens', 'State Token Reserve', 'Inline <vellum> block token reserve.', 900, 200, 4000, 50),
   existingVar('nsfw_level', { defaultValue: 'romantic' }),
   existingVar('nsfl', { defaultValue: 0 }),
   existingVar('hard_limits'),
@@ -316,7 +329,7 @@ const variableGroup = (names) => names.map((name) => {
 const storyControls = variableGroup(['pov', 'length', 'tense', 'prose', 'stakes', 'genre', 'genre2', 'dialogue', 'npc_dialogue', 'agency', 'distance', 'pacing', 'ooc']);
 const craftControls = variableGroup(['doctrine_strictness', 'metaphor', 'diction', 'sensory', 'filter_words', 'paragraph_shape', 'profanity', 'era', 'era_strictness', 'cast', 'antislop', 'antislop_focus', 'slop_proofreader', 'interiority']);
 const worldControls = variableGroup(['epistemic', 'living_world', 'time_continuity', 'world_texture', 'world_broadsheet', 'codex', 'inventory', 'romance', 'disposition', 'social', 'politics', 'failure_shape', 'reveal_cadence', 'world_law', 'antagonist_pressure', 'variance']);
-const engineControls = variableGroup(['reasoning_route', 'state_on', 'state_compiler', 'state_verbosity', 'native_memory', 'model_adapter', 'craft_anchor', 'agency_reminder']);
+const engineControls = variableGroup(['reasoning_route', 'state_on', 'state_compiler', 'state_verbosity', 'state_reserve_tokens', 'native_memory', 'model_adapter', 'craft_anchor', 'agency_reminder']);
 const presentationControls = variableGroup(['nsfw_level', 'nsfl', 'hard_limits', 'vtk', 'vtk_cards', 'vtk_spectacle', 'dialogue_color', 'scene_header']);
 const groupedControls = [...storyControls, ...craftControls, ...worldControls, ...engineControls, ...presentationControls];
 if (groupedControls.length !== controlVariables.length || new Set(groupedControls.map((variable) => variable.name)).size !== controlVariables.length) {
@@ -499,7 +512,7 @@ For charged exchange, separate intent, delivery, perceivable evidence, interpret
 Objects and people may exist without becoming clues. Reuse established cast, factions, locations, open threads, plants, and items before inventing functional duplicates.
 
 [CAUSAL WORLD PULSE]
-{{if::${parallelOn}}}Maintain durable subplots from intent, purpose, or world pressure. Each is a causal commitment: require beatKind (progress|obstacle|consequence|bridge|resolution), concrete impact, and semantic grounding; later beats prove prior condition -> changed condition with before/after. Evidence strength scales with travel, knowledge, social, and permanence claims. Set realistic schedules; a line may tick consecutively or sleep—never one cadence. Blocked attempts pay a cost and reschedule. Living/Active may move at most two eligible rows and open one reversible line. Autonomous/Sandbox must create at least four parallel events and two new durable subplots per in-character pulse, with no narrative maximum. Major outcomes need an interruptible chain. One physical truth: newest subplot and parallel place/activity match; foreground intersection shows the actor unless exit, concealment, or interruption is established. Mature exact threads through concrete effects. The persona character never appears here.{{/if}}
+{{if::${parallelOn}}}Maintain durable subplots from intent, purpose, or world pressure. Each is a causal commitment: require beatKind (progress|obstacle|consequence|bridge|resolution), concrete impact, and semantic grounding; later beats prove prior condition -> changed condition with before/after. Evidence strength scales with travel, knowledge, social, and permanence claims. Set realistic schedules; a line may tick consecutively or sleep—never one cadence. Blocked attempts pay a cost and reschedule. Living/Active may move at most two eligible rows and open one reversible line.{{if::${sandboxOn}}} Autonomous/Sandbox MUST open at least two new delta.offscreen rows (op:"new") per in-character turn—a hard floor, not a target. Each needs a living NPC actor, canon-plausible place, beatKind, impact, and grounding. Derive from canonical motives and world pressure, never narrator knowledge or the persona.{{/if}} Major outcomes need an interruptible chain. One physical truth: newest subplot and parallel place/activity match; foreground intersection shows the actor unless exit, concealment, or interruption is established. Mature exact threads through concrete effects. The persona character never appears here.{{/if}}
 
 WORLD DISPOSITION: {{switch::{{var::disposition}}::kind::unmodeled people lean generous and give the benefit of the doubt, while retaining self-interest and disagreement::warm::ordinary cooperation is common and trust builds somewhat more easily than it breaks::fair::people judge from evidence without a benevolent or hostile prior::harsh::people begin guarded and transactional; trust is expensive and help carries terms::brutal::unmodeled people often exploit vulnerability or choose survival over kindness; genuine mercy is rare and costly}}. This is a prior, never a command that overrides a known character.
 
@@ -543,7 +556,7 @@ After prose, emit exactly one raw-JSON <vellum>...</vellum> block and nothing af
 Use only this compact shape; omit unchanged optional sections. CONTENT COVERAGE IS IDENTICAL TO FULL: audit every listed family and include every supported durable change. Lean simplifies only formatting, note length, and optional descriptive metadata; it must not omit a supported fact, event, character, plot change, or parallel operation:
 {v?,turn?,day?,scene?:{title?,transition?:continue|scene|time_skip,loc?,time?,clock?,tension?,weather?},present?:[{id or name,presence?,mood?,doing?,condition?,thought?,traits?,evidence?}],delta?:{bonds?,threads?,arcs?,journal?,knowledge?,secrets?,factions?,factionRelations?,parallel?,offscreen?},ext?:{scars?,codex?,inventory?,timeline?,intent?,affect?,introduction?,plant?,payoff?}}
 
-Active scenes require matching HH:MM/clock, e.g. "time":"07:45","clock":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. List every named on-stage NPC with a concise first-person thought limited to their knowledge. On turn 1 or an empty ledger, create one supported actionable unresolved thread and a clear parent arc; set thread.arc to the exact arc title. Active Living World emits full delta.parallel plus scheduled delta.offscreen changes linked to exact threads. Bonds are signed deltas; knowledge needs a source. Keep under ~750 tokens.
+Active scenes require matching HH:MM/clock, e.g. "time":"07:45","clock":465. Put {{user}} first: blank unless PERSONA STATE is ON; then always populate mood, condition, doing, private first-person thought, and stable traits. List every named on-stage NPC with a concise first-person thought limited to their knowledge. On turn 1 or an empty ledger, create one supported actionable unresolved thread and a clear parent arc; set thread.arc to the exact arc title. Active Living World emits full delta.parallel plus scheduled delta.offscreen changes linked to exact threads. Bonds are signed deltas; knowledge needs a source. Keep under ~{{var::state_reserve_tokens}} tokens.
 
 {{/if}}
 {{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::full}}}}}}[VELLUM STATE — FULL CONTRACT]
@@ -733,7 +746,7 @@ Silently check agency, current reality, knowledge access, character motive, caus
 Reserve enough output for every supported state change and shorten prose before risking state. Lean has the same content coverage as Full: audit every supported state family and compile every established durable change, using a compact shape, shorter notes, and fewer optional descriptive fields only. PERSONA STATE permits tracker inference. Emit scene/present plus supported changes; omit empty sections except required parallel:[]. Put {{user}} first, blank when OFF and fully populated in every agency when ON. Give each on-stage NPC a knowledge-limited first-person thought. On turn 1/empty state, open one grounded thread plus a clear parent arc and set thread.arc to that exact title. Active Living World emits reconciled parallel plus scheduled offscreen changes. Require matching HH:MM/clock and A1≥A0; day is elapsed story days, never a calendar date. Precompose valid JSON, close </vellum>, and write nothing after.
 {{/if}}
 {{if::{{and::${inlineState}::{{eq::{{var::state_verbosity}}::full}}}}}}[FINAL STATE COMPILER — FULL, ATOMIC AND MANDATORY]
-Before drafting prose, reserve the final ~900 output tokens for one complete state block. If the response budget becomes tight, shorten the prose; never abbreviate, omit, or truncate <vellum>. A Reverie T line, prose summary, planned JSON, empty object, or opening tag without the literal closing </vellum> does not satisfy this contract. The turn is incomplete until </vellum> has been emitted, with nothing after it.
+Before drafting prose, reserve the final ~{{var::state_reserve_tokens}} output tokens for one complete state block. If the response budget becomes tight, shorten the prose; never abbreviate, omit, or truncate <vellum>. A Reverie T line, prose summary, planned JSON, empty object, or opening tag without the literal closing </vellum> does not satisfy this contract. The turn is incomplete until </vellum> has been emitted, with nothing after it.
 
 Compile foreground changes the prose or attached canon actually established—not events merely considered in planning. Parallel/off-screen autonomy is the only exception and uses the life/location/time/lore plausibility gate. Work in this order:
 1. CORE SNAPSHOT: write current scene/present. Require exact HH:MM and matching clock; narrative periods are invalid. Compute A0/A1 as day × 1440 + clock; if A1 < A0, retain T0 or recompute from established elapsed time. Put {{user}} first. PERSONA STATE ON requires a complete tracker snapshot regardless of agency; this metadata never licenses prose behavior.
@@ -776,7 +789,7 @@ Audit from turn 1. If empty, create one supported actionable thread and a clear 
 Carry every prior parallel row into final T1. A parallel beat need not appear in prose: accept it only after checking that the character is alive and absent, the place is canon-plausible from their last location with enough travel time, the activity fits motive/lore, and knowledge has a delivered bridge. ADVANCE keeps location; MOVE needs a route and time. Exclude present and deceased actors; keep one final where/activity each; emit [] only when all rows resolve.{{/if}}{{/if}}
 
 {{if::${parallelOn}}}[DURABLE SUBPLOT AUTONOMY — ACTIVE FROM TURN ONE]
-The engine may originate subplots without ((parallel)). Inline serializes delta.offscreen and mirrors delta.parallel; Engine Pass compiles separately. Each beat needs type, impact, semantic grounding, and after creation before/after proof of actual change. Exact quotes are optional; proof strength scales with the claim. One physical truth: subplot and parallel place/activity must match; foreground intersection shows the actor unless exit, concealment, or interruption is established. Move only due rows. Living/Active handles two due plus one new reversible line. Autonomous/Sandbox must create at least four parallel events and two new durable subplots per in-character pass, with no maximum. The current snapshot must remain visible. Social/Politics control scale; never author player choices or place the persona here.{{/if}}
+The engine may originate subplots without ((parallel)). Inline serializes delta.offscreen and mirrors delta.parallel; Engine Pass compiles separately. Each beat needs type, impact, semantic grounding, and after creation before/after proof of actual change. Exact quotes are optional; proof strength scales with the claim. One physical truth: subplot and parallel place/activity must match; foreground intersection shows the actor unless exit, concealment, or interruption is established. Move only due rows. Living/Active handles two due plus one new reversible line.{{if::${sandboxOn}}} Autonomous/Sandbox MUST create at least two new delta.offscreen rows (op:"new") and four parallel events per in-character pass. Before finalizing, count your op:"new" offscreen rows; if below two, add subplots now from established NPCs, canonical places, and world/faction pressure. Foreground threads and parallel snapshot rows do not count toward this floor.{{/if}} The current snapshot must remain visible. Social/Politics control scale; never author player choices or place the persona here.{{/if}}
 
 {{if::{{var::dialogue_color}}}}[COLORED DIALOGUE — REQUIRED OUTPUT MARKUP]
 In both Inline Compatibility and Engine Second Pass, every named or certain live speaker uses [spk=Exact Cast Name]"complete passage"[/spk]. Open it before the quote; keep narration outside; use one speaker per wrapper. Do not tag thought, documents, memory, signs, roles, pronouns, or uncertain speech. Before sending, scan every opening dialogue quote and repair bare eligible speech.{{/if}}
@@ -785,7 +798,7 @@ In both Inline Compatibility and Engine Second Pass, every named or certain live
 Before state serialization, verify this in-character narrative reply contains at least one complete <!-- VIS_START -->...<!-- VIS_END --> VTK, or one visibly rendered <artifact> when Card Library is on. If absent, add a compact scene-native PULSE, THRESHOLD, PLAY, or WONDER beside its supporting prose beat now. OOC/meta/debug and explicit plain-prose requests remain exempt.{{/if}}
 
 {{if::${inlineState}}}[STATE SERIALIZATION — FINAL GATE]
-Reserve room, precompose the full object, then emit balanced raw JSON and literal </vellum>. Shorten prose before risking state. A reply ending anywhere else is incomplete.{{/if}}
+Reserve ~{{var::state_reserve_tokens}} output tokens, precompose the full object, then emit balanced raw JSON and literal </vellum>. Shorten prose before risking state. A reply ending anywhere else is incomplete.{{/if}}
 
 {{if::{{or::{{eq::{{var::model_adapter}}::glm}}::{{and::{{eq::{{var::model_adapter}}::auto}}::{{matches::{{model}}::glm::i}}}}}}}}[GLM FINAL COMPLIANCE GATE]
 Continue the roleplay even when the user supplied no explicit question.{{if::{{var::dialogue_color}}}} No bare named-speaker quote.{{/if}}{{if::${inlineState}}} End prose early, precompose state, and finish </vellum>.{{/if}}{{/if}}
@@ -1232,7 +1245,7 @@ assert(knowledgeBlock.includes('[SCENE-PRESENCE FIREWALL — PER CHARACTER, PER 
 assert(stateFinalBlock.includes('KNOWLEDGE PARTITION') && stateFinalBlock.includes('remains unaware until an explicit bridge reaches them'), 'Final state compiler lacks per-character knowledge partitioning');
 assert(outputContractBlock.includes('[OFF-SCENE KNOWLEDGE — NON-NEGOTIABLE FINAL GATE]') && outputContractBlock.includes('Later entry never grants retroactive hearing'), 'Last-instruction off-scene knowledge gate missing');
 assert(worldBlock.includes('[PARALLEL T1 RECONCILIATION]') && worldBlock.includes('MUST NOT appear in parallel'), 'Parallel T1 reconciliation contract missing');
-assert(worldBlock.includes('[CAUSAL WORLD PULSE]') && worldBlock.includes('never one cadence') && worldBlock.includes('Living/Active may move at most two eligible rows') && worldBlock.includes('Autonomous/Sandbox must create at least four parallel events') && worldBlock.includes('no narrative maximum'), 'Adaptive subplot scheduler contract missing');
+assert(worldBlock.includes('[CAUSAL WORLD PULSE]') && worldBlock.includes('never one cadence') && worldBlock.includes('Living/Active may move at most two eligible rows') && worldBlock.includes('a hard floor, not a target'), 'Adaptive subplot scheduler contract missing');
 assert(worldBlock.includes('causal commitment') && worldBlock.includes('prior condition -> changed condition') && worldBlock.includes('One physical truth'), 'Consequential subplot contract missing');
 assert(worldBlock.includes('Parallel evidence need not appear in visible prose') && worldBlock.includes('Spike at the Bronze') && worldBlock.includes('Spike in Beijing'), 'Parallel plausibility evidence contract missing');
 assert(significanceBlock.includes('Evidence is semantic support, not an exact-quote test') && significanceBlock.includes('relevant lorebook passage'), 'Lenient grounded evidence contract missing');
@@ -1256,7 +1269,7 @@ const enabledChars = blocks.filter((entry) => entry.enabled).reduce((total, entr
 // Raw storage contains both mutually-exclusive Lean and Full contracts. The
 // assembled default includes only Lean, so cap the serialized graph separately
 // from the runtime budget reported by VELLUM's macro-aware estimator.
-const serializedPromptTokenLimit = 16_000;
+const serializedPromptTokenLimit = 17_000;
 assert(Math.ceil(enabledChars / 4) <= serializedPromptTokenLimit, `Serialized prompt graph too large: ${Math.ceil(enabledChars / 4)} estimated tokens (limit ${serializedPromptTokenLimit})`);
 
 assert(new Set(regexScripts.map((entry) => entry.script_id)).size === regexScripts.length, 'Duplicate regex script id');

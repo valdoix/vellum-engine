@@ -1,6 +1,6 @@
 # ARGENT control reference (generated)
 
-Version 1.5.0; 60 controls; 20 regex scripts.
+Version 1.5.0; 61 controls; 20 regex scripts.
 
 | Section | Control | Default | Options | Description |
 |---|---|---|---|---|
@@ -51,6 +51,7 @@ Version 1.5.0; 60 controls; 20 regex scripts.
 | Planning & State Controls | Emit State Block | 1 |  | Append the <vellum> JSON block the engine folds into the chronicle |
 | Planning & State Controls | State Compilation | "engine" | engine: Engine Second Pass; inline: Inline Compatibility | Engine: compile completed prose in a separate validated pass before committing state. Inline: legacy model-written state. Requires the updated VELLUM extension for Engine mode. |
 | Planning & State Controls | State Spec Verbosity | "lean" | lean: Lean (compact); full: Full (with example) | Lean and Full extract the same supported content. Lean uses a compact shape, shorter notes, and less optional descriptive metadata. Full uses the expanded field guide and richer supported metadata. Both retain private thoughts for every named on-stage NPC. |
+| Planning & State Controls | State Token Reserve | 900 |  | Inline <vellum> block token reserve. |
 | Planning & State Controls | Lumiverse Native Memory | 0 |  | Add Lumiverse Memory/Cortex retrieval as a secondary reference lane. VELLUM remains authoritative. |
 | Planning & State Controls | Model Adapter | "auto" | auto: Auto; generic: Generic; claude: Claude; gemini: Gemini; deepseek: DeepSeek; kimi: Kimi; glm: GLM; reasoning: Reasoning Model | A short reliability correction for the selected model family. |
 | Planning & State Controls | Final Craft Anchor | 1 |  | Repeat a compact craft contract immediately before generation. |

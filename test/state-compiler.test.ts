@@ -3,6 +3,7 @@ import { applyCompilerMergePatch, argentRequirementErrors, CompilerCandidate, co
 import { freshState } from '../src/domain/types.js';
 import { compileState, compilerContext, compilerPatchObjects, compilerReplyObjects, ENGINE_OUTPUT_TOKENS, ENGINE_TIMEOUT_MS, repairCompilation, STATE_COMPILER_SYSTEM } from '../src/bus/state-compiler.js';
 import { foldTurn } from '../src/bus/lifecycle.js';
+import { parseState } from '../src/parse/state-block.js';
 import { registerFeature } from '../src/bus/registry.js';
 import { reduce } from '../src/core/reduce.js';
 import { coreFeature } from '../src/domain/core-feature.js';
@@ -852,6 +853,67 @@ ${JSON.stringify(c.state)}
     c.state.delta.offscreen = Array.from({ length: 7 }, (_, index) => ({ op: 'new' as const, id: `subplot_${index}`, name: `Subplot ${index}`, where: `Place ${index}`, gist: `World pressure ${index}` }));
     c.parallelWorldOps = Array.from({ length: 9 }, (_, index) => ({ op: 'start' as const, where: `Place ${index}`, activity: `World event ${index}`, evidence: `At Place ${index}, world event ${index} unfolds.` }));
     expect(argentRequirementErrors(c, i)).toEqual([]);
+  });
+  it('corrects offscreen status:"active" to op:"new" when the subplot is not in the prior ledger', () => {
+    const i = input(); i.argent = true; i.livingWorld = 'sandbox'; i.evidenceMode = 'none';
+    i.prior.threads = [{ id: 'thr_existing', name: 'Existing plot', status: 'open', beats: [], firstTurn: 1, lastTurn: 1 }];
+    i.prose = 'Mara waits. Elsewhere, Ada watches the gate and the bell-ringer tries the south path. Player stays quiet.';
+    const raw: any = {
+      state: { day: 1, scene: { loc: 'Archive', time: '00:03', clock: 3 }, present: [], delta: { offscreen: [
+        { status: 'active', id: 'gate_watch', name: 'Gate watch', who: 'Ada', where: 'Courtyard', gist: 'watches the gate', beatKind: 'progress', impact: 'Ada can intercept couriers at the gate.', grounding: { basis: ['scene', 'character', 'location'], rationale: 'Ada is established and watches the Courtyard gate.' } },
+        { status: 'active', id: 'south_path', name: 'South path', who: 'Ada', where: 'Courtyard', gist: 'tries the south path', beatKind: 'progress', impact: 'A new route opens for Ada.', grounding: { basis: ['scene', 'character', 'location'], rationale: 'Ada explores a south path from the Courtyard.' } },
+      ] } },
+      parallelOps: [
+        { op: 'start', who: 'Ada', where: 'Courtyard', activity: 'watches the gate', evidence: 'Ada watches the gate' },
+        { op: 'start', who: 'Ada', where: 'Courtyard', activity: 'tries the south path', evidence: 'Ada tries the south path' },
+        { op: 'start', where: 'Square', activity: 'A bell rings', evidence: 'A bell rings in the square' },
+        { op: 'start', where: 'Harbor', activity: 'A ship docks', evidence: 'A ship docks at the harbor' },
+      ],
+    };
+    const result = salvageCompilation(raw, i);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const offscreen = result.candidate.state.delta.offscreen ?? [];
+    expect(offscreen.length).toBeGreaterThanOrEqual(1);
+    expect(offscreen.every((r: any) => r.op === 'new')).toBe(true);
+  });
+  it('retargets offscreen op:"new" to "advance" when the subplot already exists in the prior ledger', () => {
+    const i = input(); i.argent = true; i.livingWorld = 'sandbox'; i.evidenceMode = 'none';
+    i.prior.threads = [{ id: 'thr_existing', name: 'Existing plot', status: 'open', beats: [], firstTurn: 1, lastTurn: 1 }];
+    i.prior.offscreen = [{ id: 'gate_watch', name: 'Gate watch', who: 'ada', where: 'Courtyard', gist: 'watches the gate', status: 'active', beats: ['watches the gate'], firstTurn: 1, lastTurn: 1 }] as any;
+    i.prose = 'Mara waits. Ada spots a courier approaching. The bell-ringer tries the south path. Player stays quiet.';
+    const raw: any = {
+      state: { day: 1, scene: { loc: 'Archive', time: '00:03', clock: 3 }, present: [], delta: { offscreen: [
+        { status: 'active', id: 'gate_watch', name: 'Gate watch', who: 'Ada', where: 'Courtyard', gist: 'spots a courier approaching the gate', beatKind: 'progress', impact: 'Ada can intercept the courier before they reach the archive.', grounding: { basis: ['scene', 'character', 'subplot'], rationale: 'Ada spots a courier from her Courtyard post.', before: 'watches the gate', after: 'spots a courier approaching the gate' } },
+        { status: 'active', id: 'south_path', name: 'South path', who: 'Ada', where: 'Courtyard', gist: 'tries the south path', beatKind: 'progress', impact: 'A new route opens for Ada.', grounding: { basis: ['scene', 'character', 'location'], rationale: 'Ada explores a south path from the Courtyard.' } },
+      ] } },
+      parallelOps: [
+        { op: 'start', who: 'Ada', where: 'Courtyard', activity: 'spots a courier approaching the gate', evidence: 'Ada spots a courier approaching' },
+        { op: 'start', who: 'Ada', where: 'Courtyard', activity: 'tries the south path', evidence: 'Ada tries the south path' },
+        { op: 'start', where: 'Square', activity: 'A bell rings', evidence: 'A bell rings in the square' },
+        { op: 'start', where: 'Harbor', activity: 'A ship docks', evidence: 'A ship docks at the harbor' },
+      ],
+    };
+    const result = salvageCompilation(raw, i);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const offscreen = result.candidate.state.delta.offscreen ?? [];
+    const gate = offscreen.find((r: any) => r.id === 'gate_watch');
+    const south = offscreen.find((r: any) => r.id === 'south_path');
+    expect(gate?.op).toBe('advance');
+    expect(south?.op).toBe('new');
+  });
+  it('normalizes offscreen beatKind/impact/grounding aliases during inline parse', () => {
+    const block = `<vellum>{"scene":{"loc":"Archive","time":"00:03","clock":3},"present":[],"delta":{"offscreen":[
+      {"op":"new","id":"gate_watch","name":"Gate watch","who":"Ada","where":"Gate","gist":"watches the gate",
+       "type":"progress","effect":"Ada can intercept couriers.","rationale":"Ada is at the gate.","basis":"scene"}
+    ]}}</vellum>`;
+    const { state } = parseState(block);
+    expect(state).not.toBeNull();
+    if (!state) return;
+    const row = state.delta?.offscreen?.[0];
+    expect(row).toMatchObject({ beatKind: 'progress', impact: 'Ada can intercept couriers.' });
+    expect(row?.grounding).toMatchObject({ rationale: 'Ada is at the gate.', basis: ['scene'] });
   });
   it('forbids the persona from subplots and parallel events', () => {
     const i = input(); i.livingWorld = 'sandbox'; i.argent = true;

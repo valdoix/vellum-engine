@@ -850,7 +850,11 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       // Compiler-shaped inline rows often use `evidence` for the exact depicted
       // beat. Preserve it as the durable note instead of letting Zod strip the
       // only grounding text and the plot gate subsequently discard the row.
-      adopt(row, 'note', ['beat', 'gist', 'development', 'description', 'event', 'evidence']);
+      // Engine providers occasionally echo Chronicle snapshot names here.
+      // `proof` is the most concrete resulting condition; `summary` is a
+      // usable fallback. Canonical note and the existing delta aliases still
+      // win, so this never overwrites a correctly shaped plot mutation.
+      adopt(row, 'note', ['beat', 'gist', 'development', 'description', 'event', 'evidence', 'proof', 'summary']);
       adopt(row, 'op', ['action', 'operation', 'status']);
       if (key === 'threads') adopt(row, 'arc', ['linkedArc', 'linked_arc', 'parentArc', 'parent_arc']);
       // Legacy rows often put the actual T1 beat in `event` and a status gloss
@@ -935,7 +939,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       // stripping it and accidentally turning the row into an anonymous world
       // event during Zod validation.
       adopt(row, 'who', ['id', 'actor', 'character', 'name']);
-      adopt(row, 'where', ['location', 'loc']);
+      adopt(row, 'where', ['location', 'loc', 'place']);
       adopt(row, 'activity', ['gist', 'event', 'action', 'doing']);
       const activity = str(row.activity);
       if (!activity) return [];
@@ -954,11 +958,60 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       adopt(row, 'id', ['subplotId', 'subplot_id', 'key']);
       adopt(row, 'name', ['title']);
       adopt(row, 'who', ['actor', 'character']);
-      adopt(row, 'where', ['location', 'loc']);
-      adopt(row, 'gist', ['activity', 'event', 'development', 'beat']);
+      adopt(row, 'where', ['location', 'loc', 'place']);
+      adopt(row, 'gist', ['activity', 'event', 'development', 'beat', 'summary', 'description']);
       adopt(row, 'thread', ['plotThread', 'plot_thread']);
       adopt(row, 'arc', ['storyArc', 'story_arc']);
       adopt(row, 'op', ['action', 'operation', 'status']);
+      // beatKind is often emitted as beat_kind, type, or kind by LLMs that
+      // copy the schema's prose description instead of the canonical key.
+      adopt(row, 'beatKind', ['beat_kind', 'beat_type', 'beatType', 'type', 'kind']);
+      if (row.beatKind !== undefined) {
+        const bk = str(row.beatKind).toLowerCase().replace(/[\s-]+/g, '_');
+        if (['progress', 'obstacle', 'consequence', 'bridge', 'resolution'].includes(bk)) row.beatKind = bk;
+        else delete row.beatKind;
+      }
+      // impact is the concrete story effect; LLMs often use effect/consequence.
+      adopt(row, 'impact', ['effect', 'consequence', 'result', 'significance']);
+      // Grounding fields are frequently hoisted to the row level by models
+      // that flatten the nested object. Rejoin them so subplotProofSufficient
+      // sees a complete grounding block instead of dropping the beat.
+      if (row.grounding === undefined || (typeof row.grounding === 'object' && !Array.isArray(row.grounding))) {
+        const grounding = (row.grounding && typeof row.grounding === 'object' && !Array.isArray(row.grounding)) ? row.grounding as Record<string, unknown> : (row.grounding === undefined ? {} : {});
+        if (row.grounding === undefined) row.grounding = grounding;
+        if (grounding.rationale === undefined && row.rationale !== undefined) { grounding.rationale = row.rationale; delete row.rationale; }
+        if (grounding.before === undefined && row.before !== undefined) { grounding.before = row.before; delete row.before; }
+        if (grounding.after === undefined && row.after !== undefined) { grounding.after = row.after; delete row.after; }
+        if (grounding.basis === undefined && row.basis !== undefined) {
+          grounding.basis = Array.isArray(row.basis) ? row.basis : [str(row.basis)].filter(Boolean);
+          delete row.basis;
+        }
+        if (grounding.basis !== undefined && !Array.isArray(grounding.basis)) {
+          grounding.basis = list(grounding.basis, true) ?? [];
+        }
+        // Older/snapshot-shaped Engine replies put prose explanations in
+        // basis[] instead of the schema's category tags. Preserve those
+        // explanations as refs and translate their asserted actor/place
+        // grounding into the closed vocabulary used by the semantic gate.
+        if (Array.isArray(grounding.basis)) {
+          const validBasis = new Set(['scene', 'character', 'location', 'lorebook', 'parallel', 'subplot', 'knowledge', 'relationship', 'intent', 'manual']);
+          const supplied = grounding.basis.map(value => str(value)).filter(Boolean);
+          const canonical = supplied.map(value => value.toLowerCase().replace(/[\s-]+/g, '_')).filter(value => validBasis.has(value));
+          const explanations = supplied.filter((_value, index) => !validBasis.has(supplied[index]!.toLowerCase().replace(/[\s-]+/g, '_')));
+          if (explanations.length) {
+            const joined = explanations.join(' ').toLowerCase();
+            if (str(row.who)) canonical.push('character');
+            if (str(row.where)) canonical.push('location');
+            if (/lorebook|canon/.test(joined)) canonical.push('lorebook');
+            if (/prose|scene|foreground|present/.test(joined)) canonical.push('scene');
+            if (/parallel/.test(joined)) canonical.push('parallel');
+            if (/subplot|off[- ]?screen/.test(joined)) canonical.push('subplot');
+            const refs = [...(Array.isArray(grounding.refs) ? grounding.refs.map(value => str(value)).filter(Boolean) : []), ...explanations];
+            grounding.refs = [...new Set(refs)].slice(0, 20);
+          }
+          grounding.basis = [...new Set(canonical)];
+        }
+      }
       const op = str(row.op).toLowerCase();
       row.op = ['resolve', 'resolved', 'complete', 'completed', 'closed'].includes(op)
         ? 'resolve'

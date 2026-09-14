@@ -1395,6 +1395,19 @@ function normalizePlotProofRows(root: Record<string, any>, input: CompilerInput,
       if (!proof.after && row.note) proof.after = String(row.note);
     });
   }
+
+  // Offscreen subplots follow the same status:"active" correction as
+  // threads/arcs. The shared block normalizer adopts `status` as `op` and
+  // maps "active" to "advance". When that subplot id does not exist in the
+  // prior ledger, "advance" is impossible — it must be a new opener.
+  // Correct the op so ARGENT's sandbox subplot floor counts it as new.
+  // The inverse retargets a "new" on an existing id to "advance".
+  const offscreenRows = Array.isArray(delta.offscreen) ? delta.offscreen : [];
+  offscreenRows.forEach((row: Record<string, any>) => {
+    const prior = input.prior.offscreen.find(item => item.id === row.id || trackTitleKey(item.name) === trackTitleKey(String(row.name ?? '')));
+    if (!prior && (row.op === 'advance' || row.op === 'stall')) row.op = 'new';
+    if (prior && row.op === 'new') row.op = 'advance';
+  });
 }
 
 /** Compatibility layer shared by initial Engine Pass output and merge-patch
@@ -1408,6 +1421,27 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
   adoptCompilerKey(root, 'genesis', ['isGenesis', 'is_genesis']);
   const source = `${input.userInput ?? ''}\n${input.prose}`;
   const state = compilerRecord(root.state) ? root.state : {};
+  // Recover a known Engine-envelope drift before the shared state normalizer
+  // and strict schema prune unsupported ext keys. Chronicle-shaped providers
+  // sometimes nest durable subplots and parallel operations under state.ext.
+  // Canonical non-empty branches remain authoritative; an empty placeholder
+  // may be filled from the misplaced branch.
+  const embeddedExt = compilerRecord(state.ext) ? state.ext : undefined;
+  if (embeddedExt) {
+    const delta = compilerRecord(state.delta) ? state.delta : (state.delta = {});
+    if (compilerArray(embeddedExt.offscreen).length && !compilerArray(delta.offscreen).length) {
+      delta.offscreen = embeddedExt.offscreen;
+    }
+    if (compilerArray(embeddedExt.parallelOps).length && !compilerArray(root.parallelOps).length) {
+      root.parallelOps = embeddedExt.parallelOps;
+    }
+    if (compilerArray(embeddedExt.parallelWorldOps).length && !compilerArray(root.parallelWorldOps).length) {
+      root.parallelWorldOps = embeddedExt.parallelWorldOps;
+    }
+    delete embeddedExt.offscreen;
+    delete embeddedExt.parallelOps;
+    delete embeddedExt.parallelWorldOps;
+  }
   // Older/full-state providers put the on-stage id list and its tracker rows
   // inside scene.present + scene.detail. The Engine Pass schema uses one
   // top-level array of present objects instead. Rejoin those two losslessly
@@ -1508,9 +1542,16 @@ function normalizeCompilerEnvelope(root: Record<string, any>, input: CompilerInp
     root[key] = compilerArray(root[key]).flatMap(value => {
       if (!compilerRecord(value)) return [];
       adoptCompilerKey(value, 'op', ['action', 'operation', 'status']);
-      adoptCompilerKey(value, 'who', ['id', 'actor', 'character']);
-      adoptCompilerKey(value, 'where', ['loc', 'location']);
+      // Prefer an explicit actor over an operation/snapshot id. `id` remains a
+      // compatibility fallback for providers that use it as the actor key.
+      adoptCompilerKey(value, 'who', ['actor', 'character', 'id']);
+      adoptCompilerKey(value, 'where', ['loc', 'location', 'place']);
       adoptCompilerKey(value, 'activity', ['gist', 'event', 'doing']);
+      const rawOp = String(value.op ?? '').trim().toLowerCase();
+      const aliases: Record<string, string> = { new: 'start', active: 'advance', update: 'advance', progressed: 'advance', moved: 'move', completed: 'resolve', resolved: 'resolve', closed: 'resolve' };
+      value.op = ['start', 'advance', 'move', 'resolve'].includes(rawOp)
+        ? rawOp
+        : aliases[rawOp] ?? (key === 'parallelOps' && value.who && input.prior.parallel.some(row => row.who && canonId(row.who) === canonId(String(value.who))) ? 'advance' : 'start');
       value.evidence = exactCompilerQuote(compilerQuote(value.evidence ?? value.quote ?? value.source), source);
       if (input.evidenceMode === 'none' && !String(value.evidence ?? '').trim()) {
         value.evidence = [value.op, value.who, value.where, value.activity, value.note]
