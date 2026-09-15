@@ -99,6 +99,33 @@ describe('active preset turn contract', () => {
     });
   });
 
+  it('honors the legacy VELLUM II Living World selector', () => {
+    const preset = {
+      id: 'vellum-ii',
+      name: 'VELLUM II',
+      prompt_order: [{
+        id: 'v2-world',
+        variables: [{
+          name: 'living_world', type: 'select', defaultValue: 'active',
+          options: [
+            { id: 'off', label: 'Off', value: 'off' },
+            { id: 'active', label: 'Active', value: 'active' },
+            { id: 'sandbox', label: 'Sandbox', value: 'sandbox' },
+          ],
+        }],
+      }, {
+        id: 'v2-state',
+        variables: [{ name: 'state_on', type: 'switch', defaultValue: 1 }],
+      }],
+    } as any;
+    const contract = resolveTurnContract(preset);
+    expect(contract).toMatchObject({ active: true, argent: false, livingWorld: 'active' });
+    expect(resolveTurnContractFromMessages(preset, [{
+      role: 'system',
+      content: '<!--VELLUM-EFFECTIVE {"state":1,"compiler":"inline"} -->',
+    }])).toMatchObject({ active: true, argent: false, livingWorld: 'active' });
+  });
+
   it('honors state and dialogue controls from the active preset', () => {
     expect(resolveTurnContract(argent({ state_on: 0, dialogue_color: 0, scene_header: 1, reasoning_route: 'silent' })))
       .toMatchObject({ state: false, reverie: false, dialogueColor: false, sceneHeader: true });

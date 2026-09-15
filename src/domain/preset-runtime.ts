@@ -284,7 +284,11 @@ export function resolveTurnContract(preset: PresetLike | null | undefined): Turn
     codex: argent && on(variableValue(preset, 'codex'), true),
     inventory: argent && on(variableValue(preset, 'inventory'), true),
     worldgen: argent && on(variableValue(preset, 'worldgen'), false),
-    livingWorld: argent ? livingWorldMode(variableValue(preset, 'living_world'), 'active') : 'off',
+    // VELLUM II's legacy inline preset also exposes the Living World selector.
+    // It is not an ARGENT preset, but its authored `delta.parallel` snapshots
+    // still need the selected reconciliation tier instead of being forced into
+    // the historical off mode.
+    livingWorld: livingWorldMode(variableValue(preset, 'living_world'), argent ? 'active' : 'off'),
     agency: argent ? agencyMode(variableValue(preset, 'agency'), 'protected') : 'protected',
   };
 }
@@ -318,7 +322,7 @@ export function resolveTurnContractFromMessages(
     next.codex = base.argent && on(marker.codex, base.codex);
     next.inventory = base.argent && on(marker.inventory, base.inventory);
     next.worldgen = base.argent && on(marker.worldgen, base.worldgen);
-    next.livingWorld = base.argent ? livingWorldMode(marker.livingWorld, base.livingWorld) : 'off';
+    next.livingWorld = base.argent ? livingWorldMode(marker.livingWorld, base.livingWorld) : base.livingWorld;
     next.agency = base.argent ? agencyMode(marker.agency, base.agency) : 'protected';
     return next;
   }

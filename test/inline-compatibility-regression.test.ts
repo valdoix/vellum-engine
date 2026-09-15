@@ -3,10 +3,13 @@ import { parseState } from '../src/parse/state-block.js';
 import { coreFeature } from '../src/domain/core-feature.js';
 import { freshState } from '../src/domain/types.js';
 import type { ExtractCtx } from '../src/bus/registry.js';
+import { registerFeature } from '../src/bus/registry.js';
+import { foldTurn } from '../src/bus/lifecycle.js';
 import { reduce } from '../src/core/reduce.js';
 import { DEFAULT_TONE } from '../src/domain/tone.js';
 
 const wrap = (value: unknown): string => `<vellum>${JSON.stringify(value)}</vellum>`;
+registerFeature(coreFeature);
 
 describe('inline VELLUM compatibility normalization', () => {
   it('hoists a misplaced delta.ext payload and preserves snapshot-style possession verbs', () => {
@@ -257,6 +260,63 @@ describe('inline VELLUM compatibility normalization', () => {
     expect(parsed.state?.delta?.offscreen).toEqual([
       expect.objectContaining({ id: 'gate_watch', name: 'Gate Watch', who: 'Ada', where: 'East Gate', gist: 'checks each arriving courier', nextTurn: 4 }),
     ]);
+  });
+
+  it('folds the legacy VELLUM II id/latest plot rows and id-keyed parallel snapshot', () => {
+    const block = {
+      scene: { title: 'Threshold', loc: 'Winters House', time: '23:02', clock: 1382 },
+      present: [{ id: 'Gabriel Winters' }, { id: 'Buffy Summers' }, { id: 'Ruth' }],
+      delta: {
+        threads: [{ id: 'thr_resurrection_aftermath', arc: 'thr_resurrection_aftermath', latest: 'Buffy accepts Gabriel\'s plan to find Dawn.' }],
+        arcs: [{ id: 'thr_buffy_s_return', latest: 'Buffy begins to surface through trauma.' }],
+        parallel: [
+          { id: 'Willow Rosenberg', where: 'Sunnydale cemetery', activity: 'Leading Tara away from the shattered urn' },
+          { id: 'Tara Maclay', where: 'Sunnydale cemetery', activity: 'Supporting Willow while fleeing' },
+          { id: 'Spike', where: 'Sunnydale streets', activity: 'Protecting Dawn from the Hellion raid' },
+          { id: 'Buffybot', where: 'Sunnydale streets', activity: 'Being dismantled by the Hellion gang' },
+          { id: 'Rupert Giles', where: 'England', activity: 'Processing grief after Buffy\'s death' },
+        ],
+      },
+    };
+    const parsed = parseState(wrap(block)).state!;
+
+    const state = freshState();
+    state.scene = { location: 'Winters House', time: '23:01', clock: 1381, tension: 4, weather: '', present: ['gabriel_winters', 'buffy_summers', 'ruth'], detail: [] };
+    state.cast = Object.fromEntries([
+      ['gabriel_winters', 'Gabriel Winters'], ['buffy_summers', 'Buffy Summers'], ['ruth', 'Ruth'],
+      ['willow_rosenberg', 'Willow Rosenberg'], ['tara_maclay', 'Tara Maclay'], ['spike', 'Spike'],
+      ['buffybot', 'Buffybot'], ['rupert_giles', 'Rupert Giles'],
+    ].map(([id, name]) => [id, { id, name, aka: [], status: id === 'gabriel_winters' || id === 'buffy_summers' || id === 'ruth' ? 'present' : 'active', source: 'auto', firstTurn: 1, lastTurn: 1, lastLocation: id === 'rupert_giles' ? 'England' : id === 'spike' || id === 'buffybot' ? 'Sunnydale streets' : 'Sunnydale cemetery', userEdited: false }]));
+    state.threads = [{ id: 'thr_resurrection_aftermath', name: 'Resurrection Aftermath', status: 'active', beats: ['Buffy is alive and disoriented.'], firstTurn: 1, lastTurn: 1 }];
+    state.arcs = [{ id: 'thr_buffy_s_return', name: "Buffy's Return", status: 'active', beats: ['Buffy has returned from death.'], firstTurn: 1, lastTurn: 1 }];
+    state.parallel = [
+      { who: 'willow_rosenberg', where: 'Sunnydale cemetery', activity: 'The ritual group prepares the urn', turn: 1, day: 0 },
+      { who: 'tara_maclay', where: 'Sunnydale cemetery', activity: 'Tara watches the ritual', turn: 1, day: 0 },
+      { who: 'spike', where: 'Sunnydale streets', activity: 'Spike patrols the block', turn: 1, day: 0 },
+      { who: 'buffybot', where: 'Sunnydale streets', activity: 'Buffybot patrols the streets', turn: 1, day: 0 },
+      { who: 'rupert_giles', where: 'England', activity: 'Giles reads the morning post', turn: 1, day: 0 },
+    ];
+
+    const folded = foldTurn(
+      `Buffy accepts Gabriel's plan to find Dawn. Buffy begins to surface through trauma.\n${wrap(block)}`,
+      state,
+      2,
+      { livingWorld: 'active' },
+    );
+    expect(folded.source).toBe('json');
+    const events = folded.events;
+    const next = reduce(events, structuredClone(state));
+
+    expect(events).toContainEqual(expect.objectContaining({ kind: 'thread.op', name: 'Resurrection Aftermath', note: "Buffy accepts Gabriel's plan to find Dawn." }));
+    expect(events).toContainEqual(expect.objectContaining({ kind: 'arc.op', name: "Buffy's Return", note: 'Buffy begins to surface through trauma.' }));
+    expect(next.threads.find(row => row.id === 'thr_resurrection_aftermath')?.beats).toContain("Buffy accepts Gabriel's plan to find Dawn.");
+    expect(next.arcs.find(row => row.id === 'thr_buffy_s_return')?.beats).toContain('Buffy begins to surface through trauma.');
+    expect(next.parallel).toEqual(expect.arrayContaining([
+      expect.objectContaining({ who: 'willow_rosenberg', activity: 'Leading Tara away from the shattered urn' }),
+      expect.objectContaining({ who: 'spike', activity: 'Protecting Dawn from the Hellion raid' }),
+      expect.objectContaining({ who: 'rupert_giles', where: 'England' }),
+    ]));
+    expect(next.parallel).toHaveLength(5);
   });
 
   it('materializes an inline arc, child thread, parallel row, and linked subplot in one pass', () => {

@@ -972,7 +972,15 @@ function normalizeBlock(obj: Record<string, unknown>): void {
     delta[key] = (delta[key] as unknown[]).flatMap((value) => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
       const row = value as Record<string, unknown>;
+      // Older VELLUM II blocks identify an existing track by its stable machine
+      // id and put the new condition in `latest`. Preserve that useful update
+      // instead of dropping the row for lacking the newer display-title fields.
+      // Keep the id as well as the fallback name: extraction needs the id to
+      // resolve the row back to the reducer's canonical display title.
+      const legacyId = str(row.id);
       adopt(row, 'name', ['title', key === 'threads' ? 'thread' : 'arc']);
+      if (!str(row.name) && legacyId) row.name = legacyId;
+      if (legacyId) row.id = legacyId;
       // Compiler-shaped inline rows often use `evidence` for the exact depicted
       // beat. Preserve it as the durable note instead of letting Zod strip the
       // only grounding text and the plot gate subsequently discard the row.
@@ -980,7 +988,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       // `proof` is the most concrete resulting condition; `summary` is a
       // usable fallback. Canonical note and the existing delta aliases still
       // win, so this never overwrites a correctly shaped plot mutation.
-      adopt(row, 'note', ['beat', 'gist', 'development', 'description', 'event', 'evidence', 'proof', 'summary']);
+      adopt(row, 'note', ['beat', 'gist', 'development', 'description', 'event', 'evidence', 'proof', 'summary', 'latest']);
       adopt(row, 'op', ['action', 'operation', 'status']);
       if (key === 'threads') adopt(row, 'arc', ['linkedArc', 'linked_arc', 'parentArc', 'parent_arc']);
       // Legacy rows often put the actual T1 beat in `event` and a status gloss
@@ -990,7 +998,7 @@ function normalizeBlock(obj: Record<string, unknown>): void {
       // Once folded into canonical note, compatibility-only proof/beat aliases
       // have no independent semantics. Remove them so diagnostics distinguish
       // genuinely unknown fields from successfully migrated ones.
-      for (const alias of ['beat', 'gist', 'development', 'description', 'event', 'evidence', 'proof', 'summary']) delete row[alias];
+      for (const alias of ['beat', 'gist', 'development', 'description', 'event', 'evidence', 'proof', 'summary', 'latest']) delete row[alias];
       const name = str(row.name);
       if (!name) return [];
       row.name = name;

@@ -42,4 +42,26 @@ describe('state-block parse robustness', () => {
     expect(r.state?.delta?.offscreen?.[0]?.grounding?.basis).toContain('character');
     expect(r.state?.delta?.offscreen?.[0]?.grounding?.basis).toContain('location');
   });
+
+  it('keeps legacy VELLUM II id/latest thread and arc updates', () => {
+    const r = parseState(J(JSON.stringify({
+      v: 4,
+      delta: {
+        threads: [{ id: 'thr_resurrection_aftermath', arc: 'thr_resurrection_aftermath', latest: 'Buffy has accepted Gabriel\'s plan to find Dawn.' }],
+        arcs: [{ id: 'thr_buffy_s_return', latest: 'Buffy is beginning to surface through trauma.' }],
+      },
+    })));
+
+    expect(r.source).toBe('json');
+    expect(r.state?.delta?.threads).toEqual([expect.objectContaining({
+      id: 'thr_resurrection_aftermath',
+      name: 'thr_resurrection_aftermath',
+      note: "Buffy has accepted Gabriel's plan to find Dawn.",
+    })]);
+    expect(r.state?.delta?.arcs).toEqual([expect.objectContaining({
+      id: 'thr_buffy_s_return',
+      name: 'thr_buffy_s_return',
+      note: 'Buffy is beginning to surface through trauma.',
+    })]);
+  });
 });

@@ -74,13 +74,15 @@ function inlineClaimSupported(claim: string, prose?: string): boolean {
  * but legacy model-written blocks still pass here. Refuse title drift, bare
  * status echoes, repeated beats, and notes with no concrete support in prose. */
 function inlinePlotChange(
-  row: { op: string; name: string; note?: string; prior?: string },
-  prior: Array<{ name: string; status: string; beats: string[] }>,
+  row: { op: string; id?: string; name: string; note?: string; prior?: string },
+  prior: Array<{ id: string; name: string; status: string; beats: string[] }>,
   state: ExtractCtx['state'],
   prose?: string,
 ): boolean {
   const note = String(row.note ?? '').trim();
-  const target = prior.find(track => plotTitleKey(track.name) === plotTitleKey(row.name));
+  const target = (row.id ? resolvePlotRef(prior, row.id) : undefined)
+    ?? prior.find(track => plotTitleKey(track.name) === plotTitleKey(row.name));
+  const stableIdMatch = !!row.id && !!resolvePlotRef(prior, row.id);
   if (row.op === 'new') {
     if (target) return false;
     const title = inlinePlotTokens(row.name, state);
@@ -104,7 +106,11 @@ function inlinePlotChange(
     const claimedPrior = inlinePlotTokens(String(row.prior ?? ''), state);
     const priorAnchored = claimedPrior.size > 0 && anchors.size > 0
       && plotSetsOverlap(claimedPrior, anchors);
-    if (!beatContinuesTrack && !priorAnchored) return false;
+    // Legacy VELLUM II rows identify the track by stable id and use a machine id
+    // as the only title. Once that id resolves to an existing track, the title
+    // token overlap check is no longer useful; the changed note still has to be
+    // distinct and, when prose exists, materially supported below.
+    if (!beatContinuesTrack && !priorAnchored && !stableIdMatch) return false;
   }
   // A block-only compatibility response has no separate prose to corroborate
   // against. Its concrete note still passed the title/track gate above, so do
@@ -124,7 +130,8 @@ function plannedTrackRefs(prior: ExtractCtx['state']['threads'], rows: readonly 
     refs.set(plotTitleKey(track.name), track.id);
   }
   for (const row of rows) {
-    let track = planned.find(item => sameTrack(item.name, row.name));
+    let track = row.id ? resolvePlotRef(planned, row.id) : undefined;
+    if (!track) track = planned.find(item => sameTrack(item.name, row.name));
     if (!track) {
       const base = `thr_${canonId(row.name)}`;
       let id = base; let suffix = 2;
@@ -423,8 +430,8 @@ export const coreFeature: Feature = {
     // This preserves the strict no-title-guessing gate while preventing a real
     // arc update from being silently discarded.
     const misplacedArcRows = suppliedThreadRows.filter(row =>
-      !ctx.state.threads.some(track => plotTitleKey(track.name) === plotTitleKey(row.name))
-      && ctx.state.arcs.some(track => plotTitleKey(track.name) === plotTitleKey(row.name)));
+      !resolvePlotRef(ctx.state.threads, row.id ?? row.name)
+      && !!resolvePlotRef(ctx.state.arcs, row.id ?? row.name));
     const misplacedArcSet = new Set(misplacedArcRows);
     const threadRows = suppliedThreadRows.filter(row => !misplacedArcSet.has(row));
     const explicitArcRows = [...(parsed.delta?.arcs ?? []), ...misplacedArcRows];
@@ -469,17 +476,19 @@ export const coreFeature: Feature = {
     const threadRefs = plannedTrackRefs(ctx.state.threads, acceptedThreads);
     const arcRefs = plannedTrackRefs(ctx.state.arcs, acceptedArcs);
     const resolveRef = (refs: ReadonlyMap<string, string>, raw?: string): string | undefined => raw ? refs.get(raw.trim().toLocaleLowerCase()) : undefined;
+    const canonicalName = (rows: readonly { id: string; name: string }[], row: { id?: string; name: string }): string =>
+      resolvePlotRef(rows, row.id ?? row.name)?.name ?? row.name;
     // Parent arcs are emitted first; subsequent thread.set events can then link
     // both existing and same-pass threads to a real canonical arc id.
     for (const a of acceptedArcs) {
-      out.push({ ...base(), kind: 'arc.op', op: a.op, name: a.name, ...(a.note ? { note: a.note } : {}), ...(a.milestone ? { milestone: a.milestone } : {}), ...(a.dependsOn !== undefined ? { dependsOn: a.dependsOn } : {}), ...(a.blockedBy !== undefined ? { blockedBy: a.blockedBy } : {}), ...(a.deadlineDay !== undefined ? { deadlineDay: a.deadlineDay } : {}), ...(a.deadlineClock !== undefined ? { deadlineClock: a.deadlineClock } : {}) } as VellumEvent);
+      out.push({ ...base(), kind: 'arc.op', op: a.op, name: canonicalName(ctx.state.arcs, a), ...(a.note ? { note: a.note } : {}), ...(a.milestone ? { milestone: a.milestone } : {}), ...(a.dependsOn !== undefined ? { dependsOn: a.dependsOn } : {}), ...(a.blockedBy !== undefined ? { blockedBy: a.blockedBy } : {}), ...(a.deadlineDay !== undefined ? { deadlineDay: a.deadlineDay } : {}), ...(a.deadlineClock !== undefined ? { deadlineClock: a.deadlineClock } : {}) } as VellumEvent);
     }
     const explicitSubplotIds = new Set((parsed.delta?.offscreen ?? []).map(row => row.id));
     for (const t of acceptedThreads) {
-      out.push({ ...base(), kind: 'thread.op', op: t.op, name: t.name, ...(t.note ? { note: t.note } : {}), ...(t.milestone ? { milestone: t.milestone } : {}), ...(t.dependsOn !== undefined ? { dependsOn: t.dependsOn } : {}), ...(t.blockedBy !== undefined ? { blockedBy: t.blockedBy } : {}), ...(t.deadlineDay !== undefined ? { deadlineDay: t.deadlineDay } : {}), ...(t.deadlineClock !== undefined ? { deadlineClock: t.deadlineClock } : {}) } as VellumEvent);
+      out.push({ ...base(), kind: 'thread.op', op: t.op, name: canonicalName(ctx.state.threads, t), ...(t.note ? { note: t.note } : {}), ...(t.milestone ? { milestone: t.milestone } : {}), ...(t.dependsOn !== undefined ? { dependsOn: t.dependsOn } : {}), ...(t.blockedBy !== undefined ? { blockedBy: t.blockedBy } : {}), ...(t.deadlineDay !== undefined ? { deadlineDay: t.deadlineDay } : {}), ...(t.deadlineClock !== undefined ? { deadlineClock: t.deadlineClock } : {}) } as VellumEvent);
       const parentArc = resolveRef(arcRefs, t.arc);
       const stableThread = resolveRef(threadRefs, t.id ?? t.name);
-      if (parentArc && stableThread) out.push({ ...base(), kind: 'thread.set', id: stableThread, name: t.name, arc: parentArc } as VellumEvent);
+      if (parentArc && stableThread) out.push({ ...base(), kind: 'thread.set', id: stableThread, name: canonicalName(ctx.state.threads, t), arc: parentArc } as VellumEvent);
       // Close the subplot -> thread -> foreground loop. A grounded on-screen
       // change to an exact tracked thread is also the newest beat of every
       // explicitly linked off-screen subplot; resolution retires it. This stops
@@ -514,7 +523,7 @@ export const coreFeature: Feature = {
       if (!stableThread || !parentArc) continue;
       const thread = acceptedThreads.find(row => resolveRef(threadRefs, row.id ?? row.name) === stableThread)
         ?? ctx.state.threads.find(row => row.id === stableThread);
-      if (thread) out.push({ ...base(), kind: 'thread.set', id: stableThread, name: thread.name, arc: parentArc } as VellumEvent);
+      if (thread) out.push({ ...base(), kind: 'thread.set', id: stableThread, name: canonicalName(ctx.state.threads, thread), arc: parentArc } as VellumEvent);
     }
 
     // per-character memory journal entries
